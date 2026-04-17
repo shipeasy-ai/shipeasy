@@ -14,6 +14,7 @@ import { TOOLS } from "./tools/schema.js";
 import { PROMPTS, PROMPT_BODIES } from "./prompts/schema.js";
 import { RESOURCE_TEMPLATES } from "./resources/schema.js";
 import { handleAuthCheck, handleAuthLogout } from "./tools/shared/auth.js";
+import { handleDetectProject } from "./tools/shared/detect-project.js";
 
 const SERVER_NAME = "shipeasy";
 const SERVER_VERSION = "0.1.0";
@@ -46,6 +47,11 @@ export async function startStdioServer(): Promise<void> {
 
     // Real handlers for the auth-surface tools — everything else is still a stub
     // pointing at packages/mcp/README.md § "Tool catalog".
+    if (toolName === "detect_project") {
+      const args = params.arguments ?? {};
+      const input = (args.paths as string[] | undefined) ?? (args.path as string | undefined);
+      return handleDetectProject(input);
+    }
     if (toolName === "auth_check") return handleAuthCheck();
     if (toolName === "auth_logout") return handleAuthLogout();
     if (toolName === "auth_login") {

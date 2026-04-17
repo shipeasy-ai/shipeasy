@@ -20,8 +20,12 @@ export const TOOLS: Tool[] = [
       properties: {
         path: {
           type: "string",
-          description:
-            "Directory to analyze. Defaults to cwd. Sandboxed via realpath — paths outside the requested root are rejected.",
+          description: "Single directory to analyze. Defaults to cwd.",
+        },
+        paths: {
+          type: "array",
+          items: { type: "string" },
+          description: "Multiple directories to analyze in one call. Takes precedence over path.",
         },
       },
     },

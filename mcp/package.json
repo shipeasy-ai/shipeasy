@@ -15,16 +15,19 @@
     "build": "tsc -p tsconfig.json",
     "dev": "tsx src/index.ts",
     "type-check": "tsc --noEmit",
+    "test": "vitest run",
     "start": "node bin/mcp.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "package-manager-detector": "^1.6.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/node": "^20.19.39",
     "tsx": "^4.19.0",
-    "typescript": "^5.7.4"
+    "typescript": "^5.7.4",
+    "vitest": "^2.1.9"
   },
   "engines": {
     "node": ">=20"
