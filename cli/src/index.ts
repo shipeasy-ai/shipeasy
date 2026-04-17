@@ -3,10 +3,7 @@ import { Command } from "commander";
 
 const program = new Command();
 
-program
-  .name("shipeasy")
-  .description("CLI for the ShipEasy experiment platform")
-  .version("1.0.0");
+program.name("shipeasy").description("CLI for the ShipEasy experiment platform").version("1.0.0");
 
 program
   .command("login")

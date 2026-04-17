@@ -2,8 +2,13 @@
   "name": "@shipeasy/cli",
   "version": "1.0.0",
   "description": "CLI for the ShipEasy experiment platform",
-  "bin": { "shipeasy": "./bin/shipeasy.js" },
-  "files": ["dist/", "bin/"],
+  "bin": {
+    "shipeasy": "./bin/shipeasy.js"
+  },
+  "files": [
+    "dist/",
+    "bin/"
+  ],
   "scripts": {
     "build": "tsup src/index.ts --format cjs --dts",
     "dev": "ts-node src/index.ts",
@@ -24,5 +29,7 @@
     "tsup": "^8.3.0",
     "typescript": "^5.7.4"
   },
-  "engines": { "node": ">=18" }
+  "engines": {
+    "node": ">=18"
+  }
 }
