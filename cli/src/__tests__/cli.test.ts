@@ -20,11 +20,54 @@ describe("shipeasy CLI", () => {
     await expect(import("../index")).resolves.toBeDefined();
   });
 
-  it("does not throw when the login subcommand is invoked", async () => {
+  it("logout subcommand runs without throwing", async () => {
     vi.resetModules();
-    process.argv = ["node", "shipeasy", "login"];
+    process.argv = ["node", "shipeasy", "logout"];
     const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     await expect(import("../index")).resolves.toBeDefined();
+    consoleSpy.mockRestore();
+  });
+
+  it("whoami shows not-logged-in message when no credentials", async () => {
+    vi.resetModules();
+    process.argv = ["node", "shipeasy", "whoami"];
+    // Mock loadCredentials to return null
+    vi.doMock("../auth/storage", () => ({
+      loadCredentials: () => null,
+      saveCredentials: () => {},
+      clearCredentials: () => {},
+    }));
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    await expect(import("../index")).resolves.toBeDefined();
+    consoleSpy.mockRestore();
+  });
+
+  it("flags list exits with error when not logged in", async () => {
+    vi.resetModules();
+    process.argv = ["node", "shipeasy", "flags", "list"];
+    vi.doMock("../auth/storage", () => ({
+      loadCredentials: () => null,
+      saveCredentials: () => {},
+      clearCredentials: () => {},
+    }));
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    await import("../index");
+    // Give async actions time to run
+    await new Promise((r) => setTimeout(r, 50));
+    consoleSpy.mockRestore();
+  });
+
+  it("experiments list exits with error when not logged in", async () => {
+    vi.resetModules();
+    process.argv = ["node", "shipeasy", "experiments", "list"];
+    vi.doMock("../auth/storage", () => ({
+      loadCredentials: () => null,
+      saveCredentials: () => {},
+      clearCredentials: () => {},
+    }));
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    await import("../index");
+    await new Promise((r) => setTimeout(r, 50));
     consoleSpy.mockRestore();
   });
 });
