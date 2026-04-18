@@ -4,6 +4,8 @@ import { login } from "./auth/login";
 import { clearCredentials, loadCredentials } from "./auth/storage";
 import { flagsCommand } from "./commands/flags";
 import { experimentsCommand } from "./commands/experiments";
+import { scanCommand } from "./commands/scan";
+import { i18nCommand } from "./commands/i18n";
 
 const program = new Command();
 
@@ -12,15 +14,10 @@ program.name("shipeasy").description("CLI for the ShipEasy experiment platform")
 program
   .command("login")
   .description("Authenticate via PKCE device flow")
-  .option("--api-url <url>", "Admin UI URL", "http://localhost:3000")
-  .option("--worker-url <url>", "Worker URL", "http://localhost:8787")
-  .option("--project <id>", "Project ID (auto-detected from auth)")
+  .option("--worker-url <url>", "Edge worker URL (default: https://cdn.shipeasy.ai)")
+  .option("--app-url <url>", "Admin app URL (default: https://shipeasy.ai)")
   .action(async (opts) => {
-    await login({
-      apiUrl: opts.apiUrl,
-      workerUrl: opts.workerUrl,
-      projectId: opts.project,
-    }).catch((err: unknown) => {
+    await login({ workerUrl: opts.workerUrl, appUrl: opts.appUrl }).catch((err: unknown) => {
       console.error("Login failed:", String(err));
       process.exit(1);
     });
@@ -44,15 +41,15 @@ program
       return;
     }
     console.log(`Project:    ${creds.project_id}`);
-    console.log(`API URL:    ${creds.api_url}`);
-    console.log(`Saved at:   ${creds.saved_at}`);
-    if (creds.expires_at) {
-      const daysLeft = Math.ceil((new Date(creds.expires_at).getTime() - Date.now()) / 86_400_000);
-      console.log(`Expires in: ${daysLeft} day(s)`);
-    }
+    if (creds.user_email) console.log(`Email:      ${creds.user_email}`);
+    console.log(`Worker URL: ${creds.api_base_url}`);
+    console.log(`App URL:    ${creds.app_base_url}`);
+    console.log(`Saved at:   ${creds.created_at}`);
   });
 
 flagsCommand(program);
 experimentsCommand(program);
+scanCommand(program);
+i18nCommand(program);
 
 program.parse(process.argv);

@@ -11,7 +11,7 @@
   ],
   "scripts": {
     "build": "tsup src/index.ts --format cjs --dts",
-    "dev": "ts-node src/index.ts",
+    "dev": "tsx src/index.ts",
     "type-check": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -22,11 +22,12 @@
     "conf": "^13.0.0",
     "open": "^10.1.0",
     "ora": "^8.1.0",
+    "package-manager-detector": "^1.6.0",
     "zod": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.19.39",
-    "ts-node": "^10.9.0",
+    "tsx": "^4.19.0",
     "tsup": "^8.3.0",
     "typescript": "^5.7.4",
     "vitest": "^2.1.0"

@@ -10,35 +10,20 @@ export class ApiError extends Error {
   }
 }
 
-function checkExpiry(expiresAt: string | undefined): void {
-  if (!expiresAt) return;
-  const daysLeft = (new Date(expiresAt).getTime() - Date.now()) / 86_400_000;
-  if (daysLeft <= 0) {
-    console.error("Session expired. Run: shipeasy login");
-    process.exit(1);
-  }
-  if (daysLeft <= 7) {
-    process.stderr.write(
-      `Warning: session expires in ${Math.ceil(daysLeft)} day(s). Run: shipeasy login\n`,
-    );
-  }
-}
-
 export function getApiClient(projectOverride?: string) {
   const creds = loadCredentials();
   if (!creds) {
     console.error("Not logged in. Run: shipeasy login");
     process.exit(1);
   }
-  checkExpiry(creds.expires_at);
   const projectId = projectOverride ?? creds.project_id;
-  const baseUrl = creds.api_url.replace(/\/$/, "");
+  const baseUrl = creds.app_base_url.replace(/\/$/, "");
 
   async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
     const res = await fetch(`${baseUrl}${path}`, {
       method,
       headers: {
-        "X-SDK-Key": creds!.token,
+        "X-SDK-Key": creds!.cli_token,
         "Content-Type": "application/json",
         "X-Project-Id": projectId,
       },

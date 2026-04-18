@@ -2,35 +2,41 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-export interface Credentials {
-  token: string;
+export interface ShipeasyConfig {
   project_id: string;
-  api_url: string;
-  worker_url: string;
-  saved_at: string;
-  expires_at?: string;
+  cli_token: string;
+  api_base_url: string;
+  app_base_url: string;
+  user_email?: string;
+  created_at: string;
 }
 
-const CONFIG_DIR = path.join(os.homedir(), ".shipeasy");
-const CREDS_PATH = path.join(CONFIG_DIR, "credentials.json");
+function configPath(): string {
+  const xdg = process.env.XDG_CONFIG_HOME;
+  const root = xdg ? xdg : path.join(os.homedir(), ".config");
+  return path.join(root, "shipeasy", "config.json");
+}
 
-export function loadCredentials(): Credentials | null {
+export function loadCredentials(): ShipeasyConfig | null {
   try {
-    const raw = fs.readFileSync(CREDS_PATH, "utf-8");
-    return JSON.parse(raw) as Credentials;
+    const raw = fs.readFileSync(configPath(), "utf-8");
+    const parsed = JSON.parse(raw) as ShipeasyConfig;
+    if (!parsed.project_id || !parsed.cli_token) return null;
+    return parsed;
   } catch {
     return null;
   }
 }
 
-export function saveCredentials(creds: Credentials): void {
-  fs.mkdirSync(CONFIG_DIR, { recursive: true });
-  fs.writeFileSync(CREDS_PATH, JSON.stringify(creds, null, 2), { mode: 0o600 });
+export function saveCredentials(creds: ShipeasyConfig): void {
+  const p = configPath();
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, JSON.stringify(creds, null, 2) + "\n", { mode: 0o600 });
 }
 
 export function clearCredentials(): void {
   try {
-    fs.unlinkSync(CREDS_PATH);
+    fs.unlinkSync(configPath());
   } catch {
     // already gone
   }
