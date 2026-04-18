@@ -1,7 +1,4 @@
-// NOTE: This codemod uses regex-based transforms, not a full AST.
-// This means edge cases (e.g. multi-line JSX, nested quotes in JSX text) may
-// not be handled perfectly. Review the generated diff carefully before applying.
-
+import ts from "typescript";
 import { readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, extname } from "node:path";
@@ -10,22 +7,40 @@ import { ok, apiErr } from "../../util/api-client.js";
 
 const TRANSLATABLE_EXTENSIONS = new Set([".tsx", ".jsx"]);
 
-// Matches JSX text content: >Some text here< (4+ chars, no tags/braces/newlines)
-const JSX_TEXT_RE = />([^<>{}\n]{4,})</g;
-// Matches string props that look like UI copy
-const STRING_PROP_RE =
-  /(?:label|title|placeholder|description|alt|aria-label)=["']([^"']{4,})["']/gi;
-// Already wrapped check
-const T_CALL_RE = /\bt\(\s*["'`]/;
-// useShipEasyI18n import already present
-const I18N_IMPORT_RE = /useShipEasyI18n/;
+const TRANSLATABLE_ATTR_NAMES = new Set([
+  "label",
+  "title",
+  "placeholder",
+  "description",
+  "alt",
+  "aria-label",
+  "caption",
+  "heading",
+  "tooltip",
+  "helperText",
+  "errorMessage",
+]);
+
+// ── helpers ──────────────────────────────────────────────────────────────────
 
 function slugify(text: string): string {
   return text
+    .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "")
     .slice(0, 60);
+}
+
+function isTranslatableText(text: string): boolean {
+  const t = text.trim();
+  if (t.length < 3) return false;
+  if (!/[a-zA-Z]/.test(t)) return false; // must contain a letter
+  if (/^https?:\/\//.test(t)) return false; // skip URLs
+  if (/^[\d\s.,/$%@#!^&*()\[\]{};:]+$/.test(t)) return false; // pure symbols/numbers
+  // skip short all-lowercase tokens that look like identifiers (e.g. "sm", "lg", "px")
+  if (/^[a-z][a-z0-9-]*$/.test(t) && t.length <= 5) return false;
+  return true;
 }
 
 async function walkFiles(dir: string, files: string[] = []): Promise<string[]> {
@@ -43,43 +58,145 @@ async function walkFiles(dir: string, files: string[] = []): Promise<string[]> {
   return files;
 }
 
-interface StringReplacement {
+// ── AST transform ─────────────────────────────────────────────────────────────
+
+interface Replacement {
+  pos: number;
+  end: number;
+  replacement: string;
   key: string;
   value: string;
 }
 
-interface FileDiff {
-  file: string;
-  diff: string;
-  strings: StringReplacement[];
+function findReplacements(source: string, filePath: string, keyPrefix?: string): Replacement[] {
+  const scriptKind = filePath.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.JSX;
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    source,
+    ts.ScriptTarget.Latest,
+    /* setParentNodes */ true,
+    scriptKind,
+  );
+
+  const replacements: Replacement[] = [];
+  const seenPos = new Set<number>();
+
+  function key(raw: string): string {
+    const k = slugify(raw);
+    return keyPrefix ? `${keyPrefix}_${k}` : k;
+  }
+
+  function visit(node: ts.Node): void {
+    // ── JsxText: bare text between JSX tags ──────────────────────────────
+    if (ts.isJsxText(node)) {
+      const rawText = source.slice(node.pos, node.end);
+      const trimmed = rawText.trim();
+      if (isTranslatableText(trimmed) && !trimmed.includes('t("') && !seenPos.has(node.pos)) {
+        const k = key(trimmed);
+        if (k) {
+          seenPos.add(node.pos);
+          const leading = rawText.match(/^(\s*)/)?.[1] ?? "";
+          const trailing = rawText.match(/(\s*)$/)?.[1] ?? "";
+          replacements.push({
+            pos: node.pos,
+            end: node.end,
+            replacement: `${leading}{t("${k}")}${trailing}`,
+            key: k,
+            value: trimmed,
+          });
+        }
+      }
+    }
+
+    // ── JsxAttribute with StringLiteral value ────────────────────────────
+    if (ts.isJsxAttribute(node)) {
+      const attrName = node.name.getText(sourceFile).toLowerCase();
+      if (TRANSLATABLE_ATTR_NAMES.has(attrName)) {
+        const init = node.initializer;
+        if (init && ts.isStringLiteral(init)) {
+          const value = init.text; // full decoded string, handles escapes + embedded quotes
+          const start = init.getStart(sourceFile);
+          if (isTranslatableText(value) && !seenPos.has(start)) {
+            const k = key(value);
+            if (k) {
+              seenPos.add(start);
+              replacements.push({
+                pos: start,
+                end: init.getEnd(),
+                replacement: `{t("${k}")}`,
+                key: k,
+                value,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  }
+
+  visit(sourceFile);
+  return replacements;
 }
+
+function applyReplacements(source: string, replacements: Replacement[]): string {
+  // Sort descending by position so earlier replacements don't shift later offsets
+  const sorted = [...replacements].sort((a, b) => b.pos - a.pos);
+  let result = source;
+  for (const r of sorted) {
+    result = result.slice(0, r.pos) + r.replacement + result.slice(r.end);
+  }
+  return result;
+}
+
+function addI18nImport(source: string): string {
+  if (/useShipEasyI18n/.test(source)) return source;
+
+  const sf = ts.createSourceFile(
+    "_tmp.tsx",
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  let lastImportEnd = 0;
+  for (const stmt of sf.statements) {
+    if (ts.isImportDeclaration(stmt)) {
+      lastImportEnd = stmt.getEnd();
+    } else if (lastImportEnd > 0) {
+      break;
+    }
+  }
+
+  const insert =
+    `\nimport { useShipEasyI18n } from "@shipeasy/i18n-react";` +
+    `\n// TODO: add \`const { t } = useShipEasyI18n();\` inside your component`;
+
+  if (lastImportEnd === 0) return insert + "\n" + source;
+  return source.slice(0, lastImportEnd) + insert + source.slice(lastImportEnd);
+}
+
+// ── diff builder ──────────────────────────────────────────────────────────────
 
 function buildDiff(file: string, original: string, modified: string): string {
   const origLines = original.split("\n");
   const modLines = modified.split("\n");
-
   const hunks: string[] = [];
+  const maxLen = Math.max(origLines.length, modLines.length);
+
   let i = 0;
-  while (i < origLines.length || i < modLines.length) {
-    const origLine = origLines[i] ?? "";
-    const modLine = modLines[i] ?? "";
-    if (origLine !== modLine) {
+  while (i < maxLen) {
+    if ((origLines[i] ?? "") !== (modLines[i] ?? "")) {
       const hunkStart = Math.max(0, i - 2);
-      const hunkLines: string[] = [`@@ -${i + 1} +${i + 1} @@`];
-      // context before
-      for (let c = hunkStart; c < i; c++) {
-        hunkLines.push(` ${origLines[c] ?? ""}`);
+      const lines: string[] = [`@@ -${i + 1} +${i + 1} @@`];
+      for (let c = hunkStart; c < i; c++) lines.push(` ${origLines[c] ?? ""}`);
+      lines.push(`-${origLines[i] ?? ""}`);
+      lines.push(`+${modLines[i] ?? ""}`);
+      for (let c = i + 1; c < Math.min(i + 3, maxLen); c++) {
+        if ((origLines[c] ?? "") === (modLines[c] ?? "")) lines.push(` ${origLines[c] ?? ""}`);
       }
-      hunkLines.push(`-${origLine}`);
-      hunkLines.push(`+${modLine}`);
-      // context after
-      for (let c = i + 1; c < Math.min(i + 3, Math.max(origLines.length, modLines.length)); c++) {
-        const ctxLine = origLines[c] ?? modLines[c] ?? "";
-        if (origLines[c] === modLines[c]) {
-          hunkLines.push(` ${ctxLine}`);
-        }
-      }
-      hunks.push(hunkLines.join("\n"));
+      hunks.push(lines.join("\n"));
     }
     i++;
   }
@@ -88,60 +205,27 @@ function buildDiff(file: string, original: string, modified: string): string {
   return `--- a/${file}\n+++ b/${file}\n${hunks.join("\n")}`;
 }
 
-function transformFile(
-  content: string,
-  keyPrefix: string | undefined,
-): { modified: string; strings: StringReplacement[] } {
-  const strings: StringReplacement[] = [];
-  let modified = content;
+// ── transform entry (shared by preview + apply) ───────────────────────────────
 
-  // Replace JSX text: >Text< → >{t("key")}<
-  // Only if not already wrapped in {t(
-  modified = modified.replace(JSX_TEXT_RE, (match, text: string) => {
-    const trimmed = text.trim();
-    if (!trimmed || T_CALL_RE.test(match)) return match;
-    // Skip purely whitespace or numeric content
-    if (/^\s*$/.test(trimmed) || /^\d+$/.test(trimmed)) return match;
-    const rawKey = slugify(trimmed);
-    if (!rawKey) return match;
-    const key = keyPrefix ? `${keyPrefix}_${rawKey}` : rawKey;
-    strings.push({ key, value: trimmed });
-    return `>{t("${key}")}<`;
-  });
-
-  // Replace string props: label="Text" → label={t("key")}
-  modified = modified.replace(STRING_PROP_RE, (match, text: string) => {
-    if (!text || T_CALL_RE.test(match)) return match;
-    const rawKey = slugify(text);
-    if (!rawKey) return match;
-    const key = keyPrefix ? `${keyPrefix}_${rawKey}` : rawKey;
-    // Determine which attr name was matched
-    const attrMatch = /^(\w[\w-]*)=/.exec(match);
-    const attr = attrMatch?.[1] ?? match.split("=")[0];
-    strings.push({ key, value: text });
-    return `${attr}={t("${key}")}`;
-  });
-
-  // If we made replacements and the import isn't already present, add it
-  if (strings.length > 0 && !I18N_IMPORT_RE.test(modified)) {
-    // Find the last import line
-    const lines = modified.split("\n");
-    let lastImportIdx = -1;
-    for (let i = 0; i < lines.length; i++) {
-      if (/^import\s/.test(lines[i]!)) lastImportIdx = i;
-    }
-    const importLine = `import { useShipEasyI18n } from "@shipeasy/i18n-react";`;
-    const todoComment = `// TODO: add const { t } = useShipEasyI18n(); inside your component`;
-    if (lastImportIdx >= 0) {
-      lines.splice(lastImportIdx + 1, 0, importLine, todoComment);
-    } else {
-      lines.unshift(importLine, todoComment);
-    }
-    modified = lines.join("\n");
-  }
-
-  return { modified, strings };
+interface TransformResult {
+  modified: string;
+  strings: { key: string; value: string }[];
 }
+
+function transformFile(content: string, filePath: string, keyPrefix?: string): TransformResult {
+  const replacements = findReplacements(content, filePath, keyPrefix);
+  if (replacements.length === 0) return { modified: content, strings: [] };
+
+  let modified = applyReplacements(content, replacements);
+  modified = addI18nImport(modified);
+
+  return {
+    modified,
+    strings: replacements.map((r) => ({ key: r.key, value: r.value })),
+  };
+}
+
+// ── public handlers ───────────────────────────────────────────────────────────
 
 export async function handleCodemodPreview(input: {
   framework: string;
@@ -153,14 +237,14 @@ export async function handleCodemodPreview(input: {
     const allFiles: string[] = [];
     for (const p of input.files) await walkFiles(p, allFiles);
 
-    const diffs: FileDiff[] = [];
+    const diffs = [];
     let totalStrings = 0;
 
     for (const file of allFiles) {
       const original = await readFile(file, "utf8").catch(() => "");
       if (!original) continue;
 
-      const { modified, strings } = transformFile(original, input.key_prefix);
+      const { modified, strings } = transformFile(original, file, input.key_prefix);
       if (strings.length === 0) continue;
 
       totalStrings += strings.length;
@@ -168,11 +252,7 @@ export async function handleCodemodPreview(input: {
       diffs.push({ file, diff, strings });
     }
 
-    return ok({
-      files_changed: diffs.length,
-      total_strings: totalStrings,
-      diffs,
-    });
+    return ok({ files_changed: diffs.length, total_strings: totalStrings, diffs });
   } catch (err) {
     return apiErr(err);
   }
@@ -199,19 +279,15 @@ export async function handleCodemodApply(input: {
       const original = await readFile(file, "utf8").catch(() => "");
       if (!original) continue;
 
-      const { modified, strings } = transformFile(original, input.key_prefix);
+      const { modified, strings } = transformFile(original, file, input.key_prefix);
       if (strings.length === 0) continue;
 
       await writeFile(file, modified, "utf8");
       filesChanged++;
       totalStrings += strings.length;
-
-      for (const s of strings) {
-        reviewData[s.key] = s.value;
-      }
+      for (const s of strings) reviewData[s.key] = s.value;
     }
 
-    // Write the review JSON to cwd
     const reviewFile = join(process.cwd(), "i18n-codemod-review.json");
     await writeFile(reviewFile, JSON.stringify(reviewData, null, 2) + "\n", "utf8");
 
