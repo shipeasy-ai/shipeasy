@@ -253,14 +253,37 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "i18n_push_keys",
-    description: "Bulk upload a JSON file of label keys to a chunk.",
+    description:
+      "Bulk upload keys to a profile chunk. Pass 'source: codemod' to read from i18n-codemod-review.json, or 'file' for any {key: value} JSON file.",
     inputSchema: {
       type: "object",
-      required: ["profile", "chunk", "file"],
+      required: ["profile"],
       properties: {
         profile: { type: "string" },
-        chunk: { type: "string" },
+        chunk: { type: "string", description: "Chunk name (default: 'default')" },
         file: { type: "string", description: "Path to local JSON file of {key: value} pairs." },
+        source: {
+          type: "string",
+          enum: ["codemod"],
+          description: "Read keys from i18n-codemod-review.json",
+        },
+        path: { type: "string", description: "Project root when source=codemod (defaults to cwd)" },
+      },
+    },
+  },
+  {
+    name: "i18n_create_key",
+    description:
+      "Create or update a single key in a profile. Use for adding descriptions to existing keys.",
+    inputSchema: {
+      type: "object",
+      required: ["profile", "key", "value"],
+      properties: {
+        profile: { type: "string" },
+        key: { type: "string" },
+        value: { type: "string" },
+        description: { type: "string" },
+        chunk: { type: "string" },
       },
     },
   },
@@ -351,6 +374,7 @@ export const TOOLS: Tool[] = [
       properties: {
         profile: { type: "string" },
         framework: { type: "string" },
+        path: { type: "string", description: "Project root directory (defaults to cwd)" },
       },
     },
   },

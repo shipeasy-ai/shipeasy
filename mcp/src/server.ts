@@ -15,6 +15,24 @@ import { PROMPTS, PROMPT_BODIES } from "./prompts/schema.js";
 import { RESOURCE_TEMPLATES } from "./resources/schema.js";
 import { handleAuthCheck, handleAuthLogout } from "./tools/shared/auth.js";
 import { handleDetectProject } from "./tools/shared/detect-project.js";
+import { handleListResources } from "./tools/shared/list-resources.js";
+import { handleGetResource } from "./tools/shared/get-resource.js";
+import { handleGetSdkSnippet } from "./tools/shared/sdk-snippet.js";
+import { handleInstallLoader } from "./tools/i18n/loader.js";
+import { handleCreateProfile } from "./tools/i18n/profiles.js";
+import { handlePushKeys, handleCreateKey, handleValidateKeys } from "./tools/i18n/keys.js";
+import { handleScanCode } from "./tools/i18n/scan.js";
+import { handlePublishProfile } from "./tools/i18n/publish.js";
+import { handleDiscoverSite } from "./tools/i18n/discover.js";
+import { handleCodemodPreview, handleCodemodApply } from "./tools/i18n/codemod.js";
+import {
+  handleCreateGate,
+  handleCreateConfig,
+  handleCreateExperiment,
+  handleStartExperiment,
+  handleStopExperiment,
+  handleExperimentStatus,
+} from "./tools/exp/index.js";
 
 const SERVER_NAME = "shipeasy";
 const SERVER_VERSION = "0.1.0";
@@ -54,6 +72,86 @@ export async function startStdioServer(): Promise<void> {
     }
     if (toolName === "auth_check") return handleAuthCheck();
     if (toolName === "auth_logout") return handleAuthLogout();
+    if (toolName === "list_resources") {
+      const args = params.arguments ?? {};
+      return handleListResources(args as Parameters<typeof handleListResources>[0]);
+    }
+    if (toolName === "i18n_create_profile") {
+      const args = (params.arguments ?? {}) as { name: string };
+      return handleCreateProfile(args);
+    }
+    if (toolName === "i18n_push_keys") {
+      const args = params.arguments ?? {};
+      return handlePushKeys(args as Parameters<typeof handlePushKeys>[0]);
+    }
+    if (toolName === "i18n_create_key") {
+      const args = params.arguments ?? {};
+      return handleCreateKey(args as Parameters<typeof handleCreateKey>[0]);
+    }
+    if (toolName === "i18n_validate_keys") {
+      const args = params.arguments ?? {};
+      return handleValidateKeys(args as Parameters<typeof handleValidateKeys>[0]);
+    }
+    if (toolName === "i18n_scan_code") {
+      const args = params.arguments ?? {};
+      return handleScanCode(args as Parameters<typeof handleScanCode>[0]);
+    }
+    if (toolName === "i18n_publish_profile") {
+      const args = params.arguments ?? {};
+      return handlePublishProfile(args as Parameters<typeof handlePublishProfile>[0]);
+    }
+    if (toolName === "i18n_install_loader") {
+      const args = (params.arguments ?? {}) as {
+        profile?: string;
+        framework?: string;
+        path?: string;
+      };
+      return handleInstallLoader(args);
+    }
+    if (toolName === "get_resource") {
+      const args = params.arguments ?? {};
+      return handleGetResource(args as Parameters<typeof handleGetResource>[0]);
+    }
+    if (toolName === "get_sdk_snippet") {
+      const args = params.arguments ?? {};
+      return handleGetSdkSnippet(args as unknown as Parameters<typeof handleGetSdkSnippet>[0]);
+    }
+    if (toolName === "i18n_discover_site") {
+      const args = (params.arguments ?? {}) as { url: string };
+      return handleDiscoverSite(args);
+    }
+    if (toolName === "i18n_codemod_preview") {
+      const args = params.arguments ?? {};
+      return handleCodemodPreview(args as Parameters<typeof handleCodemodPreview>[0]);
+    }
+    if (toolName === "i18n_codemod_apply") {
+      const args = params.arguments ?? {};
+      return handleCodemodApply(args as Parameters<typeof handleCodemodApply>[0]);
+    }
+    if (toolName === "exp_create_gate") {
+      const args = params.arguments ?? {};
+      return handleCreateGate(args as Parameters<typeof handleCreateGate>[0]);
+    }
+    if (toolName === "exp_create_config") {
+      const args = params.arguments ?? {};
+      return handleCreateConfig(args as Parameters<typeof handleCreateConfig>[0]);
+    }
+    if (toolName === "exp_create_experiment") {
+      const args = params.arguments ?? {};
+      return handleCreateExperiment(args as Parameters<typeof handleCreateExperiment>[0]);
+    }
+    if (toolName === "exp_start_experiment") {
+      const args = params.arguments ?? {};
+      return handleStartExperiment(args as Parameters<typeof handleStartExperiment>[0]);
+    }
+    if (toolName === "exp_stop_experiment") {
+      const args = params.arguments ?? {};
+      return handleStopExperiment(args as Parameters<typeof handleStopExperiment>[0]);
+    }
+    if (toolName === "exp_experiment_status") {
+      const args = params.arguments ?? {};
+      return handleExperimentStatus(args as Parameters<typeof handleExperimentStatus>[0]);
+    }
     if (toolName === "auth_login") {
       return {
         isError: true,

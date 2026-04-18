@@ -2,6 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { detect } from "package-manager-detector";
 
+// ── types ────────────────────────────────────────────────────────────────────
+
 interface ShipeasySdkState {
   installed: boolean;
   version: string | null;
@@ -27,7 +29,6 @@ interface ProjectInfo {
     i18n_sdk: ShipeasySdkState;
     loader_script_tag: LoaderScriptState;
     env_keys_detected: string[];
-    template_warning?: string;
   };
 }
 
@@ -43,7 +44,7 @@ interface DetectResult {
   projects: ProjectInfo[];
 }
 
-// ── helpers ────────────────────────────────────────────────────────────────
+// ── helpers ──────────────────────────────────────────────────────────────────
 
 function safeReadFile(filePath: string, root: string): string | null {
   try {
@@ -64,17 +65,12 @@ function resolveRoot(inputPath?: string): string {
   }
 }
 
-// ── ambiguity detection ────────────────────────────────────────────────────
-
 function isAmbiguous(info: Omit<ProjectInfo, "path">): boolean {
-  // Non-JS languages are detected by file existence alone (go.mod, Gemfile, etc.) — never ambiguous.
   if (!["typescript", "javascript", "unknown"].includes(info.language)) return false;
-  // For JS/TS, we need at least one framework or entry point to be confident.
   return info.frameworks.length === 0 && info.entry_points.length === 0;
 }
 
 function findProjectSubdirs(root: string): string[] {
-  // Look one level deep for dirs that have their own package.json / Gemfile / go.mod etc.
   const PROJECT_SIGNALS = ["package.json", "Gemfile", "go.mod", "pyproject.toml", "composer.json"];
   let entries: fs.Dirent[];
   try {
@@ -88,7 +84,7 @@ function findProjectSubdirs(root: string): string[] {
     .filter((dir) => PROJECT_SIGNALS.some((sig) => fs.existsSync(path.join(dir, sig))));
 }
 
-// ── JS/TS project detection ────────────────────────────────────────────────
+// ── JS/TS detection ──────────────────────────────────────────────────────────
 
 async function detectFromPackageJson(
   root: string,
@@ -123,7 +119,6 @@ async function detectFromPackageJson(
   };
 
   const language = "typescript" in deps ? "typescript" : "javascript";
-
   const pmDetected = await detect({ cwd: root });
   const package_manager = pmDetected?.name ?? "npm";
 
@@ -169,7 +164,31 @@ async function detectFromPackageJson(
   return { language, frameworks, package_manager, entry_points, allDeps: deps };
 }
 
-// ── Shipeasy SDK analysis ──────────────────────────────────────────────────
+// ── Shipeasy SDK detection ────────────────────────────────────────────────────
+
+function searchInDir(dir: string, pattern: RegExp, root: string, maxDepth: number): string | null {
+  if (maxDepth <= 0) return null;
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return null;
+  }
+  for (const entry of entries) {
+    if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      const hit = searchInDir(full, pattern, root, maxDepth - 1);
+      if (hit) return hit;
+    } else if (entry.isFile() && /\.[jt]sx?$/.test(entry.name)) {
+      const content = safeReadFile(full, root);
+      if (!content) continue;
+      const m = pattern.exec(content);
+      if (m) return m[1] ?? "true";
+    }
+  }
+  return null;
+}
 
 function detectShipeasyExp(deps: Record<string, string>, root: string): ShipeasySdkState {
   const version = deps["shipeasy"] ?? null;
@@ -250,11 +269,9 @@ function detectLoaderScript(root: string): LoaderScriptState {
     "app/views/layouts/application.html.erb",
     "templates/base.html",
   ];
-
   for (const f of LAYOUT_CANDIDATES) {
     const content = safeReadFile(path.join(root, f), root);
     if (!content || !content.includes("loader.js")) continue;
-
     const keyMatch = /data-key=["']([^"']+)["']/.exec(content);
     const profileMatch = /data-profile=["']([^"']+)["']/.exec(content);
     return {
@@ -285,14 +302,11 @@ function detectEnvKeys(root: string): string[] {
   return Array.from(found);
 }
 
-// ── Non-JS language detection ──────────────────────────────────────────────
-
 function detectNonJs(
   root: string,
 ): { language: string; package_manager: string; frameworks: string[] } | null {
-  if (fs.existsSync(path.join(root, "go.mod"))) {
+  if (fs.existsSync(path.join(root, "go.mod")))
     return { language: "go", package_manager: "go", frameworks: [] };
-  }
   if (
     fs.existsSync(path.join(root, "pyproject.toml")) ||
     fs.existsSync(path.join(root, "setup.py")) ||
@@ -308,46 +322,16 @@ function detectNonJs(
     if (/fastapi/i.test(combined)) frameworks.push("fastapi");
     return { language: "python", package_manager: pm, frameworks };
   }
-  if (fs.existsSync(path.join(root, "Gemfile"))) {
+  if (fs.existsSync(path.join(root, "Gemfile")))
     return { language: "ruby", package_manager: "bundler", frameworks: ["rails"] };
-  }
-  if (fs.existsSync(path.join(root, "composer.json"))) {
+  if (fs.existsSync(path.join(root, "composer.json")))
     return { language: "php", package_manager: "composer", frameworks: ["laravel"] };
-  }
-  if (fs.existsSync(path.join(root, "pom.xml"))) {
+  if (fs.existsSync(path.join(root, "pom.xml")))
     return { language: "java", package_manager: "maven", frameworks: [] };
-  }
-  if (fs.existsSync(path.join(root, "build.gradle"))) {
+  if (fs.existsSync(path.join(root, "build.gradle")))
     return { language: "java", package_manager: "gradle", frameworks: [] };
-  }
   return null;
 }
-
-function searchInDir(dir: string, pattern: RegExp, root: string, maxDepth: number): string | null {
-  if (maxDepth <= 0) return null;
-  let entries: fs.Dirent[];
-  try {
-    entries = fs.readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return null;
-  }
-  for (const entry of entries) {
-    if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      const hit = searchInDir(full, pattern, root, maxDepth - 1);
-      if (hit) return hit;
-    } else if (entry.isFile() && /\.[jt]sx?$/.test(entry.name)) {
-      const content = safeReadFile(full, root);
-      if (!content) continue;
-      const m = pattern.exec(content);
-      if (m) return m[1] ?? "true";
-    }
-  }
-  return null;
-}
-
-// ── Single-path inspection ─────────────────────────────────────────────────
 
 async function inspectOne(
   root: string,
@@ -357,11 +341,6 @@ async function inspectOne(
     ? { ...nonJs, entry_points: [], allDeps: {} as Record<string, string> }
     : await detectFromPackageJson(root);
 
-  const expSdk = detectShipeasyExp(allDeps, root);
-  const i18nSdk = detectShipeasyI18n(allDeps, root);
-  const loaderTag = detectLoaderScript(root);
-  const envKeys = detectEnvKeys(root);
-
   return {
     language: language ?? "unknown",
     frameworks: frameworks ?? [],
@@ -369,17 +348,17 @@ async function inspectOne(
     entry_points: entry_points ?? [],
     allDeps,
     shipeasy: {
-      experimentation_sdk: expSdk,
-      i18n_sdk: i18nSdk,
-      loader_script_tag: loaderTag,
-      env_keys_detected: envKeys,
+      experimentation_sdk: detectShipeasyExp(allDeps, root),
+      i18n_sdk: detectShipeasyI18n(allDeps, root),
+      loader_script_tag: detectLoaderScript(root),
+      env_keys_detected: detectEnvKeys(root),
     },
   };
 }
 
-// ── Main handler ───────────────────────────────────────────────────────────
-
-export async function handleDetectProject(inputPaths?: string | string[]) {
+async function detectProject(
+  inputPaths?: string | string[],
+): Promise<DetectResult | ClarificationNeeded> {
   const paths: string[] = inputPaths
     ? Array.isArray(inputPaths)
       ? inputPaths
@@ -396,29 +375,35 @@ export async function handleDetectProject(inputPaths?: string | string[]) {
     }),
   );
 
-  // If every result is ambiguous and only one path was given, ask for clarification
   if (paths.length === 1 && results.every(isAmbiguous)) {
     const subdirs = findProjectSubdirs(roots[0]!);
-    const response: ClarificationNeeded = {
+    return {
       status: "needs_clarification",
       reason:
         `Could not detect a recognizable project structure at "${roots[0]}". ` +
         `The directory appears to be a workspace root or monorepo manifest with no app code at the top level.`,
       question:
         subdirs.length > 0
-          ? `Which of these subdirectories contains your app? Please call detect_project again with the full path(s):\n` +
+          ? `Which of these subdirectories contains your app? Re-run with the full path(s):\n` +
             subdirs.map((d) => `  - ${d}`).join("\n")
-          : `Please provide the full path to your app directory (e.g. /home/me/myproject/frontend) ` +
-            `and call detect_project again with that path.`,
+          : `Please provide the full path to your app directory and re-run.`,
       ...(subdirs.length > 0 ? { detected_subdirs: subdirs } : {}),
-    };
-    return {
-      content: [{ type: "text" as const, text: JSON.stringify(response, null, 2) }],
     };
   }
 
-  const response: DetectResult = { status: "ok", projects: results };
-  return {
-    content: [{ type: "text" as const, text: JSON.stringify(response, null, 2) }],
-  };
+  return { status: "ok", projects: results };
+}
+
+// ── MCP handler ───────────────────────────────────────────────────────────────
+
+export async function handleDetectProject(inputPaths?: string | string[]) {
+  try {
+    const result = await detectProject(inputPaths);
+    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+  } catch (err: unknown) {
+    return {
+      isError: true,
+      content: [{ type: "text" as const, text: `Failed to detect project: ${String(err)}` }],
+    };
+  }
 }
