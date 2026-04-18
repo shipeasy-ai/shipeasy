@@ -94,7 +94,7 @@ export function i18nCommand(parent: Command): void {
             console.log(`Created client SDK key and saved to .shipeasy`);
           }
 
-          const loaderUrl = `${client.baseUrl.replace("shipeasy.ai", "api.shipeasy.ai")}/sdk/i18n/loader.js`;
+          const loaderUrl = "https://cdn.shipeasy.ai/sdk/i18n/loader.js";
           const scriptTag = `<script src="${loaderUrl}" data-key="${dataKey}" data-profile="${opts.profile}" defer></script>`;
 
           if (opts.print) {
