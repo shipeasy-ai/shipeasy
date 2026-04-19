@@ -16,7 +16,10 @@ function detectFramework(cwd: string): Framework {
     devDependencies?: Record<string, string>;
   };
   const deps = { ...pkg.dependencies, ...pkg.devDependencies };
-  if (!deps["next"]) return existsSync(join(cwd, "index.html")) ? "react-vite" : "unknown";
+  if (!deps["next"]) {
+    const htmlCandidates = ["index.html", "client/index.html", "public/index.html"];
+    return htmlCandidates.some((f) => existsSync(join(cwd, f))) ? "react-vite" : "unknown";
+  }
   // App Router: src/app/layout.tsx or app/layout.tsx
   if (existsSync(join(cwd, "src/app/layout.tsx")) || existsSync(join(cwd, "app/layout.tsx"))) {
     return "nextjs-app";
@@ -147,8 +150,13 @@ export function i18nCommand(parent: Command): void {
               break;
             }
             case "react-vite": {
-              const htmlPath = join(cwd, "index.html");
-              if (!existsSync(htmlPath)) {
+              const htmlCandidates = [
+                join(cwd, "index.html"),
+                join(cwd, "client/index.html"),
+                join(cwd, "public/index.html"),
+              ];
+              const htmlPath = htmlCandidates.find(existsSync);
+              if (!htmlPath) {
                 console.error("index.html not found. Pass --path to specify the file.");
                 process.exit(1);
               }
