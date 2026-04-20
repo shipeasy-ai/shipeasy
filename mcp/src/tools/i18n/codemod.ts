@@ -122,10 +122,16 @@ interface RawReplacement {
   pos: number;
   end: number;
   slug: string;
-  value: string;
-  kind: "jsx_text" | "jsx_attr";
+  value: string; // includes {{var}} placeholders when kind === "jsx_mixed"
+  kind: "jsx_text" | "jsx_attr" | "jsx_mixed";
   leading: string;
   trailing: string;
+  variables: string[]; // [] for plain text; names extracted from {{var}} for mixed
+}
+
+// Strip {{var}} placeholders from a template for slug derivation.
+function stripPlaceholders(template: string): string {
+  return template.replace(/\{\{[^}]+\}\}/g, "");
 }
 
 function findRawReplacements(source: string, filePath: string): RawReplacement[] {
@@ -141,25 +147,81 @@ function findRawReplacements(source: string, filePath: string): RawReplacement[]
   const out: RawReplacement[] = [];
   const seenPos = new Set<number>();
 
-  function visit(node: ts.Node): void {
-    if (ts.isJsxText(node)) {
-      const rawText = source.slice(node.pos, node.end);
-      const trimmed = rawText.trim();
-      if (isTranslatableText(trimmed) && !trimmed.includes('t("') && !seenPos.has(node.pos)) {
-        const slug = slugify(trimmed);
-        if (slug) {
-          seenPos.add(node.pos);
-          out.push({
-            pos: node.pos,
-            end: node.end,
-            slug,
-            value: trimmed,
-            kind: "jsx_text",
-            leading: rawText.match(/^(\s*)/)?.[1] ?? "",
-            trailing: rawText.match(/(\s*)$/)?.[1] ?? "",
-          });
-        }
+  // A JSX child is "eligible" for a translatable run if it's either plain text
+  // or a {identifier} / {obj.prop} expression we can turn into a named variable.
+  function eligibleExpressionName(expr: ts.Expression): string | null {
+    if (ts.isIdentifier(expr)) return expr.text;
+    // Allow shallow property access like `user.name` → var "name".
+    if (ts.isPropertyAccessExpression(expr) && ts.isIdentifier(expr.name)) return expr.name.text;
+    return null;
+  }
+
+  function processChildrenRun(run: ts.JsxChild[]): void {
+    if (run.length === 0) return;
+    const startPos = run[0].pos;
+    const endPos = run[run.length - 1].end;
+    if (seenPos.has(startPos)) return;
+
+    let template = "";
+    const vars: string[] = [];
+    for (const c of run) {
+      if (ts.isJsxText(c)) {
+        template += source.slice(c.pos, c.end);
+      } else if (ts.isJsxExpression(c) && c.expression) {
+        const name = eligibleExpressionName(c.expression);
+        if (!name) return; // un-extractable expression aborts the run
+        template += `{{${name}}}`;
+        if (!vars.includes(name)) vars.push(name);
       }
+    }
+
+    const rawText = template;
+    const trimmed = rawText.trim();
+    // Require at least some non-variable text so we don't translate a lone {foo}.
+    if (stripPlaceholders(trimmed).trim().length < 1) return;
+    if (!isTranslatableText(stripPlaceholders(trimmed) || trimmed)) return;
+    if (trimmed.includes('t("')) return;
+
+    const slugSource = stripPlaceholders(trimmed) || trimmed;
+    const slug = slugify(slugSource);
+    if (!slug) return;
+
+    seenPos.add(startPos);
+    out.push({
+      pos: startPos,
+      end: endPos,
+      slug,
+      value: trimmed,
+      kind: vars.length > 0 ? "jsx_mixed" : "jsx_text",
+      leading: rawText.match(/^(\s*)/)?.[1] ?? "",
+      trailing: rawText.match(/(\s*)$/)?.[1] ?? "",
+      variables: vars,
+    });
+  }
+
+  function processJsxChildren(children: readonly ts.JsxChild[]): void {
+    let runStart = -1;
+    const flush = (end: number) => {
+      if (runStart >= 0 && end > runStart) processChildrenRun(children.slice(runStart, end));
+      runStart = -1;
+    };
+    for (let i = 0; i < children.length; i++) {
+      const c = children[i];
+      const eligible =
+        ts.isJsxText(c) ||
+        (ts.isJsxExpression(c) && !!c.expression && eligibleExpressionName(c.expression) !== null);
+      if (eligible) {
+        if (runStart < 0) runStart = i;
+      } else {
+        flush(i);
+      }
+    }
+    flush(children.length);
+  }
+
+  function visit(node: ts.Node): void {
+    if (ts.isJsxElement(node) || ts.isJsxFragment(node)) {
+      processJsxChildren(node.children);
     }
 
     if (ts.isJsxAttribute(node)) {
@@ -181,6 +243,7 @@ function findRawReplacements(source: string, filePath: string): RawReplacement[]
                 kind: "jsx_attr",
                 leading: "",
                 trailing: "",
+                variables: [],
               });
             }
           }
@@ -202,10 +265,10 @@ function applyReplacementsWithPlan(
   const sorted = [...entries].sort((a, b) => b.raw.pos - a.raw.pos);
   let result = source;
   for (const { raw, finalKey } of sorted) {
+    const varsArg = raw.variables.length > 0 ? `, { ${raw.variables.join(", ")} }` : "";
+    const callExpr = `t("${finalKey}"${varsArg})`;
     const replacement =
-      raw.kind === "jsx_text"
-        ? `${raw.leading}{t("${finalKey}")}${raw.trailing}`
-        : `{t("${finalKey}")}`;
+      raw.kind === "jsx_attr" ? `{${callExpr}}` : `${raw.leading}{${callExpr}}${raw.trailing}`;
     result = result.slice(0, raw.pos) + replacement + result.slice(raw.end);
   }
   return result;
@@ -254,9 +317,14 @@ interface PlanEntry {
   chunk: string;
 }
 
+interface ChunkValue {
+  value: string;
+  variables: string[];
+}
+
 interface Plan {
   perFile: Map<string, PlanEntry[]>;
-  chunks: Record<string, Record<string, string>>;
+  chunks: Record<string, Record<string, ChunkValue>>;
 }
 
 // Compute the chunk name for a file: full folder path from repo root, with
@@ -289,7 +357,7 @@ function planChunks(collected: FileCollected[]): Plan {
 
   // 2. Assemble using each file's precomputed full-path chunk name.
   const perFile = new Map<string, PlanEntry[]>();
-  const chunks: Record<string, Record<string, string>> = {};
+  const chunks: Record<string, Record<string, ChunkValue>> = {};
 
   for (const fc of collected) {
     const entries: PlanEntry[] = [];
@@ -298,7 +366,13 @@ function planChunks(collected: FileCollected[]): Plan {
       const finalKey = `${chunk}.${r.slug}`;
       entries.push({ raw: r, finalKey, chunk });
       if (!chunks[chunk]) chunks[chunk] = {};
-      chunks[chunk][finalKey] = r.value;
+      // If the same slug appears in multiple files with different variable
+      // sets, union them — the UI can show the full set.
+      const existing = chunks[chunk][finalKey];
+      const mergedVars = existing
+        ? Array.from(new Set([...existing.variables, ...r.variables]))
+        : r.variables;
+      chunks[chunk][finalKey] = { value: r.value, variables: mergedVars };
     }
     perFile.set(fc.file, entries);
   }
@@ -382,7 +456,12 @@ export async function handleCodemodPreview(input: {
       diffs.push({
         file: fc.file,
         diff: buildDiff(fc.file, fc.content, modified),
-        strings: entries.map((e) => ({ key: e.finalKey, value: e.raw.value, chunk: e.chunk })),
+        strings: entries.map((e) => ({
+          key: e.finalKey,
+          value: e.raw.value,
+          chunk: e.chunk,
+          variables: e.raw.variables,
+        })),
       });
     }
 

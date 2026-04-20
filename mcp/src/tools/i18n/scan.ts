@@ -72,7 +72,8 @@ interface ScanCandidate {
   line: number;
   text: string;
   suggested_key?: string;
-  kind: "jsx_text" | "string_prop" | "t_call";
+  variables?: string[];
+  kind: "jsx_text" | "jsx_mixed" | "string_prop" | "t_call";
 }
 
 // ── AST scan ──────────────────────────────────────────────────────────────────
@@ -94,24 +95,82 @@ function scanSource(
   const results: ScanCandidate[] = [];
   const seenPos = new Set<number>();
 
-  function visit(node: ts.Node): void {
-    // ── JsxText ──────────────────────────────────────────────────────────
-    if (!opts.keysOnly && ts.isJsxText(node)) {
-      const rawText = source.slice(node.pos, node.end);
-      const trimmed = rawText.trim();
-      if (isTranslatableText(trimmed) && !seenPos.has(node.pos)) {
-        seenPos.add(node.pos);
-        const k = slugify(trimmed);
-        if (k) {
-          results.push({
-            file: filePath,
-            line: posToLine(source, node.pos),
-            text: trimmed,
-            suggested_key: k,
-            kind: "jsx_text",
-          });
+  function eligibleExpressionName(expr: ts.Expression): string | null {
+    if (ts.isIdentifier(expr)) return expr.text;
+    if (ts.isPropertyAccessExpression(expr) && ts.isIdentifier(expr.name)) return expr.name.text;
+    return null;
+  }
+
+  function processJsxChildren(children: readonly ts.JsxChild[]): void {
+    let runStart = -1;
+    const flushRun = (end: number) => {
+      if (runStart < 0 || end <= runStart) {
+        runStart = -1;
+        return;
+      }
+      const run = children.slice(runStart, end);
+      const startPos = run[0].pos;
+      if (seenPos.has(startPos)) {
+        runStart = -1;
+        return;
+      }
+      let template = "";
+      const vars: string[] = [];
+      for (const c of run) {
+        if (ts.isJsxText(c)) template += source.slice(c.pos, c.end);
+        else if (ts.isJsxExpression(c) && c.expression) {
+          const name = eligibleExpressionName(c.expression);
+          if (!name) {
+            runStart = -1;
+            return;
+          }
+          template += `{{${name}}}`;
+          if (!vars.includes(name)) vars.push(name);
         }
       }
+      const trimmed = template.trim();
+      const textOnly = trimmed.replace(/\{\{[^}]+\}\}/g, "").trim();
+      if (textOnly.length < 1) {
+        runStart = -1;
+        return;
+      }
+      if (!isTranslatableText(textOnly || trimmed)) {
+        runStart = -1;
+        return;
+      }
+      seenPos.add(startPos);
+      const k = slugify(textOnly || trimmed);
+      if (k) {
+        results.push({
+          file: filePath,
+          line: posToLine(source, startPos),
+          text: trimmed,
+          suggested_key: k,
+          variables: vars,
+          kind: vars.length > 0 ? "jsx_mixed" : "jsx_text",
+        });
+      }
+      runStart = -1;
+    };
+
+    for (let i = 0; i < children.length; i++) {
+      const c = children[i];
+      const eligible =
+        ts.isJsxText(c) ||
+        (ts.isJsxExpression(c) && !!c.expression && eligibleExpressionName(c.expression) !== null);
+      if (eligible) {
+        if (runStart < 0) runStart = i;
+      } else {
+        flushRun(i);
+      }
+    }
+    flushRun(children.length);
+  }
+
+  function visit(node: ts.Node): void {
+    // ── JSX children runs (plain text + {var} expressions) ───────────────
+    if (!opts.keysOnly && (ts.isJsxElement(node) || ts.isJsxFragment(node))) {
+      processJsxChildren(node.children);
     }
 
     // ── JsxAttribute with StringLiteral value ────────────────────────────
