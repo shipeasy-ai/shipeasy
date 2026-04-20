@@ -1,7 +1,7 @@
 import ts from "typescript";
 import { readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join, extname } from "node:path";
+import { join, extname, sep, relative, resolve } from "node:path";
 import { readdir, stat } from "node:fs/promises";
 import { ok, apiErr } from "../../util/api-client.js";
 
@@ -21,6 +21,11 @@ const TRANSLATABLE_ATTR_NAMES = new Set([
   "errorMessage",
 ]);
 
+// A key going into `common` chunk needs to appear in at least this many distinct files.
+const COMMON_MIN_FILES = 3;
+// A per-page chunk must cover at least this many distinct keys before it becomes a chunk.
+const PER_PAGE_MIN_KEYS = 10;
+
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 function slugify(text: string): string {
@@ -32,13 +37,22 @@ function slugify(text: string): string {
     .slice(0, 60);
 }
 
+function sanitizeChunkName(name: string): string {
+  const cleaned = name
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "_")
+    .replace(/\.{2,}/g, ".")
+    .replace(/_{2,}/g, "_")
+    .replace(/^[._-]+|[._-]+$/g, "");
+  return cleaned.slice(0, 64) || "root";
+}
+
 function isTranslatableText(text: string): boolean {
   const t = text.trim();
   if (t.length < 3) return false;
-  if (!/[a-zA-Z]/.test(t)) return false; // must contain a letter
-  if (/^https?:\/\//.test(t)) return false; // skip URLs
-  if (/^[\d\s.,/$%@#!^&*()\[\]{};:]+$/.test(t)) return false; // pure symbols/numbers
-  // skip short all-lowercase tokens that look like identifiers (e.g. "sm", "lg", "px")
+  if (!/[a-zA-Z]/.test(t)) return false;
+  if (/^https?:\/\//.test(t)) return false;
+  if (/^[\d\s.,/$%@#!^&*()\[\]{};:]+$/.test(t)) return false;
   if (/^[a-z][a-z0-9-]*$/.test(t) && t.length <= 5) return false;
   return true;
 }
@@ -58,74 +72,85 @@ async function walkFiles(dir: string, files: string[] = []): Promise<string[]> {
   return files;
 }
 
-// ── AST transform ─────────────────────────────────────────────────────────────
-
-interface Replacement {
-  pos: number;
-  end: number;
-  replacement: string;
-  key: string;
-  value: string;
+// Pick the input path (scan root) that is an ancestor of `file`. Falls back to
+// the file's directory so we never crash on edge cases.
+function resolveScanRoot(file: string, inputPaths: string[]): string {
+  const absFile = resolve(file);
+  let best: string | null = null;
+  for (const p of inputPaths) {
+    const abs = resolve(p);
+    if (absFile === abs || absFile.startsWith(abs + sep)) {
+      if (!best || abs.length > best.length) best = abs;
+    }
+  }
+  return best ?? resolve(file, "..");
 }
 
-function findReplacements(source: string, filePath: string, keyPrefix?: string): Replacement[] {
+// ── AST transform ─────────────────────────────────────────────────────────────
+
+interface RawReplacement {
+  pos: number;
+  end: number;
+  slug: string;
+  value: string;
+  kind: "jsx_text" | "jsx_attr";
+  leading: string;
+  trailing: string;
+}
+
+function findRawReplacements(source: string, filePath: string): RawReplacement[] {
   const scriptKind = filePath.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.JSX;
   const sourceFile = ts.createSourceFile(
     filePath,
     source,
     ts.ScriptTarget.Latest,
-    /* setParentNodes */ true,
+    true,
     scriptKind,
   );
 
-  const replacements: Replacement[] = [];
+  const out: RawReplacement[] = [];
   const seenPos = new Set<number>();
 
-  function key(raw: string): string {
-    const k = slugify(raw);
-    return keyPrefix ? `${keyPrefix}_${k}` : k;
-  }
-
   function visit(node: ts.Node): void {
-    // ── JsxText: bare text between JSX tags ──────────────────────────────
     if (ts.isJsxText(node)) {
       const rawText = source.slice(node.pos, node.end);
       const trimmed = rawText.trim();
       if (isTranslatableText(trimmed) && !trimmed.includes('t("') && !seenPos.has(node.pos)) {
-        const k = key(trimmed);
-        if (k) {
+        const slug = slugify(trimmed);
+        if (slug) {
           seenPos.add(node.pos);
-          const leading = rawText.match(/^(\s*)/)?.[1] ?? "";
-          const trailing = rawText.match(/(\s*)$/)?.[1] ?? "";
-          replacements.push({
+          out.push({
             pos: node.pos,
             end: node.end,
-            replacement: `${leading}{t("${k}")}${trailing}`,
-            key: k,
+            slug,
             value: trimmed,
+            kind: "jsx_text",
+            leading: rawText.match(/^(\s*)/)?.[1] ?? "",
+            trailing: rawText.match(/(\s*)$/)?.[1] ?? "",
           });
         }
       }
     }
 
-    // ── JsxAttribute with StringLiteral value ────────────────────────────
     if (ts.isJsxAttribute(node)) {
       const attrName = node.name.getText(sourceFile).toLowerCase();
       if (TRANSLATABLE_ATTR_NAMES.has(attrName)) {
         const init = node.initializer;
         if (init && ts.isStringLiteral(init)) {
-          const value = init.text; // full decoded string, handles escapes + embedded quotes
+          const value = init.text;
           const start = init.getStart(sourceFile);
           if (isTranslatableText(value) && !seenPos.has(start)) {
-            const k = key(value);
-            if (k) {
+            const slug = slugify(value);
+            if (slug) {
               seenPos.add(start);
-              replacements.push({
+              out.push({
                 pos: start,
                 end: init.getEnd(),
-                replacement: `{t("${k}")}`,
-                key: k,
+                slug,
                 value,
+                kind: "jsx_attr",
+                leading: "",
+                trailing: "",
               });
             }
           }
@@ -137,15 +162,21 @@ function findReplacements(source: string, filePath: string, keyPrefix?: string):
   }
 
   visit(sourceFile);
-  return replacements;
+  return out;
 }
 
-function applyReplacements(source: string, replacements: Replacement[]): string {
-  // Sort descending by position so earlier replacements don't shift later offsets
-  const sorted = [...replacements].sort((a, b) => b.pos - a.pos);
+function applyReplacementsWithPlan(
+  source: string,
+  entries: Array<{ raw: RawReplacement; finalKey: string }>,
+): string {
+  const sorted = [...entries].sort((a, b) => b.raw.pos - a.raw.pos);
   let result = source;
-  for (const r of sorted) {
-    result = result.slice(0, r.pos) + r.replacement + result.slice(r.end);
+  for (const { raw, finalKey } of sorted) {
+    const replacement =
+      raw.kind === "jsx_text"
+        ? `${raw.leading}{t("${finalKey}")}${raw.trailing}`
+        : `{t("${finalKey}")}`;
+    result = result.slice(0, raw.pos) + replacement + result.slice(raw.end);
   }
   return result;
 }
@@ -177,6 +208,116 @@ function addI18nImport(source: string): string {
   return source.slice(0, lastImportEnd) + insert + source.slice(lastImportEnd);
 }
 
+// ── chunk planner ─────────────────────────────────────────────────────────────
+
+interface FileCollected {
+  file: string;
+  content: string;
+  replacements: RawReplacement[];
+  scanRoot: string;
+}
+
+interface PlanEntry {
+  raw: RawReplacement;
+  finalKey: string;
+  chunk: string;
+}
+
+interface Plan {
+  perFile: Map<string, PlanEntry[]>;
+  chunks: Record<string, Record<string, string>>;
+}
+
+function planChunks(collected: FileCollected[]): Plan {
+  // 1. Count distinct files per slug.
+  const slugFiles = new Map<string, Set<string>>();
+  for (const fc of collected) {
+    for (const r of fc.replacements) {
+      let s = slugFiles.get(r.slug);
+      if (!s) {
+        s = new Set();
+        slugFiles.set(r.slug, s);
+      }
+      s.add(fc.file);
+    }
+  }
+  const commonSlugs = new Set<string>();
+  for (const [slug, files] of slugFiles) {
+    if (files.size >= COMMON_MIN_FILES) commonSlugs.add(slug);
+  }
+
+  // 2. For non-common replacements, accumulate distinct (file, slug) pairs under every ancestor folder.
+  //    Folder key includes the scan root so files from different roots don't cross-contaminate.
+  const folderKeys = new Map<string, Set<string>>();
+  const ancestorsForFile = (fc: FileCollected): string[] => {
+    const rel = relative(fc.scanRoot, fc.file);
+    const parts = rel.split(sep);
+    const ancestors: string[] = [];
+    for (let i = parts.length - 1; i >= 1; i--) {
+      ancestors.push(`${fc.scanRoot}::${parts.slice(0, i).join("/")}`);
+    }
+    ancestors.push(`${fc.scanRoot}::`); // scan root itself
+    return ancestors;
+  };
+
+  for (const fc of collected) {
+    const ancestors = ancestorsForFile(fc);
+    for (const r of fc.replacements) {
+      if (commonSlugs.has(r.slug)) continue;
+      const uniq = `${fc.file}::${r.slug}`;
+      for (const a of ancestors) {
+        let s = folderKeys.get(a);
+        if (!s) {
+          s = new Set();
+          folderKeys.set(a, s);
+        }
+        s.add(uniq);
+      }
+    }
+  }
+
+  // 3. For each file, pick the deepest ancestor folder with >= PER_PAGE_MIN_KEYS.
+  const fileChunkFolder = new Map<string, string>();
+  for (const fc of collected) {
+    const ancestors = ancestorsForFile(fc); // deepest first, scan root last
+    let chosen: string | null = null;
+    for (const a of ancestors) {
+      const count = folderKeys.get(a)?.size ?? 0;
+      if (count >= PER_PAGE_MIN_KEYS) {
+        chosen = a;
+        break;
+      }
+    }
+    if (!chosen) chosen = ancestors[ancestors.length - 1]; // scan root fallback
+    fileChunkFolder.set(fc.file, chosen);
+  }
+
+  // 4. Assemble.
+  const folderKeyToChunkName = (folderKey: string): string => {
+    const rel = folderKey.split("::")[1] ?? "";
+    if (!rel) return "root";
+    return sanitizeChunkName(rel.replace(/\//g, "."));
+  };
+
+  const perFile = new Map<string, PlanEntry[]>();
+  const chunks: Record<string, Record<string, string>> = {};
+
+  for (const fc of collected) {
+    const pageChunkName = folderKeyToChunkName(fileChunkFolder.get(fc.file)!);
+    const entries: PlanEntry[] = [];
+    for (const r of fc.replacements) {
+      const chunk = commonSlugs.has(r.slug) ? "common" : pageChunkName;
+      const finalKey = `${chunk}.${r.slug}`;
+      entries.push({ raw: r, finalKey, chunk });
+      if (!chunks[chunk]) chunks[chunk] = {};
+      chunks[chunk][finalKey] = r.value;
+    }
+    perFile.set(fc.file, entries);
+  }
+
+  return { perFile, chunks };
+}
+
 // ── diff builder ──────────────────────────────────────────────────────────────
 
 function buildDiff(file: string, original: string, modified: string): string {
@@ -205,24 +346,26 @@ function buildDiff(file: string, original: string, modified: string): string {
   return `--- a/${file}\n+++ b/${file}\n${hunks.join("\n")}`;
 }
 
-// ── transform entry (shared by preview + apply) ───────────────────────────────
+// ── shared collection phase ───────────────────────────────────────────────────
 
-interface TransformResult {
-  modified: string;
-  strings: { key: string; value: string }[];
-}
+async function collectAll(inputPaths: string[]): Promise<FileCollected[]> {
+  const allFiles: string[] = [];
+  for (const p of inputPaths) await walkFiles(p, allFiles);
 
-function transformFile(content: string, filePath: string, keyPrefix?: string): TransformResult {
-  const replacements = findReplacements(content, filePath, keyPrefix);
-  if (replacements.length === 0) return { modified: content, strings: [] };
-
-  let modified = applyReplacements(content, replacements);
-  modified = addI18nImport(modified);
-
-  return {
-    modified,
-    strings: replacements.map((r) => ({ key: r.key, value: r.value })),
-  };
+  const collected: FileCollected[] = [];
+  for (const file of allFiles) {
+    const content = await readFile(file, "utf8").catch(() => "");
+    if (!content) continue;
+    const replacements = findRawReplacements(content, file);
+    if (replacements.length === 0) continue;
+    collected.push({
+      file,
+      content,
+      replacements,
+      scanRoot: resolveScanRoot(file, inputPaths),
+    });
+  }
+  return collected;
 }
 
 // ── public handlers ───────────────────────────────────────────────────────────
@@ -234,25 +377,33 @@ export async function handleCodemodPreview(input: {
   key_prefix?: string;
 }) {
   try {
-    const allFiles: string[] = [];
-    for (const p of input.files) await walkFiles(p, allFiles);
+    const collected = await collectAll(input.files);
+    const plan = planChunks(collected);
 
     const diffs = [];
     let totalStrings = 0;
 
-    for (const file of allFiles) {
-      const original = await readFile(file, "utf8").catch(() => "");
-      if (!original) continue;
-
-      const { modified, strings } = transformFile(original, file, input.key_prefix);
-      if (strings.length === 0) continue;
-
-      totalStrings += strings.length;
-      const diff = buildDiff(file, original, modified);
-      diffs.push({ file, diff, strings });
+    for (const fc of collected) {
+      const entries = plan.perFile.get(fc.file) ?? [];
+      if (entries.length === 0) continue;
+      let modified = applyReplacementsWithPlan(fc.content, entries);
+      modified = addI18nImport(modified);
+      totalStrings += entries.length;
+      diffs.push({
+        file: fc.file,
+        diff: buildDiff(fc.file, fc.content, modified),
+        strings: entries.map((e) => ({ key: e.finalKey, value: e.raw.value, chunk: e.chunk })),
+      });
     }
 
-    return ok({ files_changed: diffs.length, total_strings: totalStrings, diffs });
+    return ok({
+      files_changed: diffs.length,
+      total_strings: totalStrings,
+      chunks: Object.fromEntries(
+        Object.entries(plan.chunks).map(([c, m]) => [c, Object.keys(m).length]),
+      ),
+      diffs,
+    });
   } catch (err) {
     return apiErr(err);
   }
@@ -268,32 +419,35 @@ export async function handleCodemodApply(input: {
   if (!input.confirm) return apiErr("Pass confirm: true to apply");
 
   try {
-    const allFiles: string[] = [];
-    for (const p of input.files) await walkFiles(p, allFiles);
+    const collected = await collectAll(input.files);
+    const plan = planChunks(collected);
 
-    const reviewData: Record<string, string> = {};
     let filesChanged = 0;
     let totalStrings = 0;
 
-    for (const file of allFiles) {
-      const original = await readFile(file, "utf8").catch(() => "");
-      if (!original) continue;
-
-      const { modified, strings } = transformFile(original, file, input.key_prefix);
-      if (strings.length === 0) continue;
-
-      await writeFile(file, modified, "utf8");
+    for (const fc of collected) {
+      const entries = plan.perFile.get(fc.file) ?? [];
+      if (entries.length === 0) continue;
+      let modified = applyReplacementsWithPlan(fc.content, entries);
+      modified = addI18nImport(modified);
+      await writeFile(fc.file, modified, "utf8");
       filesChanged++;
-      totalStrings += strings.length;
-      for (const s of strings) reviewData[s.key] = s.value;
+      totalStrings += entries.length;
     }
 
     const reviewFile = join(process.cwd(), "i18n-codemod-review.json");
-    await writeFile(reviewFile, JSON.stringify(reviewData, null, 2) + "\n", "utf8");
+    const reviewDoc = {
+      version: 2,
+      chunks: plan.chunks,
+    };
+    await writeFile(reviewFile, JSON.stringify(reviewDoc, null, 2) + "\n", "utf8");
 
     return ok({
       files_changed: filesChanged,
       total_strings: totalStrings,
+      chunks: Object.fromEntries(
+        Object.entries(plan.chunks).map(([c, m]) => [c, Object.keys(m).length]),
+      ),
       review_file: "i18n-codemod-review.json",
     });
   } catch (err) {

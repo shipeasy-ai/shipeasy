@@ -43,9 +43,9 @@ export async function handlePushKeys(input: {
       `Profile '${input.profile}' not found. Create it first with i18n_create_profile.`,
     );
 
-  const chunk = input.chunk ?? "default";
-
-  let keys: KeyItem[];
+  // chunkedKeys holds one batch per chunk. When the caller pushes a flat file
+  // or overrides `chunk`, we funnel everything into a single entry.
+  let chunkedKeys: Array<{ chunk: string; keys: KeyItem[] }>;
   try {
     if (input.source === "codemod") {
       const reviewPath = join(input.path ?? process.cwd(), "i18n-codemod-review.json");
@@ -54,11 +54,35 @@ export async function handlePushKeys(input: {
           `i18n-codemod-review.json not found at ${reviewPath}. Run i18n_codemod_apply first.`,
         );
       }
-      const raw = JSON.parse(await readFile(reviewPath, "utf8")) as Record<string, string>;
-      keys = Object.entries(raw).map(([k, v]) => ({ key: k, value: v }));
+      const raw = JSON.parse(await readFile(reviewPath, "utf8")) as
+        | Record<string, string>
+        | { version?: number; chunks?: Record<string, Record<string, string>> };
+
+      if (raw && typeof raw === "object" && "chunks" in raw && raw.chunks) {
+        // v2: pre-grouped chunks from the chunk-aware codemod.
+        const chunksMap = raw.chunks as Record<string, Record<string, string>>;
+        chunkedKeys = Object.entries(chunksMap).map(([chunk, kv]) => ({
+          chunk: input.chunk ?? chunk,
+          keys: Object.entries(kv).map(([k, v]) => ({ key: k, value: v as string })),
+        }));
+      } else {
+        // Legacy flat format.
+        const flat = raw as Record<string, string>;
+        chunkedKeys = [
+          {
+            chunk: input.chunk ?? "default",
+            keys: Object.entries(flat).map(([k, v]) => ({ key: k, value: v })),
+          },
+        ];
+      }
     } else if (input.file) {
       const raw = JSON.parse(await readFile(input.file, "utf8")) as Record<string, string>;
-      keys = Object.entries(raw).map(([k, v]) => ({ key: k, value: v }));
+      chunkedKeys = [
+        {
+          chunk: input.chunk ?? "default",
+          keys: Object.entries(raw).map(([k, v]) => ({ key: k, value: v })),
+        },
+      ];
     } else {
       return apiErr("Provide either 'source: \"codemod\"' or a 'file' path.");
     }
@@ -67,8 +91,26 @@ export async function handlePushKeys(input: {
   }
 
   try {
-    const result = await pushBatch(client, profileId, chunk, keys);
-    return ok(result);
+    let totalPushed = 0;
+    let totalSkipped = 0;
+    const totalFailed: string[] = [];
+    const chunkSummary: Record<string, number> = {};
+
+    for (const group of chunkedKeys) {
+      if (group.keys.length === 0) continue;
+      const result = await pushBatch(client, profileId, group.chunk, group.keys);
+      totalPushed += result.pushed_count ?? 0;
+      totalSkipped += result.skipped_count ?? 0;
+      if (Array.isArray(result.failed_keys)) totalFailed.push(...result.failed_keys);
+      chunkSummary[group.chunk] = (chunkSummary[group.chunk] ?? 0) + group.keys.length;
+    }
+
+    return ok({
+      pushed_count: totalPushed,
+      skipped_count: totalSkipped,
+      failed_keys: totalFailed,
+      chunks: chunkSummary,
+    });
   } catch (err) {
     return apiErr(err);
   }
