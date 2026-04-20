@@ -1,7 +1,7 @@
 import ts from "typescript";
 import { readFile, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
-import { join, extname, sep, relative, resolve } from "node:path";
+import { existsSync, statSync } from "node:fs";
+import { join, extname, sep, relative, resolve, dirname } from "node:path";
 import { readdir, stat } from "node:fs/promises";
 import { ok, apiErr } from "../../util/api-client.js";
 
@@ -23,8 +23,18 @@ const TRANSLATABLE_ATTR_NAMES = new Set([
 
 // A key going into `common` chunk needs to appear in at least this many distinct files.
 const COMMON_MIN_FILES = 3;
-// A per-page chunk must cover at least this many distinct keys before it becomes a chunk.
-const PER_PAGE_MIN_KEYS = 10;
+
+// Framework-specific "source-root" folders stripped from the chunk path.
+// Only folders that don't carry semantic meaning for chunking — e.g. Next.js `app/`
+// IS semantic (App Router) so we don't strip it, but `src/` is a mechanical wrapper.
+const SRC_ROOT_SEGMENTS: Record<string, string[]> = {
+  nextjs: ["src"],
+  react: ["src"],
+  vue: ["src"],
+  svelte: ["src"],
+  angular: ["src"],
+  default: ["src"],
+};
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -72,18 +82,38 @@ async function walkFiles(dir: string, files: string[] = []): Promise<string[]> {
   return files;
 }
 
-// Pick the input path (scan root) that is an ancestor of `file`. Falls back to
-// the file's directory so we never crash on edge cases.
-function resolveScanRoot(file: string, inputPaths: string[]): string {
+// Walk upward from `file` looking for a repo-root marker. Order matters: `.git`
+// is the strongest signal, then pnpm/npm/yarn workspaces, then the outermost
+// package.json (for non-monorepo projects).
+function findRepoRoot(file: string): string {
   const absFile = resolve(file);
-  let best: string | null = null;
-  for (const p of inputPaths) {
-    const abs = resolve(p);
-    if (absFile === abs || absFile.startsWith(abs + sep)) {
-      if (!best || abs.length > best.length) best = abs;
-    }
+  let dir = statSync(absFile).isFile() ? dirname(absFile) : absFile;
+  let lastPackageJson: string | null = null;
+
+  while (true) {
+    if (existsSync(join(dir, ".git"))) return dir;
+    if (existsSync(join(dir, "pnpm-workspace.yaml"))) return dir;
+    if (existsSync(join(dir, "package.json"))) lastPackageJson = dir;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
   }
-  return best ?? resolve(file, "..");
+  // Fallback: topmost package.json we saw, else the file's directory.
+  return lastPackageJson ?? dirname(absFile);
+}
+
+// Given a path relative to repo root (POSIX-style), strip framework-specific
+// source-root segments like `apps/ui/src/app` → `apps/ui/app` (Next.js src dir)
+// or `packages/x/src/lib` → `packages/x/lib`.
+function stripSrcSegments(relPosix: string, framework: string): string {
+  const stripSet = new Set(SRC_ROOT_SEGMENTS[framework] ?? SRC_ROOT_SEGMENTS.default);
+  const parts = relPosix.split("/").filter(Boolean);
+  const out: string[] = [];
+  for (const p of parts) {
+    if (stripSet.has(p)) continue;
+    out.push(p);
+  }
+  return out.join("/");
 }
 
 // ── AST transform ─────────────────────────────────────────────────────────────
@@ -214,7 +244,8 @@ interface FileCollected {
   file: string;
   content: string;
   replacements: RawReplacement[];
-  scanRoot: string;
+  repoRoot: string;
+  chunkName: string; // precomputed full-path chunk for this file
 }
 
 interface PlanEntry {
@@ -228,8 +259,18 @@ interface Plan {
   chunks: Record<string, Record<string, string>>;
 }
 
+// Compute the chunk name for a file: full folder path from repo root, with
+// framework-specific source-root segments stripped.
+function fileChunkName(file: string, repoRoot: string, framework: string): string {
+  const relPath = relative(repoRoot, file).split(sep).join("/");
+  const folder = relPath.includes("/") ? relPath.slice(0, relPath.lastIndexOf("/")) : "";
+  const stripped = stripSrcSegments(folder, framework);
+  if (!stripped) return "root";
+  return sanitizeChunkName(stripped.replace(/\//g, "."));
+}
+
 function planChunks(collected: FileCollected[]): Plan {
-  // 1. Count distinct files per slug.
+  // 1. Count distinct files per slug so frequently-reused strings can go to `common`.
   const slugFiles = new Map<string, Set<string>>();
   for (const fc of collected) {
     for (const r of fc.replacements) {
@@ -246,67 +287,14 @@ function planChunks(collected: FileCollected[]): Plan {
     if (files.size >= COMMON_MIN_FILES) commonSlugs.add(slug);
   }
 
-  // 2. For non-common replacements, accumulate distinct (file, slug) pairs under every ancestor folder.
-  //    Folder key includes the scan root so files from different roots don't cross-contaminate.
-  const folderKeys = new Map<string, Set<string>>();
-  const ancestorsForFile = (fc: FileCollected): string[] => {
-    const rel = relative(fc.scanRoot, fc.file);
-    const parts = rel.split(sep);
-    const ancestors: string[] = [];
-    for (let i = parts.length - 1; i >= 1; i--) {
-      ancestors.push(`${fc.scanRoot}::${parts.slice(0, i).join("/")}`);
-    }
-    ancestors.push(`${fc.scanRoot}::`); // scan root itself
-    return ancestors;
-  };
-
-  for (const fc of collected) {
-    const ancestors = ancestorsForFile(fc);
-    for (const r of fc.replacements) {
-      if (commonSlugs.has(r.slug)) continue;
-      const uniq = `${fc.file}::${r.slug}`;
-      for (const a of ancestors) {
-        let s = folderKeys.get(a);
-        if (!s) {
-          s = new Set();
-          folderKeys.set(a, s);
-        }
-        s.add(uniq);
-      }
-    }
-  }
-
-  // 3. For each file, pick the deepest ancestor folder with >= PER_PAGE_MIN_KEYS.
-  const fileChunkFolder = new Map<string, string>();
-  for (const fc of collected) {
-    const ancestors = ancestorsForFile(fc); // deepest first, scan root last
-    let chosen: string | null = null;
-    for (const a of ancestors) {
-      const count = folderKeys.get(a)?.size ?? 0;
-      if (count >= PER_PAGE_MIN_KEYS) {
-        chosen = a;
-        break;
-      }
-    }
-    if (!chosen) chosen = ancestors[ancestors.length - 1]; // scan root fallback
-    fileChunkFolder.set(fc.file, chosen);
-  }
-
-  // 4. Assemble.
-  const folderKeyToChunkName = (folderKey: string): string => {
-    const rel = folderKey.split("::")[1] ?? "";
-    if (!rel) return "root";
-    return sanitizeChunkName(rel.replace(/\//g, "."));
-  };
-
+  // 2. Assemble using each file's precomputed full-path chunk name.
   const perFile = new Map<string, PlanEntry[]>();
   const chunks: Record<string, Record<string, string>> = {};
 
   for (const fc of collected) {
-    const pageChunkName = folderKeyToChunkName(fileChunkFolder.get(fc.file)!);
     const entries: PlanEntry[] = [];
     for (const r of fc.replacements) {
-      const chunk = commonSlugs.has(r.slug) ? "common" : pageChunkName;
+      const chunk = commonSlugs.has(r.slug) ? "common" : fc.chunkName;
       const finalKey = `${chunk}.${r.slug}`;
       entries.push({ raw: r, finalKey, chunk });
       if (!chunks[chunk]) chunks[chunk] = {};
@@ -348,7 +336,7 @@ function buildDiff(file: string, original: string, modified: string): string {
 
 // ── shared collection phase ───────────────────────────────────────────────────
 
-async function collectAll(inputPaths: string[]): Promise<FileCollected[]> {
+async function collectAll(inputPaths: string[], framework: string): Promise<FileCollected[]> {
   const allFiles: string[] = [];
   for (const p of inputPaths) await walkFiles(p, allFiles);
 
@@ -358,11 +346,13 @@ async function collectAll(inputPaths: string[]): Promise<FileCollected[]> {
     if (!content) continue;
     const replacements = findRawReplacements(content, file);
     if (replacements.length === 0) continue;
+    const repoRoot = findRepoRoot(file);
     collected.push({
       file,
       content,
       replacements,
-      scanRoot: resolveScanRoot(file, inputPaths),
+      repoRoot,
+      chunkName: fileChunkName(file, repoRoot, framework),
     });
   }
   return collected;
@@ -377,7 +367,7 @@ export async function handleCodemodPreview(input: {
   key_prefix?: string;
 }) {
   try {
-    const collected = await collectAll(input.files);
+    const collected = await collectAll(input.files, input.framework);
     const plan = planChunks(collected);
 
     const diffs = [];
@@ -419,7 +409,7 @@ export async function handleCodemodApply(input: {
   if (!input.confirm) return apiErr("Pass confirm: true to apply");
 
   try {
-    const collected = await collectAll(input.files);
+    const collected = await collectAll(input.files, input.framework);
     const plan = planChunks(collected);
 
     let filesChanged = 0;
