@@ -40,7 +40,7 @@ export async function handleGetSdkSnippet(input: SnippetInput) {
     framework === "nextjs"
   ) {
     const snippet = `// src/app/layout.tsx
-import { ShipeasyI18nProvider } from "@shipeasy/i18n-react";
+import { ShipeasyI18nProvider } from "@shipeasy/react";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -67,7 +67,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       language: "typescript",
       notes:
         "Set NEXT_PUBLIC_SHIPEASY_CLIENT_KEY in .env.local. " +
-        "Install @shipeasy/i18n-react: `npm install @shipeasy/i18n-react`.",
+        "Install @shipeasy/react: `npm install @shipeasy/react`.",
     });
   }
 
@@ -76,7 +76,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     type === "label_render" &&
     (language === "typescript" || language === "javascript")
   ) {
-    const snippet = `import { useShipEasyI18n } from "@shipeasy/i18n-react";
+    const snippet = `import { useShipEasyI18n } from "@shipeasy/react";
 
 export function MyComponent() {
   const { t } = useShipEasyI18n();

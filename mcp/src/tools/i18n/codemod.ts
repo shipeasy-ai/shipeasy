@@ -294,7 +294,7 @@ function addI18nImport(source: string): string {
   }
 
   const insert =
-    `\nimport { useShipEasyI18n } from "@shipeasy/i18n-react";` +
+    `\nimport { useShipEasyI18n } from "@shipeasy/react";` +
     `\n// TODO: add \`const { t } = useShipEasyI18n();\` inside your component`;
 
   if (lastImportEnd === 0) return insert + "\n" + source;

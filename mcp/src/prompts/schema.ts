@@ -63,7 +63,7 @@ End-to-end shipeasy i18n onboarding for a codebase. Run these steps in order. If
 
 The codemod does three things per file:
 1. Replaces translatable strings with \`{t("<chunk>.<slug>")}\`. Chunks are auto-assigned: repeated strings (≥3 files) go to \`common\`; the rest go to a per-folder chunk named after the deepest ancestor folder that accumulates ≥10 keys.
-2. Adds \`import { useShipEasyI18n } from "@shipeasy/i18n-react"\`.
+2. Adds \`import { useShipEasyI18n } from "@shipeasy/react"\`.
 3. Inserts a marker comment: \`// TODO: add \\\`const { t } = useShipEasyI18n();\\\` inside your component\`.
 
 It also writes \`i18n-codemod-review.json\` with the shape \`{ version: 2, chunks: { <chunk>: { <key>: <value> } } }\`.
@@ -78,7 +78,7 @@ For every file the codemod touched, the \`// TODO: add \`const { t } = useShipEa
 
 2. For each component function inside the file that contains \`t(...)\` calls:
    - **Client component**: insert \`const { t } = useShipEasyI18n();\` as the first statement of the function body (after any early-return guards that don't touch \`t\`).
-   - **Server component**: replace the \`useShipEasyI18n\` import with \`import { getShipEasyI18n } from "@shipeasy/i18n-react/server";\` and use \`const t = await getShipEasyI18n();\` as the first statement. Make the function \`async\` if it isn't already.
+   - **Server component**: replace the \`useShipEasyI18n\` import with \`import { getShipEasyI18n } from "@shipeasy/react/server";\` and use \`const t = await getShipEasyI18n();\` as the first statement. Make the function \`async\` if it isn't already.
    - If a file mixes both (rare — a server component renders an inline client helper), split the helper into a \`"use client"\` file.
 
 3. Delete the \`// TODO: add ...\` comment line once \`t\` is wired.
