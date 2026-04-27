@@ -7,8 +7,22 @@ interface Experiment {
   name: string;
   status: string;
   universe: string;
-  allocation_pct: number;
-  created_at: string;
+  allocationPct: number;
+  updatedAt?: string;
+}
+
+async function listExperiments(client: ReturnType<typeof getApiClient>): Promise<Experiment[]> {
+  return client.request<Experiment[]>("GET", "/api/admin/experiments");
+}
+
+async function findExperiment(
+  client: ReturnType<typeof getApiClient>,
+  name: string,
+): Promise<Experiment> {
+  const all = await listExperiments(client);
+  const e = all.find((x) => x.name === name);
+  if (!e) throw new ApiError(`Experiment '${name}' not found`, 404);
+  return e;
 }
 
 interface ExperimentResult {
@@ -42,22 +56,19 @@ export function experimentsCommand(parent: Command): void {
     .action(async (opts) => {
       try {
         const client = getApiClient(opts.project);
-        const data = await client.request<{ experiments: Experiment[] }>(
-          "GET",
-          "/api/admin/experiments",
-        );
-        if (opts.json) return printJson(data);
-        if (!data.experiments?.length) {
+        const experiments = await listExperiments(client);
+        if (opts.json) return printJson(experiments);
+        if (!experiments.length) {
           console.log("No experiments found.");
           return;
         }
         printTable(
           ["Name", "Status", "Universe", "Allocation"],
-          data.experiments.map((e) => [
+          experiments.map((e) => [
             e.name,
             statusColor(e.status),
             e.universe,
-            `${((e.allocation_pct ?? 10000) / 100).toFixed(0)}%`,
+            `${((e.allocationPct ?? 10000) / 100).toFixed(0)}%`,
           ]),
         );
       } catch (e) {
@@ -108,12 +119,7 @@ export function experimentsCommand(parent: Command): void {
     .action(async (name: string, opts) => {
       try {
         const client = getApiClient(opts.project);
-        const data = await client.request<{ experiments: Experiment[] }>(
-          "GET",
-          "/api/admin/experiments",
-        );
-        const e = data.experiments?.find((e) => e.name === name);
-        if (!e) throw new ApiError(`Experiment '${name}' not found`, 404);
+        const e = await findExperiment(client, name);
         await client.request("POST", `/api/admin/experiments/${e.id}/status`, {
           status: "running",
         });
@@ -130,12 +136,7 @@ export function experimentsCommand(parent: Command): void {
     .action(async (name: string, opts) => {
       try {
         const client = getApiClient(opts.project);
-        const data = await client.request<{ experiments: Experiment[] }>(
-          "GET",
-          "/api/admin/experiments",
-        );
-        const e = data.experiments?.find((e) => e.name === name);
-        if (!e) throw new ApiError(`Experiment '${name}' not found`, 404);
+        const e = await findExperiment(client, name);
         await client.request("POST", `/api/admin/experiments/${e.id}/status`, {
           status: "stopped",
         });
@@ -153,12 +154,7 @@ export function experimentsCommand(parent: Command): void {
     .action(async (name: string, opts) => {
       try {
         const client = getApiClient(opts.project);
-        const listData = await client.request<{ experiments: Experiment[] }>(
-          "GET",
-          "/api/admin/experiments",
-        );
-        const e = listData.experiments?.find((e) => e.name === name);
-        if (!e) throw new ApiError(`Experiment '${name}' not found`, 404);
+        const e = await findExperiment(client, name);
 
         const resultsData = await client
           .request<{ results: ExperimentResult[] }>("GET", `/api/admin/experiments/${e.id}/results`)
@@ -169,7 +165,7 @@ export function experimentsCommand(parent: Command): void {
         console.log(`\nExperiment: ${name}`);
         console.log(`Status:     ${statusColor(e.status)}`);
         console.log(`Universe:   ${e.universe}`);
-        console.log(`Allocation: ${((e.allocation_pct ?? 10000) / 100).toFixed(0)}%`);
+        console.log(`Allocation: ${((e.allocationPct ?? 10000) / 100).toFixed(0)}%`);
         console.log(`Verdict:    ${verdict(resultsData.results)}`);
 
         if (resultsData.results.length) {

@@ -1,14 +1,25 @@
 import { Command } from "commander";
 import { getApiClient, ApiError } from "../api/client";
-import { printTable, printJson, statusColor } from "../util/output";
+import { printTable, printJson } from "../util/output";
 
 interface Gate {
   id: string;
   name: string;
-  enabled: number;
-  killswitch: number;
-  rollout_pct: number;
-  created_at: string;
+  enabled: number | boolean;
+  killswitch: number | boolean;
+  rolloutPct: number;
+  updatedAt: string;
+}
+
+async function listGates(client: ReturnType<typeof getApiClient>): Promise<Gate[]> {
+  return client.request<Gate[]>("GET", "/api/admin/gates");
+}
+
+async function findGate(client: ReturnType<typeof getApiClient>, name: string): Promise<Gate> {
+  const gates = await listGates(client);
+  const gate = gates.find((g) => g.name === name);
+  if (!gate) throw new ApiError(`Flag '${name}' not found`, 404);
+  return gate;
 }
 
 export function flagsCommand(parent: Command): void {
@@ -22,19 +33,19 @@ export function flagsCommand(parent: Command): void {
     .action(async (opts) => {
       try {
         const client = getApiClient(opts.project);
-        const data = await client.request<{ gates: Gate[] }>("GET", "/api/admin/gates");
-        if (opts.json) return printJson(data);
-        if (!data.gates?.length) {
+        const gates = await listGates(client);
+        if (opts.json) return printJson(gates);
+        if (!gates.length) {
           console.log("No flags found.");
           return;
         }
         printTable(
           ["Name", "Enabled", "Killswitch", "Rollout %"],
-          data.gates.map((g) => [
+          gates.map((g) => [
             g.name,
             g.enabled ? "yes" : "no",
             g.killswitch ? "yes" : "no",
-            `${(g.rollout_pct / 100).toFixed(0)}%`,
+            `${(g.rolloutPct / 100).toFixed(0)}%`,
           ]),
         );
       } catch (e) {
@@ -76,9 +87,7 @@ export function flagsCommand(parent: Command): void {
     .action(async (name: string, opts) => {
       try {
         const client = getApiClient(opts.project);
-        const data = await client.request<{ gates: Gate[] }>("GET", "/api/admin/gates");
-        const gate = data.gates?.find((g) => g.name === name);
-        if (!gate) throw new ApiError(`Flag '${name}' not found`, 404);
+        const gate = await findGate(client, name);
         await client.request("POST", `/api/admin/gates/${gate.id}/enable`);
         console.log(`Enabled: ${name}`);
       } catch (e) {
@@ -93,9 +102,7 @@ export function flagsCommand(parent: Command): void {
     .action(async (name: string, opts) => {
       try {
         const client = getApiClient(opts.project);
-        const data = await client.request<{ gates: Gate[] }>("GET", "/api/admin/gates");
-        const gate = data.gates?.find((g) => g.name === name);
-        if (!gate) throw new ApiError(`Flag '${name}' not found`, 404);
+        const gate = await findGate(client, name);
         await client.request("POST", `/api/admin/gates/${gate.id}/disable`);
         console.log(`Disabled: ${name}`);
       } catch (e) {
@@ -110,9 +117,7 @@ export function flagsCommand(parent: Command): void {
     .action(async (name: string, opts) => {
       try {
         const client = getApiClient(opts.project);
-        const data = await client.request<{ gates: Gate[] }>("GET", "/api/admin/gates");
-        const gate = data.gates?.find((g) => g.name === name);
-        if (!gate) throw new ApiError(`Flag '${name}' not found`, 404);
+        const gate = await findGate(client, name);
         await client.request("DELETE", `/api/admin/gates/${gate.id}`);
         console.log(`Deleted: ${name}`);
       } catch (e) {
