@@ -275,20 +275,22 @@ export function i18nCommand(parent: Command): void {
           }
 
           const result = await client.request<{
-            pushed_count: number;
-            skipped_count: number;
-            failed_keys: string[];
+            upserted?: number;
+            chunk?: string;
+            pushed_count?: number;
+            skipped_count?: number;
+            failed_keys?: string[];
           }>("POST", "/api/admin/i18n/keys", {
             profile_id: profile.id,
             chunk: opts.chunk,
             keys,
           });
           if (opts.json) return printJson(result);
+          const count = result.upserted ?? result.pushed_count ?? keys.length;
+          const failed = result.failed_keys ?? [];
           console.log(
-            `Pushed ${result.pushed_count}, skipped ${result.skipped_count}` +
-              (result.failed_keys.length > 0
-                ? `, failed ${result.failed_keys.length}: ${result.failed_keys.join(", ")}`
-                : ""),
+            `Pushed ${count} key${count === 1 ? "" : "s"}` +
+              (failed.length > 0 ? `, failed ${failed.length}: ${failed.join(", ")}` : ""),
           );
         } catch (e) {
           if (e instanceof ApiError) {
