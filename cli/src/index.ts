@@ -4,6 +4,7 @@ import { login } from "./auth/login";
 import { clearCredentials, loadCredentials } from "./auth/storage";
 import { flagsCommand } from "./commands/flags";
 import { experimentsCommand } from "./commands/experiments";
+import { keysCommand } from "./commands/keys";
 import { scanCommand } from "./commands/scan";
 import { i18nCommand } from "./commands/i18n";
 
@@ -49,6 +50,7 @@ program
 
 flagsCommand(program);
 experimentsCommand(program);
+keysCommand(program);
 scanCommand(program);
 i18nCommand(program);
 
