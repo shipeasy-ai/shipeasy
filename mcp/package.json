@@ -6,6 +6,12 @@
   "bin": {
     "shipeasy-mcp": "./bin/mcp.js"
   },
+  "exports": {
+    "./i18n/scan": {
+      "types": "./dist/tools/i18n/scan.d.ts",
+      "default": "./dist/tools/i18n/scan.js"
+    }
+  },
   "files": [
     "bin/",
     "dist/",
