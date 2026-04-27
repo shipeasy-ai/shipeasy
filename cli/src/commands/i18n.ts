@@ -1,7 +1,9 @@
 import { Command } from "commander";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve, join } from "node:path";
+import { scanFiles } from "@shipeasy/mcp/i18n/scan";
 import { getApiClient, ApiError } from "../api/client";
+import { printJson, printTable } from "../util/output";
 import { getI18nClientKey, saveI18nClientKey } from "../util/project-config";
 
 // ── framework detection ───────────────────────────────────────────────────────
@@ -168,6 +170,126 @@ export function i18nCommand(parent: Command): void {
                 `Framework not auto-detected. Add this tag inside <head> of your entry HTML:\n\n  ${scriptTag}`,
               );
           }
+        } catch (e) {
+          if (e instanceof ApiError) {
+            console.error(`Error (${e.status}): ${e.message}`);
+          } else {
+            console.error(String(e));
+          }
+          process.exit(1);
+        }
+      },
+    );
+
+  // ── i18n scan ──────────────────────────────────────────────────────────────
+  i18n
+    .command("scan [paths...]")
+    .description(
+      "Find translatable strings in source files. Reports both already-wrapped " +
+        "t('key') calls and unwrapped JSX text / string props that look translatable.",
+    )
+    .option("--keys-only", "Only report existing t('key') call sites — skip discovery")
+    .option("--json", "Output as JSON")
+    .action(async (paths: string[], opts: { keysOnly?: boolean; json?: boolean }) => {
+      try {
+        const targets = paths.length > 0 ? paths.map((p) => resolve(p)) : [process.cwd()];
+        const candidates = await scanFiles(targets, { keysOnly: opts.keysOnly });
+        if (opts.json) return printJson(candidates);
+        if (candidates.length === 0) {
+          console.log("No candidates found.");
+          return;
+        }
+        printTable(
+          ["Kind", "Key", "Text", "Vars", "File:Line"],
+          candidates
+            .slice(0, 200)
+            .map((c) => [
+              c.kind,
+              c.suggested_key ?? "—",
+              c.text.length > 60 ? c.text.slice(0, 57) + "…" : c.text,
+              (c.variables ?? []).join(",") || "—",
+              `${c.file.replace(process.cwd() + "/", "")}:${c.line}`,
+            ]),
+        );
+        if (candidates.length > 200) {
+          console.log(`\nShowing first 200 of ${candidates.length}. Use --json for the full list.`);
+        }
+      } catch (e) {
+        if (e instanceof ApiError) {
+          console.error(`Error (${e.status}): ${e.message}`);
+        } else {
+          console.error(String(e));
+        }
+        process.exit(1);
+      }
+    });
+
+  // ── i18n push ──────────────────────────────────────────────────────────────
+  i18n
+    .command("push <file>")
+    .description(
+      "Push key/value pairs from a JSON file to the i18n profile. The file is a flat " +
+        '{ "<key>": "<value>" } map. Existing keys are skipped server-side.',
+    )
+    .requiredOption("--profile <name>", "Profile name (e.g. 'default')")
+    .option("--chunk <name>", "Logical grouping for the keys", "default")
+    .option("--json", "Output as JSON")
+    .option("--project <id>", "Project ID override")
+    .action(
+      async (
+        file: string,
+        opts: { profile: string; chunk: string; json?: boolean; project?: string },
+      ) => {
+        try {
+          const filePath = resolve(file);
+          if (!existsSync(filePath)) {
+            console.error(`File not found: ${filePath}`);
+            process.exit(1);
+          }
+          let parsed: Record<string, string>;
+          try {
+            parsed = JSON.parse(readFileSync(filePath, "utf8")) as Record<string, string>;
+          } catch (err) {
+            console.error(`Failed to parse ${filePath}: ${String(err)}`);
+            process.exit(1);
+          }
+          const keys = Object.entries(parsed).map(([key, value]) => ({ key, value }));
+          if (keys.length === 0) {
+            console.error(`No keys found in ${filePath}.`);
+            process.exit(1);
+          }
+
+          const client = getApiClient(opts.project);
+          const profiles = await client.request<Array<{ id: string; name: string }>>(
+            "GET",
+            "/api/admin/i18n/profiles",
+          );
+          const profile = profiles.find((p) => p.name === opts.profile);
+          if (!profile) {
+            console.error(
+              `Profile '${opts.profile}' not found. Existing: ${
+                profiles.map((p) => p.name).join(", ") || "(none)"
+              }`,
+            );
+            process.exit(1);
+          }
+
+          const result = await client.request<{
+            pushed_count: number;
+            skipped_count: number;
+            failed_keys: string[];
+          }>("POST", "/api/admin/i18n/keys", {
+            profile_id: profile.id,
+            chunk: opts.chunk,
+            keys,
+          });
+          if (opts.json) return printJson(result);
+          console.log(
+            `Pushed ${result.pushed_count}, skipped ${result.skipped_count}` +
+              (result.failed_keys.length > 0
+                ? `, failed ${result.failed_keys.length}: ${result.failed_keys.join(", ")}`
+                : ""),
+          );
         } catch (e) {
           if (e instanceof ApiError) {
             console.error(`Error (${e.status}): ${e.message}`);
