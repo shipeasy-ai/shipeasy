@@ -7,6 +7,7 @@ import { experimentsCommand } from "./commands/experiments";
 import { keysCommand } from "./commands/keys";
 import { scanCommand } from "./commands/scan";
 import { i18nCommand } from "./commands/i18n";
+import { codemodCommand } from "./commands/codemod";
 
 const program = new Command();
 
@@ -53,5 +54,6 @@ experimentsCommand(program);
 keysCommand(program);
 scanCommand(program);
 i18nCommand(program);
+codemodCommand(program);
 
 program.parse(process.argv);
