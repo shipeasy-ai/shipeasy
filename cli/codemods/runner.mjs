@@ -153,7 +153,15 @@ function transformFile(
     }
 
     const keyStr = `'${key.replace(/'/g, "\\'")}'`;
-    const call = `${config.function}(${keyStr}, ${fallbackStr}${varsArg})`;
+    // Published @shipeasy/sdk's `i18n.t` is typed `t(key, vars?)` — it does
+    // NOT accept a positional fallback string in its public type (the
+    // runtime would, but the d.ts doesn't expose it). To keep emitted code
+    // typesafe under `tsc --noEmit`, omit the fallback at the call site.
+    // The fallback is still persisted in `en.json`, and the SDK returns the
+    // key string when the CDN hasn't populated yet — so visible behavior is
+    // identical once translations load.
+    void fallbackStr;
+    const call = `${config.function}(${keyStr}${varsArg})`;
 
     let newText;
     if (ext.wrapBraces) {

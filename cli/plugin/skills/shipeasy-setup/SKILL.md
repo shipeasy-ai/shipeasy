@@ -17,19 +17,42 @@ node --version            # require >= 20
 git rev-parse --show-toplevel
 ```
 
-Run `mcp tool: detect_project` (if MCP is registered) or read `package.json`
-to determine framework: `nextjs-app`, `nextjs-pages`, `react-vite`, or `unknown`.
+Determine the framework from the file layout (no `shipeasy detect` /
+`shipeasy-mcp call` shell wrapper exists — read files directly):
+
+```bash
+test -f src/app/layout.tsx && echo nextjs-app
+test -f app/layout.tsx     && echo nextjs-app
+test -f pages/_document.tsx && echo nextjs-pages
+test -f index.html         && echo react-vite
+```
+
+If MCP is registered, `mcp tool: detect_project` returns the same info in
+structured form (preferred when available).
 
 ## 1. Install runtime packages
 
-Use the project's package manager (detect via `package-manager-detector`):
+Detect the package manager (lockfile or `package-manager-detector`). Always
+install **both** packages in a single command — installing them separately
+makes npm drop `@shipeasy/sdk` from `package.json` once `@shipeasy/react` is
+added (since react also depends on the SDK), surfacing as a build-time
+"Module not found" later.
+
+Pre-flight: `npm ls zod`. The SDK declares `zod ^4.0.0` peerOptional, and
+**npm always rejects** that against any `zod` major < 4 (yes, even though
+it's optional — npm doesn't honor peerOptional correctly). Pick:
 
 ```bash
-pnpm add @shipeasy/sdk
-pnpm add @shipeasy/react      # only if React is present
+# zod major 4.x: plain install
+pnpm add @shipeasy/sdk @shipeasy/react
+
+# zod major 3.x or earlier (most npm projects today): use the override
+npm install --legacy-peer-deps @shipeasy/sdk @shipeasy/react
+# pnpm: --strict-peer-dependencies=false
 ```
 
-Verify: `node -e "console.log(require('@shipeasy/sdk/package.json').version)"`.
+Verify both pinned: `npm ls @shipeasy/sdk @shipeasy/react`. Don't
+`require()` the SDK's `package.json` — that subpath isn't in `exports`.
 
 ## 2. Authenticate (browser, PKCE)
 
@@ -89,31 +112,68 @@ There is exactly one entry point per runtime. **Never** create
 `src/lib/shipeasy.ts` wrappers, separate `i18n.init()` calls, or per-feature
 configuration files.
 
-```ts
-// Server (Next.js root layout — once)
-import { shipeasy } from "@shipeasy/sdk/server";
-await shipeasy({ apiKey: process.env.SHIPEASY_SERVER_KEY ?? "" });
-```
+The Next.js layout file is at `app/layout.tsx` **or** `src/app/layout.tsx`
+— edit whichever exists. The `shipeasy()` call uses `await`, so the layout
+function must be `async` (convert it if it isn't):
 
 ```ts
-// Client (root client component or app entry)
+// app/layout.tsx (or src/app/layout.tsx)
+import { shipeasy } from "@shipeasy/sdk/server";
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  await shipeasy({ apiKey: process.env.SHIPEASY_SERVER_KEY ?? "" });
+  return <html lang="en"><body>{children}</body></html>;
+}
+```
+
+For Next.js App Router with the loader script (step 6), client-side init is
+**not needed** — the loader handles it. Skip ahead.
+
+For projects without the loader (Vite, CRA, plain HTML), call client init at
+the entry:
+
+```ts
 import { shipeasy } from "@shipeasy/sdk/client";
 shipeasy({ apiKey: process.env.NEXT_PUBLIC_SHIPEASY_CLIENT_KEY ?? "" });
 ```
 
-For static HTML / Vite, prefer the loader script tag (step 6) over a JS import.
+For Next.js without a loader, create `app/_shipeasy-client.tsx`:
+
+```tsx
+"use client";
+import { shipeasy } from "@shipeasy/sdk/client";
+import { useEffect } from "react";
+export function ShipeasyClient() {
+  useEffect(() => {
+    shipeasy({ apiKey: process.env.NEXT_PUBLIC_SHIPEASY_CLIENT_KEY ?? "" });
+  }, []);
+  return null;
+}
+```
+
+…and import `<ShipeasyClient />` in `<body>` of your root layout.
 
 ## 6. Inject the i18n loader (optional)
 
+Pick the profile name first — the CLI does **not** auto-create profiles. If
+you don't already have one, create it before running install-loader:
+
 ```bash
+shipeasy i18n profiles list                              # see what's there
+shipeasy i18n profiles create default --locales en       # only if missing
 shipeasy i18n install-loader --profile default
 ```
 
-The CLI auto-detects framework and injects into `layout.tsx` /
-`pages/_document.tsx` / `index.html`. Self-heal: if framework is `unknown`,
-re-run with `--print` and ask the user where to paste the tag.
+The CLI auto-detects framework, injects into `layout.tsx` /
+`pages/_document.tsx` / `index.html`, and reuses an existing client key
+from `.env*` / `.shipeasy` instead of creating a new one on every run. The
+`.shipeasy` cache file is added to `.gitignore` automatically.
 
-## 7. Register the MCP server
+Self-heal: if framework is `unknown` or the layout has no `<head>` element
+(common with Next 13+ Metadata API), re-run with `--print` and ask the user
+where to paste the tag.
+
+## 7. Register the MCP server, plus skills/plugin (pick one)
 
 ```bash
 shipeasy mcp install --scope user            # writes to ~/.claude/settings.json + ~/.cursor/mcp.json
@@ -121,22 +181,37 @@ shipeasy mcp install --scope user            # writes to ~/.claude/settings.json
 shipeasy mcp install --scope project         # writes to .mcp.json + .cursor/mcp.json + .windsurf/mcp.json
 ```
 
-Verify: `shipeasy mcp status`. Restart the AI assistant.
+Verify: `shipeasy mcp status` (prints scope = $HOME / cwd, then per-config
+yes/no rows). Restart the AI assistant after.
 
-Then optionally pull in skills + plugin so future sessions know the workflows:
+Then add slash commands and/or skills:
 
 ```bash
-shipeasy skills install                      # all bundled skills
-shipeasy plugin install                      # slash commands + codemods
+shipeasy plugin install     # → .claude/commands/ + .claude/skills/ (canonical paths; auto-picks up)
+# or skills only:
+shipeasy skills install     # → .claude/skills/
 ```
+
+`shipeasy plugin install` also writes a `.claude/plugins/shipeasy/` manifest
+for marketplace-style layouts, but Claude Code reads the
+`.claude/commands/` and `.claude/skills/` paths directly — no `/plugin`
+registration needed. `shipeasy mcp install` already wired the MCP server
+for all three assistants in step 7's first command.
 
 ## 8. Find or create the first translation keys
 
-Discover, then push:
+Confirm the profile exists (the CLI does **not** auto-create), then discover
+and push:
 
 ```bash
-shipeasy i18n scan src --json
+shipeasy i18n profiles list
+shipeasy i18n profiles create default --locales en   # only if missing
+shipeasy i18n scan src --json                        # use `app` for app/-only projects
 ```
+
+The scan output uses `kind: "jsx_text" | "jsx_attr" | "template_literal" | …`.
+There is no `wrapped` / `candidate` field — every row is a candidate. Pass
+`--keys-only` to filter to existing `t(...)` call sites.
 
 For each chosen candidate, either wrap in code with `i18n.t()` (see the
 `shipeasy-i18n` skill) or push raw key/value pairs:
@@ -153,14 +228,18 @@ typed errors:
 - `mcp tool: i18n_create_key { "key": "landing.hero.title", "value": "Ship faster", "profile": "default" }`
 - `mcp tool: i18n_publish_profile { "profile": "default" }`
 
+`i18n_validate_keys` only checks wrapped `t(...)` references in code; a
+"no i18n key references found" return after a 900-row scan is expected if
+no calls have been wrapped yet.
+
 Errors → action:
 
-| Error            | Action                                   |
-| ---------------- | ---------------------------------------- |
-| `409 key exists` | Leave it.                                |
-| `401`            | Re-run `shipeasy login`, retry **once**. |
-| `429` plan-limit | Surface to user; do not auto-upgrade.    |
-| Profile missing  | Create it with `i18n_create_profile`.    |
+| Error                        | Action                                                                                    |
+| ---------------------------- | ----------------------------------------------------------------------------------------- |
+| `409 key exists`             | Leave it.                                                                                 |
+| `401`                        | Re-run `shipeasy login`, retry **once**.                                                  |
+| `429` plan-limit             | Surface to user; do not auto-upgrade.                                                     |
+| `Profile '<name>' not found` | `shipeasy i18n profiles create <name> --locales en` (or `mcp tool: i18n_create_profile`). |
 
 ## 9. Final verification gate
 

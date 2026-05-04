@@ -122,6 +122,9 @@ export function mcpCommand(parent: Command): void {
     .command("status")
     .description("Show which AI-assistant configs have a Shipeasy MCP entry")
     .action(() => {
+      console.log(`Scope:`);
+      console.log(`  user    = $HOME (${homedir()})`);
+      console.log(`  project = cwd  (${process.cwd()})\n`);
       const targets = [
         ...targetsForScope("user", process.cwd()),
         ...targetsForScope("project", process.cwd()),

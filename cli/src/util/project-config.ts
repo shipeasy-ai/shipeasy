@@ -34,4 +34,14 @@ export function getI18nClientKey(dir: string): string | undefined {
 export function saveI18nClientKey(dir: string, key: string): void {
   const cfg = readProjectConfig(dir);
   writeProjectConfig(dir, { ...cfg, i18n: { ...cfg.i18n, client_key: key } });
+  ensureGitignored(dir, FILENAME);
+}
+
+function ensureGitignored(dir: string, entry: string): void {
+  const path = join(dir, ".gitignore");
+  if (!existsSync(path)) return;
+  const lines = readFileSync(path, "utf8").split(/\r?\n/);
+  if (lines.some((l) => l.trim() === entry || l.trim() === `/${entry}`)) return;
+  const trailing = lines[lines.length - 1] === "" ? "" : "\n";
+  writeFileSync(path, readFileSync(path, "utf8") + trailing + entry + "\n", "utf8");
 }

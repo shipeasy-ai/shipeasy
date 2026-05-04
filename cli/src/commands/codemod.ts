@@ -70,19 +70,51 @@ export function codemodCommand(parent: Command): void {
         };
 
         const config = configMod.loadConfig(opts.config ?? null);
-        const result = await runnerMod.run(config, {
-          dryRun: opts.dryRun,
-          verbose: opts.verbose,
-          type: opts.type ?? null,
-          migrate: opts.migrate ?? null,
-          target: target ? resolve(target) : undefined,
-        });
+        // Resolve targets. Order of precedence:
+        //   1. explicit `target` arg → that single dir
+        //   2. config's srcDir (default "src") if it exists → that single dir
+        //   3. fallback auto-detect: scan each of app/, components/, lib/,
+        //      pages/, src/ that exists. This makes the codemod work on
+        //      modern Next.js App Router projects without `src/` and on
+        //      typical mixed layouts without requiring a config file.
+        const targets = resolveTargets(target, (config as { srcDir?: string }).srcDir ?? "src");
+        if (targets.length === 0) {
+          console.error(
+            "\n  Error: no target directory found. Pass an explicit path " +
+              "(e.g. `shipeasy codemod i18n app`) or create a `.i18n-codemod.json` " +
+              "with `srcDir` pointing at your source root.\n",
+          );
+          process.exit(1);
+        }
 
-        if (result.filesScanned === 0) process.exit(1);
+        let totalScanned = 0;
+        for (const t of targets) {
+          if (targets.length > 1) console.log(`\n  → scanning ${t}`);
+          const result = await runnerMod.run(config, {
+            dryRun: opts.dryRun,
+            verbose: opts.verbose,
+            type: opts.type ?? null,
+            migrate: opts.migrate ?? null,
+            target: t,
+          });
+          totalScanned += result.filesScanned;
+        }
+        if (totalScanned === 0) process.exit(1);
       } catch (err) {
         console.error(`\n  Error: ${err instanceof Error ? err.message : String(err)}\n`);
         if (opts.verbose && err instanceof Error) console.error(err.stack);
         process.exit(1);
       }
     });
+}
+
+function resolveTargets(explicit: string | undefined, configSrcDir: string): string[] {
+  const cwd = process.cwd();
+  if (explicit) return [resolve(explicit)];
+  // If the configured srcDir exists, honor it (single target).
+  const configured = resolve(cwd, configSrcDir);
+  if (existsSync(configured)) return [configured];
+  // Auto-detect common modern layouts.
+  const candidates = ["app", "src", "components", "lib", "pages"];
+  return candidates.map((c) => resolve(cwd, c)).filter((p) => existsSync(p));
 }
