@@ -1,0 +1,8 @@
+{
+  "name": "shipeasy",
+  "version": "1.0.0",
+  "description": "Shipeasy slash commands, codemods, and agent skills for Claude Code",
+  "author": { "name": "Shipeasy", "url": "https://shipeasy.ai" },
+  "homepage": "https://shipeasy.ai",
+  "license": "MIT"
+}

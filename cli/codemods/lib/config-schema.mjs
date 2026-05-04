@@ -52,7 +52,7 @@ export const DEFAULT_CONFIG = {
   /** Function calls to skip — never extract string args from these.
    *  Keys are object/function names, values are method lists ('*' = all). */
   skipCalls: {
-    i18n: ["t", "tEl", "rich"],
+    i18n: ["t", "rich"],
     console: [
       "log",
       "warn",

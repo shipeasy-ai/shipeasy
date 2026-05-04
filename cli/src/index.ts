@@ -8,6 +8,9 @@ import { keysCommand } from "./commands/keys";
 import { scanCommand } from "./commands/scan";
 import { i18nCommand } from "./commands/i18n";
 import { codemodCommand } from "./commands/codemod";
+import { mcpCommand } from "./commands/mcp";
+import { skillsCommand } from "./commands/skills";
+import { pluginCommand } from "./commands/plugin";
 
 const program = new Command();
 
@@ -55,5 +58,8 @@ keysCommand(program);
 scanCommand(program);
 i18nCommand(program);
 codemodCommand(program);
+mcpCommand(program);
+skillsCommand(program);
+pluginCommand(program);
 
 program.parse(process.argv);

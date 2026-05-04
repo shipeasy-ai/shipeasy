@@ -312,7 +312,7 @@ Reads existing i18next translation files for fallback text.
 
   // Function calls to skip — keys are object names, values are method lists
   "skipCalls": {
-    "i18n": ["t", "tEl", "rich"], // already translated (idempotency)
+    "i18n": ["t", "rich"], // already translated (idempotency)
     "console": ["log", "warn", "error"], // debug output
   },
 

@@ -8,7 +8,9 @@
   "files": [
     "dist/",
     "bin/",
-    "codemods/"
+    "codemods/",
+    "skills/",
+    "plugin/"
   ],
   "scripts": {
     "build": "tsup src/index.ts --format cjs --dts",
