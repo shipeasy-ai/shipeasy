@@ -275,7 +275,7 @@ function applyReplacementsWithPlan(
 }
 
 function addI18nImport(source: string): string {
-  if (/useShipEasyI18n/.test(source)) return source;
+  if (/from ["']@shipeasy\/sdk\/client["']/.test(source)) return source;
 
   const sf = ts.createSourceFile(
     "_tmp.tsx",
@@ -293,9 +293,7 @@ function addI18nImport(source: string): string {
     }
   }
 
-  const insert =
-    `\nimport { useShipEasyI18n } from "@shipeasy/react";` +
-    `\n// TODO: add \`const { t } = useShipEasyI18n();\` inside your component`;
+  const insert = `\nimport { t } from "@shipeasy/sdk/client";`;
 
   if (lastImportEnd === 0) return insert + "\n" + source;
   return source.slice(0, lastImportEnd) + insert + source.slice(lastImportEnd);

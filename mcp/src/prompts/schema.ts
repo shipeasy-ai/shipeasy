@@ -61,31 +61,15 @@ End-to-end shipeasy i18n onboarding for a codebase. Run these steps in order. If
 ## 5. Apply codemod
 - Call \`i18n_codemod_apply(framework=<detected>, files=[<src root>], confirm=true)\`.
 
-The codemod does three things per file:
+The codemod does two things per file:
 1. Replaces translatable strings with \`{t("<chunk>.<slug>")}\`. Chunks are auto-assigned: repeated strings (≥3 files) go to \`common\`; the rest go to a per-folder chunk named after the deepest ancestor folder that accumulates ≥10 keys.
-2. Adds \`import { useShipEasyI18n } from "@shipeasy/react"\`.
-3. Inserts a marker comment: \`// TODO: add \\\`const { t } = useShipEasyI18n();\\\` inside your component\`.
+2. Adds \`import { t } from "@shipeasy/sdk/client"\`.
 
 It also writes \`i18n-codemod-review.json\` with the shape \`{ version: 2, chunks: { <chunk>: { <key>: <value> } } }\`.
 
-## 6. Wire the \`t\` hook (REQUIRED — do not skip)
+\`t()\` is a top-level function — no hook, no Provider. Calls work in both server and client components. If you want re-renders on locale change inside a client component, wrap the read in your framework's reactivity primitive (React: \`useEffect\` + \`shipeasy.subscribe\`; Vue: \`watchEffect\`; Svelte: \`$:\`). Most apps don't need this — locale changes typically navigate to a new URL.
 
-For every file the codemod touched, the \`// TODO: add \`const { t } = useShipEasyI18n();\`\` marker must be resolved before the app will compile. Grep for that marker across the repo and process each hit:
-
-1. Decide client vs. server component for the file:
-   - **Client**: the file (or an ancestor layout) has \`"use client"\` at the top, or the component uses hooks / event handlers.
-   - **Server**: no \`"use client"\`, component may be \`async\`, rendered on the server (common in Next.js App Router \`page.tsx\` / \`layout.tsx\`).
-
-2. For each component function inside the file that contains \`t(...)\` calls:
-   - **Client component**: insert \`const { t } = useShipEasyI18n();\` as the first statement of the function body (after any early-return guards that don't touch \`t\`).
-   - **Server component**: replace the \`useShipEasyI18n\` import with \`import { getShipEasyI18n } from "@shipeasy/react/server";\` and use \`const t = await getShipEasyI18n();\` as the first statement. Make the function \`async\` if it isn't already.
-   - If a file mixes both (rare — a server component renders an inline client helper), split the helper into a \`"use client"\` file.
-
-3. Delete the \`// TODO: add ...\` comment line once \`t\` is wired.
-
-4. Run \`pnpm --filter <workspace> type-check\` after wiring a batch of files to catch missed components early.
-
-## 7. Sweep for strings the codemod missed
+## 6. Sweep for strings the codemod missed
 
 The AST walker only picks up JSX text and a fixed list of string attributes (\`label\`, \`title\`, \`placeholder\`, \`description\`, \`alt\`, \`aria-label\`, \`caption\`, \`heading\`, \`tooltip\`, \`helperText\`, \`errorMessage\`). Everything else is your problem. Grep the repo for:
 
@@ -102,20 +86,20 @@ For each missed string:
 
 Do not stop this sweep at "looks done" — do one full pass of \`grep -rn '"[A-Z][a-z].*[a-z]"' <src>\` over the source root and triage every hit before moving on.
 
-## 8. Push to shipeasy
+## 7. Push to shipeasy
 
 - Call \`i18n_push_keys(profile="en:prod", source="codemod")\`. It reads \`i18n-codemod-review.json\` and uploads each chunk in one batch. The response includes a \`chunks\` summary.
-- For any keys you created via \`i18n_create_key\` in step 7, those are already server-side — no extra push needed.
+- For any keys you created via \`i18n_create_key\` in step 6, those are already server-side — no extra push needed.
 
-## 9. Validate
+## 8. Validate
 
 - Call \`i18n_validate_keys(paths=[<src root>], profile="en:prod")\`. If it reports missing keys, those are \`t("...")\` references that have no server-side row yet. Create them with \`i18n_create_key\` and re-run. Repeat until green.
 
-## 10. Publish
+## 9. Publish
 
 - Call \`i18n_publish_profile(profile="en:prod")\` (omit \`chunk\` to publish every chunk). This rebuilds the KV manifest and purges the CDN.
 
-## 11. Verify
+## 10. Verify
 
 - Reload the app. Confirm translations render. Type-check and run the test suite one more time.
 

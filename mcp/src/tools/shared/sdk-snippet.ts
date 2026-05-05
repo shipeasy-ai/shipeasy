@@ -40,7 +40,9 @@ export async function handleGetSdkSnippet(input: SnippetInput) {
     framework === "nextjs"
   ) {
     const snippet = `// src/app/layout.tsx
-import { ShipeasyI18nProvider } from "@shipeasy/react";
+import { shipeasy } from "@shipeasy/sdk/server";
+
+await shipeasy({ apiKey: process.env.NEXT_PUBLIC_SHIPEASY_CLIENT_KEY ?? "" });
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -54,11 +56,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           defer
         />
       </head>
-      <body>
-        <ShipeasyI18nProvider>
-          {children}
-        </ShipeasyI18nProvider>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }`;
@@ -67,7 +65,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       language: "typescript",
       notes:
         "Set NEXT_PUBLIC_SHIPEASY_CLIENT_KEY in .env.local. " +
-        "Install @shipeasy/react: `npm install @shipeasy/react`.",
+        "Install @shipeasy/sdk: `npm install @shipeasy/sdk`. " +
+        "Call shipeasy() once in the root layout — it is idempotent across renders.",
     });
   }
 
@@ -76,15 +75,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     type === "label_render" &&
     (language === "typescript" || language === "javascript")
   ) {
-    const snippet = `import { useShipEasyI18n } from "@shipeasy/react";
+    const snippet = `import { t } from "@shipeasy/sdk/client";
 
 export function MyComponent() {
-  const { t } = useShipEasyI18n();
-
   return (
     <div>
       <h1>{t("${name || "my_key"}")}</h1>
-      <p>{t("another_key", { fallback: "Default text" })}</p>
+      <p>{t("another_key", "Default text")}</p>
     </div>
   );
 }`;
@@ -92,8 +89,10 @@ export function MyComponent() {
       snippet,
       language: "typescript",
       notes:
-        "The t() function returns the translated string for the given key. " +
-        "Keys are loaded from your ShipEasy profile at runtime.",
+        "t() returns the translated string for the given key. Keys are loaded " +
+        "from your ShipEasy profile at runtime by the loader script. " +
+        "If you need re-renders on locale change, wrap in your framework's " +
+        "reactivity primitive (React useEffect + shipeasy.subscribe, Vue watchEffect, etc).",
     });
   }
 
