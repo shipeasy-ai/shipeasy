@@ -62,10 +62,6 @@ const isOn = gates.check("checkout_v2"); // attributes pulled from session conte
 const ranking = configs.get("search_ranking");
 ```
 
-`@shipeasy/react` provides `useGate("name")` / `useConfig("name")` hooks as a
-thin wrapper. Don't ship features that **only** work via the React hooks —
-the underlying API is vanilla JS, by hard rule.
-
 ## Rollout playbook
 
 1. Create the gate at `rollout_percent: 0` with the new code path gated on it.

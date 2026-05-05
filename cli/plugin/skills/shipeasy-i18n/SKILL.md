@@ -68,8 +68,7 @@ Or programmatically: `mcp tool: i18n_scan_code { "paths": ["src"] }`.
 
 ### 2. Wrap in code
 
-Edit each file. Import `i18n` from `@shipeasy/sdk/client` (not from
-`@shipeasy/react` — hooks would tie this to React, breaking the vanilla-JS rule).
+Edit each file. Import `i18n` from `@shipeasy/sdk/client`.
 
 ### 3. Create keys in the backend
 

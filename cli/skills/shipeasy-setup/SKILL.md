@@ -32,27 +32,16 @@ structured form (preferred when available).
 
 ## 1. Install runtime packages
 
-Detect the package manager (lockfile or `package-manager-detector`). Always
-install **both** packages in a single command — installing them separately
-makes npm drop `@shipeasy/sdk` from `package.json` once `@shipeasy/react` is
-added (since react also depends on the SDK), surfacing as a build-time
-"Module not found" later.
-
-Pre-flight: `npm ls zod`. The SDK declares `zod ^4.0.0` peerOptional, and
-**npm always rejects** that against any `zod` major < 4 (yes, even though
-it's optional — npm doesn't honor peerOptional correctly). Pick:
+Detect the package manager (lockfile or `package-manager-detector`) and install
+the SDK:
 
 ```bash
-# zod major 4.x: plain install
-pnpm add @shipeasy/sdk @shipeasy/react
-
-# zod major 3.x or earlier (most npm projects today): use the override
-npm install --legacy-peer-deps @shipeasy/sdk @shipeasy/react
-# pnpm: --strict-peer-dependencies=false
+pnpm add @shipeasy/sdk
+# or: npm install @shipeasy/sdk
 ```
 
-Verify both pinned: `npm ls @shipeasy/sdk @shipeasy/react`. Don't
-`require()` the SDK's `package.json` — that subpath isn't in `exports`.
+Verify pinned: `npm ls @shipeasy/sdk`. Don't `require()` the SDK's
+`package.json` — that subpath isn't in `exports`.
 
 ## 2. Authenticate (browser, PKCE)
 
