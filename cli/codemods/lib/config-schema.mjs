@@ -377,7 +377,17 @@ export function loadConfig(configPath) {
   }
   // If no explicit path and default doesn't exist, just use defaults silently
 
-  return mergeConfig(DEFAULT_CONFIG, userConfig);
+  const merged = mergeConfig(DEFAULT_CONFIG, userConfig);
+
+  // Adapt the output path to the project layout when the user hasn't
+  // overridden it. The DEFAULT_CONFIG's "src/i18n/en.json" only makes sense
+  // when there's an `src/` root; for App Router projects without `src/`
+  // (Next.js 13+ default), write to `i18n/en.json` at the repo root instead.
+  if (!("outputJson" in userConfig) && !fs.existsSync(path.resolve(process.cwd(), "src"))) {
+    merged.outputJson = "i18n/en.json";
+  }
+
+  return merged;
 }
 
 // ── Merging ──────────────────────────────────────────────────────────────────

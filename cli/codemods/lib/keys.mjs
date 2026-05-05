@@ -29,6 +29,20 @@ export function filePathToScope(filePath, srcDir, containerDirs) {
 
   let segs = rel.split(path.sep);
 
+  // Strip empty / dot-prefixed segments. `path.relative` can yield "" for
+  // leading separators on some inputs, and downstream `join(".")` would emit
+  // `.....foo` keys. Also drop any segment that's only dots or whitespace.
+  segs = segs.filter((s) => s && s.replace(/[.\s]/g, "").length > 0);
+
+  // Next.js App Router conventions:
+  //   `(group)`  → route group, organisational only — drop entirely.
+  //   `[param]`  → dynamic segment — drop the brackets but keep the param name.
+  //   `@slot`    → parallel route — drop the @ prefix.
+  segs = segs
+    .filter((s) => !/^\(.+\)$/.test(s))
+    .map((s) => s.replace(/^\[\.{3}(.+)\]$/, "$1").replace(/^\[(.+)\]$/, "$1"))
+    .map((s) => s.replace(/^@/, ""));
+
   // Route files: _private.billing.invoices -> billing.invoices
   if (segs[0] === "routes") {
     const routeFile = segs[segs.length - 1];

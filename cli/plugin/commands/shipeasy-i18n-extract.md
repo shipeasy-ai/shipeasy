@@ -23,11 +23,11 @@ and report at the end.
    - a flat `src/i18n/en.json` (or `i18n/en.json` if no `src/`) with the
      extracted key/value pairs (merge mode — safe to re-run).
 
-2. Locate the generated keys file (`src/i18n/en.json` or `i18n/en.json`)
-   and push it to the backend, then publish:
+2. Locate the generated keys file. The codemod writes to
+   `src/i18n/en.json` if `src/` exists, otherwise `i18n/en.json` at the
+   repo root. Push it, then publish:
 
    ```bash
-   # auto-detect path:
    FILE=$(test -f src/i18n/en.json && echo src/i18n/en.json || echo i18n/en.json)
    shipeasy i18n push "$FILE" --profile default --chunk default
    shipeasy i18n publish --profile default --chunk default

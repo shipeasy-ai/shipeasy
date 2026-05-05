@@ -271,6 +271,24 @@ Try next:
   Open dashboard: https://app.shipeasy.ai/projects/<project_id>
 ```
 
+## 11. Ask the user to commit
+
+Onboarding wrote real changes. Show the diff footprint and **propose** the
+commit — don't run it yourself. Stage only the files you authored (never
+`git add -A`). Confirm `.env.local` is gitignored before any `git add`.
+
+```bash
+git status
+git diff --stat
+# Then propose to the user (do not run yourself):
+git add <listed files>
+git commit -m "chore: onboard Shipeasy (SDK + i18n loader + MCP)"
+```
+
+If the codemod modified many source files, suggest splitting into two
+commits — install plumbing first, codemod-applied i18n wrapping second —
+so the diff stays reviewable.
+
 ## Operating rules
 
 1. **One configure call.** Never wrap the SDK.
