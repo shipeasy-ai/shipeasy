@@ -11,6 +11,7 @@ import { codemodCommand } from "./commands/codemod";
 import { mcpCommand } from "./commands/mcp";
 import { skillsCommand } from "./commands/skills";
 import { pluginCommand } from "./commands/plugin";
+import { projectsCommand } from "./commands/projects";
 import { bindProject, readProjectConfig } from "./util/project-config";
 
 const program = new Command();
@@ -81,6 +82,7 @@ program
     );
   });
 
+projectsCommand(program);
 flagsCommand(program);
 experimentsCommand(program);
 keysCommand(program);
