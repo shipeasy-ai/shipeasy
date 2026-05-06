@@ -14,6 +14,7 @@ import { TOOLS } from "./tools/schema.js";
 import { PROMPTS, PROMPT_BODIES } from "./prompts/schema.js";
 import { RESOURCE_TEMPLATES } from "./resources/schema.js";
 import { handleAuthCheck, handleAuthLogout } from "./tools/shared/auth.js";
+import { handleUpsertProject } from "./tools/projects/upsert.js";
 import { handleDetectProject } from "./tools/shared/detect-project.js";
 import { handleListResources } from "./tools/shared/list-resources.js";
 import { handleGetResource } from "./tools/shared/get-resource.js";
@@ -69,6 +70,10 @@ export async function startStdioServer(): Promise<void> {
       const args = params.arguments ?? {};
       const input = (args.paths as string[] | undefined) ?? (args.path as string | undefined);
       return handleDetectProject(input);
+    }
+    if (toolName === "projects_upsert") {
+      const args = params.arguments ?? {};
+      return handleUpsertProject(args as Parameters<typeof handleUpsertProject>[0]);
     }
     if (toolName === "auth_check") return handleAuthCheck();
     if (toolName === "auth_logout") return handleAuthLogout();

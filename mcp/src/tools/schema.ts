@@ -31,6 +31,35 @@ export const TOOLS: Tool[] = [
     },
   },
   {
+    name: "projects_upsert",
+    description:
+      "Find-or-create a Shipeasy project by domain (idempotent) and bind the cwd to it via .shipeasy. Use this on fresh installs BEFORE any other write tool — every other write tool refuses to run until .shipeasy exists. Re-running with the same domain returns the existing project unchanged.",
+    inputSchema: {
+      type: "object",
+      required: ["domain"],
+      properties: {
+        domain: {
+          type: "string",
+          description:
+            "Hostname-like identifier for the project (e.g. shouks.app, acme.com). Primary key for upsert.",
+        },
+        name: {
+          type: "string",
+          description:
+            "Human-readable project name. Defaults to the domain on first create; ignored on later upserts.",
+        },
+        path: {
+          type: "string",
+          description: "Directory to write .shipeasy in. Defaults to the MCP server's cwd.",
+        },
+        bind: {
+          type: "boolean",
+          description: "Write .shipeasy after upsert. Default true. Set false to skip binding.",
+        },
+      },
+    },
+  },
+  {
     name: "auth_check",
     description:
       "Report whether ~/.config/shipeasy/config.json holds a valid CLI token. Returns { authenticated, project_id, base_url, user_email }.",
