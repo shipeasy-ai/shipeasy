@@ -70,7 +70,7 @@ export function keysCommand(parent: Command): void {
             400,
           );
         }
-        const client = getApiClient(opts.project);
+        const client = getApiClient(opts.project, { requireBinding: true });
         const created = await client.request<KeyCreated>("POST", "/api/admin/keys", {
           type: opts.type,
         });
@@ -102,7 +102,7 @@ export function keysCommand(parent: Command): void {
     .option("--project <id>", "Project ID override")
     .action(async (idArg: string, opts) => {
       try {
-        const client = getApiClient(opts.project);
+        const client = getApiClient(opts.project, { requireBinding: true });
         const rows = await client.request<KeyRow[]>("GET", "/api/admin/keys");
         const match = rows.find((r) => r.id === idArg) ?? rows.find((r) => r.id.startsWith(idArg));
         if (!match) throw new ApiError(`No key found matching '${idArg}'`, 404);

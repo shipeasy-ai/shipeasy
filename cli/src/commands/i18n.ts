@@ -116,7 +116,7 @@ export function i18nCommand(parent: Command): void {
         print?: boolean;
       }) => {
         try {
-          const client = getApiClient(opts.project);
+          const client = getApiClient(opts.project, { requireBinding: true });
 
           // Resolve the client SDK key — preference order:
           //   1. --data-key flag
@@ -298,7 +298,7 @@ export function i18nCommand(parent: Command): void {
             process.exit(1);
           }
 
-          const client = getApiClient(opts.project);
+          const client = getApiClient(opts.project, { requireBinding: true });
           const profiles = await client.request<Array<{ id: string; name: string }>>(
             "GET",
             "/api/admin/i18n/profiles",
@@ -393,7 +393,7 @@ export function i18nCommand(parent: Command): void {
     .option("--project <id>", "Project ID override")
     .action(async (opts: { profile: string; chunk: string; json?: boolean; project?: string }) => {
       try {
-        const client = getApiClient(opts.project);
+        const client = getApiClient(opts.project, { requireBinding: true });
         const profiles = await client.request<Array<{ id: string; name: string }>>(
           "GET",
           "/api/admin/i18n/profiles",
@@ -549,7 +549,7 @@ export function i18nCommand(parent: Command): void {
         opts: { locales: string[]; defaultLocale?: string; json?: boolean; project?: string },
       ) => {
         try {
-          const client = getApiClient(opts.project);
+          const client = getApiClient(opts.project, { requireBinding: true });
           const created = await client.request<{ id: string; name: string }>(
             "POST",
             "/api/admin/i18n/profiles",

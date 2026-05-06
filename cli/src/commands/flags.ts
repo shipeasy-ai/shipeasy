@@ -64,7 +64,7 @@ export function flagsCommand(parent: Command): void {
     .option("--project <id>", "Project ID override")
     .action(async (name: string, opts) => {
       try {
-        const client = getApiClient(opts.project);
+        const client = getApiClient(opts.project, { requireBinding: true });
         const body: Record<string, unknown> = {
           name,
           rollout_pct: Math.round(Number(opts.rollout) * 100),
@@ -86,7 +86,7 @@ export function flagsCommand(parent: Command): void {
     .option("--project <id>", "Project ID override")
     .action(async (name: string, opts) => {
       try {
-        const client = getApiClient(opts.project);
+        const client = getApiClient(opts.project, { requireBinding: true });
         const gate = await findGate(client, name);
         await client.request("POST", `/api/admin/gates/${gate.id}/enable`);
         console.log(`Enabled: ${name}`);
@@ -101,7 +101,7 @@ export function flagsCommand(parent: Command): void {
     .option("--project <id>", "Project ID override")
     .action(async (name: string, opts) => {
       try {
-        const client = getApiClient(opts.project);
+        const client = getApiClient(opts.project, { requireBinding: true });
         const gate = await findGate(client, name);
         await client.request("POST", `/api/admin/gates/${gate.id}/disable`);
         console.log(`Disabled: ${name}`);
@@ -116,7 +116,7 @@ export function flagsCommand(parent: Command): void {
     .option("--project <id>", "Project ID override")
     .action(async (name: string, opts) => {
       try {
-        const client = getApiClient(opts.project);
+        const client = getApiClient(opts.project, { requireBinding: true });
         const gate = await findGate(client, name);
         await client.request("DELETE", `/api/admin/gates/${gate.id}`);
         console.log(`Deleted: ${name}`);

@@ -89,7 +89,7 @@ export function experimentsCommand(parent: Command): void {
     .option("--project <id>", "Project ID override")
     .action(async (name: string, opts) => {
       try {
-        const client = getApiClient(opts.project);
+        const client = getApiClient(opts.project, { requireBinding: true });
         const defaultGroups = [
           { name: "control", weight: 5000, params: {} },
           { name: "test", weight: 5000, params: {} },
@@ -118,7 +118,7 @@ export function experimentsCommand(parent: Command): void {
     .option("--project <id>", "Project ID override")
     .action(async (name: string, opts) => {
       try {
-        const client = getApiClient(opts.project);
+        const client = getApiClient(opts.project, { requireBinding: true });
         const e = await findExperiment(client, name);
         await client.request("POST", `/api/admin/experiments/${e.id}/status`, {
           status: "running",
@@ -135,7 +135,7 @@ export function experimentsCommand(parent: Command): void {
     .option("--project <id>", "Project ID override")
     .action(async (name: string, opts) => {
       try {
-        const client = getApiClient(opts.project);
+        const client = getApiClient(opts.project, { requireBinding: true });
         const e = await findExperiment(client, name);
         await client.request("POST", `/api/admin/experiments/${e.id}/status`, {
           status: "stopped",
