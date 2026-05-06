@@ -1,9 +1,10 @@
-import { getApiClient, notAuthenticated, apiErr, ok } from "../../util/api-client.js";
+import { getApiClient, notAuthenticated, notBound, apiErr, ok } from "../../util/api-client.js";
 import { resolveProfileId } from "./profiles.js";
 
 export async function handlePublishProfile(input: { profile: string; chunk?: string }) {
   const client = await getApiClient();
   if (!client) return notAuthenticated();
+  if (!client.bound) return notBound(client);
 
   const profileId = await resolveProfileId(input.profile).catch(() => null);
   if (!profileId) {

@@ -1,4 +1,4 @@
-import { getApiClient, notAuthenticated, apiErr, ok } from "../../util/api-client.js";
+import { getApiClient, notAuthenticated, notBound, apiErr, ok } from "../../util/api-client.js";
 
 interface Profile {
   id: string;
@@ -9,6 +9,7 @@ interface Profile {
 export async function handleCreateProfile(input: { name: string }) {
   const client = await getApiClient();
   if (!client) return notAuthenticated();
+  if (!client.bound) return notBound(client);
   try {
     const result = await client.post<Profile>("/api/admin/i18n/profiles", { name: input.name });
     return ok(result);

@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { getApiClient, notAuthenticated, apiErr, ok } from "../../util/api-client.js";
+import { getApiClient, notAuthenticated, notBound, apiErr, ok } from "../../util/api-client.js";
 import { resolveProfileId } from "./profiles.js";
 import { scanFiles } from "./scan.js";
 
@@ -36,6 +36,7 @@ export async function handlePushKeys(input: {
 }) {
   const client = await getApiClient();
   if (!client) return notAuthenticated();
+  if (!client.bound) return notBound(client);
 
   const profileId = await resolveProfileId(input.profile).catch(() => null);
   if (!profileId)
@@ -125,6 +126,7 @@ export async function handleCreateKey(input: {
 }) {
   const client = await getApiClient();
   if (!client) return notAuthenticated();
+  if (!client.bound) return notBound(client);
 
   const profileId = await resolveProfileId(input.profile).catch(() => null);
   if (!profileId) return apiErr(`Profile '${input.profile}' not found.`);

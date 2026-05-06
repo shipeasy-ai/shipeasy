@@ -1,4 +1,4 @@
-import { getApiClient, notAuthenticated, apiErr, ok } from "../../util/api-client.js";
+import { getApiClient, notAuthenticated, notBound, apiErr, ok } from "../../util/api-client.js";
 
 interface Experiment {
   id: string;
@@ -32,6 +32,7 @@ export async function handleCreateGate(input: {
 }) {
   const client = await getApiClient();
   if (!client) return notAuthenticated();
+  if (!client.bound) return notBound(client);
   try {
     const result = await client.post("/api/admin/gates", {
       name: input.name,
@@ -48,6 +49,7 @@ export async function handleCreateGate(input: {
 export async function handleCreateConfig(input: { name: string; value: string }) {
   const client = await getApiClient();
   if (!client) return notAuthenticated();
+  if (!client.bound) return notBound(client);
   try {
     const result = await client.post("/api/admin/configs", {
       name: input.name,
@@ -72,6 +74,7 @@ export async function handleCreateExperiment(input: {
 }) {
   const client = await getApiClient();
   if (!client) return notAuthenticated();
+  if (!client.bound) return notBound(client);
 
   const defaultGroups = [
     { name: "control", weight: 5000, params: {} },
@@ -101,6 +104,7 @@ export async function handleCreateExperiment(input: {
 export async function handleStartExperiment(input: { name: string }) {
   const client = await getApiClient();
   if (!client) return notAuthenticated();
+  if (!client.bound) return notBound(client);
   try {
     const experiment = await findExperimentByName(client, input.name);
     if (!experiment) return apiErr(`Experiment '${input.name}' not found.`);
@@ -116,6 +120,7 @@ export async function handleStartExperiment(input: { name: string }) {
 export async function handleStopExperiment(input: { name: string; promote_group?: string }) {
   const client = await getApiClient();
   if (!client) return notAuthenticated();
+  if (!client.bound) return notBound(client);
   try {
     const experiment = await findExperimentByName(client, input.name);
     if (!experiment) return apiErr(`Experiment '${input.name}' not found.`);

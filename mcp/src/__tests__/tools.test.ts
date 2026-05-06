@@ -22,6 +22,19 @@ vi.mock("../auth/config.js", () => ({
   defaultAppBaseUrl: vi.fn().mockReturnValue("https://app.test"),
 }));
 
+// Mutating tools refuse to run unless the cwd is bound to a project via a
+// `.shipeasy` file. Pretend cwd is bound to `proj-1` so the existing tests
+// — which exercise the happy path of every mutating tool — keep passing.
+// `notBound` returns `{ isError: true, ... }`; the case where binding is
+// missing is covered explicitly in api-client tests.
+vi.mock("../util/project-config.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../util/project-config.js")>();
+  return {
+    ...actual,
+    getBoundProjectIdSync: vi.fn().mockReturnValue("proj-1"),
+  };
+});
+
 // ── type helpers ────────────────────────────────────────────────────────────
 
 type ToolResult = { content: Array<{ text: string }>; isError?: boolean };

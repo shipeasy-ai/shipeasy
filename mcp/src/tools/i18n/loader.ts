@@ -1,4 +1,4 @@
-import { readConfig } from "../../auth/config.js";
+import { getApiClient, notAuthenticated, notBound } from "../../util/api-client.js";
 import { getI18nClientKey, saveI18nClientKey } from "../../util/project-config.js";
 
 interface CreatedKey {
@@ -8,44 +8,16 @@ interface CreatedKey {
   expires_at: string | null;
 }
 
-async function createClientKey(
-  appBaseUrl: string,
-  token: string,
-  projectId: string,
-): Promise<string> {
-  const res = await fetch(`${appBaseUrl.replace(/\/$/, "")}/api/admin/keys`, {
-    method: "POST",
-    headers: {
-      "X-SDK-Key": token,
-      "Content-Type": "application/json",
-      "X-Project-Id": projectId,
-    },
-    body: JSON.stringify({ type: "client" }),
-  });
-  if (!res.ok) {
-    const json = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(json.error ?? `HTTP ${res.status}`);
-  }
-  return ((await res.json()) as CreatedKey).key;
-}
-
 export async function handleInstallLoader(input: {
   profile?: string;
   framework?: string;
   path?: string;
 }) {
-  const cfg = await readConfig();
-  if (!cfg) {
-    return {
-      isError: true,
-      content: [
-        {
-          type: "text" as const,
-          text: "Not authenticated. Run `shipeasy auth login` in the terminal first.",
-        },
-      ],
-    };
-  }
+  const client = await getApiClient();
+  if (!client) return notAuthenticated();
+  // Minting an SDK key is a write into the project — refuse if cwd isn't
+  // bound. Otherwise we'd burn a key on the wrong project.
+  if (!client.bound) return notBound(client);
 
   const profile = input.profile ?? "default";
   const projectDir = input.path ?? process.cwd();
@@ -53,7 +25,8 @@ export async function handleInstallLoader(input: {
   let dataKey = await getI18nClientKey(projectDir);
   if (!dataKey) {
     try {
-      dataKey = await createClientKey(cfg.app_base_url, cfg.cli_token, cfg.project_id);
+      const created = await client.post<CreatedKey>("/api/admin/keys", { type: "client" });
+      dataKey = created.key;
       await saveI18nClientKey(projectDir, dataKey);
     } catch (err: unknown) {
       return {
@@ -63,7 +36,7 @@ export async function handleInstallLoader(input: {
     }
   }
 
-  const loaderUrl = `${cfg.api_base_url.replace(/\/$/, "")}/sdk/i18n/loader.js`;
+  const loaderUrl = `${client.cfg.api_base_url.replace(/\/$/, "")}/sdk/i18n/loader.js`;
   const scriptTag = `<script src="${loaderUrl}" data-key="${dataKey}" data-profile="${profile}" defer></script>`;
 
   const result = {

@@ -1,4 +1,5 @@
 import { readConfig, type ShipeasyConfig } from "../auth/config.js";
+import { getBoundProjectIdSync } from "./project-config.js";
 
 export class ApiError extends Error {
   constructor(
@@ -15,12 +16,19 @@ export interface ApiClient {
   post<T>(path: string, body?: unknown): Promise<T>;
   del<T>(path: string): Promise<T>;
   cfg: ShipeasyConfig;
+  /** Effective project_id used for `X-Project-Id` (binding-resolved). */
+  projectId: string;
+  /** True if a `.shipeasy` file in cwd (or an ancestor) supplied project_id. */
+  bound: boolean;
 }
 
 export async function getApiClient(): Promise<ApiClient | null> {
   const cfg = await readConfig();
   if (!cfg) return null;
   const _cfg = cfg;
+
+  const bound = getBoundProjectIdSync(process.cwd());
+  const projectId = bound ?? _cfg.project_id;
 
   async function request<T>(
     method: string,
@@ -37,7 +45,7 @@ export async function getApiClient(): Promise<ApiClient | null> {
       headers: {
         "X-SDK-Key": _cfg.cli_token,
         "Content-Type": "application/json",
-        "X-Project-Id": _cfg.project_id,
+        "X-Project-Id": projectId,
       },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
@@ -51,6 +59,8 @@ export async function getApiClient(): Promise<ApiClient | null> {
 
   return {
     cfg: _cfg,
+    projectId,
+    bound: !!bound,
     get: <T>(path: string, query?: Record<string, string>) =>
       request<T>("GET", path, undefined, query),
     post: <T>(path: string, body?: unknown) => request<T>("POST", path, body),
@@ -65,6 +75,28 @@ export function notAuthenticated() {
       {
         type: "text" as const,
         text: "Not authenticated. Run `shipeasy auth login` in the terminal first.",
+      },
+    ],
+  };
+}
+
+/**
+ * Returned by mutating tools when the cwd has no `.shipeasy` binding. MCP
+ * tools have no `--project` flag and run from the user's editor cwd, so the
+ * only safe thing to do is refuse and tell the user how to bind. Mirrors
+ * the CLI's `requireBinding` enforcement in `packages/cli/src/api/client.ts`.
+ */
+export function notBound(client: ApiClient) {
+  return {
+    isError: true,
+    content: [
+      {
+        type: "text" as const,
+        text:
+          `This MCP tool writes to a Shipeasy project, but the working directory ` +
+          `is not bound to one. Run \`shipeasy bind ${client.cfg.project_id}\` ` +
+          `in the project root to bind it (writes a .shipeasy file). ` +
+          `Reads continue to work without binding.`,
       },
     ],
   };
