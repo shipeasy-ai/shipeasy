@@ -172,6 +172,12 @@ export function isTranslatableString(str) {
   if (/^[a-z]+-[\d.]+$/.test(s)) return false; // CSS utility: mt-3, p-4, w-1.5
   if (/^[a-z]+-[a-z]+-[\d.]+$/.test(s)) return false; // CSS compound: gap-x-4, space-y-2
 
+  // Product / spec data heuristics — these patterns rarely appear in UI copy
+  // and almost always identify hardcoded marketplace/catalog content the
+  // codemod should leave alone (e.g. "1987–1991 Testarossa · Nero or Rosso").
+  if (/·/.test(s)) return false; // unicode middot: common product-spec separator
+  if (/^\d{4}\s*[–\-]\s*\d{4}\b/.test(s)) return false; // leading year range: "1987–1991 …"
+
   // Tailwind/CSS class-like strings: space-separated tokens mostly with dashes/dots
   if (/\s/.test(s)) {
     const words = s.split(/\s+/);
