@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { Command } from "commander";
+import { Command, CommanderError } from "commander";
 import { login } from "./auth/login";
 import { clearCredentials, loadCredentials } from "./auth/storage";
 import { getApiClient, ApiError } from "./api/client";
@@ -15,6 +15,7 @@ import { pluginCommand } from "./commands/plugin";
 import { projectsCommand } from "./commands/projects";
 import { bindProject, readProjectConfig } from "./util/project-config";
 import { printJson } from "./util/output";
+import { reportCliError } from "./util/error-reporter";
 
 interface ProjectMeta {
   id: string;
@@ -192,4 +193,43 @@ mcpCommand(program);
 skillsCommand(program);
 pluginCommand(program);
 
-program.parse(process.argv);
+// Codes that represent intentional, non-error exits (e.g. `--help`, `--version`).
+// Don't treat these as telemetry-worthy.
+const SILENT_EXIT_CODES = new Set([
+  "commander.help",
+  "commander.helpDisplayed",
+  "commander.version",
+]);
+
+function applyExitOverride(cmd: Command): void {
+  cmd.exitOverride();
+  for (const sub of cmd.commands) applyExitOverride(sub);
+}
+applyExitOverride(program);
+
+async function main(): Promise<void> {
+  try {
+    await program.parseAsync(process.argv);
+  } catch (err) {
+    if (err instanceof CommanderError) {
+      if (SILENT_EXIT_CODES.has(err.code)) {
+        process.exit(err.exitCode ?? 0);
+      }
+      const argv = process.argv.slice(2);
+      const command = argv.find((a) => !a.startsWith("-")) ?? null;
+      // Commander already printed the human-readable error to stderr.
+      await reportCliError({
+        kind: err.code,
+        command,
+        message: err.message,
+        argv,
+        exit_code: err.exitCode,
+      });
+      process.exit(err.exitCode ?? 1);
+    }
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  }
+}
+
+void main();
