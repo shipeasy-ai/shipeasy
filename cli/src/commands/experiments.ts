@@ -1,40 +1,7 @@
 import { Command } from "commander";
-import { getApiClient, ApiError } from "../api/client";
+import type { ExperimentResult } from "@shipeasy/admin-api";
+import { ApiError, getAdminClient } from "../api/client";
 import { printTable, printJson, statusColor } from "../util/output";
-
-interface Experiment {
-  id: string;
-  name: string;
-  status: string;
-  universe: string;
-  allocationPct: number;
-  updatedAt?: string;
-}
-
-async function listExperiments(client: ReturnType<typeof getApiClient>): Promise<Experiment[]> {
-  return client.request<Experiment[]>("GET", "/api/admin/experiments");
-}
-
-async function findExperiment(
-  client: ReturnType<typeof getApiClient>,
-  name: string,
-): Promise<Experiment> {
-  const all = await listExperiments(client);
-  const e = all.find((x) => x.name === name);
-  if (!e) throw new ApiError(`Experiment '${name}' not found`, 404);
-  return e;
-}
-
-interface ExperimentResult {
-  metric: string;
-  group_name: string;
-  ds: string;
-  n: number | null;
-  mean: number | null;
-  delta_pct: number | null;
-  p_value: number | null;
-  srm_detected: number | null;
-}
 
 function verdict(results: ExperimentResult[]): string {
   const treatment = results.filter((r) => r.group_name !== "control");
@@ -55,8 +22,8 @@ export function experimentsCommand(parent: Command): void {
     .option("--project <id>", "Project ID override")
     .action(async (opts) => {
       try {
-        const client = getApiClient(opts.project);
-        const experiments = await listExperiments(client);
+        const api = getAdminClient(opts.project);
+        const experiments = await api.experiments.list();
         if (opts.json) return printJson(experiments);
         if (!experiments.length) {
           console.log("No experiments found.");
@@ -89,24 +56,72 @@ export function experimentsCommand(parent: Command): void {
     .option("--project <id>", "Project ID override")
     .action(async (name: string, opts) => {
       try {
-        const client = getApiClient(opts.project, { requireBinding: true });
+        const api = getAdminClient(opts.project, { requireBinding: true });
         const defaultGroups = [
           { name: "control", weight: 5000, params: {} },
           { name: "test", weight: 5000, params: {} },
         ];
-        const body: Record<string, unknown> = {
+        const data = await api.experiments.create({
           name,
           universe: opts.universe,
           allocation_pct: Math.round(Number(opts.allocation) * 100),
           groups: opts.groups ? JSON.parse(opts.groups) : defaultGroups,
           params: opts.params ? JSON.parse(opts.params) : {},
-          status: "draft",
-        };
-        if (opts.targetingGate) body.targeting_gate = opts.targetingGate;
-        if (opts.salt) body.salt = opts.salt;
-        const data = await client.request("POST", "/api/admin/experiments", body);
+          targeting_gate: opts.targetingGate ?? null,
+          ...(opts.salt ? { salt: opts.salt } : {}),
+        });
         if (opts.json) return printJson(data);
         console.log(`Created experiment: ${name}`);
+      } catch (e) {
+        handleError(e);
+      }
+    });
+
+  exp
+    .command("update <name>")
+    .description("Update an experiment by name")
+    .option("--allocation <pct>", "Allocation percentage (0-100)")
+    .option("--groups <json>", "Groups as JSON [{name,weight,params}]")
+    .option("--params <json>", "Parameter schema {name: type}")
+    .option("--targeting-gate <name>", "Targeting gate name (use 'null' to clear)")
+    .option("--significance <p>", "Significance threshold (0.0001-0.5)")
+    .option("--min-runtime-days <n>", "Minimum runtime in days")
+    .option("--min-sample-size <n>", "Minimum sample size")
+    .option("--json", "Output as JSON")
+    .option("--project <id>", "Project ID override")
+    .action(async (name: string, opts) => {
+      try {
+        const api = getAdminClient(opts.project, { requireBinding: true });
+        const e = await api.experiments.resolve(name);
+        const patch: Record<string, unknown> = {};
+        if (opts.allocation !== undefined)
+          patch.allocation_pct = Math.round(Number(opts.allocation) * 100);
+        if (opts.groups) patch.groups = JSON.parse(opts.groups);
+        if (opts.params) patch.params = JSON.parse(opts.params);
+        if (opts.targetingGate !== undefined)
+          patch.targeting_gate = opts.targetingGate === "null" ? null : opts.targetingGate;
+        if (opts.significance !== undefined)
+          patch.significance_threshold = Number(opts.significance);
+        if (opts.minRuntimeDays !== undefined) patch.min_runtime_days = Number(opts.minRuntimeDays);
+        if (opts.minSampleSize !== undefined) patch.min_sample_size = Number(opts.minSampleSize);
+        const data = await api.experiments.update(e.id, patch);
+        if (opts.json) return printJson(data);
+        console.log(`Updated experiment: ${name}`);
+      } catch (e) {
+        handleError(e);
+      }
+    });
+
+  exp
+    .command("delete <name>")
+    .description("Delete an experiment by name")
+    .option("--project <id>", "Project ID override")
+    .action(async (name: string, opts) => {
+      try {
+        const api = getAdminClient(opts.project, { requireBinding: true });
+        const e = await api.experiments.resolve(name);
+        await api.experiments.delete(e.id);
+        console.log(`Deleted: ${name}`);
       } catch (e) {
         handleError(e);
       }
@@ -118,11 +133,9 @@ export function experimentsCommand(parent: Command): void {
     .option("--project <id>", "Project ID override")
     .action(async (name: string, opts) => {
       try {
-        const client = getApiClient(opts.project, { requireBinding: true });
-        const e = await findExperiment(client, name);
-        await client.request("POST", `/api/admin/experiments/${e.id}/status`, {
-          status: "running",
-        });
+        const api = getAdminClient(opts.project, { requireBinding: true });
+        const e = await api.experiments.resolve(name);
+        await api.experiments.start(e.id);
         console.log(`Started: ${name}`);
       } catch (e) {
         handleError(e);
@@ -135,12 +148,40 @@ export function experimentsCommand(parent: Command): void {
     .option("--project <id>", "Project ID override")
     .action(async (name: string, opts) => {
       try {
-        const client = getApiClient(opts.project, { requireBinding: true });
-        const e = await findExperiment(client, name);
-        await client.request("POST", `/api/admin/experiments/${e.id}/status`, {
-          status: "stopped",
-        });
+        const api = getAdminClient(opts.project, { requireBinding: true });
+        const e = await api.experiments.resolve(name);
+        await api.experiments.stop(e.id);
         console.log(`Stopped: ${name}`);
+      } catch (e) {
+        handleError(e);
+      }
+    });
+
+  exp
+    .command("archive <name>")
+    .description("Archive a stopped experiment")
+    .option("--project <id>", "Project ID override")
+    .action(async (name: string, opts) => {
+      try {
+        const api = getAdminClient(opts.project, { requireBinding: true });
+        const e = await api.experiments.resolve(name);
+        await api.experiments.archive(e.id);
+        console.log(`Archived: ${name}`);
+      } catch (e) {
+        handleError(e);
+      }
+    });
+
+  exp
+    .command("reanalyze <name>")
+    .description("Re-run analysis pass for an experiment")
+    .option("--project <id>", "Project ID override")
+    .action(async (name: string, opts) => {
+      try {
+        const api = getAdminClient(opts.project, { requireBinding: true });
+        const e = await api.experiments.resolve(name);
+        await api.experiments.reanalyze(e.id);
+        console.log(`Reanalyzed: ${name}`);
       } catch (e) {
         handleError(e);
       }
@@ -153,26 +194,24 @@ export function experimentsCommand(parent: Command): void {
     .option("--project <id>", "Project ID override")
     .action(async (name: string, opts) => {
       try {
-        const client = getApiClient(opts.project);
-        const e = await findExperiment(client, name);
+        const api = getAdminClient(opts.project);
+        const e = await api.experiments.resolve(name);
 
-        const resultsData = await client
-          .request<{ results: ExperimentResult[] }>("GET", `/api/admin/experiments/${e.id}/results`)
-          .catch(() => ({ results: [] as ExperimentResult[] }));
+        const results = await api.experiments.results(e.id).catch(() => [] as ExperimentResult[]);
 
-        if (opts.json) return printJson({ experiment: e, results: resultsData.results });
+        if (opts.json) return printJson({ experiment: e, results });
 
         console.log(`\nExperiment: ${name}`);
         console.log(`Status:     ${statusColor(e.status)}`);
         console.log(`Universe:   ${e.universe}`);
         console.log(`Allocation: ${((e.allocationPct ?? 10000) / 100).toFixed(0)}%`);
-        console.log(`Verdict:    ${verdict(resultsData.results)}`);
+        console.log(`Verdict:    ${verdict(results)}`);
 
-        if (resultsData.results.length) {
+        if (results.length) {
           console.log("\nLatest results:");
           printTable(
             ["Metric", "Group", "N", "Mean", "Delta %", "p-value"],
-            resultsData.results.map((r) => [
+            results.map((r) => [
               r.metric,
               r.group_name,
               r.n ?? "—",

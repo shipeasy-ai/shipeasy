@@ -1,15 +1,15 @@
+import {
+  ApiError,
+  createAdminClient,
+  createHttpTransport,
+  type AdminClient,
+} from "@shipeasy/admin-api";
 import { loadCredentials } from "../auth/storage";
 import { getBoundProjectId } from "../util/project-config";
 
-export class ApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-  ) {
-    super(message);
-    this.name = "ApiError";
-  }
-}
+// Re-export so existing call sites (which import { ApiError } from "../api/client")
+// keep working even though the class now lives in @shipeasy/admin-api.
+export { ApiError };
 
 export interface ApiClientOptions {
   /**
@@ -82,4 +82,49 @@ export function getApiClient(projectOverride?: string, opts: ApiClientOptions = 
   }
 
   return { request, projectId, baseUrl };
+}
+
+/**
+ * Returns the shared typed admin client (gates / experiments / configs / …).
+ * New CLI commands should prefer this over getApiClient() so the API surface
+ * stays in sync with @shipeasy/mcp.
+ */
+export function getAdminClient(projectOverride?: string, opts: ApiClientOptions = {}): AdminClient {
+  const creds = loadCredentials();
+  if (!creds) {
+    console.error("Not logged in. Run: shipeasy login");
+    process.exit(1);
+  }
+
+  const bound = getBoundProjectId(process.cwd());
+
+  if (opts.requireBinding && !projectOverride && !bound) {
+    console.error(
+      [
+        `This command writes to a Shipeasy project, but no project is bound to`,
+        `this directory.`,
+        ``,
+        `Bind it with:   shipeasy bind ${creds.project_id}`,
+        `Or pass:        --project <project_id>`,
+        ``,
+        `(.shipeasy is searched up the directory tree, like .git.)`,
+      ].join("\n"),
+    );
+    process.exit(1);
+  }
+
+  const projectId = projectOverride ?? bound ?? creds.project_id;
+
+  if (bound && bound !== creds.project_id && !projectOverride) {
+    console.error(
+      `→ using project from .shipeasy: ${bound} (CLI session is on ${creds.project_id})`,
+    );
+  }
+
+  const transport = createHttpTransport({
+    baseUrl: creds.app_base_url,
+    getAuth: () => ({ token: creds.cli_token, projectId }),
+  });
+
+  return createAdminClient(transport);
 }

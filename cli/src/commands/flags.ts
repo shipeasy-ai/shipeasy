@@ -1,26 +1,6 @@
 import { Command } from "commander";
-import { getApiClient, ApiError } from "../api/client";
+import { ApiError, getAdminClient } from "../api/client";
 import { printTable, printJson } from "../util/output";
-
-interface Gate {
-  id: string;
-  name: string;
-  enabled: number | boolean;
-  killswitch: number | boolean;
-  rolloutPct: number;
-  updatedAt: string;
-}
-
-async function listGates(client: ReturnType<typeof getApiClient>): Promise<Gate[]> {
-  return client.request<Gate[]>("GET", "/api/admin/gates");
-}
-
-async function findGate(client: ReturnType<typeof getApiClient>, name: string): Promise<Gate> {
-  const gates = await listGates(client);
-  const gate = gates.find((g) => g.name === name);
-  if (!gate) throw new ApiError(`Flag '${name}' not found`, 404);
-  return gate;
-}
 
 export function flagsCommand(parent: Command): void {
   const flags = parent.command("flags").description("Manage feature flags (gates)");
@@ -32,8 +12,8 @@ export function flagsCommand(parent: Command): void {
     .option("--project <id>", "Project ID override")
     .action(async (opts) => {
       try {
-        const client = getApiClient(opts.project);
-        const gates = await listGates(client);
+        const api = getAdminClient(opts.project);
+        const gates = await api.gates.list();
         if (opts.json) return printJson(gates);
         if (!gates.length) {
           console.log("No flags found.");
@@ -64,15 +44,14 @@ export function flagsCommand(parent: Command): void {
     .option("--project <id>", "Project ID override")
     .action(async (name: string, opts) => {
       try {
-        const client = getApiClient(opts.project, { requireBinding: true });
-        const body: Record<string, unknown> = {
+        const api = getAdminClient(opts.project, { requireBinding: true });
+        const data = await api.gates.create({
           name,
           rollout_pct: Math.round(Number(opts.rollout) * 100),
           rules: opts.rules ? JSON.parse(opts.rules) : [],
           killswitch: Boolean(opts.killswitch),
-        };
-        if (opts.salt) body.salt = opts.salt;
-        const data = await client.request("POST", "/api/admin/gates", body);
+          ...(opts.salt ? { salt: opts.salt } : {}),
+        });
         if (opts.json) return printJson(data);
         console.log(`Created flag: ${name}`);
       } catch (e) {
@@ -86,9 +65,9 @@ export function flagsCommand(parent: Command): void {
     .option("--project <id>", "Project ID override")
     .action(async (name: string, opts) => {
       try {
-        const client = getApiClient(opts.project, { requireBinding: true });
-        const gate = await findGate(client, name);
-        await client.request("POST", `/api/admin/gates/${gate.id}/enable`);
+        const api = getAdminClient(opts.project, { requireBinding: true });
+        const gate = await api.gates.resolve(name);
+        await api.gates.enable(gate.id);
         console.log(`Enabled: ${name}`);
       } catch (e) {
         handleError(e);
@@ -101,9 +80,9 @@ export function flagsCommand(parent: Command): void {
     .option("--project <id>", "Project ID override")
     .action(async (name: string, opts) => {
       try {
-        const client = getApiClient(opts.project, { requireBinding: true });
-        const gate = await findGate(client, name);
-        await client.request("POST", `/api/admin/gates/${gate.id}/disable`);
+        const api = getAdminClient(opts.project, { requireBinding: true });
+        const gate = await api.gates.resolve(name);
+        await api.gates.disable(gate.id);
         console.log(`Disabled: ${name}`);
       } catch (e) {
         handleError(e);
@@ -117,17 +96,10 @@ export function flagsCommand(parent: Command): void {
     .option("--project <id>", "Project ID override")
     .action(async (name: string, pct: string, opts) => {
       try {
-        const n = Number(pct);
-        if (!Number.isFinite(n) || n < 0 || n > 100) {
-          throw new ApiError("rollout must be a number between 0 and 100", 400);
-        }
-        const client = getApiClient(opts.project, { requireBinding: true });
-        const gate = await findGate(client, name);
-        const data = await client.request("PATCH", `/api/admin/gates/${gate.id}`, {
-          rollout_pct: Math.round(n * 100),
-        });
+        const api = getAdminClient(opts.project, { requireBinding: true });
+        const data = await api.gates.setRollout(name, Number(pct));
         if (opts.json) return printJson(data);
-        console.log(`Set rollout for ${name}: ${n}%`);
+        console.log(`Set rollout for ${name}: ${pct}%`);
       } catch (e) {
         handleError(e);
       }
@@ -139,9 +111,9 @@ export function flagsCommand(parent: Command): void {
     .option("--project <id>", "Project ID override")
     .action(async (name: string, opts) => {
       try {
-        const client = getApiClient(opts.project, { requireBinding: true });
-        const gate = await findGate(client, name);
-        await client.request("DELETE", `/api/admin/gates/${gate.id}`);
+        const api = getAdminClient(opts.project, { requireBinding: true });
+        const gate = await api.gates.resolve(name);
+        await api.gates.delete(gate.id);
         console.log(`Deleted: ${name}`);
       } catch (e) {
         handleError(e);

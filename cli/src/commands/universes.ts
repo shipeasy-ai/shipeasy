@@ -1,27 +1,6 @@
 import { Command } from "commander";
-import { getApiClient, ApiError } from "../api/client";
+import { ApiError, getAdminClient } from "../api/client";
 import { printTable, printJson } from "../util/output";
-
-interface Universe {
-  id: string;
-  name: string;
-  allocationPct: number;
-  holdoutPct: number;
-}
-
-async function listUniverses(client: ReturnType<typeof getApiClient>): Promise<Universe[]> {
-  return client.request<Universe[]>("GET", "/api/admin/universes");
-}
-
-async function findUniverse(
-  client: ReturnType<typeof getApiClient>,
-  name: string,
-): Promise<Universe> {
-  const items = await listUniverses(client);
-  const u = items.find((x) => x.name === name);
-  if (!u) throw new ApiError(`Universe '${name}' not found`, 404);
-  return u;
-}
 
 export function universesCommand(parent: Command): void {
   const u = parent
@@ -34,16 +13,16 @@ export function universesCommand(parent: Command): void {
     .option("--project <id>", "Project ID override")
     .action(async (opts) => {
       try {
-        const client = getApiClient(opts.project);
-        const items = await listUniverses(client);
+        const api = getAdminClient(opts.project);
+        const items = await api.universes.list();
         if (opts.json) return printJson(items);
         if (!items.length) return void console.log("No universes found.");
         printTable(
           ["Name", "Allocation %", "Holdout %"],
           items.map((x) => [
             x.name,
-            `${(x.allocationPct / 100).toFixed(0)}%`,
-            `${(x.holdoutPct / 100).toFixed(0)}%`,
+            `${((x.allocationPct ?? 10000) / 100).toFixed(0)}%`,
+            `${((x.holdoutPct ?? 0) / 100).toFixed(0)}%`,
           ]),
         );
       } catch (e) {
@@ -53,24 +32,41 @@ export function universesCommand(parent: Command): void {
 
   u.command("create <name>")
     .description("Create a universe")
-    .option("--allocation <pct>", "Allocation percentage (0-100)", "100")
-    .option("--holdout <pct>", "Holdout percentage (0-100)", "0")
-    .option("--salt <s>", "Hash salt (default: random)")
+    .option("--unit-type <t>", "Unit type (e.g. user_id, account_id)", "user_id")
+    .option("--holdout <range>", "Holdout range as 'lo,hi' (0-9999); omit for no holdout")
     .option("--json", "Output as JSON")
     .option("--project <id>", "Project ID override")
     .action(async (name: string, opts) => {
       try {
-        const client = getApiClient(opts.project, { requireBinding: true });
-        const body: Record<string, unknown> = {
+        const api = getAdminClient(opts.project, { requireBinding: true });
+        const holdout_range = parseHoldout(opts.holdout);
+        const data = await api.universes.create({
           name,
-          allocation: Number(opts.allocation),
-          holdoutPct: Number(opts.holdout),
-        };
-        if (opts.salt) body.salt = opts.salt;
-        else body.salt = `${name}-${Date.now()}`;
-        const data = await client.request("POST", "/api/admin/universes", body);
+          unit_type: opts.unitType,
+          holdout_range,
+        });
         if (opts.json) return printJson(data);
         console.log(`Created universe: ${name}`);
+      } catch (e) {
+        handleError(e);
+      }
+    });
+
+  u.command("update <name>")
+    .description("Update a universe's holdout range")
+    .option("--holdout <range>", "Holdout range as 'lo,hi' (0-9999), or 'null' to clear")
+    .option("--json", "Output as JSON")
+    .option("--project <id>", "Project ID override")
+    .action(async (name: string, opts) => {
+      try {
+        const api = getAdminClient(opts.project, { requireBinding: true });
+        const x = await api.universes.resolve(name);
+        const holdout_range = opts.holdout === undefined ? undefined : parseHoldout(opts.holdout);
+        const data = await api.universes.update(x.id, {
+          ...(holdout_range !== undefined ? { holdout_range } : {}),
+        });
+        if (opts.json) return printJson(data);
+        console.log(`Updated universe: ${name}`);
       } catch (e) {
         handleError(e);
       }
@@ -81,14 +77,25 @@ export function universesCommand(parent: Command): void {
     .option("--project <id>", "Project ID override")
     .action(async (name: string, opts) => {
       try {
-        const client = getApiClient(opts.project, { requireBinding: true });
-        const x = await findUniverse(client, name);
-        await client.request("DELETE", `/api/admin/universes/${x.id}`);
+        const api = getAdminClient(opts.project, { requireBinding: true });
+        const x = await api.universes.resolve(name);
+        await api.universes.delete(x.id);
         console.log(`Deleted: ${name}`);
       } catch (e) {
         handleError(e);
       }
     });
+}
+
+function parseHoldout(raw: string | undefined): [number, number] | null {
+  if (raw === undefined || raw === "" || raw === "null") return null;
+  const [loRaw, hiRaw] = raw.split(",").map((s) => s.trim());
+  const lo = Number(loRaw);
+  const hi = Number(hiRaw);
+  if (!Number.isFinite(lo) || !Number.isFinite(hi)) {
+    throw new ApiError("--holdout must be 'lo,hi' integers in [0,9999]", 400);
+  }
+  return [lo, hi];
 }
 
 function handleError(e: unknown): void {
