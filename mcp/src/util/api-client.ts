@@ -1,15 +1,13 @@
+import {
+  ApiError,
+  createAdminClient,
+  createHttpTransport,
+  type AdminClient,
+} from "@shipeasy/admin-api";
 import { readConfig, type ShipeasyConfig } from "../auth/config.js";
 import { getBoundProjectIdSync } from "./project-config.js";
 
-export class ApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-  ) {
-    super(message);
-    this.name = "ApiError";
-  }
-}
+export { ApiError };
 
 export interface ApiClient {
   get<T>(path: string, query?: Record<string, string>): Promise<T>;
@@ -86,7 +84,7 @@ export function notAuthenticated() {
  * only safe thing to do is refuse and tell the user how to bind. Mirrors
  * the CLI's `requireBinding` enforcement in `packages/cli/src/api/client.ts`.
  */
-export function notBound(client: ApiClient) {
+export function notBound(client: { cfg: ShipeasyConfig }) {
   return {
     isError: true,
     content: [
@@ -111,4 +109,33 @@ export function apiErr(err: unknown) {
 
 export function ok(data: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+}
+
+export interface AdminClientHandle {
+  client: AdminClient;
+  cfg: ShipeasyConfig;
+  projectId: string;
+  bound: boolean;
+}
+
+/**
+ * Returns the shared typed admin client (gates / experiments / configs / …).
+ * New MCP handlers should prefer this over getApiClient() so the API surface
+ * stays in sync with @shipeasy/cli.
+ */
+export async function getAdminClient(): Promise<AdminClientHandle | null> {
+  const cfg = await readConfig();
+  if (!cfg) return null;
+  const bound = getBoundProjectIdSync(process.cwd());
+  const projectId = bound ?? cfg.project_id;
+  const transport = createHttpTransport({
+    baseUrl: cfg.app_base_url,
+    getAuth: () => ({ token: cfg.cli_token, projectId }),
+  });
+  return {
+    client: createAdminClient(transport),
+    cfg,
+    projectId,
+    bound: !!bound,
+  };
 }

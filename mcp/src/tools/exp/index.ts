@@ -1,27 +1,4 @@
-import { getApiClient, notAuthenticated, notBound, apiErr, ok } from "../../util/api-client.js";
-
-interface Experiment {
-  id: string;
-  name: string;
-  status: string;
-  significance_threshold: number;
-  min_runtime_days: number;
-  started_at?: string;
-}
-
-interface ExperimentResult {
-  group: string;
-  p_value: number;
-  [key: string]: unknown;
-}
-
-async function findExperimentByName(
-  client: NonNullable<Awaited<ReturnType<typeof getApiClient>>>,
-  name: string,
-): Promise<Experiment | null> {
-  const list = await client.get<Experiment[]>("/api/admin/experiments");
-  return list.find((e) => e.name === name) ?? null;
-}
+import { getAdminClient, notAuthenticated, notBound, apiErr, ok } from "../../util/api-client.js";
 
 export async function handleCreateGate(input: {
   name: string;
@@ -30,14 +7,14 @@ export async function handleCreateGate(input: {
   rules?: string;
   killswitch?: boolean;
 }) {
-  const client = await getApiClient();
-  if (!client) return notAuthenticated();
-  if (!client.bound) return notBound(client);
+  const handle = await getAdminClient();
+  if (!handle) return notAuthenticated();
+  if (!handle.bound) return notBound(handle);
   try {
-    const result = await client.post("/api/admin/gates", {
+    const result = await handle.client.gates.create({
       name: input.name,
       rollout_pct: Math.round((input.rollout ?? 0) * 100),
-      rules: JSON.parse(input.rules ?? "[]"),
+      rules: input.rules ? JSON.parse(input.rules) : [],
       killswitch: input.killswitch ?? false,
     });
     return ok(result);
@@ -46,16 +23,142 @@ export async function handleCreateGate(input: {
   }
 }
 
-export async function handleCreateConfig(input: { name: string; value: string }) {
-  const client = await getApiClient();
-  if (!client) return notAuthenticated();
-  if (!client.bound) return notBound(client);
+export async function handleUpdateGate(input: {
+  name: string;
+  rollout?: number;
+  rules?: string;
+  killswitch?: boolean;
+  enabled?: boolean;
+}) {
+  const handle = await getAdminClient();
+  if (!handle) return notAuthenticated();
+  if (!handle.bound) return notBound(handle);
   try {
-    const result = await client.post("/api/admin/configs", {
+    const gate = await handle.client.gates.resolve(input.name);
+    const patch: Record<string, unknown> = {};
+    if (input.rollout !== undefined) patch.rollout_pct = Math.round(input.rollout * 100);
+    if (input.rules !== undefined) patch.rules = JSON.parse(input.rules);
+    if (input.killswitch !== undefined) patch.killswitch = input.killswitch;
+    if (input.enabled !== undefined) patch.enabled = input.enabled;
+    const result = await handle.client.gates.update(gate.id, patch);
+    return ok(result);
+  } catch (err) {
+    return apiErr(err);
+  }
+}
+
+export async function handleDeleteGate(input: { name: string }) {
+  const handle = await getAdminClient();
+  if (!handle) return notAuthenticated();
+  if (!handle.bound) return notBound(handle);
+  try {
+    const gate = await handle.client.gates.resolve(input.name);
+    await handle.client.gates.delete(gate.id);
+    return ok({ ok: true, deleted: input.name });
+  } catch (err) {
+    return apiErr(err);
+  }
+}
+
+export async function handleCreateConfig(input: {
+  name: string;
+  value?: string;
+  schema?: string;
+  description?: string;
+}) {
+  const handle = await getAdminClient();
+  if (!handle) return notAuthenticated();
+  if (!handle.bound) return notBound(handle);
+  try {
+    const schema = input.schema
+      ? JSON.parse(input.schema)
+      : { type: "object", properties: {}, additionalProperties: true };
+    const value = input.value ? JSON.parse(input.value) : {};
+    const result = await handle.client.configs.create({
       name: input.name,
+      schema,
+      value,
+      ...(input.description ? { description: input.description } : {}),
+    });
+    return ok(result);
+  } catch (err) {
+    return apiErr(err);
+  }
+}
+
+export async function handleUpdateConfig(input: { name: string; value: string }) {
+  const handle = await getAdminClient();
+  if (!handle) return notAuthenticated();
+  if (!handle.bound) return notBound(handle);
+  try {
+    const cfg = await handle.client.configs.resolve(input.name);
+    const result = await handle.client.configs.update(cfg.id, {
       value: JSON.parse(input.value),
     });
     return ok(result);
+  } catch (err) {
+    return apiErr(err);
+  }
+}
+
+export async function handleDeleteConfig(input: { name: string }) {
+  const handle = await getAdminClient();
+  if (!handle) return notAuthenticated();
+  if (!handle.bound) return notBound(handle);
+  try {
+    const cfg = await handle.client.configs.resolve(input.name);
+    await handle.client.configs.delete(cfg.id);
+    return ok({ ok: true, deleted: input.name });
+  } catch (err) {
+    return apiErr(err);
+  }
+}
+
+export async function handleCreateUniverse(input: {
+  name: string;
+  unit_type?: string;
+  holdout_range?: string;
+}) {
+  const handle = await getAdminClient();
+  if (!handle) return notAuthenticated();
+  if (!handle.bound) return notBound(handle);
+  try {
+    const result = await handle.client.universes.create({
+      name: input.name,
+      unit_type: input.unit_type ?? "user_id",
+      holdout_range: parseHoldoutRange(input.holdout_range),
+    });
+    return ok(result);
+  } catch (err) {
+    return apiErr(err);
+  }
+}
+
+export async function handleUpdateUniverse(input: { name: string; holdout_range?: string }) {
+  const handle = await getAdminClient();
+  if (!handle) return notAuthenticated();
+  if (!handle.bound) return notBound(handle);
+  try {
+    const u = await handle.client.universes.resolve(input.name);
+    const patch: Record<string, unknown> = {};
+    if (input.holdout_range !== undefined) {
+      patch.holdout_range = parseHoldoutRange(input.holdout_range);
+    }
+    const result = await handle.client.universes.update(u.id, patch);
+    return ok(result);
+  } catch (err) {
+    return apiErr(err);
+  }
+}
+
+export async function handleDeleteUniverse(input: { name: string }) {
+  const handle = await getAdminClient();
+  if (!handle) return notAuthenticated();
+  if (!handle.bound) return notBound(handle);
+  try {
+    const u = await handle.client.universes.resolve(input.name);
+    await handle.client.universes.delete(u.id);
+    return ok({ ok: true, deleted: input.name });
   } catch (err) {
     return apiErr(err);
   }
@@ -72,9 +175,9 @@ export async function handleCreateExperiment(input: {
   success_event?: string;
   success_aggregation?: string;
 }) {
-  const client = await getApiClient();
-  if (!client) return notAuthenticated();
-  if (!client.bound) return notBound(client);
+  const handle = await getAdminClient();
+  if (!handle) return notAuthenticated();
+  if (!handle.bound) return notBound(handle);
 
   const defaultGroups = [
     { name: "control", weight: 5000, params: {} },
@@ -83,12 +186,12 @@ export async function handleCreateExperiment(input: {
   const groups = input.groups ? JSON.parse(input.groups) : defaultGroups;
 
   try {
-    const result = await client.post("/api/admin/experiments", {
+    const result = await handle.client.experiments.create({
       name: input.name,
       universe: input.universe,
       allocation_pct: Math.round((input.allocation ?? 10) * 100),
       groups,
-      params: input.params_schema ?? {},
+      params: (input.params_schema ?? {}) as Record<string, "string" | "bool" | "number">,
       targeting_gate: input.targeting_gate ?? null,
       significance_threshold: 0.05,
       min_runtime_days: 0,
@@ -101,16 +204,55 @@ export async function handleCreateExperiment(input: {
   }
 }
 
-export async function handleStartExperiment(input: { name: string }) {
-  const client = await getApiClient();
-  if (!client) return notAuthenticated();
-  if (!client.bound) return notBound(client);
+export async function handleUpdateExperiment(input: {
+  name: string;
+  allocation?: number;
+  groups?: string;
+  targeting_gate?: string | null;
+  significance_threshold?: number;
+  min_runtime_days?: number;
+  min_sample_size?: number;
+}) {
+  const handle = await getAdminClient();
+  if (!handle) return notAuthenticated();
+  if (!handle.bound) return notBound(handle);
   try {
-    const experiment = await findExperimentByName(client, input.name);
-    if (!experiment) return apiErr(`Experiment '${input.name}' not found.`);
-    const result = await client.post(`/api/admin/experiments/${experiment.id}/status`, {
-      status: "running",
-    });
+    const e = await handle.client.experiments.resolve(input.name);
+    const patch: Record<string, unknown> = {};
+    if (input.allocation !== undefined) patch.allocation_pct = Math.round(input.allocation * 100);
+    if (input.groups) patch.groups = JSON.parse(input.groups);
+    if (input.targeting_gate !== undefined) patch.targeting_gate = input.targeting_gate;
+    if (input.significance_threshold !== undefined)
+      patch.significance_threshold = input.significance_threshold;
+    if (input.min_runtime_days !== undefined) patch.min_runtime_days = input.min_runtime_days;
+    if (input.min_sample_size !== undefined) patch.min_sample_size = input.min_sample_size;
+    const result = await handle.client.experiments.update(e.id, patch);
+    return ok(result);
+  } catch (err) {
+    return apiErr(err);
+  }
+}
+
+export async function handleDeleteExperiment(input: { name: string }) {
+  const handle = await getAdminClient();
+  if (!handle) return notAuthenticated();
+  if (!handle.bound) return notBound(handle);
+  try {
+    const e = await handle.client.experiments.resolve(input.name);
+    await handle.client.experiments.delete(e.id);
+    return ok({ ok: true, deleted: input.name });
+  } catch (err) {
+    return apiErr(err);
+  }
+}
+
+export async function handleStartExperiment(input: { name: string }) {
+  const handle = await getAdminClient();
+  if (!handle) return notAuthenticated();
+  if (!handle.bound) return notBound(handle);
+  try {
+    const e = await handle.client.experiments.resolve(input.name);
+    const result = await handle.client.experiments.start(e.id);
     return ok(result);
   } catch (err) {
     return apiErr(err);
@@ -118,20 +260,17 @@ export async function handleStartExperiment(input: { name: string }) {
 }
 
 export async function handleStopExperiment(input: { name: string; promote_group?: string }) {
-  const client = await getApiClient();
-  if (!client) return notAuthenticated();
-  if (!client.bound) return notBound(client);
+  const handle = await getAdminClient();
+  if (!handle) return notAuthenticated();
+  if (!handle.bound) return notBound(handle);
   try {
-    const experiment = await findExperimentByName(client, input.name);
-    if (!experiment) return apiErr(`Experiment '${input.name}' not found.`);
-    const result = await client.post(`/api/admin/experiments/${experiment.id}/status`, {
-      status: "stopped",
-    });
+    const e = await handle.client.experiments.resolve(input.name);
+    const result = await handle.client.experiments.stop(e.id);
     return ok({
       ...(result as object),
       ...(input.promote_group
         ? {
-            promote_group_note: `Manual promotion needed: promote group '${input.promote_group}' in the dashboard or via PATCH /api/admin/experiments/${experiment.id}.`,
+            promote_group_note: `Manual promotion needed: promote group '${input.promote_group}' in the dashboard or via PATCH /api/admin/experiments/${e.id}.`,
           }
         : {}),
     });
@@ -141,15 +280,13 @@ export async function handleStopExperiment(input: { name: string; promote_group?
 }
 
 export async function handleExperimentStatus(input: { name: string }) {
-  const client = await getApiClient();
-  if (!client) return notAuthenticated();
+  const handle = await getAdminClient();
+  if (!handle) return notAuthenticated();
   try {
-    const experiment = await findExperimentByName(client, input.name);
-    if (!experiment) return apiErr(`Experiment '${input.name}' not found.`);
-
+    const exp = await handle.client.experiments.resolve(input.name);
     const [detail, results] = await Promise.all([
-      client.get<Experiment>(`/api/admin/experiments/${experiment.id}`),
-      client.get<ExperimentResult[]>(`/api/admin/experiments/${experiment.id}/results`),
+      handle.client.experiments.get(exp.id),
+      handle.client.experiments.results(exp.id),
     ]);
 
     if (detail.status !== "running") {
@@ -160,22 +297,39 @@ export async function handleExperimentStatus(input: { name: string }) {
       return ok({ verdict: "wait", reason: "no data yet", experiment: detail });
     }
 
-    // Find the result with the lowest p_value
-    const best = results.reduce((a, b) => (a.p_value < b.p_value ? a : b));
+    const withP = results.filter((r) => r.p_value !== null) as ((typeof results)[number] & {
+      p_value: number;
+    })[];
+    if (withP.length === 0) {
+      return ok({ verdict: "wait", reason: "no p-values yet", experiment: detail });
+    }
+    const best = withP.reduce((a, b) => (a.p_value < b.p_value ? a : b));
 
     let verdict: string;
-    if (best.p_value < detail.significance_threshold) {
+    const threshold = detail.significance_threshold ?? 0.05;
+    if (best.p_value < threshold) {
       verdict = "ship";
     } else {
-      // Calculate days running
-      const daysRunning = detail.started_at
-        ? (Date.now() - new Date(detail.started_at).getTime()) / (1000 * 60 * 60 * 24)
+      const startedAt = detail.startedAt ?? detail.started_at;
+      const daysRunning = startedAt
+        ? (Date.now() - new Date(startedAt).getTime()) / (1000 * 60 * 60 * 24)
         : 0;
-      verdict = daysRunning < detail.min_runtime_days ? "wait" : "hold";
+      verdict = daysRunning < (detail.min_runtime_days ?? 0) ? "wait" : "hold";
     }
 
     return ok({ verdict, best_result: best, all_results: results, experiment: detail });
   } catch (err) {
     return apiErr(err);
   }
+}
+
+function parseHoldoutRange(raw: string | undefined): [number, number] | null {
+  if (raw === undefined || raw === "" || raw === "null") return null;
+  const [loRaw, hiRaw] = raw.split(",").map((s) => s.trim());
+  const lo = Number(loRaw);
+  const hi = Number(hiRaw);
+  if (!Number.isFinite(lo) || !Number.isFinite(hi)) {
+    throw new Error("holdout_range must be 'lo,hi' integers in [0,9999]");
+  }
+  return [lo, hi];
 }

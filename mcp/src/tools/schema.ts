@@ -180,8 +180,55 @@ export const TOOLS: Tool[] = [
     },
   },
   {
+    name: "exp_update_gate",
+    description: "Update a feature gate's rollout, rules, killswitch, or enabled flag.",
+    inputSchema: {
+      type: "object",
+      required: ["name"],
+      properties: {
+        name: { type: "string" },
+        rollout: { type: "number", description: "0–100" },
+        rules: { type: "string", description: "JSON rules array" },
+        killswitch: { type: "boolean" },
+        enabled: { type: "boolean" },
+      },
+    },
+  },
+  {
+    name: "exp_delete_gate",
+    description: "Delete a feature gate by name. Refuses if used by a running experiment.",
+    inputSchema: {
+      type: "object",
+      required: ["name"],
+      properties: { name: { type: "string" } },
+    },
+  },
+  {
     name: "exp_create_config",
-    description: "Create a static sitevar (same value for every user).",
+    description:
+      "Create a remote-config object validated against a JSON Schema. Configs are object-only.",
+    inputSchema: {
+      type: "object",
+      required: ["name"],
+      properties: {
+        name: { type: "string" },
+        schema: {
+          type: "string",
+          description:
+            "JSON Schema (must have top-level type=object). Defaults to a permissive object schema.",
+        },
+        value: {
+          type: "string",
+          description: "Initial value as JSON object. Defaults to {}.",
+        },
+        description: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "exp_update_config",
+    description:
+      "Update a config's value (legacy flat update — applies to all envs). Use the dashboard for per-env draft/publish.",
     inputSchema: {
       type: "object",
       required: ["name", "value"],
@@ -189,6 +236,55 @@ export const TOOLS: Tool[] = [
         name: { type: "string" },
         value: { type: "string", description: "JSON-encoded value" },
       },
+    },
+  },
+  {
+    name: "exp_delete_config",
+    description: "Delete a config by name.",
+    inputSchema: {
+      type: "object",
+      required: ["name"],
+      properties: { name: { type: "string" } },
+    },
+  },
+  {
+    name: "exp_create_universe",
+    description: "Create an experiment universe (container with optional holdout range).",
+    inputSchema: {
+      type: "object",
+      required: ["name"],
+      properties: {
+        name: { type: "string" },
+        unit_type: { type: "string", description: "Default: user_id" },
+        holdout_range: {
+          type: "string",
+          description: "Holdout range as 'lo,hi' integers in [0,9999]; omit for none",
+        },
+      },
+    },
+  },
+  {
+    name: "exp_update_universe",
+    description: "Update a universe's holdout range.",
+    inputSchema: {
+      type: "object",
+      required: ["name"],
+      properties: {
+        name: { type: "string" },
+        holdout_range: {
+          type: "string",
+          description: "Holdout range as 'lo,hi' integers in [0,9999], or 'null' to clear",
+        },
+      },
+    },
+  },
+  {
+    name: "exp_delete_universe",
+    description: "Delete a universe by name. Refuses if any experiment still references it.",
+    inputSchema: {
+      type: "object",
+      required: ["name"],
+      properties: { name: { type: "string" } },
     },
   },
   {
@@ -212,6 +308,36 @@ export const TOOLS: Tool[] = [
           enum: ["count_users", "count_events", "sum", "avg", "retention_7d", "retention_30d"],
         },
       },
+    },
+  },
+  {
+    name: "exp_update_experiment",
+    description:
+      "Update a draft (or running) experiment's allocation, groups, targeting gate, or stats thresholds.",
+    inputSchema: {
+      type: "object",
+      required: ["name"],
+      properties: {
+        name: { type: "string" },
+        allocation: { type: "number", description: "0–100" },
+        groups: { type: "string", description: "JSON [{name,weight,params}]" },
+        targeting_gate: {
+          type: "string",
+          description: "Gate name; pass empty string or omit to leave unchanged",
+        },
+        significance_threshold: { type: "number", description: "0.0001–0.5" },
+        min_runtime_days: { type: "number" },
+        min_sample_size: { type: "number" },
+      },
+    },
+  },
+  {
+    name: "exp_delete_experiment",
+    description: "Delete an experiment by name.",
+    inputSchema: {
+      type: "object",
+      required: ["name"],
+      properties: { name: { type: "string" } },
     },
   },
   {

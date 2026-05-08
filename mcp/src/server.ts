@@ -28,8 +28,17 @@ import { handleDiscoverSite } from "./tools/i18n/discover.js";
 import { handleCodemodPreview, handleCodemodApply } from "./tools/i18n/codemod.js";
 import {
   handleCreateGate,
+  handleUpdateGate,
+  handleDeleteGate,
   handleCreateConfig,
+  handleUpdateConfig,
+  handleDeleteConfig,
+  handleCreateUniverse,
+  handleUpdateUniverse,
+  handleDeleteUniverse,
   handleCreateExperiment,
+  handleUpdateExperiment,
+  handleDeleteExperiment,
   handleStartExperiment,
   handleStopExperiment,
   handleExperimentStatus,
@@ -137,13 +146,49 @@ export async function startStdioServer(): Promise<void> {
       const args = params.arguments ?? {};
       return handleCreateGate(args as Parameters<typeof handleCreateGate>[0]);
     }
+    if (toolName === "exp_update_gate") {
+      const args = params.arguments ?? {};
+      return handleUpdateGate(args as Parameters<typeof handleUpdateGate>[0]);
+    }
+    if (toolName === "exp_delete_gate") {
+      const args = params.arguments ?? {};
+      return handleDeleteGate(args as Parameters<typeof handleDeleteGate>[0]);
+    }
     if (toolName === "exp_create_config") {
       const args = params.arguments ?? {};
       return handleCreateConfig(args as Parameters<typeof handleCreateConfig>[0]);
     }
+    if (toolName === "exp_update_config") {
+      const args = params.arguments ?? {};
+      return handleUpdateConfig(args as Parameters<typeof handleUpdateConfig>[0]);
+    }
+    if (toolName === "exp_delete_config") {
+      const args = params.arguments ?? {};
+      return handleDeleteConfig(args as Parameters<typeof handleDeleteConfig>[0]);
+    }
+    if (toolName === "exp_create_universe") {
+      const args = params.arguments ?? {};
+      return handleCreateUniverse(args as Parameters<typeof handleCreateUniverse>[0]);
+    }
+    if (toolName === "exp_update_universe") {
+      const args = params.arguments ?? {};
+      return handleUpdateUniverse(args as Parameters<typeof handleUpdateUniverse>[0]);
+    }
+    if (toolName === "exp_delete_universe") {
+      const args = params.arguments ?? {};
+      return handleDeleteUniverse(args as Parameters<typeof handleDeleteUniverse>[0]);
+    }
     if (toolName === "exp_create_experiment") {
       const args = params.arguments ?? {};
       return handleCreateExperiment(args as Parameters<typeof handleCreateExperiment>[0]);
+    }
+    if (toolName === "exp_update_experiment") {
+      const args = params.arguments ?? {};
+      return handleUpdateExperiment(args as Parameters<typeof handleUpdateExperiment>[0]);
+    }
+    if (toolName === "exp_delete_experiment") {
+      const args = params.arguments ?? {};
+      return handleDeleteExperiment(args as Parameters<typeof handleDeleteExperiment>[0]);
     }
     if (toolName === "exp_start_experiment") {
       const args = params.arguments ?? {};
