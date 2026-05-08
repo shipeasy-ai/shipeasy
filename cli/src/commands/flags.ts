@@ -111,6 +111,29 @@ export function flagsCommand(parent: Command): void {
     });
 
   flags
+    .command("rollout <name> <pct>")
+    .description("Set rollout percentage (0-100) for a feature flag")
+    .option("--json", "Output as JSON")
+    .option("--project <id>", "Project ID override")
+    .action(async (name: string, pct: string, opts) => {
+      try {
+        const n = Number(pct);
+        if (!Number.isFinite(n) || n < 0 || n > 100) {
+          throw new ApiError("rollout must be a number between 0 and 100", 400);
+        }
+        const client = getApiClient(opts.project, { requireBinding: true });
+        const gate = await findGate(client, name);
+        const data = await client.request("PATCH", `/api/admin/gates/${gate.id}`, {
+          rollout_pct: Math.round(n * 100),
+        });
+        if (opts.json) return printJson(data);
+        console.log(`Set rollout for ${name}: ${n}%`);
+      } catch (e) {
+        handleError(e);
+      }
+    });
+
+  flags
     .command("delete <name>")
     .description("Delete a feature flag")
     .option("--project <id>", "Project ID override")
