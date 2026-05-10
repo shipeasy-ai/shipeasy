@@ -13,7 +13,7 @@ export function configsCommand(parent: Command): void {
     .action(async (opts) => {
       try {
         const api = getAdminClient(opts.project);
-        const items = await api.configs.list();
+        const items = await api.configs.listAll();
         if (opts.json) return printJson(items);
         if (!items.length) return void console.log("No configs found.");
         printTable(

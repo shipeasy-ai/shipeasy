@@ -23,7 +23,7 @@ export function experimentsCommand(parent: Command): void {
     .action(async (opts) => {
       try {
         const api = getAdminClient(opts.project);
-        const experiments = await api.experiments.list();
+        const experiments = await api.experiments.listAll();
         if (opts.json) return printJson(experiments);
         if (!experiments.length) {
           console.log("No experiments found.");

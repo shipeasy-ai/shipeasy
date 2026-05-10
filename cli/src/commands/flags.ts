@@ -13,18 +13,17 @@ export function flagsCommand(parent: Command): void {
     .action(async (opts) => {
       try {
         const api = getAdminClient(opts.project);
-        const gates = await api.gates.list();
+        const gates = await api.gates.listAll();
         if (opts.json) return printJson(gates);
         if (!gates.length) {
           console.log("No flags found.");
           return;
         }
         printTable(
-          ["Name", "Enabled", "Killswitch", "Rollout %"],
+          ["Name", "Enabled", "Rollout %"],
           gates.map((g) => [
             g.name,
             g.enabled ? "yes" : "no",
-            g.killswitch ? "yes" : "no",
             `${(g.rolloutPct / 100).toFixed(0)}%`,
           ]),
         );
@@ -39,7 +38,6 @@ export function flagsCommand(parent: Command): void {
     .option("--rollout <pct>", "Rollout percentage (0-100)", "0")
     .option("--rules <json>", "Targeting rules as JSON array")
     .option("--salt <s>", "Override hash salt")
-    .option("--killswitch", "Enable killswitch immediately")
     .option("--json", "Output as JSON")
     .option("--project <id>", "Project ID override")
     .action(async (name: string, opts) => {
@@ -49,7 +47,6 @@ export function flagsCommand(parent: Command): void {
           name,
           rollout_pct: Math.round(Number(opts.rollout) * 100),
           rules: opts.rules ? JSON.parse(opts.rules) : [],
-          killswitch: Boolean(opts.killswitch),
           ...(opts.salt ? { salt: opts.salt } : {}),
         });
         if (opts.json) return printJson(data);

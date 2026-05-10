@@ -4,6 +4,7 @@ import { login } from "./auth/login";
 import { clearCredentials, loadCredentials } from "./auth/storage";
 import { getApiClient, ApiError } from "./api/client";
 import { flagsCommand } from "./commands/flags";
+import { killswitchesCommand } from "./commands/killswitches";
 import { experimentsCommand } from "./commands/experiments";
 import { configsCommand } from "./commands/configs";
 import { universesCommand } from "./commands/universes";
@@ -187,6 +188,7 @@ program
 
 projectsCommand(program);
 flagsCommand(program);
+killswitchesCommand(program);
 experimentsCommand(program);
 configsCommand(program);
 universesCommand(program);

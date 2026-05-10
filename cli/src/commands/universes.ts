@@ -14,7 +14,7 @@ export function universesCommand(parent: Command): void {
     .action(async (opts) => {
       try {
         const api = getAdminClient(opts.project);
-        const items = await api.universes.list();
+        const items = await api.universes.listAll();
         if (opts.json) return printJson(items);
         if (!items.length) return void console.log("No universes found.");
         printTable(
