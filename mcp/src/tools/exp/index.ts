@@ -5,7 +5,6 @@ export async function handleCreateGate(input: {
   description?: string;
   rollout?: number;
   rules?: string;
-  killswitch?: boolean;
 }) {
   const handle = await getAdminClient();
   if (!handle) return notAuthenticated();
@@ -15,7 +14,6 @@ export async function handleCreateGate(input: {
       name: input.name,
       rollout_pct: Math.round((input.rollout ?? 0) * 100),
       rules: input.rules ? JSON.parse(input.rules) : [],
-      killswitch: input.killswitch ?? false,
     });
     return ok(result);
   } catch (err) {
@@ -27,7 +25,6 @@ export async function handleUpdateGate(input: {
   name: string;
   rollout?: number;
   rules?: string;
-  killswitch?: boolean;
   enabled?: boolean;
 }) {
   const handle = await getAdminClient();
@@ -38,9 +35,110 @@ export async function handleUpdateGate(input: {
     const patch: Record<string, unknown> = {};
     if (input.rollout !== undefined) patch.rollout_pct = Math.round(input.rollout * 100);
     if (input.rules !== undefined) patch.rules = JSON.parse(input.rules);
-    if (input.killswitch !== undefined) patch.killswitch = input.killswitch;
     if (input.enabled !== undefined) patch.enabled = input.enabled;
     const result = await handle.client.gates.update(gate.id, patch);
+    return ok(result);
+  } catch (err) {
+    return apiErr(err);
+  }
+}
+
+export async function handleCreateKillswitch(input: {
+  name: string;
+  description?: string;
+  value?: boolean;
+  switches?: string;
+}) {
+  const handle = await getAdminClient();
+  if (!handle) return notAuthenticated();
+  if (!handle.bound) return notBound(handle);
+  try {
+    const switches = input.switches
+      ? (JSON.parse(input.switches) as Record<string, boolean>)
+      : undefined;
+    const result = await handle.client.killswitches.create({
+      name: input.name,
+      description: input.description,
+      value: input.value ?? false,
+      switches,
+    });
+    return ok(result);
+  } catch (err) {
+    return apiErr(err);
+  }
+}
+
+export async function handleUpdateKillswitch(input: {
+  name: string;
+  value?: boolean;
+  switches?: string;
+  description?: string | null;
+}) {
+  const handle = await getAdminClient();
+  if (!handle) return notAuthenticated();
+  if (!handle.bound) return notBound(handle);
+  try {
+    const k = await handle.client.killswitches.resolve(input.name);
+    const patch: Record<string, unknown> = {};
+    if (input.value !== undefined) patch.value = input.value;
+    if (input.switches !== undefined) patch.switches = JSON.parse(input.switches);
+    if (input.description !== undefined) patch.description = input.description;
+    const result = await handle.client.killswitches.update(k.id, patch);
+    return ok(result);
+  } catch (err) {
+    return apiErr(err);
+  }
+}
+
+export async function handleDeleteKillswitch(input: { name: string }) {
+  const handle = await getAdminClient();
+  if (!handle) return notAuthenticated();
+  if (!handle.bound) return notBound(handle);
+  try {
+    const k = await handle.client.killswitches.resolve(input.name);
+    await handle.client.killswitches.delete(k.id);
+    return ok({ ok: true, deleted: input.name });
+  } catch (err) {
+    return apiErr(err);
+  }
+}
+
+export async function handleSetKillswitchSwitch(input: {
+  name: string;
+  env: "dev" | "staging" | "prod";
+  switch_key: string;
+  value: boolean;
+}) {
+  const handle = await getAdminClient();
+  if (!handle) return notAuthenticated();
+  if (!handle.bound) return notBound(handle);
+  try {
+    const k = await handle.client.killswitches.resolve(input.name);
+    const result = await handle.client.killswitches.setSwitch(k.id, {
+      env: input.env,
+      switchKey: input.switch_key,
+      value: input.value,
+    });
+    return ok(result);
+  } catch (err) {
+    return apiErr(err);
+  }
+}
+
+export async function handleUnsetKillswitchSwitch(input: {
+  name: string;
+  env: "dev" | "staging" | "prod";
+  switch_key: string;
+}) {
+  const handle = await getAdminClient();
+  if (!handle) return notAuthenticated();
+  if (!handle.bound) return notBound(handle);
+  try {
+    const k = await handle.client.killswitches.resolve(input.name);
+    const result = await handle.client.killswitches.unsetSwitch(k.id, {
+      env: input.env,
+      switchKey: input.switch_key,
+    });
     return ok(result);
   } catch (err) {
     return apiErr(err);

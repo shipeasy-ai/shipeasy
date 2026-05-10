@@ -33,6 +33,11 @@ import {
   handleCreateConfig,
   handleUpdateConfig,
   handleDeleteConfig,
+  handleCreateKillswitch,
+  handleUpdateKillswitch,
+  handleDeleteKillswitch,
+  handleSetKillswitchSwitch,
+  handleUnsetKillswitchSwitch,
   handleCreateUniverse,
   handleUpdateUniverse,
   handleDeleteUniverse,
@@ -165,6 +170,26 @@ export async function startStdioServer(): Promise<void> {
     if (toolName === "exp_delete_config") {
       const args = params.arguments ?? {};
       return handleDeleteConfig(args as Parameters<typeof handleDeleteConfig>[0]);
+    }
+    if (toolName === "exp_create_killswitch") {
+      const args = params.arguments ?? {};
+      return handleCreateKillswitch(args as Parameters<typeof handleCreateKillswitch>[0]);
+    }
+    if (toolName === "exp_update_killswitch") {
+      const args = params.arguments ?? {};
+      return handleUpdateKillswitch(args as Parameters<typeof handleUpdateKillswitch>[0]);
+    }
+    if (toolName === "exp_delete_killswitch") {
+      const args = params.arguments ?? {};
+      return handleDeleteKillswitch(args as Parameters<typeof handleDeleteKillswitch>[0]);
+    }
+    if (toolName === "exp_set_killswitch_switch") {
+      const args = params.arguments ?? {};
+      return handleSetKillswitchSwitch(args as Parameters<typeof handleSetKillswitchSwitch>[0]);
+    }
+    if (toolName === "exp_unset_killswitch_switch") {
+      const args = params.arguments ?? {};
+      return handleUnsetKillswitchSwitch(args as Parameters<typeof handleUnsetKillswitchSwitch>[0]);
     }
     if (toolName === "exp_create_universe") {
       const args = params.arguments ?? {};

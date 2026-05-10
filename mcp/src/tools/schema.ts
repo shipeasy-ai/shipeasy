@@ -175,13 +175,12 @@ export const TOOLS: Tool[] = [
         description: { type: "string" },
         rollout: { type: "number", description: "0–100" },
         rules: { type: "string", description: "JSON rules array" },
-        killswitch: { type: "boolean" },
       },
     },
   },
   {
     name: "exp_update_gate",
-    description: "Update a feature gate's rollout, rules, killswitch, or enabled flag.",
+    description: "Update a feature gate's rollout, rules, or enabled flag.",
     inputSchema: {
       type: "object",
       required: ["name"],
@@ -189,8 +188,83 @@ export const TOOLS: Tool[] = [
         name: { type: "string" },
         rollout: { type: "number", description: "0–100" },
         rules: { type: "string", description: "JSON rules array" },
-        killswitch: { type: "boolean" },
         enabled: { type: "boolean" },
+      },
+    },
+  },
+  {
+    name: "exp_create_killswitch",
+    description:
+      "Create a killswitch — a static `{ value, switches }` config delivered as-is to the client. Name must be `folder.name`. Switches take precedence over `value` for that switch_key.",
+    inputSchema: {
+      type: "object",
+      required: ["name"],
+      properties: {
+        name: {
+          type: "string",
+          description: "`folder.name` — exactly two lowercase segments separated by a dot.",
+        },
+        description: { type: "string" },
+        value: { type: "boolean", description: "Default value (default false)." },
+        switches: {
+          type: "string",
+          description:
+            "JSON object of { switch_key: bool } overrides; takes precedence over value.",
+        },
+      },
+    },
+  },
+  {
+    name: "exp_update_killswitch",
+    description: "Update a killswitch's default value, switches map, or description.",
+    inputSchema: {
+      type: "object",
+      required: ["name"],
+      properties: {
+        name: { type: "string" },
+        value: { type: "boolean" },
+        switches: {
+          type: "string",
+          description: "JSON { switch_key: bool } — replaces wholesale.",
+        },
+        description: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "exp_delete_killswitch",
+    description: "Delete a killswitch by name.",
+    inputSchema: {
+      type: "object",
+      required: ["name"],
+      properties: { name: { type: "string" } },
+    },
+  },
+  {
+    name: "exp_set_killswitch_switch",
+    description:
+      "Set or update one switch entry on one env. Lets you flip individual lanes (e.g. `eu_only`) without touching the rest of the killswitch.",
+    inputSchema: {
+      type: "object",
+      required: ["name", "env", "switch_key", "value"],
+      properties: {
+        name: { type: "string" },
+        env: { type: "string", enum: ["dev", "staging", "prod"] },
+        switch_key: { type: "string" },
+        value: { type: "boolean" },
+      },
+    },
+  },
+  {
+    name: "exp_unset_killswitch_switch",
+    description: "Remove one switch entry from one env. Falls back to the default value.",
+    inputSchema: {
+      type: "object",
+      required: ["name", "env", "switch_key"],
+      properties: {
+        name: { type: "string" },
+        env: { type: "string", enum: ["dev", "staging", "prod"] },
+        switch_key: { type: "string" },
       },
     },
   },

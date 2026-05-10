@@ -41,7 +41,10 @@ export async function handleListResources(input: { kind: Kind; search?: string; 
   if (!path) return apiErr(`Unknown kind: ${input.kind}`);
 
   try {
-    let rows = await client.get<unknown[]>(path);
+    // Some endpoints (gates/configs/experiments/universes/sdk_keys) return a
+    // paginated `{ data, next_cursor }` envelope; others return a raw array.
+    // Drain the envelope so callers always see a flat array regardless.
+    let rows = await drainList(client, path);
     if (input.search) {
       const q = input.search.toLowerCase();
       rows = rows.filter((r) => JSON.stringify(r).toLowerCase().includes(q));
@@ -51,4 +54,36 @@ export async function handleListResources(input: { kind: Kind; search?: string; 
   } catch (err) {
     return apiErr(err);
   }
+}
+
+interface MaybePage {
+  data: unknown[];
+  next_cursor: string | null;
+}
+
+function isPage(v: unknown): v is MaybePage {
+  return (
+    !!v &&
+    typeof v === "object" &&
+    Array.isArray((v as MaybePage).data) &&
+    "next_cursor" in (v as MaybePage)
+  );
+}
+
+async function drainList(
+  client: { get<T>(path: string): Promise<T> },
+  basePath: string,
+): Promise<unknown[]> {
+  const first = await client.get<unknown>(`${basePath}?limit=500`);
+  if (!isPage(first)) return Array.isArray(first) ? first : [];
+  const out = [...first.data];
+  let cursor = first.next_cursor;
+  while (cursor) {
+    const next = await client.get<MaybePage>(
+      `${basePath}?limit=500&cursor=${encodeURIComponent(cursor)}`,
+    );
+    out.push(...next.data);
+    cursor = next.next_cursor;
+  }
+  return out;
 }
