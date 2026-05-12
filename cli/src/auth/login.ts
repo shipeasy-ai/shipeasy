@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { spawn } from "node:child_process";
 import { saveCredentials } from "./storage";
+import { bindProject, readProjectConfig } from "../util/project-config";
 
 function defaultApiBaseUrl(): string {
   return process.env.SHIPEASY_API_BASE_URL?.trim() || "https://cdn.shipeasy.ai";
@@ -92,6 +93,7 @@ export async function login(opts: { workerUrl?: string; appUrl?: string } = {}):
     const payload = (await pollRes.json()) as {
       token: string;
       project_id: string;
+      project_name?: string;
       user_email?: string;
     };
 
@@ -108,12 +110,37 @@ export async function login(opts: { workerUrl?: string; appUrl?: string } = {}):
       `\nLogged in. Session project: ${payload.project_id}` +
         (payload.user_email ? ` (${payload.user_email})` : ""),
     );
-    console.log(
-      "\nNext: bind this directory to its own Shipeasy project (one project per app)." +
-        "\n  shipeasy projects upsert --domain <your-prod-domain> [--name <name>]" +
-        "\n\nUse the production hostname (e.g. acme.com), not localhost. Creates a new" +
-        "\nproject under your account on first run; finds the existing one on rerun.",
-    );
+
+    // Auto-bind the returned project_id to cwd when nothing is bound yet.
+    // The /cli-auth page is now the single place where the user picks an
+    // existing project OR creates a new one (with name + domain) — by the
+    // time we get here, the choice is already final. Writing .shipeasy
+    // means subsequent CLI/MCP commands in this tree go straight to the
+    // right project without a separate `projects upsert` step.
+    try {
+      const existing = readProjectConfig(process.cwd());
+      if (!existing.project_id) {
+        const { path, created } = bindProject(
+          process.cwd(),
+          payload.project_id,
+          payload.project_name,
+        );
+        console.log(
+          `${created ? "Wrote" : "Updated"} ${path} → project ${payload.project_id}.\n` +
+            "Commit .shipeasy alongside your code so teammates and CI agree on the project.",
+        );
+      } else if (existing.project_id !== payload.project_id) {
+        console.log(
+          `\nNote: cwd is already bound to ${existing.project_id}. Leaving the existing\n` +
+            `.shipeasy in place. Override with: shipeasy bind ${payload.project_id}`,
+        );
+      }
+    } catch (err) {
+      console.error(
+        `Auth succeeded but auto-bind failed (${String(err)}). ` +
+          `Run \`shipeasy bind ${payload.project_id}\` manually.`,
+      );
+    }
     return;
   }
   throw new Error("Authentication timed out. Try again.");

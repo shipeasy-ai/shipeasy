@@ -1,6 +1,6 @@
 {
   "name": "@shipeasy/cli",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "CLI for the Shipeasy platform (flags, experiments, translations, bugs)",
   "license": "MIT",
   "publishConfig": {
