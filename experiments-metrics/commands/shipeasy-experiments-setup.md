@@ -2,8 +2,8 @@
 description: Enable the experiments module and verify A/B + event collection works
 ---
 
-Run the per-plugin setup for `shipeasy@experiments-metrics`. Prereq:
-`shipeasy@base` is already installed and `.shipeasy` exists.
+Run the per-plugin setup for `experiments-metrics@shipeasy`. Prereq:
+`base@shipeasy` is already installed and `.shipeasy` exists.
 
 Steps:
 
@@ -14,7 +14,7 @@ Steps:
    ```
 
    If the check fails, stop and tell the user to run
-   `claude plugin install shipeasy@base` + `/shipeasy-setup` first.
+   `claude plugin install base@shipeasy` + `/shipeasy-setup` first.
 
 2. Enable the module:
 
@@ -34,7 +34,7 @@ Steps:
 
 4. Print the per-plugin hand-off:
    ```
-   ✅ shipeasy@experiments-metrics setup complete
+   ✅ experiments-metrics@shipeasy setup complete
    Module:  experiments ✓
    Next:    Use the `shipeasy-experiments` skill or `/shipeasy-experiment <name>`
             to design and launch your first A/B test.
