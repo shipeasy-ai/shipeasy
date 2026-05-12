@@ -2,7 +2,7 @@
 description: Enable the translations module, create the en:prod profile, and (if needed) inject the loader script
 ---
 
-Run the per-plugin setup for `shipeasy@polylang`. Prereq: `shipeasy@base`
+Run the per-plugin setup for `polylang@shipeasy`. Prereq: `base@shipeasy`
 is already installed and `.shipeasy` exists.
 
 Steps:
@@ -14,7 +14,7 @@ Steps:
    ```
 
    If the check fails, stop and tell the user to run
-   `claude plugin install shipeasy@base` + `/shipeasy-setup` first.
+   `claude plugin install base@shipeasy` + `/shipeasy-setup` first.
 
 2. Enable the module:
 
@@ -53,7 +53,7 @@ Steps:
 
 6. Print the per-plugin hand-off:
    ```
-   ✅ shipeasy@polylang setup complete
+   ✅ polylang@shipeasy setup complete
    Module:    translations ✓
    Profile:   en:prod (en)
    Next:      Use the `shipeasy-i18n` skill or `/shipeasy-i18n-extract`

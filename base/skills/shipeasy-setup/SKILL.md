@@ -12,8 +12,8 @@ Follow these steps in order. Each step has a verification gate — do not
 advance if the verification fails. Self-heal once, then escalate to the
 user.
 
-The corresponding feature plugins (`shipeasy@experiments-metrics`,
-`shipeasy@configs-gates`, `shipeasy@polylang`, `shipeasy@bugs`) each ship
+The corresponding feature plugins (`experiments-metrics@shipeasy`,
+`configs-gates@shipeasy`, `polylang@shipeasy`, `bugs@shipeasy`) each ship
 their own onboarding skill that picks up where this one leaves off. Run
 this skill **first**.
 
@@ -135,7 +135,7 @@ per-feature configuration files.
 Edit `app/layout.tsx` (or `src/app/layout.tsx`). Render
 `getBootstrapHtml()` into `<head>` — this is the canonical pattern.
 Without it, client-side flag evaluation pays an extra round-trip on first
-paint and the devtools overlay (used by `shipeasy@bugs`) never appears.
+paint and the devtools overlay (used by `bugs@shipeasy`) never appears.
 
 ```tsx
 import type { Metadata } from "next";
@@ -196,10 +196,10 @@ Wired:     SDK init in <layout/file>
 Modules:   (none enabled yet)
 
 Next:
-  claude plugin install shipeasy@experiments-metrics    # A/B tests + metrics
-  claude plugin install shipeasy@configs-gates          # feature gates + configs + killswitches
-  claude plugin install shipeasy@polylang               # translations
-  claude plugin install shipeasy@bugs                   # in-app bug reports
+  claude plugin install experiments-metrics@shipeasy    # A/B tests + metrics
+  claude plugin install configs-gates@shipeasy          # feature gates + configs + killswitches
+  claude plugin install polylang@shipeasy               # translations
+  claude plugin install bugs@shipeasy                   # in-app bug reports
 
 Then enable the matching module:
   shipeasy modules enable experiments

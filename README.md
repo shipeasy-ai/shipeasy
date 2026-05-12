@@ -5,12 +5,12 @@ that Claude Code consumers install via:
 
 ```bash
 claude plugin marketplace add shipeasy-ai/shipeasy
-claude plugin install shipeasy@base
+claude plugin install base@shipeasy
 # pick any combination of features:
-claude plugin install shipeasy@experiments-metrics
-claude plugin install shipeasy@configs-gates
-claude plugin install shipeasy@polylang
-claude plugin install shipeasy@bugs
+claude plugin install experiments-metrics@shipeasy
+claude plugin install configs-gates@shipeasy
+claude plugin install polylang@shipeasy
+claude plugin install bugs@shipeasy
 ```
 
 `base` is required first. The four feature plugins are independent and
@@ -44,7 +44,7 @@ Each plugin directory contains:
 Plugin install registers slash commands + skills with Claude Code. It does
 **not** run shell commands. To complete the setup:
 
-1. After `shipeasy@base`: run `/shipeasy-setup` in Claude Code (or follow
+1. After `base@shipeasy`: run `/shipeasy-setup` in Claude Code (or follow
    the `shipeasy-setup` skill). This installs the SDK, authenticates,
    binds the repo to a project, mints keys, and wires the SDK into the
    root layout.

@@ -23,8 +23,8 @@ Steps in brief (full detail in the skill):
 When done, tell the user which feature plugins to install next:
 
 ```
-claude plugin install shipeasy@experiments-metrics
-claude plugin install shipeasy@configs-gates
-claude plugin install shipeasy@polylang
-claude plugin install shipeasy@bugs
+claude plugin install experiments-metrics@shipeasy
+claude plugin install configs-gates@shipeasy
+claude plugin install polylang@shipeasy
+claude plugin install bugs@shipeasy
 ```

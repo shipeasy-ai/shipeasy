@@ -2,8 +2,8 @@
 description: Enable the gates + configs modules and verify the SDK reads them
 ---
 
-Run the per-plugin setup for `shipeasy@configs-gates`. Prereq:
-`shipeasy@base` is already installed and `.shipeasy` exists.
+Run the per-plugin setup for `configs-gates@shipeasy`. Prereq:
+`base@shipeasy` is already installed and `.shipeasy` exists.
 
 Steps:
 
@@ -14,7 +14,7 @@ Steps:
    ```
 
    If the check fails, stop and tell the user to run
-   `claude plugin install shipeasy@base` + `/shipeasy-setup` first.
+   `claude plugin install base@shipeasy` + `/shipeasy-setup` first.
 
 2. Enable the modules (independent toggles — enable what you need):
 
@@ -36,7 +36,7 @@ Steps:
 
 4. Print the per-plugin hand-off:
    ```
-   ✅ shipeasy@configs-gates setup complete
+   ✅ configs-gates@shipeasy setup complete
    Modules: gates ✓ configs ✓
    Next:    Use the `shipeasy-flags` skill or `/shipeasy-flag <name> [percent]`
             to create your first gate / config / kill switch.

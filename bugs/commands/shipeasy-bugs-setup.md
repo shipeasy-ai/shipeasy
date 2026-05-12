@@ -2,7 +2,7 @@
 description: Enable the feedback module and verify the devtools overlay loads
 ---
 
-Run the per-plugin setup for `shipeasy@bugs`. Prereq: `shipeasy@base` is
+Run the per-plugin setup for `bugs@shipeasy`. Prereq: `base@shipeasy` is
 already installed and `.shipeasy` exists.
 
 Steps:
@@ -14,7 +14,7 @@ Steps:
    ```
 
    If the check fails, stop and tell the user to run
-   `claude plugin install shipeasy@base` + `/shipeasy-setup` first.
+   `claude plugin install base@shipeasy` + `/shipeasy-setup` first.
 
 2. Enable the module:
 
@@ -41,7 +41,7 @@ Steps:
 
 5. Print the per-plugin hand-off:
    ```
-   ✅ shipeasy@bugs setup complete
+   ✅ bugs@shipeasy setup complete
    Module:  feedback ✓
    Wired:   devtools overlay (?se=1 on any page rendering getBootstrapHtml)
    Next:    Use the `shipeasy-bugs` skill, `/shipeasy-bug bug "<title>"`, or
