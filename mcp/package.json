@@ -1,8 +1,16 @@
 {
   "name": "@shipeasy/mcp",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Model Context Protocol server for the Shipeasy platform (experimentation + i18n)",
   "type": "module",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shipeasy-ai/mcp.git"
+  },
   "bin": {
     "shipeasy-mcp": "./bin/mcp.js"
   },
@@ -26,7 +34,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@shipeasy/admin-api": "workspace:*",
+    "@shipeasy/openapi": "workspace:^1.0.0",
     "package-manager-detector": "^1.6.0",
     "typescript": "^5.7.4",
     "zod": "^4.0.0"

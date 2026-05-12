@@ -3,7 +3,7 @@ import {
   createAdminClient,
   createHttpTransport,
   type AdminClient,
-} from "@shipeasy/admin-api";
+} from "@shipeasy/openapi";
 import { readConfig, type ShipeasyConfig } from "../auth/config.js";
 import { getBoundProjectIdSync } from "./project-config.js";
 
