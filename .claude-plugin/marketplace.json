@@ -1,0 +1,41 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "shipeasy",
+  "description": "Shipeasy plugins for Claude Code — feature flags, experiments, translations, in-app bug reports. Install `base` first, then any combination of feature plugins.",
+  "owner": {
+    "name": "Shipeasy",
+    "url": "https://shipeasy.ai"
+  },
+  "plugins": [
+    {
+      "name": "base",
+      "description": "Required first. Installs the SDK, registers the MCP server, binds the repo to a Shipeasy project, and wires the SDK into the root layout. Every other shipeasy@* plugin assumes this is installed.",
+      "source": "./base",
+      "category": "setup"
+    },
+    {
+      "name": "experiments-metrics",
+      "description": "A/B experiments + custom event metrics. Enables the `experiments` module, registers the `shipeasy-experiments` skill, and adds the `/shipeasy-experiment` slash command.",
+      "source": "./experiments-metrics",
+      "category": "feature"
+    },
+    {
+      "name": "configs-gates",
+      "description": "Feature gates, dynamic configs, kill switches. Enables the `gates` + `configs` modules, registers the `shipeasy-flags` skill, and adds the `/shipeasy-flag` slash command.",
+      "source": "./configs-gates",
+      "category": "feature"
+    },
+    {
+      "name": "polylang",
+      "description": "Translations — i18n keys + CDN-served labels. Enables the `translations` module, registers the `shipeasy-i18n` skill, and adds `/shipeasy-i18n-extract` + `/shipeasy-i18n-migrate` slash commands.",
+      "source": "./polylang",
+      "category": "feature"
+    },
+    {
+      "name": "bugs",
+      "description": "In-app bug reports + feature requests via the devtools overlay. Enables the `feedback` module, registers the `shipeasy-bugs` skill, and adds the `/shipeasy-bug` slash command.",
+      "source": "./bugs",
+      "category": "feature"
+    }
+  ]
+}

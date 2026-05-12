@@ -1,0 +1,8 @@
+{
+  "name": "shipeasy-experiments-metrics",
+  "version": "1.0.0",
+  "description": "Shipeasy A/B experiments + custom event metrics. Requires shipeasy@base.",
+  "author": { "name": "Shipeasy", "url": "https://shipeasy.ai" },
+  "homepage": "https://shipeasy.ai",
+  "license": "MIT"
+}

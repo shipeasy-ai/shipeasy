@@ -1,0 +1,8 @@
+{
+  "name": "shipeasy-bugs",
+  "version": "1.0.0",
+  "description": "Shipeasy in-app bug reports + feature requests via the devtools overlay. Requires shipeasy@base.",
+  "author": { "name": "Shipeasy", "url": "https://shipeasy.ai" },
+  "homepage": "https://shipeasy.ai",
+  "license": "MIT"
+}
