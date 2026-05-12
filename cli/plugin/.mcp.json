@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "shipeasy": {
-      "command": "npx",
-      "args": ["-y", "@shipeasy/mcp@latest"]
-    }
-  }
-}

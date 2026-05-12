@@ -1,13 +1,12 @@
 import { Command } from "commander";
-import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, existsSync, readdirSync, statSync, rmSync } from "node:fs";
+import { tmpdir, homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { resolveAsset, listDirs } from "../util/assets";
 import { copyTree } from "../util/copy";
 
-function skillsRoot(): string {
-  return resolveAsset("skills");
-}
+const MARKETPLACE_REPO = "https://github.com/shipeasy-ai/shipeasy.git";
+const KNOWN_PLUGINS = ["base", "experiments-metrics", "configs-gates", "polylang", "bugs"];
 
 function targetDir(scope: "user" | "project"): string {
   return scope === "user"
@@ -15,40 +14,73 @@ function targetDir(scope: "user" | "project"): string {
     : join(process.cwd(), ".claude", "skills");
 }
 
-function readDescription(skillDir: string): string {
-  const skillFile = join(skillDir, "SKILL.md");
-  if (!existsSync(skillFile)) return "";
-  const head = readFileSync(skillFile, "utf8").slice(0, 800);
-  const m = /^description:\s*(.+)$/m.exec(head);
-  return m ? m[1]!.trim() : "";
+function fetchMarketplace(): string {
+  const dir = mkdtempSync(join(tmpdir(), "shipeasy-marketplace-"));
+  const res = spawnSync("git", ["clone", "--depth", "1", MARKETPLACE_REPO, dir], {
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (res.status !== 0) {
+    rmSync(dir, { recursive: true, force: true });
+    throw new Error(
+      `git clone of ${MARKETPLACE_REPO} failed: ${res.stderr?.toString() ?? "unknown error"}`,
+    );
+  }
+  return dir;
+}
+
+function listSkillDirs(srcRoot: string): { skill: string; pluginRoot: string }[] {
+  const out: { skill: string; pluginRoot: string }[] = [];
+  for (const plugin of KNOWN_PLUGINS) {
+    const skillsDir = join(srcRoot, plugin, "skills");
+    if (!existsSync(skillsDir)) continue;
+    for (const entry of readdirSync(skillsDir)) {
+      const full = join(skillsDir, entry);
+      if (statSync(full).isDirectory()) {
+        out.push({ skill: entry, pluginRoot: full });
+      }
+    }
+  }
+  return out;
 }
 
 export function skillsCommand(parent: Command): void {
   const skills = parent
     .command("skills")
-    .description("Install or list bundled Shipeasy agent skills");
+    .description(
+      "Install or list Shipeasy agent skills from the marketplace (shipeasy-ai/shipeasy)",
+    );
 
   skills
     .command("list")
-    .description("List bundled skills available to install")
+    .description("List skills available in the marketplace")
     .action(() => {
-      const root = skillsRoot();
-      const names = listDirs(root);
-      if (names.length === 0) {
-        console.log("No bundled skills found.");
-        return;
+      let srcRoot: string;
+      try {
+        srcRoot = fetchMarketplace();
+      } catch (e) {
+        console.error(e instanceof Error ? e.message : String(e));
+        process.exit(1);
       }
-      for (const name of names) {
-        const desc = readDescription(join(root, name));
-        console.log(`  ${name.padEnd(24)} ${desc}`);
+      try {
+        const found = listSkillDirs(srcRoot);
+        if (found.length === 0) {
+          console.log("No skills found.");
+          return;
+        }
+        for (const { skill } of found) {
+          console.log(`  ${skill}`);
+        }
+      } finally {
+        rmSync(srcRoot, { recursive: true, force: true });
       }
     });
 
   skills
     .command("install [skill...]")
     .description(
-      "Copy bundled skills into .claude/skills. With no args, installs all of them. " +
-        "Skills are SKILL.md files the AI assistant can load on demand.",
+      "Copy skills from the marketplace into .claude/skills. With no args, installs every " +
+        "skill from every plugin. Skill names: shipeasy-setup, shipeasy-experiments, " +
+        "shipeasy-flags, shipeasy-i18n, shipeasy-bugs.",
     )
     .option("--scope <scope>", "user | project", "project")
     .option("--target <dir>", "Override the destination directory (advanced)")
@@ -58,41 +90,58 @@ export function skillsCommand(parent: Command): void {
         requested: string[],
         opts: { scope?: "user" | "project"; target?: string; force?: boolean },
       ) => {
-        const root = skillsRoot();
-        const available = listDirs(root);
-        if (available.length === 0) {
-          console.error(`No skills bundled with the CLI (looked in ${root}).`);
-          process.exit(1);
-        }
-        const toInstall = requested.length > 0 ? requested : available;
-        const unknown = toInstall.filter((s) => !available.includes(s));
-        if (unknown.length > 0) {
-          console.error(
-            `Unknown skill(s): ${unknown.join(", ")}. Available: ${available.join(", ")}`,
-          );
-          process.exit(1);
-        }
-
         const dest = opts.target
           ? resolve(opts.target)
           : targetDir(opts.scope === "user" ? "user" : "project");
-        let copied = 0;
-        let skipped = 0;
-        let overwritten = 0;
-        for (const name of toInstall) {
-          const r = copyTree(join(root, name), join(dest, name), !!opts.force);
-          copied += r.copied.length;
-          skipped += r.skipped.length;
-          overwritten += r.overwritten.length;
-          if (r.copied.length > 0 || r.overwritten.length > 0) {
-            console.log(`✓ ${name} → ${join(dest, name)}`);
-          } else if (r.skipped.length > 0) {
-            console.log(`• ${name}: already installed (use --force to overwrite)`);
-          }
+
+        console.log(`Cloning ${MARKETPLACE_REPO}…`);
+        let srcRoot: string;
+        try {
+          srcRoot = fetchMarketplace();
+        } catch (e) {
+          console.error(e instanceof Error ? e.message : String(e));
+          process.exit(1);
         }
-        console.log(`\nDone. ${copied} new, ${overwritten} overwritten, ${skipped} skipped.`);
-        if (copied + overwritten > 0) {
-          console.log("Restart your AI assistant or reload the skill index to pick them up.");
+
+        try {
+          const available = listSkillDirs(srcRoot);
+          if (available.length === 0) {
+            console.error(`No skills found in marketplace (clone at ${srcRoot}).`);
+            process.exit(1);
+          }
+          const toInstall =
+            requested.length > 0 ? available.filter((s) => requested.includes(s.skill)) : available;
+          const requestedNames = toInstall.map((s) => s.skill);
+          const unknown = requested.filter((s) => !available.some((a) => a.skill === s));
+          if (unknown.length > 0) {
+            console.error(
+              `Unknown skill(s): ${unknown.join(", ")}. Available: ${available.map((a) => a.skill).join(", ")}`,
+            );
+            process.exit(1);
+          }
+
+          let copied = 0;
+          let skipped = 0;
+          let overwritten = 0;
+          for (const { skill, pluginRoot } of toInstall) {
+            const r = copyTree(pluginRoot, join(dest, skill), !!opts.force);
+            copied += r.copied.length;
+            skipped += r.skipped.length;
+            overwritten += r.overwritten.length;
+            if (r.copied.length > 0 || r.overwritten.length > 0) {
+              console.log(`✓ ${skill} → ${join(dest, skill)}`);
+            } else if (r.skipped.length > 0) {
+              console.log(`• ${skill}: already installed (use --force to overwrite)`);
+            }
+          }
+          console.log(`\nDone. ${copied} new, ${overwritten} overwritten, ${skipped} skipped.`);
+          if (copied + overwritten > 0) {
+            console.log(
+              "Restart your AI assistant or reload the skill index to pick them up.",
+            );
+          }
+        } finally {
+          rmSync(srcRoot, { recursive: true, force: true });
         }
       },
     );

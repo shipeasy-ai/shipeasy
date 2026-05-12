@@ -1,77 +1,154 @@
 import { Command } from "commander";
-import { existsSync } from "node:fs";
-import { homedir } from "node:os";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, existsSync, readdirSync, statSync, rmSync } from "node:fs";
+import { tmpdir, homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { resolveAsset } from "../util/assets";
-import { copyTree, type CopyResult } from "../util/copy";
+import { copyTree } from "../util/copy";
 
-function pluginAssetRoot(): string {
-  return resolveAsset("plugin");
-}
+const MARKETPLACE_REPO = "https://github.com/shipeasy-ai/shipeasy.git";
+const KNOWN_PLUGINS = ["base", "experiments-metrics", "configs-gates", "polylang", "bugs"] as const;
+type PluginName = (typeof KNOWN_PLUGINS)[number];
 
 function rootFor(scope: "user" | "project"): string {
   return scope === "user" ? join(homedir(), ".claude") : join(process.cwd(), ".claude");
 }
 
+function fetchMarketplace(): string {
+  const dir = mkdtempSync(join(tmpdir(), "shipeasy-marketplace-"));
+  const res = spawnSync("git", ["clone", "--depth", "1", MARKETPLACE_REPO, dir], {
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (res.status !== 0) {
+    rmSync(dir, { recursive: true, force: true });
+    throw new Error(
+      `git clone of ${MARKETPLACE_REPO} failed: ${res.stderr?.toString() ?? "unknown error"}.\n` +
+        `Plugin install needs git on PATH. Install git or use:\n` +
+        `  claude plugin marketplace add shipeasy-ai/shipeasy && claude plugin install shipeasy@base`,
+    );
+  }
+  return dir;
+}
+
+function copyPlugin(srcRoot: string, pluginName: string, claudeRoot: string, force: boolean) {
+  const pluginRoot = join(srcRoot, pluginName);
+  if (!existsSync(pluginRoot) || !statSync(pluginRoot).isDirectory()) {
+    throw new Error(`Plugin '${pluginName}' not found in marketplace`);
+  }
+  let copied = 0;
+  let overwritten = 0;
+  let skipped = 0;
+  for (const sub of ["commands", "skills"] as const) {
+    const subSrc = join(pluginRoot, sub);
+    if (!existsSync(subSrc)) continue;
+    const dest = join(claudeRoot, sub);
+    const r = copyTree(subSrc, dest, force);
+    copied += r.copied.length;
+    overwritten += r.overwritten.length;
+    skipped += r.skipped.length;
+    console.log(
+      `  ${pluginName}/${sub.padEnd(8)} ${r.copied.length} new, ${r.overwritten.length} overwritten, ${r.skipped.length} skipped → ${dest}`,
+    );
+  }
+  return { copied, overwritten, skipped };
+}
+
 export function pluginCommand(parent: Command): void {
-  const plugin = parent.command("plugin").description("Install the Shipeasy Claude Code plugin");
+  const plugin = parent
+    .command("plugin")
+    .description(
+      "Install Shipeasy Claude/Cursor/Windsurf plugins (clones shipeasy-ai/shipeasy and copies the requested plugin's skills + slash commands into .claude/)",
+    );
 
   plugin
-    .command("install")
+    .command("install [plugins...]")
     .description(
-      "Install slash commands + skills into .claude/commands and .claude/skills " +
-        "(picked up natively — no marketplace registration needed). Also drops a " +
-        "plugin manifest at .claude/plugins/shipeasy for users who prefer that layout.",
+      "Fetch one or more plugins from the marketplace (shipeasy-ai/shipeasy) and copy " +
+        "their skills + commands into .claude/. With no args, installs `base` only. " +
+        `Known plugins: ${KNOWN_PLUGINS.join(", ")}.`,
     )
     .option("--scope <scope>", "user | project", "project")
     .option("--target <dir>", "Override the destination .claude root (advanced)")
+    .option("--all", "Install every known plugin")
     .option("--force", "Overwrite existing files")
-    .action((opts: { scope?: "user" | "project"; target?: string; force?: boolean }) => {
-      const src = pluginAssetRoot();
-      const claudeRoot = opts.target
-        ? resolve(opts.target)
-        : rootFor(opts.scope === "user" ? "user" : "project");
+    .action(
+      (
+        requested: string[],
+        opts: {
+          scope?: "user" | "project";
+          target?: string;
+          all?: boolean;
+          force?: boolean;
+        },
+      ) => {
+        const claudeRoot = opts.target
+          ? resolve(opts.target)
+          : rootFor(opts.scope === "user" ? "user" : "project");
 
-      const summary: { label: string; dest: string; r: CopyResult }[] = [];
+        let toInstall: string[];
+        if (opts.all) {
+          toInstall = [...KNOWN_PLUGINS];
+        } else if (requested.length === 0) {
+          toInstall = ["base"];
+          console.log("No plugins specified. Installing `base` (use --all for everything).");
+        } else {
+          toInstall = requested;
+        }
 
-      // 1. Slash commands → .claude/commands/ (canonical pickup path).
-      const commandsSrc = join(src, "commands");
-      if (existsSync(commandsSrc)) {
-        const dest = join(claudeRoot, "commands");
-        summary.push({ label: "commands", dest, r: copyTree(commandsSrc, dest, !!opts.force) });
-      }
+        const unknown = toInstall.filter((p) => !(KNOWN_PLUGINS as readonly string[]).includes(p));
+        if (unknown.length > 0) {
+          console.error(`Unknown plugin(s): ${unknown.join(", ")}. Known: ${KNOWN_PLUGINS.join(", ")}`);
+          process.exit(1);
+        }
 
-      // 2. Skills → .claude/skills/ (canonical pickup path).
-      const skillsSrc = join(src, "skills");
-      if (existsSync(skillsSrc)) {
-        const dest = join(claudeRoot, "skills");
-        summary.push({ label: "skills", dest, r: copyTree(skillsSrc, dest, !!opts.force) });
-      }
+        console.log(`Cloning ${MARKETPLACE_REPO}…`);
+        let srcRoot: string;
+        try {
+          srcRoot = fetchMarketplace();
+        } catch (e) {
+          console.error(e instanceof Error ? e.message : String(e));
+          process.exit(1);
+        }
 
-      // 3. Plugin manifest → .claude/plugins/shipeasy/ (for marketplace-style use).
-      const dest = join(claudeRoot, "plugins", "shipeasy");
-      summary.push({ label: "plugin manifest", dest, r: copyTree(src, dest, !!opts.force) });
+        let totalCopied = 0;
+        let totalOverwritten = 0;
+        let totalSkipped = 0;
+        try {
+          for (const name of toInstall) {
+            const r = copyPlugin(srcRoot, name, claudeRoot, !!opts.force);
+            totalCopied += r.copied;
+            totalOverwritten += r.overwritten;
+            totalSkipped += r.skipped;
+          }
+        } finally {
+          rmSync(srcRoot, { recursive: true, force: true });
+        }
 
-      let totalCopied = 0;
-      let totalOverwritten = 0;
-      let totalSkipped = 0;
-      for (const s of summary) {
-        const { copied, overwritten, skipped } = s.r;
-        totalCopied += copied.length;
-        totalOverwritten += overwritten.length;
-        totalSkipped += skipped.length;
         console.log(
-          `  ${s.label.padEnd(16)} ${copied.length} new, ${overwritten.length} overwritten, ${skipped.length} skipped → ${s.dest}`,
+          `\nDone. ${totalCopied} new, ${totalOverwritten} overwritten, ${totalSkipped} skipped.`,
         );
+        if (totalSkipped > 0 && !opts.force) {
+          console.log("Some files already existed. Re-run with --force to overwrite.");
+        }
+        console.log(
+          "\nRestart your AI assistant or reload the skill/command index to pick up the new files.",
+        );
+        console.log(
+          "\nFor Claude Code, the marketplace path is preferred:\n" +
+            "  claude plugin marketplace add shipeasy-ai/shipeasy\n" +
+            `  claude plugin install shipeasy@${toInstall[0]}`,
+        );
+      },
+    );
+
+  plugin
+    .command("list")
+    .description("List the known plugins available in the marketplace")
+    .action(() => {
+      for (const name of KNOWN_PLUGINS) {
+        console.log(`  ${name}`);
       }
       console.log(
-        `\nDone. ${totalCopied} new, ${totalOverwritten} overwritten, ${totalSkipped} skipped.`,
-      );
-      if (totalSkipped > 0 && !opts.force) {
-        console.log("Some files already existed. Re-run with --force to overwrite.");
-      }
-      console.log(
-        "\nNext: restart Claude Code. Slash commands /shipeasy-* and skills load automatically from .claude/commands and .claude/skills.",
+        `\nFull catalogue + descriptions: https://github.com/shipeasy-ai/shipeasy/blob/main/.claude-plugin/marketplace.json`,
       );
     });
 
@@ -84,6 +161,5 @@ export function pluginCommand(parent: Command): void {
       console.log("Remove these by hand (the CLI refuses to recursive-delete user files):");
       console.log(`  rm    ${join(claudeRoot, "commands", "shipeasy-*.md")}`);
       console.log(`  rm -r ${join(claudeRoot, "skills", "shipeasy-*")}`);
-      console.log(`  rm -r ${join(claudeRoot, "plugins", "shipeasy")}`);
     });
 }
