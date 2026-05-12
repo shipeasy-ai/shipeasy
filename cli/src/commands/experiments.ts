@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import type { ExperimentResult } from "@shipeasy/admin-api";
+import type { ExperimentResult } from "@shipeasy/openapi";
 import { ApiError, getAdminClient } from "../api/client";
 import { printTable, printJson, statusColor } from "../util/output";
 

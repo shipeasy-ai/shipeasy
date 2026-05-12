@@ -3,12 +3,12 @@ import {
   createAdminClient,
   createHttpTransport,
   type AdminClient,
-} from "@shipeasy/admin-api";
+} from "@shipeasy/openapi";
 import { loadCredentials } from "../auth/storage";
 import { getBoundProjectId } from "../util/project-config";
 
 // Re-export so existing call sites (which import { ApiError } from "../api/client")
-// keep working even though the class now lives in @shipeasy/admin-api.
+// keep working even though the class now lives in @shipeasy/openapi.
 export { ApiError };
 
 export interface ApiClientOptions {

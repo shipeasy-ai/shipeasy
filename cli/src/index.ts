@@ -17,6 +17,7 @@ import { mcpCommand } from "./commands/mcp";
 import { skillsCommand } from "./commands/skills";
 import { pluginCommand } from "./commands/plugin";
 import { projectsCommand } from "./commands/projects";
+import { modulesCommand } from "./commands/modules";
 import { bindProject, readProjectConfig } from "./util/project-config";
 import { printJson } from "./util/output";
 import { reportCliError } from "./util/error-reporter";
@@ -187,6 +188,7 @@ program
   });
 
 projectsCommand(program);
+modulesCommand(program);
 flagsCommand(program);
 killswitchesCommand(program);
 experimentsCommand(program);
