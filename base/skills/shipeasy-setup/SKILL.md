@@ -1,6 +1,6 @@
 ---
 name: shipeasy-setup
-description: End-to-end onboarding for Shipeasy in a target app — install SDK, authenticate, bind to a project, create keys, wire the SDK into the root layout, and verify. Trigger on "set up shipeasy", "install shipeasy", "onboard shipeasy", "first-time integration".
+description: End-to-end onboarding for Shipeasy in a target app or monorepo — detect subprojects, install SDK per subproject, authenticate, bind to a project, create keys, wire SDK into entry points, and verify. Trigger on "set up shipeasy", "install shipeasy", "onboard shipeasy", "first-time integration".
 user-invocable: true
 ---
 
@@ -9,8 +9,7 @@ user-invocable: true
 You are an AI agent walking the user through the **base** Shipeasy install
 (the part every project needs regardless of which features it enables).
 Follow these steps in order. Each step has a verification gate — do not
-advance if the verification fails. Self-heal once, then escalate to the
-user.
+advance if it fails. Self-heal once, then escalate.
 
 The corresponding feature plugins (`experiments-metrics@shipeasy`,
 `configs-gates@shipeasy`, `polylang@shipeasy`, `bugs@shipeasy`) each ship
@@ -19,73 +18,165 @@ this skill **first**.
 
 ---
 
+## Operating rules (read before doing anything)
+
+1. **Use the Bash tool for every CLI command.** Never instruct the user
+   to run `shipeasy login`, `pnpm add ...`, etc. in their own terminal.
+   The MCP server cannot run interactive flows over stdio; the Bash tool
+   on the Claude Code side can. Run CLI commands yourself.
+2. **`shipeasy login` is interactive but agent-runnable.** Spawn it via
+   Bash. The CLI prints a URL and opens the user's default browser. The
+   user clicks "Authorize" in that browser; the CLI exits 0. Do **not**
+   ask the user to copy/paste commands — just run it and wait.
+3. **Never `npm publish`, never `git commit`, never `git push`.** This
+   skill stops at "ready to commit". The user commits.
+4. **Never log a server key.** Strip `sdk_server_*` from any chat output
+   you emit, even on error.
+5. **One project per app, always bound.** `.shipeasy` is mandatory and
+   lives at the **monorepo root** (one project_id covers every subproject
+   in the repo). Commit it.
+6. **One configure call per runtime.** Never write `src/lib/shipeasy.ts`
+   wrappers or per-feature config files.
+
+---
+
 ## 0. Preconditions
+
+Run via Bash:
 
 ```bash
 node --version            # require >= 20
 git rev-parse --show-toplevel
 ```
 
-Determine the framework from the file layout:
+If Node `<20`: surface to user (don't auto-upgrade). If not in a repo and
+the directory is non-empty: ask the user before `git init`.
+
+---
+
+## 1. Detect subprojects (monorepo-aware)
+
+The "target" may be a single app **or** a monorepo with multiple
+subprojects (frontend + backend, web + mobile, …). Build the list of
+install targets before running any package-manager commands.
 
 ```bash
-test -f src/app/layout.tsx  && echo "→ nextjs-app (src/app)"
-test -f app/layout.tsx      && echo "→ nextjs-app (app)"
-test -f pages/_document.tsx && echo "→ nextjs-pages"
-test -f index.html          && echo "→ react-vite (or static HTML)"
+# Find every package.json / pyproject.toml / Gemfile / go.mod / pom.xml /
+# composer.json / Package.swift outside node_modules and vendor dirs.
+# Limit depth so we don't recurse into deeply-nested fixtures.
+find . -maxdepth 4 \
+  \( -path './node_modules' -o -path '*/node_modules/*' \
+     -o -path '*/vendor/*' -o -path '*/dist/*' -o -path '*/.next/*' \
+     -o -path '*/build/*' -o -path '*/.git' \) -prune -o \
+  \( -name 'package.json' -o -name 'pyproject.toml' -o -name 'Gemfile' \
+     -o -name 'go.mod' -o -name 'pom.xml' -o -name 'composer.json' \
+     -o -name 'Package.swift' -o -name 'build.gradle*' \) -print
 ```
 
-If MCP is registered, `mcp tool: detect_project` returns the same info in
-structured form (preferred when available).
+Classify each hit:
 
-## 1. Install runtime packages
+| Manifest found             | Language    | Default SDK install command (run from that dir)            | Published? |
+| -------------------------- | ----------- | ---------------------------------------------------------- | ---------- |
+| `package.json` (+ React)   | js-react    | `pnpm add @shipeasy/sdk @shipeasy/react` (auto-detect pm)  | ✓ npm      |
+| `package.json` (Node only) | js-node     | `pnpm add @shipeasy/sdk`                                   | ✓ npm      |
+| `pyproject.toml`           | python      | (no PyPI package yet — instruct user, do not auto-install) | ✗          |
+| `Gemfile`                  | ruby        | (no RubyGems yet — instruct user)                          | ✗          |
+| `go.mod`                   | go          | (no Go module yet — instruct user)                         | ✗          |
+| `pom.xml` / `build.gradle` | java/kotlin | (no Maven Central yet — instruct user)                     | ✗          |
+| `composer.json`            | php         | (no Packagist yet — instruct user)                         | ✗          |
+| `Package.swift`            | swift       | (no SPM yet — instruct user)                               | ✗          |
 
-Detect the package manager (lockfile or `package-manager-detector`) and
-install **both** SDK packages in a single command:
+A monorepo with `apps/web/package.json` (React) and `apps/api/go.mod`
+(Go backend) → two targets: install JS SDK in `apps/web`, surface "no Go
+SDK published yet" for `apps/api` and continue.
 
-```bash
-pnpm add @shipeasy/sdk @shipeasy/react
-# or: npm install @shipeasy/sdk @shipeasy/react
-# Skip @shipeasy/react if the project has no React.
+**Skip** any directory whose `package.json` already has `@shipeasy/sdk`
+in deps. That subproject is already onboarded.
+
+**Skip** the monorepo-root `package.json` if it's purely a workspace root
+(no `dependencies` / `devDependencies` beyond tooling). Don't install
+SDKs at the root.
+
+Print the final target list before proceeding, e.g.:
+
+```
+Detected install targets:
+  • apps/frontend   js-react   → @shipeasy/sdk @shipeasy/react
+  • apps/backend    js-node    → @shipeasy/sdk
+  • services/api    python     → ⚠ no SDK published yet; manual install
 ```
 
-Pre-flight: if `zod` is pinned major `< 4`, npm errors with `ERESOLVE`
-(pnpm/yarn handle it). Use `npm install --legacy-peer-deps` or
-`pnpm add --strict-peer-dependencies=false` in that case.
-
-Verify: `npm ls @shipeasy/sdk @shipeasy/react`.
+---
 
 ## 2. Authenticate AND bind the repo to a project — mandatory
 
-### 2a. Log in
+### 2a. Log in (run via Bash, do not delegate)
 
 ```bash
 shipeasy login
 ```
 
-Opens the browser at `{app_base}/cli-auth`. User signs in (GitHub / Google
-/ magic link), picks **any** project they own, and the CLI writes
-credentials to `~/.config/shipeasy/config.json` (mode 0600).
+What happens: CLI generates a PKCE pair, opens the default browser at
+`{app_base}/cli-auth?...`, polls `/auth/device/poll` until the user
+clicks "Authorize" in the browser, then writes
+`~/.config/shipeasy/config.json` (mode 0600) and exits 0.
 
-Verify: `shipeasy whoami`. Headless? Re-run with `--no-browser`.
+If the user already has a valid session, `shipeasy whoami` returns the
+saved project — skip login.
 
-### 2b. Upsert this app's project, keyed by domain
+**Run order each time:**
 
 ```bash
+shipeasy whoami    # returns 0 if logged in; non-zero or "Not logged in" if not
+# If not logged in:
+shipeasy login     # blocks until user clicks Authorize in browser
+shipeasy whoami    # re-verify
+```
+
+Self-heal on `shipeasy login`:
+
+- Exit code non-zero / `401` from any later step → token rejected;
+  `shipeasy logout && shipeasy login`, then retry.
+- Headless / SSH session detected (no `DISPLAY`, no `open` command) →
+  re-run `shipeasy login --no-browser` and surface the URL **once** to
+  the user. Do not loop.
+- Browser session is for the wrong account → tell the user to log out in
+  the browser, then retry `shipeasy login`. Don't loop more than twice.
+
+### 2b. Upsert the project, keyed by domain — run from the monorepo root
+
+```bash
+cd "$(git rev-parse --show-toplevel)"
 shipeasy projects upsert --domain <production-domain>
 ```
 
 Idempotent on `(owner_email, domain)`. Creates the project on first run,
-no-ops on later runs. Auto-binds — writes `.shipeasy` in `cwd`.
+no-ops afterwards. Auto-binds — writes `.shipeasy` in cwd.
 
-**Hard rule: one Shipeasy project per website / repo / app.** Use the
-production domain, not `localhost`. Never reuse a project across two
-unrelated apps. Without `.shipeasy`, every CLI/MCP write silently routes
-to whatever project the machine was last logged into.
+**Use the production domain, not `localhost`.** Ask the user once if you
+cannot infer it from `package.json#homepage`, `wrangler.jsonc#name`, or
+a `vercel.json` / `netlify.toml` site name.
 
-Verify: `shipeasy whoami` shows "Bound dir: <uuid>". `cat .shipeasy` shows
-a `project_id`. `git status` lists `.shipeasy` as new (commit it; do not
-gitignore).
+**Hard rule: one Shipeasy project per website / repo / app.** The
+monorepo root holds the single `.shipeasy`. Subprojects inherit by
+walking up the tree (same pattern as `.git`).
+
+Verify:
+
+```bash
+shipeasy whoami | grep -q "Bound dir" && echo "OK: bound"
+test -f .shipeasy && grep project_id .shipeasy
+git status --short .shipeasy
+```
+
+Self-heal:
+
+- `This command writes to a Shipeasy project, but no project is bound …`
+  → 2b was skipped or run in the wrong dir; re-run from the monorepo root.
+- `.shipeasy` is gitignored → remove it from `.gitignore`; binding must
+  be committed.
+
+---
 
 ## 3. Create server + client SDK keys
 
@@ -94,23 +185,53 @@ shipeasy keys create --type server --json
 shipeasy keys create --type client --json
 ```
 
-Capture the `key` field from each response. **Plaintext is shown once** —
-write to the secret store immediately (step 4) and discard.
+Capture the `key` field from each JSON. **Plaintext is shown once** —
+write to the secret store in step 4 and discard the JSON immediately.
+
+Self-heal: if keys already exist (existing project), `shipeasy keys list`
+shows them but plaintext is unrecoverable. Always mint **new** keys here
+rather than asking the user to dig up old ones; revoke unused old ones
+with `shipeasy keys revoke <id>` only after the user confirms.
 
 Verify: `shipeasy keys list` shows ≥1 server and ≥1 client row.
 
-## 4. Persist keys to the app's secret store
+---
 
-Match the first detected store:
+## 4. Install the SDK + persist keys — per subproject
 
-| Detected                                       | Action                                           |
-| ---------------------------------------------- | ------------------------------------------------ |
-| `wrangler.toml` / `wrangler.jsonc`             | `wrangler secret put SHIPEASY_SERVER_KEY`        |
-| Next.js / Vite / Astro / SvelteKit / Remix     | append to `.env.local`                           |
-| Vercel (`.vercel/` or `vercel.json`)           | `vercel env add SHIPEASY_SERVER_KEY production`  |
-| Netlify (`netlify.toml`)                       | `netlify env:set SHIPEASY_SERVER_KEY …`          |
-| Doppler / Infisical / 1Password CLI configured | use that CLI                                     |
-| Nothing                                        | create `.env.local`, ensure it's in `.gitignore` |
+Loop over each target from step 1. For each:
+
+### 4a. JS targets (`js-react`, `js-node`)
+
+```bash
+cd <subproject-dir>
+
+# Detect package manager from lockfile (pnpm-lock.yaml, yarn.lock, package-lock.json)
+# and install the right packages:
+pnpm add @shipeasy/sdk @shipeasy/react       # js-react
+# or:
+pnpm add @shipeasy/sdk                        # js-node
+```
+
+Pre-flight: if `zod` is pinned `< 4`, npm errors with `ERESOLVE`. Use
+`npm install --legacy-peer-deps` or
+`pnpm add --strict-peer-dependencies=false`.
+
+Persist keys to the subproject's `.env.local` (or whatever store it
+already uses — see the table below). Re-use the **same** server + client
+key pair across every subproject in the monorepo; they all evaluate
+against the same project.
+
+| Detected secret store                      | Action                                                           |
+| ------------------------------------------ | ---------------------------------------------------------------- |
+| `wrangler.toml` / `wrangler.jsonc`         | `wrangler secret put SHIPEASY_SERVER_KEY` (interactive via Bash) |
+| Next.js / Vite / Astro / SvelteKit / Remix | append to `<subproject>/.env.local`                              |
+| Vercel (`.vercel/` or `vercel.json`)       | `vercel env add SHIPEASY_SERVER_KEY production`                  |
+| Netlify (`netlify.toml`)                   | `netlify env:set SHIPEASY_SERVER_KEY …`                          |
+| Doppler / Infisical / 1Password CLI        | use that CLI                                                     |
+| Nothing detected                           | create `<subproject>/.env.local`, confirm it's gitignored        |
+
+Variable names by framework:
 
 ```
 SHIPEASY_SERVER_KEY=sdk_server_…
@@ -119,23 +240,41 @@ VITE_SHIPEASY_CLIENT_KEY=sdk_client_…          # Vite
 PUBLIC_SHIPEASY_CLIENT_KEY=sdk_client_…        # Astro / SvelteKit / generic
 ```
 
-Hard rules:
+### 4b. Non-JS targets (no SDK published yet)
 
-- Never commit a server key. Confirm `.env.local` is gitignored before
-  writing.
+Surface a one-line notice to the user and continue. **Do not** invent a
+pip/gem/go-get install. Example:
+
+```
+⚠ services/api (python): no PyPI package published yet. Wire it up
+   manually once @shipeasy/sdk-python lands. Tracking issue:
+   https://github.com/shipeasy-ai/sdk-python
+```
+
+The monorepo still gets its server + client keys in the relevant secret
+store — pass the same keys to non-JS subprojects via their existing env
+mechanism so they're ready when the language SDK ships.
+
+### Hard rules
+
+- Never commit a server key. Confirm `.env.local` is in `.gitignore`
+  before any later `git add`.
 - Never echo a server key into chat output, PR descriptions, commit
   messages, or test fixtures.
 
-## 5. Initialize the SDK — one configure call
+---
 
-There is exactly one entry point per runtime. **Never** create
-`src/lib/shipeasy.ts` wrappers, separate `i18n.init()` calls, or
-per-feature configuration files.
+## 5. Initialize the SDK — one configure call per JS subproject
 
-Edit `app/layout.tsx` (or `src/app/layout.tsx`). Render
-`getBootstrapHtml()` into `<head>` — this is the canonical pattern.
-Without it, client-side flag evaluation pays an extra round-trip on first
-paint and the devtools overlay (used by `bugs@shipeasy`) never appears.
+For each `js-react` / `js-node` subproject, exactly one entry-point
+file gets the `shipeasy({...})` call.
+
+### 5a. Next.js App Router subproject
+
+Edit `<subproject>/app/layout.tsx` (or `<subproject>/src/app/layout.tsx`)
+— whichever exists. Render `getBootstrapHtml()` into `<head>`. Without
+it, client-side flag evaluation pays an extra round-trip on first paint
+and the devtools overlay (used by `bugs@shipeasy`) never appears.
 
 ```tsx
 import type { Metadata } from "next";
@@ -171,20 +310,39 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 }
 ```
 
-For Vite / CRA / plain HTML, call `shipeasy({ apiKey: … })` once near the
-top of `main.ts` / `main.tsx`.
+### 5b. Vite / CRA / plain HTML
+
+Call `shipeasy({ apiKey: ... })` once near the top of `main.ts` /
+`main.tsx`.
+
+### 5c. Node service (`js-node`, no React)
+
+Call once at startup (e.g. top of `src/server.ts` / `src/index.ts`):
+
+```ts
+import { shipeasy } from "@shipeasy/sdk/server";
+await shipeasy({ apiKey: process.env.SHIPEASY_SERVER_KEY ?? "" });
+```
+
+---
 
 ## 6. Final verification gate
 
-All must pass:
-
 ```bash
-shipeasy whoami                                  # "Bound dir:" line shows project_id
-test -f .shipeasy && grep project_id .shipeasy   # binding present
+cd "$(git rev-parse --show-toplevel)"
+shipeasy whoami                                  # bound dir + project_id
+test -f .shipeasy && grep project_id .shipeasy   # binding committed
 shipeasy keys list                               # ≥1 server, ≥1 client
 shipeasy modules list                            # all off by default
-pnpm build || npm run build                      # target app still builds
+
+# Per JS subproject:
+( cd <subproject> && (pnpm build || npm run build) )
 ```
+
+Every line must pass before reporting "done". On failure: surface the
+exact stderr to the user and stop.
+
+---
 
 ## 7. Hand-off report
 
@@ -192,14 +350,14 @@ pnpm build || npm run build                      # target app still builds
 ✅ Shipeasy base installed
 Project:   <project_id>
 Keys:      server *…<last4>, client *…<last4>
-Wired:     SDK init in <layout/file>
+Wired:     <list of subprojects + entry files>
 Modules:   (none enabled yet)
 
 Next:
-  claude plugin install experiments-metrics@shipeasy    # A/B tests + metrics
-  claude plugin install configs-gates@shipeasy          # feature gates + configs + killswitches
-  claude plugin install polylang@shipeasy               # translations
-  claude plugin install bugs@shipeasy                   # in-app bug reports
+  claude plugin install experiments-metrics@shipeasy   # A/B tests + metrics
+  claude plugin install configs-gates@shipeasy         # feature gates + configs + killswitches
+  claude plugin install polylang@shipeasy              # translations
+  claude plugin install bugs@shipeasy                  # in-app bug reports
 
 Then enable the matching module:
   shipeasy modules enable experiments
@@ -207,27 +365,21 @@ Then enable the matching module:
   shipeasy modules enable translations
   shipeasy modules enable feedback
 
-Open the dashboard:  https://app.shipeasy.ai/projects/<project_id>
+Dashboard:  https://app.shipeasy.ai/projects/<project_id>
 ```
 
+---
+
 ## 8. Ask the user to commit
+
+Show the diff. Propose the command. **Don't run `git commit` yourself.**
 
 ```bash
 git status
 git diff --stat
-# Then propose (do not run yourself):
-git add package.json <lockfile> app/layout.tsx .env.local-pattern .shipeasy
+# Then propose:
+git add .shipeasy <subproject>/package.json <subproject>/<lockfile> <entry-files>
 git commit -m "chore: onboard Shipeasy base (SDK + auth + bind)"
 ```
 
 Confirm `.env.local` is gitignored before any `git add`. Never `git add -A`.
-
-## Operating rules
-
-1. **One project per app, always bound.** `.shipeasy` is mandatory.
-2. **One configure call.** Never wrap the SDK.
-3. **Vanilla JS surface.** Anything you build must work without React.
-4. **Confirm before destructive ops** (revoking keys, overwriting MCP configs).
-5. **Never log server keys.** Strip them from any chat output.
-6. **Self-heal once, then escalate.** Don't loop.
-7. **Verify, don't trust.** Run the verification command before advancing.
