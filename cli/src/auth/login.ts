@@ -105,8 +105,14 @@ export async function login(opts: { workerUrl?: string; appUrl?: string } = {}):
     });
 
     console.log(
-      `\nLogged in. Project: ${payload.project_id}` +
+      `\nLogged in. Session project: ${payload.project_id}` +
         (payload.user_email ? ` (${payload.user_email})` : ""),
+    );
+    console.log(
+      "\nNext: bind this directory to its own Shipeasy project (one project per app)." +
+        "\n  shipeasy projects upsert --domain <your-prod-domain> [--name <name>]" +
+        "\n\nUse the production hostname (e.g. acme.com), not localhost. Creates a new" +
+        "\nproject under your account on first run; finds the existing one on rerun.",
     );
     return;
   }
