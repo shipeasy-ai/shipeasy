@@ -108,71 +108,62 @@ Detected install targets:
 
 ---
 
-## 2. Authenticate AND bind the repo to a project — mandatory
-
-### 2a. Log in (run via Bash, do not delegate)
+## 2. Authenticate + bind in one step (run via Bash, do not delegate)
 
 ```bash
-shipeasy login
-```
-
-What happens: CLI generates a PKCE pair, opens the default browser at
-`{app_base}/cli-auth?...`, polls `/auth/device/poll` until the user
-clicks "Authorize" in the browser, then writes
-`~/.config/shipeasy/config.json` (mode 0600) and exits 0.
-
-If the user already has a valid session, `shipeasy whoami` returns the
-saved project — skip login.
-
-**Run order each time:**
-
-```bash
-shipeasy whoami    # returns 0 if logged in; non-zero or "Not logged in" if not
+cd "$(git rev-parse --show-toplevel)"
+shipeasy whoami    # check first — skip login if already authed
 # If not logged in:
-shipeasy login     # blocks until user clicks Authorize in browser
+shipeasy login
 shipeasy whoami    # re-verify
 ```
+
+What `shipeasy login` does end-to-end:
+
+1. Generates a PKCE pair, opens the default browser at
+   `{app_base}/cli-auth?...`.
+2. **Browser page lets the user pick an existing project OR create a
+   new one** (name + production domain). Project creation is idempotent
+   on `(owner_email, domain)` — re-running login with the same domain
+   re-uses the project, never duplicates.
+3. CLI polls `/auth/device/poll`, receives `{ token, project_id,
+project_name }`.
+4. Writes `~/.config/shipeasy/config.json` (mode 0600).
+5. **Auto-writes `.shipeasy` in cwd** with the returned project_id
+   (when cwd has no existing binding). No separate `shipeasy projects
+upsert` step needed.
+
+Verify:
+
+```bash
+shipeasy whoami | grep -q "Bound dir" && echo OK
+test -f .shipeasy && grep project_id .shipeasy
+git status --short .shipeasy
+```
+
+If the directory already had a `.shipeasy` binding pointing at a
+different project, `shipeasy login` leaves it in place and prints a
+notice. To switch deliberately: `shipeasy bind <new_project_id>`.
 
 Self-heal on `shipeasy login`:
 
 - Exit code non-zero / `401` from any later step → token rejected;
-  `shipeasy logout && shipeasy login`, then retry.
-- Headless / SSH session detected (no `DISPLAY`, no `open` command) →
-  re-run `shipeasy login --no-browser` and surface the URL **once** to
-  the user. Do not loop.
-- Browser session is for the wrong account → tell the user to log out in
-  the browser, then retry `shipeasy login`. Don't loop more than twice.
-
-### 2b. Upsert the project, keyed by domain — run from the monorepo root
-
-```bash
-cd "$(git rev-parse --show-toplevel)"
-shipeasy projects upsert --domain <production-domain>
-```
-
-Idempotent on `(owner_email, domain)`. Creates the project on first run,
-no-ops afterwards. Auto-binds — writes `.shipeasy` in cwd.
-
-**Use the production domain, not `localhost`.** Ask the user once if you
-cannot infer it from `package.json#homepage`, `wrangler.jsonc#name`, or
-a `vercel.json` / `netlify.toml` site name.
+  `shipeasy logout && shipeasy login`, retry once.
+- Headless / SSH session (no `DISPLAY`, no `open` command) → re-run
+  `shipeasy login --no-browser` and surface the URL **once** to the
+  user. Do not loop.
+- Browser session is for the wrong account → instruct the user to log
+  out in the browser, then retry. Max two attempts.
 
 **Hard rule: one Shipeasy project per website / repo / app.** The
 monorepo root holds the single `.shipeasy`. Subprojects inherit by
 walking up the tree (same pattern as `.git`).
 
-Verify:
-
-```bash
-shipeasy whoami | grep -q "Bound dir" && echo "OK: bound"
-test -f .shipeasy && grep project_id .shipeasy
-git status --short .shipeasy
-```
-
-Self-heal:
+Self-heal on bind:
 
 - `This command writes to a Shipeasy project, but no project is bound …`
-  → 2b was skipped or run in the wrong dir; re-run from the monorepo root.
+  → login was skipped or ran in the wrong dir; rerun `shipeasy login` from
+  the monorepo root.
 - `.shipeasy` is gitignored → remove it from `.gitignore`; binding must
   be committed.
 

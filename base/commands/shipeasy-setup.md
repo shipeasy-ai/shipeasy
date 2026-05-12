@@ -24,8 +24,9 @@ Steps in brief (full detail in the skill):
    `Gemfile`, `go.mod`, `pom.xml`, `composer.json`, `Package.swift`,
    `build.gradle*`. Classify by language (only JS has a published SDK
    today; flag the rest for manual follow-up).
-3. `shipeasy login` (via Bash) → `shipeasy projects upsert --domain <domain>`
-   at the monorepo root (writes `.shipeasy`; commit it).
+3. `shipeasy login` (via Bash) at the monorepo root. Browser opens; user
+   picks an existing project or fills in name + production domain to
+   create a new one. CLI auto-writes `.shipeasy` on return. Commit it.
 4. `shipeasy keys create --type server` + `--type client` — same pair
    used by every subproject.
 5. For each JS subproject: `cd <dir> && pnpm add @shipeasy/sdk [@shipeasy/react]`,
