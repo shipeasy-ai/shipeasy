@@ -37,6 +37,17 @@ this skill **first**.
    in the repo). Commit it.
 6. **One configure call per runtime.** Never write `src/lib/shipeasy.ts`
    wrappers or per-feature config files.
+7. **JS-ONLY SDK install.** The only published Shipeasy SDKs are
+   `@shipeasy/sdk` and `@shipeasy/react` on npm. **NEVER** run
+   `gem install`, `bundle add`, `pip install`, `poetry add`, `go get`,
+   `go mod tidy` (with intent to add a shipeasy dep), `composer require`,
+   `mvn install`, `gradle … --refresh-dependencies`, `swift package
+   add-dependency`, or any other non-npm package manager during this
+   skill. If a subproject is Ruby/Python/Go/Java/PHP/Swift, **only print
+   a one-line "no SDK published yet" notice** and move on. Failing to
+   follow this rule WILL break unrelated parts of the user's project
+   (Gemfile.lock churn, pyproject regressions, etc.). This is
+   non-negotiable.
 
 ---
 

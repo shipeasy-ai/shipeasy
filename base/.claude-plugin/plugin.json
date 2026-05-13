@@ -1,6 +1,6 @@
 {
   "name": "shipeasy-base",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "Shipeasy base — SDK install, auth, project bind, keys, root-layout init, MCP registration. Required prerequisite for every other shipeasy@* plugin.",
   "author": { "name": "Shipeasy", "url": "https://shipeasy.ai" },
   "homepage": "https://shipeasy.ai",
