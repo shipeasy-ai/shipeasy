@@ -1,8 +1,0 @@
-{
-  "name": "shipeasy-polylang",
-  "version": "1.0.0",
-  "description": "Shipeasy translations — i18n keys + CDN-served labels. Requires shipeasy@base.",
-  "author": { "name": "Shipeasy", "url": "https://shipeasy.ai" },
-  "homepage": "https://shipeasy.ai",
-  "license": "MIT"
-}

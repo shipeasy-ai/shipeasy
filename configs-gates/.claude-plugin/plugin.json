@@ -1,8 +1,0 @@
-{
-  "name": "shipeasy-configs-gates",
-  "version": "1.0.0",
-  "description": "Shipeasy feature gates, dynamic configs, and kill switches. Requires shipeasy@base.",
-  "author": { "name": "Shipeasy", "url": "https://shipeasy.ai" },
-  "homepage": "https://shipeasy.ai",
-  "license": "MIT"
-}

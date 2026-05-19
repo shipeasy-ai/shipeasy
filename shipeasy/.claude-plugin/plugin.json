@@ -1,0 +1,8 @@
+{
+  "name": "shipeasy",
+  "version": "2.0.0",
+  "description": "Shipeasy — one plugin with everything: SDK install + auth, feature gates / configs / kill switches, A/B experiments, in-app bug reports, i18n. Slash-command namespaces are `/shipeasy:install`, `/shipeasy:bugs:*`, `/shipeasy:flags:*`, `/shipeasy:experiments:*`, `/shipeasy:i18n:*`.",
+  "author": { "name": "Shipeasy", "url": "https://shipeasy.ai" },
+  "homepage": "https://shipeasy.ai",
+  "license": "MIT"
+}
