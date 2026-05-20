@@ -15,6 +15,9 @@ Required design decisions before creating:
    experiment is needed.
 2. **Groups** — at least `control` + one variant. Allocations sum to 100.
 3. **Success metric** — pre-register one. Don't add metrics post-hoc.
+   Metrics are defined by a lexical DSL query, e.g.
+   `count_users(checkout_completed)` or `sum(purchase, amount)`. See
+   `shipeasy metrics grammar` for full syntax.
 
 Commands:
 

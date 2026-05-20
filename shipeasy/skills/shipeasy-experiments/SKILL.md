@@ -60,6 +60,38 @@ shipeasy experiments stop <name>
 shipeasy experiments status <name>
 ```
 
+## Metric query DSL
+
+Metrics are defined with a lexical query that compiles to Analytics Engine SQL.
+The form `name(event[{filters}][, value_label])` selects what to aggregate, and
+the optional `by (label)` / `without (label)` clause splits the time series on
+the dashboard.
+
+```
+count_users(checkout_completed)
+sum(purchase{country="US"}, amount)
+p99(req_dur{route=~"/api/.*"}, ms) by (route, status)
+retention_7d(session_start)
+avg(req_dur{tier!="free"}, ms) without (region)
+```
+
+Aggregations: `count_users`, `count`, `sum`, `avg`, `min`, `max`, `unique`,
+`p50`/`p75`/`p90`/`p95`/`p99`/`p999`, `retention_<N>d` (N in 1..90).
+Match operators: `=`, `!=`, `=~`, `!~`. Strings must be quoted (`"..."`).
+Filter labels and value labels must be declared on the source event (string
+or number properties — Shipeasy packs them into reserved AE columns).
+
+```bash
+shipeasy metrics grammar                       # full reference
+shipeasy metrics create purchase_amount \\
+  --event purchase --query 'sum(purchase, amount)'
+shipeasy metrics list
+```
+
+The same `query` string is accepted by `POST /api/admin/metrics`. The server
+parses it, validates label references against the event registry, and stores
+the typed IR. `query_ir` (the JSON form) is also accepted for programmatic use.
+
 ## Reading from the SDK
 
 ```ts
