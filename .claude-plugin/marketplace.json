@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "shipeasy",
-  "description": "Shipeasy for Claude Code — one plugin, all features. SDK install + auth, feature gates / configs / kill switches, A/B experiments, in-app bug reports, i18n. Run `/shipeasy:install` first, then any of `/shipeasy:bugs:install`, `/shipeasy:flags:install`, `/shipeasy:experiments:install`, `/shipeasy:i18n:install`.",
+  "description": "Shipeasy plugin for Claude Code — feature flags, A/B experiments, event metrics, translations, in-app bug reports. One install, one MCP registration, all features nested under /shipeasy:<area>:<verb>.",
   "owner": {
     "name": "Shipeasy",
     "url": "https://shipeasy.ai"
@@ -9,9 +9,9 @@
   "plugins": [
     {
       "name": "shipeasy",
-      "description": "Single plugin with every Shipeasy capability. Slash-command namespaces: `/shipeasy:install` (base setup, run first), then `/shipeasy:bugs:*`, `/shipeasy:flags:*`, `/shipeasy:experiments:*`, `/shipeasy:i18n:*`. Each install command also drops a thin pointer skill into the project's `.claude/skills/` so new contributors can re-onboard without already having the plugin loaded.",
+      "description": "End-to-end Shipeasy plugin: base SDK install + auth + bind, plus experiments, metrics, gates/configs, translations, and feedback. Slash commands live at /shipeasy:setup, /shipeasy:experiment:{create,start,status,stop}, /shipeasy:experiments:install, /shipeasy:metric:{create,list,show,delete,grammar}, /shipeasy:metrics:install, /shipeasy:flag:create, /shipeasy:flags:install, /shipeasy:i18n:{extract,migrate,install}, /shipeasy:bug:report, /shipeasy:bugs:install. Registers the shipeasy MCP server. Replaces the deprecated base/experiments-metrics/configs-gates/polylang/bugs plugins.",
       "source": "./shipeasy",
-      "category": "platform"
+      "category": "feature"
     }
   ]
 }

@@ -1,115 +1,170 @@
 ---
-description: Pull all open Shipeasy bugs for the bound project and fix them one-by-one. Each successful fix flips the bug status to `ready_for_qa`.
-argument-hint: "[--priority high|critical] [--limit N] [--dry-run]"
+description: Loop over every open Shipeasy bug for the bound project, pull details + screenshots/recordings into context, investigate, and resolve them one-by-one.
+argument-hint: "[--status <open|triaged|in_progress>] [--limit <N>]"
 ---
 
-You are running an automated bug-fix loop against the Shipeasy `feedback`
-module. Pull every **open** bug for the bound project, fix them
-sequentially, and mark each one `ready_for_qa` after the fix lands.
+Resolve every actionable bug in the bound project. Follow the `bugs`
+skill for triage semantics. **Loop, do not batch.** Each bug is its own
+mini-investigation; finishing one before starting the next keeps the
+diff reviewable and avoids cross-bug contamination.
 
-## Prereq
+Prereqs:
 
-- `.shipeasy` present at the repo root (run `/shipeasy:install` if not).
-- `feedback` module enabled (`/shipeasy:bugs:install`).
-- Working tree clean OR user explicitly asked to fix on top of WIP. Stop
-  and ask if `git status` is dirty and the user hasn't confirmed.
+- `.shipeasy` bound. Run `/shipeasy:setup` first if missing.
+- `feedback` module enabled. Run `/shipeasy:bugs:install` if `shipeasy feedback bugs list` returns `403`.
+- CLI ≥ the version that ships `shipeasy feedback bugs attachments` (added with this plugin).
 
-## 1. Pull the queue
+## 0. Build the work queue
 
 ```bash
-shipeasy feedback bugs list --status open --json
+STATUS=${STATUS_FROM_ARGS:-open}        # default: open (parse --status from $ARGUMENTS)
+LIMIT=${LIMIT_FROM_ARGS:-20}             # default: 20 (parse --limit from $ARGUMENTS)
+shipeasy feedback bugs list --status "$STATUS" --json | jq -r '.[].id' | head -n "$LIMIT" > /tmp/se-bugs-queue.txt
+wc -l /tmp/se-bugs-queue.txt
 ```
 
-Optional filters from `$ARGUMENTS`:
+If the queue is empty: print "No bugs matching status=<STATUS>. Done."
+and stop.
 
-- `--priority high|critical` → append `--priority <value>`.
-- `--limit N` → slice the JSON array to first N after sort.
+If `jq` is missing, parse the JSON inline in the Bash tool with Node:
+`node -e 'JSON.parse(require("fs").readFileSync(0,"utf8")).forEach(b=>console.log(b.id))'`.
 
-Sort the JSON by `priority` (`critical` > `high` > `medium` > `low` > null),
-then `createdAt` ascending. This is the work queue. Print a one-line
-summary per bug before starting:
+## 1. For each bug id in /tmp/se-bugs-queue.txt — strict loop
 
-```
-Queue (3):
-  #abc12  critical  "Checkout 500 on iOS"   2026-05-17
-  #def34  high      "Sidebar overflow"      2026-05-17
-  #ghi56  medium    "Typo on /pricing"      2026-05-16
-```
+Do the steps below for **one** id, then restart from 1.1 with the next
+id. Do not interleave. Do not parallelise. Use TodoWrite to mirror the
+queue so progress survives mid-loop interruption.
 
-If `--dry-run` was passed, stop here and exit 0.
+### 1.1 Pull the bug detail (no attachments yet)
 
-## 2. Loop — one bug at a time
-
-For each bug in queue order:
-
-1. **Fetch full detail** (steps to repro, expected/actual, page URL,
-   priority, context blob):
-
-   ```bash
-   shipeasy feedback bugs get <id> --json
-   ```
-
-2. **Move to in_progress** so the dashboard reflects active work:
-
-   ```bash
-   shipeasy feedback bugs update <id> --status in_progress
-   ```
-
-3. **Diagnose + fix.** Treat the bug body as the spec. Use the
-   `superpowers:systematic-debugging` skill if the root cause is not
-   obvious. Hard rules:
-   - No drive-by refactors. Touch only what the bug requires.
-   - No silencing — fix the root cause, don't catch+swallow.
-   - If the bug needs information you don't have (repro on a real
-     device, a customer-only env), **skip it**: leave status
-     `in_progress`, add a CLI comment explaining what's missing, move on.
-
-4. **Verify** the fix the way the bug describes the symptom — failing
-   test that now passes, the page that now renders, the request that
-   now returns 200. Run `pnpm --filter <pkg> test` (or the
-   project-appropriate suite) before flipping status.
-
-5. **Flip to ready_for_qa**:
-
-   ```bash
-   shipeasy feedback bugs update <id> --status ready_for_qa
-   ```
-
-   This is the new status added for this command — it tells QA / triage
-   "developer says fixed, please verify in the dashboard."
-
-6. **Stage but do not commit.** Run `git add -p` interactively in your
-   head — stage only the files actually related to this bug. Commit
-   one bug per commit so review and revert stay clean:
-
-   ```bash
-   git commit -m "fix(<scope>): <bug title> (shipeasy #<id-prefix>)"
-   ```
-
-   Use the bug's title for the message body. Reference the bug id
-   (first 8 chars is fine) so triage can audit.
-
-## 3. After the loop
-
-Report a punch-list to the user:
-
-```
-Done. <N> bugs fixed, <M> skipped.
-Fixed:
-  #abc12  ready_for_qa   commit a3f2b91
-  #def34  ready_for_qa   commit 88c014e
-Skipped:
-  #ghi56  in_progress    needs iOS device to reproduce
+```bash
+shipeasy feedback bugs get "$ID" --json > /tmp/se-bug.json
+cat /tmp/se-bug.json
 ```
 
-**Do not push.** The user pushes after reviewing commits.
+Read the JSON. Extract:
 
-## Hard rules
+- `title`, `description`, `pageUrl`, `priority`, `status`, `createdAt`.
+- `context` (usually contains userAgent, viewport, console logs, repro
+  steps captured by the devtools overlay).
+- `attachments[]` (an array of `{ id, kind, filename, contentType, size }`).
 
-- Never set a bug to `resolved` — that is a QA-only transition. The
-  fix command stops at `ready_for_qa`.
-- Never delete a bug. Triage happens in the dashboard.
-- Never batch multiple bugs into one commit.
-- Never use `--no-verify` on the commit. If a pre-commit hook fails,
-  fix the underlying issue or revert and skip the bug.
-- Never edit `BUG_STATUSES` in [packages/core/src/db/schema.ts](packages/core/src/db/schema.ts) — `ready_for_qa` is already there.
+### 1.2 Download every attachment to a local tmpdir
+
+```bash
+shipeasy feedback bugs attachments "$ID" --json > /tmp/se-attachments.json
+cat /tmp/se-attachments.json
+```
+
+Each row is `{ id, kind, path, bytes }`. `kind` is one of
+`screenshot | recording | file`.
+
+### 1.3 Bring attachments into context
+
+For **screenshots** (`kind == "screenshot"`, or `contentType` starts
+with `image/`): use the Read tool on `path`. The image is rendered to
+you visually — use it.
+
+For **recordings** (`kind == "recording"`, usually `.webm` or `.mp4`):
+you cannot watch video directly. Surface to the user as a clickable
+file:// URL and ask whether you should keep going on text + screenshots
+alone, or if they want to extract a frame manually (`ffmpeg -ss <t> -i
+<path> -frames:v 1 /tmp/frame.png`). Do not silently skip — recordings
+often carry the only repro signal.
+
+For **other files** (`kind == "file"`): treat by content-type. JSON / txt
+/ md → Read them. Binary blobs → list size and content-type, do not try
+to interpret.
+
+### 1.4 Move the bug to in_progress
+
+```bash
+shipeasy feedback bugs update "$ID" --status in_progress
+```
+
+This signals to the dashboard and to humans that someone (you) owns
+this report right now. Skip if already in_progress.
+
+### 1.5 Investigate
+
+Use the bug's `pageUrl`, `title`, and `description` to locate the
+relevant code. Typical entry points:
+
+- `pageUrl` → grep route files (`app/**/page.tsx`, `pages/**`, `src/routes/**`).
+- Stack frame in `context.error.stack` → file:line for the throw site.
+- Screenshot text → grep for visible strings (often unique enough to
+  pinpoint the component).
+
+**Reproduce locally if possible.** If the dev server is already running
+(`pnpm dev` etc.), open the page and confirm the bug. If not, decide
+whether spinning it up is worth the cost for this specific bug.
+
+### 1.6 Fix
+
+Edit the offending file(s). Keep the diff scoped to this bug. Don't
+fold unrelated cleanups in — each resolved bug should produce a
+reviewable, atomic diff.
+
+Run the relevant verification gate:
+
+- Unit/integration tests touching the changed file.
+- `pnpm type-check` if TS changed.
+- For UI fixes, re-load the page in the running dev server.
+
+If you can't reproduce and can't confidently fix: comment the
+investigation onto the bug (post a hand-off note — see 1.8) and **do
+not** mark it resolved. Move on.
+
+### 1.7 Mark resolved (only if confidently fixed and verified)
+
+```bash
+shipeasy feedback bugs update "$ID" --status resolved
+```
+
+If the fix is high-risk or needs human verification, use
+`--status ready_for_qa` instead.
+
+### 1.8 Report and continue
+
+Print a one-paragraph summary per bug:
+
+```
+✔ <id> "<title>" → resolved
+  Repro:   <one line>
+  Fix:     <files changed, one line each>
+  Verify:  <test cmd | dev-server URL | "manual">
+```
+
+Then proceed to the next id.
+
+## 2. Final report
+
+After the loop:
+
+```
+Processed N bugs.
+  resolved:     X
+  ready_for_qa: Y
+  left as in_progress (couldn't fix): Z
+Diff footprint:
+$(git diff --stat)
+```
+
+Show the diff stat. **Do not run `git commit` or `git push`.** The user
+reviews and commits.
+
+## Rules
+
+- **One bug at a time.** Loop, don't parallelise. Different bugs almost
+  always touch different files; resolving them sequentially keeps blame
+  clean.
+- **Never delete a bug.** Resolving (`--status resolved`) is the
+  terminal state. Deletion is for spam, and that's a human call.
+- **Never `--status wont_fix` without asking the user.** That's a
+  product decision, not an engineering one.
+- **Recordings need human acknowledgement.** Don't claim a bug is fixed
+  if you skipped the recording — surface the file path and ask whether
+  the screenshots alone are sufficient.
+- **Stop the loop on first auth/permission error.** A `401` or `403`
+  from the CLI means the binding/feedback module is wrong — don't burn
+  through the queue producing the same failure.
