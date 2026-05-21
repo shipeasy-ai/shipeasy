@@ -31,7 +31,6 @@
     "@babel/types": "^7.29.0",
     "@shipeasy/openapi": "workspace:^1.0.0",
     "@shipeasy/mcp": "workspace:^1.0.0",
-    "@shipeasy/query-dsl": "workspace:*",
     "chalk": "^5.3.0",
     "cli-table3": "^0.6.5",
     "commander": "^12.1.0",

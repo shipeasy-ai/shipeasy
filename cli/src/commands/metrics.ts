@@ -1,5 +1,5 @@
 import type { Command } from "commander";
-import { parse, render, type Query } from "@shipeasy/query-dsl";
+import { parse, render, type Query } from "../query-dsl";
 import { getApiClient, ApiError } from "../api/client";
 import { printJson, printTable } from "../util/output";
 
