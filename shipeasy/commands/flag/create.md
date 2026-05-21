@@ -3,7 +3,7 @@ description: Create a Shipeasy feature gate with the right rollout/targeting sha
 argument-hint: "<gate-name> [percent]"
 ---
 
-Create or update a Shipeasy feature gate. Follow the `shipeasy-flags` skill.
+Create or update a Shipeasy feature gate. Follow the `flags` skill.
 
 Defaults:
 

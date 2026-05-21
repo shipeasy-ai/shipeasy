@@ -1,6 +1,11 @@
 ---
+<<<<<<<< HEAD:shipeasy/skills/shipeasy-setup/SKILL.md
 name: shipeasy-setup
 description: End-to-end onboarding for Shipeasy in a target app or monorepo — detect subprojects, install SDK per subproject, authenticate, bind to a project, create keys, wire SDK into entry points, drop a project-level pointer skill, and verify. Trigger on "set up shipeasy", "install shipeasy", "onboard shipeasy", "first-time integration".
+========
+name: setup
+description: End-to-end onboarding for Shipeasy in a target app or monorepo — detect subprojects, install SDK per subproject, authenticate, bind to a project, create keys, wire SDK into entry points, and verify. Trigger on "set up shipeasy", "install shipeasy", "onboard shipeasy", "first-time integration".
+>>>>>>>> f82a432 (feat: consolidate 5 plugins into single shipeasy plugin):shipeasy/skills/setup/SKILL.md
 user-invocable: true
 ---
 
@@ -11,10 +16,16 @@ You are an AI agent walking the user through the **base** Shipeasy install
 Follow these steps in order. Each step has a verification gate — do not
 advance if it fails. Self-heal once, then escalate.
 
+<<<<<<<< HEAD:shipeasy/skills/shipeasy-setup/SKILL.md
 The feature install commands (`/shipeasy:bugs:install`,
 `/shipeasy:flags:install`, `/shipeasy:experiments:install`,
 `/shipeasy:i18n:install`) each pick up where this one leaves off. Run
 this skill **first**.
+========
+The feature areas (`experiments`, `metrics`, `flags`, `i18n`, `bugs`)
+each ship their own per-feature install command (`/shipeasy:<area>:install`)
+that picks up where this one leaves off. Run this skill **first**.
+>>>>>>>> f82a432 (feat: consolidate 5 plugins into single shipeasy plugin):shipeasy/skills/setup/SKILL.md
 
 ---
 
@@ -208,8 +219,15 @@ Surface a one-line notice and continue. Do **not** invent a pip/gem/go-get insta
 
 ### 5a. Next.js App Router subproject
 
+<<<<<<<< HEAD:shipeasy/skills/shipeasy-setup/SKILL.md
 Edit `<subproject>/app/layout.tsx` (or `<subproject>/src/app/layout.tsx`).
 Render `getBootstrapHtml()` into `<head>`.
+========
+Edit `<subproject>/app/layout.tsx` (or `<subproject>/src/app/layout.tsx`)
+— whichever exists. Render `getBootstrapHtml()` into `<head>`. Without
+it, client-side flag evaluation pays an extra round-trip on first paint
+and the devtools overlay (used by the `bugs` feature) never appears.
+>>>>>>>> f82a432 (feat: consolidate 5 plugins into single shipeasy plugin):shipeasy/skills/setup/SKILL.md
 
 ```tsx
 import type { Metadata } from "next";
@@ -335,11 +353,27 @@ Wired:     <list of subprojects + entry files>
 Pointer:   .claude/skills/shipeasy-setup/SKILL.md
 Modules:   (none enabled yet)
 
+<<<<<<<< HEAD:shipeasy/skills/shipeasy-setup/SKILL.md
 Next:
   /shipeasy:experiments:install   # A/B tests + metrics
   /shipeasy:flags:install         # feature gates + configs + killswitches
   /shipeasy:i18n:install          # translations
   /shipeasy:bugs:install          # in-app bug reports
+========
+Next — enable the features you want:
+  /shipeasy:experiments:install   # A/B tests
+  /shipeasy:metrics:install       # event metrics
+  /shipeasy:flags:install         # feature gates + configs + killswitches
+  /shipeasy:i18n:install          # translations
+  /shipeasy:bugs:install          # in-app bug reports
+
+Or via CLI directly:
+  shipeasy modules enable experiments
+  shipeasy modules enable events
+  shipeasy modules enable gates && shipeasy modules enable configs
+  shipeasy modules enable translations
+  shipeasy modules enable feedback
+>>>>>>>> f82a432 (feat: consolidate 5 plugins into single shipeasy plugin):shipeasy/skills/setup/SKILL.md
 
 Dashboard:  https://app.shipeasy.ai/projects/<project_id>
 ```

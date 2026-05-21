@@ -1,5 +1,5 @@
 ---
-name: shipeasy-i18n
+name: i18n
 description: Add translatable text to a Shipeasy-enabled app — wrap hardcoded strings with i18n.t(), create keys in the backend via MCP, and publish them to CDN. Trigger on "translate", "i18n", "add a key", "make this translatable", or any request involving user-facing copy changes.
 user-invocable: true
 ---
@@ -104,14 +104,28 @@ This rebuilds the KV manifest and purges the CDN cache.
 mcp tool: i18n_validate_keys { "profile": "en:prod" }
 ```
 
+<<<<<<<< HEAD:shipeasy/skills/shipeasy-i18n/SKILL.md
 ## Bulk migration
+========
+Confirms the keys are reachable from the CDN. If the loader script is in
+place, also load the page in a browser to verify the strings render.
+
+## Bulk migration from another i18n library
+
+If the project already uses `react-i18next`, `react-intl`, `lingui`, or
+`next-intl`, run the codemod migration:
+>>>>>>>> f82a432 (feat: consolidate 5 plugins into single shipeasy plugin):shipeasy/skills/i18n/SKILL.md
 
 ```bash
 shipeasy codemod i18n --migrate react-i18next
 # or react-intl | lingui | next-intl | raw-i18next
 ```
 
+<<<<<<<< HEAD:shipeasy/skills/shipeasy-i18n/SKILL.md
 Or `/shipeasy:i18n:migrate <library>`.
+========
+Or invoke the slash command: `/shipeasy:i18n:migrate`.
+>>>>>>>> f82a432 (feat: consolidate 5 plugins into single shipeasy plugin):shipeasy/skills/i18n/SKILL.md
 
 ## Errors → action
 

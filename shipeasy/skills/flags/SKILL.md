@@ -1,15 +1,15 @@
 ---
-name: shipeasy-flags
+name: flags
 description: Create, evaluate, and roll out Shipeasy feature gates and dynamic configs. Trigger on "feature flag", "feature gate", "rollout", "kill switch", "dynamic config", "remote config".
 user-invocable: true
 ---
 
 # Shipeasy feature gates & configs
 
-A **gate** is a boolean (on/off, percentage rollout, targeting). A **config**
-is a typed JSON value the SDK returns for tunable knobs. Both share the same
-KV blob and the same evaluation semantics — same SDK key, same call shape,
-fed by `@shipeasy/sdk`.
+A **gate** is a boolean (on/off, percentage rollout, targeting). A
+**config** is a typed JSON value the SDK returns for tunable knobs. Both
+share the same KV blob and the same evaluation semantics — same SDK key,
+same call shape, fed by `@shipeasy/sdk`.
 
 ## Enabling on a project
 
@@ -49,6 +49,12 @@ shipeasy flags update <name>      # adjust rollout / targeting
 shipeasy flags archive <name>     # disable a gate without deleting
 ```
 
+Slash equivalent:
+
+```
+/shipeasy:flag:create <name> [percent]
+```
+
 ## Reading from the SDK
 
 Server (one configure call already done in `layout.tsx`):
@@ -73,7 +79,12 @@ const ranking = configs.get("search_ranking");
 2. Ship to production. Both code paths exist; nothing changes.
 3. Ramp: `5 → 25 → 50 → 100`, watching error/latency dashboards.
 4. Once at 100% for at least one full deploy cycle, **remove the gate from
+<<<<<<<< HEAD:shipeasy/skills/shipeasy-flags/SKILL.md
    code**.
+========
+   code**. Configs/gates are not a substitute for releases; leaving them
+   in forever creates branching that rots.
+>>>>>>>> f82a432 (feat: consolidate 5 plugins into single shipeasy plugin):shipeasy/skills/flags/SKILL.md
 5. Archive the gate after code removal.
 
 ## Kill switch pattern
@@ -92,9 +103,19 @@ For risky launches, create a separate `kill_<feature>` gate that defaults
 
 ## Hard rules
 
+<<<<<<<< HEAD:shipeasy/skills/shipeasy-flags/SKILL.md
 - Gate **new** behavior, not old behavior. The default value is what users see
   if KV is unreachable — make it the safe path.
 - Don't gate on PII. Targeting attributes should be coarse-grained (country,
   plan, account age bucket).
 - Plan-level knobs (poll interval, etc.) live in `packages/core/src/config/plans.ts`,
   not in gates/configs.
+========
+- Gate **new** behavior, not old behavior. The default value is what
+  users see if KV is unreachable — make it the safe path.
+- Don't gate on PII. Targeting attributes should be coarse-grained
+  (country, plan, account age bucket).
+- Plan-level knobs (poll interval, etc.) live in
+  `packages/core/src/config/plans.ts`, not in gates/configs. Those are
+  server-side knobs, not customer-facing.
+>>>>>>>> f82a432 (feat: consolidate 5 plugins into single shipeasy plugin):shipeasy/skills/flags/SKILL.md

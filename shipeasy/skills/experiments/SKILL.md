@@ -1,5 +1,5 @@
 ---
-name: shipeasy-experiments
+name: experiments
 description: Design, launch, monitor, and stop Shipeasy A/B experiments. Trigger on "A/B test", "experiment", "split test", "holdout", "metric significance".
 user-invocable: true
 ---
@@ -25,9 +25,16 @@ Before creating, decide:
 3. **Allocation.** Even split (`50/50`) unless you have a reason. Lower
    variant traffic → longer run-time to significance.
 4. **Targeting gate.** Optional — restrict who is even eligible for the
+<<<<<<<< HEAD:shipeasy/skills/shipeasy-experiments/SKILL.md
    experiment. Same shape as feature gate targeting.
 5. **Success metric.** Pre-register one. Adding metrics post-hoc inflates
    false-positive rate.
+========
+   experiment (e.g. `country in [US, CA]`, `plan != "free"`). Same shape
+   as feature gate targeting.
+5. **Success metric.** Pre-register one (see the `metrics` skill). Adding
+   metrics post-hoc inflates false-positive rate.
+>>>>>>>> f82a432 (feat: consolidate 5 plugins into single shipeasy plugin):shipeasy/skills/experiments/SKILL.md
 
 ## Creating
 
@@ -60,6 +67,7 @@ shipeasy experiments stop <name>
 shipeasy experiments status <name>
 ```
 
+<<<<<<<< HEAD:shipeasy/skills/shipeasy-experiments/SKILL.md
 ## Metric query DSL
 
 Metrics are defined with a lexical query that compiles to Analytics Engine SQL.
@@ -92,6 +100,17 @@ The same `query` string is accepted by `POST /api/admin/metrics`. The server
 parses it, validates label references against the event registry, and stores
 the typed IR. `query_ir` (the JSON form) is also accepted for programmatic use.
 
+========
+Slash equivalents:
+
+```
+/shipeasy:experiment:create <name>
+/shipeasy:experiment:start <name>
+/shipeasy:experiment:status <name>
+/shipeasy:experiment:stop <name>
+```
+
+>>>>>>>> f82a432 (feat: consolidate 5 plugins into single shipeasy plugin):shipeasy/skills/experiments/SKILL.md
 ## Reading from the SDK
 
 ```ts
@@ -121,7 +140,14 @@ Stop with `exp_stop_experiment { "name": ..., "winner": "treatment" }`
 
 ## Holdouts
 
+<<<<<<<< HEAD:shipeasy/skills/shipeasy-experiments/SKILL.md
 Holdouts live on the **universe**, not on individual experiments.
+========
+Holdouts live on the **universe**, not on individual experiments. To
+exclude 1% of users from all experiments in a universe, set the
+universe's `holdout_percent`. Per-experiment holdouts are not a feature
+— by design.
+>>>>>>>> f82a432 (feat: consolidate 5 plugins into single shipeasy plugin):shipeasy/skills/experiments/SKILL.md
 
 ## Errors → action
 
@@ -137,7 +163,7 @@ Holdouts live on the **universe**, not on individual experiments.
 
 - One pre-registered success metric. Don't keep peeking and renaming.
 - Don't restart an experiment under the same name after stopping — the
-  assignment hash changes, so users who saw treatment will be re-randomized
-  and bias the result. Pick a new name.
+  assignment hash changes, so users who saw treatment will be
+  re-randomized and bias the result. Pick a new name.
 - Keep `targeting_gate` simple. Complex eligibility rules belong in the
   universe.
