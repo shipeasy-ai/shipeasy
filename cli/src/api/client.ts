@@ -81,7 +81,23 @@ export function getApiClient(projectOverride?: string, opts: ApiClientOptions = 
     return json as T;
   }
 
-  return { request, projectId, baseUrl };
+  // Binary-safe variant — returns the raw Response so callers can stream the
+  // body to disk (used for /api/admin/reports/attachments/<id> downloads).
+  async function requestRaw(method: string, path: string): Promise<Response> {
+    const res = await fetch(`${baseUrl}${path}`, {
+      method,
+      headers: {
+        "X-SDK-Key": creds!.cli_token,
+        "X-Project-Id": projectId,
+      },
+    });
+    if (!res.ok) {
+      throw new ApiError(`HTTP ${res.status} on ${path}`, res.status);
+    }
+    return res;
+  }
+
+  return { request, requestRaw, projectId, baseUrl };
 }
 
 /**

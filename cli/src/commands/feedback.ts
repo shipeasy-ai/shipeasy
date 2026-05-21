@@ -1,6 +1,31 @@
+import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
 import { Command } from "commander";
 import { getApiClient, ApiError } from "../api/client";
 import { printTable, printJson } from "../util/output";
+
+interface Attachment {
+  id: string;
+  kind: "screenshot" | "recording" | "file";
+  filename: string | null;
+  contentType: string | null;
+  size: number | null;
+  createdAt: string;
+}
+
+const EXT_BY_MIME: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/jpg": "jpg",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "video/mp4": "mp4",
+  "video/webm": "webm",
+  "application/pdf": "pdf",
+  "application/json": "json",
+  "text/plain": "txt",
+};
 
 interface Bug {
   id: string;
@@ -148,6 +173,66 @@ export function feedbackCommand(parent: Command): void {
         handleError(e);
       }
     });
+
+  bugs
+    .command("attachments <bug-id>")
+    .description(
+      "Download all attachments for a bug to a local directory. Prints one absolute path per line on stdout (suitable for piping into other tools).",
+    )
+    .option(
+      "--out <dir>",
+      "Output directory. Defaults to a tmpdir under $TMPDIR/shipeasy-bugs/<bug-id>/",
+    )
+    .option("--json", "Output JSON metadata instead of plain paths")
+    .option("--project <id>", "Project ID override")
+    .action(
+      async (
+        bugId: string,
+        opts: { out?: string; json?: boolean; project?: string },
+      ) => {
+        try {
+          const client = getApiClient(opts.project);
+          const items = await client.request<Bug[]>("GET", "/api/admin/bugs");
+          const match = items.find((b) => b.id === bugId || b.id.startsWith(bugId));
+          if (!match) throw new ApiError(`Bug not found: ${bugId}`, 404);
+          const detail = await client.request<{ attachments?: Attachment[] }>(
+            "GET",
+            `/api/admin/bugs/${match.id}`,
+          );
+          const attachments = detail.attachments ?? [];
+          if (attachments.length === 0) {
+            if (opts.json) printJson([]);
+            else console.error(`No attachments for bug ${match.id}.`);
+            return;
+          }
+          const outDir =
+            opts.out ?? path.join(os.tmpdir(), "shipeasy-bugs", match.id);
+          fs.mkdirSync(outDir, { recursive: true });
+          const written: Array<{ id: string; kind: string; path: string; bytes: number }> = [];
+          for (const a of attachments) {
+            const res = await client.requestRaw(
+              "GET",
+              `/api/admin/reports/attachments/${a.id}`,
+            );
+            const buf = Buffer.from(await res.arrayBuffer());
+            const ext =
+              (a.filename && path.extname(a.filename).replace(/^\./, "")) ||
+              (a.contentType && EXT_BY_MIME[a.contentType.toLowerCase()]) ||
+              "bin";
+            const file = path.join(outDir, `${a.id}.${ext}`);
+            fs.writeFileSync(file, buf);
+            written.push({ id: a.id, kind: a.kind, path: file, bytes: buf.length });
+          }
+          if (opts.json) {
+            printJson(written);
+          } else {
+            for (const w of written) console.log(w.path);
+          }
+        } catch (e) {
+          handleError(e);
+        }
+      },
+    );
 
   bugs
     .command("delete <id>")
