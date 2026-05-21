@@ -6,7 +6,7 @@ import { join, resolve } from "node:path";
 import { copyTree } from "../util/copy";
 
 const MARKETPLACE_REPO = "https://github.com/shipeasy-ai/shipeasy.git";
-const KNOWN_PLUGINS = ["base", "experiments-metrics", "configs-gates", "polylang", "bugs"];
+const PLUGIN_NAME = "shipeasy";
 
 function targetDir(scope: "user" | "project"): string {
   return scope === "user"
@@ -28,16 +28,14 @@ function fetchMarketplace(): string {
   return dir;
 }
 
-function listSkillDirs(srcRoot: string): { skill: string; pluginRoot: string }[] {
-  const out: { skill: string; pluginRoot: string }[] = [];
-  for (const plugin of KNOWN_PLUGINS) {
-    const skillsDir = join(srcRoot, plugin, "skills");
-    if (!existsSync(skillsDir)) continue;
-    for (const entry of readdirSync(skillsDir)) {
-      const full = join(skillsDir, entry);
-      if (statSync(full).isDirectory()) {
-        out.push({ skill: entry, pluginRoot: full });
-      }
+function listSkillDirs(srcRoot: string): { skill: string; skillRoot: string }[] {
+  const skillsDir = join(srcRoot, PLUGIN_NAME, "skills");
+  if (!existsSync(skillsDir)) return [];
+  const out: { skill: string; skillRoot: string }[] = [];
+  for (const entry of readdirSync(skillsDir)) {
+    const full = join(skillsDir, entry);
+    if (statSync(full).isDirectory()) {
+      out.push({ skill: entry, skillRoot: full });
     }
   }
   return out;
@@ -79,7 +77,7 @@ export function skillsCommand(parent: Command): void {
     .command("install [skill...]")
     .description(
       "Copy skills from the marketplace into .claude/skills. With no args, installs every " +
-        "skill from every plugin. Skill names: shipeasy-setup, shipeasy-experiments, " +
+        "skill in the shipeasy plugin. Skill names: shipeasy-setup, shipeasy-experiments, " +
         "shipeasy-flags, shipeasy-i18n, shipeasy-bugs.",
     )
     .option("--scope <scope>", "user | project", "project")
@@ -110,8 +108,9 @@ export function skillsCommand(parent: Command): void {
             process.exit(1);
           }
           const toInstall =
-            requested.length > 0 ? available.filter((s) => requested.includes(s.skill)) : available;
-          const requestedNames = toInstall.map((s) => s.skill);
+            requested.length > 0
+              ? available.filter((s) => requested.includes(s.skill))
+              : available;
           const unknown = requested.filter((s) => !available.some((a) => a.skill === s));
           if (unknown.length > 0) {
             console.error(
@@ -123,8 +122,8 @@ export function skillsCommand(parent: Command): void {
           let copied = 0;
           let skipped = 0;
           let overwritten = 0;
-          for (const { skill, pluginRoot } of toInstall) {
-            const r = copyTree(pluginRoot, join(dest, skill), !!opts.force);
+          for (const { skill, skillRoot } of toInstall) {
+            const r = copyTree(skillRoot, join(dest, skill), !!opts.force);
             copied += r.copied.length;
             skipped += r.skipped.length;
             overwritten += r.overwritten.length;
