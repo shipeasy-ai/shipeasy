@@ -1,6 +1,6 @@
 ---
 description: Loop over every open Shipeasy bug for the bound project, pull details + screenshots/recordings into context, investigate, and resolve them one-by-one.
-argument-hint: "[--status <open|triaged|in_progress>] [--limit <N>]"
+argument-hint: "[--status <open|triaged|in_progress>] [--priority high|critical] [--limit <N>] [--dry-run]"
 ---
 
 Resolve every actionable bug in the bound project. Follow the `bugs`
@@ -12,22 +12,73 @@ Prereqs:
 
 - `.shipeasy` bound. Run `/shipeasy:setup` first if missing.
 - `feedback` module enabled. Run `/shipeasy:bugs:install` if `shipeasy feedback bugs list` returns `403`.
-- CLI ≥ the version that ships `shipeasy feedback bugs attachments` (added with this plugin).
+- CLI ≥ `1.4.0` (`shipeasy feedback bugs attachments` subcommand was
+  added there). Older CLIs will fail step 1.2 with
+  `error: unknown command 'attachments'` — bump the CLI before retrying.
+- Working tree clean **or** the user explicitly asked to fix on top of
+  WIP. If `git status --porcelain` is non-empty and the user hasn't
+  confirmed, stop and ask. Mixing the loop's per-bug diffs with pre-existing
+  WIP makes the resulting commits unreviewable.
 
 ## 0. Build the work queue
 
+Parse `$ARGUMENTS` for the optional flags up-front:
+
+- `--status <s>` — default `open`. Anything in `BUG_STATUSES`.
+- `--priority high|critical` — filter to only those priorities.
+- `--limit <N>` — default `20`. Slice after sort.
+- `--dry-run` — print the queue and exit 0. No status flips, no edits.
+
 ```bash
-STATUS=${STATUS_FROM_ARGS:-open}        # default: open (parse --status from $ARGUMENTS)
-LIMIT=${LIMIT_FROM_ARGS:-20}             # default: 20 (parse --limit from $ARGUMENTS)
-shipeasy feedback bugs list --status "$STATUS" --json | jq -r '.[].id' | head -n "$LIMIT" > /tmp/se-bugs-queue.txt
-wc -l /tmp/se-bugs-queue.txt
+STATUS=${STATUS_FROM_ARGS:-open}
+LIMIT=${LIMIT_FROM_ARGS:-20}
+PRIORITY_FILTER=${PRIORITY_FROM_ARGS:-}      # high | critical | "" (no filter)
+DRY_RUN=${DRY_RUN_FROM_ARGS:-}                # "1" if --dry-run was passed
+
+shipeasy feedback bugs list --status "$STATUS" --json > /tmp/se-bugs-raw.json
 ```
 
-If the queue is empty: print "No bugs matching status=<STATUS>. Done."
-and stop.
+Sort the queue with `priority desc, createdAt asc`. Priority order:
+`critical > high > medium > low > null`. Without `jq` use Node:
 
-If `jq` is missing, parse the JSON inline in the Bash tool with Node:
-`node -e 'JSON.parse(require("fs").readFileSync(0,"utf8")).forEach(b=>console.log(b.id))'`.
+```bash
+node - <<'JS' < /tmp/se-bugs-raw.json > /tmp/se-bugs-queue.json
+const RANK = { critical: 4, high: 3, medium: 2, low: 1 };
+const limit = parseInt(process.env.LIMIT || "20", 10);
+const filter = process.env.PRIORITY_FILTER || "";
+const rows = JSON.parse(require("fs").readFileSync(0, "utf-8"))
+  .filter(b => !filter || b.priority === filter)
+  .sort((a, b) =>
+    (RANK[b.priority] || 0) - (RANK[a.priority] || 0) ||
+    a.createdAt.localeCompare(b.createdAt))
+  .slice(0, limit);
+process.stdout.write(JSON.stringify(rows, null, 2));
+JS
+```
+
+Print a one-line summary per bug before starting:
+
+```
+Queue (3):
+  #abc12  critical  "Checkout 500 on iOS"   2026-05-17
+  #def34  high      "Sidebar overflow"      2026-05-17
+  #ghi56  medium    "Typo on /pricing"      2026-05-16
+```
+
+If the queue is empty: print "No bugs matching status=<STATUS>
+priority=<filter>. Done." and stop.
+
+If `--dry-run`: stop here. Do **not** flip status, do **not** edit
+files, do **not** download attachments. The queue print above is the
+deliverable.
+
+Otherwise, extract just the ids for the loop:
+
+```bash
+node -e 'JSON.parse(require("fs").readFileSync(0,"utf8")).forEach(b=>console.log(b.id))' \
+  < /tmp/se-bugs-queue.json > /tmp/se-bugs-queue.txt
+wc -l /tmp/se-bugs-queue.txt
+```
 
 ## 1. For each bug id in /tmp/se-bugs-queue.txt — strict loop
 
@@ -101,9 +152,16 @@ whether spinning it up is worth the cost for this specific bug.
 
 ### 1.6 Fix
 
-Edit the offending file(s). Keep the diff scoped to this bug. Don't
-fold unrelated cleanups in — each resolved bug should produce a
-reviewable, atomic diff.
+Edit the offending file(s). Keep the diff scoped to this bug. Hard
+rules for the per-bug edit:
+
+- **No drive-by refactors.** Touch only what the bug requires. The
+  resulting diff should be small enough to review in one sitting.
+- **No silencing.** Fix the root cause — do not catch and swallow, do
+  not stub a value, do not delete the failing assertion. If you find a
+  test that's failing for the same reason, fix the code, not the test.
+- **Reuse the `superpowers:systematic-debugging` skill** if the root
+  cause is not obvious from the first read. Don't guess.
 
 Run the relevant verification gate:
 
@@ -111,9 +169,10 @@ Run the relevant verification gate:
 - `pnpm type-check` if TS changed.
 - For UI fixes, re-load the page in the running dev server.
 
-If you can't reproduce and can't confidently fix: comment the
-investigation onto the bug (post a hand-off note — see 1.8) and **do
-not** mark it resolved. Move on.
+If you can't reproduce and can't confidently fix: leave the bug at
+`in_progress`, write a one-paragraph hand-off note explaining what's
+missing (repro on a real device, customer-only env, missing logs), and
+move on. **Do not flip to `resolved`** just to clear the queue.
 
 ### 1.7 Mark resolved (only if confidently fixed and verified)
 
