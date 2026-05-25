@@ -176,7 +176,7 @@ namespace.
 | `/shipeasy:i18n:migrate` | `<react-i18next\|react-intl\|lingui\|next-intl\|raw-i18next>` | Codemod call sites from another i18n library into `i18n.t(...)`, push existing translations, remove the old library. |
 | `/shipeasy:bugs:install` | — | Enable the `feedback` module, confirm the devtools overlay loads (`?se=1` URL), smoke-test the CLI mirror. |
 | `/shipeasy:bug:report` | `<bug\|feature> "<title>"` | File a single bug or feature request against the bound project. |
-| `/shipeasy:bugs:fix` | `[--status <s>] [--limit <N>]` | Loop over open bugs: download attachments (screenshots → Read into context, recordings → surface for human review), investigate, fix, mark `resolved` / `ready_for_qa`. One atomic diff per bug. |
+| `/shipeasy:bugs:fix` | `[--status <s>] [--priority high\|critical] [--limit <N>] [--dry-run]` | Loop over the bug queue (sorted `critical > high > medium > low > null`, then `createdAt` asc): download attachments (screenshots → Read into context, recordings → surface for human review), investigate, fix, mark `resolved` / `ready_for_qa`. One atomic diff per bug. `--dry-run` prints the sorted queue and exits. Requires CLI ≥ 1.4.0. |
 
 ## Skill auto-triggers (no slash command needed)
 
@@ -192,23 +192,22 @@ matches against.
 | `metrics` | "create metric", "track metric", "metric DSL", "event metric", "success metric definition", "what metrics do we have". |
 | `flags` | "feature flag", "feature gate", "rollout", "kill switch", "dynamic config", "remote config". |
 | `i18n` | "translate", "i18n", "add a key", "make this translatable", "user-facing copy changes". |
-| `bugs` | "bug report", "feature request", "feedback", "user-reported issue", "report a bug". |
+| `bugs` | "bug report", "feature request", "feedback", "user-reported issue", "report a bug", "fix open bugs", "burn down the bug queue". |
 
-Examples of fully command-less use:
+### Examples of fully command-less use
 
-- *"Create a metric that measures how often users complete checkout"* →
-  triggers `metrics`, runs the analyze-and-suggest path
-  (`grep events.track`, propose 2–4 candidates via `AskUserQuestion`,
-  instrument if needed, `shipeasy metrics create …`).
-- *"Ship a feature gate for the new pricing page at 5%"* → triggers
-  `flags`, calls `exp_create_gate` with `rollout_percent: 10` (or asks
-  to confirm `5` per your phrasing), shows the `gates.check(...)` call
-  site.
-- *"Wrap the homepage hero copy so we can translate it"* → triggers
-  `i18n`, runs the `i18n.t(...)` wrap workflow and pushes the new keys.
-- *"I got a customer bug report about the checkout button"* → triggers
-  `bugs`; will call `shipeasy feedback bugs create …` (a single bug)
-  rather than the looping `/shipeasy:bugs:fix` flow.
+| If you type… | …Claude Code activates | …and does |
+| --- | --- | --- |
+| *"Create a metric that measures how often users complete checkout"* | `metrics` | Greps for `events.track(...)` call sites + uninstrumented action points (form submits, primary CTAs, mirrors of `posthog.capture`/`segment.track`/etc.), proposes 2–4 `{ event, aggregation, why }` candidates via `AskUserQuestion`, instruments the chosen event if new, runs `shipeasy metrics create …`. |
+| *"Set up Shipeasy in this repo"* | `setup` | Detects subprojects, runs `shipeasy login` via Bash, mints server+client keys, wires `shipeasy({…})` + `getBootstrapHtml()` into the root layout, persists keys per-subproject to the right secret store. |
+| *"Ship a feature gate for the new pricing page at 5%"* | `flags` | Calls `exp_create_gate` with `rollout_percent: 5`, shows the `gates.check(...)` call site you need to add. |
+| *"Kill switch for the new checkout if it breaks"* | `flags` | Creates a `kill_checkout` gate defaulting **on** that the old code path gates on. |
+| *"Wrap the homepage hero copy so we can translate it"* | `i18n` | Runs the `i18n.t(...)` wrap workflow, creates keys, pushes + publishes the chunk. |
+| *"Migrate this repo from react-i18next to Shipeasy"* | `i18n` | Runs `shipeasy codemod i18n --migrate react-i18next`, pushes existing translations, removes the old library. |
+| *"I got a customer bug report about the checkout button"* | `bugs` | Files a single bug via `shipeasy feedback bugs create …`. |
+| *"Resolve every open bug we have"* | `bugs` | Recommends `/shipeasy:bugs:fix` (the looping orchestrator) — the skill alone won't drive the multi-bug loop. |
+| *"Stop the checkout-v2 experiment and ship treatment"* | `experiments` | `exp_stop_experiment { name, winner: "treatment" }`. |
+| *"How significant is the checkout experiment so far?"* | `experiments` | `exp_experiment_status { name }`, surfaces enrolment per group + p-value + recommendation. |
 
 If you want the *fix-every-open-bug* loop, the experiment-design loop,
 or the i18n-bulk-extraction loop, prefer the slash commands —
