@@ -56,7 +56,24 @@ jobs:
 
       - run: pnpm run build
 
-      - name: Publish to npm
+      # Trusted Publishing: do NOT set NODE_AUTH_TOKEN. actions/setup-node
+      # writes `//registry.npmjs.org/:_authToken=…` into ~/.npmrc whenever
+      # the var is present, and npm always prefers a present _authToken over
+      # OIDC — which 404s if the legacy token is missing/revoked. Stripping
+      # the line forces npm to mint a short-lived OIDC token from this
+      # workflow's `id-token: write` permission and present it to the
+      # registry as Trusted Publisher proof.
+      - name: Strip _authToken from .npmrc (force OIDC path)
+        run: |
+          for f in "$HOME/.npmrc" "$GITHUB_WORKSPACE/.npmrc"; do
+            if [ -f "$f" ]; then
+              sed -i.bak '/^\/\/registry\.npmjs\.org\/:_authToken=/d' "$f"
+              echo "── $f ──"
+              cat "$f" || true
+            fi
+          done
+
+      - name: Publish to npm (Trusted Publishing — OIDC)
         run: |
           NAME=$(node -p "require('./package.json').name")
           PKG_VERSION=$(node -p "require('./package.json').version")
@@ -65,5 +82,3 @@ jobs:
           else
             npm publish --access public --provenance
           fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
