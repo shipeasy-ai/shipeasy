@@ -56,21 +56,22 @@ jobs:
 
       - run: pnpm run build
 
-      # Trusted Publishing: do NOT set NODE_AUTH_TOKEN. actions/setup-node
-      # writes `//registry.npmjs.org/:_authToken=…` into ~/.npmrc whenever
-      # the var is present, and npm always prefers a present _authToken over
-      # OIDC — which 404s if the legacy token is missing/revoked. Stripping
-      # the line forces npm to mint a short-lived OIDC token from this
-      # workflow's `id-token: write` permission and present it to the
-      # registry as Trusted Publisher proof.
-      - name: Strip _authToken from .npmrc (force OIDC path)
+      # Trusted Publishing: actions/setup-node always writes
+      # `//registry.npmjs.org/:_authToken=XXXXX-…` into the per-job npmrc
+      # (pointed at by $NPM_CONFIG_USERCONFIG), even when NODE_AUTH_TOKEN
+      # is unset — it falls back to a literal placeholder. npm then sends
+      # that placeholder as the bearer and gets 404. Trusted Publishing
+      # never fires because npm sees an _authToken and doesn't reach for
+      # the OIDC path. Strip the line so npm mints a short-lived OIDC
+      # token from this workflow's `id-token: write` permission instead.
+      - name: Strip _authToken from npmrc (force OIDC path)
         run: |
-          for f in "$HOME/.npmrc" "$GITHUB_WORKSPACE/.npmrc"; do
-            if [ -f "$f" ]; then
-              sed -i.bak '/^\/\/registry\.npmjs\.org\/:_authToken=/d' "$f"
-              echo "── $f ──"
-              cat "$f" || true
-            fi
+          set -e
+          for f in "$NPM_CONFIG_USERCONFIG" "$HOME/.npmrc" "$GITHUB_WORKSPACE/.npmrc"; do
+            [ -n "$f" ] && [ -f "$f" ] || continue
+            sed -i.bak '/^\/\/registry\.npmjs\.org\/:_authToken=/d' "$f"
+            echo "── stripped $f ──"
+            cat "$f"
           done
 
       - name: Publish to npm (Trusted Publishing — OIDC)
