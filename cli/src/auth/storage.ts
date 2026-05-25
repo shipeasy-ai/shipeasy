@@ -17,7 +17,24 @@ function configPath(): string {
   return path.join(root, "shipeasy", "config.json");
 }
 
+function envCredentials(): ShipeasyConfig | null {
+  const cli_token = process.env.SHIPEASY_CLI_TOKEN?.trim();
+  const project_id = process.env.SHIPEASY_PROJECT_ID?.trim();
+  if (!cli_token || !project_id) return null;
+  return {
+    project_id,
+    cli_token,
+    api_base_url:
+      process.env.SHIPEASY_API_BASE_URL?.trim() || "https://cdn.shipeasy.ai",
+    app_base_url:
+      process.env.SHIPEASY_APP_BASE_URL?.trim() || "https://shipeasy.ai",
+    created_at: new Date(0).toISOString(),
+  };
+}
+
 export function loadCredentials(): ShipeasyConfig | null {
+  const fromEnv = envCredentials();
+  if (fromEnv) return fromEnv;
   try {
     const raw = fs.readFileSync(configPath(), "utf-8");
     const parsed = JSON.parse(raw) as ShipeasyConfig;
