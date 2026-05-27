@@ -1,11 +1,6 @@
 ---
-<<<<<<<< HEAD:shipeasy/skills/shipeasy-bugs/SKILL.md
-name: shipeasy-bugs
-description: File, fix, and manage in-app bug reports and feature requests captured by Shipeasy devtools. Trigger on "bug report", "feature request", "feedback", "user-reported issue", "report a bug", "fix open bugs", "burn down the bug queue".
-========
 name: bugs
-description: File and manage in-app bug reports and feature requests captured by Shipeasy devtools. Trigger on "bug report", "feature request", "feedback", "user-reported issue", "report a bug".
->>>>>>>> f82a432 (feat: consolidate 5 plugins into single shipeasy plugin):shipeasy/skills/bugs/SKILL.md
+description: File, fix, and manage in-app bug reports and feature requests captured by Shipeasy devtools. Trigger on "bug report", "feature request", "feedback", "user-reported issue", "report a bug", "fix open bugs", "burn down the bug queue".
 user-invocable: true
 ---
 
@@ -41,7 +36,7 @@ shipeasy feedback features create "Bulk-archive in dashboard" \
   --description "Lets ops clear stale gates without opening each row."
 ```
 
-Slash equivalent: `/shipeasy:bug:report <bug|feature> "<title>"`.
+Slash equivalent: `/shipeasy:bugs:report <bug|feature> "<title>"`.
 
 ## Listing & triage
 
@@ -83,12 +78,8 @@ move on.
 
 There is no public SDK surface for bugs/features yet — the devtools
 overlay is the only customer-facing producer, and the CLI/admin API are
-<<<<<<<< HEAD:shipeasy/skills/shipeasy-bugs/SKILL.md
-the consumer surface.
-========
 the consumer surface. Skip ahead to the `experiments` or `flags` skill
 if you need a programmatic read path.
->>>>>>>> f82a432 (feat: consolidate 5 plugins into single shipeasy plugin):shipeasy/skills/bugs/SKILL.md
 
 ## When to use this skill
 
@@ -96,11 +87,7 @@ if you need a programmatic read path.
   "show me open feedback".
 - A devtools-captured report needs triaging from a script or CI job.
 - Onboarding asks how to expose the in-page report button — the answer is
-<<<<<<<< HEAD:shipeasy/skills/shipeasy-bugs/SKILL.md
   `/shipeasy:bugs:install` (or `shipeasy modules enable feedback`).
-========
-  `shipeasy modules enable feedback` (or `/shipeasy:bugs:install`).
->>>>>>>> f82a432 (feat: consolidate 5 plugins into single shipeasy plugin):shipeasy/skills/bugs/SKILL.md
 
 ## Errors → action
 

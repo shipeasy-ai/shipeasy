@@ -19,7 +19,7 @@ Search the codebase for *where the variant decision needs to be made*.
 Heuristics in priority order:
 
 1. The user's prompt that triggered this command usually names a feature
-   (`/shipeasy:experiment:create checkout_button_v2` → look at checkout
+   (`/shipeasy:experiments:create checkout_button_v2` → look at checkout
    flow). Grep for the feature name first.
 2. If unclear, ask for the surface area before scanning blindly — one
    `AskUserQuestion` with 2–4 candidate areas from the route table
@@ -139,8 +139,8 @@ Tell the user:
    Metric:        <metric_name> = <DSL>
    Groups:        control 50 / treatment 50
 Next:
-   /shipeasy:experiment:start <name>      # begin assigning traffic
-   /shipeasy:experiment:status <name>     # check enrolment + significance later
+   /shipeasy:experiments:start <name>      # begin assigning traffic
+   /shipeasy:experiments:status <name>     # check enrolment + significance later
 ```
 
 Do **not** start the experiment automatically — the user reviews the

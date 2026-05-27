@@ -43,6 +43,6 @@ Steps:
    ✅ bugs install complete
    Module:  feedback ✓
    Wired:   devtools overlay (?se=1 on any page rendering getBootstrapHtml)
-   Next:    Use the `bugs` skill, /shipeasy:bug:report bug "<title>", or
+   Next:    Use the `bugs` skill, /shipeasy:bugs:report bug "<title>", or
             ask end users to submit via the in-page Report panel.
    ```

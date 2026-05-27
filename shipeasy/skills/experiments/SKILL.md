@@ -25,16 +25,10 @@ Before creating, decide:
 3. **Allocation.** Even split (`50/50`) unless you have a reason. Lower
    variant traffic → longer run-time to significance.
 4. **Targeting gate.** Optional — restrict who is even eligible for the
-<<<<<<<< HEAD:shipeasy/skills/shipeasy-experiments/SKILL.md
-   experiment. Same shape as feature gate targeting.
-5. **Success metric.** Pre-register one. Adding metrics post-hoc inflates
-   false-positive rate.
-========
    experiment (e.g. `country in [US, CA]`, `plan != "free"`). Same shape
    as feature gate targeting.
 5. **Success metric.** Pre-register one (see the `metrics` skill). Adding
    metrics post-hoc inflates false-positive rate.
->>>>>>>> f82a432 (feat: consolidate 5 plugins into single shipeasy plugin):shipeasy/skills/experiments/SKILL.md
 
 ## Creating
 
@@ -67,50 +61,18 @@ shipeasy experiments stop <name>
 shipeasy experiments status <name>
 ```
 
-<<<<<<<< HEAD:shipeasy/skills/shipeasy-experiments/SKILL.md
-## Metric query DSL
-
-Metrics are defined with a lexical query that compiles to Analytics Engine SQL.
-The form `name(event[{filters}][, value_label])` selects what to aggregate, and
-the optional `by (label)` / `without (label)` clause splits the time series on
-the dashboard.
-
-```
-count_users(checkout_completed)
-sum(purchase{country="US"}, amount)
-p99(req_dur{route=~"/api/.*"}, ms) by (route, status)
-retention_7d(session_start)
-avg(req_dur{tier!="free"}, ms) without (region)
-```
-
-Aggregations: `count_users`, `count`, `sum`, `avg`, `min`, `max`, `unique`,
-`p50`/`p75`/`p90`/`p95`/`p99`/`p999`, `retention_<N>d` (N in 1..90).
-Match operators: `=`, `!=`, `=~`, `!~`. Strings must be quoted (`"..."`).
-Filter labels and value labels must be declared on the source event (string
-or number properties — Shipeasy packs them into reserved AE columns).
-
-```bash
-shipeasy metrics grammar                       # full reference
-shipeasy metrics create purchase_amount \\
-  --event purchase --query 'sum(purchase, amount)'
-shipeasy metrics list
-```
-
-The same `query` string is accepted by `POST /api/admin/metrics`. The server
-parses it, validates label references against the event registry, and stores
-the typed IR. `query_ir` (the JSON form) is also accepted for programmatic use.
-
-========
 Slash equivalents:
 
 ```
-/shipeasy:experiment:create <name>
-/shipeasy:experiment:start <name>
-/shipeasy:experiment:status <name>
-/shipeasy:experiment:stop <name>
+/shipeasy:experiments:create <name>
+/shipeasy:experiments:start <name>
+/shipeasy:experiments:status <name>
+/shipeasy:experiments:stop <name>
 ```
 
->>>>>>>> f82a432 (feat: consolidate 5 plugins into single shipeasy plugin):shipeasy/skills/experiments/SKILL.md
+For the metric query DSL itself, see the `metrics` skill or run
+`shipeasy metrics grammar`.
+
 ## Reading from the SDK
 
 ```ts
@@ -140,14 +102,10 @@ Stop with `exp_stop_experiment { "name": ..., "winner": "treatment" }`
 
 ## Holdouts
 
-<<<<<<<< HEAD:shipeasy/skills/shipeasy-experiments/SKILL.md
-Holdouts live on the **universe**, not on individual experiments.
-========
 Holdouts live on the **universe**, not on individual experiments. To
 exclude 1% of users from all experiments in a universe, set the
 universe's `holdout_percent`. Per-experiment holdouts are not a feature
 — by design.
->>>>>>>> f82a432 (feat: consolidate 5 plugins into single shipeasy plugin):shipeasy/skills/experiments/SKILL.md
 
 ## Errors → action
 

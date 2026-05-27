@@ -36,6 +36,6 @@ Steps:
    ```
    ✅ experiments install complete
    Module:  experiments ✓
-   Next:    Use the `experiments` skill or /shipeasy:experiment:create <name>
+   Next:    Use the `experiments` skill or /shipeasy:experiments:create <name>
             to design and launch your first A/B test.
    ```

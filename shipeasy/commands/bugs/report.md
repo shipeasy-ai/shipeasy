@@ -9,11 +9,7 @@ the `bugs` skill.
 Prereq:
 
 - Project bound (`.shipeasy` present).
-<<<<<<<< HEAD:shipeasy/commands/bugs/bug.md
 - `feedback` module enabled (`/shipeasy:bugs:install` or `shipeasy modules enable feedback`).
-========
-- `feedback` module enabled — run `/shipeasy:bugs:install` first if not.
->>>>>>>> f82a432 (feat: consolidate 5 plugins into single shipeasy plugin):shipeasy/commands/bug/report.md
 
 Steps:
 

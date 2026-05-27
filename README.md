@@ -21,17 +21,16 @@ marketplace/
 └── shipeasy/                            # the only plugin
     ├── .claude-plugin/plugin.json
     ├── .mcp.json                        # MCP server registration
-    ├── commands/                        # nested slash commands
+    ├── commands/                        # nested slash commands (plural nouns)
     │   ├── setup.md                     #   /shipeasy:setup
-    │   ├── experiment/{create,start,status,stop}.md
-    │   ├── experiments/install.md
-    │   ├── metric/{create,list,show,delete,grammar}.md
-    │   ├── metrics/install.md
-    │   ├── flag/create.md
-    │   ├── flags/install.md
-    │   ├── i18n/{extract,migrate,install}.md
-    │   ├── bug/report.md
-    │   └── bugs/install.md
+    │   ├── experiments/{install,create,list,start,status,update,stop,archive,delete}.md
+    │   ├── metrics/{install,create,list,show,delete,grammar}.md
+    │   ├── flags/{install,create,list,update,delete}.md
+    │   ├── configs/{install,create,list,update,delete}.md
+    │   ├── ks/{install,create,list,update,delete}.md
+    │   ├── i18n/{install,extract,migrate}.md
+    │   ├── bugs/{install,report,list,fix}.md
+    │   └── feats/implement.md
     └── skills/                          # six area skills
         ├── setup/SKILL.md
         ├── experiments/SKILL.md
@@ -42,7 +41,9 @@ marketplace/
 ```
 
 Subdirectory commands surface as `/shipeasy:<dir>:<file>`, so for
-example `commands/metric/create.md` becomes `/shipeasy:metric:create`.
+example `commands/metrics/create.md` becomes `/shipeasy:metrics:create`.
+All command namespaces use plural nouns (`flags`, `configs`, `ks`,
+`experiments`, `metrics`, `bugs`, `i18n`).
 
 ## After install
 
@@ -54,7 +55,9 @@ Plugin install registers slash commands + skills with Claude Code. It does
 2. Per feature you want, run the matching install slash command:
    - `/shipeasy:experiments:install`
    - `/shipeasy:metrics:install`
-   - `/shipeasy:flags:install`
+   - `/shipeasy:flags:install`     (boolean feature gates)
+   - `/shipeasy:configs:install`   (typed JSON dynamic configs)
+   - `/shipeasy:ks:install`        (kill switches — reuses the gates module)
    - `/shipeasy:i18n:install`
    - `/shipeasy:bugs:install`
 
@@ -116,13 +119,47 @@ command — the skill takes over and runs the analyze-and-suggest flow:
 5. **Verify** with `shipeasy metrics list`.
 
 If you prefer a slash command for the same flow, use
-`/shipeasy:metric:create` — it follows the same skill content.
+`/shipeasy:metrics:create` — it follows the same skill content.
 
 Prereqs:
 
 - `events` module enabled (`/shipeasy:metrics:install`).
 
-### 3. `/shipeasy:experiment:create <name>` — design + provision an A/B test
+### 3. `/shipeasy:feats:implement` — burn down the feature-request queue
+
+The feature-request counterpart to `bugs:fix`. Pulls every open
+`feature_request` filed via the devtools overlay (or the CLI), loops
+over them in `importance desc, createdAt asc` order, designs each one
+via `AskUserQuestion`, and implements it as a single atomic diff per
+feature.
+
+Differences from `bugs:fix`:
+
+- **Design-first**, not fix-first. The loop always pauses with
+  `AskUserQuestion` before editing, presenting 2–4 implementation
+  shapes per feature with file:line scope estimates. Bugs are mostly
+  "make this stop being broken"; features are open-ended product
+  asks.
+- **No attachments**. The CLI does not expose
+  `shipeasy feedback features attachments` yet — feature requests are
+  text-only on the loop's input side. Screenshots referenced in the
+  description are surfaced as a gap to the user.
+- **No auto-PATCH of status**. CLI lacks `features update`. The loop
+  prints the new state and asks the user to flip `→ shipped` in the
+  dashboard (or via the admin API directly). This is intentional —
+  loops shouldn't silently push admin writes outside the published CLI
+  surface.
+- **Lower default `--limit`** (10 vs. 20). Features are heavier than
+  bug fixes; running 20 in one session usually exhausts the user's
+  reviewer attention.
+
+Prereqs:
+
+- `feedback` module enabled (same as `bugs:fix`).
+- Working tree clean unless the user explicitly opts in to mix the
+  loop's diffs with WIP.
+
+### 4. `/shipeasy:experiments:create <name>` — design + provision an A/B test
 
 End-to-end experiment design. Given just an experiment name, the command:
 
@@ -143,7 +180,7 @@ End-to-end experiment design. Given just an experiment name, the command:
    status <name>` (expected: `draft`) + typecheck/build of touched
    files.
 5. **Stops at the draft state.** You decide when to call
-   `/shipeasy:experiment:start <name>`.
+   `/shipeasy:experiments:start <name>`.
 
 Prereqs:
 
@@ -159,23 +196,42 @@ namespace.
 | --- | --- | --- |
 | `/shipeasy:setup` | `[--domain <prod-domain>]` | Run base onboarding: detect subprojects, install `@shipeasy/sdk`, `shipeasy login`, create server+client keys, wire the SDK into the root layout. Stops at "ready to commit"; does **not** `git commit`. |
 | `/shipeasy:experiments:install` | — | Enable the `experiments` module on the bound project and smoke-test `experiments.assign`. |
-| `/shipeasy:experiment:create` | `<name>` | Full design flow: analyse the project for variation points + success metric candidates, ask via `AskUserQuestion`, instrument any new event, create the metric, draft the experiment, edit the variant branch. Stops in `draft` state. |
-| `/shipeasy:experiment:start` | `<name>` | Move a draft experiment to running — begins assigning traffic. Immutable after this point. |
-| `/shipeasy:experiment:status` | `<name>` | Enrolment per group, current p-value, significance state, recommendation (`keep_running` / `ship_treatment` / `ship_control` / `inconclusive`). |
-| `/shipeasy:experiment:stop` | `<name> [--winner treatment\|control\|null]` | Freeze assignment and record the winner. Refuses to relaunch under the same name (assignment hash changes — use `<old>_v2`). |
+| `/shipeasy:experiments:create` | `<name>` | Full design flow: analyse the project for variation points + success metric candidates, ask via `AskUserQuestion`, instrument any new event, create the metric, draft the experiment, edit the variant branch. Stops in `draft` state. |
+| `/shipeasy:experiments:list` | `[--status draft\|running\|stopped\|archived] [--universe <n>] [--name-contains <s>]` | Filtered tabular list. Pulls `shipeasy experiments list --json`, applies filters client-side. |
+| `/shipeasy:experiments:start` | `<name>` | Move a draft experiment to running — begins assigning traffic. Immutable after this point. |
+| `/shipeasy:experiments:status` | `<name>` | Enrolment per group, current p-value, significance state, recommendation (`keep_running` / `ship_treatment` / `ship_control` / `inconclusive`). |
+| `/shipeasy:experiments:update` | `<name> [--allocation <pct>] [--groups <json>] [--params <json>] [--targeting-gate <name>] [--significance <p>] [--min-runtime-days <n>] [--min-sample-size <n>]` | Patch a draft (or running) experiment. On `running` only stats thresholds + targeting-gate are editable — the API refuses changes to `allocation`/`groups`/`params`/`universe`/`salt` (all assignment-hash inputs). |
+| `/shipeasy:experiments:stop` | `<name> [--winner treatment\|control\|null]` | Freeze assignment and record the winner. Refuses to relaunch under the same name (assignment hash changes — use `<old>_v2`). |
+| `/shipeasy:experiments:archive` | `<name>` | Hide a stopped experiment from default views; preserves results + assignment history. Refuses on draft/running. |
+| `/shipeasy:experiments:delete` | `<name>` | Hard-delete an experiment (prefer `archive` for completed ones). Refuses to relaunch under the same name. |
 | `/shipeasy:metrics:install` | — | Enable the `events` module (+ `experiments` if you want metrics to gate A/B tests) and round-trip a smoke metric. |
-| `/shipeasy:metric:create` | `<name> --event <event> --query '<dsl>'` | Create a metric. Same analyze-and-suggest path as the `metrics` skill — see `/shipeasy:metric:grammar` for DSL. |
-| `/shipeasy:metric:list` | — | Tabular or JSON list of all metrics. |
-| `/shipeasy:metric:show` | `<id>` | One metric, full detail. |
-| `/shipeasy:metric:delete` | `<id>` | Soft-delete a metric. Rejected if currently referenced by a running experiment. |
-| `/shipeasy:metric:grammar` | — | Print the metric DSL grammar (aggregations, match ops, examples). |
-| `/shipeasy:flags:install` | — | Enable `gates` + `configs` modules and smoke-test the read path. (Kill switches reuse `gates`.) |
-| `/shipeasy:flag:create` | `<gate-name> [percent]` | Create a feature gate. Defaults: `rollout_percent: 0`, `default: false`, no targeting. |
+| `/shipeasy:metrics:create` | `<name> --event <event> --query '<dsl>'` | Create a metric. Same analyze-and-suggest path as the `metrics` skill — see `/shipeasy:metrics:grammar` for DSL. |
+| `/shipeasy:metrics:list` | `[--folder <f>] [--event <name>] [--agg <count\|sum\|avg\|...>] [--name-contains <s>]` | Tabular list of metrics; unfiltered call (`shipeasy metrics list`) skips the JSON post-filter step. |
+| `/shipeasy:metrics:show` | `<id>` | One metric, full detail. |
+| `/shipeasy:metrics:delete` | `<id>` | Soft-delete a metric. Rejected if currently referenced by a running experiment. |
+| `/shipeasy:metrics:grammar` | — | Print the metric DSL grammar (aggregations, match ops, examples). |
+| `/shipeasy:flags:install` | — | Enable the `gates` module and smoke-test `gates.check`. |
+| `/shipeasy:flags:create` | `<gate-name> [percent]` | Create a boolean feature gate. Defaults: `rollout: 0`, no targeting. SDK-side safe value via `gates.check(name, { default: false })`. |
+| `/shipeasy:flags:list` | `[--folder <f>] [--enabled true\|false] [--min-rollout <pct>] [--name-contains <s>]` | Filtered tabular list of gates. |
+| `/shipeasy:flags:update` | `<gate-name> [--rollout <pct>] [--rules <json>] [--enable\|--disable]` | Patch rollout, rules, or enabled state. Prefer `shipeasy flags rollout`/`enable`/`disable` for single-field tweaks. |
+| `/shipeasy:flags:delete` | `<gate-name>` | Delete a feature gate (refused if a running experiment references it as `targeting_gate`). Same name cannot be reused without re-randomising. |
+| `/shipeasy:configs:install` | — | Enable the `configs` module and smoke-test `configs.get`. |
+| `/shipeasy:configs:create` | `<config-name> [json-default]` | Create a dynamic config (typed JSON value). |
+| `/shipeasy:configs:list` | `[--folder <f>] [--name-contains <s>]` | Filtered tabular list of configs. |
+| `/shipeasy:configs:update` | `<config-name> <json-value>` | Flat update of the config value (all envs). For per-env staging use the `shipeasy configs draft` / `publish` CLI flow. |
+| `/shipeasy:configs:delete` | `<config-name>` | Delete a config. No usage check — call sites silently fall through to the SDK-side fallback. |
+| `/shipeasy:ks:install` | — | Verify killswitch admin path is reachable (no per-killswitch module toggle). |
+| `/shipeasy:ks:create` | `<folder.name>` | Create a killswitch admin resource (boolean `value` + optional `switches` map). Not SDK-readable; for runtime gating, use a gate. |
+| `/shipeasy:ks:list` | `[--folder <f>] [--value on\|off] [--name-contains <s>]` | Filtered tabular list. Filter applies to the prod-env value by default. |
+| `/shipeasy:ks:update` | `<folder.name> [--value <bool>] [--switches <json>] [--description <text>]` | Definition-level update. For flipping one switch in an incident, prefer `shipeasy ks set <name> <switch_key> <bool>`. |
+| `/shipeasy:ks:delete` | `<folder.name>` | Delete a killswitch resource. |
 | `/shipeasy:i18n:install` | — | Enable the `translations` module, create the `en:prod` profile, inject the loader script if `getBootstrapHtml()` isn't rendered, smoke-test a key push+publish. |
 | `/shipeasy:i18n:extract` | `[target-dir]` | Run the codemod to wrap hardcoded user-visible strings in `i18n.t(...)`, push the generated keys, publish the `default` chunk. Idempotent. |
 | `/shipeasy:i18n:migrate` | `<react-i18next\|react-intl\|lingui\|next-intl\|raw-i18next>` | Codemod call sites from another i18n library into `i18n.t(...)`, push existing translations, remove the old library. |
 | `/shipeasy:bugs:install` | — | Enable the `feedback` module, confirm the devtools overlay loads (`?se=1` URL), smoke-test the CLI mirror. |
-| `/shipeasy:bug:report` | `<bug\|feature> "<title>"` | File a single bug or feature request against the bound project. |
+| `/shipeasy:bugs:report` | `<bug\|feature> "<title>"` | File a single bug or feature request against the bound project. |
+| `/shipeasy:bugs:list` | `[--type bug\|feature] [--status <s>] [--priority high\|critical\|medium\|low] [--name-contains <s>]` | Filtered list of feedback items, sorted by priority + age. |
+| `/shipeasy:feats:implement` | `[--status open\|considering\|planned] [--importance important\|critical] [--limit <N>] [--dry-run]` | Loop over the feature-request queue (sorted `critical > important > nice_to_have`, then `createdAt` asc): design via `AskUserQuestion`, implement as one atomic diff per feature, surface manual `shipped` status flip. No CLI `features update` yet — slash command does not auto-PATCH. |
 | `/shipeasy:bugs:fix` | `[--status <s>] [--priority high\|critical] [--limit <N>] [--dry-run]` | Loop over the bug queue (sorted `critical > high > medium > low > null`, then `createdAt` asc): download attachments (screenshots → Read into context, recordings → surface for human review), investigate, fix, mark `resolved` / `ready_for_qa`. One atomic diff per bug. `--dry-run` prints the sorted queue and exits. Requires CLI ≥ 1.4.0. |
 
 ## Skill auto-triggers (no slash command needed)
@@ -200,7 +256,7 @@ matches against.
 | --- | --- | --- |
 | *"Create a metric that measures how often users complete checkout"* | `metrics` | Greps for `events.track(...)` call sites + uninstrumented action points (form submits, primary CTAs, mirrors of `posthog.capture`/`segment.track`/etc.), proposes 2–4 `{ event, aggregation, why }` candidates via `AskUserQuestion`, instruments the chosen event if new, runs `shipeasy metrics create …`. |
 | *"Set up Shipeasy in this repo"* | `setup` | Detects subprojects, runs `shipeasy login` via Bash, mints server+client keys, wires `shipeasy({…})` + `getBootstrapHtml()` into the root layout, persists keys per-subproject to the right secret store. |
-| *"Ship a feature gate for the new pricing page at 5%"* | `flags` | Calls `exp_create_gate` with `rollout_percent: 5`, shows the `gates.check(...)` call site you need to add. |
+| *"Ship a feature gate for the new pricing page at 5%"* | `flags` | Calls `exp_create_gate` with `rollout: 5`, shows the `gates.check(...)` call site you need to add. |
 | *"Kill switch for the new checkout if it breaks"* | `flags` | Creates a `kill_checkout` gate defaulting **on** that the old code path gates on. |
 | *"Wrap the homepage hero copy so we can translate it"* | `i18n` | Runs the `i18n.t(...)` wrap workflow, creates keys, pushes + publishes the chunk. |
 | *"Migrate this repo from react-i18next to Shipeasy"* | `i18n` | Runs `shipeasy codemod i18n --migrate react-i18next`, pushes existing translations, removes the old library. |
@@ -209,9 +265,10 @@ matches against.
 | *"Stop the checkout-v2 experiment and ship treatment"* | `experiments` | `exp_stop_experiment { name, winner: "treatment" }`. |
 | *"How significant is the checkout experiment so far?"* | `experiments` | `exp_experiment_status { name }`, surfaces enrolment per group + p-value + recommendation. |
 
-If you want the *fix-every-open-bug* loop, the experiment-design loop,
-or the i18n-bulk-extraction loop, prefer the slash commands —
-`/shipeasy:bugs:fix`, `/shipeasy:experiment:create <name>`,
+If you want the *fix-every-open-bug* loop, the *implement-every-feature-request*
+loop, the experiment-design loop, or the i18n-bulk-extraction loop,
+prefer the slash commands — `/shipeasy:bugs:fix`,
+`/shipeasy:feats:implement`, `/shipeasy:experiments:create <name>`,
 `/shipeasy:i18n:extract`. Each one is a multi-step orchestration the
 underlying skill alone won't drive end-to-end.
 
@@ -314,11 +371,11 @@ Steps:
    ```
    ✅ experiments install complete
    Module:  experiments ✓
-   Next:    Use the `experiments` skill or /shipeasy:experiment:create <name>
+   Next:    Use the `experiments` skill or /shipeasy:experiments:create <name>
             to design and launch your first A/B test.
    ```
 
-#### `/shipeasy:experiment:create` `<name>`
+#### `/shipeasy:experiments:create` `<name>`
 
 *Analyze the project, propose variation points + a success metric, then create a Shipeasy A/B experiment end-to-end (events instrumented, metric created, experiment drafted).*
 
@@ -338,7 +395,7 @@ Search the codebase for *where the variant decision needs to be made*.
 Heuristics in priority order:
 
 1. The user's prompt that triggered this command usually names a feature
-   (`/shipeasy:experiment:create checkout_button_v2` → look at checkout
+   (`/shipeasy:experiments:create checkout_button_v2` → look at checkout
    flow). Grep for the feature name first.
 2. If unclear, ask for the surface area before scanning blindly — one
    `AskUserQuestion` with 2–4 candidate areas from the route table
@@ -458,8 +515,8 @@ Tell the user:
    Metric:        <metric_name> = <DSL>
    Groups:        control 50 / treatment 50
 Next:
-   /shipeasy:experiment:start <name>      # begin assigning traffic
-   /shipeasy:experiment:status <name>     # check enrolment + significance later
+   /shipeasy:experiments:start <name>      # begin assigning traffic
+   /shipeasy:experiments:status <name>     # check enrolment + significance later
 ```
 
 Do **not** start the experiment automatically — the user reviews the
@@ -476,7 +533,7 @@ diff first.
   to a `targeting_gate` (a separate feature gate) so the universe stays
   clean.
 
-#### `/shipeasy:experiment:start` `<name>`
+#### `/shipeasy:experiments:start` `<name>`
 
 *Start a Shipeasy A/B experiment (draft → running)*
 
@@ -493,7 +550,7 @@ Once running, the experiment is immutable — groups, allocation, and
 success metric cannot change. To modify, stop and recreate under a new
 name (the assignment hash changes; never reuse the old name).
 
-#### `/shipeasy:experiment:status` `<name>`
+#### `/shipeasy:experiments:status` `<name>`
 
 *Show enrolment + significance state for a Shipeasy experiment*
 
@@ -509,7 +566,7 @@ Returns: enrolled count per group, current p-value, whether the metric
 has reached significance at the configured alpha, and a recommendation
 (`keep_running`, `ship_treatment`, `ship_control`, `inconclusive`).
 
-#### `/shipeasy:experiment:stop` `<name> [--winner treatment|control|null]`
+#### `/shipeasy:experiments:stop` `<name> [--winner treatment|control|null]`
 
 *Stop a Shipeasy experiment and record the winner*
 
@@ -575,11 +632,11 @@ Steps:
    ```
    ✅ metrics setup complete
    Modules: events ✓ [experiments ✓]
-   Next:    /shipeasy:metric:create <name> --event <event> --query '<dsl>'
+   Next:    /shipeasy:metrics:create <name> --event <event> --query '<dsl>'
             or use the `metrics` skill.
    ```
 
-#### `/shipeasy:metric:create` `<name> --event <event> --query '<dsl>'`
+#### `/shipeasy:metrics:create` `<name> --event <event> --query '<dsl>'`
 
 *Create a Shipeasy metric (event-backed query) for tracking or experiment success*
 
@@ -624,7 +681,7 @@ Workflow:
 
 5. Verify: `shipeasy metrics list` (expect the new row with the rendered query).
 
-#### `/shipeasy:metric:list`
+#### `/shipeasy:metrics:list`
 
 *List metrics in the bound Shipeasy project*
 
@@ -635,7 +692,7 @@ shipeasy metrics list            # tabular
 shipeasy metrics list --json     # JSON
 ```
 
-#### `/shipeasy:metric:show` `<id>`
+#### `/shipeasy:metrics:show` `<id>`
 
 *Show one Shipeasy metric by id*
 
@@ -646,7 +703,7 @@ shipeasy metrics show <id>
 shipeasy metrics show <id> --json
 ```
 
-#### `/shipeasy:metric:delete` `<id>`
+#### `/shipeasy:metrics:delete` `<id>`
 
 *Soft-delete a Shipeasy metric*
 
@@ -657,7 +714,7 @@ running experiment — stop the experiment first.
 shipeasy metrics delete <id>
 ```
 
-#### `/shipeasy:metric:grammar`
+#### `/shipeasy:metrics:grammar`
 
 *Print the Shipeasy metric query DSL grammar*
 
@@ -689,14 +746,17 @@ avg(req_dur{tier!="free"}, ms) without (region)
 Labels referenced in filters / value position / `by` / `without` must
 be declared as properties on the source event.
 
-### Flags (gates + configs + kill switches)
+### Flags (boolean feature gates)
+
+Boolean feature gates only. Dynamic configs and kill switches each have
+their own namespace (`/shipeasy:configs:*`, `/shipeasy:ks:*`).
 
 #### `/shipeasy:flags:install`
 
-*Enable the gates + configs modules and verify the SDK reads them*
+*Enable the gates module and verify the SDK read path*
 
-Per-feature install for `flags` (gates + configs + kill switches).
-Prereq: `/shipeasy:setup` already run and `.shipeasy` exists.
+Per-feature install for `flags`. Prereq: `/shipeasy:setup` already run
+and `.shipeasy` exists.
 
 Steps:
 
@@ -708,34 +768,30 @@ Steps:
 
    If the check fails, stop and tell the user to run `/shipeasy:setup` first.
 
-2. Enable the modules (independent toggles — enable what you need):
+2. Enable the module:
 
    ```bash
    shipeasy modules enable gates
-   shipeasy modules enable configs
-   shipeasy modules list      # expect: gates ✓ configs ✓
+   shipeasy modules list      # expect: gates ✓
    ```
-
-   (Kill switches reuse the `gates` module; no separate toggle.)
 
 3. Smoke-test the read path from a server context:
 
    ```ts
-   import { gates, configs } from "@shipeasy/sdk/server";
+   import { gates } from "@shipeasy/sdk/server";
    console.log(await gates.check("smoke-test")); // false (no such gate)
-   console.log(await configs.get("smoke-config", "fallback")); // "fallback"
    ```
 
 4. Print the hand-off:
 
    ```
    ✅ flags install complete
-   Modules: gates ✓ configs ✓
-   Next:    Use the `flags` skill or /shipeasy:flag:create <name> [percent]
-            to create your first gate / config / kill switch.
+   Module:  gates ✓
+   Next:    /shipeasy:flags:create <name> [percent] — first gate.
+            Kill switches reuse this module — see /shipeasy:ks:create.
    ```
 
-#### `/shipeasy:flag:create` `<gate-name> [percent]`
+#### `/shipeasy:flags:create` `<gate-name> [percent]`
 
 *Create a Shipeasy feature gate with the right rollout/targeting shape*
 
@@ -751,11 +807,11 @@ Steps:
 
 1. If MCP is registered, use `exp_create_gate` for typed errors:
    ```
-   mcp tool: exp_create_gate { "name": "<name>", "rollout_percent": <pct>, "default": false }
+   mcp tool: exp_create_gate { "name": "<name>", "rollout": <pct> }
    ```
 2. Otherwise:
    ```bash
-   shipeasy flags create --name <name> --percent <pct>
+   shipeasy flags create <name> --rollout <pct>
    ```
 3. Show the user the SDK call sites they need to add:
    ```ts
@@ -766,6 +822,129 @@ Steps:
    ```
 4. Remind: ramp is manual (5 → 25 → 50 → 100). Don't mention "automatic
    rollout" — Shipeasy doesn't auto-ramp.
+
+### Configs (dynamic JSON configs)
+
+Typed JSON values delivered through the same KV blob as gates. For
+on/off booleans, use a feature gate instead — configs are for values
+the runtime needs to read (ranking weights, max-items caps,
+feature-flagged copy variants, etc.).
+
+#### `/shipeasy:configs:install`
+
+*Enable the configs module and verify the SDK read path for dynamic configs*
+
+Steps follow the same shape as `/shipeasy:flags:install`:
+
+1. Confirm `.shipeasy` is bound.
+2. `shipeasy modules enable configs` → expect `configs ✓`.
+3. Smoke-test the read path:
+   ```ts
+   import { configs } from "@shipeasy/sdk/server";
+   console.log(await configs.get("smoke-config", "fallback")); // "fallback"
+   ```
+   `configs.get(name, fallback)` returns `fallback` when the config
+   doesn't exist or KV is unreachable.
+
+#### `/shipeasy:configs:create` `<config-name> [json-default]`
+
+*Create a Shipeasy dynamic config (typed JSON value with targeting)*
+
+Defaults:
+
+- `value`: initial JSON object the SDK returns. Defaults to `{}` if
+  omitted, which is rarely what you want.
+- `schema`: JSON Schema (top-level `type=object`) the admin API
+  validates updates against. Defaults to a permissive object schema.
+- No targeting unless the user asks for one.
+
+Steps:
+
+1. Decide the **shape** of the value first. Once call sites consume it,
+   changing keys/types is a breaking change.
+2. Use MCP for typed errors. **Both `value` and `schema` are
+   JSON-encoded strings**, not raw JSON objects:
+   ```
+   mcp tool: exp_create_config {
+     "name":   "<name>",
+     "value":  "{\"max_items\":10}",
+     "schema": "{\"type\":\"object\",\"properties\":{...}}"
+   }
+   ```
+   Or the CLI (positional `<name>`):
+   ```bash
+   shipeasy configs create <name> --value '<json-value>' [--schema '<json-schema>']
+   ```
+3. SDK call site:
+   ```ts
+   import { configs } from "@shipeasy/sdk/server"; // or /client
+   const value = await configs.get("<name>", <same-shape fallback>);
+   ```
+4. Configs are **read-many, write-rare**. Updates trigger an explicit
+   purge — don't reach for a config when a boolean gate or a code-side
+   constant does the job.
+
+### Kill switches
+
+A killswitch is a **standalone admin resource** (stored alongside
+configs with `kind=killswitch`) that ships in the KV blob's
+`killswitches` map. It carries a boolean `value` plus an optional
+`switches` map of named overrides. There is no public SDK reader for
+killswitches yet — for in-code branching, use a **gate**
+(`/shipeasy:flags:create`) and flip its `killswitch` field via the
+admin API to force-off.
+
+#### `/shipeasy:ks:install`
+
+*Verify killswitches are reachable on the bound project (no separate module toggle)*
+
+There is no per-killswitch module toggle. Killswitches ride in the same
+KV blob configs publish through — running `/shipeasy:configs:install`
+covers that path.
+
+Steps:
+
+1. Confirm `.shipeasy` is bound.
+2. Smoke-test the admin path: `shipeasy ks list` (`[]` or rows, never 403).
+
+#### `/shipeasy:ks:create` `<switch-name>`
+
+*Create a Shipeasy killswitch*
+
+Fields (no rollout, no targeting — killswitches are binary):
+
+- `name`: **must be `folder.name`** — exactly two lowercase segments
+  separated by a dot. Use `kill.<feature>` or `ks.<feature>`.
+- `value`: boolean default. The MCP tool defaults to `false`; pass
+  `true` if the killswitch is **on** until tripped.
+- `switches`: optional `{ switch_key: bool }` overrides — JSON-encoded
+  string in the MCP call, raw JSON in the CLI `--switches` flag.
+
+Steps:
+
+1. MCP (note `switches` is a JSON-encoded string):
+   ```
+   mcp tool: exp_create_killswitch {
+     "name":     "kill.<feature>",
+     "value":    true,
+     "switches": "{\"checkout\":true}"
+   }
+   ```
+2. Or the CLI (`<name>` is positional):
+   ```bash
+   shipeasy ks create kill.<feature> --value true \
+     [--switches '{"checkout":true}']
+   ```
+3. Flip per-env switch entries (default env `prod`):
+   ```bash
+   shipeasy ks set   kill.<feature> <switch_key> false
+   shipeasy ks unset kill.<feature> <switch_key>
+   # MCP: exp_set_killswitch_switch { name, switch_key, value, env }
+   ```
+4. For runtime code-path gating, do **not** call `gates.check` on the
+   killswitch name — the SDK reads gates and configs, not killswitches.
+   Create a gate (`/shipeasy:flags:create`) and have the admin flip the
+   gate's `killswitch` field to force-off.
 
 ### i18n (translations)
 
@@ -973,11 +1152,11 @@ Steps:
    ✅ bugs install complete
    Module:  feedback ✓
    Wired:   devtools overlay (?se=1 on any page rendering getBootstrapHtml)
-   Next:    Use the `bugs` skill, /shipeasy:bug:report bug "<title>", or
+   Next:    Use the `bugs` skill, /shipeasy:bugs:report bug "<title>", or
             ask end users to submit via the in-page Report panel.
    ```
 
-#### `/shipeasy:bug:report` `<bug|feature> <title>`
+#### `/shipeasy:bugs:report` `<bug|feature> <title>`
 
 *File a Shipeasy bug report or feature request from the CLI*
 
@@ -987,11 +1166,7 @@ the `bugs` skill.
 Prereq:
 
 - Project bound (`.shipeasy` present).
-<<<<<<<< HEAD:shipeasy/commands/bugs/bug.md
 - `feedback` module enabled (`/shipeasy:bugs:install` or `shipeasy modules enable feedback`).
-========
-- `feedback` module enabled — run `/shipeasy:bugs:install` first if not.
->>>>>>>> f82a432 (feat: consolidate 5 plugins into single shipeasy plugin):shipeasy/commands/bug/report.md
 
 Steps:
 
@@ -1236,6 +1411,97 @@ reviews and commits.
   from the CLI means the binding/feedback module is wrong — don't burn
   through the queue producing the same failure.
 
+### Feature requests (feedback)
+
+#### `/shipeasy:feats:implement` `[--status <open|considering|planned>] [--importance important|critical] [--limit <N>] [--dry-run]`
+
+*Loop over every open Shipeasy feature request for the bound project, design + implement each one as an atomic diff, mark shipped.*
+
+Counterpart to `bugs:fix` for feature requests filed via the devtools
+overlay or the CLI. Shares the `feedback` module but uses the
+features lifecycle (`open → considering → planned → shipped | declined`)
+instead of the bugs lifecycle.
+
+Prereqs:
+
+- `feedback` module enabled. Run `/shipeasy:bugs:install` if
+  `shipeasy feedback features list` returns `403`.
+- Working tree clean **or** the user explicitly asked to implement on
+  top of WIP.
+
+##### 0. Build the work queue
+
+```bash
+shipeasy feedback features list --json > /tmp/se-feats-raw.json
+```
+
+Filter by `--status` (default `open`) and optional `--importance`
+client-side. Sort `importance desc, createdAt asc`. Importance order:
+`critical > important > nice_to_have`. Default `--limit` is `10`
+(features are heavier than bug fixes).
+
+If `--dry-run`: print the queue and exit. Otherwise extract ids and
+loop.
+
+##### 1. For each feature id — strict loop
+
+###### 1.1 Pull the feature detail
+
+The CLI does **not** expose `features get` — pull the row out of the
+already-fetched queue JSON by id. Captured fields: `title`,
+`description`, `useCase`, `importance`, `pageUrl`, `reporterEmail`,
+`createdAt`, optional `context`.
+
+###### 1.2 Attachments — none today
+
+`shipeasy feedback features attachments` does **not** exist. If the
+description references screenshots, surface the gap to the user and
+continue on text alone. Do not skip silently.
+
+###### 1.3 Design with `AskUserQuestion`
+
+Features are open-ended. Don't start editing files until the shape is
+agreed:
+
+1. **Locate the surface area** — grep for keywords from `title` +
+   `description`; `pageUrl` (when present) points at the exact route.
+2. **Propose 2–4 implementation shapes** via `AskUserQuestion`. Each
+   option lists file:line scope, behaviour delta, and the trade-off.
+3. **Stop scope creep before it starts.** If the ask implies a refactor
+   or new abstraction, propose the smallest shape that satisfies the
+   use case and call out the refactor as a follow-up.
+
+###### 1.4 Implement
+
+One feature = one atomic diff. No drive-by refactors. No half-finished
+implementations — if the feature can't be completed in one pass, stop,
+note the gap, and skip to the next.
+
+Run the relevant verification gate (unit tests, `pnpm type-check`,
+`pnpm --filter @shipeasy/ui test` for UI changes, reload the dev
+server for UI features).
+
+###### 1.5 Mark `shipped` — out-of-band
+
+CLI does not yet expose `features update`. Surface to the user as a
+manual step: flip status → `shipped` in the dashboard, or
+`PATCH /api/admin/feature-requests/<id>` with body
+`{ "status": "shipped" }` against the bound key. The slash command does
+**not** auto-PATCH — loops shouldn't silently push admin writes outside
+the published CLI surface.
+
+##### Rules
+
+- **One feature at a time.** Loop, don't parallelise.
+- **Never `--status declined` without asking the user.** Same rationale
+  as `wont_fix` for bugs — that's a product decision.
+- **Never delete a feature request.** Even after implementation, the
+  record has audit value.
+- **Skip features that need a real-world signal you don't have**:
+  customer-only env, paid integration, manual hardware. Note the gap
+  and continue.
+- **Stop the loop on first auth/permission error.**
+
 ## Migration from the old multi-plugin layout
 
 If a user previously installed any of:
@@ -1253,7 +1519,7 @@ The new plugin owns the same MCP server, the same skills (renamed:
 `setup`, `experiments`, `metrics`, `flags`, `i18n`, `bugs`), and the same
 underlying CLI flows. Only the slash command names changed —
 `/shipeasy-setup` → `/shipeasy:setup`, `/shipeasy-flag` →
-`/shipeasy:flag:create`, etc.
+`/shipeasy:flags:create`, etc.
 
 ## Publishing to GitHub
 

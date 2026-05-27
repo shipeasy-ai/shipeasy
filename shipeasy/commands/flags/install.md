@@ -1,9 +1,13 @@
 ---
-description: Enable the gates + configs modules and verify the SDK reads them
+description: Enable the gates module and verify the SDK read path
 ---
 
-Per-feature install for `flags` (gates + configs + kill switches).
-Prereq: `/shipeasy:setup` already run and `.shipeasy` exists.
+Per-feature install for `flags` (boolean feature gates). Prereq:
+`/shipeasy:setup` already run and `.shipeasy` exists.
+
+Dynamic configs and kill switches have their own installs:
+`/shipeasy:configs:install`, `/shipeasy:ks:install` (the latter reuses
+the `gates` module, so installing flags also unblocks kill switches).
 
 Steps:
 
@@ -15,29 +19,26 @@ Steps:
 
    If the check fails, stop and tell the user to run `/shipeasy:setup` first.
 
-2. Enable the modules (independent toggles — enable what you need):
+2. Enable the module:
 
    ```bash
    shipeasy modules enable gates
-   shipeasy modules enable configs
-   shipeasy modules list      # expect: gates ✓ configs ✓
+   shipeasy modules list      # expect: gates ✓
    ```
-
-   (Kill switches reuse the `gates` module; no separate toggle.)
 
 3. Smoke-test the read path from a server context:
 
    ```ts
-   import { gates, configs } from "@shipeasy/sdk/server";
+   import { gates } from "@shipeasy/sdk/server";
    console.log(await gates.check("smoke-test")); // false (no such gate)
-   console.log(await configs.get("smoke-config", "fallback")); // "fallback"
    ```
 
 4. Print the hand-off:
 
    ```
    ✅ flags install complete
-   Modules: gates ✓ configs ✓
-   Next:    Use the `flags` skill or /shipeasy:flag:create <name> [percent]
-            to create your first gate / config / kill switch.
+   Module:  gates ✓
+   Next:    Use the `flags` skill or /shipeasy:flags:create <name> [percent]
+            to create your first gate. Kill switches reuse this module —
+            see /shipeasy:ks:create.
    ```

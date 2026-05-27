@@ -199,11 +199,11 @@ shipeasy metrics delete <id>      # soft-delete (rejected while referenced by a 
 Slash equivalents:
 
 ```
-/shipeasy:metric:create <name> --event <event> --query '<dsl>'
-/shipeasy:metric:list
-/shipeasy:metric:show <id>
-/shipeasy:metric:delete <id>
-/shipeasy:metric:grammar
+/shipeasy:metrics:create <name> --event <event> --query '<dsl>'
+/shipeasy:metrics:list
+/shipeasy:metrics:show <id>
+/shipeasy:metrics:delete <id>
+/shipeasy:metrics:grammar
 ```
 
 ## Relationship to experiments

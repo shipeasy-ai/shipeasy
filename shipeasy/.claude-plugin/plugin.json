@@ -1,7 +1,7 @@
 {
   "name": "shipeasy",
   "version": "2.0.0",
-  "description": "Shipeasy — SDK install, auth, project bind, plus every feature module (experiments + metrics, gates + configs, translations, in-app feedback) in a single plugin. Slash commands are nested under /shipeasy:<noun>:<verb>; skills are named after the feature area (setup, experiments, metrics, flags, i18n, bugs).",
+  "description": "Shipeasy — SDK install, auth, project bind, plus every feature module (experiments + metrics, gates + configs + kill switches, translations, in-app feedback) in a single plugin. Slash commands are nested under /shipeasy:<noun>:<verb> with plural nouns (flags, configs, ks, experiments, metrics, bugs, i18n); skills are named after the feature area (setup, experiments, metrics, flags, i18n, bugs).",
   "author": { "name": "Shipeasy", "url": "https://shipeasy.ai" },
   "homepage": "https://shipeasy.ai",
   "license": "MIT"

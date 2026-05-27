@@ -49,10 +49,12 @@ shipeasy flags update <name>      # adjust rollout / targeting
 shipeasy flags archive <name>     # disable a gate without deleting
 ```
 
-Slash equivalent:
+Slash equivalents:
 
 ```
-/shipeasy:flag:create <name> [percent]
+/shipeasy:flags:create <name> [percent]
+/shipeasy:configs:create <name>
+/shipeasy:ks:create <name>
 ```
 
 ## Reading from the SDK
@@ -79,12 +81,8 @@ const ranking = configs.get("search_ranking");
 2. Ship to production. Both code paths exist; nothing changes.
 3. Ramp: `5 → 25 → 50 → 100`, watching error/latency dashboards.
 4. Once at 100% for at least one full deploy cycle, **remove the gate from
-<<<<<<<< HEAD:shipeasy/skills/shipeasy-flags/SKILL.md
-   code**.
-========
    code**. Configs/gates are not a substitute for releases; leaving them
    in forever creates branching that rots.
->>>>>>>> f82a432 (feat: consolidate 5 plugins into single shipeasy plugin):shipeasy/skills/flags/SKILL.md
 5. Archive the gate after code removal.
 
 ## Kill switch pattern
@@ -103,14 +101,6 @@ For risky launches, create a separate `kill_<feature>` gate that defaults
 
 ## Hard rules
 
-<<<<<<<< HEAD:shipeasy/skills/shipeasy-flags/SKILL.md
-- Gate **new** behavior, not old behavior. The default value is what users see
-  if KV is unreachable — make it the safe path.
-- Don't gate on PII. Targeting attributes should be coarse-grained (country,
-  plan, account age bucket).
-- Plan-level knobs (poll interval, etc.) live in `packages/core/src/config/plans.ts`,
-  not in gates/configs.
-========
 - Gate **new** behavior, not old behavior. The default value is what
   users see if KV is unreachable — make it the safe path.
 - Don't gate on PII. Targeting attributes should be coarse-grained
@@ -118,4 +108,3 @@ For risky launches, create a separate `kill_<feature>` gate that defaults
 - Plan-level knobs (poll interval, etc.) live in
   `packages/core/src/config/plans.ts`, not in gates/configs. Those are
   server-side knobs, not customer-facing.
->>>>>>>> f82a432 (feat: consolidate 5 plugins into single shipeasy plugin):shipeasy/skills/flags/SKILL.md

@@ -15,11 +15,14 @@ Steps:
 
 1. If MCP is registered, use `exp_create_gate` for typed errors:
    ```
-   mcp tool: exp_create_gate { "name": "<name>", "rollout_percent": <pct>, "default": false }
+   mcp tool: exp_create_gate { "name": "<name>", "rollout": <pct> }
    ```
+   `rollout` is a number 0–100. There is no `default` field on the gate
+   row — the safe-fallback value lives on the SDK side
+   (`gates.check(name, { default: false })`).
 2. Otherwise:
    ```bash
-   shipeasy flags create --name <name> --percent <pct>
+   shipeasy flags create <name> --rollout <pct>
    ```
 3. Show the user the SDK call sites they need to add:
    ```ts

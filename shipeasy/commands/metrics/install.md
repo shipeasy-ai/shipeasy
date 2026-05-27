@@ -45,6 +45,6 @@ Steps:
    ```
    ✅ metrics setup complete
    Modules: events ✓ [experiments ✓]
-   Next:    /shipeasy:metric:create <name> --event <event> --query '<dsl>'
+   Next:    /shipeasy:metrics:create <name> --event <event> --query '<dsl>'
             or use the `metrics` skill.
    ```

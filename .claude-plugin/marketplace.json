@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "shipeasy",
-      "description": "End-to-end Shipeasy plugin: base SDK install + auth + bind, plus experiments, metrics, gates/configs, translations, and feedback. Slash commands live at /shipeasy:setup, /shipeasy:experiment:{create,start,status,stop}, /shipeasy:experiments:install, /shipeasy:metric:{create,list,show,delete,grammar}, /shipeasy:metrics:install, /shipeasy:flag:create, /shipeasy:flags:install, /shipeasy:i18n:{extract,migrate,install}, /shipeasy:bug:report, /shipeasy:bugs:install. Registers the shipeasy MCP server. Replaces the deprecated base/experiments-metrics/configs-gates/polylang/bugs plugins.",
+      "description": "End-to-end Shipeasy plugin: base SDK install + auth + bind, plus experiments, metrics, gates, configs, kill switches, translations, and feedback. Slash commands live at /shipeasy:setup, /shipeasy:experiments:{install,create,list,start,status,update,stop,archive,delete}, /shipeasy:metrics:{install,create,list,show,delete,grammar}, /shipeasy:flags:{install,create,list,update,delete}, /shipeasy:configs:{install,create,list,update,delete}, /shipeasy:ks:{install,create,list,update,delete}, /shipeasy:i18n:{install,extract,migrate}, /shipeasy:bugs:{install,report,list,fix}, /shipeasy:feats:implement. Registers the shipeasy MCP server. Replaces the deprecated base/experiments-metrics/configs-gates/polylang/bugs plugins.",
       "source": "./shipeasy",
       "category": "feature"
     }
