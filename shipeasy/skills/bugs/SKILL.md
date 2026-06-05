@@ -74,6 +74,20 @@ Skip rule: if a bug needs information the agent can't obtain (real
 device, customer env), leave it `in_progress` with a CLI comment and
 move on.
 
+### Running it on a schedule (unattended)
+
+```
+/shipeasy:ops:create_claude_trigger
+```
+
+Provisions a GitHub Actions cron workflow (`anthropics/claude-code-action`)
+that runs the same pull → fix → `ready_for_qa` loop over **both** open
+bugs and feature requests on a cadence you choose, then opens one PR as
+`claude[bot]` and links it back to each bug — closing any connector-tracked
+GitHub issue (`Closes #N`). The command walks you through the Claude GitHub
+App install, the `ANTHROPIC_API_KEY` secret, and the Shipeasy CI
+credentials. Runs even when your machine is off; nothing auto-merges.
+
 ## Reading from the SDK
 
 There is no public SDK surface for bugs/features yet — the devtools
