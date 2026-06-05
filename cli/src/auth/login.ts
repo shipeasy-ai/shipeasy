@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { spawn } from "node:child_process";
-import { saveCredentials } from "./storage";
+import { saveCredentials, loadCredentials } from "./storage";
 import { bindProject, readProjectConfig } from "../util/project-config";
 
 function defaultApiBaseUrl(): string {
@@ -37,7 +37,45 @@ function tryOpenBrowser(url: string): void {
   }
 }
 
-export async function login(opts: { workerUrl?: string; appUrl?: string } = {}): Promise<void> {
+/**
+ * Verify the stored session token still works by fetching its own project.
+ * Returns the live session when valid, or null when there are no credentials
+ * or the token is expired/revoked (so the caller falls through to a real
+ * login). Network failures are treated as "can't confirm" → null, so a
+ * transient outage never blocks re-authentication.
+ */
+async function currentSession(): Promise<{ projectId: string; email?: string } | null> {
+  const creds = loadCredentials();
+  if (!creds) return null;
+  const baseUrl = creds.app_base_url.replace(/\/$/, "");
+  try {
+    const res = await fetch(`${baseUrl}/api/admin/projects/${creds.project_id}`, {
+      headers: { "X-SDK-Key": creds.cli_token, "X-Project-Id": creds.project_id },
+    });
+    if (!res.ok) return null;
+    return { projectId: creds.project_id, email: creds.user_email };
+  } catch {
+    return null;
+  }
+}
+
+export async function login(
+  opts: { workerUrl?: string; appUrl?: string; force?: boolean } = {},
+): Promise<void> {
+  // Idempotent by default: if a valid session already exists, do nothing so
+  // automation (and the create_claude_trigger command) can call `login`
+  // unconditionally at the start of a run. `--force` always re-authenticates.
+  if (!opts.force) {
+    const session = await currentSession();
+    if (session) {
+      console.log(
+        `Already logged in${session.email ? ` as ${session.email}` : ""}` +
+          ` (project ${session.projectId}). Use \`shipeasy login --force\` to re-authenticate.`,
+      );
+      return;
+    }
+  }
+
   const workerUrl = (opts.workerUrl ?? defaultApiBaseUrl()).replace(/\/$/, "");
   const appUrl = (opts.appUrl ?? defaultAppBaseUrl()).replace(/\/$/, "");
 
