@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { spawn } from "node:child_process";
 import { saveCredentials, loadCredentials } from "./storage";
-import { bindProject, readProjectConfig } from "../util/project-config";
+import { bindProject, readProjectConfig, getBoundProjectId } from "../util/project-config";
 
 function defaultApiBaseUrl(): string {
   return process.env.SHIPEASY_API_BASE_URL?.trim() || "https://cdn.shipeasy.ai";
@@ -60,14 +60,24 @@ async function currentSession(): Promise<{ projectId: string; email?: string } |
 }
 
 export async function login(
-  opts: { workerUrl?: string; appUrl?: string; force?: boolean } = {},
+  opts: { workerUrl?: string; appUrl?: string; force?: boolean; projectId?: string } = {},
 ): Promise<void> {
+  // Scope the login to a single project when one is known: an explicit
+  // --project wins, otherwise the project bound to cwd via `.shipeasy`
+  // (searched up the tree, like .git). When set, the browser flow offers
+  // only that project instead of the full picker. When neither is present,
+  // run the normal pick-or-create flow.
+  const projectId = opts.projectId ?? getBoundProjectId(process.cwd());
+
   // Idempotent by default: if a valid session already exists, do nothing so
   // automation (and the create_claude_trigger command) can call `login`
-  // unconditionally at the start of a run. `--force` always re-authenticates.
+  // unconditionally at the start of a run. When a specific project is
+  // requested, only short-circuit if the live session is already on it —
+  // otherwise fall through to re-scope to the requested project.
+  // `--force` always re-authenticates.
   if (!opts.force) {
     const session = await currentSession();
-    if (session) {
+    if (session && (!projectId || session.projectId === projectId)) {
       console.log(
         `Already logged in${session.email ? ` as ${session.email}` : ""}` +
           ` (project ${session.projectId}). Use \`shipeasy login --force\` to re-authenticate.`,
@@ -101,7 +111,8 @@ export async function login(
     `${appUrl}/cli-auth` +
     `?state=${encodeURIComponent(state)}` +
     `&code_challenge=${encodeURIComponent(codeChallenge)}` +
-    `&source=cli`;
+    `&source=cli` +
+    (projectId ? `&project_id=${encodeURIComponent(projectId)}` : "");
 
   console.log(`\nOpening browser for authentication:\n\n  ${authUrl}\n`);
   console.log("Paste the URL above manually if the browser does not open.\n");

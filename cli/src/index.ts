@@ -65,13 +65,17 @@ program
   .option("--worker-url <url>", "Edge worker URL (default: https://cdn.shipeasy.ai)")
   .option("--app-url <url>", "Admin app URL (default: https://shipeasy.ai)")
   .option("--force", "Re-authenticate even if a valid session already exists")
+  .option("--project <id>", "Scope login to one project (defaults to the .shipeasy-bound project)")
   .action(async (opts) => {
-    await login({ workerUrl: opts.workerUrl, appUrl: opts.appUrl, force: opts.force }).catch(
-      (err: unknown) => {
-        console.error("Login failed:", String(err));
-        process.exit(1);
-      },
-    );
+    await login({
+      workerUrl: opts.workerUrl,
+      appUrl: opts.appUrl,
+      force: opts.force,
+      projectId: opts.project,
+    }).catch((err: unknown) => {
+      console.error("Login failed:", String(err));
+      process.exit(1);
+    });
   });
 
 program
