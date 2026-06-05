@@ -58,6 +58,64 @@ interface Feature {
   createdAt: string;
 }
 
+interface Connector {
+  id: string;
+  provider: string;
+  enabled: boolean;
+  config: Record<string, unknown> | null;
+}
+
+interface GithubRepo {
+  owner: string;
+  repo: string;
+}
+
+/** Canonical GitHub pull-request URL. Mirrors core's githubPrUrl; inlined to
+ *  avoid a cross-package dependency just for one template string. */
+function githubPrUrl(owner: string, repo: string, prNumber: number): string {
+  return `https://github.com/${owner}/${repo}/pull/${prNumber}`;
+}
+
+function repoFromConfig(config: Record<string, unknown> | null | undefined): GithubRepo | null {
+  const owner = config?.owner;
+  const repo = config?.repo;
+  return typeof owner === "string" && owner && typeof repo === "string" && repo
+    ? { owner, repo }
+    : null;
+}
+
+/**
+ * Resolve the owner/repo to build a PR link against. Prefers an enabled GitHub
+ * connector, then any GitHub connector with a repo configured, then the
+ * owner/repo the connector previously stamped onto the bug's own context.
+ * Returns null when none of those yield a repo.
+ */
+async function resolveGithubRepo(
+  client: { request: <T>(method: string, path: string, body?: unknown) => Promise<T> },
+  bugId: string,
+): Promise<GithubRepo | null> {
+  try {
+    const connectors = await client.request<Connector[]>("GET", "/api/admin/connectors");
+    const github = connectors.filter((c) => c.provider === "github");
+    const enabled = github.find((c) => c.enabled && repoFromConfig(c.config));
+    const fromConnector = repoFromConfig(
+      (enabled ?? github.find((c) => repoFromConfig(c.config)))?.config,
+    );
+    if (fromConnector) return fromConnector;
+  } catch {
+    /* connectors unreadable — fall through to the bug's own context */
+  }
+  try {
+    const detail = await client.request<{ context?: { github?: Record<string, unknown> } }>(
+      "GET",
+      `/api/admin/bugs/${bugId}`,
+    );
+    return repoFromConfig(detail.context?.github);
+  } catch {
+    return null;
+  }
+}
+
 export function feedbackCommand(parent: Command): void {
   const f = parent.command("feedback").description("Manage bug reports and feature requests");
 
@@ -246,6 +304,51 @@ export function feedbackCommand(parent: Command): void {
         if (!match) throw new ApiError(`Bug not found: ${id}`, 404);
         await client.request("DELETE", `/api/admin/bugs/${match.id}`);
         console.log(`Deleted: ${match.title}`);
+      } catch (e) {
+        handleError(e);
+      }
+    });
+
+  bugs
+    .command("link-pr <bug-id> <pr-number>")
+    .description(
+      "Link a GitHub pull request to a bug. When a GitHub connector is configured, prints the PR URL.",
+    )
+    .option("--remove", "Unlink the PR instead of setting one")
+    .option("--json", "Output as JSON")
+    .option("--project <id>", "Project ID override")
+    .action(async (bugId: string, prNumberArg: string, opts) => {
+      try {
+        const client = getApiClient(opts.project, { requireBinding: true });
+        const list = await client.request<Bug[]>("GET", "/api/admin/bugs");
+        const match = list.find((b) => b.id === bugId || b.id.startsWith(bugId));
+        if (!match) throw new ApiError(`Bug not found: ${bugId}`, 404);
+
+        if (opts.remove) {
+          await client.request("PATCH", `/api/admin/bugs/${match.id}`, { githubPrNumber: null });
+          if (opts.json) return printJson({ bugId: match.id, prNumber: null, url: null });
+          return void console.log(`Unlinked PR from bug ${match.id.slice(0, 8)}.`);
+        }
+
+        const prNumber = Number(prNumberArg);
+        if (!Number.isInteger(prNumber) || prNumber <= 0) {
+          throw new ApiError(`Invalid PR number: ${prNumberArg}`, 400);
+        }
+        await client.request("PATCH", `/api/admin/bugs/${match.id}`, { githubPrNumber: prNumber });
+
+        // Build the PR URL from the configured GitHub connector's repo, falling
+        // back to whatever owner/repo the connector stamped on the bug when it
+        // opened the issue. If neither exists, the link can't be built — say so
+        // rather than guessing.
+        const repo = await resolveGithubRepo(client, match.id);
+        const url = repo ? githubPrUrl(repo.owner, repo.repo, prNumber) : null;
+        if (opts.json) return printJson({ bugId: match.id, prNumber, url });
+        console.log(`Linked PR #${prNumber} to bug ${match.id.slice(0, 8)}.`);
+        if (url) console.log(url);
+        else
+          console.log(
+            "(No GitHub connector with a configured repo — set one up to get a PR link.)",
+          );
       } catch (e) {
         handleError(e);
       }
