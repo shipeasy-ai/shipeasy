@@ -161,7 +161,7 @@ interface FeedbackResourceSpec {
   /** Positional create arg label, almost always "<title>". */
   createTitle: string;
   createFields: CreateField[];
-  /** Whether this resource supports GitHub PR linking (bugs only today). */
+  /** Whether this resource supports GitHub PR linking (bugs + features). */
   supportsPr?: boolean;
 }
 
