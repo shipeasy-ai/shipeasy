@@ -80,13 +80,13 @@ move on.
 /shipeasy:ops:create_claude_trigger
 ```
 
-Provisions a GitHub Actions cron workflow (`anthropics/claude-code-action`)
-that runs the same pull → fix → `ready_for_qa` loop over **both** open
-bugs and feature requests on a cadence you choose, then opens one PR as
-`claude[bot]` and links it back to each bug — closing any connector-tracked
-GitHub issue (`Closes #N`). The command walks you through the Claude GitHub
-App install, the `ANTHROPIC_API_KEY` secret, and the Shipeasy CI
-credentials. Runs even when your machine is off; nothing auto-merges.
+Provisions a **Claude Code scheduled routine** (via `/schedule`) that runs
+the same pull → fix → `ready_for_qa` loop over **both** open bugs and
+feature requests on a cadence you choose, then registers it as a Shipeasy
+connector so it appears in the Feedback tab and can be fired on demand. The
+routine runs in Anthropic's cloud — no GitHub Actions, runs even when your
+machine is off. The command walks you through Claude auth, the `/schedule`
+routine, and Shipeasy credentials; nothing auto-merges.
 
 ## Reading from the SDK
 

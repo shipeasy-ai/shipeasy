@@ -67,8 +67,9 @@ Each install command toggles the corresponding per-project module and
 verifies the wiring.
 
 The `ops` namespace also ships `/shipeasy:ops:create_claude_trigger` — a
-scheduled GitHub Actions cron that pulls active bugs + feature requests,
-fixes them, and opens a PR as `claude[bot]`.
+scheduled Claude Code routine (via `/schedule`, runs in Anthropic's cloud,
+no GitHub Actions) that pulls active bugs + feature requests and fixes
+them, registered as a Shipeasy connector so it shows in the Feedback tab.
 
 ## Headline workflows
 
