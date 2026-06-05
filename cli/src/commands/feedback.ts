@@ -145,9 +145,15 @@ interface CreateField {
   default?: string;
 }
 
-interface FeedbackResourceSpec {
+export interface FeedbackResourceSpec {
   /** Subcommand name + plural noun, e.g. "bugs". */
   name: string;
+  /**
+   * Registered command token, when it differs from `name`. The `ops` alias
+   * reuses these specs as flat dotted commands (`ops.bugs`, `ops.features`)
+   * while keeping `name` as the human noun used in help + messages.
+   */
+  command?: string;
   /** One-line description for `--help`. */
   description: string;
   /** Admin API collection path, e.g. "/api/admin/bugs". */
@@ -174,8 +180,8 @@ function findByIdOrPrefix<T extends FeedbackItem>(items: T[], id: string): T | u
  * `parent` (the `feedback` command). Called once per resource — bugs gain
  * `link-pr`, both gain everything else.
  */
-function defineFeedbackResource(parent: Command, spec: FeedbackResourceSpec): void {
-  const group = parent.command(spec.name).description(spec.description);
+export function defineFeedbackResource(parent: Command, spec: FeedbackResourceSpec): void {
+  const group = parent.command(spec.command ?? spec.name).description(spec.description);
   const notFound = (id: string) => new ApiError(`${spec.nounCap} not found: ${id}`, 404);
 
   // ── list ───────────────────────────────────────────────────────────────
@@ -444,7 +450,7 @@ function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-const BUGS_SPEC: FeedbackResourceSpec = {
+export const BUGS_SPEC: FeedbackResourceSpec = {
   name: "bugs",
   description: "Bug reports",
   endpoint: "/api/admin/bugs",
@@ -482,7 +488,7 @@ const BUGS_SPEC: FeedbackResourceSpec = {
   supportsPr: true,
 };
 
-const FEATURES_SPEC: FeedbackResourceSpec = {
+export const FEATURES_SPEC: FeedbackResourceSpec = {
   name: "features",
   description: "Feature requests",
   endpoint: "/api/admin/feature-requests",
@@ -521,7 +527,7 @@ export function feedbackCommand(parent: Command): void {
   defineFeedbackResource(f, FEATURES_SPEC);
 }
 
-function handleError(e: unknown): void {
+export function handleError(e: unknown): void {
   if (e instanceof ApiError) {
     console.error(`Error (${e.status}): ${e.message}`);
   } else {
