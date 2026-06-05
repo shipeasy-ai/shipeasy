@@ -30,6 +30,7 @@ marketplace/
     │   ├── ks/{install,create,list,update,delete}.md
     │   ├── i18n/{install,extract,migrate}.md
     │   ├── bugs/{install,report,list,fix}.md
+    │   ├── ops/{install,create_claude_trigger}.md
     │   └── feats/implement.md
     └── skills/                          # six area skills
         ├── setup/SKILL.md
@@ -43,7 +44,7 @@ marketplace/
 Subdirectory commands surface as `/shipeasy:<dir>:<file>`, so for
 example `commands/metrics/create.md` becomes `/shipeasy:metrics:create`.
 All command namespaces use plural nouns (`flags`, `configs`, `ks`,
-`experiments`, `metrics`, `bugs`, `i18n`).
+`experiments`, `metrics`, `bugs`, `ops`, `i18n`).
 
 ## After install
 
@@ -60,9 +61,14 @@ Plugin install registers slash commands + skills with Claude Code. It does
    - `/shipeasy:ks:install`        (kill switches — reuses the gates module)
    - `/shipeasy:i18n:install`
    - `/shipeasy:bugs:install`
+   - `/shipeasy:ops:install`       (feedback + production error collection)
 
 Each install command toggles the corresponding per-project module and
 verifies the wiring.
+
+The `ops` namespace also ships `/shipeasy:ops:create_claude_trigger` — a
+scheduled GitHub Actions cron that pulls active bugs + feature requests,
+fixes them, and opens a PR as `claude[bot]`.
 
 ## Headline workflows
 
