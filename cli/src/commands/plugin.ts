@@ -42,7 +42,7 @@ npx @shipeasy/cli plugin install
 
 ## Feature add-ons (run after base)
 
-- \`/shipeasy:bugs:install\` — in-app bug reports
+- \`/shipeasy:ops:install\` — in-app bug reports + feature requests + error collection
 - \`/shipeasy:flags:install\` — feature gates, configs, kill switches
 - \`/shipeasy:experiments:install\` — A/B experiments
 - \`/shipeasy:i18n:install\` — translations
@@ -50,18 +50,19 @@ npx @shipeasy/cli plugin install
 
   bugs: `---
 name: shipeasy-bugs
-description: Project pointer — Shipeasy feedback module is enabled here. Triggers on "bug report", "feature request", "feedback", "user-reported issue", "report a bug".
+description: Project pointer — Shipeasy feedback module is enabled here. Triggers on "bug report", "feature request", "feedback", "user-reported issue", "report a bug", "production error".
 ---
 
-# Shipeasy bug reports + feature requests (project pointer)
+# Shipeasy bug reports, feature requests + errors (project pointer)
 
-This project has the Shipeasy \`feedback\` module enabled. The full
+This project has the Shipeasy \`feedback\` module enabled and
+auto-collects production errors through the events system. The full
 skill lives in the \`shipeasy\` Claude Code plugin.
 
 ## With plugin installed
 
 - Skill: \`shipeasy-bugs\`
-- Commands: \`/shipeasy:bugs:bug\`, \`/shipeasy:bugs:fix\`, \`/shipeasy:bugs:install\`
+- Commands: \`/shipeasy:bugs:bug\`, \`/shipeasy:bugs:fix\`, \`/shipeasy:ops:install\`
 
 ## Without the plugin
 
@@ -69,7 +70,7 @@ skill lives in the \`shipeasy\` Claude Code plugin.
 claude plugin marketplace add shipeasy-ai/shipeasy
 claude plugin install shipeasy@shipeasy
 /shipeasy:install
-/shipeasy:bugs:install
+/shipeasy:ops:install
 \`\`\`
 
 Cursor / Windsurf / non-Claude harness:
@@ -89,6 +90,9 @@ shipeasy feedback bugs update <id> --status in_progress
 shipeasy feedback bugs update <id> --status ready_for_qa
 shipeasy feedback features create "Title" --description "…"
 shipeasy feedback features list
+
+shipeasy ops.errors list              # auto-tracked production errors (read-only)
+shipeasy ops.errors get <id>
 \`\`\`
 
 Status lifecycle: \`open → triaged → in_progress → ready_for_qa →
@@ -96,7 +100,9 @@ resolved\` (or \`wont_fix\`). Developers flip to \`ready_for_qa\` after
 the fix; QA flips to \`resolved\` after dashboard verification.
 
 The in-page overlay opens on any URL with \`?se=1\` appended (requires
-\`getBootstrapHtml()\` rendered into \`<head>\` by base setup).
+\`getBootstrapHtml()\` rendered into \`<head>\` by base setup). Error
+collection is on by default via the client SDK's \`autoCollect\` errors
+group — disable with \`shipeasy({ clientKey, autoCollect: { errors: false } })\`.
 `,
 
   flags: `---
@@ -386,7 +392,7 @@ export function pluginCommand(parent: Command): void {
           console.log(
             "\nPointers are breadcrumbs — they tell future contributors how to install the\n" +
               "full plugin. To activate the workflows, run the matching install slash command\n" +
-              "(`/shipeasy:install`, `/shipeasy:bugs:install`, etc.) once the plugin is loaded.",
+              "(`/shipeasy:install`, `/shipeasy:ops:install`, etc.) once the plugin is loaded.",
           );
           return;
         }
