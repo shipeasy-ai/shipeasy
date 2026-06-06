@@ -29,6 +29,9 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
 
+      # Tokenless publish uses npm's OIDC Trusted Publishing, which needs
+      # npm >= 11.5.1 — newer than the npm bundled with Node 22.
+      - run: npm install -g npm@latest
 
       # Source uses `workspace:^X.Y.Z` for cross-package refs so the monorepo
       # pnpm workspace links them locally. Outside the monorepo, those refs
@@ -65,5 +68,3 @@ jobs:
           else
             npm publish --access public --provenance
           fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
