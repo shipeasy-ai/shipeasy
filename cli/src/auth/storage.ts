@@ -2,6 +2,15 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+/**
+ * Production domains are static and not configurable — the edge worker is
+ * served at api.shipeasy.ai and the admin UI at shipeasy.ai. These match the
+ * UI's WORKER_URL and the @shipeasy/mcp defaults. Do not reintroduce env-var
+ * or flag overrides.
+ */
+export const API_BASE_URL = "https://api.shipeasy.ai";
+export const APP_BASE_URL = "https://shipeasy.ai";
+
 export interface ShipeasyConfig {
   project_id: string;
   cli_token: string;
@@ -24,10 +33,8 @@ function envCredentials(): ShipeasyConfig | null {
   return {
     project_id,
     cli_token,
-    api_base_url:
-      process.env.SHIPEASY_API_BASE_URL?.trim() || "https://cdn.shipeasy.ai",
-    app_base_url:
-      process.env.SHIPEASY_APP_BASE_URL?.trim() || "https://shipeasy.ai",
+    api_base_url: API_BASE_URL,
+    app_base_url: APP_BASE_URL,
     created_at: new Date(0).toISOString(),
   };
 }

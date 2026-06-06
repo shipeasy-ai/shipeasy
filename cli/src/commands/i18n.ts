@@ -5,6 +5,7 @@ import { scanFiles } from "@shipeasy/mcp/i18n/scan";
 import { getApiClient, ApiError } from "../api/client";
 import { printJson, printTable } from "../util/output";
 import { getI18nClientKey, saveI18nClientKey } from "../util/project-config";
+import { API_BASE_URL } from "../auth/storage";
 
 // ── env helpers ───────────────────────────────────────────────────────────────
 
@@ -138,7 +139,7 @@ export function i18nCommand(parent: Command): void {
             console.log(`Reusing existing client SDK key (from .env / .shipeasy).`);
           }
 
-          const loaderUrl = "https://cdn.shipeasy.ai/sdk/i18n/loader.js";
+          const loaderUrl = `${API_BASE_URL}/sdk/i18n/loader.js`;
           const scriptTag = `<script src="${loaderUrl}" data-key="${dataKey}" data-profile="${opts.profile}" defer></script>`;
 
           if (opts.print) {

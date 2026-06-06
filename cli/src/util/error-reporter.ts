@@ -3,10 +3,9 @@
 // fire-and-forget with a short timeout — never blocks the user's terminal.
 
 import os from "node:os";
-import { loadCredentials } from "../auth/storage";
+import { loadCredentials, API_BASE_URL } from "../auth/storage";
 
 const CLI_VERSION = "1.0.0";
-const DEFAULT_WORKER_URL = "https://cdn.shipeasy.ai";
 const REPORT_TIMEOUT_MS = 1500;
 
 const SECRET_FLAG_RE = /^--?(token|secret|password|key|api[-_]?key|auth)$/i;
@@ -51,7 +50,7 @@ function sanitizeArgv(argv: string[]): string[] {
 
 export async function reportCliError(report: CliErrorReport): Promise<void> {
   const creds = loadCredentials();
-  const workerUrl = (creds?.api_base_url ?? DEFAULT_WORKER_URL).replace(/\/$/, "");
+  const workerUrl = (creds?.api_base_url ?? API_BASE_URL).replace(/\/$/, "");
 
   const body = {
     kind: report.kind,

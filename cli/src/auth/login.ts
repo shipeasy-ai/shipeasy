@@ -1,15 +1,7 @@
 import crypto from "node:crypto";
 import { spawn } from "node:child_process";
-import { saveCredentials, loadCredentials } from "./storage";
+import { saveCredentials, loadCredentials, API_BASE_URL, APP_BASE_URL } from "./storage";
 import { bindProject, readProjectConfig, getBoundProjectId } from "../util/project-config";
-
-function defaultApiBaseUrl(): string {
-  return process.env.SHIPEASY_API_BASE_URL?.trim() || "https://cdn.shipeasy.ai";
-}
-
-function defaultAppBaseUrl(): string {
-  return process.env.SHIPEASY_APP_BASE_URL?.trim() || "https://shipeasy.ai";
-}
 
 function base64url(buf: Buffer): string {
   return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -60,7 +52,7 @@ async function currentSession(): Promise<{ projectId: string; email?: string } |
 }
 
 export async function login(
-  opts: { workerUrl?: string; appUrl?: string; force?: boolean; projectId?: string } = {},
+  opts: { force?: boolean; projectId?: string } = {},
 ): Promise<void> {
   // Scope the login to a single project when one is known: an explicit
   // --project wins, otherwise the project bound to cwd via `.shipeasy`
@@ -86,8 +78,8 @@ export async function login(
     }
   }
 
-  const workerUrl = (opts.workerUrl ?? defaultApiBaseUrl()).replace(/\/$/, "");
-  const appUrl = (opts.appUrl ?? defaultAppBaseUrl()).replace(/\/$/, "");
+  const workerUrl = API_BASE_URL;
+  const appUrl = APP_BASE_URL;
 
   const codeVerifier = base64url(crypto.randomBytes(32));
   const codeChallenge = await sha256(codeVerifier);
