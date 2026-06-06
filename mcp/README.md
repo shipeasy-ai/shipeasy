@@ -79,8 +79,6 @@ Flags:
 | ---------------- | ----------------------------------------------------------------------------------------- |
 | `--force`        | Overwrite an existing session instead of aborting.                                        |
 | `--no-browser`   | Print the auth URL; useful on remote / headless machines (paste it into a local browser). |
-| `--api-base-url` | Override worker URL. Defaults to `$SHIPEASY_API_BASE_URL` → `https://api.shipeasy.ai`.    |
-| `--app-base-url` | Override UI URL. Defaults to `$SHIPEASY_APP_BASE_URL` → `https://app.shipeasy.ai`.        |
 
 Other subcommands:
 
@@ -143,7 +141,7 @@ Every mutating tool requires a Shipeasy session. Credentials live in `~/.config/
     "project_id":   "proj_…",
     "cli_token":    "sdk_admin_…",      ← scoped to admin Route Handlers; 90-day rotation
     "api_base_url": "https://api.shipeasy.ai",
-    "app_base_url": "https://app.shipeasy.ai",
+    "app_base_url": "https://shipeasy.ai",
     "user_email":   "you@example.com",
     "created_at":   "2026-04-16T…Z"
   }

@@ -10,8 +10,6 @@ import {
 import { challengeFromVerifier, generateVerifier } from "./pkce.js";
 
 interface InstallOptions {
-  apiBaseUrl?: string;
-  appBaseUrl?: string;
   /** If true, print the browser URL instead of trying to open it. */
   noBrowser?: boolean;
   /** If true, overwrite an existing config without prompting. */
@@ -35,8 +33,8 @@ interface PollResponse {
  * the resulting config is shared between the two tools.
  */
 export async function runInstall(opts: InstallOptions = {}): Promise<number> {
-  const apiBase = opts.apiBaseUrl ?? defaultApiBaseUrl();
-  const appBase = opts.appBaseUrl ?? defaultAppBaseUrl();
+  const apiBase = defaultApiBaseUrl();
+  const appBase = defaultAppBaseUrl();
 
   const existing = await readConfig();
   if (existing && !opts.force) {

@@ -51,18 +51,18 @@ export async function clearConfig(): Promise<boolean> {
   }
 }
 
+/**
+ * Production domains are static and not configurable — the edge worker and the
+ * admin UI are served from fixed custom domains. Do not reintroduce env-var
+ * overrides here.
+ */
+export const API_BASE_URL = "https://api.shipeasy.ai";
+export const APP_BASE_URL = "https://shipeasy.ai";
+
 export function defaultApiBaseUrl(): string {
-  return (
-    process.env.SHIPEASY_API_BASE_URL?.trim() ||
-    process.env.SHIPEASY_BASE_URL?.trim() ||
-    "https://api.shipeasy.ai"
-  );
+  return API_BASE_URL;
 }
 
 export function defaultAppBaseUrl(): string {
-  return (
-    process.env.SHIPEASY_APP_BASE_URL?.trim() ||
-    process.env.SHIPEASY_UI_URL?.trim() ||
-    "https://app.shipeasy.ai"
-  );
+  return APP_BASE_URL;
 }

@@ -22,12 +22,8 @@ Usage:
 Install flags:
   --force                     Replace an existing token without prompting
   --no-browser                Print the auth URL instead of opening it
-  --api-base-url <url>        Override the worker base URL (default: $SHIPEASY_API_BASE_URL or https://api.shipeasy.ai)
-  --app-base-url <url>        Override the UI base URL (default: $SHIPEASY_APP_BASE_URL or https://app.shipeasy.ai)
 
 Env:
-  SHIPEASY_API_BASE_URL       Worker URL (used for /auth/device/*)
-  SHIPEASY_APP_BASE_URL       Next.js UI URL (used for /cli-auth)
   XDG_CONFIG_HOME             Overrides the config file location
 `;
 
@@ -74,8 +70,6 @@ async function main(): Promise<number> {
       return runInstall({
         force: !!parseFlag<boolean>(rest, "force", false),
         noBrowser: !!parseFlag<boolean>(rest, "no-browser", false),
-        apiBaseUrl: parseFlag<string>(rest, "api-base-url"),
-        appBaseUrl: parseFlag<string>(rest, "app-base-url"),
       });
     }
 
