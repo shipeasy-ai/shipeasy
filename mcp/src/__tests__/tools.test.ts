@@ -65,6 +65,31 @@ function parseResult(result: ToolResult) {
   return JSON.parse(result.content[0].text);
 }
 
+// Faithful experiments-transport mock. `resolve(name)` first GETs
+// `/experiments/<name>` — which 404s for a name in the real API (getExperiment
+// matches on id only) — then falls back to the paginated `listAll` to find it
+// by name. This mock reproduces that: name lookups 404, the list returns the
+// `{ data, next_cursor }` page shape, and get-by-id / results / status POST
+// return their fixtures.
+function expFetch(opts: {
+  detail: Record<string, unknown>;
+  list?: Record<string, unknown>[];
+  results?: unknown[];
+  status?: Record<string, unknown>;
+}) {
+  const { detail, list = [detail], results = [], status } = opts;
+  const id = detail.id as string;
+  const j = (body: unknown, ok = true, st = 200) =>
+    Promise.resolve({ ok, status: st, json: () => Promise.resolve(body) });
+  return vi.fn().mockImplementation((url: string) => {
+    if (url.includes(`/experiments/${id}/status`)) return j(status ?? detail);
+    if (url.includes("/results")) return j(results);
+    if (new RegExp(`/experiments/${id}($|\\?)`).test(url)) return j(detail); // get by id
+    if (/\/experiments\/[^/?]+$/.test(url)) return j({ error: "not found" }, false, 404); // by name → 404
+    return j({ data: list, next_cursor: null }); // listAll fallback
+  });
+}
+
 // ── helpers ─────────────────────────────────────────────────────────────────
 
 function makeTmp(): string {
@@ -153,11 +178,7 @@ describe("handleStartExperiment / handleStopExperiment", () => {
   beforeEach(() => {
     vi.stubGlobal(
       "fetch",
-      mockFetch({
-        "/api/admin/experiments/exp-1/status": { id: "exp-1", status: "running" },
-        // GET /api/admin/experiments returns the list
-        "/api/admin/experiments": experimentList,
-      }),
+      expFetch({ detail: experimentList[0], status: { id: "exp-1", status: "running" } }),
     );
   });
   afterEach(() => vi.unstubAllGlobals());
@@ -173,10 +194,7 @@ describe("handleStartExperiment / handleStopExperiment", () => {
   it("stops an experiment by name", async () => {
     vi.stubGlobal(
       "fetch",
-      mockFetch({
-        "/api/admin/experiments/exp-1/status": { id: "exp-1", status: "stopped" },
-        "/api/admin/experiments": experimentList,
-      }),
+      expFetch({ detail: experimentList[0], status: { id: "exp-1", status: "stopped" } }),
     );
     const { handleStopExperiment } = await import("../tools/exp/index.js");
     const result = await handleStopExperiment({ name: "my_exp" });
@@ -188,10 +206,7 @@ describe("handleStartExperiment / handleStopExperiment", () => {
   it("includes promote_group note when specified", async () => {
     vi.stubGlobal(
       "fetch",
-      mockFetch({
-        "/api/admin/experiments/exp-1/status": { id: "exp-1", status: "stopped" },
-        "/api/admin/experiments": experimentList,
-      }),
+      expFetch({ detail: experimentList[0], status: { id: "exp-1", status: "stopped" } }),
     );
     const { handleStopExperiment } = await import("../tools/exp/index.js");
     const result = await handleStopExperiment({ name: "my_exp", promote_group: "treatment" });
@@ -215,26 +230,7 @@ describe("handleExperimentStatus", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("returns wait verdict when no results", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockImplementation((url: string) => {
-        if (url.includes("/results")) {
-          return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) });
-        }
-        if (url.includes("/api/admin/experiments/exp-1")) {
-          return Promise.resolve({
-            ok: true,
-            status: 200,
-            json: () => Promise.resolve(experimentList[0]),
-          });
-        }
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          json: () => Promise.resolve(experimentList),
-        });
-      }),
-    );
+    vi.stubGlobal("fetch", expFetch({ detail: experimentList[0], results: [] }));
     const { handleExperimentStatus } = await import("../tools/exp/index.js");
     const result = await handleExperimentStatus({ name: "my_exp" });
     const data = parseResult(result);
@@ -244,26 +240,7 @@ describe("handleExperimentStatus", () => {
 
   it("returns ship verdict when p_value < threshold", async () => {
     const results = [{ group: "treatment", p_value: 0.01 }];
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockImplementation((url: string) => {
-        if (url.includes("/results")) {
-          return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(results) });
-        }
-        if (url.endsWith("/exp-1")) {
-          return Promise.resolve({
-            ok: true,
-            status: 200,
-            json: () => Promise.resolve(experimentList[0]),
-          });
-        }
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          json: () => Promise.resolve(experimentList),
-        });
-      }),
-    );
+    vi.stubGlobal("fetch", expFetch({ detail: experimentList[0], results }));
     const { handleExperimentStatus } = await import("../tools/exp/index.js");
     const result = await handleExperimentStatus({ name: "my_exp" });
     const data = parseResult(result);
@@ -272,18 +249,7 @@ describe("handleExperimentStatus", () => {
 
   it("returns not_running when experiment is stopped", async () => {
     const stopped = { ...experimentList[0], status: "stopped" };
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockImplementation((url: string) => {
-        if (url.includes("/results")) {
-          return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) });
-        }
-        if (url.endsWith("/exp-1")) {
-          return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(stopped) });
-        }
-        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([stopped]) });
-      }),
-    );
+    vi.stubGlobal("fetch", expFetch({ detail: stopped, results: [] }));
     const { handleExperimentStatus } = await import("../tools/exp/index.js");
     const result = await handleExperimentStatus({ name: "my_exp" });
     const data = parseResult(result);
