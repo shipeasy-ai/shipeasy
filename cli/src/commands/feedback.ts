@@ -45,11 +45,11 @@ const BUG_STATUSES = [
   "wont_fix",
 ] as const;
 
-const BUG_PRIORITIES = ["low", "medium", "high", "critical"] as const;
+// Bugs and feature requests share one status set and one priority set; only the
+// `type` and the free-text fields differ. Lowest priority tier is `nice_to_have`.
+const BUG_PRIORITIES = ["nice_to_have", "medium", "high", "critical"] as const;
 
-const FEATURE_REQUEST_STATUSES = ["open", "considering", "planned", "shipped", "declined"] as const;
-
-const FEATURE_REQUEST_IMPORTANCES = ["nice_to_have", "important", "critical"] as const;
+const FEATURE_REQUEST_STATUSES = BUG_STATUSES;
 
 interface Connector {
   id: string;
@@ -114,12 +114,11 @@ async function resolveGithubRepo(
 // Bugs and feature requests are the same kind of thing — a titled, status-
 // tracked piece of feedback with attachments — so they expose an identical
 // command surface (list / get / update / create / delete / attachments). The
-// only differences are declarative: which endpoint, which status enum, what
-// the secondary classification field is called (bug `priority` vs feature
-// `importance`), and which fields `create` accepts. Everything below is built
+// only differences are declarative: which endpoint and which free-text fields
+// `create` accepts. Status and priority are shared. Everything below is built
 // once from this descriptor so the two resources can never drift apart.
 
-/** A secondary single-value classification filter (priority / importance). */
+/** A secondary single-value classification filter (the shared `priority`). */
 interface ClassAttr {
   /** Commander option spec, e.g. "--priority <priority>". */
   flag: string;
@@ -495,12 +494,13 @@ export const FEATURES_SPEC: FeedbackResourceSpec = {
   noun: "feature request",
   nounCap: "Feature request",
   statuses: FEATURE_REQUEST_STATUSES,
+  // Shared with bugs (was `importance`). Set via `update --priority`, like bugs.
   attr: {
-    flag: "--importance <level>",
-    optionKey: "importance",
-    field: "importance",
-    values: FEATURE_REQUEST_IMPORTANCES,
-    label: "importance",
+    flag: "--priority <priority>",
+    optionKey: "priority",
+    field: "priority",
+    values: BUG_PRIORITIES,
+    label: "priority",
   },
   createTitle: "<title>",
   createFields: [
@@ -511,12 +511,6 @@ export const FEATURES_SPEC: FeedbackResourceSpec = {
       required: true,
     },
     { flag: "--use-case <text>", description: "Use case", bodyKey: "useCase", required: true },
-    {
-      flag: "--importance <level>",
-      description: "nice_to_have | important | critical",
-      bodyKey: "importance",
-      default: "nice_to_have",
-    },
   ],
   supportsPr: true,
 };
