@@ -483,7 +483,7 @@ export const TOOLS: Tool[] = [
   {
     name: "i18n_push_keys",
     description:
-      "Bulk upload keys to a profile chunk. Pass 'source: codemod' to read from i18n-codemod-review.json, or 'file' for any {key: value} JSON file.",
+      "Add NEW keys to a profile chunk. Insert-only: existing keys are never overwritten — they come back under `skipped`, and only new keys are added. Pass 'source: codemod' to read from i18n-codemod-review.json, or 'file' for any {key: value} JSON file. To change an existing value, update one key at a time via the dashboard or `shipeasy i18n update`.",
     inputSchema: {
       type: "object",
       required: ["profile"],
@@ -503,7 +503,7 @@ export const TOOLS: Tool[] = [
   {
     name: "i18n_create_key",
     description:
-      "Create or update a single key in a profile. Use for adding descriptions to existing keys.",
+      "Add a single new key to a profile. Insert-only: if the key already exists it is left unchanged (never overwritten).",
     inputSchema: {
       type: "object",
       required: ["profile", "key", "value"],

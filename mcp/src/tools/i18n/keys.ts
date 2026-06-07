@@ -12,9 +12,10 @@ interface KeyItem {
 }
 
 interface PushResult {
+  added: string[];
+  skipped: string[];
   pushed_count: number;
   skipped_count: number;
-  failed_keys: string[];
 }
 
 async function pushBatch(
@@ -92,25 +93,32 @@ export async function handlePushKeys(input: {
   }
 
   try {
-    let totalPushed = 0;
-    let totalSkipped = 0;
-    const totalFailed: string[] = [];
+    // Insert-only push: the server adds keys that don't exist yet and returns
+    // them under `added`; keys that already exist are returned under `skipped`
+    // and left untouched (push never overwrites a live value).
+    const added: string[] = [];
+    const skipped: string[] = [];
     const chunkSummary: Record<string, number> = {};
 
     for (const group of chunkedKeys) {
       if (group.keys.length === 0) continue;
       const result = await pushBatch(client, profileId, group.chunk, group.keys);
-      totalPushed += result.pushed_count ?? 0;
-      totalSkipped += result.skipped_count ?? 0;
-      if (Array.isArray(result.failed_keys)) totalFailed.push(...result.failed_keys);
+      if (Array.isArray(result.added)) added.push(...result.added);
+      if (Array.isArray(result.skipped)) skipped.push(...result.skipped);
       chunkSummary[group.chunk] = (chunkSummary[group.chunk] ?? 0) + group.keys.length;
     }
 
     return ok({
-      pushed_count: totalPushed,
-      skipped_count: totalSkipped,
-      failed_keys: totalFailed,
+      added,
+      skipped,
+      pushed_count: added.length,
+      skipped_count: skipped.length,
       chunks: chunkSummary,
+      note:
+        skipped.length > 0
+          ? "Existing keys were left unchanged — push only adds new keys. To change a value, " +
+            "update one key at a time via the dashboard or `shipeasy i18n update <key> <value>`."
+          : undefined,
     });
   } catch (err) {
     return apiErr(err);
@@ -135,7 +143,17 @@ export async function handleCreateKey(input: {
     const result = await pushBatch(client, profileId, input.chunk ?? "default", [
       { key: input.key, value: input.value, description: input.description },
     ]);
-    return ok(result);
+    // Insert-only: a key that already exists comes back under `skipped`.
+    const created = Array.isArray(result.added) && result.added.includes(input.key);
+    return ok({
+      ...result,
+      created,
+      note: created
+        ? undefined
+        : `Key '${input.key}' already exists and was left unchanged — create/push never ` +
+          "overwrites. Change its value one key at a time via the dashboard or " +
+          "`shipeasy i18n update <key> <value>`.",
+    });
   } catch (err) {
     return apiErr(err);
   }
