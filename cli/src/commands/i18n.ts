@@ -268,8 +268,10 @@ export function i18nCommand(parent: Command): void {
   i18n
     .command("push <file>")
     .description(
-      "Push key/value pairs from a JSON file to the i18n profile. The file is a flat " +
-        '{ "<key>": "<value>" } map. Existing keys are skipped server-side.',
+      "Add NEW keys from a JSON file to the i18n profile. The file is a flat " +
+        '{ "<key>": "<value>" } map. This only ADDS keys that do not already exist — ' +
+        "existing keys are never overwritten. To change a value, update one key at a " +
+        "time with `shipeasy i18n update <key> <value>`.",
     )
     .requiredOption("--profile <name>", "Profile name (e.g. 'default')")
     .option("--chunk <name>", "Logical grouping for the keys", "default")
@@ -316,37 +318,33 @@ export function i18nCommand(parent: Command): void {
 
           // Chunk the upload — large key sets (>200 keys / >50KB payload)
           // tend to 500 against admin endpoints. Send in slices of 100 and
-          // aggregate counts. Each batch is still a single transaction
+          // aggregate results. Each batch is still a single transaction
           // server-side; if any fails the CLI reports which slice errored.
           const BATCH = 100;
           const slices: (typeof keys)[] = [];
           for (let i = 0; i < keys.length; i += BATCH) slices.push(keys.slice(i, i + BATCH));
 
-          let upserted = 0;
-          let pushed_count = 0;
-          let skipped_count = 0;
+          // The push endpoint is insert-only: it returns the keys it actually
+          // added (new) and the ones it skipped (already exist — left untouched).
+          const added: string[] = [];
+          const skipped: string[] = [];
           const failed_keys: string[] = [];
-          let lastResult: unknown;
 
           for (let i = 0; i < slices.length; i++) {
             const batch = slices[i]!;
             try {
               const result = await client.request<{
-                upserted?: number;
-                chunk?: string;
+                added?: string[];
+                skipped?: string[];
                 pushed_count?: number;
                 skipped_count?: number;
-                failed_keys?: string[];
               }>("POST", "/api/admin/i18n/keys", {
                 profile_id: profile.id,
                 chunk: opts.chunk,
                 keys: batch,
               });
-              lastResult = result;
-              upserted += result.upserted ?? 0;
-              pushed_count += result.pushed_count ?? 0;
-              skipped_count += result.skipped_count ?? 0;
-              if (result.failed_keys) failed_keys.push(...result.failed_keys);
+              if (result.added) added.push(...result.added);
+              if (result.skipped) skipped.push(...result.skipped);
             } catch (err) {
               const status = err instanceof ApiError ? err.status : 0;
               const msg = err instanceof Error ? err.message : String(err);
@@ -359,26 +357,100 @@ export function i18nCommand(parent: Command): void {
             }
           }
 
-          if (opts.json)
-            return printJson(lastResult ?? { upserted, pushed_count, skipped_count, failed_keys });
-          const total = upserted || pushed_count || keys.length - failed_keys.length;
-          const summary =
-            slices.length > 1
-              ? `Pushed ${total}/${keys.length} keys across ${slices.length} batches`
-              : `Pushed ${total} key${total === 1 ? "" : "s"}`;
-          console.log(
-            summary +
-              (failed_keys.length > 0
-                ? `, ${failed_keys.length} failed${failed_keys.length <= 5 ? `: ${failed_keys.join(", ")}` : ""}`
-                : ""),
-          );
-          if (failed_keys.length > 0) process.exit(1);
+          if (opts.json) return printJson({ added, skipped, failed_keys });
+
+          if (added.length > 0) {
+            console.log(`Added ${added.length} new key${added.length === 1 ? "" : "s"}:`);
+            for (const k of added) console.log(`  + ${k}`);
+          } else {
+            console.log("No new keys to add.");
+          }
+          if (skipped.length > 0) {
+            console.log(
+              `\n${skipped.length} existing key${skipped.length === 1 ? "" : "s"} left unchanged ` +
+                "(push never overwrites values — use `shipeasy i18n update <key> <value>`):",
+            );
+            for (const k of skipped) console.log(`  · ${k}`);
+          }
+          if (failed_keys.length > 0) {
+            console.error(`\n${failed_keys.length} key(s) failed to push.`);
+            process.exit(1);
+          }
         } catch (e) {
           if (e instanceof ApiError) {
             console.error(`Error (${e.status}): ${e.message}`);
           } else {
             console.error(String(e));
           }
+          process.exit(1);
+        }
+      },
+    );
+
+  // ── i18n update ──────────────────────────────────────────────────────────────
+  i18n
+    .command("update <key> <value>")
+    .description(
+      "Update the value of a single existing key. `push` only adds new keys; " +
+        "use this to change a value (one key per call).",
+    )
+    .requiredOption("--profile <name>", "Profile name (e.g. 'en:prod')")
+    .option("--description <text>", "Optional description to store with the key")
+    .option("--json", "Output as JSON")
+    .option("--project <id>", "Project ID override")
+    .action(
+      async (
+        key: string,
+        value: string,
+        opts: { profile: string; description?: string; json?: boolean; project?: string },
+      ) => {
+        try {
+          const client = getApiClient(opts.project, { requireBinding: true });
+          const profiles = await client.request<Array<{ id: string; name: string }>>(
+            "GET",
+            "/api/admin/i18n/profiles",
+          );
+          const profile = profiles.find((p) => p.name === opts.profile);
+          if (!profile) {
+            console.error(
+              `Profile '${opts.profile}' not found. Existing: ${
+                profiles.map((p) => p.name).join(", ") || "(none)"
+              }`,
+            );
+            process.exit(1);
+          }
+
+          // Resolve the key's id by name. `prefix=` returns the exact key (and
+          // any dot-children); we filter for the exact match.
+          const listed = await client.request<
+            { keys: Array<{ id: string; key: string }> } | Array<{ id: string; key: string }>
+          >(
+            "GET",
+            `/api/admin/i18n/keys?profile_id=${profile.id}&prefix=${encodeURIComponent(key)}&limit=500`,
+          );
+          const rows = Array.isArray(listed) ? listed : listed.keys;
+          const match = rows.find((k) => k.key === key);
+          if (!match) {
+            console.error(
+              `Key '${key}' not found in profile '${opts.profile}'. ` +
+                "Add it first with `shipeasy i18n push`.",
+            );
+            process.exit(1);
+          }
+
+          const result = await client.request<{ id: string }>(
+            "PUT",
+            `/api/admin/i18n/keys/${match.id}`,
+            {
+              value,
+              ...(opts.description !== undefined ? { description: opts.description } : {}),
+            },
+          );
+          if (opts.json) return printJson(result);
+          console.log(`Updated '${key}' in profile '${opts.profile}'.`);
+        } catch (e) {
+          if (e instanceof ApiError) console.error(`Error (${e.status}): ${e.message}`);
+          else console.error(String(e));
           process.exit(1);
         }
       },
