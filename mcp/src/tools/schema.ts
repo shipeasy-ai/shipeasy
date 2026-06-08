@@ -79,7 +79,7 @@ export const TOOLS: Tool[] = [
   {
     name: "list_resources",
     description:
-      "Unified listing across gates, configs, experiments, events, metrics, universes, attributes, i18n profiles/chunks/keys/drafts, and sdk_keys.",
+      "Unified listing across gates, configs, experiments, events, metrics, alert_rules, universes, attributes, i18n profiles/chunks/keys/drafts, and sdk_keys.",
     inputSchema: {
       type: "object",
       required: ["kind"],
@@ -92,6 +92,7 @@ export const TOOLS: Tool[] = [
             "experiments",
             "events",
             "metrics",
+            "alert_rules",
             "universes",
             "attributes",
             "profiles",
@@ -442,6 +443,68 @@ export const TOOLS: Tool[] = [
       type: "object",
       required: ["name"],
       properties: { name: { type: "string" } },
+    },
+  },
+
+  // ────────────────────────── alert rules ──────────────────────────
+  // Metric-threshold rules the cron evaluates to raise alerts. The `metric`
+  // (and its aggregation) is fixed at create time — `exp_update_alert_rule`
+  // exposes no metric field. To list existing rules + their ids, use
+  // `list_resources { kind: "alert_rules" }`.
+  {
+    name: "exp_create_alert_rule",
+    description:
+      "Create a metric-threshold alert rule. The cron aggregates the metric over the trailing window and raises an alert at `severity` when `value <comparator> threshold` holds. The metric (and its aggregation) is fixed for the rule's life.",
+    inputSchema: {
+      type: "object",
+      required: ["name", "metric", "comparator", "threshold"],
+      properties: {
+        name: { type: "string", description: "Human label shown on the rule and raised alert." },
+        metric: { type: "string", description: "Metric id or name to evaluate." },
+        comparator: {
+          type: "string",
+          enum: ["gt", "gte", "lt", "lte"],
+          description: "How the metric value is compared to `threshold`.",
+        },
+        threshold: { type: "number", description: "Threshold the metric value is compared against." },
+        window_hours: {
+          type: "number",
+          description: "Lookback window in whole hours (1–720). Default 24.",
+        },
+        severity: {
+          type: "string",
+          enum: ["danger", "warn", "info"],
+          description: "Severity of the raised alert. Default 'warn'.",
+        },
+        enabled: { type: "boolean", description: "Whether the cron evaluates it. Default true." },
+      },
+    },
+  },
+  {
+    name: "exp_update_alert_rule",
+    description:
+      "Update an alert rule's tunable knobs (threshold, comparator, window, severity, name, enabled). The metric is immutable — delete + recreate to repoint a rule at a different metric.",
+    inputSchema: {
+      type: "object",
+      required: ["id"],
+      properties: {
+        id: { type: "string", description: "Alert rule id, id-prefix, or unique name." },
+        name: { type: "string" },
+        comparator: { type: "string", enum: ["gt", "gte", "lt", "lte"] },
+        threshold: { type: "number" },
+        window_hours: { type: "number", description: "Whole hours, 1–720." },
+        severity: { type: "string", enum: ["danger", "warn", "info"] },
+        enabled: { type: "boolean" },
+      },
+    },
+  },
+  {
+    name: "exp_delete_alert_rule",
+    description: "Delete an alert rule by id, id-prefix, or unique name.",
+    inputSchema: {
+      type: "object",
+      required: ["id"],
+      properties: { id: { type: "string" } },
     },
   },
 

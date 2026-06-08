@@ -133,6 +133,70 @@ describe("handleCreateGate", () => {
   });
 });
 
+describe("handleCreateAlertRule", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch({
+        "/api/admin/metrics": [{ id: "met-1", name: "checkout_error_rate" }],
+        "/api/admin/alert-rules": { id: "ar-1" },
+      }),
+    );
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("resolves the metric by name and creates the rule", async () => {
+    const { handleCreateAlertRule } = await import("../tools/exp/index.js");
+    const result = await handleCreateAlertRule({
+      name: "Checkout errors",
+      metric: "checkout_error_rate",
+      comparator: "gt",
+      threshold: 0,
+    });
+    expect((result as ToolResult).isError).toBeUndefined();
+    expect(parseResult(result).id).toBe("ar-1");
+  });
+
+  it("errors when the metric can't be resolved", async () => {
+    const { handleCreateAlertRule } = await import("../tools/exp/index.js");
+    const result = await handleCreateAlertRule({
+      name: "x",
+      metric: "does_not_exist",
+      comparator: "gt",
+      threshold: 0,
+    });
+    expect((result as ToolResult).isError).toBe(true);
+    expect(result.content[0].text).toContain("not found");
+  });
+});
+
+describe("handleUpdateAlertRule", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch({
+        "/api/admin/alert-rules/ar-1": { id: "ar-1" },
+        "/api/admin/alert-rules": [{ id: "ar-1", name: "Checkout errors", metricId: "met-1" }],
+      }),
+    );
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("resolves by id and patches tunable knobs", async () => {
+    const { handleUpdateAlertRule } = await import("../tools/exp/index.js");
+    const result = await handleUpdateAlertRule({ id: "ar-1", threshold: 5, severity: "danger" });
+    expect((result as ToolResult).isError).toBeUndefined();
+    expect(parseResult(result).id).toBe("ar-1");
+  });
+
+  it("errors on an empty patch", async () => {
+    const { handleUpdateAlertRule } = await import("../tools/exp/index.js");
+    const result = await handleUpdateAlertRule({ id: "ar-1" });
+    expect((result as ToolResult).isError).toBe(true);
+    expect(result.content[0].text).toContain("Nothing to update");
+  });
+});
+
 describe("handleCreateExperiment", () => {
   beforeEach(() => {
     vi.stubGlobal(

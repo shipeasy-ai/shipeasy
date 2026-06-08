@@ -31,6 +31,9 @@ export const EXPERIMENT_TOOL_NAMES = [
   "exp_delete_experiment",
   "exp_start_experiment",
   "exp_stop_experiment",
+  "exp_create_alert_rule",
+  "exp_update_alert_rule",
+  "exp_delete_alert_rule",
 ] as const;
 
 export type ExperimentToolName = (typeof EXPERIMENT_TOOL_NAMES)[number];

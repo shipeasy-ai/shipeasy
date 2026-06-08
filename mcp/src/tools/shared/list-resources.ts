@@ -6,6 +6,7 @@ type Kind =
   | "experiments"
   | "events"
   | "metrics"
+  | "alert_rules"
   | "universes"
   | "attributes"
   | "profiles"
@@ -21,6 +22,7 @@ const KIND_PATH: Partial<Record<Kind, string>> = {
   experiments: "/api/admin/experiments",
   events: "/api/admin/events",
   metrics: "/api/admin/metrics",
+  alert_rules: "/api/admin/alert-rules",
   universes: "/api/admin/universes",
   attributes: "/api/admin/attributes",
   profiles: "/api/admin/i18n/profiles",

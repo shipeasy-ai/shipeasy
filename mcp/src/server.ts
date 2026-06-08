@@ -47,6 +47,9 @@ import {
   handleStartExperiment,
   handleStopExperiment,
   handleExperimentStatus,
+  handleCreateAlertRule,
+  handleUpdateAlertRule,
+  handleDeleteAlertRule,
 } from "./tools/exp/index.js";
 
 const SERVER_NAME = "shipeasy";
@@ -226,6 +229,18 @@ export async function startStdioServer(): Promise<void> {
     if (toolName === "exp_experiment_status") {
       const args = params.arguments ?? {};
       return handleExperimentStatus(args as Parameters<typeof handleExperimentStatus>[0]);
+    }
+    if (toolName === "exp_create_alert_rule") {
+      const args = params.arguments ?? {};
+      return handleCreateAlertRule(args as Parameters<typeof handleCreateAlertRule>[0]);
+    }
+    if (toolName === "exp_update_alert_rule") {
+      const args = params.arguments ?? {};
+      return handleUpdateAlertRule(args as Parameters<typeof handleUpdateAlertRule>[0]);
+    }
+    if (toolName === "exp_delete_alert_rule") {
+      const args = params.arguments ?? {};
+      return handleDeleteAlertRule(args as Parameters<typeof handleDeleteAlertRule>[0]);
     }
     if (toolName === "auth_login") {
       return {
