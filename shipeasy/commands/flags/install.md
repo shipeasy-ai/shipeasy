@@ -12,6 +12,8 @@ turns on every "decide-at-runtime" feature module in one pass:
 - **experiments** — A/B assignment (`experiments.assign`)
 - **events** — the event stream that powers metrics + experiment success
   criteria (`events.track`)
+- **alert rules** — metric-threshold rules the cron evaluates to raise alerts
+  (built on top of `events` + `metrics`; no separate module toggle)
 
 There is no longer a per-feature install for each of these — this command
 replaces the old `/shipeasy:configs:install`, `/shipeasy:ks:install`,
@@ -67,6 +69,7 @@ Steps:
    shipeasy ks list           # [] or rows
    shipeasy experiments list  # [] or rows
    shipeasy metrics list      # [] or rows
+   shipeasy alert-rules list  # [] or rows
    ```
 
 5. Print the hand-off:
@@ -80,5 +83,6 @@ Steps:
      /shipeasy:ks:create <folder.name>                  # standalone kill switch
      /shipeasy:experiments:create <name>                # design + draft an A/B test
      /shipeasy:metrics:create <name> --event <e> --query '<dsl>'
+     /shipeasy:alerts:create <name> --metric <m> --comparator gt --threshold <n>
    Or use the `flags`, `experiments`, or `metrics` skills.
    ```
