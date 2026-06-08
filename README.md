@@ -49,12 +49,21 @@ Two cross-cutting rules shape the command set:
 - **Three install sections only.** `/shipeasy:flags:install` (gates +
   configs + kill switches + experiments + events), `/shipeasy:ops:install`
   (feedback + production errors + alerts), `/shipeasy:i18n:install`
-  (translations). There are no per-feature `configs:install`,
-  `ks:install`, `experiments:install`, `metrics:install`, or
-  `bugs:install` commands anymore.
+  (translations). The per-feature `configs:install`, `ks:install`,
+  `experiments:install`, `metrics:install`, and `bugs:install` are gone as
+  real commands.
 - **No delete commands.** Deletions happen in the dashboard UI. The plugin
-  ships no `:delete` verb for any resource, and the work loops never
-  delete a record.
+  ships no functional `:delete` verb for any resource, and the work loops
+  never delete a record.
+- **Deprecated names still resolve.** Every removed/renamed command
+  (`*:install`, `*:delete`, `ks:update`, `bugs:{install,list,report,fix}`,
+  `feats:implement`) is kept as a one-line **redirect stub** — invoking it
+  tells you to update the CLI/plugin and points at the replacement
+  (e.g. `bugs:fix` → `ops:work`, `ks:update` → `ks:toggle_switch`,
+  any `*:delete` → the dashboard). This is the "update-first" recovery path:
+  when a command behaves oddly, `npm i -g @shipeasy/cli@latest` +
+  `/plugin marketplace update shipeasy` → `/plugin install shipeasy@shipeasy`
+  before deeper debugging.
 
 ## After install
 

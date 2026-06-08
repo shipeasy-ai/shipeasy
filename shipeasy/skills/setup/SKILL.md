@@ -19,6 +19,22 @@ covers feedback + production errors + alerts. Run this skill **first**.
 
 ---
 
+## First fix: update before you debug
+
+Most failures here — `unknown command` / `unknown option`, a missing
+subcommand, an unexpected `400`/`404`, or something that worked before — are
+**version drift**: the CLI or plugin is older than the feature being invoked.
+Before deeper debugging, update to latest and retry once:
+
+- **CLI:** `npm i -g @shipeasy/cli@latest` (or one-off: `npx @shipeasy/cli@latest <cmd>`).
+- **Plugin (skills + slash commands):** `/plugin marketplace update shipeasy`
+  then `/plugin install shipeasy@shipeasy`. There is no `claude plugin update`;
+  or open `/plugin` and enable auto-update on the `shipeasy` marketplace.
+- **MCP server:** pinned to `@shipeasy/mcp@latest` — restart the session to
+  pick up a new release.
+
+Only treat it as a real bug if it still fails on the latest CLI **and** plugin.
+
 ## Operating rules (read before doing anything)
 
 1. **Use the Bash tool for every CLI command.** Never instruct the user
