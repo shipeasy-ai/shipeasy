@@ -10,8 +10,9 @@ to look at the codebase, propose options, confirm with `AskUserQuestion`,
 then provision everything.
 
 Prereqs: `.shipeasy` bound, `experiments` + `events` modules enabled
-(run `/shipeasy:experiments:install` + `/shipeasy:metrics:install` if
-not). Experiment `<name>` taken from `$ARGUMENTS`; if blank, ask.
+(run `/shipeasy:flags:install` if not — it turns on gates, configs,
+events, and experiments together). Experiment `<name>` taken from
+`$ARGUMENTS`; if blank, ask.
 
 ## Phase 1 — locate variation points in the user's code
 

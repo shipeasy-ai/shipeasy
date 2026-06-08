@@ -140,7 +140,7 @@ Steps:
      npx -y @shipeasy/cli feedback features list --json
    Sort bugs by priority (critical > high > medium > low > null), then
    oldest first. Treat features as lower priority than bugs.
-2. For each item, follow the `/shipeasy:bugs:fix` discipline:
+2. For each item, follow the `/shipeasy:ops:work` discipline:
    - `feedback bugs update <id> --status in_progress`
    - Read its full detail with `feedback bugs get <id> --json`.
    - Fix the ROOT CAUSE only — no drive-by refactors, no swallowing errors.

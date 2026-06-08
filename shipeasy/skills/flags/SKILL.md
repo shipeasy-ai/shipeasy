@@ -13,8 +13,9 @@ same call shape, fed by `@shipeasy/sdk`.
 
 ## Enabling on a project
 
-`/shipeasy:flags:install` (or `shipeasy modules enable gates && shipeasy
-modules enable configs`).
+`/shipeasy:flags:install` (the one platform install — folds gates, configs,
+kill switches, experiments, and events) or
+`shipeasy modules enable gates && shipeasy modules enable configs`.
 
 ## Creating
 

@@ -38,12 +38,10 @@ Steps in brief (full detail in the skill):
 7. Verify: `shipeasy whoami`, `shipeasy keys list`, per-subproject build.
 8. Print the hand-off report and stop. **Do not run `git commit`.**
 
-When done, point the user at the per-feature install commands:
+When done, point the user at the three install sections:
 
 ```
-/shipeasy:experiments:install
-/shipeasy:metrics:install
-/shipeasy:flags:install
-/shipeasy:i18n:install
-/shipeasy:bugs:install
+/shipeasy:flags:install   # gates + configs + kill switches + experiments + events
+/shipeasy:ops:install     # feedback (bugs + feature requests) + errors + alerts
+/shipeasy:i18n:install    # translations
 ```

@@ -3,7 +3,11 @@ description: Enable the feedback module + error collection, verify the devtools 
 ---
 
 Run the ops-module setup for Shipeasy — the in-app feedback overlay
-(bug reports + feature requests) plus auto-collected production errors.
+(bug reports + feature requests), auto-collected production errors, and
+metric-threshold alerts. This is one of the three install sections
+(`ops` / `flags` / `i18n`) and is the single feedback install — it
+replaces the old per-feature `/shipeasy:bugs:install`.
+
 Prereq: `/shipeasy:setup` already ran successfully and `.shipeasy`
 exists at the repo root.
 
@@ -92,7 +96,7 @@ Steps:
    ## With plugin installed
 
    - Skill: `shipeasy-bugs`
-   - Commands: `/shipeasy:bugs:report`, `/shipeasy:bugs:fix`, `/shipeasy:ops:install`
+   - Commands: `/shipeasy:ops:report`, `/shipeasy:ops:list`, `/shipeasy:ops:work`, `/shipeasy:ops:install`
 
    ## Without the plugin
 
@@ -101,6 +105,8 @@ Steps:
    claude plugin install shipeasy@shipeasy
    /shipeasy:setup            # if not already onboarded
    /shipeasy:ops:install        # enables feedback + error collection + verifies overlay
+   /shipeasy:ops:list           # list bugs / features / errors / alerts (--type filter)
+   /shipeasy:ops:work           # burn down bugs + features + errors + alerts, one-by-one
    ```
 
    Cursor / Windsurf / non-Claude harness:
@@ -143,8 +149,9 @@ Steps:
    Wired:    devtools overlay (?se=1 on any page rendering getBootstrapHtml)
              auto error capture (__auto_js_error / __auto_network_error → /collect)
    Pointer:  .claude/skills/shipeasy-bugs/SKILL.md
-   Next:     /shipeasy:bugs:report "<title>"   — file a single report
-             /shipeasy:bugs:fix             — burn down the open queue
-             shipeasy ops.errors list       — triage tracked production errors
+   Next:     /shipeasy:ops:report bug "<title>"  — file a single bug/feature
+             /shipeasy:ops:list --type bug       — list bugs/features/errors/alerts
+             /shipeasy:ops:work                  — burn down bugs+features+errors+alerts
+             shipeasy ops.errors list            — triage tracked production errors
              or have end users submit via the in-page Report panel.
    ```

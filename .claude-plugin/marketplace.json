@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "shipeasy",
-      "description": "End-to-end Shipeasy plugin: base SDK install + auth + bind, plus experiments, metrics, gates, configs, kill switches, translations, and feedback. Slash commands live at /shipeasy:setup, /shipeasy:experiments:{install,create,list,start,status,update,stop,archive,delete}, /shipeasy:metrics:{install,create,list,show,delete,grammar}, /shipeasy:flags:{install,create,list,update,delete}, /shipeasy:configs:{install,create,list,update,delete}, /shipeasy:ks:{install,create,list,update,delete}, /shipeasy:i18n:{install,extract,migrate}, /shipeasy:bugs:{install,report,list,fix}, /shipeasy:ops:{install,create_claude_trigger}, /shipeasy:feats:implement. Registers the shipeasy MCP server. Replaces the deprecated base/experiments-metrics/configs-gates/polylang/bugs plugins.",
+      "description": "End-to-end Shipeasy plugin: base SDK install + auth + bind, plus experiments, metrics, gates, configs, kill switches, translations, and feedback. Three install sections — /shipeasy:ops:install, /shipeasy:flags:install (gates+configs+ks+experiments+events), /shipeasy:i18n:install. Slash commands live at /shipeasy:setup, /shipeasy:experiments:{create,list,start,status,update,stop,archive}, /shipeasy:metrics:{create,list,show,grammar}, /shipeasy:flags:{install,create,list,update}, /shipeasy:configs:{create,list,update}, /shipeasy:ks:{create,list,toggle_switch}, /shipeasy:i18n:{install,extract,migrate}, /shipeasy:ops:{install,list,report,work,create_claude_trigger}. Deletions are UI-only — no delete commands ship. Registers the shipeasy MCP server. Replaces the deprecated base/experiments-metrics/configs-gates/polylang/bugs plugins.",
       "source": "./shipeasy",
       "category": "feature"
     }

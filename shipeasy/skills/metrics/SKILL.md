@@ -1,6 +1,6 @@
 ---
 name: metrics
-description: Create, inspect, and delete Shipeasy custom event metrics. Trigger on "create metric", "track metric", "metric DSL", "event metric", "success metric definition", "what metrics do we have".
+description: Create and inspect Shipeasy custom event metrics (deletion is UI-only). Trigger on "create metric", "track metric", "metric DSL", "event metric", "success metric definition", "what metrics do we have".
 user-invocable: true
 ---
 
@@ -193,8 +193,11 @@ metrics over the wrong event are the most common avoidable mistake.
 shipeasy metrics list             # all metrics
 shipeasy metrics show <id>        # one metric
 shipeasy metrics grammar          # DSL reference
-shipeasy metrics delete <id>      # soft-delete (rejected while referenced by a running experiment)
 ```
+
+Deleting a metric is **UI-only** — remove it from the dashboard (the
+plugin ships no delete command). The dashboard refuses while the metric
+is referenced by a running experiment; stop the experiment first.
 
 Slash equivalents:
 
@@ -202,7 +205,6 @@ Slash equivalents:
 /shipeasy:metrics:create <name> --event <event> --query '<dsl>'
 /shipeasy:metrics:list
 /shipeasy:metrics:show <id>
-/shipeasy:metrics:delete <id>
 /shipeasy:metrics:grammar
 ```
 

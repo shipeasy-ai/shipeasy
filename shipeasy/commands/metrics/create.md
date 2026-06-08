@@ -9,8 +9,8 @@ Prereqs:
 
 - `base@shipeasy` installed, `.shipeasy` bound.
 - `events` module enabled (and `experiments` if the metric will be a
-  success criterion). If unsure, run
-  `/shipeasy:metrics:install` first.
+  success criterion). If unsure, run `/shipeasy:flags:install` first —
+  it enables events + experiments (plus gates + configs).
 
 Workflow:
 

@@ -1,7 +1,7 @@
 {
   "name": "shipeasy",
-  "version": "2.0.0",
-  "description": "Shipeasy — SDK install, auth, project bind, plus every feature module (experiments + metrics, gates + configs + kill switches, translations, in-app feedback) in a single plugin. Slash commands are nested under /shipeasy:<noun>:<verb> with plural nouns (flags, configs, ks, experiments, metrics, bugs, ops, i18n); skills are named after the feature area (setup, experiments, metrics, flags, i18n, bugs). The ops namespace adds feedback + error collection (/shipeasy:ops:install) and a scheduled auto-fix Claude trigger (/shipeasy:ops:create_claude_trigger).",
+  "version": "3.0.0",
+  "description": "Shipeasy — SDK install, auth, project bind, plus every feature module (experiments + metrics, gates + configs + kill switches, translations, in-app feedback) in a single plugin. Slash commands are nested under /shipeasy:<noun>:<verb>. Installs fold into three sections: /shipeasy:ops:install (feedback + errors + alerts), /shipeasy:flags:install (gates + configs + kill switches + experiments + events), and /shipeasy:i18n:install (translations). The ops namespace also owns the operational inbox — /shipeasy:ops:list, /shipeasy:ops:report, and /shipeasy:ops:work (one loop over bugs + feature requests + production errors + alerts). Kill switches expose /shipeasy:ks:toggle_switch (named per-key overrides). Deletions are UI-only; the plugin ships no delete commands.",
   "author": { "name": "Shipeasy", "url": "https://shipeasy.ai" },
   "homepage": "https://shipeasy.ai",
   "license": "MIT"

@@ -12,7 +12,8 @@ individual experiments do not.
 
 ## Enabling on a project
 
-`/shipeasy:experiments:install` (or `shipeasy modules enable experiments`).
+`/shipeasy:flags:install` (the one platform install — folds gates, configs,
+kill switches, experiments, and events) or `shipeasy modules enable experiments`.
 
 ## Designing
 

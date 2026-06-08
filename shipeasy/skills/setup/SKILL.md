@@ -11,11 +11,11 @@ You are an AI agent walking the user through the **base** Shipeasy install
 Follow these steps in order. Each step has a verification gate — do not
 advance if it fails. Self-heal once, then escalate.
 
-The feature install commands (`/shipeasy:bugs:install`,
-`/shipeasy:flags:install`, `/shipeasy:configs:install`,
-`/shipeasy:ks:install`, `/shipeasy:experiments:install`,
-`/shipeasy:metrics:install`, `/shipeasy:i18n:install`) each pick up
-where this one leaves off. Run this skill **first**.
+The three feature install commands (`/shipeasy:ops:install`,
+`/shipeasy:flags:install`, `/shipeasy:i18n:install`) each pick up where
+this one leaves off. `/shipeasy:flags:install` folds gates + configs +
+kill switches + experiments + events into one pass; `/shipeasy:ops:install`
+covers feedback + production errors + alerts. Run this skill **first**.
 
 ---
 
@@ -303,9 +303,8 @@ npx @shipeasy/cli plugin install
 
 ## Feature add-ons (run after base)
 
-- `/shipeasy:bugs:install` — in-app bug reports
-- `/shipeasy:flags:install` — feature gates, configs, kill switches
-- `/shipeasy:experiments:install` — A/B experiments
+- `/shipeasy:ops:install` — feedback (bugs + feature requests) + errors + alerts
+- `/shipeasy:flags:install` — gates, configs, kill switches, experiments, events
 - `/shipeasy:i18n:install` — translations
 ````
 
@@ -338,14 +337,10 @@ Wired:     <list of subprojects + entry files>
 Pointer:   .claude/skills/shipeasy-setup/SKILL.md
 Modules:   (none enabled yet)
 
-Next — enable the features you want:
-  /shipeasy:experiments:install   # A/B tests
-  /shipeasy:metrics:install       # event metrics
-  /shipeasy:flags:install         # feature gates (boolean)
-  /shipeasy:configs:install       # dynamic configs (typed values)
-  /shipeasy:ks:install            # kill switches
+Next — enable the features you want (three install sections):
+  /shipeasy:flags:install         # gates + configs + kill switches + experiments + events
+  /shipeasy:ops:install           # feedback (bugs + features) + errors + alerts
   /shipeasy:i18n:install          # translations
-  /shipeasy:bugs:install          # in-app bug reports
 
 Or via CLI directly:
   shipeasy modules enable experiments

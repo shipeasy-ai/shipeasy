@@ -19,8 +19,9 @@ shipeasy modules enable feedback
 shipeasy modules list           # confirm `feedback` shows ✓
 ```
 
-Or run `/shipeasy:bugs:install` to enable + verify + drop the project
-pointer skill in one shot.
+Or run `/shipeasy:ops:install` to enable + verify + drop the project
+pointer skill in one shot (it also turns on production-error and alert
+collection).
 
 The toggle is per-project: same `.shipeasy` binding the rest of the CLI
 uses. Devtools picks it up on the next load — no rebuild required.
@@ -36,7 +37,7 @@ shipeasy feedback features create "Bulk-archive in dashboard" \
   --description "Lets ops clear stale gates without opening each row."
 ```
 
-Slash equivalent: `/shipeasy:bugs:report <bug|feature> "<title>"`.
+Slash equivalent: `/shipeasy:ops:report [--type bug|feature] "<title>"`.
 
 ## Listing & triage
 
@@ -44,13 +45,16 @@ Slash equivalent: `/shipeasy:bugs:report <bug|feature> "<title>"`.
 shipeasy feedback bugs list
 shipeasy feedback bugs list --status open --json    # work queue
 shipeasy feedback bugs update <id> --status in_progress
-shipeasy feedback bugs delete <id-or-prefix>
 
 shipeasy feedback features list
-shipeasy feedback features delete <id-or-prefix>
 ```
 
 `list` returns the most-recent rows; pipe through `--json` for scripts.
+Slash equivalent for listing: `/shipeasy:ops:list [--type bug|feature]`.
+
+**Deletion is UI-only.** Spam/duplicate removal is a human call made in
+the dashboard — the plugin ships no delete command, and the loops never
+delete a record (terminal state is `resolved` / `shipped`).
 
 ### Status lifecycle
 
@@ -63,16 +67,19 @@ after verification in the dashboard. Do **not** skip straight to
 ## Auto-fixing the queue
 
 ```
-/shipeasy:bugs:fix [--priority high|critical] [--limit N] [--dry-run]
+/shipeasy:ops:work [--type bug|feature|error|alert|all] [--priority high|critical] [--limit N] [--dry-run]
 ```
 
-Pulls every open bug for the bound project, walks them in
-priority/age order, fixes each one with a focused commit, and flips
-its status to `ready_for_qa`. One bug per commit. Never pushes.
+The unified work loop (it replaces the old `bugs:fix` and
+`feats:implement`). Pulls the operational queue for the bound project —
+bugs, feature requests, tracked production errors, and active alerts —
+walks them in priority/severity/age order, and resolves each one as its
+own atomic diff: bugs fix-first → `ready_for_qa`/`resolved`, features
+design-first → `shipped`, errors/alerts diagnose-first → fixed-in-code.
+One item per diff. Never pushes.
 
-Skip rule: if a bug needs information the agent can't obtain (real
-device, customer env), leave it `in_progress` with a CLI comment and
-move on.
+Skip rule: if an item needs information the agent can't obtain (real
+device, customer env), leave it as-is with a hand-off note and move on.
 
 ### Running it on a schedule (unattended)
 
@@ -101,7 +108,7 @@ if you need a programmatic read path.
   "show me open feedback".
 - A devtools-captured report needs triaging from a script or CI job.
 - Onboarding asks how to expose the in-page report button — the answer is
-  `/shipeasy:bugs:install` (or `shipeasy modules enable feedback`).
+  `/shipeasy:ops:install` (or `shipeasy modules enable feedback`).
 
 ## Errors → action
 
@@ -109,4 +116,4 @@ if you need a programmatic read path.
 | ------------------------- | ------------------------------------------------- |
 | `403 module not enabled`  | Run `shipeasy modules enable feedback` and retry. |
 | `401`                     | Re-run `shipeasy login`.                          |
-| `404 not found` on delete | Check the ID with `shipeasy feedback bugs list`.  |
+| `404 not found` on update | Check the ID with `shipeasy feedback bugs list`.  |
