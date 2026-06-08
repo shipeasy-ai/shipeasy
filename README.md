@@ -28,7 +28,7 @@ marketplace/
     │   ├── metrics/{create,list,show,grammar}.md
     │   ├── configs/{create,list,update}.md
     │   ├── ks/{create,list,toggle_switch}.md
-    │   ├── i18n/{install,extract,migrate}.md
+    │   ├── i18n/{install,extract,migrate,validate,update,profiles,translate}.md
     │   └── ops/{install,list,report,work,create_claude_trigger}.md
     └── skills/                          # six area skills
         ├── setup/SKILL.md
@@ -233,6 +233,10 @@ namespace.
 | **i18n** | | |
 | `/shipeasy:i18n:extract` | `[target-dir]` | Run the codemod to wrap hardcoded user-visible strings in `i18n.t(...)`, push the generated keys, publish the `default` chunk. Idempotent. |
 | `/shipeasy:i18n:migrate` | `<react-i18next\|react-intl\|lingui\|next-intl\|raw-i18next>` | Codemod call sites from another i18n library into `i18n.t(...)`, push existing translations, remove the old library. |
+| `/shipeasy:i18n:validate` | `[paths...] [--profile <name>]` | CI/pre-commit drift gate — confirm every `i18n.t("key")` reference in code exists server-side. Non-zero exit on missing keys. |
+| `/shipeasy:i18n:update` | `<key> <new-value> [--profile <name>] [--description <text>]` | Change one existing key's value, then publish. The only overwrite path — `extract`/push are insert-only. |
+| `/shipeasy:i18n:profiles` | `[list] \| [create <name> [--locales <csv>] [--from <source>]]` | List or create locale profiles (`en:prod`, `fr:prod`, …). Deletion is UI-only. |
+| `/shipeasy:i18n:translate` | `<target-profile> [--from <source>] [--glossary <t=v,...>]` | Stand up a new locale: seed the target profile from the source, machine-translate the draft (Anthropic, key by key), publish. Anthropic key read locally, never sent to Shipeasy. |
 | **Ops (feedback + errors + alerts)** | | |
 | `/shipeasy:ops:list` | `[--type bug\|feature\|error\|alert] [--status <s>] [--priority high\|critical\|medium\|low] [--name-contains <s>]` | Unified read view over the operational inbox. `--type` picks the source (default `bug`); errors and alerts are read-only. |
 | `/shipeasy:ops:report` | `[--type bug\|feature] "<title>"` | File a single bug report or feature request against the bound project. |

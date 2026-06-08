@@ -14,6 +14,18 @@ copy in a project that has `@shipeasy/sdk` installed.
 `/shipeasy:i18n:install` (or `shipeasy modules enable translations`,
 then create the `en:prod` profile).
 
+## Slash commands
+
+- `/shipeasy:i18n:extract [dir]` — wrap hardcoded strings + push + publish.
+- `/shipeasy:i18n:migrate <lib>` — port another i18n library to Shipeasy.
+- `/shipeasy:i18n:validate [paths]` — CI/pre-commit gate: every `t("key")`
+  in code exists server-side (non-zero exit on drift).
+- `/shipeasy:i18n:update <key> <value>` — change one existing key's value
+  (the only overwrite path — extract/push are insert-only).
+- `/shipeasy:i18n:profiles [list|create <name>]` — manage locale profiles.
+- `/shipeasy:i18n:translate <target-profile>` — machine-translate the app
+  into a new locale (Anthropic key read locally, never sent to Shipeasy).
+
 ## The pattern
 
 Every user-facing string becomes an `i18n.t()` call:
