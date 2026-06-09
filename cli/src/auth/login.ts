@@ -62,7 +62,7 @@ export async function login(
   const projectId = opts.projectId ?? getBoundProjectId(process.cwd());
 
   // Idempotent by default: if a valid session already exists, do nothing so
-  // automation (and the create_claude_trigger command) can call `login`
+  // automation (and the create_trigger command) can call `login`
   // unconditionally at the start of a run. When a specific project is
   // requested, only short-circuit if the live session is already on it —
   // otherwise fall through to re-scope to the requested project.
