@@ -4,7 +4,7 @@ import { printTable, printJson } from "../util/output";
 
 interface KeyRow {
   id: string;
-  type: "server" | "client" | "admin";
+  type: "server" | "client" | "admin" | "ops";
   created_at: string;
   revoked_at: string | null;
   expires_at: string | null;
@@ -12,12 +12,12 @@ interface KeyRow {
 
 interface KeyCreated {
   id: string;
-  type: "server" | "client" | "admin";
+  type: "server" | "client" | "admin" | "ops";
   key: string;
   expires_at: string | null;
 }
 
-const VALID_TYPES = ["server", "client", "admin"] as const;
+const VALID_TYPES = ["server", "client", "admin", "ops"] as const;
 type KeyType = (typeof VALID_TYPES)[number];
 
 function isKeyType(s: string): s is KeyType {
@@ -25,7 +25,9 @@ function isKeyType(s: string): s is KeyType {
 }
 
 export function keysCommand(parent: Command): void {
-  const keys = parent.command("keys").description("Manage SDK keys (server, client, admin)");
+  const keys = parent
+    .command("keys")
+    .description("Manage SDK keys (server, client, admin, ops)");
 
   keys
     .command("list")
@@ -59,7 +61,7 @@ export function keysCommand(parent: Command): void {
   keys
     .command("create")
     .description("Create a new SDK key. The raw token is shown ONCE — store it now.")
-    .requiredOption("--type <type>", "Key type: server | client | admin")
+    .requiredOption("--type <type>", "Key type: server | client | admin | ops")
     .option("--json", "Output as JSON")
     .option("--project <id>", "Project ID override")
     .action(async (opts) => {
@@ -89,6 +91,13 @@ export function keysCommand(parent: Command): void {
         } else if (opts.type === "server") {
           console.log("");
           console.log("Private key — server-only. Never ship in a browser bundle.");
+        } else if (opts.type === "ops") {
+          console.log("");
+          console.log(
+            "Restricted ops key — read-only access to the bugs/features/errors/alerts " +
+              "queue plus bug/feature status writes (no link-pr, no other admin). " +
+              "Auto-extends its expiry on use; minted for the unattended Claude trigger.",
+          );
         }
       } catch (e) {
         handleError(e);
