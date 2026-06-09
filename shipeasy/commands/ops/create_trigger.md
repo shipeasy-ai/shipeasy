@@ -49,11 +49,16 @@ routines.
   prompt's config-file write, the routine bearer token into
   `shipeasy connectors create-trigger` (which encrypts it at rest) — never
   echoed into chat.
-- **Treat the routine as sensitive.** The routine reads the Shipeasy queue
-  unattended, so its prompt carries the `cli_token` / `project_id` it writes to
-  the CLI config file at run start (Claude Code has no programmatic way to set a
-  routine's env vars, so the prompt is the only hands-off channel). Rotating
-  `shipeasy login` means updating the routine prompt. Say this to the user.
+- **Treat the routine as sensitive — but mint it a restricted key.** The routine
+  reads the Shipeasy queue unattended, so its prompt carries a Shipeasy key +
+  `project_id` it writes to the CLI config file at run start (Claude Code has no
+  programmatic way to set a routine's env vars, so the prompt is the only
+  hands-off channel). **Embed a freshly-minted `ops` key, never your own admin
+  login token** (step 2): the `ops` key can only read the queue and flip
+  bug/feature status — no destructive admin, no `link-pr` — so a leaked routine
+  prompt can't compromise the project. The `ops` key rolls its own expiry forward
+  on each run, so it needs no manual rotation while the schedule keeps firing.
+  Say this to the user.
 - **Don't trigger a paid run without telling the user.** The verification fire
   (step 5) spends Claude tokens and may open a real PR. Confirm first.
 
@@ -145,7 +150,7 @@ it.) Offer these options and map the answer to a cron expression (UTC):
 If the user picks "Other", accept any valid 5-field cron string verbatim. Hold
 the chosen cron as `<CRON>` for step 3.
 
-## 2. Read the Shipeasy credentials the routine needs
+## 2. Mint the restricted Shipeasy key the routine needs
 
 The routine re-creates the CLI's logged-in state by **writing its config file**
 (`$XDG_CONFIG_HOME/shipeasy/config.json` — the same file `shipeasy login`
@@ -163,19 +168,39 @@ the only hands-off channel for this:
   `export`. (The CLI checks `SHIPEASY_CLI_TOKEN`/`SHIPEASY_PROJECT_ID` env
   first, then this file — leaving the env unset means it reads the file.)
 
-Read your existing local token + project id **into shell vars, never print**:
+**Mint a dedicated, restricted `ops` key for the routine — do NOT embed your
+own login token.** Your `shipeasy login` token is a full-admin key (it can
+create/delete gates, configs, experiments, mint keys, change billing). The
+routine only needs to read the queue and flip bug/feature status, so mint an
+`ops` key instead: it is default-denied against every admin route except the
+read-only `ops:work` queue + status writes, has **no `link-pr`**, and **auto-
+extends its 7-day expiry on each run** (it self-revokes ~a week after the
+trigger stops firing). Read the values **into shell vars, never print**:
 
 ```bash
 SE_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/shipeasy/config.json"
 test -f "$SE_CONFIG" || { echo "Run 'shipeasy login' first"; exit 1; }
 
-SHIPEASY_CLI_TOKEN="$(jq -r .cli_token  "$SE_CONFIG")"
+# Mint the restricted ops key with your logged-in admin session. The raw key is
+# shown ONCE — capture it here; it never needs to be retrieved again.
+SHIPEASY_CLI_TOKEN="$(npx -y @shipeasy/cli keys create --type ops --json | jq -r .key)"
 SHIPEASY_PROJECT_ID="$(jq -r .project_id "$SE_CONFIG")"
+test -n "$SHIPEASY_CLI_TOKEN" && test "$SHIPEASY_CLI_TOKEN" != "null" \
+  || { echo "Failed to mint ops key — is 'shipeasy login' valid?"; exit 1; }
 ```
 
-These get substituted into the config-file write in the step-4 prompt. The
-token inherits the user's account access; rotate it by re-running
-`shipeasy login` and updating the routine prompt.
+> **`--dry-run`:** do **not** mint — minting an `ops` key is a real side effect.
+> Just note that an `ops` key *would* be minted and embedded, then continue to
+> step 3.
+
+`SHIPEASY_CLI_TOKEN` now holds the restricted `ops` key (still written to the
+routine's `config.json` under the `cli_token` field — the CLI reads it the same
+way). It gets substituted into the config-file write in the step-4 prompt.
+Because it rolls its own expiry forward on use, **no manual rotation is needed**
+while the schedule fires more often than every 7 days. If the trigger is paused
+longer than that the key lapses — re-run this command (or
+`shipeasy keys create --type ops`) to mint a fresh one and update the routine
+prompt.
 
 ## 3. (If `--dry-run`) stop here
 
@@ -192,9 +217,9 @@ the routine checks out and opens its PR against. The routine prompt is a thin
 wrapper: write the CLI config file to authenticate, refresh the plugin + CLI so
 each run picks up the latest commands, then
 run `/shipeasy:ops:work --pr` (which owns the whole pull → fix → commit →
-one-PR → link-pr → auto-close-the-issue flow). Substitute the real
-`SHIPEASY_CLI_TOKEN` / `SHIPEASY_PROJECT_ID` values (from step 2) into the
-config JSON. The prompt:
+one-PR → status flip → auto-close-the-issue flow). Substitute the real
+`SHIPEASY_CLI_TOKEN` (the minted `ops` key) / `SHIPEASY_PROJECT_ID` values (from
+step 2) into the config JSON. The prompt:
 
 ```
 You are an unattended Shipeasy maintenance run. Re-create the Shipeasy CLI's
@@ -218,7 +243,7 @@ npm install -g @shipeasy/cli@latest
 
 Then run /shipeasy:ops:work --pr — it burns down the active bug, feature,
 error and alert queue, commits each fix, opens ONE pull request for human
-review, links it back to every fixed bug, and adds a "Closes #<issue>"
+review, flips each fixed bug to ready_for_qa, and adds a "Closes #<issue>"
 keyword for any item with a connected GitHub issue so merging auto-closes it.
 
 Open the PR from a claude/-prefixed branch (the prefix routines are allowed to
@@ -269,7 +294,8 @@ If the fire fails:
 | Symptom                                            | Fix                                                                                              |
 | -------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | `401` / `403` firing the routine                   | Routine bearer token wrong/stale — re-run step 4b with a fresh token.                            |
-| `401` / `403` from the shipeasy CLI inside the run | `SHIPEASY_CLI_TOKEN` in the routine prompt is stale — re-run `shipeasy login`, then update the routine prompt (step 4). |
+| `401` / `403` from the shipeasy CLI inside the run | The embedded `ops` key lapsed (trigger paused > 7 days) — mint a fresh one (`shipeasy keys create --type ops`) and update the routine prompt (step 4). |
+| `403 ops key not permitted for this operation`     | `ops:work` hit an admin route outside the ops allow-list (it shouldn't) — update the plugin/CLI to the latest; if it persists, file it.            |
 | `403 module not enabled`                           | `shipeasy modules enable feedback`, then re-fire.                                                |
 | Routine not found                                  | The `/schedule` routine was deleted — re-create it (step 4).                                     |
 
@@ -281,13 +307,14 @@ Print:
 ✅ Shipeasy feedback Claude trigger provisioned
 Schedule:  <CRON>  (UTC; managed with /schedule)
 Routine:   <ROUTINE_ID>  (Claude Code scheduled routine — runs in the cloud)
-Creds:     CLI config file written at run start from the routine prompt
-           (cli_token + project_id; the CLI reads it like a `shipeasy login`).
+Creds:     restricted `ops` key written to the CLI config file at run start from
+           the routine prompt (read-only queue + bug/feature status only — no
+           destructive admin, no link-pr; auto-extends its 7-day expiry on use).
 Connector: registered in Shipeasy → Feedback → Connectors ("Claude trigger"),
            backed by the routine. "Fire now" fires it on demand; toggle event
            auto-fire there to fire it on each new bug/feature.
 Does:      updates the plugin + CLI → runs /shipeasy:ops:work --pr → fixes each
-           item → opens one PR (Closes #issue) → links it back + ready_for_qa.
+           item → opens one PR (Closes #issue for connected items) → ready_for_qa.
 Review:    PRs land for human review; nothing auto-merges.
 Manage:    edit/pause/delete the schedule with /schedule; delete the connector
            from the Feedback → Connectors panel.
@@ -295,5 +322,6 @@ Manage:    edit/pause/delete the schedule with /schedule; delete the connector
 
 > **Verify later:** the first scheduled or manual fire is the real test that
 > the routine can read the Shipeasy queue and open a PR. If it fails on
-> Shipeasy auth, the embedded `SHIPEASY_CLI_TOKEN` is stale — re-run
-> `shipeasy login` and update the routine prompt (step 4).
+> Shipeasy auth, the embedded `ops` key has lapsed (the trigger was paused
+> longer than its 7-day sliding window) — mint a fresh one with
+> `shipeasy keys create --type ops` and update the routine prompt (step 4).

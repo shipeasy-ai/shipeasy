@@ -1,5 +1,5 @@
 ---
-description: Burn down the operational queue — bugs, feature requests, tracked production errors, and active alerts — one item at a time, each as its own atomic diff. With --pr, commits each item and opens one pull request linked back to every fixed bug (the mode the scheduled trigger uses).
+description: Burn down the operational queue — bugs, feature requests, tracked production errors, and active alerts — one item at a time, each as its own atomic diff. With --pr, commits each item and opens one pull request that closes each connected GitHub issue and flips fixed bugs to ready_for_qa (the mode the scheduled trigger uses).
 argument-hint: "[--type bug|feature|error|alert|all] [--status <s>] [--priority high|critical] [--limit <N>] [--pr] [--dry-run]"
 ---
 
@@ -203,11 +203,17 @@ above:
    never auto-`resolved` — set fixed bugs to `ready_for_qa`. Features stay
    manual-`shipped` (after merge); errors/alerts keep no status write.
 
-3. **Note any connected GitHub issue.** Bugs and features opened through the
-   GitHub connector carry their issue on `connectorData.github.issue` in
-   `… get --json` (`{ number, url, owner, repo }`). Read it while working the
-   item and remember the issue `number` — it's how the PR auto-closes the issue
-   on merge. Items with no `github.issue` simply have nothing to close.
+3. **Note any connected GitHub issue — this is the only PR↔item linkage.**
+   Bugs and features opened through the GitHub connector already carry their
+   issue on `connectorData.github.issue` in `… get --json`
+   (`{ number, url, owner, repo }`) — the connector created it upfront at intake.
+   Read it while working the item and remember the issue `number` — the PR's
+   `Closes #N` keyword (item 4) is what links the PR to the work and auto-closes
+   the issue on merge. Items with no connector issue simply have nothing to
+   close; their only server-side trace is the bug status flip (item 2). **Do not
+   create issues yourself, and do not call `link-pr`** — the unattended trigger
+   runs under a restricted `ops` key that can only flip bug/feature status, so a
+   `link-pr` (or any other admin write) would `403` and break the run.
 
 4. **One PR at the end.** After the loop, open exactly **one** pull request for
    the whole run — Claude Code's built-in GitHub PR tooling, or `gh pr create`
@@ -225,16 +231,7 @@ above:
    One line per linked issue (`Closes` / `Fixes` / `Resolves` all work). Never
    auto-merge; the PR lands for human review.
 
-5. **Link each fixed bug back.** For every bug that made it into the PR:
-
-   ```
-   shipeasy feedback bugs link-pr <id> <pr-number>
-   ```
-
-   This wires the PR to the report server-side, alongside the `Closes #N`
-   keyword that does the auto-close on merge.
-
-6. **Empty queue → no PR.** If nothing was worked, exit cleanly without a
+5. **Empty queue → no PR.** If nothing was worked, exit cleanly without a
    branch or PR.
 
 ## 3. Final report
