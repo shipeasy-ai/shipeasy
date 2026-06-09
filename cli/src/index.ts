@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { Command, CommanderError } from "commander";
 import { login } from "./auth/login";
 import { clearCredentials, loadCredentials } from "./auth/storage";
@@ -61,7 +63,14 @@ function listEnabledModules(p: ProjectMeta): string[] {
 
 const program = new Command();
 
-program.name("shipeasy").description("CLI for the ShipEasy experiment platform").version("1.0.0");
+// Source the version from package.json so `--version` never drifts from the
+// published package. `__dirname` is `dist/` in the bundled build and `src/` in
+// `tsx` dev — both resolve `../package.json` to the package root.
+const { version } = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf8")) as {
+  version: string;
+};
+
+program.name("shipeasy").description("CLI for the ShipEasy experiment platform").version(version);
 
 program
   .command("login")
