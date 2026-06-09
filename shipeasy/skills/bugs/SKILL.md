@@ -100,16 +100,17 @@ device, customer env), leave it as-is with a hand-off note and move on.
 ### Running it on a schedule (unattended)
 
 ```
-/shipeasy:ops:create_claude_trigger
+/shipeasy:ops:create_trigger --provider claude
 ```
 
 Provisions a **Claude Code scheduled routine** (via `/schedule`) that runs
-the same pull → fix → `ready_for_qa` loop over **both** open bugs and
-feature requests on a cadence you choose, then registers it as a Shipeasy
-connector so it appears in the Feedback tab and can be fired on demand. The
-routine runs in Anthropic's cloud — no GitHub Actions, runs even when your
-machine is off. The command walks you through Claude auth, the `/schedule`
-routine, and Shipeasy credentials; nothing auto-merges.
+`/shipeasy:ops:work --pr` on a cadence you choose — burning down the active
+queue, committing each fix, opening one PR, and linking it back to every fixed
+bug (with `Closes #<issue>` for any connected GitHub issue) — then registers it
+as a Shipeasy connector so it appears in the Feedback tab and can be fired on
+demand. The routine runs in Anthropic's cloud — no GitHub Actions, runs even
+when your machine is off. The command walks you through Claude auth, the
+`/schedule` routine, and Shipeasy credentials; nothing auto-merges.
 
 ## Reading from the SDK
 

@@ -29,7 +29,7 @@ marketplace/
     │   ├── configs/{create,list,update}.md
     │   ├── ks/{create,list,toggle_switch}.md
     │   ├── i18n/{install,extract,migrate,validate,update,profiles,translate}.md
-    │   └── ops/{install,list,report,work,create_claude_trigger}.md
+    │   └── ops/{install,list,report,work,create_trigger}.md
     └── skills/                          # six area skills
         ├── setup/SKILL.md
         ├── experiments/SKILL.md
@@ -86,10 +86,10 @@ The `ops` namespace also owns the operational inbox — `/shipeasy:ops:list`
 (bugs / features / errors / alerts, `--type` filter), `/shipeasy:ops:report`
 (file a bug or feature), and `/shipeasy:ops:work` (one loop that burns down
 bugs + feature requests + production errors + alerts, one atomic diff each).
-And `/shipeasy:ops:create_claude_trigger` — a scheduled Claude Code routine
-(via `/schedule`, runs in Anthropic's cloud, no GitHub Actions) that pulls
-active bugs + feature requests and fixes them, registered as a Shipeasy
-connector so it shows in the Feedback tab.
+And `/shipeasy:ops:create_trigger` (`--provider claude`, the only provider
+today) — a scheduled Claude Code routine (via `/schedule`, runs in Anthropic's
+cloud, no GitHub Actions) that pulls active bugs + feature requests and fixes
+them, registered as a Shipeasy connector so it shows in the Feedback tab.
 
 ## Headline workflows
 
@@ -249,8 +249,8 @@ namespace.
 | **Ops (feedback + errors + alerts)** | | |
 | `/shipeasy:ops:list` | `[--type bug\|feature\|error\|alert] [--status <s>] [--priority high\|critical\|medium\|low] [--name-contains <s>]` | Unified read view over the operational inbox. `--type` picks the source (default `bug`); errors and alerts are read-only. |
 | `/shipeasy:ops:report` | `[--type bug\|feature] "<title>"` | File a single bug report or feature request against the bound project. |
-| `/shipeasy:ops:work` | `[--type bug\|feature\|error\|alert\|all] [--status <s>] [--priority high\|critical] [--limit <N>] [--dry-run]` | The unified work loop (replaces `bugs:fix` + `feats:implement`). Loops over bugs + feature requests + production errors + alerts, one atomic diff each: bugs fix-first, features design-first, errors/alerts diagnose-first. `--dry-run` prints the combined queue. Requires CLI ≥ 1.8.0. |
-| `/shipeasy:ops:create_claude_trigger` | — | Provision a scheduled Claude Code routine (via `/schedule`) that pulls active bugs + feature requests and fixes them, registered as a Shipeasy connector. No GitHub Actions. |
+| `/shipeasy:ops:work` | `[--type bug\|feature\|error\|alert\|all] [--status <s>] [--priority high\|critical] [--limit <N>] [--pr] [--dry-run]` | The unified work loop (replaces `bugs:fix` + `feats:implement`). Loops over bugs + feature requests + production errors + alerts, one atomic diff each: bugs fix-first, features design-first, errors/alerts diagnose-first. `--pr` commits each item, opens one PR, links it to every fixed bug, and adds `Closes #<issue>` for any item with a connected GitHub issue (the mode the trigger runs). `--dry-run` prints the combined queue. Requires CLI ≥ 1.8.0. |
+| `/shipeasy:ops:create_trigger` | `[--provider claude] [--frequency daily\|weekdays\|weekly\|6h] [--dry-run]` | Provision a recurring feedback trigger that runs `/shipeasy:ops:work --pr` on a schedule, registered as a Shipeasy connector. Provider-pluggable; `claude` (default, the only provider today) backs it with a scheduled Claude Code routine (via `/schedule`). No GitHub Actions. |
 
 ## Skill auto-triggers (no slash command needed)
 
@@ -334,9 +334,10 @@ its own `commands/<area>/install.md`:
   diagnose-first. Read-only sources (errors/alerts) get a code fix, no status
   write. Never `git commit`s; never deletes; stops on the first 401/403.
   Requires CLI ≥ 1.8.0 (`shipeasy alerts` + `feedback bugs attachments`).
-- **`/shipeasy:ops:create_claude_trigger`** — a scheduled Claude Code routine
-  (via `/schedule`) that runs the bug+feature loop unattended, registered as
-  a Shipeasy connector. No GitHub Actions.
+- **`/shipeasy:ops:create_trigger`** (`--provider claude`, the only provider
+  today) — a scheduled Claude Code routine (via `/schedule`) that runs the
+  bug+feature loop unattended, registered as a Shipeasy connector. No GitHub
+  Actions.
 
 ### Kill switches: `toggle_switch` instead of `update`
 

@@ -1,6 +1,6 @@
 ---
-description: Burn down the operational queue — bugs, feature requests, tracked production errors, and active alerts — one item at a time, each as its own atomic diff.
-argument-hint: "[--type bug|feature|error|alert|all] [--status <s>] [--priority high|critical] [--limit <N>] [--dry-run]"
+description: Burn down the operational queue — bugs, feature requests, tracked production errors, and active alerts — one item at a time, each as its own atomic diff. With --pr, commits each item and opens one pull request linked back to every fixed bug (the mode the scheduled trigger uses).
+argument-hint: "[--type bug|feature|error|alert|all] [--status <s>] [--priority high|critical] [--limit <N>] [--pr] [--dry-run]"
 ---
 
 The single end-to-end "work the inbox" loop. It unifies the old
@@ -30,7 +30,10 @@ acknowledgement).
 
 Prereqs:
 
-- `.shipeasy` bound. Run `/shipeasy:setup` first if missing.
+- `.shipeasy` bound. Run `/shipeasy:setup` first if missing. (Unattended runs
+  — the scheduled trigger — instead authenticate from `SHIPEASY_CLI_TOKEN` +
+  `SHIPEASY_PROJECT_ID` env vars; those substitute for the `.shipeasy` bind, so
+  don't bail for a missing file when they're set.)
 - `feedback` module enabled (`/shipeasy:ops:install`). `feedback bugs list`
   returning `403` means it isn't.
 - CLI ≥ `1.8.0` — `shipeasy alerts` (added 1.8.0) and
@@ -51,8 +54,13 @@ Parse `$ARGUMENTS` up-front:
 - `--priority high|critical` — bugs only (features use `--importance`).
 - `--limit <N>` — default `20` (bugs/errors/alerts), `10` for features
   (features are heavier). Slice per-source after sort.
+- `--pr` — packaging for unattended / scheduled runs: commit each item as its
+  own focused commit, then open **one** pull request and link it back to every
+  fixed bug. Applies the lifecycle deltas in [§2 PR mode](#2-pr-mode---pr).
+  Without it (the default) the loop leaves the work uncommitted for you to
+  review and commit yourself.
 - `--dry-run` — print the combined queue and exit 0. No status flips, no
-  edits, no attachment downloads.
+  edits, no attachment downloads, no commits.
 
 Pull each requested source as JSON, then sort within each:
 
@@ -172,7 +180,64 @@ One short paragraph per item, then the next:
   Verify: <test cmd | dev-server URL | "manual" | "watch fingerprint drop off">
 ```
 
-## 2. Final report
+## 2. PR mode (`--pr`)
+
+Only when `--pr` is passed. This is what turns the interactive loop into a
+self-contained, reviewable unit of work — and it's the mode the scheduled
+trigger (`/shipeasy:ops:create_trigger`) runs unattended. Deltas to the loop
+above:
+
+1. **Commit per item.** Right after an item is fixed **and verified**, commit
+   exactly that item's diff — one focused commit each, never batched, never
+   `--no-verify`:
+
+   ```
+   git commit -m "<type>(<scope>): <title> (shipeasy #<id-prefix>)"
+   ```
+
+   `<type>` follows the item: `fix` for bugs and errors, `feat` for features,
+   `fix`/`chore` for alert-driven changes. An item with no code change (ops
+   acknowledgement) produces no commit.
+
+2. **Bug lifecycle → `ready_for_qa`.** In PR mode a human reviews the PR, so
+   never auto-`resolved` — set fixed bugs to `ready_for_qa`. Features stay
+   manual-`shipped` (after merge); errors/alerts keep no status write.
+
+3. **Note any connected GitHub issue.** Bugs and features opened through the
+   GitHub connector carry their issue on `connectorData.github.issue` in
+   `… get --json` (`{ number, url, owner, repo }`). Read it while working the
+   item and remember the issue `number` — it's how the PR auto-closes the issue
+   on merge. Items with no `github.issue` simply have nothing to close.
+
+4. **One PR at the end.** After the loop, open exactly **one** pull request for
+   the whole run — Claude Code's built-in GitHub PR tooling, or `gh pr create`
+   when `gh` is installed (an unattended cloud routine has neither a local `gh`
+   nor needs one; the built-in tooling opens the PR through the GitHub proxy).
+   The body is the punch-list — every item with
+   its id and outcome (fixed / skipped-with-reason) — and, for each item that
+   had a connected issue, a closing keyword on its own line so merging the PR
+   **auto-closes that issue**:
+
+   ```
+   Closes #<issue-number>
+   ```
+
+   One line per linked issue (`Closes` / `Fixes` / `Resolves` all work). Never
+   auto-merge; the PR lands for human review.
+
+5. **Link each fixed bug back.** For every bug that made it into the PR:
+
+   ```
+   shipeasy feedback bugs link-pr <id> <pr-number>
+   ```
+
+   This wires the PR to the report server-side, alongside the `Closes #N`
+   keyword that does the auto-close on merge.
+
+6. **Empty queue → no PR.** If nothing was worked, exit cleanly without a
+   branch or PR.
+
+## 3. Final report
 
 ```
 Processed N items (bugs X, features Y, errors Z, alerts W).
@@ -185,8 +250,10 @@ Diff footprint:
 $(git diff --stat)
 ```
 
-Show the diff stat. **Do not `git commit` or `git push`.** The user reviews
-and commits.
+Show the diff stat. **Default (no `--pr`): do not `git commit` or `git push`**
+— the user reviews and commits. **With `--pr`:** the per-item commits and the
+single PR from [§2](#2-pr-mode---pr) are the deliverable; still never merge and
+never push straight to the default branch (open the PR, that's it).
 
 ## Rules
 
