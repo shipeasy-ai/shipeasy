@@ -1,6 +1,6 @@
 {
   "name": "shipeasy",
-  "version": "3.3.3",
+  "version": "3.3.4",
   "description": "Shipeasy — SDK install, auth, project bind, plus every feature module (experiments + metrics, gates + configs + kill switches, alert rules, translations, in-app feedback, see() error tracking) in a single plugin. The see skill guides structured error reporting (see(err).causes_the(subject).to(outcome), see.Violation, see.ControlFlowException) into the errors primitive; tracked errors support a status write (PATCH, open/resolved/ignored). Slash commands are nested under /shipeasy:<noun>:<verb>. Installs fold into three sections: /shipeasy:ops:install (feedback + errors + alerts), /shipeasy:flags:install (gates + configs + kill switches + experiments + events + alert rules), and /shipeasy:i18n:install (translations). The ops namespace owns the operational inbox — /shipeasy:ops:list, /shipeasy:ops:report, and /shipeasy:ops:work (one loop over bugs + feature requests + production errors + alerts). Alert *rules* (the metric-threshold definitions that raise those alerts) are managed under /shipeasy:alerts:{create,list,update} — a rule's metric is immutable. i18n adds /shipeasy:i18n:{validate,update,profiles,translate} on top of extract/migrate. Kill switches expose /shipeasy:ks:toggle_switch (named per-key overrides). Deletions are UI-only; the plugin ships no delete commands.",
   "author": { "name": "Shipeasy", "url": "https://shipeasy.ai" },
   "homepage": "https://shipeasy.ai",

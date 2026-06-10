@@ -268,23 +268,43 @@ push by default). If the queue is empty it exits cleanly without opening a PR.
 Don't merge.
 ```
 
-After `/schedule` creates the routine, capture two things for step 4b:
-
-- **`ROUTINE_ID`** — the routine's id (shown by `/schedule` / its routine list).
-- **`ROUTINE_TOKEN`** — the bearer token that authenticates the routine's fire
-  call (`POST /v1/claude_code/routines/<id>/fire`).
+After `/schedule` creates the routine, capture **`ROUTINE_ID`** — the routine's
+id (shown by `/schedule` / its routine list). The fire token comes next, in 4b.
 
 ## 4b. Register the routine as a Shipeasy connector
 
 Record the trigger in Shipeasy so it shows up in **Feedback → Connectors** and
-can be fired on demand or auto-fired on new feedback. The CLI encrypts the
-routine token at rest; **never echo it**:
+can be fired on demand or auto-fired on new feedback.
 
-```bash
-npx -y @shipeasy/cli connectors create-trigger \
-  --routine-id "$ROUTINE_ID" \
-  --token "$ROUTINE_TOKEN"
-```
+**The routine's fire token (`ROUTINE_TOKEN`) is web-UI-only — don't hunt for a
+programmatic path.** The bearer for
+`POST /v1/claude_code/routines/<id>/fire` is generated per routine in the
+routines UI, shown **once**, and there is no API or CLI to mint or read it
+(`api_token_hint` stays empty until one exists). Walk the user through it:
+
+1. Open https://claude.ai/code/routines → this routine → **Select a trigger** →
+   add an **API** trigger → **Generate token**, and copy it.
+2. Hand it over without pasting into chat — copy to clipboard, then run:
+
+   ```bash
+   sh -c 'umask 077; pbpaste > /tmp/.se_routine_token; echo saved'   # macOS
+   # Linux: xclip -o (or wl-paste) > /tmp/.se_routine_token
+   ```
+
+3. Register, reading the token from the file (the CLI encrypts it at rest;
+   **never echo it**), then shred the temp file:
+
+   ```bash
+   npx -y @shipeasy/cli connectors create-trigger \
+     --routine-id "$ROUTINE_ID" \
+     --token "$(cat /tmp/.se_routine_token)"
+   rm -f /tmp/.se_routine_token
+   ```
+
+This step is **deferrable**: the schedule is already live without it — the
+connector only adds "Fire now" + event auto-fire in the Feedback tab. If the
+user doesn't want to fetch the token now, skip to step 6 and note in the
+hand-off how to register later (steps 1–3 above).
 
 The connector is registered **enabled but with auto-fire off** — "Fire now"
 works immediately, but no run kicks off on a new bug/feature until the user
@@ -292,8 +312,10 @@ subscribes events in the Connectors panel (or you pass
 `--events bug.created,feature_request.created`). Pass `--text "<prompt>"` to set
 the default prompt sent when the routine is fired on demand.
 
-> **Token rotation:** if the routine's bearer token is rotated, re-run
-> `connectors create-trigger` so the stored credential stays valid.
+> **Token rotation:** the token is rotated from the same API-trigger modal
+> (**Regenerate** / **Revoke**). After a rotation, re-run
+> `connectors create-trigger` (steps 1–3 above) so the stored credential stays
+> valid.
 
 ## 5. Verify with one manual fire
 
@@ -310,7 +332,7 @@ If the fire fails:
 
 | Symptom                                            | Fix                                                                                              |
 | -------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `401` / `403` firing the routine                   | Routine bearer token wrong/stale — re-run step 4b with a fresh token.                            |
+| `401` / `403` firing the routine                   | Routine fire token wrong/stale — **Regenerate** it in the routine's API-trigger modal and re-run step 4b. |
 | `401` / `403` from the shipeasy CLI inside the run | The embedded `ops` key lapsed (trigger paused > 7 days) — mint a fresh one (`shipeasy keys create --type ops`) and update the routine prompt (step 4). |
 | `403 ops key not permitted for this operation`     | `ops:work` hit an admin route outside the ops allow-list (it shouldn't) — update the plugin/CLI to the latest; if it persists, file it.            |
 | `403 module not enabled`                           | `shipeasy modules enable feedback`, then re-fire.                                                |
