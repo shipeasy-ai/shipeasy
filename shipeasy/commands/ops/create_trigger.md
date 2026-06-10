@@ -223,7 +223,9 @@ the routine checks out and opens its PR against. The routine prompt is a thin
 wrapper: export the Shipeasy env vars to authenticate, refresh the plugin + CLI
 so each run picks up the latest commands, then
 run `/shipeasy:ops:work --pr` (which owns the whole pull → fix → commit →
-one-PR → status flip → auto-close-the-issue flow). Substitute the **two real
+one-PR → status flip → auto-close-the-issue flow). **If a `shipeasy` cloud
+environment already exists (step 4a), select it for the routine at creation** —
+that skips the network walkthrough entirely. Substitute the **two real
 values from step 2** wherever the placeholders appear — `<OPS_KEY>` is the
 minted `ops` key (`$SHIPEASY_CLI_TOKEN`) and `<PROJECT_ID>` is
 `$SHIPEASY_PROJECT_ID`. The prompt:
@@ -271,18 +273,23 @@ Don't merge.
 After `/schedule` creates the routine, capture **`ROUTINE_ID`** — the routine's
 id (shown by `/schedule` / its routine list). Then do 4a (required) and 4b.
 
-## 4a. Allow the Shipeasy domains in the routine's network (required)
+## 4a. The `shipeasy` cloud environment — network allowlist (required)
 
 **Without this, the first run fails on every `shipeasy` call.** New cloud
 environments default to **Trusted** network access — package registries +
 GitHub only — so the run can `npm install` and push branches, but
-`api.shipeasy.ai` is unreachable. There is no `/schedule` flag for this; it's
-**UI-only**, so walk the user through it now, in the same dialog as the env
-vars:
+`shipeasy.ai` / `api.shipeasy.ai` are unreachable. There is no `/schedule`
+flag for any of this; environments are **UI-only**.
+
+**Preferred: a dedicated, reusable `shipeasy` environment (one-time).** If one
+already exists on the account, just make sure this routine uses it (selected at
+creation in step 4, or switch via routine → edit → cloud icon) and move on to
+4b — nothing to configure. Otherwise create it now so this and every future
+trigger picks it from a list instead of repeating the walkthrough:
 
 1. Open https://claude.ai/code/routines → this routine → edit → click the
-   cloud icon (the environment, e.g. "Default") → settings → **Update cloud
-   environment**.
+   cloud icon → create a new environment named **`shipeasy`** (or open
+   settings → **Update cloud environment** to fix up the existing one).
 2. Set **Network access** to **Custom** and add to **Allowed domains** (one
    per line; `*.` wildcards are supported):
 
@@ -294,7 +301,14 @@ vars:
 3. Check **"Also include default list of common package managers"** — the run
    still needs npm to install the CLI. (GitHub clone/push/PR rides a separate
    GitHub proxy and is unaffected by this setting.)
-4. Save. The policy applies from the next run.
+4. Save, and make sure the routine is set to this environment. The policy
+   applies from the next run.
+
+> **Optional, single-project accounts:** the same environment can also carry
+> `SHIPEASY_CLI_TOKEN` + `SHIPEASY_PROJECT_ID` as environment variables, which
+> lets you drop the two export lines from the routine prompt entirely. Skip
+> this when triggers for multiple Shipeasy projects share the environment —
+> the env pins one project; per-routine prompt exports don't.
 
 ## 4b. Register the routine as a Shipeasy connector
 
@@ -390,9 +404,9 @@ Env vars:  changeable from that UI — edit the routine → click the cloud icon
            set SHIPEASY_CLI_TOKEN + SHIPEASY_PROJECT_ID there and delete the
            two export lines from the routine prompt — the CLI reads the
            environment's vars directly.
-Network:   environment set to Custom — shipeasy.ai + api.shipeasy.ai allowed,
-           plus the package-manager defaults (step 4a); adjust in the same
-           cloud-environment dialog.
+Network:   routine runs in the `shipeasy` cloud environment — Custom network
+           with shipeasy.ai + api.shipeasy.ai allowed plus the package-manager
+           defaults (step 4a). Reusable: future triggers just select it.
 Manage:    edit/pause/delete the schedule with /schedule; delete the connector
            from the Feedback → Connectors panel.
 ```
