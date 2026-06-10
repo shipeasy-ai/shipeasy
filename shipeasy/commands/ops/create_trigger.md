@@ -183,7 +183,9 @@ test -f "$SE_CONFIG" || { echo "Run 'shipeasy login' first"; exit 1; }
 
 # Mint the restricted ops key with your logged-in admin session. The raw key is
 # shown ONCE — capture it here; it never needs to be retrieved again.
-SHIPEASY_CLI_TOKEN="$(npx -y @shipeasy/cli keys create --type ops --json | jq -r .key)"
+# (@latest is required: --type ops needs CLI >= 1.10.0 and a bare `npx
+# @shipeasy/cli` happily reuses an older cached binary.)
+SHIPEASY_CLI_TOKEN="$(npx -y @shipeasy/cli@latest keys create --type ops --json | jq -r .key)"
 SHIPEASY_PROJECT_ID="$(jq -r .project_id "$SE_CONFIG")"
 test -n "$SHIPEASY_CLI_TOKEN" && test "$SHIPEASY_CLI_TOKEN" != "null" \
   || { echo "Failed to mint ops key — is 'shipeasy login' valid?"; exit 1; }
@@ -217,9 +219,10 @@ the routine checks out and opens its PR against. The routine prompt is a thin
 wrapper: write the CLI config file to authenticate, refresh the plugin + CLI so
 each run picks up the latest commands, then
 run `/shipeasy:ops:work --pr` (which owns the whole pull → fix → commit →
-one-PR → status flip → auto-close-the-issue flow). Substitute the real
-`SHIPEASY_CLI_TOKEN` (the minted `ops` key) / `SHIPEASY_PROJECT_ID` values (from
-step 2) into the config JSON. The prompt:
+one-PR → status flip → auto-close-the-issue flow). Substitute the **two real
+values from step 2** into the config JSON — `<OPS_KEY>` is the minted `ops` key
+(`$SHIPEASY_CLI_TOKEN`, goes in the `cli_token` field) and `<PROJECT_ID>` is
+`$SHIPEASY_PROJECT_ID` — each appears exactly once. The prompt:
 
 ```
 You are an unattended Shipeasy maintenance run. Re-create the Shipeasy CLI's
@@ -229,9 +232,19 @@ authenticates without a browser (do NOT run `shipeasy login` or echo the token):
 CFG="${XDG_CONFIG_HOME:-$HOME/.config}/shipeasy"
 mkdir -p "$CFG"
 cat > "$CFG/config.json" <<'JSON'
-{"project_id":"<value-from-step-2>","cli_token":"<value-from-step-2>","api_base_url":"https://api.shipeasy.ai","app_base_url":"https://shipeasy.ai","created_at":"1970-01-01T00:00:00Z"}
+{"project_id":"<PROJECT_ID>","cli_token":"<OPS_KEY>","api_base_url":"https://api.shipeasy.ai","app_base_url":"https://shipeasy.ai","created_at":"1970-01-01T00:00:00Z"}
 JSON
 chmod 600 "$CFG/config.json"
+
+The CLI's mutating commands additionally require the repo to be bound to the
+project via a `.shipeasy` file (searched up from cwd). If this checkout doesn't
+have one (some repos gitignore it), create it in the repo root — it only holds
+the project id, no secret:
+
+test -f .shipeasy || printf '{"project_id":"<PROJECT_ID>"}\n' > .shipeasy
+
+If you created `.shipeasy` just now, never commit it — stage exact paths per
+fix; the file must not appear in the PR diff.
 
 First, update to the latest plugin AND CLI so this run uses the current
 commands (the plugin ships the slash commands; @shipeasy/cli is the separate

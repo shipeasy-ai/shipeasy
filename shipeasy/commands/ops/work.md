@@ -31,9 +31,13 @@ acknowledgement).
 Prereqs:
 
 - `.shipeasy` bound. Run `/shipeasy:setup` first if missing. (Unattended runs
-  — the scheduled trigger — instead authenticate from `SHIPEASY_CLI_TOKEN` +
-  `SHIPEASY_PROJECT_ID` env vars; those substitute for the `.shipeasy` bind, so
-  don't bail for a missing file when they're set.)
+  — the scheduled trigger — authenticate from the CLI config file the routine
+  prompt writes at run start (a restricted `ops` key + project id; env vars
+  `SHIPEASY_CLI_TOKEN` + `SHIPEASY_PROJECT_ID` work too). That substitutes for
+  `shipeasy login`, **not** for the `.shipeasy` bind — status writes still
+  require `.shipeasy` in the checkout, so the trigger prompt creates it when
+  the repo doesn't ship one. Don't bail for a missing `.shipeasy` before
+  checking whether creds are already present.)
 - `feedback` module enabled (`/shipeasy:ops:install`). `feedback bugs list`
   returning `403` means it isn't.
 - CLI ≥ `1.8.0` — `shipeasy alerts` (added 1.8.0) and
