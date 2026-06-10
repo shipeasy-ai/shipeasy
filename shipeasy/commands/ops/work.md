@@ -18,7 +18,7 @@ Follow the `bugs` skill for triage semantics.
 | --------- | --------------------------------- | --------------------------------------------------- |
 | `bug`     | `shipeasy feedback bugs list`     | `bugs update <id> --status resolved\|ready_for_qa`  |
 | `feature` | `shipeasy feedback features list` | manual flip → `shipped` (no CLI write; see below)   |
-| `error`   | `shipeasy ops.errors list`        | `ops.errors` is read-only — fix lands in code only  |
+| `error`   | `shipeasy ops.errors list`        | fix in code, then `PATCH /api/admin/errors/<id>` → resolved |
 | `alert`   | `shipeasy alerts list`            | `alerts` is read-only — fix lands in code only      |
 | `all`     | all four, in the order above      | per-source as above                                 |
 
@@ -31,13 +31,13 @@ acknowledgement).
 Prereqs:
 
 - `.shipeasy` bound. Run `/shipeasy:setup` first if missing. (Unattended runs
-  — the scheduled trigger — authenticate from the CLI config file the routine
-  prompt writes at run start (a restricted `ops` key + project id; env vars
-  `SHIPEASY_CLI_TOKEN` + `SHIPEASY_PROJECT_ID` work too). That substitutes for
-  `shipeasy login`, **not** for the `.shipeasy` bind — status writes still
-  require `.shipeasy` in the checkout, so the trigger prompt creates it when
-  the repo doesn't ship one. Don't bail for a missing `.shipeasy` before
-  checking whether creds are already present.)
+  — the scheduled trigger — authenticate from the `SHIPEASY_CLI_TOKEN` +
+  `SHIPEASY_PROJECT_ID` env vars the routine prompt exports per shell (a
+  restricted `ops` key + project id; the CLI config file works too). That
+  substitutes for `shipeasy login`, **not** for the `.shipeasy` bind — status
+  writes still require `.shipeasy` in the checkout, so the trigger prompt
+  creates it when the repo doesn't ship one. Don't bail for a missing
+  `.shipeasy` before checking whether creds are already present.)
 - `feedback` module enabled (`/shipeasy:ops:install`). `feedback bugs list`
   returning `403` means it isn't.
 - CLI ≥ `1.8.0` — `shipeasy alerts` (added 1.8.0) and
@@ -145,13 +145,19 @@ files; serial keeps blame clean and lets the user halt mid-loop.
 ### 1c. Errors
 
 1. `shipeasy ops.errors get "$ID" --json` — read `message`, `errorType`,
-   `source`, `count`, `firstSeenAt`/`lastSeenAt`, and any stack/context.
+   `subject`/`outcome` (the see() consequence — "X causes the {subject} to
+   {outcome}" is the product impact), `kind`, `side`, `count`,
+   `firstSeenAt`/`lastSeenAt`, `stack`, and `lastExtrasJson`.
 2. Locate the throw site from the stack frame / message. Reproduce if
-   feasible. Fix the root cause (same hard rules as bugs).
-3. There's no status write — `ops.errors` is read-only. The fix lands as a
-   code diff; the error stops recurring once deployed and ages out of the
-   "open" view. Note the fingerprint in your summary so the user can confirm
-   it drops off after deploy.
+   feasible. Fix the root cause (same hard rules as bugs). When the fix adds
+   a catch block, instrument it with `see(e).causes_the(…).to(…)` from
+   `@shipeasy/sdk` (see the `see` skill for consequence-writing rules).
+3. Status write: after the fix lands, flip the error to resolved via
+   `PATCH /api/admin/errors/<id>` `{ "status": "resolved" }` (ops keys are
+   allow-listed for this status-only write; the CLI has no command for it
+   yet). A resolved error **reopens automatically if it recurs**, so this is
+   safe pre-deploy. Note the fingerprint in your summary so the user can
+   confirm it stays resolved after deploy.
 
 ### 1d. Alerts
 

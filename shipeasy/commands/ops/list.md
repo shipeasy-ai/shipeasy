@@ -13,11 +13,14 @@ four sources, picked with `--type`. This replaces the old per-namespace
 | --------- | -------------------------------- | ------------------------------------------- |
 | `bug`     | `shipeasy feedback bugs list`    | In-app bug reports                          |
 | `feature` | `shipeasy feedback features list`| In-app feature requests                     |
-| `error`   | `shipeasy ops.errors list`       | Auto-tracked production errors (read-only)  |
+| `error`   | `shipeasy ops.errors list`       | see()-tracked production errors             |
 | `alert`   | `shipeasy alerts list`           | Active metric-threshold / built-in alerts   |
 
-`error` and `alert` are read-only — they're produced by the platform, never
-filed by hand. To act on them end-to-end, use `/shipeasy:ops:work`.
+`error` and `alert` rows are produced by the platform, never filed by hand.
+Errors support one write — status (open/resolved/ignored) via
+`PATCH /api/admin/errors/<id>`; a resolved error reopens automatically if it
+recurs. Alerts are fully read-only. To act on either end-to-end, use
+`/shipeasy:ops:work`.
 
 ## Steps
 

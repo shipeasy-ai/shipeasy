@@ -1,5 +1,5 @@
 ---
-description: Enable the feedback module + error collection, verify the devtools overlay and error capture, and drop a project pointer skill for bug reports, feature requests, and production errors
+description: Enable the feedback module + error collection, verify the devtools overlay and error capture, drop project pointer skills (feedback + see() error reporting), and add the CLAUDE.md error-handling rule
 ---
 
 Run the ops-module setup for Shipeasy — the in-app feedback overlay
@@ -36,18 +36,19 @@ Steps:
    If the panel never appears, base setup is incomplete — send the user
    back to `/shipeasy:setup` to render `getBootstrapHtml()` into `<head>`.
 
-4. **Set up error collection (ask the user first).** Error collection
-   rides the **events system**: the client SDK's `autoCollect` errors
-   group hooks `window.onerror` + `unhandledrejection` and wraps `fetch`,
-   shipping `__auto_js_error` and `__auto_network_error` (5xx + network
-   failures) to `/collect`. Those fold into the project's tracked-errors
-   inbox, viewable read-only via `shipeasy ops.errors`.
+4. **Set up error collection (ask the user first).** Error collection is
+   the **errors primitive** (`@shipeasy/sdk` ≥ 4.0.0): the client SDK's
+   `autoCollect` errors group hooks `window.onerror` +
+   `unhandledrejection` and wraps `fetch` (5xx + network failures),
+   shipping structured `type:"error"` events to `/collect`. Those fold
+   into fingerprint-grouped issues with a near-real-time occurrence
+   timeline — the Errors dashboard tab and `shipeasy ops.errors`. Handled
+   exceptions are reported explicitly with `see()` (next steps).
 
    This group is **on by default** the moment the client SDK is
-   initialised (`shipeasy({ clientKey })` from `/shipeasy:setup`), and
-   the `events` module is on by default too — so there's nothing extra to
-   enable for the happy path. Ask the user whether they want production
-   error collection on:
+   initialised (`shipeasy({ clientKey })` from `/shipeasy:setup`) — so
+   there's nothing extra to enable for the happy path. Ask the user
+   whether they want production error collection on:
    - **Keep it on (default):** confirm the client `shipeasy({ clientKey })`
      call has no `autoCollect: { errors: false }` override, then verify
      capture once events flow in:
@@ -141,16 +142,88 @@ Steps:
    group — disable with `shipeasy({ clientKey, autoCollect: { errors: false } })`.
    ````
 
-7. Print the hand-off:
+7. **Drop the see() error-reporting pointer skill.** Write the file below
+   to `<repo-root>/.claude/skills/shipeasy-see/SKILL.md` via the Write
+   tool (create the directory if missing). Do **not** overwrite an
+   existing file unless the user asked for a refresh. This is the
+   project-local trigger for the full `see` skill that ships with the
+   plugin — it makes every error-handling task in this repo route through
+   the see() rules.
+
+   ````markdown
+   ---
+   name: shipeasy-see
+   description: Project rule — error handling in this repo uses see() from @shipeasy/sdk. Triggers on try/catch, error handling, exceptions, error logging, console.error in catch blocks, "handle this error", "add error handling".
+   ---
+
+   # see() — required error reporting (project pointer)
+
+   This project reports errors into the Shipeasy errors primitive. Every
+   handled exception documents its product consequence:
+
+   ```ts
+   import { see } from "@shipeasy/sdk/client"; // or "@shipeasy/sdk/server"
+
+   try {
+     await submitOrder(order);
+   } catch (e) {
+     see(e).causes_the("checkout").to("use cached prices").extras({ order_id: order.id });
+   }
+   ```
+
+   - Non-exception problems: `see.Violation("name").message("…").causes_the(…).to(…)`
+     — never put variable data in the name (it's the fingerprint key).
+   - Expected control-flow exceptions: `see.ControlFlowException(e, "because …")`
+     — reports nothing, auto-capture skips it.
+   - **Never** see() then `throw` (double count) · **never** an empty catch ·
+     **never** `console.error`-only handling · no PII in extras.
+   - If you don't know the consequence, don't catch the exception.
+
+   The full skill (consequence-writing guide, anti-patterns, examples) is
+   `see` in the `shipeasy` Claude Code plugin:
+
+   ```bash
+   claude plugin marketplace add shipeasy-ai/shipeasy
+   claude plugin install shipeasy@shipeasy
+   ```
+
+   Triage the resulting issues with `/shipeasy:ops:list --type error` and
+   `/shipeasy:ops:work`, or in the dashboard Errors tab.
+   ````
+
+8. **Add the CLAUDE.md error-handling rule (ask once, default yes).**
+   Append the block below to the repo-root `CLAUDE.md` (create the file
+   if missing). Skip if a `see()` rule is already present — never
+   duplicate it. This is what makes Claude wrap error handling in see()
+   on every future task, not just when the skill happens to trigger:
+
+   ```markdown
+   ## Error handling
+
+   **HARD RULE: every handled exception is reported with `see()` from
+   `@shipeasy/sdk` (client or server entrypoint).** A catch block that
+   swallows, logs to console only, or rethrows after reporting is wrong:
+
+   - Handle it → `see(e).causes_the(<subject>).to(<outcome>).extras({…})`
+   - Expected control flow → `see.ControlFlowException(e, "because …")`
+   - Can't name the consequence → don't catch; let an outer boundary own it
+   - Never `see()` then `throw` — either handle or rethrow, never both
+
+   See `.claude/skills/shipeasy-see/SKILL.md` for the full rules.
+   ```
+
+9. Print the hand-off:
 
    ```
    ✅ shipeasy ops setup complete
    Module:   feedback ✓   (events on by default → error collection)
    Wired:    devtools overlay (?se=1 on any page rendering getBootstrapHtml)
-             auto error capture (__auto_js_error / __auto_network_error → /collect)
+             auto error capture (uncaught/unhandled/network → errors primitive)
    Pointer:  .claude/skills/shipeasy-bugs/SKILL.md
+             .claude/skills/shipeasy-see/SKILL.md
+   Rule:     CLAUDE.md — handled exceptions must use see()
    Next:     /shipeasy:ops:report bug "<title>"  — file a single bug/feature
-             /shipeasy:ops:list --type bug       — list bugs/features/errors/alerts
+             /shipeasy:ops:list --type error     — list bugs/features/errors/alerts
              /shipeasy:ops:work                  — burn down bugs+features+errors+alerts
              shipeasy ops.errors list            — triage tracked production errors
              or have end users submit via the in-page Report panel.

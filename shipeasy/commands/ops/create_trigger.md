@@ -46,14 +46,14 @@ routines.
 - **Never print secret values into chat or any file.** The Shipeasy CLI token
   and the routine bearer token are read straight from local state and passed
   only to where they're needed — the CLI token substituted into the routine
-  prompt's config-file write, the routine bearer token into
+  prompt's export lines, the routine bearer token into
   `shipeasy connectors create-trigger` (which encrypts it at rest) — never
   echoed into chat.
 - **Treat the routine as sensitive — but mint it a restricted key.** The routine
   reads the Shipeasy queue unattended, so its prompt carries a Shipeasy key +
-  `project_id` it writes to the CLI config file at run start (Claude Code has no
-  programmatic way to set a routine's env vars, so the prompt is the only
-  hands-off channel). **Embed a freshly-minted `ops` key, never your own admin
+  `project_id` the run exports as env vars (Claude Code has no programmatic way
+  to set a routine's env vars, so the prompt is the only hands-off channel).
+  **Embed a freshly-minted `ops` key, never your own admin
   login token** (step 2): the `ops` key can only read the queue and flip
   bug/feature status — no destructive admin, no `link-pr` — so a leaked routine
   prompt can't compromise the project. The `ops` key rolls its own expiry forward
@@ -152,21 +152,16 @@ the chosen cron as `<CRON>` for step 3.
 
 ## 2. Mint the restricted Shipeasy key the routine needs
 
-The routine re-creates the CLI's logged-in state by **writing its config file**
-(`$XDG_CONFIG_HOME/shipeasy/config.json` — the same file `shipeasy login`
-writes and every `shipeasy` call reads) at the start of each run. The prompt is
-the only hands-off channel for this:
-
-- Claude Code has **no API or CLI to set a routine's environment variables
-  programmatically** — that's UI-only — so per-routine env vars would force the
-  user to paste secrets into the `/schedule` UI by hand, which this flow must
-  not do.
-- A bare `export` in the prompt wouldn't survive either: each Bash step in the
-  run gets a fresh shell, so the env wouldn't reach the `shipeasy` calls that
-  `/shipeasy:ops:work` makes. The on-disk **config file persists across the
-  whole run**, so it does — that's why the prompt writes the file, not an
-  `export`. (The CLI checks `SHIPEASY_CLI_TOKEN`/`SHIPEASY_PROJECT_ID` env
-  first, then this file — leaving the env unset means it reads the file.)
+The routine authenticates via the CLI's env-var path: every `shipeasy` call
+checks `SHIPEASY_CLI_TOKEN` + `SHIPEASY_PROJECT_ID` **before** its config file,
+so the prompt simply carries the two values and tells the run to export them —
+no config-file write needed. The prompt is the only hands-off channel for this:
+Claude Code has no API or CLI to set a routine's env vars programmatically
+(that's UI-only), and making the user paste secrets into the `/schedule` UI by
+hand is exactly what this flow avoids. One caveat the prompt must spell out:
+each Bash step in a run gets a **fresh shell**, so the exports go at the top of
+every shell invocation that calls `shipeasy` — a single export at run start
+would not reach later commands.
 
 **Mint a dedicated, restricted `ops` key for the routine — do NOT embed your
 own login token.** Your `shipeasy login` token is a full-admin key (it can
@@ -195,9 +190,8 @@ test -n "$SHIPEASY_CLI_TOKEN" && test "$SHIPEASY_CLI_TOKEN" != "null" \
 > Just note that an `ops` key *would* be minted and embedded, then continue to
 > step 3.
 
-`SHIPEASY_CLI_TOKEN` now holds the restricted `ops` key (still written to the
-routine's `config.json` under the `cli_token` field — the CLI reads it the same
-way). It gets substituted into the config-file write in the step-4 prompt.
+`SHIPEASY_CLI_TOKEN` now holds the restricted `ops` key. It gets substituted
+into the export lines of the step-4 prompt.
 Because it rolls its own expiry forward on use, **no manual rotation is needed**
 while the schedule fires more often than every 7 days. If the trigger is paused
 longer than that the key lapses — re-run this command (or
@@ -216,25 +210,25 @@ Use the built-in **`/schedule`** command to create one scheduled routine on
 `<CRON>`. Point it at the **GitHub repo confirmed in the prerequisites** (the
 one with the `github.com` remote, connected in Claude Code) — that's the repo
 the routine checks out and opens its PR against. The routine prompt is a thin
-wrapper: write the CLI config file to authenticate, refresh the plugin + CLI so
-each run picks up the latest commands, then
+wrapper: export the Shipeasy env vars to authenticate, refresh the plugin + CLI
+so each run picks up the latest commands, then
 run `/shipeasy:ops:work --pr` (which owns the whole pull → fix → commit →
 one-PR → status flip → auto-close-the-issue flow). Substitute the **two real
-values from step 2** into the config JSON — `<OPS_KEY>` is the minted `ops` key
-(`$SHIPEASY_CLI_TOKEN`, goes in the `cli_token` field) and `<PROJECT_ID>` is
-`$SHIPEASY_PROJECT_ID` — each appears exactly once. The prompt:
+values from step 2** wherever the placeholders appear — `<OPS_KEY>` is the
+minted `ops` key (`$SHIPEASY_CLI_TOKEN`) and `<PROJECT_ID>` is
+`$SHIPEASY_PROJECT_ID`. The prompt:
 
 ```
-You are an unattended Shipeasy maintenance run. Re-create the Shipeasy CLI's
-logged-in state by writing its config file, so every `shipeasy` call this run
-authenticates without a browser (do NOT run `shipeasy login` or echo the token):
+You are an unattended Shipeasy maintenance run. Authenticate every `shipeasy`
+call with these env vars — the CLI reads them directly; do NOT run
+`shipeasy login` and never echo the token:
 
-CFG="${XDG_CONFIG_HOME:-$HOME/.config}/shipeasy"
-mkdir -p "$CFG"
-cat > "$CFG/config.json" <<'JSON'
-{"project_id":"<PROJECT_ID>","cli_token":"<OPS_KEY>","api_base_url":"https://api.shipeasy.ai","app_base_url":"https://shipeasy.ai","created_at":"1970-01-01T00:00:00Z"}
-JSON
-chmod 600 "$CFG/config.json"
+export SHIPEASY_CLI_TOKEN="<OPS_KEY>"
+export SHIPEASY_PROJECT_ID="<PROJECT_ID>"
+
+Each shell command runs in a fresh environment, so put these two exports at
+the top of EVERY shell invocation that runs `shipeasy` — they do not persist
+from an earlier command.
 
 The CLI's mutating commands additionally require the repo to be bound to the
 project via a `.shipeasy` file (searched up from cwd). If this checkout doesn't
@@ -320,8 +314,8 @@ Print:
 ✅ Shipeasy feedback Claude trigger provisioned
 Schedule:  <CRON>  (UTC; managed with /schedule)
 Routine:   <ROUTINE_ID>  (Claude Code scheduled routine — runs in the cloud)
-Creds:     restricted `ops` key written to the CLI config file at run start from
-           the routine prompt (read-only queue + bug/feature status only — no
+Creds:     restricted `ops` key carried in the routine prompt and exported as
+           env vars per shell (read-only queue + bug/feature status only — no
            destructive admin, no link-pr; auto-extends its 7-day expiry on use).
 Connector: registered in Shipeasy → Feedback → Connectors ("Claude trigger"),
            backed by the routine. "Fire now" fires it on demand; toggle event
