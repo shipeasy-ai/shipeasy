@@ -139,7 +139,9 @@ Steps:
    The in-page overlay opens on any URL with `?se=1` appended (requires
    `getBootstrapHtml()` rendered into `<head>` by base setup). Error
    collection is on by default via the client SDK's `autoCollect` errors
-   group — disable with `shipeasy({ clientKey, autoCollect: { errors: false } })`.
+   group (reports into the errors primitive — see the `shipeasy-see`
+   skill for explicit `see()` reporting in catch blocks) — disable with
+   `shipeasy({ clientKey, autoCollect: { errors: false } })`.
    ````
 
 7. **Drop the see() error-reporting pointer skill.** Write the file below

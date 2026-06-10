@@ -85,10 +85,15 @@ output is meaningless if an earlier one failed:
   is needed and can't complete, stop.
 - `modules list` succeeds but `feedback` is absent → run `/shipeasy:ops:install`
   (or `shipeasy modules enable feedback`); stop.
-- **`/schedule` must be available.** Routines require a Claude.ai login.
-  `/schedule` is disabled when `ANTHROPIC_API_KEY` / `apiKeyHelper` /
-  `ANTHROPIC_AUTH_TOKEN` is set — if so, tell the user to unset the API key and
-  re-authenticate with their Claude.ai account, then stop.
+- **`/schedule` must be available — but do NOT probe for it.** Never run shell
+  checks on `$ANTHROPIC_API_KEY` or any auth env var: it's a secret, and the
+  Bash tool's environment doesn't reflect how the Claude Code session is
+  authenticated anyway, so the probe produces false alarms. Just proceed and
+  use `/schedule` at step 4. Only if it turns out to be unavailable there:
+  the usual cause is API-key auth taking precedence over the claude.ai login
+  routines require (`ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` in the shell,
+  or `apiKeyHelper` in settings.json) — tell the user to remove that credential
+  and re-authenticate with their Claude.ai account, then stop.
 - **A GitHub repo to open PRs against.** The routine runs
   `/shipeasy:ops:work --pr`, which opens a real pull request with `gh pr
   create`. This project must be a GitHub repo — `git remote -v` shows a
