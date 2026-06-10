@@ -269,7 +269,32 @@ Don't merge.
 ```
 
 After `/schedule` creates the routine, capture **`ROUTINE_ID`** — the routine's
-id (shown by `/schedule` / its routine list). The fire token comes next, in 4b.
+id (shown by `/schedule` / its routine list). Then do 4a (required) and 4b.
+
+## 4a. Allow the Shipeasy domains in the routine's network (required)
+
+**Without this, the first run fails on every `shipeasy` call.** New cloud
+environments default to **Trusted** network access — package registries +
+GitHub only — so the run can `npm install` and push branches, but
+`api.shipeasy.ai` is unreachable. There is no `/schedule` flag for this; it's
+**UI-only**, so walk the user through it now, in the same dialog as the env
+vars:
+
+1. Open https://claude.ai/code/routines → this routine → edit → click the
+   cloud icon (the environment, e.g. "Default") → settings → **Update cloud
+   environment**.
+2. Set **Network access** to **Custom** and add to **Allowed domains** (one
+   per line; `*.` wildcards are supported):
+
+   ```
+   shipeasy.ai
+   api.shipeasy.ai
+   ```
+
+3. Check **"Also include default list of common package managers"** — the run
+   still needs npm to install the CLI. (GitHub clone/push/PR rides a separate
+   GitHub proxy and is unaffected by this setting.)
+4. Save. The policy applies from the next run.
 
 ## 4b. Register the routine as a Shipeasy connector
 
@@ -333,6 +358,7 @@ If the fire fails:
 | Symptom                                            | Fix                                                                                              |
 | -------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | `401` / `403` firing the routine                   | Routine fire token wrong/stale — **Regenerate** it in the routine's API-trigger modal and re-run step 4b. |
+| Network errors / timeouts reaching `api.shipeasy.ai` inside the run | The environment's network access is still the Trusted default — allowlist the Shipeasy domains (step 4a). |
 | `401` / `403` from the shipeasy CLI inside the run | The embedded `ops` key lapsed (trigger paused > 7 days) — mint a fresh one (`shipeasy keys create --type ops`) and update the routine prompt (step 4). |
 | `403 ops key not permitted for this operation`     | `ops:work` hit an admin route outside the ops allow-list (it shouldn't) — update the plugin/CLI to the latest; if it persists, file it.            |
 | `403 module not enabled`                           | `shipeasy modules enable feedback`, then re-fire.                                                |
@@ -364,6 +390,9 @@ Env vars:  changeable from that UI — edit the routine → click the cloud icon
            set SHIPEASY_CLI_TOKEN + SHIPEASY_PROJECT_ID there and delete the
            two export lines from the routine prompt — the CLI reads the
            environment's vars directly.
+Network:   environment set to Custom — shipeasy.ai + api.shipeasy.ai allowed,
+           plus the package-manager defaults (step 4a); adjust in the same
+           cloud-environment dialog.
 Manage:    edit/pause/delete the schedule with /schedule; delete the connector
            from the Feedback → Connectors panel.
 ```
