@@ -24,6 +24,11 @@ function isKeyType(s: string): s is KeyType {
   return (VALID_TYPES as readonly string[]).includes(s);
 }
 
+/** GET /api/admin/keys returns a paginated `{ data: [...] }` envelope. */
+function unwrapKeyRows(res: KeyRow[] | { data: KeyRow[] }): KeyRow[] {
+  return Array.isArray(res) ? res : res.data;
+}
+
 export function keysCommand(parent: Command): void {
   const keys = parent
     .command("keys")
@@ -37,7 +42,9 @@ export function keysCommand(parent: Command): void {
     .action(async (opts) => {
       try {
         const client = getApiClient(opts.project);
-        const rows = await client.request<KeyRow[]>("GET", "/api/admin/keys");
+        const rows = unwrapKeyRows(
+          await client.request<KeyRow[] | { data: KeyRow[] }>("GET", "/api/admin/keys"),
+        );
         if (opts.json) return printJson(rows);
         if (rows.length === 0) {
           console.log("No keys found.");
@@ -112,7 +119,9 @@ export function keysCommand(parent: Command): void {
     .action(async (idArg: string, opts) => {
       try {
         const client = getApiClient(opts.project, { requireBinding: true });
-        const rows = await client.request<KeyRow[]>("GET", "/api/admin/keys");
+        const rows = unwrapKeyRows(
+          await client.request<KeyRow[] | { data: KeyRow[] }>("GET", "/api/admin/keys"),
+        );
         const match = rows.find((r) => r.id === idArg) ?? rows.find((r) => r.id.startsWith(idArg));
         if (!match) throw new ApiError(`No key found matching '${idArg}'`, 404);
         const result = await client.request<{ id: string; revoked: boolean }>(
