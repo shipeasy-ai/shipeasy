@@ -1,5 +1,5 @@
 ---
-description: Provision a recurring, unattended feedback trigger that pulls the latest active Shipeasy bugs + feature requests and fixes them, then register it as a Shipeasy connector so it shows in the Feedback tab and can be fired on demand. Provider-pluggable via --provider (only `claude` is supported today) — the Claude provider backs the trigger with a Claude Code scheduled routine (via /schedule, runs in Anthropic's cloud). One-time full setup: provider auth, GitHub connection for cloud sessions (OAuth GitHub App — gh-free, or /web-setup if gh is installed), the schedule, and Shipeasy credentials. Does NOT use GitHub Actions or /install-github-app.
+description: Provision a recurring, unattended feedback trigger that pulls the latest active Shipeasy bugs + feature requests and fixes them, then register it as a Shipeasy connector so it shows in the Feedback tab and can be fired on demand. Provider-pluggable via --provider (only `claude` is supported today) — the Claude provider backs the trigger with a Claude Code scheduled routine (via /schedule, runs in Anthropic's cloud). One-time full setup: provider auth, GitHub connection for cloud sessions (run /web-setup if gh is installed, else the Claude GitHub App OAuth — never ask "is GitHub connected?", the commands are idempotent), the schedule, and Shipeasy credentials. Does NOT use GitHub Actions.
 argument-hint: "[--provider claude] [--frequency daily|weekdays|weekly|6h] [--dry-run]"
 ---
 
@@ -110,16 +110,24 @@ a branch, and opens its PR under the user's **connected GitHub identity** — a
 one-time consent the user clicks through. (If `--dry-run`, skip the actual
 connect — just note it would run; see step 3.)
 
-Connect GitHub one of two ways — **the first needs no `gh` CLI**:
+**Do NOT ask the user whether GitHub is already connected.** There is no status
+command to check it, and the setup commands are idempotent — asking is pure
+friction. Just run the connect, picked by what's on the machine:
 
-- **Authorize the Claude GitHub App (OAuth — gh-free, the default).** The user
-  authorizes the app in the browser (claude.ai/code web onboarding, or
-  `github.com/apps/claude`). It's a pure OAuth consent — no local `gh` — and
-  grants cloud sessions access to every repo the account can see (clone + push +
-  open PRs). Use this when `gh` isn't installed.
-- **`/web-setup` (shortcut when `gh` is already installed).** Syncs the user's
-  local `gh` token to their Claude.ai account. Only works if `gh` is installed
-  and authed — otherwise skip it and use the OAuth authorize above.
+- **`/web-setup` (when `gh` is installed + authed — run it, don't ask).** The
+  built-in slash command syncs the user's local `gh` token to their Claude
+  account. **Idempotent** — re-running when already connected just re-syncs, so
+  there is nothing to pre-check.
+- **Authorize the Claude GitHub App (when `gh` isn't available).** A pure
+  browser OAuth consent (claude.ai/code web onboarding, or
+  `github.com/apps/claude`; `/install-github-app` also walks the App install) —
+  no local `gh` — and grants cloud sessions access to every repo the account
+  can see (clone + push + open PRs).
+
+Either method is sufficient. `/schedule` validates GitHub access itself when
+the routine is created (step 4) and prompts if it's missing — so a connect that
+can't complete here surfaces there; only stop early if the user declines the
+consent outright.
 
 Notes:
 
