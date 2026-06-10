@@ -129,9 +129,6 @@ Notes:
   for advanced commands like `gh release` — not for this flow.
 - Installing the app on a specific repo is optional — authorization alone covers
   push/PR; a per-repo install only adds Auto-fix PR webhooks.
-- `/install-github-app` is the GitHub *Actions* integration (it scaffolds a
-  `.github/workflows` file and wants an `ANTHROPIC_API_KEY` secret) — not needed
-  here; the OAuth authorize above is the routine-access path.
 - If the user can't complete the consent (no browser, declines), stop — a
   routine that can't open a PR just burns tokens and produces nothing.
 - **Branch prefix:** by default a routine may only push `claude/`-prefixed
@@ -328,6 +325,15 @@ Connector: registered in Shipeasy → Feedback → Connectors ("Claude trigger")
 Does:      updates the plugin + CLI → runs /shipeasy:ops:work --pr → fixes each
            item → opens one PR (Closes #issue for connected items) → ready_for_qa.
 Review:    PRs land for human review; nothing auto-merges.
+Portal:    https://claude.ai/code/routines  — open the routine in the browser:
+           view runs, edit the prompt/schedule, pause or delete it.
+Env vars:  changeable from that UI — edit the routine → click the cloud icon
+           (the environment, e.g. "Default") → settings → "Update cloud
+           environment" → Environment variables (.env format, one KEY=value
+           per line; no quotes). To move the creds out of the prompt entirely,
+           set SHIPEASY_CLI_TOKEN + SHIPEASY_PROJECT_ID there and delete the
+           two export lines from the routine prompt — the CLI reads the
+           environment's vars directly.
 Manage:    edit/pause/delete the schedule with /schedule; delete the connector
            from the Feedback → Connectors panel.
 ```
@@ -336,4 +342,6 @@ Manage:    edit/pause/delete the schedule with /schedule; delete the connector
 > the routine can read the Shipeasy queue and open a PR. If it fails on
 > Shipeasy auth, the embedded `ops` key has lapsed (the trigger was paused
 > longer than its 7-day sliding window) — mint a fresh one with
-> `shipeasy keys create --type ops` and update the routine prompt (step 4).
+> `shipeasy keys create --type ops` and update the routine prompt (step 4), or
+> set it once in the routine's cloud-environment variables (see "Env vars" in
+> the hand-off) so future rotations are a UI-only edit.
