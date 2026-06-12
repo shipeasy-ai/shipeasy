@@ -230,3 +230,49 @@ Steps:
              shipeasy ops.errors list            — triage tracked production errors
              or have end users submit via the in-page Report panel.
    ```
+
+10. **Offer the follow-on setup (ask the user).** The module is wired, but
+    two high-value steps still need a decision. Call **AskUserQuestion**
+    with `multiSelect: true` so the user can pick either, both, or neither:
+
+    - **Question:** "Ops module is installed. What would you like to set up
+      next?" (header: `Next steps`)
+    - **Option A — "Wrap errors in see()"**: walk the project's handled
+      exceptions (try/catch blocks, swallowed catches, `console.error`-only
+      handlers) and report each through `see()` per the `shipeasy-see`
+      rules. Description: "Audit catch blocks across the project and add
+      see() consequence reporting to every handled exception. Docs:
+      https://docs.shipeasy.ai/feedback/error-reporting"
+    - **Option B — "Configure alerts"**: description "Survey the project,
+      propose a few alert rules, then build each end-to-end (event → metric
+      → alert) and wire the events. Docs:
+      https://docs.shipeasy.ai/feedback/alerts"
+
+    Include the matching docs link in each option's `description` exactly as
+    above so the user can read what the step does before choosing.
+
+    Act on whatever the user selects (do nothing for options they leave
+    unchecked):
+
+    - **If "Wrap errors in see()" is selected:** invoke the `see` skill and
+      sweep the codebase for handled exceptions, applying `see()` reporting
+      per its rules (handle → `causes_the().to().extras()`; control flow →
+      `see.ControlFlowException`; never see()-then-throw, never empty
+      catch, never console-only). Do not touch boundaries that already
+      report (withAdmin/errorResponse, client auto-capture, SectionBoundary,
+      the client-error sink) — only swallowed / control-flow catches.
+
+    - **If "Configure alerts" is selected:** first read the project to
+      understand what's worth watching (error volume, latency/5xx on the SDK
+      hot path, cron/queue outcomes, key user actions), then propose **3–5
+      concrete alert rules** to the user (metric + comparator + threshold +
+      window + severity for each) and let them confirm or trim the set. For
+      each confirmed alert, build the whole chain with the shipeasy CLI:
+      1. ensure the backing **event** is emitted from the code (instrument
+         it where it isn't already — wire the events);
+      2. create the **metric** over that event
+         (`shipeasy metrics create …`, see `/shipeasy:metrics:grammar` for
+         the DSL);
+      3. create the **alert rule** on that metric
+         (`shipeasy alerts create …` / `/shipeasy:alerts:create`).
+      Confirm each rule lands with `shipeasy alerts list`.
