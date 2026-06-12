@@ -132,7 +132,50 @@ demonstrate what NOT to do.**
 
 // WRONG: Too verbose
 .causes_the("user's friend list ordered by age").to("be empty, making it look like the user has no friends")
+
+// WRONG: HARD-BANNED — subject starts with an article; the title template
+// already supplies "the", so this renders "causes the a network request"
+.causes_the("a network request").to("fail without a response")
+
+// WRONG: HARD-BANNED — variable data interpolated into the outcome; mints a
+// separate issue per status code (500, 502, 503, …) and still names no feature
+.causes_the("a network request").to(`fail with HTTP ${res.status}`)
+
+// WRONG: HARD-BANNED — transport-level subject; names the mechanism, not the
+// impact. "The network request failed" explains nothing and cannot be triaged.
+.causes_the("network request").to("fail")
 ```
+
+### Hard Bans
+
+These shapes are banned outright. Never write them; flag them when reviewing
+existing code:
+
+1. **No leading article in the subject.** Issue titles render as
+   `{problem} causes the {subject} to {outcome}` — the template supplies
+   "the", so `causes_the("a network request")` produces the broken title
+   "… causes the **a** network request …". The subject is a bare noun
+   phrase: `causes_the("checkout")`, never `causes_the("a checkout")` or
+   `causes_the("the checkout")`.
+2. **No variable data in the subject or outcome.** Unlike `.message()`, the
+   consequence is **not** normalized before fingerprinting — digits and ids
+   survive — so `` .to(`fail with HTTP ${res.status}`) `` mints one issue per
+   status code. Write the class of failure (`to("fail with a server error")`)
+   and put the value in `.message()` or `.extras()`.
+3. **No transport-level subjects** — "network request", "HTTP request",
+   "request", "fetch", "API call", "response". These describe the plumbing,
+   not what broke for the user, so the resulting issue is impossible to act
+   on. Name the feature the failed call was serving:
+   `causes_the("flag snapshot").to("fall back to cached values")`, not
+   `causes_the("network request").to("fail")`. If you genuinely cannot name
+   the affected feature at the catch site, the catch is at the wrong
+   altitude — let the error propagate to a handler that knows the impact
+   (see Core Philosophy).
+
+**Title read-aloud check (required):** before committing a consequence,
+render the full title `{problem} causes the {subject} to {outcome}` and read
+it as an English sentence. If it has doubled articles, embedded values, or
+doesn't tell a product person what broke, rewrite it.
 
 ### Consequence Best Practices
 
