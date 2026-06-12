@@ -1,93 +1,50 @@
 ---
 description: List operational items — bug reports, feature requests, tracked production errors, or active alerts — with a --type filter
-argument-hint: "[--type bug|feature|error|alert] [--status <s>] [--priority high|critical|medium|low] [--name-contains <s>]"
+argument-hint: "[--type bug|feature|error|alert|all] [--status <s>] [--priority high|critical|medium|nice_to_have] [--name-contains <s>]"
 ---
 
-Unified read view over the bound project's operational inbox. One command,
-four sources, picked with `--type`. This replaces the old per-namespace
-`/shipeasy:bugs:list`. Follow the `bugs` skill for triage semantics.
-
-`--type` (default `bug`):
-
-| `--type`  | Source CLI                       | What it is                                  |
-| --------- | -------------------------------- | ------------------------------------------- |
-| `bug`     | `shipeasy feedback bugs list`    | In-app bug reports                          |
-| `feature` | `shipeasy feedback features list`| In-app feature requests                     |
-| `error`   | `shipeasy ops.errors list`       | see()-tracked production errors             |
-| `alert`   | `shipeasy alerts list`           | Active metric-threshold / built-in alerts   |
-
-`error` and `alert` rows are produced by the platform, never filed by hand.
-Errors support one write — status (open/resolved/ignored) via
-`PATCH /api/admin/errors/<id>`; a resolved error reopens automatically if it
-recurs. Alerts are fully read-only. To act on either end-to-end, use
-`/shipeasy:ops:work`.
-
-Note: these are the **raw sources**. The platform also auto-files `error` /
-`alert` **tickets** into the unified feedback table (an error ticket when a
-tracked error crosses the occurrence threshold, an alert ticket when an alert
-triggers) — that table is what `/shipeasy:ops:work` consumes. List the
-tickets with:
+Read view over the bound project's operational inbox — the unified `feedback`
+queue, which holds all four item types. One command, one table:
 
 ```bash
-curl -s "https://shipeasy.ai/api/admin/feedback?type=error&status=all" \
-  -H "X-SDK-Key: $(jq -r .cli_token ~/.config/shipeasy/config.json)" \
-  -H "X-Project-Id: $(jq -r .project_id ~/.config/shipeasy/config.json)"   # or type=alert / type=all
+shipeasy ops.list --type <bug|feature_request|error|alert|all> --status <status|all> [--priority <p>] [--json]
 ```
+
+`ops.list` defaults to `--type all --status open`, sorted `priority desc` then
+oldest-first. `error`/`alert` rows are the **tickets** the platform auto-files
+(an `error` ticket when a tracked error crosses the occurrence threshold; an
+`alert` ticket when an alert triggers) — never filed by hand. **Use the CLI for
+everything here — never `curl` the admin API.**
 
 ## Steps
 
-1. Parse `$ARGUMENTS` for `--type` (default `bug`). Pull the matching JSON:
+1. Parse `$ARGUMENTS` for `--type` (default `all`), `--status`, `--priority`,
+   `--name-contains`. Pull the queue:
 
    ```bash
-   # bug (default) / feature
-   shipeasy feedback bugs list     --json > /tmp/se-ops.json   # --type bug
-   shipeasy feedback features list --json > /tmp/se-ops.json   # --type feature
-   # error
-   shipeasy ops.errors list        --json > /tmp/se-ops.json   # --type error
-   # alert  (requires CLI ≥ 1.8.0 — `shipeasy alerts` was added there)
-   shipeasy alerts list            --json > /tmp/se-ops.json   # --type alert
+   shipeasy ops.list --type "${TYPE:-all}" --status "${STATUS:-open}" --json > /tmp/se-ops.json
    ```
 
-   The CLI exposes `--status` natively on `feedback bugs list`,
-   `feedback features list`, and `ops.errors list`. Other filters apply
-   client-side.
+   `--type`, `--status`, and `--priority` are native flags; `--name-contains`
+   filters client-side. Drop `--json` for the built-in table.
 
-2. Apply the remaining filters and print a compact table. For **bug** /
-   **feature** (priority + status + name):
+2. If `--name-contains` was passed, filter `title` client-side, then print a
+   compact table (`#number  priority  status  type  title`).
 
-   ```bash
-   node - <<'JS' < /tmp/se-ops.json
-   const STATUS   = process.env.STATUS   || "";
-   const PRIORITY = process.env.PRIORITY || "";
-   const NEEDLE   = (process.env.NEEDLE   || "").toLowerCase();
-   const RANK = { critical: 4, high: 3, medium: 2, low: 1 };
-   const rows = JSON.parse(require("fs").readFileSync(0, "utf8"))
-     .filter(b => !STATUS   || b.status === STATUS)
-     .filter(b => !PRIORITY || b.priority === PRIORITY)
-     .filter(b => !NEEDLE   || (b.title ?? "").toLowerCase().includes(NEEDLE))
-     .sort((a, b) =>
-       (RANK[b.priority] || 0) - (RANK[a.priority] || 0) ||
-       (a.createdAt ?? "").localeCompare(b.createdAt ?? ""));
-   for (const b of rows) console.log(
-     `${b.id.slice(0, 8)}  ${(b.priority ?? "—").padEnd(8)}  ${(b.status ?? "").padEnd(12)}  ${(b.title ?? "").slice(0, 60)}`
-   );
-   console.log(`\n${rows.length} match${rows.length === 1 ? "" : "es"}.`);
-   JS
-   ```
+## Raw sources (for diagnosis while triaging)
 
-   For **error**, sort by `count desc, lastSeenAt desc` and print
-   `id, errorType, count, status, message`. For **alert**, sort by
-   `severity (danger>warn>info), createdAt desc` and print
-   `id, severity, source, title`.
+The tickets above are the work queue. The underlying raw records are still
+readable when you need deeper detail on an `error` or `alert`:
 
-Field references:
+| source  | CLI                          | what it is                                |
+| ------- | ---------------------------- | ----------------------------------------- |
+| errors  | `shipeasy ops.errors list`   | see()-tracked production errors (id/count/fingerprint/status) |
+| alerts  | `shipeasy alerts list`       | active metric-threshold / built-in alerts |
 
-- bug/feature — `id`, `title`, `description`, `status`, `priority`,
-  `pageUrl`, `createdAt`.
-- error — `id`, `fingerprint`, `message`, `errorType`, `source`, `status`,
-  `count`, `firstSeenAt`, `lastSeenAt`.
-- alert — `id`, `severity`, `source`, `title`, `detail`, `href`,
-  `observedValue`, `status`, `createdAt`.
+Errors support one write — `shipeasy ops.errors update <id> --status
+<open|resolved|ignored>`; a resolved error reopens automatically if it recurs.
+Raw alerts are read-only (they auto-resolve when the condition clears).
 
-To process the whole queue end-to-end (investigate + fix + resolve), use
-`/shipeasy:ops:work`. To file a new bug or feature, use `/shipeasy:ops:report`.
+To process the whole queue end-to-end (investigate + fix + resolve + link the
+PR), use `/shipeasy:ops:work`. To file a new bug or feature, use
+`/shipeasy:ops:report`.

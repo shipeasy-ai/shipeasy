@@ -35,6 +35,11 @@ Prereqs:
   `.shipeasy` before checking whether creds are already present.)
 - `feedback` module enabled (`/shipeasy:ops:install`). `feedback bugs list`
   returning `403` means it isn't.
+- CLI ≥ `1.11.0` — the unified `shipeasy ops.list` / `ops.get` / `ops.update` /
+  `ops.link-pr` and `ops.errors update` commands this loop drives. The
+  scheduled trigger runs `npx @shipeasy/cli@latest`, so it always has them;
+  for a local run, `shipeasy ops.list --help` failing means the CLI is too old
+  (`npm i -g @shipeasy/cli@latest`).
 - Working tree clean **or** the user explicitly asked to work on top of WIP.
   If `git status --porcelain` is non-empty and the user hasn't confirmed,
   stop and ask — mixing per-item diffs with pre-existing WIP makes the
@@ -58,21 +63,21 @@ Parse `$ARGUMENTS` up-front:
 - `--dry-run` — print the queue and exit 0. No status flips, no edits, no
   attachment downloads, no commits.
 
-Pull the queue from the **unified feedback endpoint** (one call, one table):
+Pull the queue with the CLI — one command over the unified table, covering all
+four types (`error`/`alert` tickets included):
 
 ```
-curl -s "https://shipeasy.ai/api/admin/feedback?type=<type|all>&status=<status|all>&limit=200" \
-  -H "X-SDK-Key: ${SHIPEASY_CLI_TOKEN:-$(jq -r .cli_token ~/.config/shipeasy/config.json)}" \
-  -H "X-Project-Id: ${SHIPEASY_PROJECT_ID:-$(jq -r .project_id ~/.config/shipeasy/config.json)}"
+shipeasy ops.list --type <bug|feature_request|error|alert|all> --status <status|all> --limit 200 --json
 ```
 
-(`shipeasy feedback bugs list` / `features list` still work for the two
-human-filed types and are fine to use for them; the curl is the only way to
-pull `error`/`alert` tickets until the CLI grows a unified command.)
+`ops.list` already sorts by `priority desc` (`critical > high > medium >
+nice_to_have > null`) then `createdAt asc` — the queue order. (Drop `--json`
+for a table; `shipeasy ops.list --help` for the filters. `shipeasy feedback
+bugs list` / `features list` still work for the two human-filed types.)
+**Never call the admin HTTP API with `curl`** — every step in this loop has a
+`shipeasy` command; use it (the CLI handles auth + the `.shipeasy` binding).
 
-Sort the combined queue: `priority desc` (`critical > high > medium >
-nice_to_have > null`), then `createdAt asc`. Print it, grouped by type,
-before starting:
+Print the combined queue, grouped by type, before starting:
 
 ```
 Queue:
@@ -99,10 +104,10 @@ Do the steps below for **one** item, then restart with the next. Do not
 interleave. Do not parallelise. Different items almost always touch different
 files; serial keeps blame clean and lets the user halt mid-loop.
 
-Every item supports the same status write —
-`PATCH /api/admin/feedback/<id>` `{ "status": … }` (ops keys are allow-listed
-for it; bugs/features can also keep using their `shipeasy feedback … update`
-CLI commands). Flip to `in_progress` when you start an item.
+Every item — **any type** — takes the same status write:
+`shipeasy ops.update <#number|id> --status <status>` (it resolves the per-item
+number or the id; bugs/features can also use `shipeasy feedback … update`).
+Flip to `in_progress` when you start an item.
 
 ### 1a. Bugs
 
@@ -112,7 +117,9 @@ CLI commands). Flip to `in_progress` when you start an item.
    screenshots into context** (the image renders to you). **Recordings**
    (`.webm`/`.mp4`) can't be watched — surface the `file://` path and ask
    whether screenshots+text suffice; don't silently skip.
-3. Flip to `in_progress` (skip if already).
+3. Flip to `in_progress` (skip if already):
+   `shipeasy ops.update <#number|id> --status in_progress` (or
+   `shipeasy feedback bugs update`).
 4. Investigate from `pageUrl` / stack frame / screenshot text. Reproduce
    locally if the dev server is up. Reuse `superpowers:systematic-debugging`
    when the cause isn't obvious — don't guess.
@@ -146,19 +153,20 @@ CLI commands). Flip to `in_progress` when you start an item.
 
 1. The ticket's `description` already carries the consequence, count, seen
    URLs, fingerprint, and stack head. For deeper context pull the raw error:
-   `GET /api/admin/errors/<context.error.id>` (or `shipeasy ops.errors get`)
-   — `stack`, `lastExtrasJson`, `causedByFingerprint`.
+   `shipeasy ops.errors get <context.error.id> --json` — `stack`,
+   `lastExtrasJson`, `causedByFingerprint`.
 2. Locate the throw site from the stack frame / message. Reproduce if
    feasible. Fix the root cause (same hard rules as bugs). When the fix adds
    a catch block, instrument it with `see(e).causes_the(…).to(…)` from
    `@shipeasy/sdk` (see the `see` skill for consequence-writing rules).
 3. Two status writes when the fix lands:
-   - the ticket: `PATCH /api/admin/feedback/<id>` → `resolved` (or
+   - the ticket: `shipeasy ops.update <#number|id> --status resolved` (or
      `ready_for_qa` in PR mode);
-   - the underlying tracked error: `PATCH /api/admin/errors/<context.error.id>`
-     `{ "status": "resolved" }`. A resolved error **reopens automatically if
-     it recurs** (and re-files a ticket if it climbs over the threshold
-     again), so this is safe pre-deploy. Note the fingerprint in your summary.
+   - the underlying tracked error:
+     `shipeasy ops.errors update <context.error.id> --status resolved`. A
+     resolved error **reopens automatically if it recurs** (and re-files a
+     ticket if it climbs over the threshold again), so this is safe
+     pre-deploy. Note the fingerprint in your summary.
 
 ### 1d. Alert tickets
 
@@ -176,11 +184,11 @@ CLI commands). Flip to `in_progress` when you start an item.
    intentional incident response.)
 2. The *alert* auto-resolves when its condition clears; the **ticket** is the
    work record. If code needs to change, land the fix as its own atomic diff
-   and flip the ticket (`resolved`, or `ready_for_qa` in PR mode). If it's an
-   ops acknowledgement (bad threshold, expected spike), say so and flip the
-   ticket to `resolved` with a one-line note in your summary. Rule
-   *definitions* can be tuned via `/shipeasy:alerts:update` by a human — the
-   ops key cannot edit them.
+   and flip the ticket (`shipeasy ops.update <#number|id> --status resolved`,
+   or `ready_for_qa` in PR mode). If it's an ops acknowledgement (bad
+   threshold, expected spike), say so and flip the ticket to `resolved` with a
+   one-line note in your summary. Rule *definitions* can be tuned via
+   `/shipeasy:alerts:update` by a human — the ops key cannot edit them.
 
 ### 1e. Report and continue
 
@@ -198,17 +206,19 @@ One short paragraph per item, then the next:
 
 While working an item you sometimes need a platform resource around the fix.
 The restricted `ops` key is allow-listed for **create-only** dev operations
-and i18n publishing:
+and i18n publishing — always reach them through the CLI / the matching skill,
+never a raw HTTP call:
 
-- **Create** gates, dynamic configs, experiments, universes, kill switches,
-  events, metrics, and alert rules (`POST /api/admin/<resource>` — the same
-  routes the `/shipeasy:flags:*`, `/shipeasy:experiments:create`,
-  `/shipeasy:metrics:create`, `/shipeasy:alerts:create` skills use). Typical
-  uses: wrap a risky fix in a fresh gate, add the event + metric a fix needs
-  for verification, add an alert rule that would have caught the regression.
-- **Push + publish i18n keys**: `POST /api/admin/i18n/keys` (insert-only) and
-  `POST /api/admin/i18n/profiles/<id>/publish` — so a fix that adds
-  user-visible copy can ship its keys (see the `i18n` skill).
+- **Create** gates, dynamic configs, experiments, kill switches, events,
+  metrics, and alert rules — via `shipeasy flags create` / `configs create` /
+  `experiments create` / `killswitches create` / `metrics create` /
+  `alert-rules create`, or the `/shipeasy:flags:*`, `/shipeasy:experiments:create`,
+  `/shipeasy:metrics:create`, `/shipeasy:alerts:create` skills. Typical uses:
+  wrap a risky fix in a fresh gate, add the event + metric a fix needs for
+  verification, add an alert rule that would have caught the regression.
+- **Push + publish i18n keys** — `shipeasy i18n push` (insert-only) +
+  `shipeasy i18n publish` (or the `i18n` skill) — so a fix that adds
+  user-visible copy can ship its keys.
 
 It **cannot** update, archive, or delete any existing resource (every
 PATCH/PUT/DELETE on gates/configs/experiments/… is denied), mint keys, or
@@ -242,22 +252,16 @@ above:
 
 2. **Link the PR back to the item.** Right after the PR is opened, record its
    number + url on the item so it shows as a `PR <n>` badge in the dashboard
-   feedback table and on the item's `connector_data.github.pr`. The ops key is
-   allow-listed for this one dedicated write:
+   feedback table (on `connector_data.github.pr`):
 
    ```
-   curl -s -X POST "https://shipeasy.ai/api/admin/feedback/<number>/link-pr" \
-     -H "X-SDK-Key: ${SHIPEASY_CLI_TOKEN:-$(jq -r .cli_token ~/.config/shipeasy/config.json)}" \
-     -H "X-Project-Id: ${SHIPEASY_PROJECT_ID:-$(jq -r .project_id ~/.config/shipeasy/config.json)}" \
-     -H "Content-Type: application/json" \
-     -d '{"prNumber": <pr-number>, "prUrl": "<pr-url>"}'
+   shipeasy ops.link-pr <#number|id> <pr-number> --url <pr-url>
    ```
 
-   Pass the real PR number + url the previous step printed. (`prUrl` is what
+   Pass the real PR number + url the previous step printed. (`--url` is what
    makes the badge deep-link for error/alert tickets, which have no GitHub
    issue to derive the url from.) This is the ONLY feedback write beyond status
-   the ops key may do — it touches `connector_data.github.pr` only; a content
-   edit or `githubPrNumber` PATCH still `403`s.
+   the ops key may do — it touches `connector_data.github.pr` only.
 
 3. **PR body = that item's story + its closing keyword.** The body carries
    the item's id/number, cause, fix, and verification notes. If the item has
