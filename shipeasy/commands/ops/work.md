@@ -240,9 +240,28 @@ above:
    alert-driven changes. An item with no code change (ops acknowledgement)
    produces no branch, no commit, and no PR.
 
-2. **PR body = that item's story + its closing keyword.** The body carries
+2. **Link the PR back to the item.** Right after the PR is opened, record its
+   number + url on the item so it shows as a `PR <n>` badge in the dashboard
+   feedback table and on the item's `connector_data.github.pr`. The ops key is
+   allow-listed for this one dedicated write:
+
+   ```
+   curl -s -X POST "https://shipeasy.ai/api/admin/feedback/<number>/link-pr" \
+     -H "X-SDK-Key: ${SHIPEASY_CLI_TOKEN:-$(jq -r .cli_token ~/.config/shipeasy/config.json)}" \
+     -H "X-Project-Id: ${SHIPEASY_PROJECT_ID:-$(jq -r .project_id ~/.config/shipeasy/config.json)}" \
+     -H "Content-Type: application/json" \
+     -d '{"prNumber": <pr-number>, "prUrl": "<pr-url>"}'
+   ```
+
+   Pass the real PR number + url the previous step printed. (`prUrl` is what
+   makes the badge deep-link for error/alert tickets, which have no GitHub
+   issue to derive the url from.) This is the ONLY feedback write beyond status
+   the ops key may do — it touches `connector_data.github.pr` only; a content
+   edit or `githubPrNumber` PATCH still `403`s.
+
+3. **PR body = that item's story + its closing keyword.** The body carries
    the item's id/number, cause, fix, and verification notes. If the item has
-   a connected GitHub issue (see 3), put the closing keyword on its own line
+   a connected GitHub issue (see 4), put the closing keyword on its own line
    so merging the PR **auto-closes that issue**:
 
    ```
@@ -252,22 +271,22 @@ above:
    (`Closes` / `Fixes` / `Resolves` all work.) Never auto-merge; every PR
    lands for human review.
 
-3. **Where the issue number comes from.** Items opened through the GitHub
+4. **Where the issue number comes from.** Items opened through the GitHub
    connector already carry their issue on `connectorData.github.issue`
    (`{ number, url, owner, repo }`) — the connector created it upfront at
    intake. Read it while working the item. Items with no connector issue
    simply have nothing to close; their only server-side trace is the status
-   flip. **Do not create issues yourself, and do not call `link-pr`** — the
-   unattended trigger runs under a restricted `ops` key whose feedback writes
-   are status-only, so a `link-pr` (or any other feedback-content write)
-   would `403` and break the run.
+   flip + the linked PR (step 2). **Do not create issues yourself.** When the
+   item HAS a connector issue, the link-pr write (step 2) also wires the PR to
+   that issue server-side (Closes #N / cross-ref comment) as a bonus — but the
+   `Closes #N` in your PR body is what actually auto-closes it on merge.
 
-4. **Lifecycle → `ready_for_qa`.** In PR mode a human reviews each PR, so
+5. **Lifecycle → `ready_for_qa`.** In PR mode a human reviews each PR, so
    never auto-`resolved` — flip every fixed item (any type) to
    `ready_for_qa`. The underlying tracked error still gets its
    `errors/<id>` → `resolved` write (it reopens on recurrence).
 
-5. **Empty queue → no PRs.** If nothing was worked, exit cleanly without a
+6. **Empty queue → no PRs.** If nothing was worked, exit cleanly without a
    branch or PR.
 
 ## 3. Final report

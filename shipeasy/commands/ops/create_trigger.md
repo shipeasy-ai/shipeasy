@@ -56,11 +56,12 @@ routines.
   to set a routine's env vars, so the prompt is the only hands-off channel).
   **Embed a freshly-minted `ops` key, never your own admin
   login token** (step 2): the `ops` key can only read the queue, flip item
-  status, and create new resources (gates/configs/experiments/metrics/… +
-  i18n key push/publish) — it cannot update, archive or delete anything that
-  exists, mint keys, or `link-pr` — so a leaked routine prompt can't
-  compromise the project. The `ops` key rolls its own expiry forward
-  on each run, so it needs no manual rotation while the schedule keeps firing.
+  status, link the PR it opened back to an item (`feedback/:id/link-pr` — a
+  single-purpose write), and create new resources (gates/configs/experiments/
+  metrics/… + i18n key push/publish) — it cannot update, archive or delete
+  anything that exists, mint keys, or edit item content — so a leaked routine
+  prompt can't compromise the project. The `ops` key rolls its own expiry
+  forward on each run, so it needs no manual rotation while the schedule fires.
   Say this to the user.
 - **Don't trigger a paid run without telling the user.** The verification fire
   (step 5) spends Claude tokens and may open a real PR. Confirm first.
@@ -179,11 +180,13 @@ would not reach later commands.
 **Mint a dedicated, restricted `ops` key for the routine — do NOT embed your
 own login token.** Your `shipeasy login` token is a full-admin key (it can
 create/delete gates, configs, experiments, mint keys, change billing). The
-routine only needs to read the queue and flip bug/feature status, so mint an
-`ops` key instead: it is default-denied against every admin route except the
-read-only `ops:work` queue + status writes, has **no `link-pr`**, and **auto-
-extends its 7-day expiry on each run** (it self-revokes ~a week after the
-trigger stops firing). Read the values **into shell vars, never print**:
+routine only needs to read the queue, flip status, link the PRs it opens, and
+create resources, so mint an `ops` key instead: it is default-denied against
+every admin route except the `ops:work` queue + status writes + the
+single-purpose `feedback/:id/link-pr` + create-only dev ops, **never edits or
+deletes existing resources**, and **auto-extends its 7-day expiry on each run**
+(it self-revokes ~a week after the trigger stops firing). Read the values
+**into shell vars, never print**:
 
 ```bash
 SE_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/shipeasy/config.json"
@@ -407,10 +410,10 @@ Print:
 Schedule:  <CRON>  (UTC; managed with /schedule)
 Routine:   <ROUTINE_ID>  (Claude Code scheduled routine — runs in the cloud)
 Creds:     restricted `ops` key carried in the routine prompt and exported as
-           env vars per shell (queue reads + item status flips + create-only
-           dev ops [gates/configs/experiments/metrics/… + i18n push/publish] —
-           no update/archive/delete of existing resources, no link-pr;
-           auto-extends its 7-day expiry on use).
+           env vars per shell (queue reads + item status flips + PR back-link
+           [feedback/:id/link-pr] + create-only dev ops [gates/configs/
+           experiments/metrics/… + i18n push/publish] — no update/archive/
+           delete of existing resources; auto-extends its 7-day expiry on use).
 Connector: registered in Shipeasy → Feedback → Connectors ("Claude trigger"),
            backed by the routine. "Fire now" fires it on demand; toggle event
            auto-fire there to fire it on each new bug/feature.
