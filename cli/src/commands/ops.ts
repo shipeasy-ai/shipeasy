@@ -36,6 +36,180 @@ function findByIdOrPrefix(items: ErrorItem[], id: string): ErrorItem | undefined
   return items.find((i) => i.id === id || i.id.startsWith(id));
 }
 
+// ── Unified feedback queue (bugs + features + auto-filed error/alert tickets) ──
+//
+// `ops.list`/`get`/`update`/`link-pr` are the commands `/shipeasy:ops:work`
+// drives end-to-end. They hit the single `/api/admin/feedback` surface so the
+// loop never has to curl, and they cover the `error`/`alert` ticket types that
+// `ops.bugs`/`ops.features` (the per-type CLIs) don't.
+
+const FEEDBACK_ENDPOINT = "/api/admin/feedback";
+const FEEDBACK_TYPES = ["bug", "feature_request", "error", "alert"] as const;
+const FEEDBACK_STATUSES = [
+  "open",
+  "triaged",
+  "in_progress",
+  "ready_for_qa",
+  "resolved",
+  "wont_fix",
+] as const;
+const FEEDBACK_PRIORITIES = ["nice_to_have", "medium", "high", "critical"] as const;
+// Descending urgency rank for queue sorting (highest first; null/none last).
+const PRIORITY_RANK: Record<string, number> = { critical: 4, high: 3, medium: 2, nice_to_have: 1 };
+
+interface FeedbackQueueItem {
+  id: string;
+  number: number | null;
+  type: string;
+  title: string;
+  status: string;
+  priority: string | null;
+  sourceRef?: string | null;
+  createdAt: string;
+  [key: string]: unknown;
+}
+
+/** Handle the user passes to get/update/link-pr — the per-project number or the
+ *  full id. The admin API resolves either (resolveByHandle byNumber), so pass it
+ *  straight through rather than fetching + prefix-matching. */
+function feedbackPath(handle: string): string {
+  return `${FEEDBACK_ENDPOINT}/${encodeURIComponent(handle)}`;
+}
+
+function defineUnifiedQueue(parent: Command): void {
+  parent
+    .command("ops.list")
+    .description("List the unified operational queue (bugs + features + error/alert tickets)")
+    .option("--type <type>", `Filter by type: ${FEEDBACK_TYPES.join("|")}|all`, "all")
+    .option("--status <status>", `Filter by status: ${FEEDBACK_STATUSES.join("|")}|all`, "open")
+    .option("--priority <priority>", `Filter by priority: ${FEEDBACK_PRIORITIES.join("|")}`)
+    .option("--limit <n>", "Max rows", "200")
+    .option("--json", "Output as JSON")
+    .option("--project <id>", "Project ID override")
+    .action(async (opts) => {
+      try {
+        if (opts.type !== "all" && !FEEDBACK_TYPES.includes(opts.type))
+          throw new ApiError(`Invalid type: ${opts.type}`, 400);
+        if (opts.priority && !FEEDBACK_PRIORITIES.includes(opts.priority))
+          throw new ApiError(`Invalid priority: ${opts.priority}`, 400);
+        const client = getApiClient(opts.project);
+        const qs = new URLSearchParams({
+          type: opts.type,
+          status: opts.status,
+          limit: String(opts.limit),
+        });
+        let items = await client.request<FeedbackQueueItem[]>(
+          "GET",
+          `${FEEDBACK_ENDPOINT}?${qs.toString()}`,
+        );
+        if (opts.priority) items = items.filter((i) => i.priority === opts.priority);
+        // Queue order: priority desc, then oldest-first.
+        items.sort(
+          (a, b) =>
+            (PRIORITY_RANK[b.priority ?? ""] ?? 0) - (PRIORITY_RANK[a.priority ?? ""] ?? 0) ||
+            a.createdAt.localeCompare(b.createdAt),
+        );
+        if (opts.json) return printJson(items);
+        if (!items.length) return void console.log("Queue is clear.");
+        printTable(
+          ["#", "Type", "Priority", "Status", "Title", "Created"],
+          items.map((i) => [
+            i.number != null ? `#${i.number}` : i.id.slice(0, 8),
+            i.type,
+            i.priority ?? "—",
+            i.status,
+            i.title.length > 56 ? `${i.title.slice(0, 53)}…` : i.title,
+            i.createdAt,
+          ]),
+        );
+      } catch (e) {
+        handleError(e);
+      }
+    });
+
+  parent
+    .command("ops.get <handle>")
+    .description("Show one queue item by number (#7 → 7) or id — any type")
+    .option("--json", "Output as JSON")
+    .option("--project <id>", "Project ID override")
+    .action(async (handle: string, opts) => {
+      try {
+        const client = getApiClient(opts.project);
+        const full = await client.request<Record<string, unknown>>("GET", feedbackPath(handle));
+        if (opts.json) return printJson(full);
+        console.log(JSON.stringify(full, null, 2));
+      } catch (e) {
+        handleError(e);
+      }
+    });
+
+  parent
+    .command("ops.update <handle>")
+    .description("Flip a queue item's status (any type) — and optionally its priority")
+    .option("--status <status>", `New status: ${FEEDBACK_STATUSES.join("|")}`)
+    .option("--priority <priority>", `New priority: ${FEEDBACK_PRIORITIES.join("|")}`)
+    .option("--json", "Output as JSON")
+    .option("--project <id>", "Project ID override")
+    .action(async (handle: string, opts) => {
+      try {
+        const patch: Record<string, unknown> = {};
+        if (opts.status) {
+          if (!FEEDBACK_STATUSES.includes(opts.status))
+            throw new ApiError(`Invalid status: ${opts.status}`, 400);
+          patch.status = opts.status;
+        }
+        if (opts.priority) {
+          if (!FEEDBACK_PRIORITIES.includes(opts.priority))
+            throw new ApiError(`Invalid priority: ${opts.priority}`, 400);
+          patch.priority = opts.priority;
+        }
+        if (Object.keys(patch).length === 0)
+          throw new ApiError("Nothing to update — pass --status and/or --priority", 400);
+        const client = getApiClient(opts.project, { requireBinding: true });
+        const updated = await client.request<{ id: string }>("PATCH", feedbackPath(handle), patch);
+        if (opts.json) return printJson(updated);
+        const changed = Object.entries(patch)
+          .map(([k, v]) => `${k} → ${v}`)
+          .join(", ");
+        console.log(`Updated ${handle}: ${changed}`);
+      } catch (e) {
+        handleError(e);
+      }
+    });
+
+  parent
+    .command("ops.link-pr <handle> <pr-number>")
+    .description(
+      "Link the PR that fixed a queue item (any type). Records connector_data.github.pr; ops-key safe.",
+    )
+    .option("--url <url>", "Explicit PR URL (recommended — required for error/alert tickets)")
+    .option("--remove", "Unlink the PR instead of setting one")
+    .option("--json", "Output as JSON")
+    .option("--project <id>", "Project ID override")
+    .action(async (handle: string, prNumberArg: string, opts) => {
+      try {
+        const client = getApiClient(opts.project, { requireBinding: true });
+        if (opts.remove) {
+          const res = await client.request("POST", `${feedbackPath(handle)}/link-pr`, {
+            prNumber: null,
+          });
+          if (opts.json) return printJson(res);
+          return void console.log(`Unlinked PR from ${handle}.`);
+        }
+        const prNumber = Number(prNumberArg);
+        if (!Number.isInteger(prNumber) || prNumber <= 0)
+          throw new ApiError(`Invalid PR number: ${prNumberArg}`, 400);
+        const body: Record<string, unknown> = { prNumber };
+        if (opts.url) body.prUrl = opts.url;
+        const res = await client.request("POST", `${feedbackPath(handle)}/link-pr`, body);
+        if (opts.json) return printJson(res);
+        console.log(`Linked PR #${prNumber} to ${handle}.`);
+      } catch (e) {
+        handleError(e);
+      }
+    });
+}
+
 /**
  * `ops.errors` — read-only view over auto-tracked production errors. Errors are
  * folded in by the ingestion path, never filed by hand, so only `list`/`get`
@@ -99,6 +273,35 @@ function defineErrorsResource(parent: Command): void {
         handleError(e);
       }
     });
+
+  // The one write errors support: status (open/resolved/ignored). A resolved
+  // error reopens automatically if it recurs, so flipping it after a fix lands
+  // is safe pre-deploy. Ops-key allow-listed.
+  group
+    .command("update <id>")
+    .description(`Set a tracked error's status: ${ERROR_STATUSES.join("|")}`)
+    .requiredOption("--status <status>", `New status: ${ERROR_STATUSES.join("|")}`)
+    .option("--json", "Output as JSON")
+    .option("--project <id>", "Project ID override")
+    .action(async (id: string, opts) => {
+      try {
+        if (!ERROR_STATUSES.includes(opts.status))
+          throw new ApiError(`Invalid status: ${opts.status}`, 400);
+        const client = getApiClient(opts.project, { requireBinding: true });
+        const items = await client.request<ErrorItem[]>("GET", ERRORS_ENDPOINT);
+        const match = findByIdOrPrefix(items, id);
+        if (!match) throw new ApiError(`Error not found: ${id}`, 404);
+        const updated = await client.request<Record<string, unknown>>(
+          "PATCH",
+          `${ERRORS_ENDPOINT}/${match.id}`,
+          { status: opts.status },
+        );
+        if (opts.json) return printJson(updated);
+        console.log(`Updated ${match.id.slice(0, 8)}: status → ${opts.status}`);
+      } catch (e) {
+        handleError(e);
+      }
+    });
 }
 
 export function opsCommand(parent: Command): void {
@@ -108,17 +311,23 @@ export function opsCommand(parent: Command): void {
     .command("ops")
     .description("Operational CLIs — reference a sub-CLI explicitly (see `shipeasy ops`)")
     .action(() => {
-      console.log("ops — operational CLIs. Reference a sub-CLI explicitly:");
+      console.log("ops — operational CLIs. Reference a command explicitly:");
       console.log("");
+      console.log("  shipeasy ops.list                The unified queue (bugs+features+tickets)");
+      console.log("  shipeasy ops.get <handle>        Show one queue item (#number or id)");
+      console.log("  shipeasy ops.update <handle>     Flip an item's status/priority (any type)");
+      console.log("  shipeasy ops.link-pr <h> <n>     Link the PR that fixed an item");
       console.log("  shipeasy ops.bugs <command>      Bug reports (mirrors `feedback bugs`)");
       console.log(
         "  shipeasy ops.features <command>  Feature requests (mirrors `feedback features`)",
       );
-      console.log("  shipeasy ops.errors <command>    Tracked production errors (list, get)");
+      console.log("  shipeasy ops.errors <command>    Tracked production errors (list, get, update)");
       console.log("");
       console.log("Run `shipeasy ops.<name> --help` to see a sub-CLI's commands.");
     });
 
+  // The unified queue (`ops.list`/`get`/`update`/`link-pr`) over /api/admin/feedback.
+  defineUnifiedQueue(parent);
   // bugs/features mirror the existing feedback CLIs, registered flat as
   // `ops.bugs` / `ops.features`.
   defineFeedbackResource(parent, { ...BUGS_SPEC, command: "ops.bugs" });

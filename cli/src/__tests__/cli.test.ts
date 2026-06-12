@@ -70,4 +70,26 @@ describe("shipeasy CLI", () => {
     await new Promise((r) => setTimeout(r, 50));
     consoleSpy.mockRestore();
   });
+
+  // The unified ops queue commands `/shipeasy:ops:work` drives — each must be
+  // registered (parses cleanly) and fail closed when not authenticated.
+  it.each([
+    ["ops.list"],
+    ["ops.get", "7"],
+    ["ops.update", "7", "--status", "resolved"],
+    ["ops.link-pr", "7", "44", "--url", "https://github.com/a/b/pull/44"],
+    ["ops.errors", "update", "abc", "--status", "resolved"],
+  ])("registered ops command %s fails closed when not logged in", async (...argv: string[]) => {
+    vi.resetModules();
+    process.argv = ["node", "shipeasy", ...argv];
+    vi.doMock("../auth/storage", () => ({
+      loadCredentials: () => null,
+      saveCredentials: () => {},
+      clearCredentials: () => {},
+    }));
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(import("../index")).resolves.toBeDefined();
+    await new Promise((r) => setTimeout(r, 50));
+    errSpy.mockRestore();
+  });
 });
