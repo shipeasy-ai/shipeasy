@@ -398,7 +398,8 @@ export const TOOLS: Tool[] = [
         groups: { type: "string", description: "JSON [{name,weight,params}]" },
         targeting_gate: {
           type: "string",
-          description: "Gate name; pass empty string or omit to leave unchanged",
+          description:
+            "Gate name; pass empty string or omit to leave unchanged; pass the literal 'none' to clear the gate",
         },
         significance_threshold: { type: "number", description: "0.0001–0.5" },
         min_runtime_days: { type: "number" },

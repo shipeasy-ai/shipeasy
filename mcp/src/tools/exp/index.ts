@@ -326,7 +326,11 @@ export async function handleUpdateExperiment(input: {
     const patch: Record<string, unknown> = {};
     if (input.allocation !== undefined) patch.allocation_pct = Math.round(input.allocation * 100);
     if (input.groups) patch.groups = JSON.parse(input.groups);
-    if (input.targeting_gate !== undefined) patch.targeting_gate = input.targeting_gate;
+    // "" / omit = leave unchanged; the literal "none" clears the gate — the
+    // only way to remove targeting via the API (QA R2-10).
+    if (input.targeting_gate !== undefined && input.targeting_gate !== "") {
+      patch.targeting_gate = input.targeting_gate === "none" ? null : input.targeting_gate;
+    }
     if (input.significance_threshold !== undefined)
       patch.significance_threshold = input.significance_threshold;
     if (input.min_runtime_days !== undefined) patch.min_runtime_days = input.min_runtime_days;
