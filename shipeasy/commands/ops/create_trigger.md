@@ -20,9 +20,10 @@ You are provisioning a **recurring, unattended Claude trigger** backed by a
 schedule the user chooses, the routine runs Claude **in Anthropic's cloud** —
 not on the user's machine, **not on GitHub Actions** — and runs
 **`/shipeasy:ops:work --pr`** against the bound project: it burns down the
-active bug, feature, error and alert queue one item at a time, commits each
-fix, and opens one PR for review. All the work logic lives in `ops:work`; the
-routine is a thin wrapper around it.
+unified feedback queue (bugs, feature requests, auto-filed error/alert
+tickets) one item at a time, commits each fix on its own branch, and opens
+**one PR per fixed item** for review. All the work logic lives in `ops:work`;
+the routine is a thin wrapper around it.
 
 The mechanism is a **Claude Code routine** created with `/schedule`. A routine
 is a remote agent that executes on a cron in the cloud, so it runs even when
@@ -54,9 +55,11 @@ routines.
   `project_id` the run exports as env vars (Claude Code has no programmatic way
   to set a routine's env vars, so the prompt is the only hands-off channel).
   **Embed a freshly-minted `ops` key, never your own admin
-  login token** (step 2): the `ops` key can only read the queue and flip
-  bug/feature status — no destructive admin, no `link-pr` — so a leaked routine
-  prompt can't compromise the project. The `ops` key rolls its own expiry forward
+  login token** (step 2): the `ops` key can only read the queue, flip item
+  status, and create new resources (gates/configs/experiments/metrics/… +
+  i18n key push/publish) — it cannot update, archive or delete anything that
+  exists, mint keys, or `link-pr` — so a leaked routine prompt can't
+  compromise the project. The `ops` key rolls its own expiry forward
   on each run, so it needs no manual rotation while the schedule keeps firing.
   Say this to the user.
 - **Don't trigger a paid run without telling the user.** The verification fire
@@ -95,8 +98,8 @@ output is meaningless if an earlier one failed:
   or `apiKeyHelper` in settings.json) — tell the user to remove that credential
   and re-authenticate with their Claude.ai account, then stop.
 - **A GitHub repo to open PRs against.** The routine runs
-  `/shipeasy:ops:work --pr`, which opens a real pull request with `gh pr
-  create`. This project must be a GitHub repo — `git remote -v` shows a
+  `/shipeasy:ops:work --pr`, which opens real pull requests (one per fixed
+  item) with `gh pr create`. This project must be a GitHub repo — `git remote -v` shows a
   `github.com` remote (the check above). No GitHub remote → there's nowhere to
   open PRs; stop and tell the user to point the project at a GitHub repo first.
   (The cloud GitHub connection itself is set up as part of provisioning — see
@@ -222,8 +225,8 @@ one with the `github.com` remote, connected in Claude Code) — that's the repo
 the routine checks out and opens its PR against. The routine prompt is a thin
 wrapper: export the Shipeasy env vars to authenticate, refresh the plugin + CLI
 so each run picks up the latest commands, then
-run `/shipeasy:ops:work --pr` (which owns the whole pull → fix → commit →
-one-PR → status flip → auto-close-the-issue flow). **If a `shipeasy` cloud
+run the ops:work workflow in `--pr` mode (which owns the whole pull → fix →
+commit → PR-per-item → status flip → auto-close-the-issue flow). **If a `shipeasy` cloud
 environment already exists (step 4a), select it for the routine at creation** —
 that skips the network walkthrough entirely. Substitute the **two real
 values from step 2** wherever the placeholders appear — `<OPS_KEY>` is the
@@ -252,22 +255,39 @@ test -f .shipeasy || printf '{"project_id":"<PROJECT_ID>"}\n' > .shipeasy
 If you created `.shipeasy` just now, never commit it — stage exact paths per
 fix; the file must not appear in the PR diff.
 
-First, update to the latest plugin AND CLI so this run uses the current
-commands (the plugin ships the slash commands; @shipeasy/cli is the separate
-binary `/shipeasy:ops:work` calls):
+First, refresh to the LATEST plugin AND CLI — the workflow definition changes
+between releases and every run must use the current one (the plugin ships the
+slash commands; @shipeasy/cli is the separate binary the workflow calls). This
+is a fresh container, so the shipeasy marketplace is NOT registered yet — add
+it before installing, falling back to update if it already exists:
 
-claude plugin marketplace update shipeasy
+claude plugin marketplace add shipeasy-ai/shipeasy || claude plugin marketplace update shipeasy
 claude plugin install shipeasy@shipeasy
 npm install -g @shipeasy/cli@latest
 
-Then run /shipeasy:ops:work --pr — it burns down the active bug, feature,
-error and alert queue, commits each fix, opens ONE pull request for human
-review, flips each fixed bug to ready_for_qa, and adds a "Closes #<issue>"
-keyword for any item with a connected GitHub issue so merging auto-closes it.
+Then execute the ops:work workflow in --pr mode. IMPORTANT: a plugin installed
+mid-session does not register its slash commands with the already-running
+session, so invoking /shipeasy:ops:work will report "Unknown skill" — that is
+expected. Do NOT improvise the workflow from memory: it changes between
+releases and only the file you just installed is current. Resolve the latest
+copy deterministically — prefer the marketplace clone the commands above just
+refreshed, falling back to the highest version in the plugin cache:
 
-Open the PR from a claude/-prefixed branch (the prefix routines are allowed to
-push by default). If the queue is empty it exits cleanly without opening a PR.
-Don't merge.
+WORK_MD=$(find ~/.claude/plugins/marketplaces -path '*shipeasy*' -name work.md 2>/dev/null | head -1)
+test -n "$WORK_MD" || WORK_MD=$(find ~/.claude/plugins/cache -path '*shipeasy*' -name work.md 2>/dev/null | sort -V | tail -1)
+
+Read that file and follow its instructions verbatim, exactly as if
+/shipeasy:ops:work had been invoked with the --pr flag — the file's
+instructions take precedence over this prompt's summary if they differ. It
+burns down the unified feedback queue (bugs, feature requests, and the
+auto-filed error/alert tickets), commits each fixed item on its own branch,
+opens ONE pull request PER item for human review, flips each fixed item to
+ready_for_qa, and adds a "Closes #<issue>" keyword for any item with a
+connected GitHub issue so merging auto-closes it.
+
+Open every PR from a claude/-prefixed branch (the prefix routines are allowed
+to push by default), e.g. claude/ops-<number>-<slug>. If the queue is empty
+it exits cleanly without opening any PR. Don't merge.
 ```
 
 After `/schedule` creates the routine, capture **`ROUTINE_ID`** — the routine's
@@ -387,13 +407,16 @@ Print:
 Schedule:  <CRON>  (UTC; managed with /schedule)
 Routine:   <ROUTINE_ID>  (Claude Code scheduled routine — runs in the cloud)
 Creds:     restricted `ops` key carried in the routine prompt and exported as
-           env vars per shell (read-only queue + bug/feature status only — no
-           destructive admin, no link-pr; auto-extends its 7-day expiry on use).
+           env vars per shell (queue reads + item status flips + create-only
+           dev ops [gates/configs/experiments/metrics/… + i18n push/publish] —
+           no update/archive/delete of existing resources, no link-pr;
+           auto-extends its 7-day expiry on use).
 Connector: registered in Shipeasy → Feedback → Connectors ("Claude trigger"),
            backed by the routine. "Fire now" fires it on demand; toggle event
            auto-fire there to fire it on each new bug/feature.
-Does:      updates the plugin + CLI → runs /shipeasy:ops:work --pr → fixes each
-           item → opens one PR (Closes #issue for connected items) → ready_for_qa.
+Does:      updates the plugin + CLI → runs the ops:work workflow in --pr mode →
+           fixes each queue item (bugs, features, error/alert tickets) → opens
+           one PR PER item (Closes #issue for connected items) → ready_for_qa.
 Review:    PRs land for human review; nothing auto-merges.
 Portal:    https://claude.ai/code/routines  — open the routine in the browser:
            view runs, edit the prompt/schedule, pause or delete it.

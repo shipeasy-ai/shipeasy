@@ -22,6 +22,18 @@ Errors support one write — status (open/resolved/ignored) via
 recurs. Alerts are fully read-only. To act on either end-to-end, use
 `/shipeasy:ops:work`.
 
+Note: these are the **raw sources**. The platform also auto-files `error` /
+`alert` **tickets** into the unified feedback table (an error ticket when a
+tracked error crosses the occurrence threshold, an alert ticket when an alert
+triggers) — that table is what `/shipeasy:ops:work` consumes. List the
+tickets with:
+
+```bash
+curl -s "https://shipeasy.ai/api/admin/feedback?type=error&status=all" \
+  -H "X-SDK-Key: $(jq -r .cli_token ~/.config/shipeasy/config.json)" \
+  -H "X-Project-Id: $(jq -r .project_id ~/.config/shipeasy/config.json)"   # or type=alert / type=all
+```
+
 ## Steps
 
 1. Parse `$ARGUMENTS` for `--type` (default `bug`). Pull the matching JSON:
