@@ -1,10 +1,10 @@
 ---
 description: Burn down the operational queue — the unified feedback table of bugs, feature requests, and auto-filed error/alert tickets — one item at a time, each as its own atomic diff. With --pr, commits each item on its own branch and opens one pull request PER item, each closing its connected GitHub issue and flipping the item to ready_for_qa (the mode the scheduled trigger uses).
-argument-hint: "[--type bug|feature|error|alert|all] [--status <s>] [--priority high|critical] [--limit <N>] [--pr] [--dry-run]"
+argument-hint: "[--type bug|feature|error|alert|measure_plan|all] [--status <s>] [--priority high|critical] [--limit <N>] [--pr] [--dry-run]"
 ---
 
 The single end-to-end "work the inbox" loop. **The queue is ONE table** — the
-project's unified `feedback` queue — holding four item types:
+project's unified `feedback` queue — holding five item types:
 
 | type              | filed by                                                | what it is                                            |
 | ----------------- | ------------------------------------------------------- | ----------------------------------------------------- |
@@ -12,12 +12,30 @@ project's unified `feedback` queue — holding four item types:
 | `feature_request` | humans                                                   | a feature request                                      |
 | `error`           | **the platform** (auto-filed)                            | a tracked production error crossed the occurrence threshold |
 | `alert`           | **the platform** (auto-filed)                            | an alert transitioned to active (metric rule, SRM/peek, guardrail) |
+| `measure_plan`    | **the website assistant** (auto-filed)                   | a measurement plan: instant resources already created; the event instrumentation it depends on is code you implement |
 
 Error/alert tickets are created automatically with the investigation context
 baked into `description` + `context` (`context.error.{id,fingerprint}` /
 `context.alert.{source,dedupeKey,…}`) — you no longer pull the raw
 `errors`/`alerts` sources to build the queue; those stay available for
 *diagnosis* while working a ticket.
+
+`measure_plan` tickets come from the in-dashboard assistant, which can create
+metrics/experiments/alert rules over the API but **can't edit the repo** — so
+it created what it could on the spot and filed the rest here for you. Read
+`context.measurePlan`:
+
+- `created[]` — resources already live (`{kind,id,name}`); don't recreate them.
+- `pending[]` — resources it couldn't make yet (usually a metric whose backing
+  event isn't emitted); create these **after** you add the instrumentation.
+- `instrumentation[]` — the code work: for each, emit the `event` at the place
+  `detail` describes (follow the `flags`/`experiments` skills for the SDK call).
+
+Working a `measure_plan`: implement the `instrumentation[]` events in code,
+register/create any `pending[]` resources, verify the `created[]` metrics now
+bind to a real event, then ship it like any other item (in `--pr` mode: one
+branch + PR, flip to `ready_for_qa`). This is the Claude-Code half of the split
+— the assistant filed the ticket precisely because it could not do this part.
 
 **Loop, do not batch.** Each item is its own mini-investigation + fix;
 finishing one before starting the next keeps every diff reviewable and avoids
@@ -49,8 +67,8 @@ Prereqs:
 
 Parse `$ARGUMENTS` up-front:
 
-- `--type bug|feature|error|alert|all` — default `all` (`feature` maps to
-  `feature_request`).
+- `--type bug|feature|error|alert|measure_plan|all` — default `all` (`feature`
+  maps to `feature_request`).
 - `--status <s>` — default `open`. Pass `all` to include everything.
 - `--priority high|critical` — filter after pull (any type; priorities are
   shared).
