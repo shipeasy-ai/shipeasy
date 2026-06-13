@@ -264,6 +264,40 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 }
 ```
 
+#### Edge middleware — required for flash-free SSR bucketing
+
+Add a middleware so the shared `__se_anon_id` bucketing cookie is minted at the
+edge on the first request. Without it, a gate read during SSR has no stable unit
+on request #1, so a **fractional** rollout (e.g. 30%) can flash/flip on first
+paint before the cookie settles client-side. (100%-rollout gates work without
+it; the middleware is what makes partial rollouts render correctly from the very
+first byte.) A Next Server Component can't set cookies during render, so this
+edge step is the only place to mint it pre-render.
+
+Create `<subproject>/middleware.ts` (or `src/middleware.ts`):
+
+```ts
+// No existing middleware — use the drop-in:
+export { middleware, config } from "@shipeasy/sdk/next";
+```
+
+If the subproject **already has** a `middleware.ts`, compose instead of
+overwriting:
+
+```ts
+import { withShipeasy } from "@shipeasy/sdk/next";
+import { existingMiddleware, config } from "./your-middleware"; // keep their config
+
+export default withShipeasy(existingMiddleware);
+export { config };
+```
+
+If their middleware forwards custom request headers via
+`NextResponse.next({ request: { headers } })`, prefer the primitives
+(`readOrMintAnonId(req, requestHeaders)` + `commitAnonId(res, result, req)`)
+inside their handler so the forwarding is preserved. Never ask the user to set
+the cookie by hand — it is always minted by code.
+
 ### 5b. Vite / CRA / plain HTML
 
 Call `shipeasy({ apiKey: ... })` once near the top of `main.ts` / `main.tsx`.
