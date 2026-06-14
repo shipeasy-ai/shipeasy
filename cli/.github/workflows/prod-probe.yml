@@ -1,0 +1,48 @@
+name: prod-probe
+
+# Scheduled production eval probe. Composes existing `shipeasy` CLI commands
+# (flags list, experiments status → server-side SRM) with the public
+# /sdk/evaluate endpoint to verify that gates/experiments still bucket correctly
+# in prod. A drift finding fails the job; GitHub notifies the actor/watchers on a
+# failed scheduled run. See .github/scripts/prod-probe.mjs for the checks.
+#
+# Required repo config:
+#   secrets.SHIPEASY_CLI_TOKEN   — admin/CLI token for the prod project
+#   secrets.SHIPEASY_CLIENT_KEY  — prod CLIENT key (enables the rollout leg)
+#   vars.SHIPEASY_PROJECT_ID     — prod project id
+#   vars.SHIPEASY_EDGE_URL       — edge origin, e.g. https://cdn.shipeasy.ai
+
+on:
+  schedule:
+    - cron: "30 6 * * *" # daily, after the analysis run
+  workflow_dispatch:
+    inputs:
+      cohort:
+        description: "Synthetic cohort size for the rollout-distribution leg"
+        default: "500"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prod-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    env:
+      SHIPEASY_CLI_TOKEN: ${{ secrets.SHIPEASY_CLI_TOKEN }}
+      SHIPEASY_PROJECT_ID: ${{ vars.SHIPEASY_PROJECT_ID }}
+      SHIPEASY_EDGE_URL: ${{ vars.SHIPEASY_EDGE_URL }}
+      SHIPEASY_CLIENT_KEY: ${{ secrets.SHIPEASY_CLIENT_KEY }}
+      PROBE_COHORT: ${{ github.event.inputs.cohort || '500' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run prod probe
+        run: node .github/scripts/prod-probe.mjs
