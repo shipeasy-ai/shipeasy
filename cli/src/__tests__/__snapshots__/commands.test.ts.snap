@@ -14,7 +14,6 @@ exports[`command tree > matches the registered command surface (snapshot) 1`] = 
   "codemod",
   "codemod i18n",
   "configs",
-  "configs activity",
   "configs create",
   "configs delete",
   "configs draft",

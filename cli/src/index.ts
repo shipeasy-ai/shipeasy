@@ -29,7 +29,7 @@ import { metricsCommand } from "./commands/metrics";
 import { bindProject, readProjectConfig } from "./util/project-config";
 import { printJson } from "./util/output";
 import { reportCliError } from "./util/error-reporter";
-import { withExamples } from "./util/examples";
+import { withExamples, withDetails, withOutput } from "./util/examples";
 
 interface ProjectMeta {
   id: string;
@@ -99,10 +99,26 @@ export function buildProgram(): Command {
       });
     });
 
+  withDetails(
+    loginCmd,
+    "With no flags, `login` auto-detects the project: an explicit `--project` " +
+      "wins, otherwise the project bound via the nearest `.shipeasy` file " +
+      "(searched up from the cwd, like `.git`) — the browser flow then offers " +
+      "only that project. With neither, it opens the picker and writes " +
+      "`.shipeasy` on success.\n\n" +
+      "In CI, set `SHIPEASY_CLI_TOKEN` + `SHIPEASY_PROJECT_ID` instead — they " +
+      "act as the session, so `login` short-circuits as already-authenticated " +
+      "(no browser).",
+  );
+
   withExamples(loginCmd, [
-    { run: "shipeasy login" },
-    { run: "shipeasy login --force", note: "re-authenticate over a live session" },
-    { run: "shipeasy login --project proj_abc123", note: "scope login to one project" },
+    { note: "Use the .shipeasy-bound project, else open the picker", run: "shipeasy login" },
+    { note: "Re-authenticate over a live session", run: "shipeasy login --force" },
+    { note: "Scope to one project explicitly", run: "shipeasy login --project proj_abc123" },
+    {
+      note: "CI: env credentials act as the session, so this is a no-op",
+      run: "SHIPEASY_CLI_TOKEN=… SHIPEASY_PROJECT_ID=… shipeasy login",
+    },
   ]);
 
   const logoutCmd = program
@@ -211,6 +227,31 @@ export function buildProgram(): Command {
     { run: "shipeasy whoami" },
     { run: "shipeasy whoami --json", note: "machine-readable session + project" },
   ]);
+
+  withOutput(whoamiCmd, {
+    note: "with --json",
+    json: {
+      logged_in: true,
+      session: {
+        project_id: "proj_abc123",
+        user_email: "you@example.com",
+        worker_url: "https://api.shipeasy.ai",
+        app_url: "https://shipeasy.ai",
+        saved_at: "2026-06-14T17:00:00.000Z",
+      },
+      bound_dir: { project_id: "proj_abc123", project_name: "acme" },
+      active_project_id: "proj_abc123",
+      project: {
+        id: "proj_abc123",
+        name: "acme",
+        domain: "acme.com",
+        ownerEmail: "you@example.com",
+        plan: "paid",
+        status: "active",
+      },
+      project_error: null,
+    },
+  });
 
   const bindCmd = program
     .command("bind [project_id]")

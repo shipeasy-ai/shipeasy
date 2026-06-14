@@ -152,33 +152,6 @@ export function configsCommand(parent: Command): void {
     { note: "Promote the staged draft to prod", run: "shipeasy configs publish pricing --env prod" },
   ]);
 
-  const activityConfig = configs
-    .command("activity <name>")
-    .description("Show recent activity for a config")
-    .option("--limit <n>", "How many entries to show", "20")
-    .option("--json", "Output as JSON")
-    .option("--project <id>", "Project ID override")
-    .action(async (name: string, opts) => {
-      try {
-        const api = getAdminClient(opts.project);
-        const c = await api.configs.resolve(name);
-        const entries = await api.configs.activity(c.id, Number(opts.limit));
-        if (opts.json) return printJson(entries);
-        if (!entries.length) return void console.log("No activity.");
-        printTable(
-          ["When", "Action", "Env", "Actor"],
-          entries.map((e) => [e.createdAt, e.action, e.env ?? "—", e.actor ?? "—"]),
-        );
-      } catch (e) {
-        handleError(e);
-      }
-    });
-
-  withExamples(activityConfig, [
-    { run: "shipeasy configs activity pricing" },
-    { note: "Last 5 entries", run: "shipeasy configs activity pricing --limit 5" },
-  ]);
-
   const deleteConfig = configs
     .command("delete <name>")
     .description("Delete a config by name")

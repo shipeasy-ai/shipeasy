@@ -15,7 +15,7 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { Command, Option, Argument } from "commander";
 import { buildProgram } from "../src/index";
-import { getExamples } from "../src/util/examples";
+import { getExamples, getOutput, getDetails } from "../src/util/examples";
 
 const OUT = join(
   __dirname,
@@ -91,6 +91,12 @@ function optsTable(opts: readonly Option[]): string {
 function leafBlock(cmd: Command): string {
   const out: string[] = ["### `" + path(cmd) + "`", ""];
   if (cmd.description()) out.push(prose(cmd.description()), "");
+
+  // Extra author prose (markdown, may link to deeper docs). Rendered raw — it's
+  // authored MDX-safe content, not a CLI string.
+  const details = getDetails(cmd);
+  if (details) out.push(details, "");
+
   out.push("```bash", `${path(cmd)} ${cmd.usage()}`.trim(), "```", "");
   const a = argsTable(cmd.registeredArguments as readonly Argument[]);
   const o = optsTable(cmd.options);
@@ -101,6 +107,12 @@ function leafBlock(cmd: Command): string {
   if (examples.length) {
     const lines = examples.map((e) => (e.note ? `# ${e.note}\n${e.run}` : e.run));
     out.push("Examples:", "", "```bash", lines.join("\n\n"), "```", "");
+  }
+
+  const output = getOutput(cmd);
+  if (output) {
+    out.push(`Returns${output.note ? ` (${output.note})` : ""}:`, "");
+    out.push("```json", JSON.stringify(output.json, null, 2), "```", "");
   }
   return out.join("\n");
 }

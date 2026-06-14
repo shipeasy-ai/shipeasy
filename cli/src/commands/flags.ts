@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import { ApiError, getAdminClient } from "../api/client";
 import { printTable, printJson } from "../util/output";
-import { withExamples } from "../util/examples";
+import { withExamples, withOutput } from "../util/examples";
 
 export function flagsCommand(parent: Command): void {
   const flags = parent.command("flags").description("Manage feature flags (gates)");
@@ -34,6 +34,20 @@ export function flagsCommand(parent: Command): void {
     });
 
   withExamples(listFlags, [{ run: "shipeasy flags list" }]);
+
+  withOutput(listFlags, {
+    note: "with --json",
+    json: [
+      {
+        id: "gate_7Hq2",
+        name: "checkout-v2",
+        enabled: true,
+        rolloutPct: 2500,
+        rules: [{ attr: "plan", op: "eq", value: "pro" }],
+        updatedAt: "2026-06-14T17:00:00.000Z",
+      },
+    ],
+  });
 
   const createFlag = flags
     .command("create <name>")

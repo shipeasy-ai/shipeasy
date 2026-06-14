@@ -2,7 +2,7 @@ import type { Command } from "commander";
 import { parse, render, type Query } from "../query-dsl";
 import { getApiClient, ApiError } from "../api/client";
 import { printJson, printTable } from "../util/output";
-import { withExamples } from "../util/examples";
+import { withExamples, withDetails } from "../util/examples";
 
 type MetricRow = {
   id: string;
@@ -53,6 +53,13 @@ export function metricsCommand(program: Command): void {
     .action(() => {
       process.stdout.write(GRAMMAR);
     });
+
+  withDetails(
+    grammarCmd,
+    "Prints the full metric query DSL grammar — aggregation functions, event " +
+      "selectors, label filters, and group-by. The same reference is published " +
+      "at [Query DSL grammar](/flags-experiments/metrics/grammar).",
+  );
 
   withExamples(grammarCmd, [{ run: "shipeasy metrics grammar" }]);
 

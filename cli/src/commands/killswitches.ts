@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import { ApiError, getAdminClient } from "../api/client";
 import { printJson, printTable } from "../util/output";
-import { withExamples } from "../util/examples";
+import { withExamples, withDetails } from "../util/examples";
 
 const ENVS = ["dev", "staging", "prod"] as const;
 
@@ -149,6 +149,20 @@ export function killswitchesCommand(parent: Command): void {
       }
     });
 
+  withDetails(
+    setSwitch,
+    "A kill switch is a named set of boolean **switches** that ship in the flags " +
+      "KV blob alongside gates and configs, so the SDK reads them with no extra " +
+      "round-trip. Each switch is keyed by `switch_key` and scoped per " +
+      "environment (`dev` / `staging` / `prod`) — so you can flip one dependency " +
+      "off in `prod` while leaving `staging` running. `set` creates or updates a " +
+      "single switch entry; the value is coerced (`true/1/on` → true, " +
+      "`false/0/off` → false).\n\n" +
+      "See [Kill switches](/flags-experiments/killswitches) for the full model — " +
+      "when to reach for a kill switch vs. a gate at 0%, and how switches " +
+      "evaluate at the edge.",
+  );
+
   withExamples(setSwitch, [
     { note: "Kill refunds in prod", run: "shipeasy killswitch set payments.stripe-gateway refunds true" },
     { note: "Target staging instead", run: "shipeasy killswitch set payments.stripe-gateway refunds true --env staging" },
@@ -170,6 +184,13 @@ export function killswitchesCommand(parent: Command): void {
         handleError(e);
       }
     });
+
+  withDetails(
+    unsetSwitch,
+    "Removes one switch entry from one environment, reverting that key to its " +
+      "default (absent = not overridden). The inverse of `set`. See " +
+      "[Kill switches](/flags-experiments/killswitches).",
+  );
 
   withExamples(unsetSwitch, [
     { run: "shipeasy killswitch unset payments.stripe-gateway refunds" },
