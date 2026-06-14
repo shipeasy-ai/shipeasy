@@ -37,13 +37,14 @@ Steps:
    back to `/shipeasy:setup` to render `getBootstrapHtml()` into `<head>`.
 
 4. **Set up error collection (ask the user first).** Error collection is
-   the **errors primitive** (`@shipeasy/sdk` ≥ 4.0.0): the client SDK's
-   `autoCollect` errors group hooks `window.onerror` +
-   `unhandledrejection` and wraps `fetch` (5xx + network failures),
-   shipping structured `type:"error"` events to `/collect`. Those fold
-   into fingerprint-grouped issues with a near-real-time occurrence
-   timeline — the Errors dashboard tab and `shipeasy ops.errors`. Handled
-   exceptions are reported explicitly with `see()` (next steps).
+   the **errors primitive** (`@shipeasy/sdk` ≥ 5.0.0): the client SDK's
+   `autoCollect` errors group wraps `fetch` (5xx + network failures only —
+   each named to a specific endpoint), shipping structured `type:"error"`
+   events to `/collect`. It does **not** blanket-capture `window.onerror`
+   / `unhandledrejection` (those produced generic, unactionable issues).
+   Reports fold into fingerprint-grouped issues with a near-real-time
+   occurrence timeline — the Errors dashboard tab and `shipeasy ops.errors`.
+   Handled exceptions are reported explicitly with `see()` (next steps).
 
    This group is **on by default** the moment the client SDK is
    initialised (`shipeasy({ clientKey })` from `/shipeasy:setup`) — so
@@ -173,11 +174,13 @@ Steps:
    }
    ```
 
-   - Non-exception problems: `see.Violation("name").message("…").causes_the(…).to(…)`
-     — never put variable data in the name (it's the fingerprint key).
-   - Expected control-flow exceptions: `see.ControlFlowException(e, "because …")`
+   - Non-exception problems: `see.Violation("name").causes_the(…).to(…).extras({…})`
+     — no `.message()`; never put variable data in the name (it's the
+     fingerprint key), put context in `.extras()`.
+   - Expected control-flow exceptions: `see.ControlFlowException(e).because("because …")`
      — reports nothing, auto-capture skips it.
-   - **Never** see() then `throw` (double count) · **never** an empty catch ·
+   - `see()` then `throw` is **fine** — the re-thrown error links to the inner
+     report as a `caused_by` chain (no double-count). **Never** an empty catch ·
      **never** `console.error`-only handling · no PII in extras.
    - If you don't know the consequence, don't catch the exception.
 
@@ -204,12 +207,13 @@ Steps:
 
    **HARD RULE: every handled exception is reported with `see()` from
    `@shipeasy/sdk` (client or server entrypoint).** A catch block that
-   swallows, logs to console only, or rethrows after reporting is wrong:
+   swallows or logs to console only is wrong (reporting then re-throwing is
+   fine — the occurrences link as a `caused_by` chain):
 
    - Handle it → `see(e).causes_the(<subject>).to(<outcome>).extras({…})`
-   - Expected control flow → `see.ControlFlowException(e, "because …")`
+   - Expected control flow → `see.ControlFlowException(e).because("because …")`
    - Can't name the consequence → don't catch; let an outer boundary own it
-   - Never `see()` then `throw` — either handle or rethrow, never both
+   - `see()` then `throw` is fine — they link as a `caused_by` chain, not a dupe
 
    See `.claude/skills/shipeasy-see/SKILL.md` for the full rules.
    ```
@@ -220,7 +224,7 @@ Steps:
    ✅ shipeasy ops setup complete
    Module:   feedback ✓   (events on by default → error collection)
    Wired:    devtools overlay (?se=1 on any page rendering getBootstrapHtml)
-             auto error capture (uncaught/unhandled/network → errors primitive)
+             auto error capture (network failures → errors primitive)
    Pointer:  .claude/skills/shipeasy-bugs/SKILL.md
              .claude/skills/shipeasy-see/SKILL.md
    Rule:     CLAUDE.md — handled exceptions must use see()
@@ -257,8 +261,8 @@ Steps:
     - **If "Wrap errors in see()" is selected:** invoke the `see` skill and
       sweep the codebase for handled exceptions, applying `see()` reporting
       per its rules (handle → `causes_the().to().extras()`; control flow →
-      `see.ControlFlowException`; never see()-then-throw, never empty
-      catch, never console-only). Do not touch boundaries that already
+      `see.ControlFlowException(e).because(…)`; see()-then-throw is fine,
+      never empty catch, never console-only). Do not touch boundaries that already
       report (withAdmin/errorResponse, client auto-capture, SectionBoundary,
       the client-error sink) — only swallowed / control-flow catches.
 

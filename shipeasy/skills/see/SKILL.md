@@ -64,18 +64,19 @@ when available. Prefer throwing an exception when possible.
 see.Violation("large query").causes_the("foo results").to("be trimmed");
 ```
 
-Option: include a message to provide more context:
+A violation has **no `.message()`** — its name is its whole identity. Any
+variable/context data goes in `.extras()`:
 
 ```ts
 see.Violation("large query")
-  .message(`got ${rows.length} rows`)
   .causes_the("foo results")
-  .to("be trimmed");
+  .to("be trimmed")
+  .extras({ rows: rows.length });
 ```
 
 **The violation name is a stable identifier** — it participates in the issue
 fingerprint. Never interpolate variable data into the name; put it in
-`.message()` or `.extras()`.
+`.extras()`.
 
 ## Writing Effective Consequences
 
@@ -157,11 +158,11 @@ existing code:
    "… causes the **a** network request …". The subject is a bare noun
    phrase: `causes_the("checkout")`, never `causes_the("a checkout")` or
    `causes_the("the checkout")`.
-2. **No variable data in the subject or outcome.** Unlike `.message()`, the
+2. **No variable data in the subject or outcome.** Unlike `.extras()`, the
    consequence is **not** normalized before fingerprinting — digits and ids
    survive — so `` .to(`fail with HTTP ${res.status}`) `` mints one issue per
    status code. Write the class of failure (`to("fail with a server error")`)
-   and put the value in `.message()` or `.extras()`.
+   and put the value in `.extras()`.
 3. **No transport-level subjects** — "network request", "HTTP request",
    "request", "fetch", "API call", "response". These describe the plumbing,
    not what broke for the user, so the resulting issue is impossible to act
@@ -220,7 +221,6 @@ blocks:
 2. **Unused exception objects** — catching but not using `e`
 3. **console.error-only handling** — logs locally, documents no impact, never
    reaches the errors primitive
-4. **Reporting before rethrowing** — creates double-counted issues
 
 ## see is Only For Reporting Problems
 
@@ -239,43 +239,33 @@ see, then additionally `flags.track()` it if a metric needs it.
 
 ## Critical Anti-Patterns to Avoid
 
-### 1. NEVER see() Before Throwing
+### see() and re-throw is allowed (it powers the caused_by chain)
+
+It is **fine** to `see()` an exception and then re-throw it. There is no "never
+report before rethrowing" rule. When the same error is reported again at an
+outer boundary — or wrapped with `{ cause }` and reported there — the SDK links
+the later occurrence to the earlier one as a **`caused_by` chain** instead of
+double-counting them. So reporting the specific inner consequence and letting
+the error propagate is encouraged where the inner site knows something the
+outer one doesn't:
 
 ```ts
-// WRONG: see() before throw is NOT handling the exception — the error will be
-// captured AGAIN by the uncaught handler or an outer boundary (double count).
-if (homeOwner == null) {
-  see.Violation("unsupported null owner type")
-    .causes_the("avatar background image")
-    .to("be greyed out");
-  throw new Error("Home owner is null"); // exception still thrown!
-}
-
-// CORRECT: Either handle the problem OR throw it, never both
-if (homeOwner == null) {
-  throw new Error("Home owner is null");
-}
-```
-
-### 2. Don't Report Before Rethrowing
-
-```ts
-// WRONG: creates redundant, double-counted issues
+// FINE: report the specific inner consequence, then re-throw. The outer
+// boundary that reports this same error links back to here as its caused_by.
 try {
-  await service.getData();
+  await chargeCard(order);
 } catch (e) {
-  see(e).causes_the("service").to("fail"); // bad consequence too
-  throw e; // not actually handling!
+  see(e).causes_the("checkout").to("retry on the backup processor").extras({ order_id: order.id });
+  throw e; // propagates; the outer report becomes a chained occurrence, not a dupe
 }
-
-// CORRECT: remove the catch block entirely
-await service.getData();
 ```
 
-This rule only applies to error reporting. Teams can still `flags.track()`
-their own metrics in catch blocks before rethrowing.
+Only avoid reporting the **same** consequence at two altitudes that both name
+the same generic surface — that adds noise without adding a distinct
+consequence. Report a distinct, more-specific consequence, or don't report at
+the outer site at all.
 
-### 3. Don't Use Violation for a Caught Exception
+### 1. Don't Use Violation for a Caught Exception
 
 ```ts
 // WRONG: drops the exception's stack and type
@@ -340,8 +330,11 @@ for (const file of files) {
 
 ### 4: Wrapping Exceptions
 
-When rethrowing as a different type, preserve the original exception — and do
-NOT see() (the outer handler owns the consequence):
+When rethrowing as a different type, preserve the original exception with
+`{ cause }`. You may report the specific inner consequence here if you know it
+— if the wrapped error is later reported at an outer boundary, the two link as
+a `caused_by` chain (no double-count). If the inner site has nothing specific
+to add, just wrap and let the outer handler own the consequence:
 
 ```ts
 try {
@@ -387,8 +380,9 @@ Signs of control flow exceptions:
 2. **Multiple decode/parse strategies** tried in sequence
 3. **Checking for existence** using try/catch instead of a dedicated method
 
-Exceptions as control flow are discouraged but sometimes necessary.
-**The reason string must start with "because"**:
+Exceptions as control flow are discouraged but sometimes necessary. Say why
+with `.because()` — **the reason must start with "because"** — and optionally
+attach local debug context with `.extras()`:
 
 ```ts
 try {
@@ -397,19 +391,26 @@ try {
   return decodeFoo(blob);
 } catch (e) {
   // e is not a problem — it was expected. Marking it also tells the SDK's
-  // uncaught-error auto-capture to skip it if it escapes later.
-  see.ControlFlowException(e, "because it wasn't an encoded Foo");
+  // auto-capture to skip it if it escapes later. Nothing is reported.
+  see.ControlFlowException(e).because("because it wasn't an encoded Foo");
   return decodeBar(blob);
 }
+
+// Optional debug context (kept on the mark for local debugging; never sent):
+// see.ControlFlowException(e).because("because it wasn't a Foo").extras({ tried: "Foo" });
 ```
 
 ## Auto-Capture
 
-The client SDK automatically reports uncaught exceptions, unhandled promise
-rejections, and network failures (fetch network errors + 5xx) into the same
-errors primitive (`autoCollect.errors`, on by default). This is the outer
-safety net — it does NOT replace see() in catch blocks, where you know the
-consequence and auto-capture cannot.
+The client SDK automatically reports **network failures** (fetch network errors
++ 5xx) into the same errors primitive (`autoCollect.errors`, on by default) —
+each names a specific endpoint and a specific outcome. It deliberately does
+**not** blanket-report uncaught exceptions or unhandled promise rejections:
+those carry no actionable consequence ("the page hit an error" names the
+plumbing, not the feature) and would mint one unactionable, double-counted
+issue for every unrelated failure. Code that knows the consequence reports it
+explicitly with `see()` at the catch site — auto-capture cannot do that for
+you.
 
 ## Fingerprinting (What Makes Two Errors the Same Issue)
 
