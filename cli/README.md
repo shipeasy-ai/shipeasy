@@ -68,6 +68,17 @@ shipeasy scan             # detect language, framework, and SDK state
 shipeasy flags list       # gates, configs, killswitches, experiments, metrics …
 ```
 
+## Full command reference
+
+Every command, argument, flag, and usage example is documented at:
+
+**📖 https://docs.shipeasy.ai/get-started/cli-reference**
+
+That page is generated directly from this CLI's command definitions (the same
+source that powers `--help`), so it never drifts from the installed binary. Add
+`--help` to any command for the same details in your terminal, e.g.
+`shipeasy experiments create --help`.
+
 ## License
 
 MIT

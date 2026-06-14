@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { ApiError, getAdminClient, getApiClient } from "../api/client";
 import { printJson, printTable } from "../util/output";
+import { withExamples } from "../util/examples";
 
 // Alert *rules* are the user-defined metric-threshold definitions the cron
 // evaluates to raise alerts. They're writable (unlike raised alerts, which are
@@ -72,7 +73,8 @@ export function alertRulesCommand(parent: Command): void {
     .alias("ar")
     .description("Manage metric-threshold alert rules (writable; `shipeasy alerts` is read-only)");
 
-  ar.command("list")
+  const listRules = ar
+    .command("list")
     .description("List alert rules")
     .option("--json", "Output as JSON")
     .option("--project <id>", "Project ID override")
@@ -100,7 +102,10 @@ export function alertRulesCommand(parent: Command): void {
       }
     });
 
-  ar.command("create <name>")
+  withExamples(listRules, [{ run: "shipeasy alert-rules list" }]);
+
+  const createRule = ar
+    .command("create <name>")
     .description("Create an alert rule. The metric (and its aggregation) is fixed for the rule's life.")
     .requiredOption("--metric <id|name>", "Metric to evaluate (id or name)")
     .requiredOption("--comparator <op>", `Comparison: ${COMPARATORS.join(" | ")}`)
@@ -130,7 +135,19 @@ export function alertRulesCommand(parent: Command): void {
       }
     });
 
-  ar.command("update <id>")
+  withExamples(createRule, [
+    {
+      note: "Alert when error rate exceeds 50 / 24h",
+      run: "shipeasy alert-rules create high-error-rate --metric api-errors \\\n  --comparator gt --threshold 50",
+    },
+    {
+      note: "Danger if checkouts drop below 100 in 6h",
+      run: "shipeasy alert-rules create low-checkouts --metric checkouts \\\n  --comparator lt --threshold 100 --window 6 --severity danger",
+    },
+  ]);
+
+  const updateRule = ar
+    .command("update <id>")
     .description("Update an alert rule's tunable knobs (id or id-prefix or unique name). Metric is immutable.")
     .option("--name <name>", "Human label for the rule")
     .option("--comparator <op>", `Comparison: ${COMPARATORS.join(" | ")}`)
@@ -161,7 +178,16 @@ export function alertRulesCommand(parent: Command): void {
       }
     });
 
-  ar.command("delete <id>")
+  withExamples(updateRule, [
+    {
+      note: "Raise the threshold",
+      run: "shipeasy alert-rules update high-error-rate --threshold 100",
+    },
+    { note: "Disable a rule", run: "shipeasy alert-rules update high-error-rate --enabled false" },
+  ]);
+
+  const deleteRule = ar
+    .command("delete <id>")
     .description("Delete an alert rule (id or id-prefix or unique name)")
     .option("--project <id>", "Project ID override")
     .action(async (id: string, opts: { project?: string }) => {
@@ -174,4 +200,6 @@ export function alertRulesCommand(parent: Command): void {
         handleError(e);
       }
     });
+
+  withExamples(deleteRule, [{ run: "shipeasy alert-rules delete high-error-rate" }]);
 }

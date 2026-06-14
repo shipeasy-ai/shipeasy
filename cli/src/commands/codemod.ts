@@ -2,6 +2,7 @@ import { Command } from "commander";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { withExamples } from "../util/examples";
 
 // Resolve codemods/ relative to the bundled CLI (`dist/index.js` ships beside
 // `codemods/` at the package root). In dev (`pnpm dev` via tsx) __dirname
@@ -31,7 +32,7 @@ export function codemodCommand(parent: Command): void {
     .command("codemod")
     .description("Source-code codemods (i18n extraction, framework migrations)");
 
-  cmd
+  const codemodI18n = cmd
     .command("i18n [target]")
     .description(
       "Extract translatable strings and wrap them with i18n.t() from @shipeasy/sdk/client. " +
@@ -106,6 +107,12 @@ export function codemodCommand(parent: Command): void {
         process.exit(1);
       }
     });
+
+  withExamples(codemodI18n, [
+    { note: "Preview extraction over app/", run: "shipeasy codemod i18n app --dry-run" },
+    { note: "Run only JSX text extraction", run: "shipeasy codemod i18n ./src --type jsx-text" },
+    { note: "Migrate from react-i18next", run: "shipeasy codemod i18n --migrate react-i18next" },
+  ]);
 }
 
 function resolveTargets(explicit: string | undefined, configSrcDir: string): string[] {

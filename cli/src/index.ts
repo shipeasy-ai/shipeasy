@@ -29,6 +29,7 @@ import { metricsCommand } from "./commands/metrics";
 import { bindProject, readProjectConfig } from "./util/project-config";
 import { printJson } from "./util/output";
 import { reportCliError } from "./util/error-reporter";
+import { withExamples } from "./util/examples";
 
 interface ProjectMeta {
   id: string;
@@ -80,7 +81,7 @@ export function buildProgram(): Command {
 
   program.name("shipeasy").description("CLI for the ShipEasy experiment platform").version(version);
 
-  program
+  const loginCmd = program
     .command("login")
     .description("Authenticate via PKCE device flow (no-op if already logged in)")
     .option("--force", "Re-authenticate even if a valid session already exists")
@@ -98,7 +99,13 @@ export function buildProgram(): Command {
       });
     });
 
-  program
+  withExamples(loginCmd, [
+    { run: "shipeasy login" },
+    { run: "shipeasy login --force", note: "re-authenticate over a live session" },
+    { run: "shipeasy login --project proj_abc123", note: "scope login to one project" },
+  ]);
+
+  const logoutCmd = program
     .command("logout")
     .description("Clear stored credentials")
     .action(() => {
@@ -106,7 +113,9 @@ export function buildProgram(): Command {
       console.log("Logged out.");
     });
 
-  program
+  withExamples(logoutCmd, [{ run: "shipeasy logout" }]);
+
+  const whoamiCmd = program
     .command("whoami")
     .description("Show current authentication state and active project metadata")
     .option("--json", "Output as JSON")
@@ -198,7 +207,12 @@ export function buildProgram(): Command {
       }
     });
 
-  program
+  withExamples(whoamiCmd, [
+    { run: "shipeasy whoami" },
+    { run: "shipeasy whoami --json", note: "machine-readable session + project" },
+  ]);
+
+  const bindCmd = program
     .command("bind [project_id]")
     .description("Bind the current directory to a Shipeasy project (writes .shipeasy)")
     .option("--name <name>", "Optional human-readable project name to record")
@@ -217,6 +231,12 @@ export function buildProgram(): Command {
         "Mutating CLI/MCP commands run in this tree will now push to this project regardless of which CLI session is active.",
       );
     });
+
+  withExamples(bindCmd, [
+    { run: "shipeasy bind", note: "bind to the active session's project" },
+    { run: "shipeasy bind proj_abc123" },
+    { run: "shipeasy bind proj_abc123 --name 'Acme Web'" },
+  ]);
 
   setupCommand(program);
   projectsCommand(program);

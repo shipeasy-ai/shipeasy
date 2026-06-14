@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import { getApiClient, ApiError } from "../api/client";
+import { withExamples } from "../util/examples";
 
 const MODULE_FIELD = {
   translations: "moduleTranslations",
@@ -43,7 +44,7 @@ export function modulesCommand(parent: Command): void {
     .command("modules")
     .description("Enable, disable, or inspect per-project feature modules");
 
-  modules
+  const listModules = modules
     .command("list")
     .description("Show which modules are enabled on the bound project")
     .option("--json", "Output as JSON")
@@ -72,7 +73,9 @@ export function modulesCommand(parent: Command): void {
       }
     });
 
-  modules
+  withExamples(listModules, [{ run: "shipeasy modules list" }]);
+
+  const enableModule = modules
     .command("enable <name>")
     .description(`Enable a module (${MODULE_NAMES.join(" | ")})`)
     .action(async (name: string) => {
@@ -87,7 +90,11 @@ export function modulesCommand(parent: Command): void {
       }
     });
 
-  modules
+  withExamples(enableModule, [
+    { note: "Turn on the feedback module", run: "shipeasy modules enable feedback" },
+  ]);
+
+  const disableModule = modules
     .command("disable <name>")
     .description(`Disable a module (${MODULE_NAMES.join(" | ")})`)
     .action(async (name: string) => {
@@ -101,4 +108,8 @@ export function modulesCommand(parent: Command): void {
         process.exit(1);
       }
     });
+
+  withExamples(disableModule, [
+    { note: "Turn off experiments", run: "shipeasy modules disable experiments" },
+  ]);
 }

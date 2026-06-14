@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { detect } from "package-manager-detector";
 import type { Command } from "commander";
+import { withExamples } from "../util/examples";
 
 // ── types ──────────────────────────────────────────────────────────────────
 
@@ -449,7 +450,7 @@ function printHuman(result: DetectResult | ClarificationNeeded): void {
 }
 
 export function scanCommand(program: Command): void {
-  program
+  const scanCmd = program
     .command("scan [paths...]")
     .description("Detect project language, framework, and ShipEasy SDK state")
     .option("--json", "Output raw JSON")
@@ -464,4 +465,10 @@ export function scanCommand(program: Command): void {
 
       if (result.status === "needs_clarification") process.exit(1);
     });
+
+  withExamples(scanCmd, [
+    { note: "Scan the current directory", run: "shipeasy scan" },
+    { note: "Scan a specific app in a monorepo", run: "shipeasy scan ./apps/web" },
+    { note: "Raw JSON for tooling", run: "shipeasy scan ./src --json" },
+  ]);
 }

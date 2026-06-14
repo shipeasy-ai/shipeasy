@@ -1,13 +1,15 @@
 import { Command } from "commander";
 import { ApiError, getAdminClient } from "../api/client";
 import { printJson, printTable } from "../util/output";
+import { withExamples } from "../util/examples";
 
 const ENVS = ["dev", "staging", "prod"] as const;
 
 export function killswitchesCommand(parent: Command): void {
   const ks = parent.command("killswitch").alias("ks").description("Manage killswitches");
 
-  ks.command("list")
+  const listKillswitches = ks
+    .command("list")
     .description("List all killswitches")
     .option("--json", "Output as JSON")
     .option("--project <id>", "Project ID override")
@@ -38,7 +40,10 @@ export function killswitchesCommand(parent: Command): void {
       }
     });
 
-  ks.command("create <name>")
+  withExamples(listKillswitches, [{ run: "shipeasy killswitch list" }]);
+
+  const createKillswitch = ks
+    .command("create <name>")
     .description("Create a killswitch (name must be `folder.name`)")
     .option("--description <desc>", "Description")
     .option("--value <bool>", "Default value (true|false)", "false")
@@ -64,7 +69,16 @@ export function killswitchesCommand(parent: Command): void {
       }
     });
 
-  ks.command("update <name>")
+  withExamples(createKillswitch, [
+    { note: "Default OFF", run: "shipeasy killswitch create payments.stripe-gateway" },
+    {
+      note: "Pre-seed per-key switches",
+      run: 'shipeasy killswitch create payments.stripe-gateway --switches \'{"refunds":true,"payouts":false}\'',
+    },
+  ]);
+
+  const updateKillswitch = ks
+    .command("update <name>")
     .description("Update a killswitch's default value, switches map, or description")
     .option("--value <bool>", "Default value (true|false)")
     .option("--switches <json>", "JSON object of { switch_key: bool } — replaces wholesale")
@@ -89,7 +103,16 @@ export function killswitchesCommand(parent: Command): void {
       }
     });
 
-  ks.command("delete <name>")
+  withExamples(updateKillswitch, [
+    { note: "Flip the default ON", run: "shipeasy killswitch update payments.stripe-gateway --value true" },
+    {
+      note: "Replace the whole switches map",
+      run: 'shipeasy killswitch update payments.stripe-gateway --switches \'{"refunds":false}\'',
+    },
+  ]);
+
+  const deleteKillswitch = ks
+    .command("delete <name>")
     .description("Delete a killswitch")
     .option("--project <id>", "Project ID override")
     .action(async (name: string, opts) => {
@@ -103,7 +126,10 @@ export function killswitchesCommand(parent: Command): void {
       }
     });
 
-  ks.command("set <name> <switch_key> <value>")
+  withExamples(deleteKillswitch, [{ run: "shipeasy killswitch delete payments.stripe-gateway" }]);
+
+  const setSwitch = ks
+    .command("set <name> <switch_key> <value>")
     .description("Set or update one switch entry on one env (default env=prod)")
     .option("--env <env>", `Env: ${ENVS.join(" | ")}`, "prod")
     .option("--project <id>", "Project ID override")
@@ -123,7 +149,13 @@ export function killswitchesCommand(parent: Command): void {
       }
     });
 
-  ks.command("unset <name> <switch_key>")
+  withExamples(setSwitch, [
+    { note: "Kill refunds in prod", run: "shipeasy killswitch set payments.stripe-gateway refunds true" },
+    { note: "Target staging instead", run: "shipeasy killswitch set payments.stripe-gateway refunds true --env staging" },
+  ]);
+
+  const unsetSwitch = ks
+    .command("unset <name> <switch_key>")
     .description("Remove one switch entry from one env (default env=prod)")
     .option("--env <env>", `Env: ${ENVS.join(" | ")}`, "prod")
     .option("--project <id>", "Project ID override")
@@ -138,6 +170,11 @@ export function killswitchesCommand(parent: Command): void {
         handleError(e);
       }
     });
+
+  withExamples(unsetSwitch, [
+    { run: "shipeasy killswitch unset payments.stripe-gateway refunds" },
+    { note: "From staging", run: "shipeasy killswitch unset payments.stripe-gateway refunds --env staging" },
+  ]);
 }
 
 function parseBool(v: string): boolean {

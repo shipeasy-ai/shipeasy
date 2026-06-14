@@ -4,6 +4,7 @@ import os from "node:os";
 import { Command } from "commander";
 import { getApiClient, ApiError } from "../api/client";
 import { printTable, printJson } from "../util/output";
+import { withExamples } from "../util/examples";
 
 interface Attachment {
   id: string;
@@ -183,8 +184,21 @@ export function defineFeedbackResource(parent: Command, spec: FeedbackResourceSp
   const group = parent.command(spec.command ?? spec.name).description(spec.description);
   const notFound = (id: string) => new ApiError(`${spec.nounCap} not found: ${id}`, 404);
 
+  // Full invocation prefix for examples, e.g. "shipeasy feedback bugs" or
+  // "shipeasy ops.bugs" — walk the command tree up to (but not including) the
+  // root program so `feedback`/`ops.*` mountings both render correctly.
+  const groupPath = (() => {
+    const parts: string[] = [];
+    let c: Command | null = group;
+    while (c && c.parent) {
+      parts.unshift(c.name());
+      c = c.parent;
+    }
+    return `shipeasy ${parts.join(" ")}`;
+  })();
+
   // ── list ───────────────────────────────────────────────────────────────
-  group
+  const listCmd = group
     .command("list")
     .description(`List ${spec.name}`)
     .option("--status <status>", `Filter by status: ${spec.statuses.join("|")}`)
@@ -223,8 +237,15 @@ export function defineFeedbackResource(parent: Command, spec: FeedbackResourceSp
       }
     });
 
+  withExamples(listCmd, [
+    {
+      note: `Only open ${spec.name}`,
+      run: `${groupPath} list --status open`,
+    },
+  ]);
+
   // ── get ────────────────────────────────────────────────────────────────
-  group
+  const getCmd = group
     .command("get <id>")
     .description(`Show one ${spec.noun} by id (or id prefix)`)
     .option("--json", "Output as JSON")
@@ -246,8 +267,12 @@ export function defineFeedbackResource(parent: Command, spec: FeedbackResourceSp
       }
     });
 
+  withExamples(getCmd, [
+    { note: "Look up by id prefix", run: `${groupPath} get a1b2c3d4` },
+  ]);
+
   // ── update ─────────────────────────────────────────────────────────────
-  group
+  const updateCmd = group
     .command("update <id>")
     .description(`Update a ${spec.noun} — supports --status and ${spec.attr.flag}`)
     .option("--status <status>", `New status: ${spec.statuses.join("|")}`)
@@ -290,6 +315,14 @@ export function defineFeedbackResource(parent: Command, spec: FeedbackResourceSp
       }
     });
 
+  withExamples(updateCmd, [
+    { note: "Mark in progress", run: `${groupPath} update a1b2c3d4 --status in_progress` },
+    {
+      note: `Bump ${spec.attr.label}`,
+      run: `${groupPath} update a1b2c3d4 ${spec.attr.flag.split(" ")[0]} high`,
+    },
+  ]);
+
   // ── create ─────────────────────────────────────────────────────────────
   const create = group
     .command(`create ${spec.createTitle}`)
@@ -318,8 +351,20 @@ export function defineFeedbackResource(parent: Command, spec: FeedbackResourceSp
     }
   });
 
+  // Build a create example from the spec's required fields, e.g.
+  // `… create "Title" --steps "…" --actual "…" --expected "…"`.
+  const createFlags = spec.createFields
+    .map((f) => `${f.flag.split(" ")[0]} "…"`)
+    .join(" ");
+  withExamples(create, [
+    {
+      note: `File a ${spec.noun}`,
+      run: `${groupPath} create "Short ${spec.noun} title" ${createFlags}`,
+    },
+  ]);
+
   // ── delete ─────────────────────────────────────────────────────────────
-  group
+  const deleteCmd = group
     .command("delete <id>")
     .description(`Delete a ${spec.noun} by id (or id prefix)`)
     .option("--project <id>", "Project ID override")
@@ -336,8 +381,12 @@ export function defineFeedbackResource(parent: Command, spec: FeedbackResourceSp
       }
     });
 
+  withExamples(deleteCmd, [
+    { note: "Delete by id prefix", run: `${groupPath} delete a1b2c3d4` },
+  ]);
+
   // ── attachments ────────────────────────────────────────────────────────
-  group
+  const attachmentsCmd = group
     .command(`attachments <id>`)
     .description(
       `Download all attachments for a ${spec.noun} to a local directory. Prints one absolute path per line on stdout (suitable for piping into other tools).`,
@@ -388,13 +437,20 @@ export function defineFeedbackResource(parent: Command, spec: FeedbackResourceSp
       }
     });
 
+  withExamples(attachmentsCmd, [
+    {
+      note: "Download attachments to a directory",
+      run: `${groupPath} attachments a1b2c3d4 --out ./shots`,
+    },
+  ]);
+
   // ── link-pr (PR-linking resources only) ──────────────────────────────────
   // The connector-tracked GitHub issue (connector_data.github.issue.number) is
   // already delivered by `get`, so an automated fixer reads it from there to
   // reference the issue (e.g. "Closes #123") when opening a PR. Linking the PR
   // here also wires it to that issue server-side (Closes #N / comment).
   if (spec.supportsPr) {
-    group
+    const linkPr = group
       .command("link-pr <id> <pr-number>")
       .description(
         `Link a GitHub pull request to a ${spec.noun}. When a GitHub connector is configured, prints the PR URL.`,
@@ -436,6 +492,11 @@ export function defineFeedbackResource(parent: Command, spec: FeedbackResourceSp
           handleError(e);
         }
       });
+
+    withExamples(linkPr, [
+      { note: "Link the PR that fixed it", run: `${groupPath} link-pr a1b2c3d4 42` },
+      { note: "Unlink the PR", run: `${groupPath} link-pr a1b2c3d4 0 --remove` },
+    ]);
   }
 }
 

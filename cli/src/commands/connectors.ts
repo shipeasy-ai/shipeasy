@@ -2,6 +2,7 @@ import { Command } from "commander";
 import { getApiClient, ApiError } from "../api/client";
 import { printJson, printTable } from "../util/output";
 import { handleError } from "./feedback";
+import { withExamples } from "../util/examples";
 
 interface Connector {
   id: string;
@@ -33,7 +34,7 @@ export function connectorsCommand(parent: Command): void {
     .description("Manage feedback connectors (Google Sheets, GitHub, Claude triggers)");
 
   // ── create-trigger ─────────────────────────────────────────────────────
-  group
+  const createTrigger = group
     .command("create-trigger")
     .description(
       "Register a Claude trigger connector for a Claude Code routine. The routine " +
@@ -80,8 +81,23 @@ export function connectorsCommand(parent: Command): void {
       }
     });
 
+  withExamples(createTrigger, [
+    {
+      note: "Register a routine, auto-fire on new bugs",
+      run:
+        "shipeasy connectors create-trigger --routine-id rt_abc123 --token se_rt_xxx \\\n" +
+        "  --events bug.created,feature_request.created",
+    },
+    {
+      note: "On-demand only, with a default prompt",
+      run:
+        'shipeasy connectors create-trigger --routine-id rt_abc123 --token se_rt_xxx \\\n' +
+        '  --name "Nightly fixer" --text "Fix the top open bug"',
+    },
+  ]);
+
   // ── fire ───────────────────────────────────────────────────────────────
-  group
+  const fire = group
     .command("fire <id>")
     .description("Fire a Claude trigger connector's routine now")
     .option("--text <prompt>", "Prompt to send for this run (overrides the connector default)")
@@ -104,8 +120,16 @@ export function connectorsCommand(parent: Command): void {
       }
     });
 
+  withExamples(fire, [
+    { note: "Fire a connector by id prefix", run: "shipeasy connectors fire a1b2c3d4" },
+    {
+      note: "Fire with a one-off prompt",
+      run: 'shipeasy connectors fire a1b2c3d4 --text "Fix bug #42"',
+    },
+  ]);
+
   // ── list ───────────────────────────────────────────────────────────────
-  group
+  const listConnectors = group
     .command("list")
     .description("List feedback connectors")
     .option("--json", "Output as JSON")
@@ -135,4 +159,6 @@ export function connectorsCommand(parent: Command): void {
         handleError(e);
       }
     });
+
+  withExamples(listConnectors, [{ run: "shipeasy connectors list" }]);
 }

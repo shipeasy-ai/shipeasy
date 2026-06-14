@@ -2,6 +2,7 @@ import { Command } from "commander";
 import type { ExperimentResult } from "@shipeasy/openapi";
 import { ApiError, getAdminClient } from "../api/client";
 import { printTable, printJson, statusColor } from "../util/output";
+import { withExamples } from "../util/examples";
 
 function verdict(results: ExperimentResult[]): string {
   const treatment = results.filter((r) => r.group_name !== "control");
@@ -15,7 +16,7 @@ function verdict(results: ExperimentResult[]): string {
 export function experimentsCommand(parent: Command): void {
   const exp = parent.command("experiments").description("Manage experiments");
 
-  exp
+  const listExp = exp
     .command("list")
     .description("List experiments")
     .option("--json", "Output as JSON")
@@ -43,7 +44,9 @@ export function experimentsCommand(parent: Command): void {
       }
     });
 
-  exp
+  withExamples(listExp, [{ run: "shipeasy experiments list" }]);
+
+  const createExp = exp
     .command("create <name>")
     .description("Create a new experiment")
     .option("--universe <name>", "Universe name", "default")
@@ -77,7 +80,18 @@ export function experimentsCommand(parent: Command): void {
       }
     });
 
-  exp
+  withExamples(createExp, [
+    {
+      note: "Default 50/50 control vs test, full traffic",
+      run: "shipeasy experiments create pricing-page",
+    },
+    {
+      note: "Custom groups + weights in a named universe",
+      run: "shipeasy experiments create checkout-cta --universe web --allocation 100 \\\n  --groups '[{\"name\":\"control\",\"weight\":5000,\"params\":{\"label\":\"Pay\"}},{\"name\":\"v1\",\"weight\":5000,\"params\":{\"label\":\"Buy now\"}}]'",
+    },
+  ]);
+
+  const updateExp = exp
     .command("update <name>")
     .description("Update an experiment by name")
     .option("--allocation <pct>", "Allocation percentage (0-100)")
@@ -112,7 +126,18 @@ export function experimentsCommand(parent: Command): void {
       }
     });
 
-  exp
+  withExamples(updateExp, [
+    {
+      note: "Dial allocation up to 50%",
+      run: "shipeasy experiments update pricing-page --allocation 50",
+    },
+    {
+      note: "Clear targeting + tighten significance",
+      run: "shipeasy experiments update checkout-cta --targeting-gate null --significance 0.01",
+    },
+  ]);
+
+  const deleteExp = exp
     .command("delete <name>")
     .description("Delete an experiment by name")
     .option("--project <id>", "Project ID override")
@@ -127,7 +152,9 @@ export function experimentsCommand(parent: Command): void {
       }
     });
 
-  exp
+  withExamples(deleteExp, [{ run: "shipeasy experiments delete pricing-page" }]);
+
+  const startExp = exp
     .command("start <name>")
     .description("Start an experiment")
     .option("--project <id>", "Project ID override")
@@ -142,7 +169,9 @@ export function experimentsCommand(parent: Command): void {
       }
     });
 
-  exp
+  withExamples(startExp, [{ run: "shipeasy experiments start pricing-page" }]);
+
+  const stopExp = exp
     .command("stop <name>")
     .description("Stop a running experiment")
     .option("--project <id>", "Project ID override")
@@ -157,7 +186,9 @@ export function experimentsCommand(parent: Command): void {
       }
     });
 
-  exp
+  withExamples(stopExp, [{ run: "shipeasy experiments stop pricing-page" }]);
+
+  const archiveExp = exp
     .command("archive <name>")
     .description("Archive a stopped experiment")
     .option("--project <id>", "Project ID override")
@@ -172,7 +203,9 @@ export function experimentsCommand(parent: Command): void {
       }
     });
 
-  exp
+  withExamples(archiveExp, [{ run: "shipeasy experiments archive pricing-page" }]);
+
+  const reanalyzeExp = exp
     .command("reanalyze <name>")
     .description("Re-run analysis pass for an experiment")
     .option("--project <id>", "Project ID override")
@@ -187,7 +220,9 @@ export function experimentsCommand(parent: Command): void {
       }
     });
 
-  exp
+  withExamples(reanalyzeExp, [{ run: "shipeasy experiments reanalyze pricing-page" }]);
+
+  const statusExp = exp
     .command("status <name>")
     .description("Show experiment status and latest results")
     .option("--json", "Output as JSON")
@@ -227,6 +262,8 @@ export function experimentsCommand(parent: Command): void {
         handleError(e);
       }
     });
+
+  withExamples(statusExp, [{ run: "shipeasy experiments status pricing-page" }]);
 }
 
 function handleError(e: unknown): void {

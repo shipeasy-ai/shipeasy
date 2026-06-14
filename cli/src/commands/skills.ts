@@ -4,6 +4,7 @@ import { mkdtempSync, existsSync, readdirSync, statSync, rmSync } from "node:fs"
 import { tmpdir, homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { copyTree } from "../util/copy";
+import { withExamples } from "../util/examples";
 
 const MARKETPLACE_REPO = "https://github.com/shipeasy-ai/shipeasy.git";
 const PLUGIN_NAME = "shipeasy";
@@ -48,7 +49,7 @@ export function skillsCommand(parent: Command): void {
       "Install or list Shipeasy agent skills from the marketplace (shipeasy-ai/shipeasy)",
     );
 
-  skills
+  const listSkills = skills
     .command("list")
     .description("List skills available in the marketplace")
     .action(() => {
@@ -73,7 +74,9 @@ export function skillsCommand(parent: Command): void {
       }
     });
 
-  skills
+  withExamples(listSkills, [{ run: "shipeasy skills list" }]);
+
+  const installSkills = skills
     .command("install [skill...]")
     .description(
       "Copy skills from the marketplace into .claude/skills. With no args, installs every " +
@@ -144,4 +147,10 @@ export function skillsCommand(parent: Command): void {
         }
       },
     );
+
+  withExamples(installSkills, [
+    { run: "shipeasy skills install", note: "install every shipeasy skill" },
+    { run: "shipeasy skills install shipeasy-flags shipeasy-experiments" },
+    { run: "shipeasy skills install shipeasy-setup --scope user --force" },
+  ]);
 }

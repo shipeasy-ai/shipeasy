@@ -1,11 +1,12 @@
 import { Command } from "commander";
 import { ApiError, getAdminClient } from "../api/client";
 import { printTable, printJson } from "../util/output";
+import { withExamples } from "../util/examples";
 
 export function flagsCommand(parent: Command): void {
   const flags = parent.command("flags").description("Manage feature flags (gates)");
 
-  flags
+  const listFlags = flags
     .command("list")
     .description("List all feature flags")
     .option("--json", "Output as JSON")
@@ -32,7 +33,9 @@ export function flagsCommand(parent: Command): void {
       }
     });
 
-  flags
+  withExamples(listFlags, [{ run: "shipeasy flags list" }]);
+
+  const createFlag = flags
     .command("create <name>")
     .description("Create a new feature flag")
     .option("--rollout <pct>", "Rollout percentage (0-100)", "0")
@@ -56,7 +59,15 @@ export function flagsCommand(parent: Command): void {
       }
     });
 
-  flags
+  withExamples(createFlag, [
+    { note: "Off by default; flip it on later", run: "shipeasy flags create checkout-v2" },
+    {
+      note: "Roll out to 25% of pro-plan users",
+      run: 'shipeasy flags create new-ui --rollout 25 --rules \'[{"attr":"plan","op":"eq","value":"pro"}]\'',
+    },
+  ]);
+
+  const enableFlag = flags
     .command("enable <name>")
     .description("Enable a feature flag")
     .option("--project <id>", "Project ID override")
@@ -71,7 +82,9 @@ export function flagsCommand(parent: Command): void {
       }
     });
 
-  flags
+  withExamples(enableFlag, [{ run: "shipeasy flags enable checkout-v2" }]);
+
+  const disableFlag = flags
     .command("disable <name>")
     .description("Disable a feature flag")
     .option("--project <id>", "Project ID override")
@@ -86,7 +99,9 @@ export function flagsCommand(parent: Command): void {
       }
     });
 
-  flags
+  withExamples(disableFlag, [{ run: "shipeasy flags disable checkout-v2" }]);
+
+  const rolloutFlag = flags
     .command("rollout <name> <pct>")
     .description("Set rollout percentage (0-100) for a feature flag")
     .option("--json", "Output as JSON")
@@ -102,7 +117,12 @@ export function flagsCommand(parent: Command): void {
       }
     });
 
-  flags
+  withExamples(rolloutFlag, [
+    { note: "Ramp to 50%", run: "shipeasy flags rollout checkout-v2 50" },
+    { note: "Instant kill — set to 0", run: "shipeasy flags rollout checkout-v2 0" },
+  ]);
+
+  const deleteFlag = flags
     .command("delete <name>")
     .description("Delete a feature flag")
     .option("--project <id>", "Project ID override")
@@ -116,6 +136,8 @@ export function flagsCommand(parent: Command): void {
         handleError(e);
       }
     });
+
+  withExamples(deleteFlag, [{ run: "shipeasy flags delete checkout-v2" }]);
 }
 
 function handleError(e: unknown): void {

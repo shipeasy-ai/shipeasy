@@ -21,6 +21,7 @@ import {
   writeCursorRule,
 } from "../setup/instructions";
 import { detectProject } from "./scan";
+import { withExamples } from "../util/examples";
 
 const ALL_AGENTS: AgentId[] = ["claude", "cursor", "codex", "copilot", "jules"];
 
@@ -333,7 +334,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
 }
 
 export function setupCommand(parent: Command): void {
-  parent
+  const setup = parent
     .command("setup")
     .description(
       "One-command onboarding: log in + bind a project, detect your coding agents, " +
@@ -351,4 +352,10 @@ export function setupCommand(parent: Command): void {
         process.exit(1);
       });
     });
+
+  withExamples(setup, [
+    { run: "shipeasy setup" },
+    { run: "shipeasy setup --yes --agents claude,cursor", note: "non-interactive" },
+    { run: "shipeasy setup --dry-run --no-claude-run", note: "preview without writing" },
+  ]);
 }

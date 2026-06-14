@@ -5,6 +5,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { loadCredentials } from "../auth/storage";
 import { mergeMcpServer, readJsonConfig, writeJsonConfig } from "../util/json-config";
+import { withExamples } from "../util/examples";
 
 type ClientName = "claude" | "claude-project" | "cursor" | "cursor-project" | "windsurf";
 
@@ -47,7 +48,7 @@ export function mcpCommand(parent: Command): void {
     .command("mcp")
     .description("Manage the Shipeasy MCP server in AI-assistant configs");
 
-  mcp
+  const installMcp = mcp
     .command("install")
     .description("Register the Shipeasy MCP server with installed AI assistants")
     .option("--client <name>", "Restrict to one client (claude | cursor | windsurf | all)", "all")
@@ -118,7 +119,13 @@ export function mcpCommand(parent: Command): void {
       },
     );
 
-  mcp
+  withExamples(installMcp, [
+    { run: "shipeasy mcp install" },
+    { run: "shipeasy mcp install --client claude --scope project", note: "only Claude, project config" },
+    { run: "shipeasy mcp install --force --dry-run", note: "preview a forced replace" },
+  ]);
+
+  const statusMcp = mcp
     .command("status")
     .description("Show which AI-assistant configs have a Shipeasy MCP entry")
     .action(() => {
@@ -150,7 +157,9 @@ export function mcpCommand(parent: Command): void {
       );
     });
 
-  mcp
+  withExamples(statusMcp, [{ run: "shipeasy mcp status" }]);
+
+  const startMcp = mcp
     .command("start")
     .description("Run the Shipeasy MCP stdio server (forwards to @shipeasy/mcp)")
     .allowUnknownOption()
@@ -166,8 +175,12 @@ export function mcpCommand(parent: Command): void {
       });
     });
 
+  withExamples(startMcp, [
+    { run: "shipeasy mcp start", note: "stdio server an assistant launches" },
+  ]);
+
   // Convenience: `shipeasy mcp uninstall` removes the entry.
-  mcp
+  const uninstallMcp = mcp
     .command("uninstall")
     .description("Remove the 'shipeasy' MCP entry from AI-assistant configs")
     .option("--client <name>", "Restrict to one client", "all")
@@ -199,4 +212,9 @@ export function mcpCommand(parent: Command): void {
       }
       console.log(`\nDone. ${removed} removed.`);
     });
+
+  withExamples(uninstallMcp, [
+    { run: "shipeasy mcp uninstall" },
+    { run: "shipeasy mcp uninstall --client cursor --scope user" },
+  ]);
 }

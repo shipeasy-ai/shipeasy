@@ -1,13 +1,15 @@
 import { Command } from "commander";
 import { ApiError, getAdminClient } from "../api/client";
 import { printTable, printJson } from "../util/output";
+import { withExamples } from "../util/examples";
 
 export function universesCommand(parent: Command): void {
   const u = parent
     .command("universes")
     .description("Manage experiment universes (containers + holdouts)");
 
-  u.command("list")
+  const listUniverses = u
+    .command("list")
     .description("List universes")
     .option("--json", "Output as JSON")
     .option("--project <id>", "Project ID override")
@@ -30,7 +32,10 @@ export function universesCommand(parent: Command): void {
       }
     });
 
-  u.command("create <name>")
+  withExamples(listUniverses, [{ run: "shipeasy universes list" }]);
+
+  const createUniverse = u
+    .command("create <name>")
     .description("Create a universe")
     .option("--unit-type <t>", "Unit type (e.g. user_id, account_id)", "user_id")
     .option("--holdout <range>", "Holdout range as 'lo,hi' (0-9999); omit for no holdout")
@@ -52,7 +57,16 @@ export function universesCommand(parent: Command): void {
       }
     });
 
-  u.command("update <name>")
+  withExamples(createUniverse, [
+    { note: "Default user_id unit, no holdout", run: "shipeasy universes create web" },
+    {
+      note: "10% holdout, keyed on account_id",
+      run: "shipeasy universes create web --unit-type account_id --holdout 0,999",
+    },
+  ]);
+
+  const updateUniverse = u
+    .command("update <name>")
     .description("Update a universe's holdout range")
     .option("--holdout <range>", "Holdout range as 'lo,hi' (0-9999), or 'null' to clear")
     .option("--json", "Output as JSON")
@@ -72,7 +86,13 @@ export function universesCommand(parent: Command): void {
       }
     });
 
-  u.command("delete <name>")
+  withExamples(updateUniverse, [
+    { note: "Set a 5% holdout", run: "shipeasy universes update web --holdout 0,499" },
+    { note: "Clear the holdout", run: "shipeasy universes update web --holdout null" },
+  ]);
+
+  const deleteUniverse = u
+    .command("delete <name>")
     .description("Delete a universe by name")
     .option("--project <id>", "Project ID override")
     .action(async (name: string, opts) => {
@@ -85,6 +105,8 @@ export function universesCommand(parent: Command): void {
         handleError(e);
       }
     });
+
+  withExamples(deleteUniverse, [{ run: "shipeasy universes delete web" }]);
 }
 
 function parseHoldout(raw: string | undefined): [number, number] | null {

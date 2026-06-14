@@ -4,6 +4,7 @@ import { mkdtempSync, existsSync, statSync, rmSync, mkdirSync, writeFileSync } f
 import { tmpdir, homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { copyTree } from "../util/copy";
+import { withExamples } from "../util/examples";
 
 const MARKETPLACE_REPO = "https://github.com/shipeasy-ai/shipeasy.git";
 const PLUGIN_NAME = "shipeasy";
@@ -346,7 +347,7 @@ export function pluginCommand(parent: Command): void {
         "follow. For Claude Code itself prefer `claude plugin marketplace add shipeasy-ai/shipeasy`.",
     );
 
-  plugin
+  const installPlugin = plugin
     .command("install [features...]")
     .description(
       "With no args: copy the full `shipeasy` plugin (every command + every skill) into " +
@@ -435,7 +436,13 @@ export function pluginCommand(parent: Command): void {
       },
     );
 
-  plugin
+  withExamples(installPlugin, [
+    { run: "shipeasy plugin install", note: "full plugin into .claude/" },
+    { run: "shipeasy plugin install flags experiments", note: "drop pointer skills only" },
+    { run: "shipeasy plugin install --scope user --full --force" },
+  ]);
+
+  const listPlugin = plugin
     .command("list")
     .description("List the features available in the shipeasy plugin")
     .action(() => {
@@ -447,7 +454,9 @@ export function pluginCommand(parent: Command): void {
       );
     });
 
-  plugin
+  withExamples(listPlugin, [{ run: "shipeasy plugin list" }]);
+
+  const uninstallPlugin = plugin
     .command("uninstall")
     .description("Print the directories to remove (refuses to delete user files)")
     .option("--scope <scope>", "user | project", "project")
@@ -461,4 +470,9 @@ export function pluginCommand(parent: Command): void {
       console.log(`  rm -r ${join(claudeRoot, "commands", "i18n")}`);
       console.log(`  rm -r ${join(claudeRoot, "skills", "shipeasy-*")}`);
     });
+
+  withExamples(uninstallPlugin, [
+    { run: "shipeasy plugin uninstall" },
+    { run: "shipeasy plugin uninstall --scope user" },
+  ]);
 }

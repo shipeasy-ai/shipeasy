@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { ApiError, getApiClient } from "../api/client";
 import { printJson, printTable } from "../util/output";
+import { withExamples } from "../util/examples";
 
 // Active alerts are raised by the platform (UI killswitch handlers + the
 // worker analysis consumer and alerts cron), never filed by hand — so the CLI
@@ -35,7 +36,7 @@ function handleError(e: unknown): never {
 export function alertsCommand(parent: Command): void {
   const alerts = parent.command("alerts").description("Active alerts (read-only)");
 
-  alerts
+  const listAlerts = alerts
     .command("list")
     .description("List alerts (danger first, then most-recent). Defaults to active.")
     .option("--status <status>", `Filter by status: ${ALERT_STATUSES.join("|")}`, "active")
@@ -71,7 +72,12 @@ export function alertsCommand(parent: Command): void {
       }
     });
 
-  alerts
+  withExamples(listAlerts, [
+    { run: "shipeasy alerts list" },
+    { note: "Include resolved + dismissed", run: "shipeasy alerts list --status all" },
+  ]);
+
+  const getAlert = alerts
     .command("get <id>")
     .description("Show one alert by id (or id prefix)")
     .option("--json", "Output as JSON")
@@ -88,4 +94,6 @@ export function alertsCommand(parent: Command): void {
         handleError(e);
       }
     });
+
+  withExamples(getAlert, [{ note: "id or unique id-prefix", run: "shipeasy alerts get a1b2c3d4" }]);
 }

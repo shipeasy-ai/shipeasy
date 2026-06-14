@@ -1,11 +1,12 @@
 import { Command } from "commander";
 import { ApiError, getAdminClient } from "../api/client";
 import { printTable, printJson } from "../util/output";
+import { withExamples } from "../util/examples";
 
 export function configsCommand(parent: Command): void {
   const configs = parent.command("configs").description("Manage remote-config values");
 
-  configs
+  const listConfigs = configs
     .command("list")
     .description("List all configs")
     .option("--json", "Output as JSON")
@@ -25,7 +26,9 @@ export function configsCommand(parent: Command): void {
       }
     });
 
-  configs
+  withExamples(listConfigs, [{ run: "shipeasy configs list" }]);
+
+  const getConfig = configs
     .command("get <name>")
     .description("Show a config by name")
     .option("--json", "Output as JSON")
@@ -42,7 +45,9 @@ export function configsCommand(parent: Command): void {
       }
     });
 
-  configs
+  withExamples(getConfig, [{ run: "shipeasy configs get pricing" }]);
+
+  const createConfig = configs
     .command("create <name>")
     .description("Create a new config. Configs are JSON objects validated against a JSON Schema.")
     .option("--schema <json>", "JSON Schema (object only). Defaults to a permissive object schema.")
@@ -70,7 +75,15 @@ export function configsCommand(parent: Command): void {
       }
     });
 
-  configs
+  withExamples(createConfig, [
+    { note: "Permissive schema, empty value", run: "shipeasy configs create pricing" },
+    {
+      note: "Seed an initial value",
+      run: 'shipeasy configs create pricing --value \'{"free_trial_days":14}\'',
+    },
+  ]);
+
+  const updateConfig = configs
     .command("update <name>")
     .description("Update a config's value (legacy flat update; use draft/publish for envs)")
     .requiredOption("--value <json>", "New value (JSON-encoded)")
@@ -88,7 +101,14 @@ export function configsCommand(parent: Command): void {
       }
     });
 
-  configs
+  withExamples(updateConfig, [
+    {
+      note: "Overwrite the value (all envs)",
+      run: 'shipeasy configs update pricing --value \'{"free_trial_days":30}\'',
+    },
+  ]);
+
+  const draftConfig = configs
     .command("draft <name>")
     .description("Save a draft value for the given env")
     .requiredOption("--env <env>", "Target env (e.g. prod, staging, dev)")
@@ -105,7 +125,14 @@ export function configsCommand(parent: Command): void {
       }
     });
 
-  configs
+  withExamples(draftConfig, [
+    {
+      note: "Stage a prod value to publish later",
+      run: 'shipeasy configs draft pricing --env prod --value \'{"free_trial_days":30}\'',
+    },
+  ]);
+
+  const publishConfig = configs
     .command("publish <name>")
     .description("Publish the saved draft for the given env")
     .requiredOption("--env <env>", "Target env to publish")
@@ -121,7 +148,11 @@ export function configsCommand(parent: Command): void {
       }
     });
 
-  configs
+  withExamples(publishConfig, [
+    { note: "Promote the staged draft to prod", run: "shipeasy configs publish pricing --env prod" },
+  ]);
+
+  const activityConfig = configs
     .command("activity <name>")
     .description("Show recent activity for a config")
     .option("--limit <n>", "How many entries to show", "20")
@@ -143,7 +174,12 @@ export function configsCommand(parent: Command): void {
       }
     });
 
-  configs
+  withExamples(activityConfig, [
+    { run: "shipeasy configs activity pricing" },
+    { note: "Last 5 entries", run: "shipeasy configs activity pricing --limit 5" },
+  ]);
+
+  const deleteConfig = configs
     .command("delete <name>")
     .description("Delete a config by name")
     .option("--project <id>", "Project ID override")
@@ -157,6 +193,8 @@ export function configsCommand(parent: Command): void {
         handleError(e);
       }
     });
+
+  withExamples(deleteConfig, [{ run: "shipeasy configs delete pricing" }]);
 }
 
 function handleError(e: unknown): void {

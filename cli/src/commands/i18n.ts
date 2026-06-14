@@ -6,6 +6,7 @@ import { getApiClient, ApiError } from "../api/client";
 import { printJson, printTable } from "../util/output";
 import { getI18nClientKey, saveI18nClientKey } from "../util/project-config";
 import { API_BASE_URL } from "../auth/storage";
+import { withExamples } from "../util/examples";
 
 // ── env helpers ───────────────────────────────────────────────────────────────
 
@@ -100,7 +101,7 @@ interface CreatedKey {
 export function i18nCommand(parent: Command): void {
   const i18n = parent.command("i18n").description("String Manager (i18n) tools");
 
-  i18n
+  const installLoader = i18n
     .command("install-loader")
     .description("Inject the ShipEasy i18n loader script into your project")
     .option("--data-key <key>", "Client SDK key (created automatically if omitted)")
@@ -221,8 +222,14 @@ export function i18nCommand(parent: Command): void {
       },
     );
 
+  withExamples(installLoader, [
+    { note: "Auto-detect the layout and inject", run: "shipeasy i18n install-loader --profile en:prod" },
+    { note: "Print the tag only, do not write", run: "shipeasy i18n install-loader --print" },
+    { note: "Target a specific file", run: "shipeasy i18n install-loader --path ./src/app/layout.tsx" },
+  ]);
+
   // ── i18n scan ──────────────────────────────────────────────────────────────
-  i18n
+  const scan = i18n
     .command("scan [paths...]")
     .description(
       "Find translatable strings in source files. Reports both already-wrapped " +
@@ -264,8 +271,13 @@ export function i18nCommand(parent: Command): void {
       }
     });
 
+  withExamples(scan, [
+    { note: "Discover translatable strings under src/", run: "shipeasy i18n scan ./src" },
+    { note: "Only report existing t('key') calls", run: "shipeasy i18n scan ./src --keys-only" },
+  ]);
+
   // ── i18n push ──────────────────────────────────────────────────────────────
-  i18n
+  const push = i18n
     .command("push <file>")
     .description(
       "Add NEW keys from a JSON file to the i18n profile. The file is a flat " +
@@ -387,8 +399,13 @@ export function i18nCommand(parent: Command): void {
       },
     );
 
+  withExamples(push, [
+    { note: "Add new keys from a flat JSON map", run: "shipeasy i18n push ./locales/en.json --profile en:prod" },
+    { note: "Group the keys under a chunk", run: "shipeasy i18n push ./locales/en.json --profile en:prod --chunk marketing" },
+  ]);
+
   // ── i18n update ──────────────────────────────────────────────────────────────
-  i18n
+  const update = i18n
     .command("update <key> <value>")
     .description(
       "Update the value of a single existing key. `push` only adds new keys; " +
@@ -456,8 +473,16 @@ export function i18nCommand(parent: Command): void {
       },
     );
 
+  withExamples(update, [
+    { note: "Change one key's value", run: "shipeasy i18n update home.cta 'Get started' --profile en:prod" },
+    {
+      note: "Value containing double quotes",
+      run: "shipeasy i18n update home.title 'Welcome to \"ShipEasy\"' --profile en:prod",
+    },
+  ]);
+
   // ── i18n publish ───────────────────────────────────────────────────────────
-  i18n
+  const publish = i18n
     .command("publish")
     .description("Publish a profile chunk to the CDN (rebuilds KV manifest, purges cache)")
     .requiredOption("--profile <name>", "Profile name (e.g. 'default')")
@@ -494,8 +519,13 @@ export function i18nCommand(parent: Command): void {
       }
     });
 
+  withExamples(publish, [
+    { note: "Publish the default chunk", run: "shipeasy i18n publish --profile en:prod" },
+    { note: "Publish a specific chunk", run: "shipeasy i18n publish --profile fr:prod --chunk marketing" },
+  ]);
+
   // ── i18n validate ──────────────────────────────────────────────────────────
-  i18n
+  const validate = i18n
     .command("validate [paths...]")
     .description("Check that all t('key', …) references in code exist on the server")
     .option("--profile <name>", "Restrict the check to a single profile")
@@ -565,10 +595,15 @@ export function i18nCommand(parent: Command): void {
       },
     );
 
+  withExamples(validate, [
+    { note: "Check all t('key') refs exist server-side", run: "shipeasy i18n validate ./src" },
+    { note: "Restrict the check to one profile", run: "shipeasy i18n validate ./src --profile en:prod" },
+  ]);
+
   // ── i18n profiles {list,create} ────────────────────────────────────────────
   const profiles = i18n.command("profiles").description("Manage i18n locale profiles");
 
-  profiles
+  const profilesList = profiles
     .command("list")
     .description("List i18n profiles for the current project")
     .option("--json", "Output as JSON")
@@ -600,7 +635,9 @@ export function i18nCommand(parent: Command): void {
       }
     });
 
-  profiles
+  withExamples(profilesList, [{ run: "shipeasy i18n profiles list" }]);
+
+  const profilesCreate = profiles
     .command("create <name>")
     .description("Create an i18n profile (e.g. 'default', 'en:prod')")
     .option(
@@ -641,4 +678,12 @@ export function i18nCommand(parent: Command): void {
         }
       },
     );
+
+  withExamples(profilesCreate, [
+    { note: "Create a profile with one locale", run: "shipeasy i18n profiles create en:prod" },
+    {
+      note: "Multiple locales with a default",
+      run: "shipeasy i18n profiles create fr:prod --locales fr,fr-CA --default-locale fr",
+    },
+  ]);
 }

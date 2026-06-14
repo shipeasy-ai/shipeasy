@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { getApiClient, ApiError } from "../api/client";
 import { bindProject } from "../util/project-config";
+import { withExamples } from "../util/examples";
 
 interface UpsertResult {
   id: string;
@@ -15,7 +16,7 @@ export function projectsCommand(parent: Command): void {
     .command("projects")
     .description("Manage Shipeasy projects scoped to your account");
 
-  projects
+  const upsert = projects
     .command("upsert")
     .description(
       "Find-or-create a project by domain (idempotent). Without --no-bind, " +
@@ -65,4 +66,12 @@ export function projectsCommand(parent: Command): void {
         process.exit(1);
       }
     });
+
+  withExamples(upsert, [
+    { note: "Find-or-create and bind to .shipeasy", run: "shipeasy projects upsert --domain acme.com" },
+    {
+      note: "Name it explicitly, don't write .shipeasy",
+      run: 'shipeasy projects upsert --domain shouks.app --name "Shouks" --no-bind',
+    },
+  ]);
 }

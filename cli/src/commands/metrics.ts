@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import { parse, render, type Query } from "../query-dsl";
 import { getApiClient, ApiError } from "../api/client";
 import { printJson, printTable } from "../util/output";
+import { withExamples } from "../util/examples";
 
 type MetricRow = {
   id: string;
@@ -46,14 +47,16 @@ Notes
 export function metricsCommand(program: Command): void {
   const cmd = program.command("metrics").description("Manage event metrics");
 
-  cmd
+  const grammarCmd = cmd
     .command("grammar")
     .description("Print the metric query DSL grammar")
     .action(() => {
       process.stdout.write(GRAMMAR);
     });
 
-  cmd
+  withExamples(grammarCmd, [{ run: "shipeasy metrics grammar" }]);
+
+  const listCmd = cmd
     .command("list")
     .description("List metrics in the bound project")
     .option("--json", "Output JSON")
@@ -84,7 +87,9 @@ export function metricsCommand(program: Command): void {
       }
     });
 
-  cmd
+  withExamples(listCmd, [{ run: "shipeasy metrics list" }]);
+
+  const showCmd = cmd
     .command("show <id>")
     .description("Show one metric")
     .option("--json", "Output JSON")
@@ -109,7 +114,9 @@ export function metricsCommand(program: Command): void {
       }
     });
 
-  cmd
+  withExamples(showCmd, [{ run: "shipeasy metrics show 3f9a2c1b" }]);
+
+  const createCmd = cmd
     .command("create <name>")
     .description("Create a metric. Pass the DSL via --query, or pass --query-ir for the typed form.")
     .requiredOption("--event <name>", "Source event name")
@@ -172,7 +179,18 @@ export function metricsCommand(program: Command): void {
       },
     );
 
-  cmd
+  withExamples(createCmd, [
+    {
+      note: "Unique users who completed checkout",
+      run: "shipeasy metrics create checkouts --event checkout_completed \\\n  --query 'count_users(checkout_completed)'",
+    },
+    {
+      note: "p99 latency by route, grouped",
+      run: "shipeasy metrics create api-latency --event req_dur \\\n  --query 'p99(req_dur{route=~\"/api/.*\"}, ms) by (route)'",
+    },
+  ]);
+
+  const deleteCmd = cmd
     .command("delete <id>")
     .description("Delete a metric (soft delete)")
     .action(async (id: string) => {
@@ -184,6 +202,8 @@ export function metricsCommand(program: Command): void {
         handleError(e);
       }
     });
+
+  withExamples(deleteCmd, [{ run: "shipeasy metrics delete 3f9a2c1b" }]);
 }
 
 function handleError(e: unknown): void {

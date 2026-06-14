@@ -2,6 +2,7 @@ import { Command } from "commander";
 import { getApiClient, ApiError } from "../api/client";
 import { printTable, printJson } from "../util/output";
 import { defineFeedbackResource, handleError, BUGS_SPEC, FEATURES_SPEC } from "./feedback";
+import { withExamples } from "../util/examples";
 
 // ── ops: a flat alias namespace ──────────────────────────────────────────────
 //
@@ -72,7 +73,7 @@ function feedbackPath(handle: string): string {
 }
 
 function defineUnifiedQueue(parent: Command): void {
-  parent
+  const opsList = parent
     .command("ops.list")
     .description("List the unified operational queue (bugs + features + error/alert tickets)")
     .option("--type <type>", `Filter by type: ${FEEDBACK_TYPES.join("|")}|all`, "all")
@@ -122,7 +123,12 @@ function defineUnifiedQueue(parent: Command): void {
       }
     });
 
-  parent
+  withExamples(opsList, [
+    { note: "Open critical items only", run: "shipeasy ops.list --priority critical" },
+    { note: "Just error tickets", run: "shipeasy ops.list --type error" },
+  ]);
+
+  const opsGet = parent
     .command("ops.get <handle>")
     .description("Show one queue item by number (#7 → 7) or id — any type")
     .option("--json", "Output as JSON")
@@ -138,7 +144,11 @@ function defineUnifiedQueue(parent: Command): void {
       }
     });
 
-  parent
+  withExamples(opsGet, [
+    { note: "By queue number", run: "shipeasy ops.get 7" },
+  ]);
+
+  const opsUpdate = parent
     .command("ops.update <handle>")
     .description("Flip a queue item's status (any type) — and optionally its priority")
     .option("--status <status>", `New status: ${FEEDBACK_STATUSES.join("|")}`)
@@ -172,7 +182,12 @@ function defineUnifiedQueue(parent: Command): void {
       }
     });
 
-  parent
+  withExamples(opsUpdate, [
+    { note: "Resolve item #7", run: "shipeasy ops.update 7 --status resolved" },
+    { note: "Bump priority", run: "shipeasy ops.update 7 --priority high" },
+  ]);
+
+  const opsLinkPr = parent
     .command("ops.link-pr <handle> <pr-number>")
     .description(
       "Link the PR that fixed a queue item (any type). Records connector_data.github.pr; ops-key safe.",
@@ -203,6 +218,13 @@ function defineUnifiedQueue(parent: Command): void {
         handleError(e);
       }
     });
+
+  withExamples(opsLinkPr, [
+    {
+      note: "Link the fixing PR (with URL)",
+      run: "shipeasy ops.link-pr 7 42 --url https://github.com/acme/app/pull/42",
+    },
+  ]);
 }
 
 // ── ops.notify — agent escalation to the bell ────────────────────────────────
@@ -219,7 +241,7 @@ function collect(value: string, prev: string[]): string[] {
 }
 
 function defineNotify(parent: Command): void {
-  parent
+  const opsNotify = parent
     .command("ops.notify")
     .description("Raise a 'needs your attention' bell notification (agent escalation, create-only)")
     .requiredOption("--title <text>", "One-line headline of what's blocked")
@@ -257,6 +279,18 @@ function defineNotify(parent: Command): void {
         handleError(e);
       }
     });
+
+  withExamples(opsNotify, [
+    {
+      note: "Escalate a blocked item to the bell",
+      run:
+        'shipeasy ops.notify --item 7 \\\n' +
+        '  --title "Needs a DB migration" \\\n' +
+        '  --summary "Fix requires a schema change I can\'t apply in code" \\\n' +
+        '  --step "Add the column via wrangler d1 migrations" \\\n' +
+        '  --step "Re-run the fixer"',
+    },
+  ]);
 }
 
 /**
@@ -267,7 +301,7 @@ function defineNotify(parent: Command): void {
 function defineErrorsResource(parent: Command): void {
   const group = parent.command("ops.errors").description("Tracked production errors (read-only)");
 
-  group
+  const errorsList = group
     .command("list")
     .description("List tracked errors (most-recently-seen first)")
     .option("--status <status>", `Filter by status: ${ERROR_STATUSES.join("|")}`)
@@ -301,7 +335,11 @@ function defineErrorsResource(parent: Command): void {
       }
     });
 
-  group
+  withExamples(errorsList, [
+    { note: "Only unresolved errors", run: "shipeasy ops.errors list --status open" },
+  ]);
+
+  const errorsGet = group
     .command("get <id>")
     .description("Show one tracked error by id (or id prefix)")
     .option("--json", "Output as JSON")
@@ -323,10 +361,14 @@ function defineErrorsResource(parent: Command): void {
       }
     });
 
+  withExamples(errorsGet, [
+    { note: "Inspect by id prefix", run: "shipeasy ops.errors get a1b2c3d4" },
+  ]);
+
   // The one write errors support: status (open/resolved/ignored). A resolved
   // error reopens automatically if it recurs, so flipping it after a fix lands
   // is safe pre-deploy. Ops-key allow-listed.
-  group
+  const errorsUpdate = group
     .command("update <id>")
     .description(`Set a tracked error's status: ${ERROR_STATUSES.join("|")}`)
     .requiredOption("--status <status>", `New status: ${ERROR_STATUSES.join("|")}`)
@@ -351,6 +393,10 @@ function defineErrorsResource(parent: Command): void {
         handleError(e);
       }
     });
+
+  withExamples(errorsUpdate, [
+    { note: "Mark resolved after a fix lands", run: "shipeasy ops.errors update a1b2c3d4 --status resolved" },
+  ]);
 }
 
 export function opsCommand(parent: Command): void {

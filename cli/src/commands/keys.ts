@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { getApiClient, ApiError } from "../api/client";
 import { printTable, printJson } from "../util/output";
+import { withExamples } from "../util/examples";
 
 interface KeyRow {
   id: string;
@@ -34,7 +35,7 @@ export function keysCommand(parent: Command): void {
     .command("keys")
     .description("Manage SDK keys (server, client, admin, ops)");
 
-  keys
+  const keysList = keys
     .command("list")
     .description("List SDK keys for the current project")
     .option("--json", "Output as JSON")
@@ -65,7 +66,12 @@ export function keysCommand(parent: Command): void {
       }
     });
 
-  keys
+  withExamples(keysList, [
+    { run: "shipeasy keys list" },
+    { note: "Machine-readable output", run: "shipeasy keys list --json" },
+  ]);
+
+  const keysCreate = keys
     .command("create")
     .description("Create a new SDK key. The raw token is shown ONCE — store it now.")
     .requiredOption("--type <type>", "Key type: server | client | admin | ops")
@@ -111,7 +117,13 @@ export function keysCommand(parent: Command): void {
       }
     });
 
-  keys
+  withExamples(keysCreate, [
+    { note: "Server key (private, server-only)", run: "shipeasy keys create --type server" },
+    { note: "Public client key for the browser", run: "shipeasy keys create --type client" },
+    { note: "Restricted ops key for the trigger", run: "shipeasy keys create --type ops" },
+  ]);
+
+  const keysRevoke = keys
     .command("revoke <id>")
     .description("Revoke a key by id (or id prefix; first match wins)")
     .option("--json", "Output as JSON")
@@ -134,6 +146,11 @@ export function keysCommand(parent: Command): void {
         handleError(e);
       }
     });
+
+  withExamples(keysRevoke, [
+    { note: "Revoke by full id", run: "shipeasy keys revoke 7f3a9c10-2b4d-4e6f-8a1b-0c2d3e4f5a6b" },
+    { note: "Revoke by id prefix (first match)", run: "shipeasy keys revoke 7f3a9c10" },
+  ]);
 }
 
 function handleError(e: unknown): void {

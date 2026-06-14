@@ -22,6 +22,7 @@
   "scripts": {
     "build": "tsup src/index.ts --format cjs --dts",
     "dev": "tsx src/index.ts",
+    "docs": "tsx scripts/gen-cli-docs.ts",
     "type-check": "tsc --noEmit",
     "test": "vitest run"
   },
