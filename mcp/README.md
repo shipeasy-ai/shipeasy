@@ -685,6 +685,37 @@ Independent of the CLI and the SDK:
 
 ---
 
+## Publish to the MCP Registry
+
+This server is listed in the [official MCP Registry](https://registry.modelcontextprotocol.io) as **`ai.shipeasy/mcp`**, which is what most MCP directories (Smithery, Glama, PulseMCP, mcp.so, the VS Code / Cursor galleries) ingest from. The registry hosts only metadata — the actual artifact is the `@shipeasy/mcp` npm package.
+
+**Single source of truth:** `package.json`. Its `mcpName` is the registry server name and the npm `name`/`version`/`description`/`repository` feed the rest. `server.json` is generated — never hand-edit it:
+
+```bash
+pnpm --filter @shipeasy/mcp registry:gen   # package.json → server.json
+```
+
+The registry verifies ownership by checking that the **published** npm package's `package.json` carries `mcpName: "ai.shipeasy/mcp"`. So the order matters — ship npm first, then the registry:
+
+1. **Release the npm version** the registry will verify (it must already include `mcpName`). Bump `version`, tag a release on `shipeasy-ai/mcp`, let CI publish via OIDC. Manual `npm publish` is forbidden (see `## Non-negotiables`).
+2. **Authenticate** under the `ai.shipeasy` namespace (DNS-based, one-time TXT record on `shipeasy.ai`):
+   ```bash
+   openssl genpkey -algorithm Ed25519 -out key.pem
+   PUBLIC_KEY="$(openssl pkey -in key.pem -pubout -outform DER | tail -c 32 | base64)"
+   # add TXT on shipeasy.ai:  v=MCPv1; k=ed25519; p=$PUBLIC_KEY
+   PRIVATE_KEY="$(openssl pkey -in key.pem -noout -text | grep -A3 'priv:' | tail -n +2 | tr -d ' :\n')"
+   mcp-publisher login dns --domain shipeasy.ai --private-key "$PRIVATE_KEY"
+   ```
+3. **Regenerate + publish:**
+   ```bash
+   pnpm --filter @shipeasy/mcp registry:gen
+   cd packages/mcp && mcp-publisher publish
+   ```
+
+Install `mcp-publisher` with `brew install mcp-publisher` (or the [release binary](https://github.com/modelcontextprotocol/registry/releases/latest)). Verify after: `curl "https://registry.modelcontextprotocol.io/v0.1/servers?search=ai.shipeasy/mcp"`.
+
+---
+
 ## Why one MCP server and not two
 
 1. **One auth flow.** The CLI token unlocks both `/api/admin/experiments/*` and `/api/admin/i18n/*`. Two servers would each prompt for login.
