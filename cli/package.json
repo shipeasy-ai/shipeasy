@@ -1,6 +1,6 @@
 {
   "name": "@shipeasy/cli",
-  "version": "1.12.0",
+  "version": "1.13.0",
   "description": "CLI for the Shipeasy platform (flags, experiments, translations, bugs)",
   "license": "MIT",
   "publishConfig": {
@@ -38,10 +38,12 @@
     "open": "^10.1.0",
     "ora": "^8.1.0",
     "package-manager-detector": "^1.6.0",
+    "prompts": "^2.4.2",
     "zod": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.19.39",
+    "@types/prompts": "^2.4.9",
     "tsx": "^4.19.0",
     "tsup": "^8.3.0",
     "typescript": "^5.7.4",

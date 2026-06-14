@@ -17,20 +17,27 @@ export function writeJsonConfig(path: string, data: unknown): void {
   writeFileSync(path, JSON.stringify(data, null, 2) + "\n", "utf8");
 }
 
-interface MaybeMcp {
-  mcpServers?: Record<string, unknown>;
-}
+type McpConfig = Record<string, unknown>;
 
+/**
+ * Merge a single MCP server entry into an assistant config object.
+ *
+ * Most assistants nest servers under `mcpServers` (Claude, Cursor, Windsurf),
+ * but a few use a different wrapper key — VS Code / GitHub Copilot's
+ * `.vscode/mcp.json` uses `servers`. `key` selects which wrapper to write so
+ * the same helper covers both conventions.
+ */
 export function mergeMcpServer(
-  existing: MaybeMcp | null,
+  existing: McpConfig | null,
   name: string,
   spec: unknown,
   force: boolean,
-): { config: MaybeMcp; replaced: boolean } {
-  const config: MaybeMcp = existing ?? {};
-  const servers = (config.mcpServers ?? {}) as Record<string, unknown>;
+  key: "mcpServers" | "servers" = "mcpServers",
+): { config: McpConfig; replaced: boolean } {
+  const config: McpConfig = existing ?? {};
+  const servers = (config[key] ?? {}) as Record<string, unknown>;
   const replaced = name in servers;
-  if (replaced && !force) return { config: { ...config, mcpServers: servers }, replaced: true };
+  if (replaced && !force) return { config: { ...config, [key]: servers }, replaced: true };
   servers[name] = spec;
-  return { config: { ...config, mcpServers: servers }, replaced };
+  return { config: { ...config, [key]: servers }, replaced };
 }

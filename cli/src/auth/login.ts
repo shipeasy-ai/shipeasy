@@ -52,7 +52,7 @@ async function currentSession(): Promise<{ projectId: string; email?: string } |
 }
 
 export async function login(
-  opts: { force?: boolean; projectId?: string } = {},
+  opts: { force?: boolean; projectId?: string; ensureBound?: boolean } = {},
 ): Promise<void> {
   // Scope the login to a single project when one is known: an explicit
   // --project wins, otherwise the project bound to cwd via `.shipeasy`
@@ -67,9 +67,17 @@ export async function login(
   // requested, only short-circuit if the live session is already on it —
   // otherwise fall through to re-scope to the requested project.
   // `--force` always re-authenticates.
+  //
+  // `ensureBound` (used by `shipeasy setup`) tightens this: a valid session is
+  // not enough if the current directory has no `.shipeasy` yet — we still run
+  // the browser flow so the user can pick/create a project for this folder and
+  // we can bind it. Without this, an already-authed user in a fresh repo would
+  // short-circuit and never get a `.shipeasy`.
   if (!opts.force) {
     const session = await currentSession();
-    if (session && (!projectId || session.projectId === projectId)) {
+    const boundHere = !!getBoundProjectId(process.cwd());
+    const sessionMatches = session && (!projectId || session.projectId === projectId);
+    if (sessionMatches && (!opts.ensureBound || boundHere)) {
       console.log(
         `Already logged in${session.email ? ` as ${session.email}` : ""}` +
           ` (project ${session.projectId}). Use \`shipeasy login --force\` to re-authenticate.`,
