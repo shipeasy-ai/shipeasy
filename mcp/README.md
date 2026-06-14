@@ -7,6 +7,8 @@
 >
 > AI assistants (Claude Code, Cursor, Copilot, Windsurf, Claude Desktop, Continue) talk to one server and get the full platform.
 
+📖 **Docs:** [docs.shipeasy.ai/get-started/mcp](https://docs.shipeasy.ai/get-started/mcp) — setup guide · [full tool reference](https://docs.shipeasy.ai/get-started/mcp-reference) (auto-generated from the tool catalog).
+
 ---
 
 ## Status / migration
