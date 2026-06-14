@@ -1,12 +1,7 @@
 import { Command } from "commander";
 import { getApiClient, ApiError } from "../api/client";
 import { printTable, printJson } from "../util/output";
-import {
-  defineFeedbackResource,
-  handleError,
-  BUGS_SPEC,
-  FEATURES_SPEC,
-} from "./feedback";
+import { defineFeedbackResource, handleError, BUGS_SPEC, FEATURES_SPEC } from "./feedback";
 
 // ── ops: a flat alias namespace ──────────────────────────────────────────────
 //
@@ -210,6 +205,60 @@ function defineUnifiedQueue(parent: Command): void {
     });
 }
 
+// ── ops.notify — agent escalation to the bell ────────────────────────────────
+//
+// `/shipeasy:ops:work` fires this when an item can't be fixed in code and needs
+// a human. It raises an `ops.attention` bell notification carrying a step-by-
+// step guide (POST /api/admin/notifications, ops-key allow-listed, create-only).
+
+const NOTIFY_ENDPOINT = "/api/admin/notifications";
+
+/** Commander collector for a repeatable option (`--step a --step b`). */
+function collect(value: string, prev: string[]): string[] {
+  return [...prev, value];
+}
+
+function defineNotify(parent: Command): void {
+  parent
+    .command("ops.notify")
+    .description("Raise a 'needs your attention' bell notification (agent escalation, create-only)")
+    .requiredOption("--title <text>", "One-line headline of what's blocked")
+    .requiredOption("--summary <text>", "One sentence: why it can't be fixed in code")
+    .option("--step <text>", "A step the human should take (repeatable, ordered)", collect, [])
+    .option("--href <path>", "Dashboard-relative deep link to the related item")
+    .option("--item <number>", "Queue item this is about — sets a stable dedupe key (feedback:<n>)")
+    .option("--key <dedupe>", "Explicit dedupe key (overrides --item); re-runs collapse to one row")
+    .option("--json", "Output as JSON")
+    .option("--project <id>", "Project ID override")
+    .action(async (opts) => {
+      try {
+        const dedupeKey =
+          opts.key ?? (opts.item ? `feedback:${String(opts.item).replace(/^#/, "")}` : undefined);
+        const payload: Record<string, unknown> = {
+          title: opts.title,
+          summary: opts.summary,
+          steps: opts.step ?? [],
+        };
+        if (opts.href) payload.href = opts.href;
+        if (dedupeKey) payload.dedupeKey = dedupeKey;
+        const client = getApiClient(opts.project, { requireBinding: true });
+        const res = await client.request<{ dedupeKey: string; dispatched: boolean }>(
+          "POST",
+          NOTIFY_ENDPOINT,
+          payload,
+        );
+        if (opts.json) return printJson(res);
+        console.log(
+          res.dispatched
+            ? `Raised notification: ${opts.title}`
+            : `Already raised (deduped on ${res.dedupeKey}) — no new row.`,
+        );
+      } catch (e) {
+        handleError(e);
+      }
+    });
+}
+
 /**
  * `ops.errors` — read-only view over auto-tracked production errors. Errors are
  * folded in by the ingestion path, never filed by hand, so only `list`/`get`
@@ -317,17 +366,22 @@ export function opsCommand(parent: Command): void {
       console.log("  shipeasy ops.get <handle>        Show one queue item (#number or id)");
       console.log("  shipeasy ops.update <handle>     Flip an item's status/priority (any type)");
       console.log("  shipeasy ops.link-pr <h> <n>     Link the PR that fixed an item");
+      console.log("  shipeasy ops.notify              Raise a bell notification (escalation)");
       console.log("  shipeasy ops.bugs <command>      Bug reports (mirrors `feedback bugs`)");
       console.log(
         "  shipeasy ops.features <command>  Feature requests (mirrors `feedback features`)",
       );
-      console.log("  shipeasy ops.errors <command>    Tracked production errors (list, get, update)");
+      console.log(
+        "  shipeasy ops.errors <command>    Tracked production errors (list, get, update)",
+      );
       console.log("");
       console.log("Run `shipeasy ops.<name> --help` to see a sub-CLI's commands.");
     });
 
   // The unified queue (`ops.list`/`get`/`update`/`link-pr`) over /api/admin/feedback.
   defineUnifiedQueue(parent);
+  // ops.notify — raise a bell notification when a fix isn't in code.
+  defineNotify(parent);
   // bugs/features mirror the existing feedback CLIs, registered flat as
   // `ops.bugs` / `ops.features`.
   defineFeedbackResource(parent, { ...BUGS_SPEC, command: "ops.bugs" });
