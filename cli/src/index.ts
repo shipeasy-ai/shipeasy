@@ -20,8 +20,6 @@ import { scanCommand } from "./commands/scan";
 import { i18nCommand } from "./commands/i18n";
 import { codemodCommand } from "./commands/codemod";
 import { mcpCommand } from "./commands/mcp";
-import { skillsCommand } from "./commands/skills";
-import { pluginCommand } from "./commands/plugin";
 import { setupCommand } from "./commands/setup";
 import { projectsCommand } from "./commands/projects";
 import { modulesCommand } from "./commands/modules";
@@ -298,8 +296,6 @@ export function buildProgram(): Command {
   i18nCommand(program);
   codemodCommand(program);
   mcpCommand(program);
-  skillsCommand(program);
-  pluginCommand(program);
 
   applyExitOverride(program);
   return program;

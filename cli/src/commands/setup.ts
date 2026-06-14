@@ -21,7 +21,7 @@ import {
   writeCursorRule,
 } from "../setup/instructions";
 import { detectProject } from "./scan";
-import { withExamples } from "../util/examples";
+import { withExamples, withDetails } from "../util/examples";
 
 const ALL_AGENTS: AgentId[] = ["claude", "cursor", "codex", "copilot", "jules"];
 
@@ -353,9 +353,25 @@ export function setupCommand(parent: Command): void {
       });
     });
 
+  withDetails(
+    setup,
+    "`setup` is the one place that wires Shipeasy into your coding agents — there " +
+      "is no separate `skills`/`plugin` install step. It **detects every agent** " +
+      "in your environment (Claude Code, Cursor, OpenAI Codex, GitHub Copilot, " +
+      "Google Jules) and wires each one the way that agent expects:\n\n" +
+      "- **Claude Code** — installs the marketplace plugin (slash commands + " +
+      "skills + MCP), or drops `.mcp.json` when the `claude` binary isn't on PATH.\n" +
+      "- **Cursor / Codex / Copilot / Jules** — registers the `@shipeasy/mcp` " +
+      "server in that agent's config and writes its instructions file " +
+      "(`.cursor/rules/shipeasy.mdc`, `AGENTS.md`, `.github/copilot-instructions.md`).\n\n" +
+      "Pick a subset with `--agents`, or let it auto-detect. It's idempotent — " +
+      "safe to re-run as you add agents. In CI (non-TTY) it runs non-interactively " +
+      "with `SHIPEASY_CLI_TOKEN` + `SHIPEASY_PROJECT_ID`.",
+  );
+
   withExamples(setup, [
-    { run: "shipeasy setup" },
-    { run: "shipeasy setup --yes --agents claude,cursor", note: "non-interactive" },
+    { run: "shipeasy setup", note: "interactive: detect + wire every agent found" },
+    { run: "shipeasy setup --yes --agents claude,cursor", note: "non-interactive subset" },
     { run: "shipeasy setup --dry-run --no-claude-run", note: "preview without writing" },
   ]);
 }

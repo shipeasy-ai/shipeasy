@@ -65,8 +65,6 @@ describe("command tree", () => {
       "i18n",
       "codemod",
       "mcp",
-      "skills",
-      "plugin",
     ]) {
       expect(top).toContain(name);
     }
