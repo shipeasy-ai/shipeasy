@@ -36,7 +36,6 @@ jobs:
       - name: Upgrade npm to a Trusted-Publishing-aware release
         run: npm install -g npm@latest && npm --version
 
-
       # Source uses `workspace:^X.Y.Z` for cross-package refs so the monorepo
       # pnpm workspace links them locally. Outside the monorepo, those refs
       # don't resolve — rewrite to plain semver before install.
@@ -62,6 +61,15 @@ jobs:
       - run: pnpm install --no-frozen-lockfile
 
       - run: pnpm run build
+
+      # Pre-publish gate: never ship a release that doesn't type-check or whose
+      # tests (full command-tree coverage) fail. A red bar here aborts the job
+      # before the npm publish step runs.
+      - name: Type-check
+        run: pnpm type-check
+
+      - name: Test (all commands)
+        run: pnpm test
 
       # Trusted Publishing: actions/setup-node always writes
       # `//registry.npmjs.org/:_authToken=XXXXX-…` into the per-job npmrc
