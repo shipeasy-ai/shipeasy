@@ -365,7 +365,7 @@ export const TOOLS: Tool[] = [
   {
     name: "exp_create_experiment",
     description:
-      "Create an experiment draft with groups, params, optional targeting gate, and optional success metric. Does NOT start — call exp_start_experiment.",
+      "Create an experiment draft with groups, params, optional targeting gate, and a success (goal) metric. Pass success_event (+ success_aggregation) to attach the goal metric inline — required before the experiment can be started. Does NOT start — call exp_start_experiment.",
     inputSchema: {
       type: "object",
       required: ["name", "universe"],
@@ -377,10 +377,20 @@ export const TOOLS: Tool[] = [
         groups: { type: "string", description: "JSON [{name,weight,params}]" },
         params_schema: { type: "object" },
         targeting_gate: { type: "string" },
-        success_event: { type: "string" },
+        success_event: {
+          type: "string",
+          description:
+            "Event name for the goal metric. Attaching a goal metric is what makes the experiment startable; the event is auto-created if missing.",
+        },
         success_aggregation: {
           type: "string",
+          description: "Goal-metric reducer. Defaults to count_users when success_event is set.",
           enum: ["count_users", "count_events", "sum", "avg", "retention_7d", "retention_30d"],
+        },
+        success_value: {
+          type: "string",
+          description:
+            "Numeric event property to reduce over. Required only for sum / avg aggregations (e.g. 'amount').",
         },
       },
     },
@@ -388,7 +398,7 @@ export const TOOLS: Tool[] = [
   {
     name: "exp_update_experiment",
     description:
-      "Update a draft (or running) experiment's allocation, groups, targeting gate, or stats thresholds.",
+      "Update a draft (or running) experiment's allocation, groups, targeting gate, stats thresholds, or goal metric. Pass success_event (+ success_aggregation) to attach/replace the goal metric — use this to make a draft startable when it's missing one.",
     inputSchema: {
       type: "object",
       required: ["name"],
@@ -404,12 +414,36 @@ export const TOOLS: Tool[] = [
         significance_threshold: { type: "number", description: "0.0001–0.5" },
         min_runtime_days: { type: "number" },
         min_sample_size: { type: "number" },
+        success_event: {
+          type: "string",
+          description: "Event name for the goal metric. Attaches/replaces the role=goal metric.",
+        },
+        success_aggregation: {
+          type: "string",
+          description: "Goal-metric reducer. Defaults to count_users when success_event is set.",
+          enum: ["count_users", "count_events", "sum", "avg", "retention_7d", "retention_30d"],
+        },
+        success_value: {
+          type: "string",
+          description: "Numeric event property to reduce over. Required only for sum / avg.",
+        },
       },
     },
   },
   {
     name: "exp_delete_experiment",
-    description: "Delete an experiment by name.",
+    description:
+      "Soft-delete (archive) an experiment by name. The name stays reserved; restore it with exp_restore_experiment.",
+    inputSchema: {
+      type: "object",
+      required: ["name"],
+      properties: { name: { type: "string" } },
+    },
+  },
+  {
+    name: "exp_restore_experiment",
+    description:
+      "Restore a soft-deleted (archived) experiment back to draft so it can be re-completed and started. Only works if it never started; preserves the attached goal metric.",
     inputSchema: {
       type: "object",
       required: ["name"],

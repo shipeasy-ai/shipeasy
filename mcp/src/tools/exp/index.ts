@@ -269,6 +269,43 @@ export async function handleDeleteUniverse(input: { name: string }) {
   }
 }
 
+// Build the inline goal-metric query (metric DSL) the admin API auto-upserts on
+// create/update. `success_aggregation` names the reducer; the API derives the
+// event + metric from the DSL string and attaches it with role=goal — which is
+// what makes the experiment startable. `count`/`count_users`/`retention_Nd`
+// need only the event; `sum`/`avg` also need `success_value` (the numeric event
+// property to reduce over). Mirrors the metric DSL grammar in @shipeasy/query-dsl
+// (note: count_events renders as `count(...)`).
+function buildGoalMetric(input: {
+  success_event?: string;
+  success_aggregation?: string;
+  success_value?: string;
+}): { query: string } | undefined {
+  const event = input.success_event;
+  if (!event) return undefined;
+  const agg = input.success_aggregation ?? "count_users";
+  const value = input.success_value;
+  switch (agg) {
+    case "count_users":
+      return { query: `count_users(${event})` };
+    case "count_events":
+      return { query: `count(${event})` };
+    case "retention_7d":
+      return { query: `retention_7d(${event})` };
+    case "retention_30d":
+      return { query: `retention_30d(${event})` };
+    case "sum":
+    case "avg":
+      if (!value)
+        throw new Error(
+          `success_aggregation '${agg}' requires success_value — the numeric event property to ${agg} (e.g. "amount")`,
+        );
+      return { query: `${agg}(${event}, ${value})` };
+    default:
+      throw new Error(`Unknown success_aggregation '${agg}'`);
+  }
+}
+
 export async function handleCreateExperiment(input: {
   name: string;
   description?: string;
@@ -279,6 +316,7 @@ export async function handleCreateExperiment(input: {
   targeting_gate?: string;
   success_event?: string;
   success_aggregation?: string;
+  success_value?: string;
 }) {
   const handle = await getAdminClient();
   if (!handle) return notAuthenticated();
@@ -291,6 +329,7 @@ export async function handleCreateExperiment(input: {
   const groups = input.groups ? JSON.parse(input.groups) : defaultGroups;
 
   try {
+    const goal_metric = buildGoalMetric(input);
     const result = await handle.client.experiments.create({
       name: input.name,
       universe: input.universe,
@@ -302,6 +341,9 @@ export async function handleCreateExperiment(input: {
       min_runtime_days: 0,
       min_sample_size: 100,
       sequential_testing: false,
+      // Inline goal metric → event + metric auto-upserted and attached with
+      // role=goal, so the draft is immediately startable (no separate call).
+      ...(goal_metric ? { goal_metric } : {}),
     });
     return ok(result);
   } catch (err) {
@@ -317,6 +359,9 @@ export async function handleUpdateExperiment(input: {
   significance_threshold?: number;
   min_runtime_days?: number;
   min_sample_size?: number;
+  success_event?: string;
+  success_aggregation?: string;
+  success_value?: string;
 }) {
   const handle = await getAdminClient();
   if (!handle) return notAuthenticated();
@@ -335,6 +380,10 @@ export async function handleUpdateExperiment(input: {
       patch.significance_threshold = input.significance_threshold;
     if (input.min_runtime_days !== undefined) patch.min_runtime_days = input.min_runtime_days;
     if (input.min_sample_size !== undefined) patch.min_sample_size = input.min_sample_size;
+    // Attach / replace the goal metric so a draft missing one can be made
+    // startable without recreating it.
+    const goal_metric = buildGoalMetric(input);
+    if (goal_metric) patch.goal_metric = goal_metric;
     const result = await handle.client.experiments.update(e.id, patch);
     return ok(result);
   } catch (err) {
@@ -350,6 +399,23 @@ export async function handleDeleteExperiment(input: { name: string }) {
     const e = await handle.client.experiments.resolve(input.name);
     await handle.client.experiments.delete(e.id);
     return ok({ ok: true, deleted: input.name });
+  } catch (err) {
+    return apiErr(err);
+  }
+}
+
+export async function handleRestoreExperiment(input: { name: string }) {
+  const handle = await getAdminClient();
+  if (!handle) return notAuthenticated();
+  if (!handle.bound) return notBound(handle);
+  try {
+    // resolve() searches archived experiments too, so a soft-deleted draft
+    // still resolves by name here. Restore flips it back to draft; the goal
+    // metric attached before deletion is preserved, so exp_start_experiment
+    // works straight after.
+    const e = await handle.client.experiments.resolve(input.name);
+    const result = await handle.client.experiments.restore(e.id);
+    return ok(result);
   } catch (err) {
     return apiErr(err);
   }

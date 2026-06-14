@@ -226,6 +226,118 @@ describe("handleCreateExperiment", () => {
     const result = await handleCreateExperiment({ name: "my_exp", universe: "u-1", groups });
     expect((result as ToolResult).isError).toBeUndefined();
   });
+
+  it("attaches an inline goal metric from success_event (count_users default)", async () => {
+    const fetchMock = mockFetch({
+      "/api/admin/experiments": { id: "exp-1", name: "my_exp" },
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { handleCreateExperiment } = await import("../tools/exp/index.js");
+    const result = await handleCreateExperiment({
+      name: "my_exp",
+      universe: "u-1",
+      success_event: "landing_cta_clicked",
+    });
+    expect((result as ToolResult).isError).toBeUndefined();
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.goal_metric).toEqual({ query: "count_users(landing_cta_clicked)" });
+  });
+
+  it("maps count_events to the DSL `count(...)` form", async () => {
+    const fetchMock = mockFetch({
+      "/api/admin/experiments": { id: "exp-1", name: "my_exp" },
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { handleCreateExperiment } = await import("../tools/exp/index.js");
+    await handleCreateExperiment({
+      name: "my_exp",
+      universe: "u-1",
+      success_event: "purchase",
+      success_aggregation: "count_events",
+    });
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.goal_metric).toEqual({ query: "count(purchase)" });
+  });
+
+  it("errors when sum/avg goal metric is missing success_value", async () => {
+    const { handleCreateExperiment } = await import("../tools/exp/index.js");
+    const result = await handleCreateExperiment({
+      name: "my_exp",
+      universe: "u-1",
+      success_event: "purchase",
+      success_aggregation: "sum",
+    });
+    expect((result as ToolResult).isError).toBe(true);
+    expect(result.content[0].text).toContain("success_value");
+  });
+
+  it("builds a sum goal metric with success_value", async () => {
+    const fetchMock = mockFetch({
+      "/api/admin/experiments": { id: "exp-1", name: "my_exp" },
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { handleCreateExperiment } = await import("../tools/exp/index.js");
+    await handleCreateExperiment({
+      name: "my_exp",
+      universe: "u-1",
+      success_event: "purchase",
+      success_aggregation: "sum",
+      success_value: "amount",
+    });
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.goal_metric).toEqual({ query: "sum(purchase, amount)" });
+  });
+
+  it("omits goal_metric when no success_event is given", async () => {
+    const fetchMock = mockFetch({
+      "/api/admin/experiments": { id: "exp-1", name: "my_exp" },
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { handleCreateExperiment } = await import("../tools/exp/index.js");
+    await handleCreateExperiment({ name: "my_exp", universe: "u-1" });
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.goal_metric).toBeUndefined();
+  });
+});
+
+describe("handleUpdateExperiment — goal metric", () => {
+  const draft = { id: "exp-1", name: "my_exp", status: "draft" };
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("attaches/replaces the goal metric from success_event", async () => {
+    // Capture the PATCH body. resolve() GETs by id (200) for `exp-1`, but here
+    // we pass the name, so it 404s by name then lists. Use expFetch + spy.
+    const fetchMock = expFetch({ detail: draft });
+    vi.stubGlobal("fetch", fetchMock);
+    const { handleUpdateExperiment } = await import("../tools/exp/index.js");
+    const result = await handleUpdateExperiment({
+      name: "my_exp",
+      success_event: "landing_cta_clicked",
+    });
+    expect((result as ToolResult).isError).toBeUndefined();
+    const patchCall = fetchMock.mock.calls.find(
+      (c) => (c[1] as RequestInit | undefined)?.method === "PATCH",
+    );
+    const body = JSON.parse((patchCall![1] as RequestInit).body as string);
+    expect(body.goal_metric).toEqual({ query: "count_users(landing_cta_clicked)" });
+  });
+});
+
+describe("handleRestoreExperiment", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("restores a soft-deleted experiment back to draft", async () => {
+    const archived = { id: "exp-1", name: "my_exp", status: "archived" };
+    const fetchMock = expFetch({ detail: archived, status: { id: "exp-1", status: "draft" } });
+    vi.stubGlobal("fetch", fetchMock);
+    const { handleRestoreExperiment } = await import("../tools/exp/index.js");
+    const result = await handleRestoreExperiment({ name: "my_exp" });
+    expect((result as ToolResult).isError).toBeUndefined();
+    expect(parseResult(result).status).toBe("draft");
+    const statusCall = fetchMock.mock.calls.find((c) => String(c[0]).includes("/status"));
+    const body = JSON.parse((statusCall![1] as RequestInit).body as string);
+    expect(body.status).toBe("draft");
+  });
 });
 
 describe("handleStartExperiment / handleStopExperiment", () => {

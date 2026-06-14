@@ -44,6 +44,7 @@ import {
   handleCreateExperiment,
   handleUpdateExperiment,
   handleDeleteExperiment,
+  handleRestoreExperiment,
   handleStartExperiment,
   handleStopExperiment,
   handleExperimentStatus,
@@ -218,6 +219,10 @@ export async function startStdioServer(): Promise<void> {
     if (toolName === "exp_delete_experiment") {
       const args = params.arguments ?? {};
       return handleDeleteExperiment(args as Parameters<typeof handleDeleteExperiment>[0]);
+    }
+    if (toolName === "exp_restore_experiment") {
+      const args = params.arguments ?? {};
+      return handleRestoreExperiment(args as Parameters<typeof handleRestoreExperiment>[0]);
     }
     if (toolName === "exp_start_experiment") {
       const args = params.arguments ?? {};

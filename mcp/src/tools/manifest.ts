@@ -29,6 +29,7 @@ export const EXPERIMENT_TOOL_NAMES = [
   "exp_create_experiment",
   "exp_update_experiment",
   "exp_delete_experiment",
+  "exp_restore_experiment",
   "exp_start_experiment",
   "exp_stop_experiment",
   "exp_create_alert_rule",
