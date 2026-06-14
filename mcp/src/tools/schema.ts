@@ -467,7 +467,10 @@ export const TOOLS: Tool[] = [
           enum: ["gt", "gte", "lt", "lte"],
           description: "How the metric value is compared to `threshold`.",
         },
-        threshold: { type: "number", description: "Threshold the metric value is compared against." },
+        threshold: {
+          type: "number",
+          description: "Threshold the metric value is compared against.",
+        },
         window_hours: {
           type: "number",
           description: "Lookback window in whole hours (1–720). Default 24.",
@@ -668,6 +671,40 @@ export const TOOLS: Tool[] = [
         profile: { type: "string" },
         framework: { type: "string" },
         path: { type: "string", description: "Project root directory (defaults to cwd)" },
+      },
+    },
+  },
+
+  // ────────────────────────────── ops ──────────────────────────────
+  {
+    name: "ops_notify",
+    description:
+      "Raise a 'needs your attention' bell notification in the dashboard — the escalation channel when an ops item can't be fixed in code (missing credential/device/prod env, a product decision, an env or alert-rule knob only a human can change). Create-only and idempotent on the dedupe key. Provide a clear title, a one-line summary, and an ordered, self-contained list of steps the human should take.",
+    inputSchema: {
+      type: "object",
+      required: ["title", "summary"],
+      properties: {
+        title: { type: "string", description: "One-line headline of what's blocked." },
+        summary: { type: "string", description: "One sentence: why it can't be fixed in code." },
+        steps: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Ordered, actionable steps the human should take (3–6; name exact files/commands).",
+        },
+        href: {
+          type: "string",
+          description:
+            "Dashboard-relative deep link to the related item (e.g. /dashboard/<project>/bugs/42).",
+        },
+        item: {
+          type: "string",
+          description: "Queue item number this is about — sets a stable dedupe key (feedback:<n>).",
+        },
+        dedupeKey: {
+          type: "string",
+          description: "Explicit dedupe key (overrides item); re-runs collapse to one feed row.",
+        },
       },
     },
   },

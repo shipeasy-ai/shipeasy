@@ -51,6 +51,7 @@ import {
   handleUpdateAlertRule,
   handleDeleteAlertRule,
 } from "./tools/exp/index.js";
+import { handleOpsNotify } from "./tools/ops/notify.js";
 
 const SERVER_NAME = "shipeasy";
 const SERVER_VERSION = "0.1.0";
@@ -241,6 +242,10 @@ export async function startStdioServer(): Promise<void> {
     if (toolName === "exp_delete_alert_rule") {
       const args = params.arguments ?? {};
       return handleDeleteAlertRule(args as Parameters<typeof handleDeleteAlertRule>[0]);
+    }
+    if (toolName === "ops_notify") {
+      const args = params.arguments ?? {};
+      return handleOpsNotify(args as Parameters<typeof handleOpsNotify>[0]);
     }
     if (toolName === "auth_login") {
       return {
