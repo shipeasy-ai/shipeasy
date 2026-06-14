@@ -53,10 +53,11 @@ Prereqs:
   `.shipeasy` before checking whether creds are already present.)
 - `feedback` module enabled (`/shipeasy:ops:install`). `feedback bugs list`
   returning `403` means it isn't.
-- CLI ≥ `1.11.0` — the unified `shipeasy ops.list` / `ops.get` / `ops.update` /
-  `ops.link-pr` and `ops.errors update` commands this loop drives. The
-  scheduled trigger runs `npx @shipeasy/cli@latest`, so it always has them;
-  for a local run, `shipeasy ops.list --help` failing means the CLI is too old
+- CLI ≥ `1.12.0` — the unified `shipeasy ops.list` / `ops.get` / `ops.update` /
+  `ops.link-pr`, `ops.errors update`, and `ops.notify` (the escalation bell)
+  commands this loop drives. The scheduled trigger runs
+  `npx @shipeasy/cli@latest`, so it always has them; for a local run,
+  `shipeasy ops.notify --help` failing means the CLI is too old
   (`npm i -g @shipeasy/cli@latest`).
 - Working tree clean **or** the user explicitly asked to work on top of WIP.
   If `git status --porcelain` is non-empty and the user hasn't confirmed,
@@ -147,8 +148,10 @@ Flip to `in_progress` when you start an item.
    the page for UI fixes).
 6. `--status resolved` only if confidently fixed + verified; `--status
    ready_for_qa` if it needs human verification. Can't fix? Leave it
-   `in_progress`, write a one-paragraph hand-off note, move on. Never
-   `wont_fix` without asking — that's a product call.
+   `in_progress`, write a one-paragraph hand-off note, **and raise a
+   notification** (see [Escalate](#escalate-raise-a-bell-notification-when-the-fix-isnt-in-code))
+   so the human sees what you need — then move on. Never `wont_fix` without
+   asking — that's a product call (and itself a reason to escalate).
 
 ### 1b. Features
 
@@ -161,9 +164,11 @@ Flip to `in_progress` when you start an item.
    satisfies the use case; flag larger refactors as follow-ups.
 3. Implement as **one atomic diff**. No half-finished work — if it genuinely
    can't land in one pass (missing API, schema change you can't apply), note
-   the gap and skip; don't land a partial. Reuse existing utilities before
-   adding abstractions. Run the gate (incl. an e2e spec for new UI workflows —
-   see CLAUDE.md).
+   the gap, **raise a notification** with the blocker + next steps (see
+   [Escalate](#escalate-raise-a-bell-notification-when-the-fix-isnt-in-code)),
+   and skip; don't land a partial. Reuse existing utilities before adding
+   abstractions. Run the gate (incl. an e2e spec for new UI workflows — see
+   CLAUDE.md).
 4. Flip to `ready_for_qa` when implemented; `resolved` is the human's call
    after it ships. Never `wont_fix` without asking.
 
@@ -206,7 +211,10 @@ Flip to `in_progress` when you start an item.
    or `ready_for_qa` in PR mode). If it's an ops acknowledgement (bad
    threshold, expected spike), say so and flip the ticket to `resolved` with a
    one-line note in your summary. Rule *definitions* can be tuned via
-   `/shipeasy:alerts:update` by a human — the ops key cannot edit them.
+   `/shipeasy:alerts:update` by a human — the ops key cannot edit them, so when
+   the right fix IS a rule change, **raise a notification** spelling out the new
+   threshold/comparator/window (see
+   [Escalate](#escalate-raise-a-bell-notification-when-the-fix-isnt-in-code)).
 
 ### 1e. Report and continue
 
@@ -217,6 +225,7 @@ One short paragraph per item, then the next:
   Cause:  <one line>
   Fix:    <files changed, one line each | "no code change — ops ack">
   Verify: <test cmd | dev-server URL | "manual" | "watch fingerprint drop off">
+  Notify: <"raised: <title>" when you escalated via ops.notify | "—">
   PR:     <url | "—">
 ```
 
@@ -242,6 +251,50 @@ It **cannot** update, archive, or delete any existing resource (every
 PATCH/PUT/DELETE on gates/configs/experiments/… is denied), mint keys, or
 touch projects/members/billing. If an item genuinely requires mutating an
 existing resource, note it in the hand-off instead of fighting the 403.
+
+## Escalate: raise a bell notification when the fix isn't in code
+
+A hand-off note in your run report is ephemeral — nobody reads it unless they
+read the transcript, and unattended trigger runs have no reader at all.
+**Whenever an item can't be fixed in code, raise a notification** so the human
+sees it on the dashboard bell. This is the durable escalation channel.
+
+Fire it when — and only when — the work genuinely isn't yours to land in code:
+
+- a missing credential / device / prod-only env you can't reproduce against;
+- a **product decision** (anything you'd otherwise `wont_fix`) or a
+  prioritisation call;
+- an env var, network/allowlist, billing, or **alert-rule definition** knob
+  that only a human (not the ops key) can change;
+- a bug whose only repro is a **recording you can't watch**;
+- an existing resource that must be mutated (the ops key is create-only).
+
+```
+shipeasy ops.notify --item <#number> \
+  --title "<one-line: what's blocked>" \
+  --summary "<one sentence: why it can't be fixed in code>" \
+  --step "<concrete action 1>" \
+  --step "<concrete action 2>" \
+  --step "<… then re-run /shipeasy:ops:work>"
+```
+
+Make it **self-contained and actionable** — the human reads only this card, not
+your transcript. 3–6 ordered steps, each naming the exact file, command, env
+var, or dashboard page. The notification stands out in the bell with a violet
+"from your agent" accent and reveals the full step-by-step guide on hover.
+
+`--item <#number>` ties the card to the queue item and sets a stable dedupe key
+(`feedback:<n>`), so re-running the loop over the same still-blocked item
+**updates the one card instead of stacking duplicates**. Add `--href
+/dashboard/<project>/bugs/<n>` (or the matching list page) to deep-link the
+card. `ops.notify` is create-only and ops-key-safe — it never reads, marks
+read, or deletes the feed.
+
+**Escalating does not replace the status write.** Still leave the item
+`in_progress` with its hand-off note (bugs/features) — or `resolved` with a
+one-line note when it's a genuine ops acknowledgement (an alert with no code
+change). The notification is the *visibility*; the status is the *record*. An
+escalation produces no branch, commit, or PR.
 
 ## 2. PR mode (`--pr`)
 
@@ -319,6 +372,7 @@ Processed N items (bugs X, features Y, errors Z, alerts W).
   fixed-in-code:                …
   acknowledged / no-op:         …
   left unresolved (gap noted):  …
+Notifications raised:           <one line per escalation: #item — what's blocked>
 Pull requests opened:           <one line per PR: url — item>
 Diff footprint:
 $(git diff --stat)

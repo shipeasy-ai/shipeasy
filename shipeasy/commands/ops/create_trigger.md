@@ -22,8 +22,12 @@ not on the user's machine, **not on GitHub Actions** — and runs
 **`/shipeasy:ops:work --pr`** against the bound project: it burns down the
 unified feedback queue (bugs, feature requests, auto-filed error/alert
 tickets) one item at a time, commits each fix on its own branch, and opens
-**one PR per fixed item** for review. All the work logic lives in `ops:work`;
-the routine is a thin wrapper around it.
+**one PR per fixed item** for review. When an item **can't** be fixed in code
+(missing credential, a product call, an env/alert-rule knob only you can
+change), the run **raises a "needs your attention" bell notification** with a
+step-by-step guide instead of silently leaving it — so an unattended run still
+surfaces what it needs. All the work logic lives in `ops:work`; the routine is
+a thin wrapper around it.
 
 The mechanism is a **Claude Code routine** created with `/schedule`. A routine
 is a remote agent that executes on a cron in the cloud, so it runs even when
