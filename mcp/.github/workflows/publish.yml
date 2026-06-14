@@ -68,3 +68,61 @@ jobs:
           else
             npm publish --access public --provenance
           fi
+
+  # List the server on the official MCP Registry as ai.shipeasy/mcp. Runs after
+  # the npm publish because the registry verifies ownership by reading `mcpName`
+  # from the *published* npm package.json — so the version must be live on npm
+  # first. ai.shipeasy is a domain namespace, so we authenticate via DNS (the
+  # TXT proof on shipeasy.ai) using the Ed25519 key in the MCP_PRIVATE_KEY
+  # secret — GitHub-OIDC auth only grants io.github.* namespaces and can't
+  # publish this name.
+  publish-registry:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Wait until the new version is visible on npm
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          VER=$(node -p "require('./package.json').version")
+          for i in $(seq 1 30); do
+            if npm view "$NAME@$VER" version >/dev/null 2>&1; then
+              echo "$NAME@$VER is live on npm"; exit 0
+            fi
+            echo "waiting for $NAME@$VER on npm ($i/30)…"; sleep 10
+          done
+          echo "::error::$NAME@$VER never appeared on npm; the registry ownership check would fail" >&2
+          exit 1
+
+      - name: Skip if this version is already in the registry
+        id: gate
+        run: |
+          VER=$(node -p "require('./package.json').version")
+          PUBLISHED=$(curl -s "https://registry.modelcontextprotocol.io/v0.1/servers?search=ai.shipeasy/mcp" \
+            | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const j=JSON.parse(s||'{}');const hit=(j.servers||[]).some(x=>{const v=(x.server||x);return v.name==='ai.shipeasy/mcp'&&v.version===process.argv[1]});console.log(hit?'yes':'no')})" "$VER")
+          echo "already=$PUBLISHED" >> "$GITHUB_OUTPUT"
+          [ "$PUBLISHED" = "yes" ] && echo "ai.shipeasy/mcp@$VER already listed — skipping registry publish."  || true
+
+      - name: Regenerate server.json from package.json
+        if: steps.gate.outputs.already != 'yes'
+        run: npx -y tsx scripts/gen-server-json.ts
+
+      - name: Install mcp-publisher
+        if: steps.gate.outputs.already != 'yes'
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+
+      - name: Authenticate to the MCP Registry (DNS namespace ai.shipeasy)
+        if: steps.gate.outputs.already != 'yes'
+        run: ./mcp-publisher login dns --domain shipeasy.ai --private-key "${{ secrets.MCP_PRIVATE_KEY }}"
+
+      - name: Publish to the MCP Registry
+        if: steps.gate.outputs.already != 'yes'
+        run: ./mcp-publisher publish

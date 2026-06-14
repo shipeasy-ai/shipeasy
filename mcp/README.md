@@ -695,6 +695,10 @@ This server is listed in the [official MCP Registry](https://registry.modelconte
 pnpm --filter @shipeasy/mcp registry:gen   # package.json → server.json
 ```
 
+**This is automated.** `.github/workflows/publish.yml` publishes to npm on a GitHub Release, then a `publish-registry` job lists the new version on the MCP Registry (it waits for npm to expose the version, regenerates `server.json`, and authenticates via DNS using the `MCP_PRIVATE_KEY` repo secret — the Ed25519 key behind the `shipeasy.ai` TXT proof). GitHub-OIDC auth is **not** usable here: it only grants `io.github.*` namespaces, not our `ai.shipeasy` domain namespace. So the day-to-day flow is just: bump `version`, regen `server.json`, commit, **tag a release** — CI does the rest.
+
+The manual flow below is the fallback (first-time setup, or republishing out of band).
+
 The registry verifies ownership by checking that the **published** npm package's `package.json` carries `mcpName: "ai.shipeasy/mcp"`. So the order matters — ship npm first, then the registry:
 
 1. **Release the npm version** the registry will verify (it must already include `mcpName`). Bump `version`, tag a release on `shipeasy-ai/mcp`, let CI publish via OIDC. Manual `npm publish` is forbidden (see `## Non-negotiables`).
