@@ -11,6 +11,7 @@ name: prod-probe
 #   secrets.SHIPEASY_CLIENT_KEY  — prod CLIENT key (enables the rollout leg)
 #   vars.SHIPEASY_PROJECT_ID     — prod project id
 #   vars.SHIPEASY_EDGE_URL       — edge origin, e.g. https://cdn.shipeasy.ai
+#   vars.SHIPEASY_PROBE_MEMBER_EMAIL — known @team/@owner member (template-gate leg)
 
 on:
   schedule:
@@ -36,6 +37,7 @@ jobs:
       SHIPEASY_PROJECT_ID: ${{ vars.SHIPEASY_PROJECT_ID }}
       SHIPEASY_EDGE_URL: ${{ vars.SHIPEASY_EDGE_URL }}
       SHIPEASY_CLIENT_KEY: ${{ secrets.SHIPEASY_CLIENT_KEY }}
+      SHIPEASY_PROBE_MEMBER_EMAIL: ${{ vars.SHIPEASY_PROBE_MEMBER_EMAIL }}
       PROBE_COHORT: ${{ github.event.inputs.cohort || '500' }}
     steps:
       - uses: actions/checkout@v4

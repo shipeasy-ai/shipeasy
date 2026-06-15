@@ -23,6 +23,8 @@
 //   SHIPEASY_CLI_TOKEN, SHIPEASY_PROJECT_ID  — CLI auth (the CLI reads these)
 //   SHIPEASY_EDGE_URL                        — e.g. https://cdn.shipeasy.ai
 //   SHIPEASY_CLIENT_KEY                      — canary CLIENT key (enables leg 3)
+//   SHIPEASY_PROBE_MEMBER_EMAIL              — known @team/@owner member (leg C5)
+//   SHIPEASY_PROBE_NONMEMBER_EMAIL           — optional; defaults to an invalid addr
 //   PROBE_COHORT (default 500), PROBE_CLI ("npx --yes @shipeasy/cli@latest")
 
 import { execFileSync } from "node:child_process";
@@ -128,6 +130,83 @@ async function fetchCohort(n) {
   return out;
 }
 
+// ── C5: template / alias gates (@team / @owner / stack templates) ────────────
+// The rollout-distribution leg deliberately SKIPS targeted gates — a synthetic
+// cohort sends no attributes, so they'd deny everyone and look like drift. This
+// leg covers them: for each alias/template gate, hit /sdk/evaluate with a KNOWN
+// member identity (SHIPEASY_PROBE_MEMBER_EMAIL — the canary owner/team email)
+// and a known non-member, asserting pass/deny. Non-member-deny always holds
+// (targeting fails regardless of rollout); member-pass is only hard-asserted for
+// 100%-rollout gates (a fractional rollout makes the member's bucket
+// nondeterministic). A member DENIED at 100% means alias expansion (@team/@owner
+// → emails in the KV blob) is broken in prod.
+async function probeTemplateGates() {
+  if (!CLIENT_KEY) {
+    console.log("SHIPEASY_CLIENT_KEY unset — skipping template-gate leg");
+    return;
+  }
+  const MEMBER = process.env.SHIPEASY_PROBE_MEMBER_EMAIL || "";
+  const NONMEMBER = process.env.SHIPEASY_PROBE_NONMEMBER_EMAIL || "not-a-member@probe.invalid";
+  const gates = cli(["flags", "list", "--json"]);
+  // Alias/template gates: an `email <in|eq> @symbol` rule, or any stack entry
+  // seeded fromTemplate. These are exactly the gates a known member can probe.
+  const isAlias = (g) =>
+    (Array.isArray(g.rules) &&
+      g.rules.some((r) => typeof r?.value === "string" && r.value.startsWith("@"))) ||
+    (Array.isArray(g.stack) && g.stack.some((s) => s?.fromTemplate));
+  const tmpl = gates.filter((g) => g.enabled && isAlias(g));
+  if (tmpl.length === 0) {
+    console.log("No template/alias gates to check");
+    return;
+  }
+  if (!MEMBER) {
+    annotate(
+      "template/alias gates present but SHIPEASY_PROBE_MEMBER_EMAIL unset — cannot verify membership",
+    );
+    failed++;
+    return;
+  }
+
+  async function evalFor(email) {
+    const res = await fetch(`${EDGE_URL}/sdk/evaluate`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-sdk-key": CLIENT_KEY },
+      body: JSON.stringify({ user: { anonymous_id: `probe-tmpl:${email}`, email } }),
+    });
+    if (!res.ok) throw new Error(`/sdk/evaluate ${res.status} for ${email}`);
+    return (await res.json()).flags ?? {};
+  }
+
+  console.log(`::group::Template/alias gates (${tmpl.length})`);
+  const memberFlags = await evalFor(MEMBER);
+  const nonFlags = await evalFor(NONMEMBER);
+  for (const g of tmpl) {
+    // Non-member must always be denied (targeting rule fails).
+    if (nonFlags[g.name] === true) {
+      annotate(`template gate ${g.name}: non-member (${NONMEMBER}) ADMITTED — targeting leak`);
+      failed++;
+    } else {
+      ok(`template gate ${g.name}: non-member denied`);
+    }
+    // Member: pass expected only when the gate is fully rolled out.
+    if (g.rolloutPct === 10000) {
+      if (memberFlags[g.name] === true) {
+        ok(`template gate ${g.name}: member (${MEMBER}) admitted`);
+      } else {
+        annotate(
+          `template gate ${g.name}: member (${MEMBER}) DENIED at 100% rollout — alias expansion broken in prod`,
+        );
+        failed++;
+      }
+    } else {
+      console.log(
+        `  ${g.name}: member=${memberFlags[g.name]} (rollout ${g.rolloutPct / 100}%, not hard-asserted)`,
+      );
+    }
+  }
+  console.log("::endgroup::");
+}
+
 // ── 2: experiment SRM (server-computed over real traffic) ───────────────────
 function probeExperiments() {
   const exps = cli(["experiments", "list", "--json"]).filter((e) => e.status === "running");
@@ -140,9 +219,16 @@ function probeExperiments() {
       console.log(`  ${e.name}: no status yet — skipping`);
       continue;
     }
-    const results = st.results ?? [];
-    const enrolment = results.reduce((s, r) => s + (r.n ?? 0), 0);
-    const srm = results.some((r) => r.srm_detected === 1);
+    // `experiments status --json` is the bundle { experiment, results }, and the
+    // per-group rows are nested at `results.results` (the inner bundle also
+    // carries its own experiment summary). Tolerate both shapes + field casings.
+    const rows = Array.isArray(st.results)
+      ? st.results
+      : Array.isArray(st.results?.results)
+        ? st.results.results
+        : [];
+    const enrolment = rows.reduce((s, r) => s + (r.n ?? 0), 0);
+    const srm = rows.some((r) => r.srm_detected === 1 || r.srmDetected === 1);
     if (srm) {
       annotate(`experiment ${e.name}: SRM detected (sample ratio mismatch) — assignment is skewed in prod`);
       failed++;
@@ -159,6 +245,7 @@ function probeExperiments() {
 try {
   probeExperiments();
   await probeGates();
+  await probeTemplateGates();
 } catch (err) {
   annotate(`probe failed to run: ${err?.message ?? err}`);
   process.exit(2);
