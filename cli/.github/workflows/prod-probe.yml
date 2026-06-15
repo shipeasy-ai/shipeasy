@@ -38,6 +38,8 @@ jobs:
       SHIPEASY_EDGE_URL: ${{ vars.SHIPEASY_EDGE_URL }}
       SHIPEASY_CLIENT_KEY: ${{ secrets.SHIPEASY_CLIENT_KEY }}
       SHIPEASY_PROBE_MEMBER_EMAIL: ${{ vars.SHIPEASY_PROBE_MEMBER_EMAIL }}
+      SHIPEASY_PROBE_EXPERIMENT: ${{ vars.SHIPEASY_PROBE_EXPERIMENT }}
+      SHIPEASY_PROBE_METRIC_EVENT: ${{ vars.SHIPEASY_PROBE_METRIC_EVENT }}
       PROBE_COHORT: ${{ github.event.inputs.cohort || '500' }}
     steps:
       - uses: actions/checkout@v4

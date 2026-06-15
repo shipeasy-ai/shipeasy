@@ -25,6 +25,8 @@
 //   SHIPEASY_CLIENT_KEY                      — canary CLIENT key (enables leg 3)
 //   SHIPEASY_PROBE_MEMBER_EMAIL              — known @team/@owner member (leg C5)
 //   SHIPEASY_PROBE_NONMEMBER_EMAIL           — optional; defaults to an invalid addr
+//   SHIPEASY_PROBE_EXPERIMENT                — running 2-group experiment (leg #3)
+//   SHIPEASY_PROBE_METRIC_EVENT              — its goal metric's backing event (leg #3)
 //   PROBE_COHORT (default 500), PROBE_CLI ("npx --yes @shipeasy/cli@latest")
 
 import { execFileSync } from "node:child_process";
@@ -40,12 +42,39 @@ const annotate = (msg) => console.log(`::error::${msg}`);
 const ok = (msg) => console.log(`✔ ${msg}`);
 
 function cli(args) {
-  const out = execFileSync(CLI[0], [...CLI.slice(1), ...args], {
+  return JSON.parse(cliText(args));
+}
+
+// Non-JSON CLI invocation (for commands like `experiments reanalyze` that print
+// a human line). Returns stdout text.
+function cliText(args) {
+  return execFileSync(CLI[0], [...CLI.slice(1), ...args], {
     encoding: "utf8",
     env: process.env,
     stdio: ["ignore", "pipe", "inherit"],
   });
-  return JSON.parse(out);
+}
+
+// One /sdk/evaluate call for a user context → full response ({flags, configs,
+// killswitches, experiments}). The edge does all bucketing/targeting; the probe
+// only inspects the verdicts.
+async function evaluate(user) {
+  const res = await fetch(`${EDGE_URL}/sdk/evaluate`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-sdk-key": CLIENT_KEY },
+    body: JSON.stringify({ user }),
+  });
+  if (!res.ok) throw new Error(`/sdk/evaluate ${res.status}`);
+  return res.json();
+}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Mutating CLI commands (unlike read commands) don't resolve the project from
+// SHIPEASY_PROJECT_ID — they need an explicit --project (or a bound .shipeasy,
+// absent in CI). Append it from the env.
+function reanalyzeArgs(exp) {
+  const p = process.env.SHIPEASY_PROJECT_ID;
+  return ["experiments", "reanalyze", exp, ...(p ? ["--project", p] : [])];
 }
 
 // ── 1 + 3: gates ────────────────────────────────────────────────────────────
@@ -241,11 +270,237 @@ function probeExperiments() {
   console.log("::endgroup::");
 }
 
+// ── #1 + #2: targeting + combination gates (generic rule synthesis) ─────────
+// For every targeting gate the probe DERIVES a matching and a non-matching
+// identity FROM THE GATE'S OWN RULES and asserts /sdk/evaluate admits the match
+// and denies the non-match — covering every operator (eq/neq/in/not_in/gt/gte/
+// lt/lte/contains/semver_*) and rule combinations (flat AND, stack condition
+// pass:all/any, OR across stack entries). No oracle, no hardcoded fixture
+// knowledge. Gates it can't synthesize deterministically (regex, fractional
+// rollout, rollout entries inside a stack, alias rules) are skipped.
+const SENTINEL = "se_probe_nomatch_x9z";
+const isAlias = (v) => typeof v === "string" && v.startsWith("@");
+
+function synthRule(rule) {
+  const { attr, op, value } = rule || {};
+  if (!attr || isAlias(value)) return null;
+  const n = (x) => (typeof x === "number" ? x : Number(x));
+  const s = (x) => String(x);
+  switch (op) {
+    case "eq": return { match: { [attr]: value }, nomatch: { [attr]: s(value) + "_x" } };
+    case "neq": return { match: { [attr]: s(value) + "_x" }, nomatch: { [attr]: value } };
+    case "in":
+      if (!Array.isArray(value) || !value.length) return null;
+      return { match: { [attr]: value[0] }, nomatch: { [attr]: SENTINEL } };
+    case "not_in":
+      if (!Array.isArray(value) || !value.length) return null;
+      return { match: { [attr]: SENTINEL }, nomatch: { [attr]: value[0] } };
+    case "contains": return { match: { [attr]: "x" + value + "y" }, nomatch: { [attr]: SENTINEL } };
+    case "gt": return { match: { [attr]: n(value) + 1 }, nomatch: { [attr]: n(value) - 1 } };
+    case "gte": return { match: { [attr]: n(value) }, nomatch: { [attr]: n(value) - 1 } };
+    case "lt": return { match: { [attr]: n(value) - 1 }, nomatch: { [attr]: n(value) } };
+    case "lte": return { match: { [attr]: n(value) }, nomatch: { [attr]: n(value) + 1 } };
+    case "semver_gt": return { match: { [attr]: "999.0.0" }, nomatch: { [attr]: "0.0.0" } };
+    case "semver_gte": return { match: { [attr]: s(value) }, nomatch: { [attr]: "0.0.0" } };
+    case "semver_lt": return { match: { [attr]: "0.0.0" }, nomatch: { [attr]: "999.0.0" } };
+    case "semver_lte": return { match: { [attr]: s(value) }, nomatch: { [attr]: "999.0.0" } };
+    default: return null; // regex + anything unknown
+  }
+}
+
+function synthCondition(rules, pass) {
+  const parts = (rules || []).map(synthRule);
+  if (!parts.length || parts.some((p) => p === null)) return null;
+  if (pass === "any") {
+    const match = { ...parts[0].match };
+    const nomatch = {};
+    for (const p of parts) Object.assign(nomatch, p.nomatch); // violate all → none pass
+    return { match, nomatch };
+  }
+  const match = {};
+  for (const p of parts) Object.assign(match, p.match); // satisfy all (AND)
+  const nomatch = { ...match, ...parts[0].nomatch }; // violate one
+  return { match, nomatch };
+}
+
+function synthGate(g) {
+  if (g.stack && g.stack.length) {
+    if (g.stack.some((e) => e.type !== "condition")) return null; // rollout entry → nondeterministic
+    const conds = g.stack.map((e) => synthCondition(e.rules || [], e.pass || "all"));
+    if (conds.some((c) => c === null)) return null;
+    const match = { ...conds[0].match }; // first entry passes → gate true (OR)
+    const nomatch = {};
+    for (const c of conds) Object.assign(nomatch, c.nomatch); // violate every entry
+    return { match, nomatch };
+  }
+  if (!g.rules || g.rules.length === 0) return null; // pure rollout → probeGates
+  if (g.rules.some((r) => isAlias(r.value))) return null; // alias → probeTemplateGates
+  if (g.rolloutPct !== 10000) return null; // fractional rollout → can't assert match
+  return synthCondition(g.rules, "all");
+}
+
+async function probeTargeting() {
+  if (!CLIENT_KEY) {
+    console.log("SHIPEASY_CLIENT_KEY unset — skipping targeting leg");
+    return;
+  }
+  const gates = cli(["flags", "list", "--json"]).filter((g) => g.enabled);
+  const targets = gates.map((g) => ({ g, syn: synthGate(g) })).filter((x) => x.syn);
+  const skipped = gates.filter((g) => !synthGate(g) && (g.rules?.length || g.stack?.length));
+  if (!targets.length) {
+    console.log("No synthesizable targeting gates");
+    return;
+  }
+  console.log(`::group::Targeting + combination gates (${targets.length})`);
+  for (const { g, syn } of targets) {
+    const mf = (await evaluate({ anonymous_id: "pt-m", ...syn.match })).flags ?? {};
+    const nf = (await evaluate({ anonymous_id: "pt-n", ...syn.nomatch })).flags ?? {};
+    if (mf[g.name] === true && nf[g.name] !== true) {
+      ok(`gate ${g.name}: match admitted, non-match denied`);
+    } else {
+      annotate(
+        `gate ${g.name}: match=${mf[g.name]} (want true), non-match=${nf[g.name]} (want falsy) — synth ${JSON.stringify(syn)}`,
+      );
+      failed++;
+    }
+  }
+  if (skipped.length) {
+    console.log(`  (skipped, not deterministically synthesizable: ${skipped.map((g) => g.name).join(", ")})`);
+  }
+  console.log("::endgroup::");
+}
+
+// ── #4: killswitches with named switch entries ──────────────────────────────
+// The prod-resolved killswitch view from /sdk/evaluate must match the admin
+// config: a whole-killed switch → boolean; a switch with named overrides →
+// the { switchKey: bool } map.
+async function probeKillswitches() {
+  if (!CLIENT_KEY) return;
+  let list;
+  try {
+    list = cli(["killswitch", "list", "--json"]);
+  } catch {
+    console.log("killswitch list unavailable — skipping");
+    return;
+  }
+  if (!list.length) {
+    console.log("No killswitches to check");
+    return;
+  }
+  const got = (await evaluate({ anonymous_id: "ks-probe" })).killswitches ?? {};
+  console.log(`::group::Killswitches (${list.length})`);
+  for (const k of list) {
+    const prod = k.envs?.prod ?? {};
+    const hasSwitches = prod.switches && Object.keys(prod.switches).length > 0;
+    const actual = got[k.name];
+    let pass;
+    if (hasSwitches) {
+      pass = actual && typeof actual === "object" &&
+        JSON.stringify(actual) === JSON.stringify(prod.switches);
+    } else {
+      pass = !!actual === !!prod.value && typeof actual !== "object";
+    }
+    if (pass) {
+      ok(`killswitch ${k.name}: ${hasSwitches ? "switches match" : `value=${!!prod.value}`}`);
+    } else {
+      annotate(
+        `killswitch ${k.name}: edge=${JSON.stringify(actual)} vs config ${JSON.stringify(hasSwitches ? prod.switches : prod.value)}`,
+      );
+      failed++;
+    }
+  }
+  console.log("::endgroup::");
+}
+
+// ── #3: experiment results are calculated properly ──────────────────────────
+// Opt-in (needs SHIPEASY_PROBE_EXPERIMENT + SHIPEASY_PROBE_METRIC_EVENT). Sends
+// a deterministic synthetic cohort to /collect — balanced 50/50 exposures with a
+// KNOWN conversion lift (control 40%, treatment 60% on a binary count_users
+// metric, so re-runs are idempotent) — triggers reanalyze, polls the experiment
+// results, and asserts the pipeline recovered treatment > control (and no SRM on
+// the balanced split). AE ingestion is async, so a no-data timeout is a WARNING
+// (not a hard fail); a WRONG recovered direction is a hard fail.
+async function probeExperimentResults() {
+  const EXP = process.env.SHIPEASY_PROBE_EXPERIMENT;
+  const EV = process.env.SHIPEASY_PROBE_METRIC_EVENT;
+  if (!CLIENT_KEY || !EXP || !EV) {
+    console.log("experiment-results leg: set SHIPEASY_PROBE_EXPERIMENT + SHIPEASY_PROBE_METRIC_EVENT to enable");
+    return;
+  }
+  const N = 200; // per group
+  const now = Date.now();
+  const events = [];
+  for (const [grp, conv] of [["control", 40], ["treatment", 60]]) {
+    const tag = grp[0];
+    for (let i = 0; i < N; i++) {
+      const uid = `er-${tag}-${i}`;
+      events.push({ type: "exposure", experiment: EXP, group: grp, user_id: uid, ts: now });
+      if (i % 100 < conv) events.push({ type: "metric", event_name: EV, value: 1, user_id: uid, ts: now });
+    }
+  }
+  // /collect takes { events } as text/plain JSON; chunk to keep payloads small.
+  console.log(`::group::Experiment results (${EXP})`);
+  for (let i = 0; i < events.length; i += 200) {
+    const res = await fetch(`${EDGE_URL}/collect`, {
+      method: "POST",
+      headers: { "content-type": "text/plain", "x-sdk-key": CLIENT_KEY },
+      body: JSON.stringify({ events: events.slice(i, i + 200) }),
+    });
+    if (!res.ok) {
+      annotate(`/collect ${res.status} — cannot run experiment-results leg`);
+      failed++;
+      console.log("::endgroup::");
+      return;
+    }
+  }
+  cliText(reanalyzeArgs(EXP));
+
+  // Poll results (AE ingestion + queue consumer are async).
+  const deadline = now + 150_000;
+  let rows = [];
+  while (Date.now() < deadline) {
+    await sleep(10_000);
+    let st;
+    try {
+      st = cli(["experiments", "status", EXP, "--json"]);
+    } catch {
+      continue;
+    }
+    rows = Array.isArray(st.results) ? st.results : st.results?.results ?? [];
+    cliText(reanalyzeArgs(EXP)); // nudge again in case data landed late
+    if (rows.some((r) => (r.n ?? 0) > 0)) break;
+  }
+  const byGroup = (name) => rows.find((r) => (r.group_name ?? r.groupName) === name);
+  const c = byGroup("control");
+  const t = byGroup("treatment");
+  if (!c || !t || !(c.n > 0) || !(t.n > 0)) {
+    console.log(`⚠ no enrolment recovered within timeout (AE ingestion lag) — exposures sent, results pending`);
+    console.log("::endgroup::");
+    return; // soft: don't flake on ingestion latency
+  }
+  const cm = c.mean ?? 0;
+  const tm = t.mean ?? 0;
+  if (tm > cm) {
+    ok(`experiment ${EXP}: recovered treatment ${tm.toFixed(3)} > control ${cm.toFixed(3)} (n=${c.n}/${t.n})`);
+  } else {
+    annotate(`experiment ${EXP}: WRONG direction — treatment ${tm} !> control ${cm} (injected +20pp lift)`);
+    failed++;
+  }
+  if (rows.some((r) => (r.srm_detected ?? r.srmDetected) === 1)) {
+    annotate(`experiment ${EXP}: SRM flagged on a balanced 50/50 synthetic split — false positive`);
+    failed++;
+  }
+  console.log("::endgroup::");
+}
+
 // ── run ─────────────────────────────────────────────────────────────────────
 try {
   probeExperiments();
   await probeGates();
   await probeTemplateGates();
+  await probeTargeting();
+  await probeKillswitches();
+  await probeExperimentResults();
 } catch (err) {
   annotate(`probe failed to run: ${err?.message ?? err}`);
   process.exit(2);
