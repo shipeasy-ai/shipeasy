@@ -370,6 +370,65 @@ async function probeTargeting() {
   console.log("::endgroup::");
 }
 
+// ── #2b: condition → rollout FALLTHROUGH ────────────────────────────────────
+// evalGatekeeper returns on the FIRST stack entry that passes, so a
+// [condition, rollout] stack means "fail the condition → fall through to the
+// next rollout entry." Verify BOTH halves on gates that mix them: a
+// condition-matcher is always admitted (the condition short-circuits before the
+// rollout), and condition-failers are admitted at ~rolloutPct (the fallthrough
+// rollout fires) — measured over a cohort against a binomial band.
+async function probeFallthrough() {
+  if (!CLIENT_KEY) {
+    console.log("SHIPEASY_CLIENT_KEY unset — skipping fallthrough leg");
+    return;
+  }
+  const gates = cli(["flags", "list", "--json"]).filter((g) => g.enabled);
+  const fts = gates.filter(
+    (g) =>
+      g.stack?.some((e) => e.type === "condition") && g.stack?.some((e) => e.type === "rollout"),
+  );
+  if (!fts.length) {
+    console.log("No condition→rollout fallthrough gates");
+    return;
+  }
+  console.log(`::group::Condition→rollout fallthrough (${fts.length})`);
+  for (const g of fts) {
+    const conds = g.stack.filter((e) => e.type === "condition");
+    const roll = g.stack.find((e) => e.type === "rollout");
+    const first = synthCondition(conds[0].rules || [], conds[0].pass || "all");
+    if (!first) {
+      console.log(`  ${g.name}: condition not synthesizable — skipping`);
+      continue;
+    }
+    // (a) condition match → always admitted (short-circuits before the rollout).
+    const matchPass = (await evaluate({ anonymous_id: "ft-m", ...first.match })).flags?.[g.name] === true;
+    // (b) condition fail → fall through to the rollout. Violate EVERY condition,
+    // vary the bucketing identity, and measure the pass rate ≈ rolloutPct.
+    const failCtx = {};
+    for (const c of conds) {
+      const sc = synthCondition(c.rules || [], c.pass || "all");
+      if (sc) Object.assign(failCtx, sc.nomatch);
+    }
+    const N = 200;
+    let pass = 0;
+    for (let i = 0; i < N; i++) {
+      if ((await evaluate({ anonymous_id: `ft-f:${i}`, ...failCtx })).flags?.[g.name] === true) pass++;
+    }
+    const rate = pass / N;
+    const want = (roll.rolloutPct ?? 0) / 10000;
+    const band = Math.max(0.08, 4 * Math.sqrt((want * (1 - want)) / N));
+    if (matchPass && Math.abs(rate - want) <= band) {
+      ok(`gate ${g.name}: condition admits, fallthrough rollout ${(rate * 100).toFixed(1)}% ≈ ${(want * 100).toFixed(0)}%`);
+    } else {
+      annotate(
+        `gate ${g.name}: condition-match=${matchPass} (want true); fallthrough ${(rate * 100).toFixed(1)}% vs ${(want * 100).toFixed(0)}% (±${(band * 100).toFixed(0)}pp)`,
+      );
+      failed++;
+    }
+  }
+  console.log("::endgroup::");
+}
+
 // ── #4: killswitches with named switch entries ──────────────────────────────
 // The prod-resolved killswitch view from /sdk/evaluate must match the admin
 // config: a whole-killed switch → boolean; a switch with named overrides →
@@ -499,6 +558,7 @@ try {
   await probeGates();
   await probeTemplateGates();
   await probeTargeting();
+  await probeFallthrough();
   await probeKillswitches();
   await probeExperimentResults();
 } catch (err) {
