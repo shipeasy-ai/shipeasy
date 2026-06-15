@@ -429,6 +429,67 @@ async function probeFallthrough() {
   console.log("::endgroup::");
 }
 
+// ── #2c: rule-gated fractional rollout ──────────────────────────────────────
+// A FLAT gate with rules AND a fractional rollout means "X% of the users who
+// match the rules; 0% of everyone else" (the rules gate membership, then the
+// rollout buckets the matchers). Distinct from the stack condition→rollout
+// fallthrough (#2b, where non-matchers fall through to the rollout). The generic
+// targeting leg skips these (a fractional match isn't per-user deterministic),
+// so verify here: non-matchers are ALWAYS denied, and matchers pass at ~rolloutPct.
+async function probeRuleGatedRollout() {
+  if (!CLIENT_KEY) {
+    console.log("SHIPEASY_CLIENT_KEY unset — skipping rule-gated-rollout leg");
+    return;
+  }
+  const gates = cli(["flags", "list", "--json"]).filter((g) => g.enabled);
+  const rg = gates.filter(
+    (g) =>
+      (!g.stack || g.stack.length === 0) &&
+      g.rules?.length &&
+      !g.rules.some((r) => isAlias(r.value)) &&
+      g.rolloutPct > 0 &&
+      g.rolloutPct < 10000,
+  );
+  if (!rg.length) {
+    console.log("No rule-gated fractional-rollout gates");
+    return;
+  }
+  console.log(`::group::Rule-gated rollout (${rg.length})`);
+  for (const g of rg) {
+    const syn = synthCondition(g.rules, "all");
+    if (!syn) {
+      console.log(`  ${g.name}: rules not synthesizable — skipping`);
+      continue;
+    }
+    // Non-matchers: the rule fails before the rollout bucket → always denied.
+    let denyOk = true;
+    for (let i = 0; i < 20; i++) {
+      if ((await evaluate({ anonymous_id: `rg-n:${i}`, ...syn.nomatch })).flags?.[g.name] === true) {
+        denyOk = false;
+        break;
+      }
+    }
+    // Matchers: pass at ~rolloutPct over a cohort (vary the bucketing identity).
+    const N = 200;
+    let pass = 0;
+    for (let i = 0; i < N; i++) {
+      if ((await evaluate({ anonymous_id: `rg-m:${i}`, ...syn.match })).flags?.[g.name] === true) pass++;
+    }
+    const rate = pass / N;
+    const want = g.rolloutPct / 10000;
+    const band = Math.max(0.08, 4 * Math.sqrt((want * (1 - want)) / N));
+    if (denyOk && Math.abs(rate - want) <= band) {
+      ok(`gate ${g.name}: non-match denied, matched rollout ${(rate * 100).toFixed(1)}% ≈ ${(want * 100).toFixed(0)}%`);
+    } else {
+      annotate(
+        `gate ${g.name}: nonMatchDenied=${denyOk}; matched rollout ${(rate * 100).toFixed(1)}% vs ${(want * 100).toFixed(0)}% (±${(band * 100).toFixed(0)}pp)`,
+      );
+      failed++;
+    }
+  }
+  console.log("::endgroup::");
+}
+
 // ── #4: killswitches with named switch entries ──────────────────────────────
 // The prod-resolved killswitch view from /sdk/evaluate must match the admin
 // config: a whole-killed switch → boolean; a switch with named overrides →
@@ -600,6 +661,7 @@ try {
   await probeTemplateGates();
   await probeTargeting();
   await probeFallthrough();
+  await probeRuleGatedRollout();
   await probeKillswitches();
   await probeEnrichment();
   await probeExperimentResults();
