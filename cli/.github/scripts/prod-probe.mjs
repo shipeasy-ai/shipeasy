@@ -552,6 +552,47 @@ async function probeExperimentResults() {
   console.log("::endgroup::");
 }
 
+// ── attribute enrichment: server auto-derives the default attributes ────────
+// The edge derives country (IP geo), browser/os/device (User-Agent), referrer,
+// locale, etc. so rules work WITHOUT the caller setting them. Opt-in
+// (SHIPEASY_PROBE_ENRICHMENT=1) because it needs the edge-worker deploy that
+// ships enrichment. Sends an EMPTY body with only a Chrome UA header and asserts
+// a browser-rule gate and a country-rule gate resolve from the derived attrs.
+async function probeEnrichment() {
+  if (!CLIENT_KEY) return;
+  if (!process.env.SHIPEASY_PROBE_ENRICHMENT) {
+    console.log(
+      "enrichment leg disabled — after the edge worker deploys, enable with: gh variable set SHIPEASY_PROBE_ENRICHMENT 1 -R shipeasy-ai/cli",
+    );
+    return;
+  }
+  const gates = cli(["flags", "list", "--json"]).filter((g) => g.enabled);
+  const browserGate = gates.find((g) => g.rules?.some((r) => r.attr === "browser"));
+  const countryGate = gates.find((g) => g.rules?.some((r) => r.attr === "country" && r.op === "neq"));
+  const res = await fetch(`${EDGE_URL}/sdk/evaluate`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-sdk-key": CLIENT_KEY,
+      // No body.user — the edge must derive `browser` from this UA and `country`
+      // from the connecting IP's geo.
+      "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36",
+    },
+    body: JSON.stringify({}),
+  });
+  const flags = (await res.json()).flags ?? {};
+  console.log("::group::Attribute enrichment (empty body — derived from request)");
+  if (browserGate) {
+    if (flags[browserGate.name] === true) ok(`enrichment: browser from UA → ${browserGate.name} admitted`);
+    else { annotate(`enrichment: ${browserGate.name} denied — browser not auto-derived (worker deployed?)`); failed++; }
+  }
+  if (countryGate) {
+    if (flags[countryGate.name] === true) ok(`enrichment: country from IP geo → ${countryGate.name} admitted`);
+    else { annotate(`enrichment: ${countryGate.name} denied — country not auto-derived (worker deployed?)`); failed++; }
+  }
+  console.log("::endgroup::");
+}
+
 // ── run ─────────────────────────────────────────────────────────────────────
 try {
   probeExperiments();
@@ -560,6 +601,7 @@ try {
   await probeTargeting();
   await probeFallthrough();
   await probeKillswitches();
+  await probeEnrichment();
   await probeExperimentResults();
 } catch (err) {
   annotate(`probe failed to run: ${err?.message ?? err}`);
