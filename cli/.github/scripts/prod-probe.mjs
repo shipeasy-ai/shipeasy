@@ -27,6 +27,10 @@
 //   SHIPEASY_PROBE_NONMEMBER_EMAIL           — optional; defaults to an invalid addr
 //   SHIPEASY_PROBE_EXPERIMENT                — running 2-group experiment (leg #3)
 //   SHIPEASY_PROBE_METRIC_EVENT              — its goal metric's backing event (leg #3)
+//   SHIPEASY_PROBE_ENRICHMENT (=1)           — enable the request-enrichment leg
+//   SHIPEASY_PROBE_MUTATE (=1)               — enable the killswitch-propagation leg
+//                                              (flips one switch then restores it)
+//   SHIPEASY_PROBE_MAX_MS (default 50)       — latency p95 budget for /sdk/evaluate
 //   PROBE_COHORT (default 500), PROBE_CLI ("npx --yes @shipeasy/cli@latest")
 
 import { execFileSync } from "node:child_process";
@@ -654,6 +658,160 @@ async function probeEnrichment() {
   console.log("::endgroup::");
 }
 
+// ── universe holdout (live) ─────────────────────────────────────────────────
+// A unit in a universe's holdout is excluded from EVERY experiment in that
+// universe. Over a cohort the assigned fraction must be ≈ (1 − holdoutWidth) ×
+// allocation — i.e. the holdout carves out the right share before allocation.
+async function probeHoldout() {
+  if (!CLIENT_KEY) return;
+  let universes;
+  try {
+    universes = cli(["universes", "list", "--json"]);
+  } catch {
+    console.log("universes list unavailable — skipping holdout leg");
+    return;
+  }
+  const withHoldout = universes.filter((u) => Array.isArray(u.holdoutRange ?? u.holdout_range));
+  if (!withHoldout.length) {
+    console.log("No universes with a holdout range");
+    return;
+  }
+  const exps = cli(["experiments", "list", "--json"]).filter((e) => e.status === "running");
+  console.log(`::group::Universe holdout (${withHoldout.length})`);
+  for (const u of withHoldout) {
+    const range = u.holdoutRange ?? u.holdout_range;
+    const holdoutFrac = (range[1] - range[0]) / 10000;
+    const uniExps = exps.filter((e) => e.universe === u.name);
+    if (!uniExps.length) {
+      console.log(`  ${u.name}: holdout ${(holdoutFrac * 100).toFixed(0)}%, no running experiments — skipping`);
+      continue;
+    }
+    const maxAlloc = Math.max(...uniExps.map((e) => (e.allocationPct ?? e.allocation_pct ?? 10000) / 10000));
+    const N = 300;
+    let assigned = 0;
+    for (let i = 0; i < N; i++) {
+      const r = await evaluate({ user_id: `ho:${u.name}:${i}` });
+      if (uniExps.some((e) => r.experiments?.[e.name])) assigned++;
+    }
+    const rate = assigned / N;
+    const want = (1 - holdoutFrac) * maxAlloc;
+    const band = Math.max(0.08, 4 * Math.sqrt((want * (1 - want)) / N));
+    if (Math.abs(rate - want) <= band) {
+      ok(`universe ${u.name}: ${(rate * 100).toFixed(1)}% assigned ≈ ${(want * 100).toFixed(0)}% (holdout ${(holdoutFrac * 100).toFixed(0)}%)`);
+    } else {
+      annotate(`universe ${u.name}: assigned ${(rate * 100).toFixed(1)}% vs expected ${(want * 100).toFixed(0)}% (holdout ${(holdoutFrac * 100).toFixed(0)}%, ±${(band * 100).toFixed(0)}pp)`);
+      failed++;
+    }
+  }
+  console.log("::endgroup::");
+}
+
+// ── configs resolve to the client ───────────────────────────────────────────
+// Every published config must reach /sdk/evaluate with a defined value. (Deep
+// value-equality lives in the unit round-trip tests; the write→KV→edge path is
+// proven live by the killswitch-propagation leg, since killswitches ride the
+// same configs table + blob.)
+async function probeConfigs() {
+  if (!CLIENT_KEY) return;
+  let configs;
+  try {
+    configs = cli(["configs", "list", "--json"]);
+  } catch {
+    console.log("configs list unavailable — skipping");
+    return;
+  }
+  if (!configs.length) {
+    console.log("No configs to check");
+    return;
+  }
+  const got = (await evaluate({ anonymous_id: "cfg-probe" })).configs ?? {};
+  console.log(`::group::Configs (${configs.length})`);
+  for (const c of configs) {
+    if (c.name in got && got[c.name] !== undefined) ok(`config ${c.name}: resolves to client`);
+    else {
+      annotate(`config ${c.name}: NOT resolved on /sdk/evaluate (publish/KV gap)`);
+      failed++;
+    }
+  }
+  console.log("::endgroup::");
+}
+
+// ── killswitch single-switch toggle propagation (write → next read) ──────────
+// Flipping one switch via the admin API must transfer to the edge on the next
+// request. Opt-in + self-restoring (SHIPEASY_PROBE_MUTATE=1): read a switch, flip
+// it, poll /sdk/evaluate until it reflects, then restore the original value.
+async function probeKillswitchPropagation() {
+  if (!CLIENT_KEY) return;
+  if (!process.env.SHIPEASY_PROBE_MUTATE) {
+    console.log("ks-propagation leg disabled — enable with SHIPEASY_PROBE_MUTATE=1 (flips a switch then restores it)");
+    return;
+  }
+  const list = cli(["killswitch", "list", "--json"]);
+  const ks = list.find((k) => k.envs?.prod?.switches && Object.keys(k.envs.prod.switches).length);
+  if (!ks) {
+    console.log("No killswitch with switches — skipping propagation leg");
+    return;
+  }
+  const key = Object.keys(ks.envs.prod.switches)[0];
+  const orig = ks.envs.prod.switches[key];
+  const flipped = !orig;
+  const proj = process.env.SHIPEASY_PROJECT_ID;
+  const projArg = proj ? ["--project", proj] : [];
+  const read = async () => (await evaluate({ anonymous_id: "ksp-probe" })).killswitches?.[ks.name]?.[key];
+  console.log(`::group::Killswitch switch propagation (${ks.name}.${key})`);
+  let restored = false;
+  try {
+    cliText(["killswitch", "set", ks.name, key, String(flipped), ...projArg]);
+    let live;
+    for (let i = 0; i < 12; i++) {
+      await sleep(2000);
+      live = await read();
+      if (live === flipped) break;
+    }
+    if (live === flipped) ok(`flip ${key} ${orig}→${flipped} propagated to the edge`);
+    else {
+      annotate(`flip ${key} ${orig}→${flipped} did NOT propagate (edge still ${live})`);
+      failed++;
+    }
+  } finally {
+    cliText(["killswitch", "set", ks.name, key, String(orig), ...projArg]);
+    for (let i = 0; i < 12; i++) {
+      await sleep(2000);
+      if ((await read()) === orig) {
+        restored = true;
+        break;
+      }
+    }
+    console.log(restored ? `  restored ${key}=${orig}` : `  ⚠ could not confirm restore of ${key}=${orig}`);
+  }
+  console.log("::endgroup::");
+}
+
+// ── latency: client-facing /sdk/evaluate must be fast (<50ms target) ─────────
+async function probeLatency() {
+  if (!CLIENT_KEY) return;
+  const N = 50;
+  const MAX_MS = Number(process.env.SHIPEASY_PROBE_MAX_MS || "50");
+  for (let i = 0; i < 3; i++) await evaluate({ anonymous_id: "lat-warm" }); // warm TLS + isolate
+  const times = [];
+  for (let i = 0; i < N; i++) {
+    const t0 = performance.now();
+    await evaluate({ anonymous_id: `lat:${i}` });
+    times.push(performance.now() - t0);
+  }
+  times.sort((a, b) => a - b);
+  const q = (p) => times[Math.min(times.length - 1, Math.floor(times.length * p))];
+  const p50 = q(0.5), p95 = q(0.95), p99 = q(0.99), max = times[times.length - 1];
+  console.log(`::group::Latency — /sdk/evaluate (${N} reqs, end-to-end from CI runner)`);
+  console.log(`  p50=${p50.toFixed(1)}ms p95=${p95.toFixed(1)}ms p99=${p99.toFixed(1)}ms max=${max.toFixed(1)}ms (target p95<${MAX_MS}ms)`);
+  if (p95 <= MAX_MS) ok(`latency: p95 ${p95.toFixed(1)}ms ≤ ${MAX_MS}ms`);
+  else {
+    annotate(`latency: p95 ${p95.toFixed(1)}ms > ${MAX_MS}ms (end-to-end incl. CI→edge network)`);
+    failed++;
+  }
+  console.log("::endgroup::");
+}
+
 // ── run ─────────────────────────────────────────────────────────────────────
 try {
   probeExperiments();
@@ -663,7 +821,11 @@ try {
   await probeFallthrough();
   await probeRuleGatedRollout();
   await probeKillswitches();
+  await probeKillswitchPropagation();
+  await probeHoldout();
+  await probeConfigs();
   await probeEnrichment();
+  await probeLatency();
   await probeExperimentResults();
 } catch (err) {
   annotate(`probe failed to run: ${err?.message ?? err}`);

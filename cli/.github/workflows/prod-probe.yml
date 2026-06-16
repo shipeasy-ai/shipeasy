@@ -41,6 +41,8 @@ jobs:
       SHIPEASY_PROBE_EXPERIMENT: ${{ vars.SHIPEASY_PROBE_EXPERIMENT }}
       SHIPEASY_PROBE_METRIC_EVENT: ${{ vars.SHIPEASY_PROBE_METRIC_EVENT }}
       SHIPEASY_PROBE_ENRICHMENT: ${{ vars.SHIPEASY_PROBE_ENRICHMENT }}
+      SHIPEASY_PROBE_MUTATE: ${{ vars.SHIPEASY_PROBE_MUTATE }}
+      SHIPEASY_PROBE_MAX_MS: ${{ vars.SHIPEASY_PROBE_MAX_MS }}
       PROBE_COHORT: ${{ github.event.inputs.cohort || '500' }}
     steps:
       - uses: actions/checkout@v4
