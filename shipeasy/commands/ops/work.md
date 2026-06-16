@@ -70,7 +70,8 @@ Parse `$ARGUMENTS` up-front:
 
 - `--type bug|feature|error|alert|measure_plan|all` — default `all` (`feature`
   maps to `feature_request`).
-- `--status <s>` — default `open`. Pass `all` to include everything.
+- `--status <s>` — default `open`. Pass `all` to include everything **except
+  `pending_approval`** (see the approval gate below).
 - `--priority high|critical` — filter after pull (any type; priorities are
   shared).
 - `--limit <N>` — default `20`. Slice after sort.
@@ -95,6 +96,17 @@ for a table; `shipeasy ops.list --help` for the filters. `shipeasy feedback
 bugs list` / `features list` still work for the two human-filed types.)
 **Never call the admin HTTP API with `curl`** — every step in this loop has a
 `shipeasy` command; use it (the CLI handles auth + the `.shipeasy` binding).
+
+**The `pending_approval` gate — never work these.** Some items land in a
+`pending_approval` status: a pre-open holding state for inbound that a human must
+sign off before any code is written (e.g. connector requests filed from a
+customer's connectors panel land here in Shipeasy's own project). **Drop every
+`pending_approval` row from the queue** — do not investigate, fix, status-flip,
+or PR them, *even when `--status all` was passed*. They are approved by a human
+in the dashboard moving them to `open` (the orange "Pending approval" badge +
+hovercard mark them); once `open`, they flow through this loop like any other
+item. If a `--status pending_approval` run is requested explicitly, print the
+list and stop — surfacing them for review is fine; working them is not.
 
 Print the combined queue, grouped by type, before starting:
 
