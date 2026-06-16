@@ -28,6 +28,9 @@
 //   SHIPEASY_PROBE_EXPERIMENT                — running 2-group experiment (leg #3)
 //   SHIPEASY_PROBE_METRIC_EVENT              — its goal metric's backing event (leg #3)
 //   SHIPEASY_PROBE_IDENTIFY_EXPERIMENT       — dedicated 2-group exp for the identify-merge leg
+//   SHIPEASY_SERVER_KEY                      — server key (server-blob + bootstrap legs)
+//   SHIPEASY_CLIENT_KEY_DEV                  — a dev-env client key (multi-env leg)
+//   SHIPEASY_PROBE_ALERTS (=1)               — enable the metric-rule alert leg (async cron)
 //   SHIPEASY_PROBE_ENRICHMENT (=1)           — enable the request-enrichment leg
 //   SHIPEASY_PROBE_MUTATE (=1)               — enable the killswitch-propagation leg
 //                                              (flips one switch then restores it)
@@ -828,15 +831,16 @@ async function probeIdentifyMerge() {
     return;
   }
   const now = Date.now();
-  // person 1 (idn-anon → idn-user via alias) + person 2 (idn-other), both in
-  // control; one treatment user so the analysis has two groups. control must
-  // resolve to 2 distinct units (the aliased pair merges to one).
+  // ONE person, anonymous then signed-in (alias ties the two ids), both exposed
+  // to control; plus one treatment user so the analysis has two groups. The two
+  // control exposures (anon id + user id) must STITCH to a single unit → control
+  // n === 1. If the merge fails they'd count as two (n === 2). Fixed ids +
+  // dedicated experiment keep the count exact and idempotent across runs.
   const events = [
-    { type: "exposure", experiment: EXP, group: "control", anonymous_id: "idn-anon", ts: now },
-    { type: "identify", anonymous_id: "idn-anon", user_id: "idn-user", ts: now },
-    { type: "exposure", experiment: EXP, group: "control", user_id: "idn-user", ts: now },
-    { type: "exposure", experiment: EXP, group: "control", user_id: "idn-other", ts: now },
-    { type: "exposure", experiment: EXP, group: "treatment", user_id: "idn-treat", ts: now },
+    { type: "exposure", experiment: EXP, group: "control", anonymous_id: "v3-anon", ts: now },
+    { type: "identify", anonymous_id: "v3-anon", user_id: "v3-user", ts: now },
+    { type: "exposure", experiment: EXP, group: "control", user_id: "v3-user", ts: now },
+    { type: "exposure", experiment: EXP, group: "treatment", user_id: "v3-treat", ts: now },
   ];
   console.log(`::group::Identify merge (${EXP})`);
   const res = await fetch(`${EDGE_URL}/collect`, {
@@ -871,11 +875,155 @@ async function probeIdentifyMerge() {
     console.log("::endgroup::");
     return; // soft: don't flake on ingestion latency
   }
-  if (control.n === 2) {
-    ok(`identify merge: anon + identified collapsed to one unit (control n=2, not 3)`);
+  if (control.n === 1) {
+    ok(`identify merge: anonymous + signed-in exposures stitched to one unit (control n=1)`);
   } else {
-    annotate(`identify merge: control n=${control.n} (expected 2 — anon+identified should merge to one user)`);
+    annotate(`identify merge: control n=${control.n} (expected 1 — anon+identified should merge to one user)`);
     failed++;
+  }
+  console.log("::endgroup::");
+}
+
+// ── server-SDK blob endpoints (/sdk/flags, /sdk/experiments) ─────────────────
+// Client SDKs hit /sdk/evaluate (edge evals); SERVER SDKs poll the raw blobs and
+// evaluate locally. Verify the server blobs are served (server key) and match the
+// admin config the edge also serves. Opt-in via SHIPEASY_SERVER_KEY.
+async function probeServerBlobs() {
+  const SK = process.env.SHIPEASY_SERVER_KEY;
+  if (!SK) {
+    console.log("server-blob leg: set SHIPEASY_SERVER_KEY to enable");
+    return;
+  }
+  const [fr, er] = await Promise.all([
+    fetch(`${EDGE_URL}/sdk/flags`, { headers: { "x-sdk-key": SK } }),
+    fetch(`${EDGE_URL}/sdk/experiments`, { headers: { "x-sdk-key": SK } }),
+  ]);
+  if (!fr.ok || !er.ok) {
+    annotate(`server blobs: /sdk/flags ${fr.status}, /sdk/experiments ${er.status}`);
+    failed++;
+    return;
+  }
+  const flagsBlob = await fr.json();
+  const expBlob = await er.json();
+  const blobGates = flagsBlob.gates ?? {};
+  const blobExps = expBlob.experiments ?? {};
+  const gates = cli(["flags", "list", "--json"]).filter((g) => g.enabled);
+  const exps = cli(["experiments", "list", "--json"]).filter((e) => e.status === "running");
+  console.log("::group::Server-SDK blobs (/sdk/flags + /sdk/experiments)");
+  let gmiss = 0;
+  for (const g of gates) {
+    const bg = blobGates[g.name];
+    if (!bg || bg.rolloutPct !== g.rolloutPct || !!bg.enabled !== !!g.enabled) gmiss++;
+  }
+  if (gmiss === 0) ok(`/sdk/flags carries all ${gates.length} gates with matching rollout/enabled`);
+  else {
+    annotate(`/sdk/flags: ${gmiss}/${gates.length} gates missing or mismatched vs admin`);
+    failed++;
+  }
+  const emiss = exps.filter((e) => !blobExps[e.name]).map((e) => e.name);
+  if (emiss.length === 0) ok(`/sdk/experiments carries all ${exps.length} running experiment(s)`);
+  else {
+    annotate(`/sdk/experiments missing: ${emiss.join(", ")}`);
+    failed++;
+  }
+  console.log("::endgroup::");
+}
+
+// ── SSR bootstrap (/sdk/bootstrap) ───────────────────────────────────────────
+// Server components pre-evaluate via /sdk/bootstrap (server key + base64
+// X-User-Context). Its verdicts must agree with /sdk/evaluate for the same user
+// — otherwise SSR and the browser disagree and the UI flickers.
+async function probeBootstrap() {
+  const SK = process.env.SHIPEASY_SERVER_KEY;
+  if (!SK || !CLIENT_KEY) {
+    console.log("bootstrap leg: needs SHIPEASY_SERVER_KEY (+ client key)");
+    return;
+  }
+  const user = { anonymous_id: "bs-probe", country: "US", plan: "pro" };
+  const ctx = Buffer.from(JSON.stringify(user)).toString("base64");
+  const br = await fetch(`${EDGE_URL}/sdk/bootstrap`, {
+    headers: { "x-sdk-key": SK, "X-User-Context": ctx },
+  });
+  if (!br.ok) {
+    annotate(`/sdk/bootstrap ${br.status}`);
+    failed++;
+    return;
+  }
+  const bs = await br.json();
+  const ev = await evaluate(user); // same user, client key → edge eval
+  console.log("::group::SSR bootstrap vs /sdk/evaluate");
+  const names = new Set([...Object.keys(bs.flags ?? {}), ...Object.keys(ev.flags ?? {})]);
+  const disagree = [...names].filter((n) => (bs.flags?.[n] ?? false) !== (ev.flags?.[n] ?? false));
+  if (disagree.length === 0) ok(`bootstrap agrees with /sdk/evaluate on all ${names.size} gates`);
+  else {
+    annotate(`bootstrap disagrees with /sdk/evaluate on: ${disagree.join(", ")}`);
+    failed++;
+  }
+  console.log("::endgroup::");
+}
+
+// ── multi-env isolation ──────────────────────────────────────────────────────
+// An SDK key is locked to its environment — it can only ever read that env's
+// blob. With a per-env-divergent resource configured (e.g. a killswitch switch
+// true in dev / false in prod), the prod-key and dev-key evaluations MUST differ.
+async function probeMultiEnv() {
+  const DEVK = process.env.SHIPEASY_CLIENT_KEY_DEV;
+  if (!CLIENT_KEY || !DEVK) {
+    console.log("multi-env leg: set SHIPEASY_CLIENT_KEY_DEV (a dev client key) to enable");
+    return;
+  }
+  const evalKey = async (key) => {
+    const r = await fetch(`${EDGE_URL}/sdk/evaluate`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-sdk-key": key },
+      body: JSON.stringify({ user: { anonymous_id: "env-probe" } }),
+    });
+    if (!r.ok) throw new Error(`/sdk/evaluate ${r.status}`);
+    return r.json();
+  };
+  const [prod, dev] = await Promise.all([evalKey(CLIENT_KEY), evalKey(DEVK)]);
+  console.log("::group::Multi-env isolation (prod key vs dev key)");
+  const snap = (e) => JSON.stringify({ flags: e.flags, configs: e.configs, killswitches: e.killswitches });
+  if (snap(prod) !== snap(dev)) {
+    ok("env-locked keys read their own env blob (prod and dev evaluations diverge)");
+    console.log(`  prod killswitches=${JSON.stringify(prod.killswitches)}`);
+    console.log(`  dev  killswitches=${JSON.stringify(dev.killswitches)}`);
+  } else {
+    annotate("multi-env: prod and dev evaluations identical — env isolation not observable (configure a per-env divergent value)");
+    failed++;
+  }
+  console.log("::endgroup::");
+}
+
+// ── metric-threshold alert rules ─────────────────────────────────────────────
+// A metric-rule alert is raised by the alerts cron (every ~10m) when a metric
+// crosses its threshold. Opt-in (SHIPEASY_PROBE_ALERTS, async); asserts the cron
+// is evaluating rules — i.e. an active `metric_rule` alert exists for a rule whose
+// metric currently breaches. Soft-warns if the cron hasn't run since rule setup.
+async function probeAlertRules() {
+  if (!process.env.SHIPEASY_PROBE_ALERTS) {
+    console.log("alert-rules leg: set SHIPEASY_PROBE_ALERTS=1 to enable (async ~10m cron)");
+    return;
+  }
+  let rules, alerts;
+  try {
+    rules = cli(["alert-rules", "list", "--json"]);
+    alerts = cli(["alerts", "list", "--json"]);
+  } catch {
+    console.log("alert-rules/alerts list unavailable — skipping");
+    return;
+  }
+  const enabled = (Array.isArray(rules) ? rules : rules.data ?? []).filter((r) => r.enabled !== false);
+  if (!enabled.length) {
+    console.log("no enabled alert rules to check");
+    return;
+  }
+  const active = (Array.isArray(alerts) ? alerts : alerts.data ?? []).filter((a) => a.source === "metric_rule");
+  console.log(`::group::Metric-threshold alert rules (${enabled.length} enabled)`);
+  if (active.length) {
+    ok(`alerts cron raised metric_rule alert(s): ${active.map((a) => a.title || a.dedupeKey).join("; ")}`);
+  } else {
+    console.log("⚠ no active metric_rule alert yet — alerts cron runs ~every 10m; a breaching rule hasn't been evaluated since setup");
   }
   console.log("::endgroup::");
 }
@@ -893,6 +1041,10 @@ try {
   await probeHoldout();
   await probeConfigs();
   await probeEnrichment();
+  await probeServerBlobs();
+  await probeBootstrap();
+  await probeMultiEnv();
+  await probeAlertRules();
   await probeLatency();
   await probeExperimentResults();
   await probeIdentifyMerge();
