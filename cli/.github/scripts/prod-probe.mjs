@@ -27,6 +27,7 @@
 //   SHIPEASY_PROBE_NONMEMBER_EMAIL           — optional; defaults to an invalid addr
 //   SHIPEASY_PROBE_EXPERIMENT                — running 2-group experiment (leg #3)
 //   SHIPEASY_PROBE_METRIC_EVENT              — its goal metric's backing event (leg #3)
+//   SHIPEASY_PROBE_IDENTIFY_EXPERIMENT       — dedicated 2-group exp for the identify-merge leg
 //   SHIPEASY_PROBE_ENRICHMENT (=1)           — enable the request-enrichment leg
 //   SHIPEASY_PROBE_MUTATE (=1)               — enable the killswitch-propagation leg
 //                                              (flips one switch then restores it)
@@ -812,6 +813,73 @@ async function probeLatency() {
   console.log("::endgroup::");
 }
 
+// ── identify / anonymous→identified merge ───────────────────────────────────
+// When an anonymous visitor signs in, alias(anonId, userId) ties the two ids
+// together so the analysis stitches their exposures/metrics into ONE unit (the
+// merge — see doc 18 §Login transition; bucketing itself keys on user_id
+// post-login for cross-device consistency). Validate the merge live: an anon
+// exposure + an identify + an identified exposure (same arm) must count as ONE
+// user, not two. Opt-in via SHIPEASY_PROBE_IDENTIFY_EXPERIMENT (a dedicated
+// 2-group experiment); idempotent (fixed ids).
+async function probeIdentifyMerge() {
+  const EXP = process.env.SHIPEASY_PROBE_IDENTIFY_EXPERIMENT;
+  if (!CLIENT_KEY || !EXP) {
+    console.log("identify-merge leg: set SHIPEASY_PROBE_IDENTIFY_EXPERIMENT to enable");
+    return;
+  }
+  const now = Date.now();
+  // person 1 (idn-anon → idn-user via alias) + person 2 (idn-other), both in
+  // control; one treatment user so the analysis has two groups. control must
+  // resolve to 2 distinct units (the aliased pair merges to one).
+  const events = [
+    { type: "exposure", experiment: EXP, group: "control", anonymous_id: "idn-anon", ts: now },
+    { type: "identify", anonymous_id: "idn-anon", user_id: "idn-user", ts: now },
+    { type: "exposure", experiment: EXP, group: "control", user_id: "idn-user", ts: now },
+    { type: "exposure", experiment: EXP, group: "control", user_id: "idn-other", ts: now },
+    { type: "exposure", experiment: EXP, group: "treatment", user_id: "idn-treat", ts: now },
+  ];
+  console.log(`::group::Identify merge (${EXP})`);
+  const res = await fetch(`${EDGE_URL}/collect`, {
+    method: "POST",
+    headers: { "content-type": "text/plain", "x-sdk-key": CLIENT_KEY },
+    body: JSON.stringify({ events }),
+  });
+  if (!res.ok) {
+    annotate(`/collect ${res.status} — cannot run identify-merge leg`);
+    failed++;
+    console.log("::endgroup::");
+    return;
+  }
+  cliText(reanalyzeArgs(EXP));
+  const deadline = Date.now() + 150_000;
+  let control;
+  while (Date.now() < deadline) {
+    await sleep(10_000);
+    let st;
+    try {
+      st = cli(["experiments", "status", EXP, "--json"]);
+    } catch {
+      continue;
+    }
+    const rows = Array.isArray(st.results) ? st.results : st.results?.results ?? [];
+    cliText(reanalyzeArgs(EXP));
+    control = rows.find((r) => (r.group_name ?? r.groupName) === "control");
+    if (control && (control.n ?? 0) > 0) break;
+  }
+  if (!control || !(control.n > 0)) {
+    console.log("⚠ no enrolment recovered within timeout (AE ingestion lag) — merge pending");
+    console.log("::endgroup::");
+    return; // soft: don't flake on ingestion latency
+  }
+  if (control.n === 2) {
+    ok(`identify merge: anon + identified collapsed to one unit (control n=2, not 3)`);
+  } else {
+    annotate(`identify merge: control n=${control.n} (expected 2 — anon+identified should merge to one user)`);
+    failed++;
+  }
+  console.log("::endgroup::");
+}
+
 // ── run ─────────────────────────────────────────────────────────────────────
 try {
   probeExperiments();
@@ -827,6 +895,7 @@ try {
   await probeEnrichment();
   await probeLatency();
   await probeExperimentResults();
+  await probeIdentifyMerge();
 } catch (err) {
   annotate(`probe failed to run: ${err?.message ?? err}`);
   process.exit(2);
