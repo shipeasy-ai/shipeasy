@@ -7,6 +7,8 @@ a tiny manifest that *points at* the shared files; nothing is duplicated.
 
 ➡ **Full per-agent install reference: [`INSTALL.md`](./INSTALL.md)**
 (also published at <https://docs.shipeasy.ai/get-started/agents>).
+➡ **Unattended scheduled triggers, per platform: [`TRIGGER-INSTALL.md`](./TRIGGER-INSTALL.md)**
+(also at <https://docs.shipeasy.ai/get-started/triggers>).
 
 ## Install at a glance
 

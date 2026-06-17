@@ -1,19 +1,56 @@
 ---
-description: Provision a recurring, unattended feedback trigger that pulls the latest active Shipeasy bugs + feature requests and fixes them, then register it as a Shipeasy connector so it shows in the Feedback tab and can be fired on demand. Provider-pluggable via --provider (only `claude` is supported today) — the Claude provider backs the trigger with a Claude Code scheduled routine (via /schedule, runs in Anthropic's cloud). One-time full setup: provider auth, GitHub connection for cloud sessions (run /web-setup if gh is installed, else the Claude GitHub App OAuth — never ask "is GitHub connected?", the commands are idempotent), the schedule, and Shipeasy credentials. Does NOT use GitHub Actions.
-argument-hint: "[--provider claude] [--frequency daily|weekdays|weekly|6h] [--dry-run]"
+description: Provision a recurring, unattended feedback trigger that, on a schedule, runs /shipeasy:ops:work --pr against the bound project — burning down the bug + feature-request + error/alert queue and opening one PR per item. Provider-pluggable via --provider <platform>: claude (default; Claude Code scheduled routine in Anthropic's cloud, also registered as a Shipeasy connector), cursor, copilot, windsurf, codex, cline, openclaw, opencode, continue, gemini. Each provider schedules the SAME work — only the scheduler + headless launch + auth differ (native cloud scheduler, native local daemon, or headless run + external cron/Actions). Full per-platform walkthrough lives in TRIGGER-INSTALL.md. The claude flow does NOT use GitHub Actions; Tier-C providers (opencode/continue/gemini/codex) legitimately can.
+argument-hint: "[--provider claude|cursor|copilot|windsurf|codex|cline|openclaw|opencode|continue|gemini] [--frequency daily|weekdays|weekly|6h] [--dry-run]"
 ---
 
 ## Provider selection
 
-This command is **provider-pluggable**. Read `--provider` from `$ARGUMENTS`;
-if omitted, default to `claude`. More providers will be added later.
+This command is **provider-pluggable**. Read `--provider` from `$ARGUMENTS`; if
+omitted, default to `claude`. Every provider schedules the **same work** (the
+ops:work `--pr` loop) — they differ only in **what schedules it**, **how the run
+is launched**, and **how it authenticates**. Full copy-paste detail per platform
+is in **[`TRIGGER-INSTALL.md`](../../../TRIGGER-INSTALL.md)** — read the matching
+section there before provisioning a non-`claude` provider.
 
-- `--provider claude` (default) → follow the rest of this document as written.
-- **Any other value** → not supported yet. Tell the user only `claude` is
-  available today (e.g. `--provider claude`) and stop. Do not improvise a
-  trigger on another platform.
+| `--provider` | Tier | Scheduler | Launch / headless |
+| --- | --- | --- | --- |
+| `claude` *(default)* | A — native cloud | `/schedule` routine (Anthropic cloud) | runs `/shipeasy:ops:work --pr`; **registers a Shipeasy connector** |
+| `cursor` | A — native cloud | Cursor Automation / `POST /v1/agents` | `autoCreatePR`; auth `CURSOR_API_KEY` |
+| `copilot` | A — native cloud | Copilot automations, or scheduled Actions + cloud agent | `gh agent-task` / CLI; needs PAT w/ Copilot Requests |
+| `windsurf` | A — native cloud | Devin Scheduled Sessions (cron, cloud VM) | auth `WINDSURF_API_KEY`/`DEVIN_API_KEY` |
+| `cline` | B — local daemon | `cline schedule create --cron` (`cline hub`) | `cline --auto-approve true` |
+| `openclaw` | B — local daemon | `openclaw cron create` (gateway) | delegates to a coding-agent skill; **static API key only** |
+| `codex` | B/C | Codex Automations (local, machine-on) **or** external cron | `codex exec --sandbox danger-full-access` |
+| `opencode` | C — headless + cron | system cron / Actions `schedule:` | `opencode run` (`permission: "allow"`) |
+| `continue` | C — headless + cron | system cron / Actions `schedule:` | `cn -p --auto` |
+| `gemini` | C — headless + cron | Actions `schedule:` (run-gemini-cli) | `gemini -p --approval-mode=yolo` |
 
-The steps below are the **`claude` provider**.
+**Dispatch:**
+
+- **`--provider claude`** → follow the rest of this document (steps 0–6) as
+  written. It is the deepest, most automated flow and the only one that
+  registers a Shipeasy connector.
+- **Any other provider** → do **not** improvise. Do the shared prep, then follow
+  that provider's section in `TRIGGER-INSTALL.md`:
+  1. **Schedule** — ask the user the cadence (step 1 below) → cron.
+  2. **Mint the restricted `ops` key + read the project id** (step 2 below) —
+     this is provider-independent; the key is what the run authenticates with.
+  3. **Build the trigger prompt** — the shared body in `TRIGGER-INSTALL.md`
+     ("The work is identical everywhere"), substituting the `ops` key,
+     project id, and the host's install line from `INSTALL.md`.
+  4. **Provision the schedule on that platform** per its `TRIGGER-INSTALL.md`
+     section — create the native automation (Tier A/B) or write the system-cron
+     / GitHub Actions `schedule:` job (Tier C). Use the **Bash tool** to run any
+     CLI/API steps; for UI-only steps (e.g. Cursor's PR toggle, a routine token)
+     walk the user through them.
+  5. **Verify** with one manual fire and confirm a PR (or empty-queue exit), and
+     hand off where to pause/inspect it (the platform's own scheduler UI —
+     connector registration in Shipeasy is `claude`-only today).
+  Respect `--dry-run` (print the plan + prompt, mint nothing) and the Hard rules
+  below (restricted `ops` key, never print secrets, confirm before a paid fire).
+
+The steps below are the **`claude` provider** (and steps 1–2 are the shared prep
+every provider reuses).
 
 You are provisioning a **recurring, unattended Claude trigger** backed by a
 **Claude Code scheduled routine** (the built-in `/schedule` feature). On the
@@ -46,8 +83,12 @@ routines.
 
 - **Use the Bash tool for every command.** Don't ask the user to run `npx`,
   `shipeasy`, etc. by hand — run them.
-- **Provision via `/schedule` only.** Create exactly one routine for this
-  trigger. Do not write any `.github/` workflow file or touch GitHub Actions.
+- **(`claude` provider) Provision via `/schedule` only.** Create exactly one
+  routine for this trigger. Do not write any `.github/` workflow file or touch
+  GitHub Actions — the Claude provider has a native cloud scheduler and does not
+  need them. (This rule is specific to `claude`; Tier-C providers —
+  `opencode`/`continue`/`gemini`/`codex` — legitimately use system cron or a
+  GitHub Actions `schedule:` job, per `TRIGGER-INSTALL.md`.)
 - **Never print secret values into chat or any file.** The Shipeasy CLI token
   and the routine bearer token are read straight from local state and passed
   only to where they're needed — the CLI token substituted into the routine
