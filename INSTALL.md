@@ -81,9 +81,26 @@ shared `.mcp.json`. Skills are the same `shipeasy/skills/`.
 
 ---
 
-## Tier 2 — skills via the `skills` CLI + an MCP config snippet
+## Tier 2 — skills via the `skills` CLI (MCP self-registers)
 
-For every other agent, install in two steps.
+For every other agent: install the skills, then run onboarding — the `setup`
+skill registers the MCP server for you.
+
+```bash
+npx skills add https://github.com/shipeasy-ai/shipeasy/tree/main/shipeasy -a <agent>
+# then, in the agent:  "set up shipeasy in this repo"
+```
+
+The `skills` CLI copies **skill text only** — it does not register MCP servers.
+But you no longer have to hand-edit MCP config: the `setup` skill detects that
+the `shipeasy` MCP server is missing and registers it for the current host
+(step 0b of the skill), then prompts you to reload the agent so the tools load.
+Base onboarding (login, bind, keys, SDK wiring) is CLI-driven and finishes in
+that same session; the MCP tools come online after the reload, ready for the
+feature installs.
+
+Step 2 below is the **manual fallback** — use it only if you'd rather register
+the server yourself, or if auto-registration didn't fit your host.
 
 ### Step 1 — skills
 
@@ -176,7 +193,9 @@ commands. To wire Shipeasy into your app:
 1. **Authenticate + bind.** Claude Code: `/shipeasy:setup`. Any other host:
    tell the agent *"set up shipeasy in this repo"* — the `setup` skill runs
    `shipeasy login`, binds the repo to a project, mints server + client keys,
-   and wires the SDK into the root layout (all via the MCP / CLI).
+   and wires the SDK into the root layout (all via the CLI). On a Tier-2
+   (skills-CLI) install it also **registers the `shipeasy` MCP server** if it's
+   missing, then asks you to reload the agent so the tools load before step 2.
 2. **Enable the modules you want.** `/shipeasy:flags:install` (gates + configs
    + kill switches + experiments + events), `/shipeasy:ops:install` (feedback +
    errors + alerts), `/shipeasy:i18n:install` (translations) — or, on a
@@ -191,7 +210,7 @@ commands. To wire Shipeasy into your app:
 | Seven skills | ✅ | ✅ | ✅ | ✅ |
 | `shipeasy` MCP server | ✅ | ✅ | ✅ | ✅ |
 | `/shipeasy:*` slash commands | ✅ | — | — | — |
-| One-command install | ✅ | ✅ | ✅ | two steps |
+| One-command install | ✅ | ✅ | ✅ | skills CLI; MCP self-registers on setup |
 
 Slash commands are the only Claude-Code-exclusive surface; everything that
 *does* work (creating gates, drafting experiments, pushing i18n, filing

@@ -37,10 +37,15 @@ Only treat it as a real bug if it still fails on the latest CLI **and** plugin.
 
 ## Operating rules (read before doing anything)
 
-1. **Use the Bash tool for every CLI command.** Never instruct the user
-   to run `shipeasy login`, `pnpm add ...`, etc. in their own terminal.
-   The MCP server cannot run interactive flows over stdio; the Bash tool
-   on the Claude Code side can. Run CLI commands yourself.
+1. **Run every CLI command yourself via your host's shell/Bash tool.**
+   Never instruct the user to run `shipeasy login`, `pnpm add ...`, etc.
+   in their own terminal. The MCP server cannot run interactive flows
+   over stdio; your shell tool can. This holds on every host (Claude
+   Code, Codex, Cursor, OpenCode, …), not just Claude Code. Base
+   onboarding (steps 1–9) is **entirely CLI-driven and needs no MCP
+   tools**, so it completes even when you were installed via the skills
+   CLI (`npx skills add`) and the `shipeasy` MCP server isn't registered
+   yet — step 0b registers it for the feature skills that come after.
 2. **`shipeasy login` is interactive but agent-runnable.** Spawn it via
    Bash. The CLI prints a URL and opens the user's default browser. The
    user clicks "Authorize" in that browser; the CLI exits 0. Do **not**
@@ -79,6 +84,54 @@ git rev-parse --show-toplevel
 
 If Node `<20`: surface to user (don't auto-upgrade). If not in a repo and
 the directory is non-empty: ask the user before `git init`.
+
+---
+
+## 0b. Ensure the `shipeasy` MCP server is registered
+
+The base onboarding below runs entirely through the `shipeasy` **CLI**, so it
+does not need MCP tools. But the **feature** skills the user runs next —
+`flags`, `experiments`, `metrics`, `i18n`, `bugs` — create resources through the
+`shipeasy` **MCP server**. A native-plugin install (Claude Code / Codex /
+Copilot, "Tier 1") already registered it; a **skills-CLI install**
+(`npx skills add shipeasy-ai/shipeasy`, "Tier 2") copies skill text **only** and
+registers nothing. This step closes that gap so the agent ends up in the same
+state regardless of how it was installed.
+
+**First, check whether it's already there.** If you already have `shipeasy` MCP
+tools available (tool names containing `shipeasy__`, e.g.
+`…shipeasy__exp_create_gate`, `…shipeasy__i18n_push_keys`), it's registered —
+**skip this entire step.** Only register when those tools are absent.
+
+**If absent, register it for the current host** (write the config file if
+missing; **merge** into an existing `mcpServers`/`mcp` block — never clobber
+other servers). Detect which host you are and use the matching row:
+
+| Host | How to register |
+| --- | --- |
+| **Claude Code** | `claude mcp add shipeasy -- npx -y @shipeasy/mcp@latest` (add `-s user` for global) |
+| **Cursor** | merge into `.cursor/mcp.json` — bare `mcpServers` → `{ "command": "npx", "args": ["-y","@shipeasy/mcp@latest"] }` |
+| **Windsurf** | merge into `~/.codeium/windsurf/mcp_config.json` (same bare shape) |
+| **Gemini CLI** | `gemini mcp add shipeasy npx -y @shipeasy/mcp@latest` (or merge into `.gemini/settings.json`) |
+| **OpenCode** | merge into `opencode.json` `mcp` key → `{ "type":"local", "command":["npx","-y","@shipeasy/mcp@latest"], "enabled":true }` |
+| **Continue** | append to the `mcpServers` **list** in `.continue/config.yaml` → `{ name: shipeasy, type: stdio, command: npx, args: ["-y","@shipeasy/mcp@latest"] }` |
+| **Cline / other** | bare `mcpServers` object in the host's MCP settings file. Windows `ENOENT`: wrap as `"command":"cmd","args":["/c","npx","-y","@shipeasy/mcp@latest"]` |
+
+(These mirror the per-host table in this repo's `INSTALL.md` — consult it if a
+host needs an exact path.)
+
+**Then tell the user MCP tools load at session start:** most hosts only read MCP
+config on startup, so after you write it the `shipeasy__*` tools won't appear
+until the session is reloaded. So:
+
+1. Finish base onboarding (steps 1–9) **now** in this session — it's CLI-only.
+2. In the hand-off (step 8), tell the user to **restart / reload their agent**
+   before running `/shipeasy:flags:install` (or asking for the equivalent), so
+   the MCP tools are live for the feature installs.
+
+Do **not** block base onboarding waiting for an MCP restart, and do not try to
+call `shipeasy__*` tools you can't see — fall back to the CLI for everything in
+steps 1–9.
 
 ---
 
@@ -386,7 +439,19 @@ Keys:      server *…<last4>, client *…<last4>
 Wired:     <list of subprojects + entry files>
 Pointer:   .claude/skills/shipeasy-setup/SKILL.md
 Modules:   (none enabled yet)
+MCP:       <registered & live | JUST REGISTERED — restart your agent to load it>
+```
 
+**If you registered the MCP server in step 0b** (Tier-2 / skills-CLI install),
+make this the first line the user sees, before the feature menu:
+
+```
+⚠️  Restart / reload your agent now — the `shipeasy` MCP tools were just
+    registered and load at session start. After restart, run the feature
+    installs below.
+```
+
+```
 Next — enable the features you want (three install sections):
   /shipeasy:flags:install         # gates + configs + kill switches + experiments + events
   /shipeasy:ops:install           # feedback (bugs + features) + errors + alerts
