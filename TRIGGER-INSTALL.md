@@ -169,12 +169,28 @@ openclaw cron create "0 9 * * 1-5" "<TRIGGER PROMPT>" \
 profiles — OAuth profiles do not seed — so the embedded coding agent must be
 configured with an API key, not a login.
 
-### `codex` — Automations (local) or Tier C
+### `codex` — three paths (local cron, cloud agent, or Tier C)
 
-Codex **Automations** (Codex app → Automations) take cron and run a prompt, but
-**locally — the machine must be powered on** (a fully-cloud always-on variant is
-announced, not confirmed GA). For an always-on trigger, prefer the Tier-C
-`codex exec` + external scheduler below.
+Codex has the most options — and the most nuance:
+
+1. **Codex Automations (local cron).** Codex app → Automations take full cron
+   and run a prompt, but per OpenAI's docs they run **locally — the machine must
+   be powered on** when the automation fires. Good if you have an always-on box.
+2. **Codex Cloud agent (cloud, but not natively cron'd).** Codex Cloud
+   (chatgpt.com/codex) runs in OpenAI's cloud and opens PRs, but it is triggered
+   **on-demand or by GitHub events (`@codex`)**, not by a built-in scheduler. To
+   make it recurring, drive it from an external schedule — a GitHub Actions
+   `schedule:` job that kicks off a cloud task (or its API). This is the
+   always-on *cloud* path, analogous to Copilot's cloud agent.
+3. **Tier C — `codex exec` + external scheduler (below).** The simplest
+   always-on path you fully control: a system cron or Actions `schedule:` runs
+   `codex exec --sandbox danger-full-access "<PROMPT>"`.
+
+> A fully-cloud, machine-off **Automations** variant (native cron in the cloud)
+> has been signalled but is **not in the official Automations docs** as of
+> 2026-06-17 — the documented project automations are local. Re-check the
+> [Codex changelog](https://developers.openai.com/codex/changelog) before
+> relying on cloud automations.
 
 ---
 
