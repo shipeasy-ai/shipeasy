@@ -1,36 +1,56 @@
-# Shipeasy — Claude Code + Codex marketplace
+# Shipeasy — multi-agent marketplace
 
 This directory is the source-of-truth for the Shipeasy plugin marketplace.
-**One plugin tree, two host manifests** — the same `shipeasy/skills/` and
-`shipeasy/.mcp.json` are consumed by both Claude Code and Codex; nothing is
-duplicated.
+**One plugin tree, many hosts** — the same `shipeasy/skills/` directory and
+the same `shipeasy` MCP server feed every coding agent below. Each host gets
+a tiny manifest that *points at* the shared files; nothing is duplicated.
 
-Claude Code consumers install via:
+➡ **Full per-agent install reference: [`INSTALL.md`](./INSTALL.md)**
+(also published at <https://docs.shipeasy.ai/get-started/agents>).
+
+## Install at a glance
+
+There are two install tiers. **Tier 1** hosts have a native plugin system, so
+one command bundles skills + MCP (and, for Claude Code, the slash commands).
+**Tier 2** hosts (70+ agents) take the shared skills via the
+[`vercel-labs/skills`](https://github.com/vercel-labs/skills) CLI plus a small
+MCP config snippet.
+
+### Tier 1 — one-command plugin install
+
+| Agent | Install |
+| --- | --- |
+| **Claude Code** | `claude plugin marketplace add shipeasy-ai/shipeasy` → `claude plugin install shipeasy@shipeasy` |
+| **Codex** | (in TUI) `/plugin marketplace add shipeasy-ai/shipeasy` → `/plugin install shipeasy@shipeasy` |
+| **GitHub Copilot CLI** | `copilot plugin marketplace add shipeasy-ai/shipeasy` → `copilot plugin install shipeasy@shipeasy` |
+
+### Tier 2 — skills + MCP (OpenCode, Cursor, Windsurf, Cline, Gemini, Continue, …)
 
 ```bash
-claude plugin marketplace add shipeasy-ai/shipeasy
-claude plugin install shipeasy@shipeasy
+# 1. skills — reads SKILL.md from the plugin subpath, writes them into the agent's skills dir
+npx skills add https://github.com/shipeasy-ai/shipeasy/tree/main/shipeasy -a <agent>
+
+# 2. MCP — add the shipeasy server to that agent's MCP config (see INSTALL.md for the exact file)
+#    most agents use the standard mcpServers shape:
+#    { "mcpServers": { "shipeasy": { "command": "npx", "args": ["-y", "@shipeasy/mcp@latest"] } } }
 ```
 
-Codex consumers install via (inside the Codex TUI — `/plugins` opens the
-browser, or add the source directly):
-
-```
-/plugin marketplace add shipeasy-ai/shipeasy
-/plugin install shipeasy@shipeasy
-```
+`<agent>` is e.g. `opencode`, `cursor`, `windsurf`, `cline`, `gemini-cli`,
+`continue`, `github-copilot` — see [`INSTALL.md`](./INSTALL.md) for the full
+list and each agent's MCP file path/format (OpenCode, Copilot, and Continue
+need a `type` field; the rest use the bare `mcpServers` object).
 
 One plugin, one MCP registration, all features included. Per-feature
 opt-in is controlled by enabling/disabling modules on the project
 (`shipeasy modules enable <name>`), not by installing additional plugins.
 
-**What ports to Codex:** the seven area skills (auto-triggered by phrasing,
-or invoked explicitly with `@shipeasy`) and the `shipeasy` MCP server.
-Codex has no slash-command primitive in plugins, so the `/shipeasy:<area>:<verb>`
-commands are Claude-Code-only — Codex users reach the same flows through the
-skills and `@shipeasy` instead. Skills and the MCP file are referenced, not
-copied: `shipeasy/.codex-plugin/plugin.json` points its `skills` and
-`mcpServers` fields at the exact same files the Claude Code plugin uses.
+**What ports where.** The seven area skills and the `shipeasy` MCP server port
+to *every* agent. The `/shipeasy:<area>:<verb>` **slash commands are Claude
+Code-only** — no other host has a plugin slash-command primitive, so on Codex,
+Copilot, OpenCode, etc. you reach the same flows by letting a skill auto-trigger
+on phrasing (or, on Codex/Copilot, invoking `@shipeasy`). Skills and MCP are
+*referenced, never copied*: each host's manifest points its `skills`/`mcpServers`
+fields at the same `shipeasy/skills/` and an MCP file.
 
 ## Layout
 
@@ -38,11 +58,15 @@ copied: `shipeasy/.codex-plugin/plugin.json` points its `skills` and
 marketplace/
 ├── .claude-plugin/marketplace.json     # Claude Code: lists the shipeasy plugin
 ├── .agents/plugins/marketplace.json    # Codex: lists the shipeasy plugin (source ./shipeasy)
+├── .github/plugin/marketplace.json     # Copilot CLI: lists the shipeasy plugin (source ./shipeasy)
+├── INSTALL.md                           # full per-agent install reference
 ├── README.md                            # this file
 └── shipeasy/                            # the only plugin
     ├── .claude-plugin/plugin.json      # Claude Code manifest (skills + commands + mcp)
     ├── .codex-plugin/plugin.json       # Codex manifest → SAME ./skills/ + ./.mcp.json
-    ├── .mcp.json                        # MCP server registration (mcpServers wrapper; both hosts)
+    ├── .plugin/plugin.json             # Copilot manifest → SAME ./skills/ + ./.mcp.copilot.json
+    ├── .mcp.json                        # MCP registration (mcpServers wrapper; Claude + Codex)
+    ├── .mcp.copilot.json               # MCP registration with type:"local" (Copilot requires it)
     ├── commands/                        # nested slash commands — Claude Code only
     │   ├── setup.md                     #   /shipeasy:setup
     │   ├── flags/{install,create,list,update}.md      # install folds the whole platform

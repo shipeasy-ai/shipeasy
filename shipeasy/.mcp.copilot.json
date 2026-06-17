@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "shipeasy": {
+      "type": "local",
+      "command": "npx",
+      "args": ["-y", "@shipeasy/mcp@latest"],
+      "env": {},
+      "tools": ["*"]
+    }
+  }
+}
