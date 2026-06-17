@@ -90,8 +90,13 @@ marketplace/
 
 ## Continuous verification (CI)
 
-Three GitHub Actions workflows — `.github/workflows/install-{claude,codex,copilot}.yml`
-— smoke-test that each host can install the plugin. Each job:
+GitHub Actions smoke-tests that **every platform in [`INSTALL.md`](./INSTALL.md)**
+can install Shipeasy. Three per-plugin workflows —
+`.github/workflows/install-{claude,codex,copilot}.yml` — cover the Tier-1 hosts,
+and `install-skills-matrix.yml` covers the Tier-2 agents (Cursor, Windsurf,
+Cline, Gemini, OpenCode, Continue, OpenClaw) by installing all seven skills via
+the [`skills`](https://github.com/vercel-labs/skills) CLI and asserting they
+land. Each per-plugin job:
 
 1. **Validates wiring deterministically** — `node scripts/validate-plugin.mjs <host>`
    parses that host's marketplace + plugin manifests, asserts the marketplace

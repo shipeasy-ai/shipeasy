@@ -1,0 +1,53 @@
+name: install · Tier-2 agents (skills)
+
+# Smoke-tests that all seven Shipeasy skills install into every Tier-2 agent
+# (the ones without a bundled-plugin system) via the vercel-labs/skills CLI.
+# Together with install-{claude,codex,copilot}.yml this covers every platform in
+# INSTALL.md. Auth-free and deterministic — installs from this checkout and
+# asserts exactly seven SKILL.md files land in the agent's skills directory.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "shipeasy/skills/**"
+      - ".github/workflows/install-skills-matrix.yml"
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * 1" # weekly — catches skills-CLI changes
+
+permissions:
+  contents: read
+
+jobs:
+  skills:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        agent:
+          - cursor
+          - windsurf
+          - cline
+          - gemini-cli
+          - opencode
+          - continue
+          - openclaw
+    name: ${{ matrix.agent }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install all 7 skills via the skills CLI (auth-free)
+        run: |
+          set -euo pipefail
+          work="$(mktemp -d)"
+          cd "$work"
+          npx -y skills add "$GITHUB_WORKSPACE/shipeasy" -a "${{ matrix.agent }}" --copy -y
+          count="$(find . -name SKILL.md | wc -l | tr -d ' ')"
+          echo "Installed $count skill(s) for ${{ matrix.agent }}:"
+          find . -name SKILL.md | sort
+          test "$count" -eq 7

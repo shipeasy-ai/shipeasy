@@ -98,7 +98,8 @@ npx skills add https://github.com/shipeasy-ai/shipeasy/tree/main/shipeasy -a <ag
 
 Add `-g` to install into the user-global skills dir instead of the project.
 `<agent>` values: `opencode`, `cursor`, `windsurf`, `cline`, `gemini-cli`,
-`continue`, `github-copilot`, `claude-code`, … (`--agent '*'` targets all).
+`continue`, `openclaw`, `github-copilot`, `claude-code`, … (`--agent '*'`
+targets all 70+ supported agents).
 
 > The `skills` CLI handles **skill text only** — it does not register MCP
 > servers and has no `--with-init`/rule-file emitter (those are private to other
@@ -130,6 +131,7 @@ Per-agent config file + any required extra fields:
 | **Gemini CLI** | `gemini-cli` | `.gemini/settings.json` / `~/.gemini/settings.json` | bare `mcpServers`, or `gemini mcp add shipeasy npx -y @shipeasy/mcp@latest` |
 | **Cline** | `cline` | *(global)* `…/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json` | bare `mcpServers`; use the in-app *Configure MCP Servers* button to open it |
 | **Continue** | `continue` | `.continue/config.yaml` / `~/.continue/config.yaml` | `mcpServers` is a **YAML list**, see below |
+| **OpenClaw** | `openclaw` | *(skills only)* `~/.openclaw/workspace/` | instructions/skills-based; skills install via the CLI above. MCP support is unconfirmed — if available it uses the standard `mcpServers` object |
 
 **OpenCode** — skills also auto-discover from `.claude/skills/` and
 `.agents/skills/` (so `npx skills add … -a opencode` writing to `.agents/skills/`
