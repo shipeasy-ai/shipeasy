@@ -270,15 +270,49 @@ jobs:
 - **PRs land for review — nothing auto-merges.** Every provider opens one PR per
   item; a human merges.
 
-## Shipeasy connector registration
+## Shipeasy connector registration — what we can fire vs. platform-scheduled
 
-The **`claude`** provider registers the trigger as a Shipeasy **connector**
-(Feedback → Connectors, "Fire now" + event auto-fire) because Claude routines
-expose a fire token. Other providers run on their own scheduler and open PRs
-the same way, but **connector registration / on-demand "Fire now" from the
-Shipeasy UI is Claude-only today** — for them the scheduler's own UI (Cursor
-Automations, Devin Scheduled Sessions, the Actions tab, `cline schedule`,
-`openclaw cron`) is where you pause/run/inspect the trigger.
+A Shipeasy **connector** (Feedback → Connectors, "Fire now" + event auto-fire)
+means **Shipeasy's own cron fires the trigger** from its backend. That backend
+is a Cloudflare Worker, so it can only fire a provider that exposes:
+
+1. a **clean HTTP "start a run" endpoint** (a plain `fetch()` — the Worker can't
+   spawn a CLI binary or run a scheduler), **and**
+2. a **storable static token** that authorizes that call.
+
+By that bar, providers split in two:
+
+**Shipeasy-fireable (can be a connector):**
+
+- **`claude`** — ✅ today. `POST …/v1/claude_code/routines/<id>/fire` with a
+  per-routine bearer token. This is why claude is the only registered connector.
+- **`cursor`** — ✅ viable (not yet wired). `POST https://api.cursor.com/v1/agents`
+  with `Authorization: Bearer $CURSOR_API_KEY` starts a run from nothing and
+  `autoCreatePR` opens the PR. A static key + a pure-HTTP start endpoint — it
+  meets both criteria, so it's the natural **second** connector.
+
+**Platform-scheduled only (NOT Shipeasy-fireable):**
+
+- **`codex`** — ❌ no fire endpoint. Codex Cloud is triggered by the web UI, the
+  IDE, the `codex` CLI, or an **`@codex` GitHub mention** — none usable from our
+  Worker: a cold scheduled run has no issue/PR thread to comment on, and even
+  creating one wouldn't fire it (the mention must come from the *Codex-connected
+  account*, not a Shipeasy token; agent-mention triggers are gated to authorized
+  actors). Codex's always-on path is its **own** scheduler — a GitHub Actions
+  `schedule:` running `codex exec`, or local Automations. Do not try to fire it
+  from Shipeasy.
+- **`copilot`** — ❌ same shape as codex: the cloud agent is mention/assignment-
+  triggered and rejects the default Actions token (needs a user PAT). Scheduled
+  via Copilot automations or a scheduled Actions job, not by Shipeasy.
+- **`windsurf` / `cline` / `openclaw` / `opencode` / `continue` / `gemini`** —
+  ❌ scheduled by their own surface (Devin Scheduled Sessions, `cline schedule`,
+  `openclaw cron`, system cron, or a GitHub Actions `schedule:` job). Pause /
+  run / inspect them there.
+
+**Rule of thumb:** if a provider can't be started from nothing by one
+authenticated HTTP call, Shipeasy can't fire it — it must be scheduled on the
+provider's own platform. Only `claude` (live) and `cursor` (candidate) clear
+that bar.
 
 ## What's confirmed vs. moving
 
