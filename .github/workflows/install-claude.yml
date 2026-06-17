@@ -1,0 +1,64 @@
+name: install · Claude Code
+
+# Smoke-tests that the Shipeasy plugin installs into Claude Code:
+#   1. deterministic — the plugin's manifests + bundled skills + MCP file resolve
+#   2. auth-free      — all 7 skills install via the `skills` CLI from this checkout
+#   3. best-effort    — native `claude plugin install` (headless support pending:
+#                       anthropics/claude-code#12840), so it's non-blocking
+on:
+  push:
+    branches: [main]
+    paths:
+      - "shipeasy/skills/**"
+      - "shipeasy/.claude-plugin/**"
+      - "shipeasy/.mcp.json"
+      - ".claude-plugin/**"
+      - "scripts/validate-plugin.mjs"
+      - ".github/workflows/install-claude.yml"
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * 1" # weekly — catches CLI changes and @latest MCP drift
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validate plugin wiring (deterministic)
+        run: node scripts/validate-plugin.mjs claude
+
+      - name: Install Claude Code CLI
+        run: |
+          npm i -g @anthropic-ai/claude-code
+          claude --version
+
+      - name: Install all 7 skills via the skills CLI (auth-free)
+        run: |
+          set -euo pipefail
+          work="$(mktemp -d)"
+          cd "$work"
+          npx -y skills add "$GITHUB_WORKSPACE/shipeasy" -a claude-code --copy -y
+          count="$(find . -name SKILL.md | wc -l | tr -d ' ')"
+          echo "Installed $count skill(s):"
+          find . -name SKILL.md | sort
+          test "$count" -eq 7
+
+      - name: Native plugin install (best-effort — headless not yet supported)
+        continue-on-error: true
+        env:
+          CI: "true"
+        run: |
+          echo "Attempting native plugin install against the local checkout…"
+          echo "(claude plugin install has no headless mode yet — anthropics/claude-code#12840)"
+          claude plugin marketplace add "$GITHUB_WORKSPACE" || true
+          claude plugin install shipeasy@shipeasy || true
+          claude plugin list || true

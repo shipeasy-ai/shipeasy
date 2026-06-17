@@ -1,0 +1,60 @@
+name: install · Codex
+
+# Smoke-tests that the Shipeasy plugin installs into Codex:
+#   1. deterministic — the plugin's manifests + bundled skills + MCP file resolve
+#   2. auth-free      — all 7 skills install via the `skills` CLI from this checkout
+#   Codex plugin install is TUI-only (`/plugin marketplace add` / `/plugin install`),
+#   so there is no scriptable native install step to assert here.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "shipeasy/skills/**"
+      - "shipeasy/.codex-plugin/**"
+      - "shipeasy/.mcp.json"
+      - ".agents/plugins/**"
+      - "scripts/validate-plugin.mjs"
+      - ".github/workflows/install-codex.yml"
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * 1" # weekly — catches CLI changes and @latest MCP drift
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validate plugin wiring (deterministic)
+        run: node scripts/validate-plugin.mjs codex
+
+      - name: Install Codex CLI
+        run: |
+          npm i -g @openai/codex
+          codex --version
+
+      - name: Install all 7 skills via the skills CLI (auth-free)
+        run: |
+          set -euo pipefail
+          work="$(mktemp -d)"
+          cd "$work"
+          npx -y skills add "$GITHUB_WORKSPACE/shipeasy" -a codex --copy -y
+          count="$(find . -name SKILL.md | wc -l | tr -d ' ')"
+          echo "Installed $count skill(s):"
+          find . -name SKILL.md | sort
+          test "$count" -eq 7
+
+      - name: Native plugin install
+        run: |
+          echo "Codex plugin install is TUI-only: in the Codex TUI run"
+          echo "  /plugin marketplace add shipeasy-ai/shipeasy"
+          echo "  /plugin install shipeasy@shipeasy"
+          echo "No scriptable/headless equivalent exists, so nothing to assert here."

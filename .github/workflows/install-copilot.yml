@@ -1,0 +1,65 @@
+name: install · GitHub Copilot CLI
+
+# Smoke-tests that the Shipeasy plugin installs into GitHub Copilot CLI:
+#   1. deterministic — the plugin's manifests + bundled skills + MCP file resolve
+#                      (incl. the Copilot-only type:"local" MCP requirement)
+#   2. auth-free      — all 7 skills install via the `skills` CLI from this checkout
+#   3. best-effort    — native `copilot plugin install` (needs a GitHub account with
+#                       a Copilot subscription, which CI's GITHUB_TOKEN is not), so
+#                       it's non-blocking
+on:
+  push:
+    branches: [main]
+    paths:
+      - "shipeasy/skills/**"
+      - "shipeasy/.plugin/**"
+      - "shipeasy/.mcp.copilot.json"
+      - ".github/plugin/**"
+      - "scripts/validate-plugin.mjs"
+      - ".github/workflows/install-copilot.yml"
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * 1" # weekly — catches CLI changes and @latest MCP drift
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validate plugin wiring (deterministic)
+        run: node scripts/validate-plugin.mjs copilot
+
+      - name: Install GitHub Copilot CLI
+        run: |
+          npm i -g @github/copilot
+          copilot --version
+
+      - name: Install all 7 skills via the skills CLI (auth-free)
+        run: |
+          set -euo pipefail
+          work="$(mktemp -d)"
+          cd "$work"
+          npx -y skills add "$GITHUB_WORKSPACE/shipeasy" -a github-copilot --copy -y
+          count="$(find . -name SKILL.md | wc -l | tr -d ' ')"
+          echo "Installed $count skill(s):"
+          find . -name SKILL.md | sort
+          test "$count" -eq 7
+
+      - name: Native plugin install (best-effort — needs Copilot auth)
+        continue-on-error: true
+        run: |
+          echo "Attempting native plugin install against the local checkout…"
+          echo "(copilot plugin install needs a GitHub account with an active Copilot"
+          echo " subscription; CI's GITHUB_TOKEN does not provide that, so this is a probe)"
+          copilot plugin marketplace add "$GITHUB_WORKSPACE" || true
+          copilot plugin install shipeasy@shipeasy || true
+          copilot plugin list || true

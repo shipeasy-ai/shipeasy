@@ -59,6 +59,8 @@ marketplace/
 ├── .claude-plugin/marketplace.json     # Claude Code: lists the shipeasy plugin
 ├── .agents/plugins/marketplace.json    # Codex: lists the shipeasy plugin (source ./shipeasy)
 ├── .github/plugin/marketplace.json     # Copilot CLI: lists the shipeasy plugin (source ./shipeasy)
+├── .github/workflows/install-*.yml      # CI: per-plugin install smoke tests (claude/codex/copilot)
+├── scripts/validate-plugin.mjs          # CI: deterministic manifest/skills/MCP validator
 ├── INSTALL.md                           # full per-agent install reference
 ├── README.md                            # this file
 └── shipeasy/                            # the only plugin
@@ -85,6 +87,31 @@ marketplace/
         ├── see/SKILL.md
         └── bugs/SKILL.md
 ```
+
+## Continuous verification (CI)
+
+Three GitHub Actions workflows — `.github/workflows/install-{claude,codex,copilot}.yml`
+— smoke-test that each host can install the plugin. Each job:
+
+1. **Validates wiring deterministically** — `node scripts/validate-plugin.mjs <host>`
+   parses that host's marketplace + plugin manifests, asserts the marketplace
+   `source` resolves to `./shipeasy`, that all seven skills are present with a
+   valid `name`/`description`, and that the MCP file registers `shipeasy`
+   (Copilot additionally requires `type: "local"`). No network, no auth — this
+   is the gate that catches a bad manifest path or schema.
+2. **Installs the host CLI** (`@anthropic-ai/claude-code`, `@openai/codex`,
+   `@github/copilot`) and prints its version.
+3. **Installs all seven skills** from the checkout via the
+   [`skills`](https://github.com/vercel-labs/skills) CLI (`-a claude-code` /
+   `codex` / `github-copilot`) and asserts exactly seven `SKILL.md` land.
+4. **Attempts the native plugin install** as a non-blocking probe. This step is
+   best-effort because headless native install isn't available everywhere yet:
+   Claude Code has no headless `plugin install` ([claude-code#12840](https://github.com/anthropics/claude-code/issues/12840)),
+   Copilot's needs a Copilot-subscribed account (CI's `GITHUB_TOKEN` isn't one),
+   and Codex's plugin install is TUI-only. It lights up automatically once those
+   land.
+
+Run the validator locally with `node scripts/validate-plugin.mjs all`.
 
 Subdirectory commands surface as `/shipeasy:<dir>:<file>`, so for
 example `commands/metrics/create.md` becomes `/shipeasy:metrics:create`.
