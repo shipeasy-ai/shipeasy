@@ -1,27 +1,49 @@
-# Shipeasy — Claude Code marketplace
+# Shipeasy — Claude Code + Codex marketplace
 
-This directory is the source-of-truth for the Shipeasy plugin marketplace
-that Claude Code consumers install via:
+This directory is the source-of-truth for the Shipeasy plugin marketplace.
+**One plugin tree, two host manifests** — the same `shipeasy/skills/` and
+`shipeasy/.mcp.json` are consumed by both Claude Code and Codex; nothing is
+duplicated.
+
+Claude Code consumers install via:
 
 ```bash
 claude plugin marketplace add shipeasy-ai/shipeasy
 claude plugin install shipeasy@shipeasy
 ```
 
+Codex consumers install via (inside the Codex TUI — `/plugins` opens the
+browser, or add the source directly):
+
+```
+/plugin marketplace add shipeasy-ai/shipeasy
+/plugin install shipeasy@shipeasy
+```
+
 One plugin, one MCP registration, all features included. Per-feature
 opt-in is controlled by enabling/disabling modules on the project
 (`shipeasy modules enable <name>`), not by installing additional plugins.
+
+**What ports to Codex:** the seven area skills (auto-triggered by phrasing,
+or invoked explicitly with `@shipeasy`) and the `shipeasy` MCP server.
+Codex has no slash-command primitive in plugins, so the `/shipeasy:<area>:<verb>`
+commands are Claude-Code-only — Codex users reach the same flows through the
+skills and `@shipeasy` instead. Skills and the MCP file are referenced, not
+copied: `shipeasy/.codex-plugin/plugin.json` points its `skills` and
+`mcpServers` fields at the exact same files the Claude Code plugin uses.
 
 ## Layout
 
 ```
 marketplace/
-├── .claude-plugin/marketplace.json     # lists the shipeasy plugin
+├── .claude-plugin/marketplace.json     # Claude Code: lists the shipeasy plugin
+├── .agents/plugins/marketplace.json    # Codex: lists the shipeasy plugin (source ./shipeasy)
 ├── README.md                            # this file
 └── shipeasy/                            # the only plugin
-    ├── .claude-plugin/plugin.json
-    ├── .mcp.json                        # MCP server registration
-    ├── commands/                        # nested slash commands (plural nouns)
+    ├── .claude-plugin/plugin.json      # Claude Code manifest (skills + commands + mcp)
+    ├── .codex-plugin/plugin.json       # Codex manifest → SAME ./skills/ + ./.mcp.json
+    ├── .mcp.json                        # MCP server registration (mcpServers wrapper; both hosts)
+    ├── commands/                        # nested slash commands — Claude Code only
     │   ├── setup.md                     #   /shipeasy:setup
     │   ├── flags/{install,create,list,update}.md      # install folds the whole platform
     │   ├── experiments/{create,list,start,status,update,stop,archive}.md
@@ -30,12 +52,13 @@ marketplace/
     │   ├── ks/{create,list,toggle_switch}.md
     │   ├── i18n/{install,extract,migrate,validate,update,profiles,translate}.md
     │   └── ops/{install,list,report,work,create_trigger}.md
-    └── skills/                          # six area skills
+    └── skills/                          # seven area skills (shared by both hosts)
         ├── setup/SKILL.md
         ├── experiments/SKILL.md
         ├── metrics/SKILL.md
         ├── flags/SKILL.md
         ├── i18n/SKILL.md
+        ├── see/SKILL.md
         └── bugs/SKILL.md
 ```
 

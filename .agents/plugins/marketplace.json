@@ -1,0 +1,20 @@
+{
+  "name": "shipeasy",
+  "interface": {
+    "displayName": "Shipeasy"
+  },
+  "plugins": [
+    {
+      "name": "shipeasy",
+      "source": {
+        "source": "local",
+        "path": "./shipeasy"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_FIRST_USE"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

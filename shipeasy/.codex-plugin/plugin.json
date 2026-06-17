@@ -1,0 +1,19 @@
+{
+  "name": "shipeasy",
+  "version": "3.6.0",
+  "description": "Shipeasy for Codex — feature flags, A/B experiments, event metrics, translations, and in-app feedback. Bundles the shipeasy MCP server plus the shared skill set (flags, experiments, metrics, i18n, bugs, see, setup). Reuses the exact same skills/ and .mcp.json as the Claude Code plugin; no content is duplicated. Slash commands are Claude-Code-only — in Codex, invoke the plugin with @shipeasy or let the agent pick a bundled skill.",
+  "author": { "name": "Shipeasy", "url": "https://shipeasy.ai" },
+  "homepage": "https://shipeasy.ai",
+  "repository": "https://github.com/shipeasy-ai/shipeasy",
+  "license": "MIT",
+  "keywords": ["feature-flags", "experiments", "ab-testing", "metrics", "i18n", "feedback"],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Shipeasy",
+    "shortDescription": "Feature flags, A/B experiments, metrics, translations, and in-app feedback.",
+    "developerName": "Shipeasy",
+    "category": "Productivity",
+    "websiteURL": "https://shipeasy.ai"
+  }
+}
