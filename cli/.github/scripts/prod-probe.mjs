@@ -177,9 +177,11 @@ async function probeGates() {
 //   exp_in E /$any : flags[G]===true ⇒ experiments[E]?.inExperiment===true
 //   exp_in E /$hold: flags[G]===true ⇒ experiments[E] absent (held out / not enrolled)
 //
-// Only gates with a SINGLE reference condition and no independent admit path
-// (one reference step; any rollout floor at 0%) yield a crisp implication; an
-// ambiguous gate (multiple admit paths) is reported as skipped, never failed.
+// Handles BOTH shapes: a flat gate (reference op in its AND-ed `rules`) and a
+// stacked gate (reference op in a stack condition). For flat gates every
+// reference rule is asserted (AND ⇒ each must hold); for stacked gates only a
+// SINGLE reference condition with no independent admit path yields a crisp
+// implication — an ambiguous gate is reported as skipped, never failed.
 async function probeReferenceGates() {
   if (!CLIENT_KEY) {
     console.log("reference-gates leg: SHIPEASY_CLIENT_KEY unset — skipping");
@@ -191,16 +193,28 @@ async function probeReferenceGates() {
       ? step.rules.find((r) => REF_OPS.has(r?.op))
       : undefined;
 
+  const isRef = (r) => REF_OPS.has(r?.op);
   const gates = cli(["flags", "list", "--json"]);
   const candidates = [];
   for (const g of gates) {
-    if (!g.enabled || !Array.isArray(g.stack) || g.stack.length === 0) continue;
+    if (!g.enabled) continue;
+    const hasStack = Array.isArray(g.stack) && g.stack.length > 0;
+    if (!hasStack) {
+      // Flat gate: rules are AND-ed under rolloutPct. flags[G]===true ⇒ EVERY
+      // rule matched (and the caller bucketed), so each reference rule's target
+      // must hold — assert the implication per reference rule, crisp regardless
+      // of the other rules or the rollout %.
+      const refs = Array.isArray(g.rules) ? g.rules.filter(isRef) : [];
+      for (const ref of refs) candidates.push({ gate: g, ref });
+      continue;
+    }
+    // Stacked gate: steps are OR-ed (first-match-wins), so the implication is
+    // crisp only when the reference is the SOLE admit path — one reference
+    // condition, no other condition, no rollout floor that admits on its own.
     const conds = g.stack.filter((e) => e?.type === "condition");
     const rolls = g.stack.filter((e) => e?.type === "rollout");
     const refSteps = conds.filter((c) => refRuleOf(c));
     if (refSteps.length === 0) continue; // not a reference gate
-    // Any OTHER admit path means flags[G] can be true without the reference
-    // holding — the implication wouldn't be crisp. Skip (not a drift finding).
     const otherCond = conds.some((c) => !refRuleOf(c));
     const floorAdmits = rolls.some((r) => ((r.ramp ? r.ramp.to : r.rolloutPct) ?? 0) > 0);
     if (refSteps.length !== 1 || otherCond || floorAdmits) {
@@ -244,6 +258,73 @@ async function probeReferenceGates() {
     if (violations === 0) ok(line);
     else {
       annotate(`reference drift — ${line}`);
+      failed++;
+    }
+  }
+  console.log("::endgroup::");
+}
+
+// ── Auto-field gates: referrer / request_url (and other request attrs) ────────
+// Gates targeting a request-derived STRING attribute (referrer, request_url, …)
+// deny the attribute-less synthetic cohort, so the rollout-distribution leg
+// can't see them. This leg discovers single-rule string-match gates on those
+// attrs and checks them with an ORACLE: send a user whose attribute does NOT
+// match → the gate MUST be false (the rule fails regardless of rollout); send
+// one that DOES match → a 100%-rollout gate MUST be true. Covers the
+// referrer/request-uri templates end-to-end through /sdk/evaluate.
+const AUTO_FIELD_ATTRS = new Set([
+  "referrer",
+  "request_url",
+  "url",
+  "page_url",
+  "path",
+  "user_agent",
+]);
+const STRING_OPS = new Set(["contains", "eq", "regex"]);
+async function probeAutoFieldGates() {
+  if (!CLIENT_KEY) {
+    console.log("auto-field leg: SHIPEASY_CLIENT_KEY unset — skipping");
+    return;
+  }
+  const gates = cli(["flags", "list", "--json"]);
+  const targets = gates.filter(
+    (g) =>
+      g.enabled &&
+      (!Array.isArray(g.stack) || g.stack.length === 0) &&
+      Array.isArray(g.rules) &&
+      g.rules.length === 1 &&
+      AUTO_FIELD_ATTRS.has(g.rules[0]?.attr) &&
+      STRING_OPS.has(g.rules[0]?.op) &&
+      typeof g.rules[0]?.value === "string",
+  );
+  if (targets.length === 0) {
+    console.log("auto-field leg: no referrer/request_url string gates in inventory — skipping");
+    return;
+  }
+  console.log(`::group::Auto-field gates (${targets.length})`);
+  for (const g of targets) {
+    const { attr, op, value } = g.rules[0];
+    // A value the operator matches, plus one it clearly doesn't.
+    const match = op === "eq" ? value : op === "regex" ? null : `https://probe.test/${value}/p`;
+    const noMatch = "https://probe.invalid/zzz-no-match";
+    const uid = "probe_autofield";
+    // FAIL direction holds regardless of rollout: a non-matching attr can never
+    // satisfy the rule, so the gate must be false.
+    const noRes = await evaluate({ user_id: uid, [attr]: noMatch });
+    const failOk = noRes.flags?.[g.name] !== true;
+    // PASS direction only at 100% rollout (bucketing could otherwise deny a
+    // match); skip regex since we don't synthesize a string for arbitrary patterns.
+    let passOk = true;
+    let passNote = "pass-dir skipped";
+    if (match != null && g.rolloutPct === 10000) {
+      const yesRes = await evaluate({ user_id: uid, [attr]: match });
+      passOk = yesRes.flags?.[g.name] === true;
+      passNote = `match→${yesRes.flags?.[g.name] === true}`;
+    }
+    const line = `gate ${g.name} (${attr} ${op} "${value}"): non-match→${noRes.flags?.[g.name] === true ? "PASS!(bad)" : "deny"}, ${passNote}`;
+    if (failOk && passOk) ok(line);
+    else {
+      annotate(`auto-field drift — ${line}`);
       failed++;
     }
   }
@@ -1227,6 +1308,7 @@ try {
   probeExperiments();
   await probeGates();
   await probeReferenceGates();
+  await probeAutoFieldGates();
   await probeTemplateGates();
   await probeTargeting();
   await probeFallthrough();
