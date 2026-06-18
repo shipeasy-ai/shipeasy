@@ -18,6 +18,12 @@
 //                           within a binomial band. This is the part real-traffic
 //                           SRM can't cover (gates have no SRM), and it needs no
 //                           oracle: the edge does the bucketing, we only tally.
+//   4. Reference gates    — auto-discover gates whose stack references another
+//                           gate (gate_pass) or a running experiment variant
+//                           (exp_in) and assert the cross-resource implication
+//                           (flags[G] ⇒ referenced gate/experiment holds) over
+//                           the cohort. Oracle-free: one evaluate response
+//                           carries both verdicts. See probeReferenceGates.
 //
 // Exit non-zero on any drift so the Action fails (and notifies). Env:
 //   SHIPEASY_CLI_TOKEN, SHIPEASY_PROJECT_ID  — CLI auth (the CLI reads these)
@@ -31,6 +37,7 @@
 //   SHIPEASY_SERVER_KEY                      — server key (server-blob + bootstrap legs)
 //   SHIPEASY_CLIENT_KEY_DEV                  — a dev-env client key (multi-env leg)
 //   SHIPEASY_PROBE_ALERTS (=1)               — enable the metric-rule alert leg (async cron)
+//   SHIPEASY_APP_URL                         — admin API base (errors + error-series legs)
 //   SHIPEASY_PROBE_ENRICHMENT (=1)           — enable the request-enrichment leg
 //   SHIPEASY_PROBE_MUTATE (=1)               — enable the killswitch-propagation leg
 //                                              (flips one switch then restores it)
@@ -76,6 +83,14 @@ async function evaluate(user) {
   return res.json();
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Admin API base (errors + error-series endpoints). The CLI token authenticates.
+const APP_URL = (process.env.SHIPEASY_APP_URL || "").replace(/\/$/, "");
+const ADMIN_H = {
+  "X-SDK-Key": process.env.SHIPEASY_CLI_TOKEN || "",
+  "X-Project-Id": process.env.SHIPEASY_PROJECT_ID || "",
+  "content-type": "application/json",
+};
 
 // Mutating CLI commands (unlike read commands) don't resolve the project from
 // SHIPEASY_PROJECT_ID — they need an explicit --project (or a bound .shipeasy,
@@ -142,6 +157,93 @@ async function probeGates() {
     if (pass_ok) ok(line);
     else {
       annotate(`rollout drift — ${line}`);
+      failed++;
+    }
+  }
+  console.log("::endgroup::");
+}
+
+// ── Reference gates: gate_pass / exp_in cross-resource implication ────────────
+// A gate step can reference another gate (`gate_pass`) or a running experiment
+// variant (`exp_in`). Both resolve ONLY on the worker hot path (/sdk/evaluate),
+// so they're exactly what a prod eval probe should guard. This leg auto-DISCOVERS
+// such gates from the inventory (no new env var) and asserts a cross-resource
+// IMPLICATION over the synthetic cohort — oracle-free, because a single evaluate
+// response already carries both the gate verdict AND the referenced gate's
+// verdict / experiment assignment, so the two must agree:
+//
+//   gate_pass T   : flags[G]===true ⇒ flags[T]===true
+//   exp_in E / V  : flags[G]===true ⇒ experiments[E].group===V
+//   exp_in E /$any : flags[G]===true ⇒ experiments[E]?.inExperiment===true
+//   exp_in E /$hold: flags[G]===true ⇒ experiments[E] absent (held out / not enrolled)
+//
+// Only gates with a SINGLE reference condition and no independent admit path
+// (one reference step; any rollout floor at 0%) yield a crisp implication; an
+// ambiguous gate (multiple admit paths) is reported as skipped, never failed.
+async function probeReferenceGates() {
+  if (!CLIENT_KEY) {
+    console.log("reference-gates leg: SHIPEASY_CLIENT_KEY unset — skipping");
+    return;
+  }
+  const REF_OPS = new Set(["gate_pass", "exp_in"]);
+  const refRuleOf = (step) =>
+    step?.type === "condition" && Array.isArray(step.rules)
+      ? step.rules.find((r) => REF_OPS.has(r?.op))
+      : undefined;
+
+  const gates = cli(["flags", "list", "--json"]);
+  const candidates = [];
+  for (const g of gates) {
+    if (!g.enabled || !Array.isArray(g.stack) || g.stack.length === 0) continue;
+    const conds = g.stack.filter((e) => e?.type === "condition");
+    const rolls = g.stack.filter((e) => e?.type === "rollout");
+    const refSteps = conds.filter((c) => refRuleOf(c));
+    if (refSteps.length === 0) continue; // not a reference gate
+    // Any OTHER admit path means flags[G] can be true without the reference
+    // holding — the implication wouldn't be crisp. Skip (not a drift finding).
+    const otherCond = conds.some((c) => !refRuleOf(c));
+    const floorAdmits = rolls.some((r) => ((r.ramp ? r.ramp.to : r.rolloutPct) ?? 0) > 0);
+    if (refSteps.length !== 1 || otherCond || floorAdmits) {
+      console.log(
+        `  skip ${g.name}: ambiguous admit path (refSteps=${refSteps.length} otherCond=${otherCond} floorAdmits=${floorAdmits})`,
+      );
+      continue;
+    }
+    candidates.push({ gate: g, ref: refRuleOf(refSteps[0]) });
+  }
+
+  if (candidates.length === 0) {
+    console.log("reference-gates leg: no single-reference gates in inventory — skipping");
+    return;
+  }
+
+  const responses = await fetchCohort(COHORT);
+  console.log(`::group::Reference gates (${candidates.length}, cohort=${COHORT})`);
+  for (const { gate, ref } of candidates) {
+    let admits = 0;
+    let violations = 0;
+    for (const r of responses) {
+      if (r.flags?.[gate.name] !== true) continue;
+      admits++;
+      if (ref.op === "gate_pass") {
+        if (r.flags?.[ref.value] !== true) violations++;
+      } else {
+        const a = r.experiments?.[ref.attr];
+        if (ref.value === "$any") {
+          if (!a || a.inExperiment !== true) violations++;
+        } else if (ref.value === "$holdout") {
+          if (a) violations++; // an assignment means the caller was NOT held out
+        } else if (!a || a.group !== ref.value) {
+          violations++;
+        }
+      }
+    }
+    const desc =
+      ref.op === "gate_pass" ? `passes gate "${ref.value}"` : `in experiment "${ref.attr}" (${ref.value})`;
+    const line = `gate ${gate.name} ⇒ ${desc}: ${admits} admit(s), ${violations} violation(s) over n=${responses.length}`;
+    if (violations === 0) ok(line);
+    else {
+      annotate(`reference drift — ${line}`);
       failed++;
     }
   }
@@ -1028,10 +1130,103 @@ async function probeAlertRules() {
   console.log("::endgroup::");
 }
 
+// ── errors / see(): ingestion, correlation + caused-by linking, timeseries ───
+// Sends (a) an in-process caused_by chain and (b) a cross-runtime correlation
+// pair (client Http5xx ⇄ server cause sharing a correlation_id) and asserts the
+// errors ingest AND link via causedByFingerprint (so they display together).
+// Then asserts the occurrence series render — a WEEKLY (daily-bucketed) and a 24h
+// (hourly-bucketed, small intervals) view. Opt-in via SHIPEASY_APP_URL.
+async function probeErrors() {
+  if (!CLIENT_KEY || !APP_URL) {
+    console.log("errors leg: set SHIPEASY_APP_URL (admin API) to enable");
+    return;
+  }
+  const now = Date.now();
+  const corr = "probe-corr-001";
+  const events = [
+    { type: "error", side: "server", error_type: "ProbeCheckoutError", message: "probe checkout failed",
+      caused_by: { error_type: "ProbeDbError", message: "probe connection refused" }, ts: now },
+    { type: "error", side: "server", error_type: "ProbeApiError", message: "probe upstream 500", correlation_id: corr, ts: now },
+    { type: "error", side: "client", kind: "network", error_type: "ProbeHttp5xx", message: "probe 500 from api", correlation_id: corr, ts: now },
+  ];
+  console.log("::group::Errors / see() ingestion + linking");
+  const cr = await fetch(`${EDGE_URL}/collect`, {
+    method: "POST",
+    headers: { "content-type": "text/plain", "x-sdk-key": CLIENT_KEY },
+    body: JSON.stringify({ events }),
+  });
+  if (!cr.ok) {
+    annotate(`/collect error events ${cr.status}`);
+    failed++;
+    console.log("::endgroup::");
+    return;
+  }
+  await sleep(3000);
+  const er = await fetch(`${APP_URL}/api/admin/errors?status=all&limit=200`, { headers: ADMIN_H });
+  if (!er.ok) {
+    annotate(`/api/admin/errors ${er.status}`);
+    failed++;
+    console.log("::endgroup::");
+    return;
+  }
+  const raw = await er.json();
+  const list = Array.isArray(raw) ? raw : raw.data ?? [];
+  const byType = (t) => list.find((e) => e.errorType === t);
+  const apiE = byType("ProbeApiError"), httpE = byType("ProbeHttp5xx"), chkE = byType("ProbeCheckoutError");
+  // Cross-runtime correlation: the client Http5xx must point at the server cause.
+  if (httpE && apiE && httpE.causedByFingerprint === apiE.fingerprint) {
+    ok("correlation: client Http5xx linked to its server cause (same correlation_id)");
+  } else {
+    annotate(`correlation: Http5xx.causedBy=${httpE?.causedByFingerprint} vs ApiError.fp=${apiE?.fingerprint}`);
+    failed++;
+  }
+  // In-process caused_by chain.
+  if (chkE && chkE.causedByFingerprint) ok("caused-by chain: error linked to its cause (displayed together)");
+  else {
+    annotate(`caused-by chain: ProbeCheckoutError has no causedByFingerprint`);
+    failed++;
+  }
+  console.log("::endgroup::");
+
+  // Timeseries: weekly (daily buckets) + 24h (hourly buckets — small intervals).
+  const nowS = Math.floor(now / 1000);
+  const series = async (from, bucket) => {
+    const r = await fetch(`${APP_URL}/api/admin/errors/series`, {
+      method: "POST",
+      headers: ADMIN_H,
+      body: JSON.stringify({ from, to: nowS, bucket }),
+    });
+    if (!r.ok) throw new Error(`series ${r.status}`);
+    return r.json();
+  };
+  console.log("::group::Error timeseries (weekly + 24h)");
+  try {
+    const wk = await series(nowS - 7 * 86_400, 86_400);
+    const day = await series(nowS - 86_400, 3_600);
+    const wkOk = Array.isArray(wk.rows);
+    const dayOk = Array.isArray(day.rows);
+    // 24h must be SMALL intervals: every returned bucket aligns to the hour, and
+    // the query bucketed on 3600 (not a coarse daily bucket).
+    const hourly = dayOk && day.rows.every((r) => Number(r.t) % 3_600 === 0);
+    const small = typeof day.sql === "string" && day.sql.includes("intDiv(toUInt32(double2), 3600)");
+    if (wkOk && dayOk && hourly && small) {
+      ok(`error series render: weekly ${wk.rows.length} daily bucket(s) + 24h ${day.rows.length} hourly bucket(s)`);
+    } else {
+      annotate(`error series: weeklyRows=${wkOk} 24hRows=${dayOk} hourlyAligned=${hourly} smallBucket=${small}`);
+      failed++;
+    }
+  } catch (e) {
+    annotate(`error-series endpoint failed: ${e?.message ?? e}`);
+    failed++;
+  }
+  console.log("::endgroup::");
+}
+
 // ── run ─────────────────────────────────────────────────────────────────────
 try {
   probeExperiments();
   await probeGates();
+  await probeReferenceGates();
   await probeTemplateGates();
   await probeTargeting();
   await probeFallthrough();
@@ -1046,6 +1241,7 @@ try {
   await probeMultiEnv();
   await probeAlertRules();
   await probeLatency();
+  await probeErrors();
   await probeExperimentResults();
   await probeIdentifyMerge();
 } catch (err) {
