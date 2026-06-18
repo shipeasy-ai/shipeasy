@@ -24,6 +24,14 @@
 //                           (flags[G] ⇒ referenced gate/experiment holds) over
 //                           the cohort. Oracle-free: one evaluate response
 //                           carries both verdicts. See probeReferenceGates.
+//   5. Gradual ramps      — discover single-entry ramp stacks, mirror core's
+//                           effectivePct, assert the edge pass-rate matches the
+//                           ramp's live effective % (pending/in-flight/complete).
+//   6. Managed presets    — discover `fromTemplate` conditions (bots/mobile/geo),
+//                           assert the label survives + the preset audience is
+//                           admitted and others denied (incl. the bot UA regex).
+//   7. Per-condition rollout — a stack condition's own fractional rolloutPct:
+//                           non-matchers always denied, matchers pass ≈ rolloutPct.
 //
 // Exit non-zero on any drift so the Action fails (and notifies). Env:
 //   SHIPEASY_CLI_TOKEN, SHIPEASY_PROJECT_ID  — CLI auth (the CLI reads these)
@@ -517,6 +525,12 @@ function synthCondition(rules, pass) {
 function synthGate(g) {
   if (g.stack && g.stack.length) {
     if (g.stack.some((e) => e.type !== "condition")) return null; // rollout entry → nondeterministic
+    // A per-condition rollout or a ramp makes a matching caller's verdict
+    // nondeterministic (it depends on the hash bucket / wall clock), so this leg
+    // can't hard-assert a match. probeConditionRollout + probeGradualRamps cover
+    // those shapes over a cohort instead.
+    if (g.stack.some((e) => e.ramp || (typeof e.rolloutPct === "number" && e.rolloutPct !== 10000)))
+      return null;
     const conds = g.stack.map((e) => synthCondition(e.rules || [], e.pass || "all"));
     if (conds.some((c) => c === null)) return null;
     const match = { ...conds[0].match }; // first entry passes → gate true (OR)
@@ -1303,6 +1317,215 @@ async function probeErrors() {
   console.log("::endgroup::");
 }
 
+// ── gradual rollout (over-time ramp) ─────────────────────────────────────────
+// A stack entry's rollout % can RAMP linearly over time — effectivePct(entry,now)
+// interpolates from→to over [startAt, startAt+durationMs], clamped outside. This
+// resolves only on the worker hot path, so it's exactly what a prod probe should
+// guard. This leg discovers single-entry ramp stacks, MIRRORS core's effectivePct
+// (verbatim — the cross-SDK contract) to get the live target %, and asserts the
+// edge's cohort pass-rate matches: a complete ramp sits at `to`, a pending one at
+// `from`, a mid-flight one at the lerp. For a ramped CONDITION it first asserts
+// the rule still gates (non-matchers always denied), then measures matchers.
+function effectivePctMirror(entry, now) {
+  const base = entry.type === "condition" ? (entry.rolloutPct ?? 10000) : (entry.rolloutPct ?? 0);
+  const r = entry.ramp;
+  if (!r) return base;
+  if (now <= r.startAt) return r.from;
+  if (now >= r.startAt + r.durationMs) return r.to;
+  const pct = r.from + Math.trunc(((r.to - r.from) * (now - r.startAt)) / r.durationMs);
+  return Math.max(0, Math.min(10000, pct));
+}
+
+async function probeGradualRamps() {
+  if (!CLIENT_KEY) {
+    console.log("ramp leg: SHIPEASY_CLIENT_KEY unset — skipping");
+    return;
+  }
+  const gates = cli(["flags", "list", "--json"]).filter((g) => g.enabled);
+  const ramped = gates.filter(
+    (g) => Array.isArray(g.stack) && g.stack.length === 1 && g.stack[0]?.ramp,
+  );
+  if (!ramped.length) {
+    console.log("No single-entry ramp gates");
+    return;
+  }
+  console.log(`::group::Gradual ramps (${ramped.length})`);
+  for (const g of ramped) {
+    const entry = g.stack[0];
+    const now = Date.now();
+    const want = effectivePctMirror(entry, now) / 10000;
+    // A ramped condition needs its rules satisfied before the bucket; a ramped
+    // rollout buckets everyone. Build the per-user context accordingly.
+    let baseCtx = {};
+    if (entry.type === "condition") {
+      const syn = synthCondition(entry.rules || [], entry.pass || "all");
+      if (!syn) {
+        console.log(`  ${g.name}: condition not synthesizable — skipping`);
+        continue;
+      }
+      baseCtx = syn.match;
+      const leak = (await evaluate({ anonymous_id: "rmp-n", ...syn.nomatch })).flags?.[g.name] === true;
+      if (leak) {
+        annotate(`ramp gate ${g.name}: non-matching caller ADMITTED — rule leak before the ramp bucket`);
+        failed++;
+      }
+    }
+    const N = 300;
+    let pass = 0;
+    for (let i = 0; i < N; i++) {
+      if ((await evaluate({ anonymous_id: `rmp:${g.name}:${i}`, ...baseCtx })).flags?.[g.name] === true) pass++;
+    }
+    const rate = pass / N;
+    let pass_ok;
+    if (want <= 0) pass_ok = pass === 0;
+    else if (want >= 1) pass_ok = pass === N;
+    else {
+      const band = Math.max(0.07, 4 * Math.sqrt((want * (1 - want)) / N));
+      pass_ok = Math.abs(rate - want) <= band;
+    }
+    const phase =
+      now <= entry.ramp.startAt
+        ? "pending"
+        : now >= entry.ramp.startAt + entry.ramp.durationMs
+          ? "complete"
+          : "in-flight";
+    const line = `gate ${g.name} (${entry.type} ramp ${phase}): observed ${(rate * 100).toFixed(1)}% vs effective ${(want * 100).toFixed(1)}% (n=${N})`;
+    if (pass_ok) ok(line);
+    else {
+      annotate(`ramp drift — ${line}`);
+      failed++;
+    }
+  }
+  console.log("::endgroup::");
+}
+
+// ── managed presets (fromTemplate) ───────────────────────────────────────────
+// A managed-preset condition (bots / mobile / a geo region) renders a curated
+// audience in the dashboard but ships an EXPANDED concrete rule in the blob. This
+// leg discovers single managed conditions, asserts (1) the `fromTemplate` label
+// survives the admin round-trip (a lost label breaks the managed render), and (2)
+// the preset audience is admitted and others denied at the edge — including the
+// bot user-agent regex, which the generic targeting leg deliberately skips.
+function managedSynth(rules) {
+  if (!rules.length) return null;
+  // A lone regex on a request-string attr (the bot signature) — synth a known-bot
+  // UA and a plain-browser UA rather than trying to reverse the pattern.
+  const reRule = rules.find((r) => r.op === "regex" && typeof r.value === "string");
+  if (rules.length === 1 && reRule) {
+    return {
+      match: { [reRule.attr]: "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" },
+      nomatch: { [reRule.attr]: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Safari/605.1.15" },
+    };
+  }
+  return synthCondition(rules, "all");
+}
+
+async function probeManagedPresets() {
+  if (!CLIENT_KEY) {
+    console.log("managed-preset leg: SHIPEASY_CLIENT_KEY unset — skipping");
+    return;
+  }
+  const gates = cli(["flags", "list", "--json"]).filter((g) => g.enabled);
+  // Single managed condition at full rollout (so the verdict is deterministic),
+  // no ramp.
+  const managed = gates.filter(
+    (g) =>
+      Array.isArray(g.stack) &&
+      g.stack.length === 1 &&
+      g.stack[0]?.type === "condition" &&
+      g.stack[0]?.fromTemplate &&
+      !g.stack[0]?.ramp &&
+      (g.stack[0]?.rolloutPct == null || g.stack[0]?.rolloutPct === 10000),
+  );
+  if (!managed.length) {
+    console.log("No managed-preset gates (fromTemplate)");
+    return;
+  }
+  console.log(`::group::Managed presets (${managed.length})`);
+  for (const g of managed) {
+    const e = g.stack[0];
+    if (typeof e.fromTemplate !== "string" || !e.fromTemplate.length) {
+      annotate(`managed gate ${g.name}: fromTemplate label missing — managed render broken`);
+      failed++;
+      continue;
+    }
+    const ctx = managedSynth(e.rules || []);
+    if (!ctx) {
+      ok(`managed gate ${g.name}: label "${e.fromTemplate}" preserved (rule not synthesizable, eval skipped)`);
+      continue;
+    }
+    const mf = (await evaluate({ anonymous_id: "mp-m", ...ctx.match })).flags?.[g.name] === true;
+    const nf = (await evaluate({ anonymous_id: "mp-n", ...ctx.nomatch })).flags?.[g.name] === true;
+    if (mf && !nf) {
+      ok(`managed gate ${g.name} ("${e.fromTemplate}"): preset audience admitted, others denied`);
+    } else {
+      annotate(`managed gate ${g.name} ("${e.fromTemplate}"): match=${mf} (want true), non-match=${nf} (want false)`);
+      failed++;
+    }
+  }
+  console.log("::endgroup::");
+}
+
+// ── per-condition rollout on a stack condition ───────────────────────────────
+// A stack condition can carry its OWN fractional rolloutPct: after the rules
+// match, the caller is bucketed at that %, miss → fall through. Distinct from the
+// flat rule-gated rollout (#2c, no stack) and the condition→rollout fallthrough
+// (#2b, a separate rollout entry). Verify here: non-matchers are ALWAYS denied
+// (rule fails before the bucket), matchers pass at ~rolloutPct over a cohort.
+async function probeConditionRollout() {
+  if (!CLIENT_KEY) {
+    console.log("condition-rollout leg: SHIPEASY_CLIENT_KEY unset — skipping");
+    return;
+  }
+  const gates = cli(["flags", "list", "--json"]).filter((g) => g.enabled);
+  const targets = gates.filter(
+    (g) =>
+      Array.isArray(g.stack) &&
+      g.stack.length === 1 &&
+      g.stack[0]?.type === "condition" &&
+      !g.stack[0]?.ramp &&
+      typeof g.stack[0]?.rolloutPct === "number" &&
+      g.stack[0].rolloutPct > 0 &&
+      g.stack[0].rolloutPct < 10000 &&
+      !(g.stack[0].rules || []).some((r) => isAlias(r.value)),
+  );
+  if (!targets.length) {
+    console.log("No per-condition fractional-rollout gates");
+    return;
+  }
+  console.log(`::group::Per-condition rollout (${targets.length})`);
+  for (const g of targets) {
+    const e = g.stack[0];
+    const syn = synthCondition(e.rules || [], e.pass || "all");
+    if (!syn) {
+      console.log(`  ${g.name}: condition not synthesizable — skipping`);
+      continue;
+    }
+    let denyOk = true;
+    for (let i = 0; i < 20; i++) {
+      if ((await evaluate({ anonymous_id: `cr-n:${i}`, ...syn.nomatch })).flags?.[g.name] === true) {
+        denyOk = false;
+        break;
+      }
+    }
+    const N = 300;
+    const want = e.rolloutPct / 10000;
+    let pass = 0;
+    for (let i = 0; i < N; i++) {
+      if ((await evaluate({ anonymous_id: `cr-m:${i}`, ...syn.match })).flags?.[g.name] === true) pass++;
+    }
+    const rate = pass / N;
+    const band = Math.max(0.07, 4 * Math.sqrt((want * (1 - want)) / N));
+    if (denyOk && Math.abs(rate - want) <= band) {
+      ok(`gate ${g.name}: non-match denied, matched per-condition rollout ${(rate * 100).toFixed(1)}% ≈ ${(want * 100).toFixed(0)}%`);
+    } else {
+      annotate(`gate ${g.name}: nonMatchDenied=${denyOk}; matched ${(rate * 100).toFixed(1)}% vs ${(want * 100).toFixed(0)}% (±${(band * 100).toFixed(0)}pp)`);
+      failed++;
+    }
+  }
+  console.log("::endgroup::");
+}
+
 // ── run ─────────────────────────────────────────────────────────────────────
 try {
   probeExperiments();
@@ -1313,6 +1536,9 @@ try {
   await probeTargeting();
   await probeFallthrough();
   await probeRuleGatedRollout();
+  await probeConditionRollout();
+  await probeGradualRamps();
+  await probeManagedPresets();
   await probeKillswitches();
   await probeKillswitchPropagation();
   await probeHoldout();
