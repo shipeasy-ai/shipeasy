@@ -27,8 +27,9 @@ Steps in brief (full detail in the skill):
 3. `shipeasy login` (via Bash) at the monorepo root. Browser opens; user
    picks an existing project or fills in name + production domain to
    create a new one. CLI auto-writes `.shipeasy` on return. Commit it.
-4. `shipeasy keys create --type server` + `--type client` — same pair
-   used by every subproject.
+4. `shipeasy keys create --type server --env prod` + `--type client --env prod`
+   — `--env` is required for both (keys are environment-locked at mint); same
+   pair used by every subproject.
 5. For each JS subproject: `cd <dir> && pnpm add @shipeasy/sdk [@shipeasy/react]`,
    persist keys to that subproject's `.env.local` (or its detected
    secret store).

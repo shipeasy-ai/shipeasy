@@ -125,7 +125,7 @@ config on startup, so after you write it the `shipeasy__*` tools won't appear
 until the session is reloaded. So:
 
 1. Finish base onboarding (steps 1–9) **now** in this session — it's CLI-only.
-2. In the hand-off (step 8), tell the user to **restart / reload their agent**
+2. In the hand-off (step 9), tell the user to **restart / reload their agent**
    before running `/shipeasy:flags:install` (or asking for the equivalent), so
    the MCP tools are live for the feature installs.
 
@@ -220,15 +220,21 @@ walking up the tree (same pattern as `.git`).
 
 ## 3. Create server + client SDK keys
 
+Server and client keys are **environment-locked at mint time** — `--env`
+(`dev | staging | prod`) is **required** for both types, and the key reads
+only that one environment (there is no `?env=` override for a client key).
+Omitting `--env` fails with `Error (400): --env is required`. Default to
+`prod` for the base install unless the user asked for a different env:
+
 ```bash
-shipeasy keys create --type server --json
-shipeasy keys create --type client --json
+shipeasy keys create --type server --env prod --json
+shipeasy keys create --type client --env prod --json
 ```
 
 Capture the `key` field from each JSON. Plaintext shown once — write to
 the secret store in step 4 and discard immediately.
 
-Verify: `shipeasy keys list` shows ≥1 server and ≥1 client row.
+Verify: `shipeasy keys list` shows ≥1 server and ≥1 client row (both on `prod`).
 
 ---
 
@@ -364,7 +370,50 @@ await shipeasy({ apiKey: process.env.SHIPEASY_SERVER_KEY ?? "" });
 
 ---
 
-## 6. Drop project-level pointer skill
+## 6. Offer the devtools overlay (ask first)
+
+The base install has now rendered `getBootstrapHtml()` (step 5), which is
+all the **devtools overlay** needs to work. Before moving on, ask the user
+whether to turn it on — do **not** enable it silently.
+
+Use the `AskUserQuestion` tool (single question, single-select) so the
+choice is explicit. Frame it with this brief explanation and the docs link:
+
+> **Install the Shipeasy devtools overlay?** It's an in-page browser panel
+> (press `Shift+Alt+S` or append `?se=1` to any URL) that lists every gate,
+> config, experiment, and translation in your project and lets you flip each
+> one **for your current session only** — no redeploy, no dashboard, nobody
+> else affected. Great for QA, demos, and bug repro. It's also the same
+> overlay end users use to file bug/feature reports once the feedback module
+> is on. Docs: https://docs.shipeasy.ai/sdks/devtools-overlay
+
+Offer two options:
+
+- **Yes, enable it** — enables the feedback module so the overlay can both
+  flip resources and capture reports, then verifies it mounts.
+- **Not now** — skip; it can be turned on later via `/shipeasy:ops:install`.
+
+If the user confirms (**Yes, enable it**):
+
+```bash
+shipeasy modules enable feedback
+shipeasy modules list      # expect: feedback ✓
+```
+
+Then verify the overlay mounts: load any page that renders
+`getBootstrapHtml()` with `?se=1` appended (or press `Shift+Alt+S`). The
+panel mounts in a Shadow DOM overlay and lists the project's resources. If
+it never appears, base setup is incomplete — re-check that
+`getBootstrapHtml()` is rendered into `<head>` (step 5a).
+
+The override toggles are session-scoped and client-side only — they never
+write to the dashboard and never affect other users.
+
+If the user declines, note it in the hand-off (step 9) and continue.
+
+---
+
+## 7. Drop project-level pointer skill
 
 Write `<repo-root>/.claude/skills/shipeasy-setup/SKILL.md` (create the
 directory if missing). This pointer lets fresh checkouts and new
@@ -413,7 +462,7 @@ npx @shipeasy/cli plugin install
 
 ---
 
-## 7. Final verification gate
+## 8. Final verification gate
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
@@ -430,15 +479,16 @@ Every line must pass before reporting "done".
 
 ---
 
-## 8. Hand-off report
+## 9. Hand-off report
 
 ```
 ✅ Shipeasy base installed
 Project:   <project_id>
 Keys:      server *…<last4>, client *…<last4>
 Wired:     <list of subprojects + entry files>
+Devtools:  <enabled (?se=1 / Shift+Alt+S) | offered, declined — run /shipeasy:ops:install later>
 Pointer:   .claude/skills/shipeasy-setup/SKILL.md
-Modules:   (none enabled yet)
+Modules:   (none enabled yet | feedback ✓ if devtools enabled)
 MCP:       <registered & live | JUST REGISTERED — restart your agent to load it>
 ```
 
@@ -469,7 +519,7 @@ Dashboard:  https://app.shipeasy.ai/projects/<project_id>
 
 ---
 
-## 9. Ask the user to commit
+## 10. Ask the user to commit
 
 ```bash
 git status
