@@ -24,13 +24,15 @@ claude · cursor · copilot · windsurf · codex · cline · openclaw · opencod
 > - **Tier A — native cloud scheduler** (`claude`, `cursor`, `copilot`,
 >   `windsurf`): a managed cron runs the agent in the vendor's cloud. Machine
 >   can be off. Cleanest.
-> - **Tier B — native local-daemon scheduler** (`cline`, `openclaw`, `codex`):
->   a built-in scheduler runs it, but on a daemon on *your* machine — the host
->   must stay awake.
+> - **Tier B — native local-daemon scheduler** (`cline`, `openclaw`): a built-in
+>   scheduler runs it, but on a daemon on *your* machine — the host must stay
+>   awake.
 > - **Tier C — headless run + external scheduler** (`opencode`, `continue`,
->   `gemini`, and `codex`/`cline` if you prefer): the CLI has a non-interactive
+>   `gemini`, `codex`, and `cline` if you prefer): the CLI has a non-interactive
 >   run mode but no scheduler, so a **system cron** or a **GitHub Actions
->   `schedule:` cron** drives it.
+>   `schedule:` cron** drives it. For `codex` the confirmed flow is a GitHub
+>   Actions `schedule:` cron driving a **Codex Cloud** task (machine can be off);
+>   see its section below.
 
 ## The work is identical everywhere — only the launch differs
 
@@ -169,28 +171,74 @@ openclaw cron create "0 9 * * 1-5" "<TRIGGER PROMPT>" \
 profiles — OAuth profiles do not seed — so the embedded coding agent must be
 configured with an API key, not a login.
 
-### `codex` — three paths (local cron, cloud agent, or Tier C)
+### `codex` — confirmed flow: Codex plugin + GitHub Actions cron → Codex Cloud
 
-Codex has the most options — and the most nuance:
+This is the **verified, recommended** Codex path (confirmed working 2026-06-18).
+Codex now has its own plugin system that **mirrors Claude's**, so the Shipeasy
+slash commands + `ops:work` workflow install the same way; a **GitHub Actions
+`schedule:` cron** drives a **Codex Cloud** task on each fire (the always-on
+cloud path — machine can be off); and the run's network + secrets are configured
+**once**, in the Codex Cloud environment.
 
-1. **Codex Automations (local cron).** Codex app → Automations take full cron
-   and run a prompt, but per OpenAI's docs they run **locally — the machine must
-   be powered on** when the automation fires. Good if you have an always-on box.
-2. **Codex Cloud agent (cloud, but not natively cron'd).** Codex Cloud
-   (chatgpt.com/codex) runs in OpenAI's cloud and opens PRs, but it is triggered
-   **on-demand or by GitHub events (`@codex`)**, not by a built-in scheduler. To
-   make it recurring, drive it from an external schedule — a GitHub Actions
-   `schedule:` job that kicks off a cloud task (or its API). This is the
-   always-on *cloud* path, analogous to Copilot's cloud agent.
-3. **Tier C — `codex exec` + external scheduler (below).** The simplest
-   always-on path you fully control: a system cron or Actions `schedule:` runs
-   `codex exec --sandbox danger-full-access "<PROMPT>"`.
+**1. Install the Shipeasy plugin in Codex (one-time, in your terminal).** This
+is the Codex analog of `claude plugin marketplace add` / `claude plugin install`:
 
-> A fully-cloud, machine-off **Automations** variant (native cron in the cloud)
-> has been signalled but is **not in the official Automations docs** as of
-> 2026-06-17 — the documented project automations are local. Re-check the
-> [Codex changelog](https://developers.openai.com/codex/changelog) before
-> relying on cloud automations.
+```bash
+codex plugin marketplace add shipeasy-ai/shipeasy
+codex plugin add shipeasy@shipeasy
+```
+
+The command is then available in the Codex harness as:
+
+```
+@Shipeasy /shipeasy:ops:create_trigger --provider codex --frequency daily
+```
+
+That same plugin-install pair is the `<PLUGIN-INSTALL-FOR-THIS-HOST>` line in the
+shared trigger prompt — for Codex it is
+`codex plugin marketplace add shipeasy-ai/shipeasy && codex plugin add shipeasy@shipeasy`
+(NOT the `claude plugin …` lines the `claude` routine uses).
+
+**2. Configure the Codex Cloud environment (UI-only — open the page and WAIT).**
+The scheduled run executes in a **Codex Cloud environment**, which defaults to a
+restricted network and carries no Shipeasy creds — so the first run cannot reach
+`api.shipeasy.ai` or authenticate until this is set up, and there is no CLI/API
+for it. **Open the environments settings page, hand it to the user, and ask them
+to return when they're done so you can finish configuring the trigger:**
+
+  https://chatgpt.com/codex/cloud/settings/environments
+
+This is the Codex analog of Claude's `shipeasy` cloud environment (step 4a in
+`create_trigger.md`). In that page:
+
+- **Network access** → allow `shipeasy.ai` and `api.shipeasy.ai`, keeping the
+  default package-manager allowlist so `npm install -g @shipeasy/cli@latest`
+  still works (GitHub clone/push/PR rides Codex's own GitHub integration and is
+  unaffected).
+- **Environment variables / secrets** → set `SHIPEASY_CLI_TOKEN` (the restricted
+  `ops` key — see Auth & safety below; never an admin/login token) and
+  `SHIPEASY_PROJECT_ID`. Setting them here lets you drop the two `export` lines
+  from the trigger prompt.
+
+**The Codex Cloud task runs under the user's own ChatGPT/Codex account token —
+confirm with the user that it's their token being used** before you provision
+the schedule.
+
+**3. Schedule it with a GitHub Actions `schedule:` cron** on `<CRON>` whose run
+step kicks off the Codex Cloud task (the environment from step 2 supplies its
+network + creds). Use the Tier-C GitHub Actions shape below, swapping the run
+step for the Codex Cloud dispatch.
+
+> **Fallbacks, if you don't want the Actions-cloud path:** (a) **Codex
+> Automations** (Codex app → Automations) take full cron but run **locally — the
+> machine must be powered on** when they fire; (b) **Tier C `codex exec`** —
+> `codex exec --sandbox danger-full-access "<PROMPT>"` driven by system cron or
+> the same Actions `schedule:` job, running in the runner itself (configure creds
+> as Actions secrets, not the Cloud environments page). A fully-cloud, machine-off
+> native Automations cron has been signalled but is **not in the official docs**
+> as of 2026-06-18 — re-check the
+> [Codex changelog](https://developers.openai.com/codex/changelog) before relying
+> on it.
 
 ---
 

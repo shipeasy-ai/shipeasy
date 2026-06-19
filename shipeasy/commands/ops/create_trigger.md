@@ -20,7 +20,7 @@ section there before provisioning a non-`claude` provider.
 | `windsurf` | A — native cloud | Devin Scheduled Sessions (cron, cloud VM) | auth `WINDSURF_API_KEY`/`DEVIN_API_KEY` |
 | `cline` | B — local daemon | `cline schedule create --cron` (`cline hub`) | `cline --auto-approve true` |
 | `openclaw` | B — local daemon | `openclaw cron create` (gateway) | delegates to a coding-agent skill; **static API key only** |
-| `codex` | A/B/C | Codex Cloud agent (cloud; event/Actions-triggered) · Codex Automations (local cron, machine-on) · external cron | `codex exec --sandbox danger-full-access` |
+| `codex` | C (confirmed) | GitHub Actions `schedule:` cron → **Codex Cloud** task (machine can be off); fallbacks: Codex Automations (local cron, machine-on) · `codex exec` external cron | install via `codex plugin marketplace add shipeasy-ai/shipeasy` + `codex plugin add shipeasy@shipeasy`; configure the Codex Cloud environment at chatgpt.com/codex/cloud/settings/environments |
 | `opencode` | C — headless + cron | system cron / Actions `schedule:` | `opencode run` (`permission: "allow"`) |
 | `continue` | C — headless + cron | system cron / Actions `schedule:` | `cn -p --auto` |
 | `gemini` | C — headless + cron | Actions `schedule:` (run-gemini-cli) | `gemini -p --approval-mode=yolo` |

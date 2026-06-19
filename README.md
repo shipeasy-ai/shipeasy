@@ -23,7 +23,7 @@ MCP config snippet.
 | Agent | Install |
 | --- | --- |
 | **Claude Code** | `claude plugin marketplace add shipeasy-ai/shipeasy` → `claude plugin install shipeasy@shipeasy` |
-| **Codex** | (in TUI) `/plugin marketplace add shipeasy-ai/shipeasy` → `/plugin install shipeasy@shipeasy` |
+| **Codex** | `codex plugin marketplace add shipeasy-ai/shipeasy` → `codex plugin add shipeasy@shipeasy` (or, in the TUI, `/plugin marketplace add shipeasy-ai/shipeasy` → `/plugin add shipeasy@shipeasy`) |
 | **GitHub Copilot CLI** | `copilot plugin marketplace add shipeasy-ai/shipeasy` → `copilot plugin install shipeasy@shipeasy` |
 
 ### Tier 2 — skills + MCP (OpenCode, Cursor, Windsurf, Cline, Gemini, Continue, …)
@@ -167,10 +167,13 @@ The `ops` namespace also owns the operational inbox — `/shipeasy:ops:list`
 (bugs / features / errors / alerts, `--type` filter), `/shipeasy:ops:report`
 (file a bug or feature), and `/shipeasy:ops:work` (one loop that burns down
 bugs + feature requests + production errors + alerts, one atomic diff each).
-And `/shipeasy:ops:create_trigger` (`--provider claude`, the only provider
-today) — a scheduled Claude Code routine (via `/schedule`, runs in Anthropic's
-cloud, no GitHub Actions) that pulls active bugs + feature requests and fixes
-them, registered as a Shipeasy connector so it shows in the Feedback tab.
+And `/shipeasy:ops:create_trigger` — for `--provider claude` (the default) a
+scheduled Claude Code routine (via `/schedule`, runs in Anthropic's cloud, no
+GitHub Actions) that pulls active bugs + feature requests and fixes them,
+registered as a Shipeasy connector so it shows in the Feedback tab. `--provider
+codex` is also confirmed working (a GitHub Actions `schedule:` cron driving a
+Codex Cloud task; see `TRIGGER-INSTALL.md`), though only `claude` registers a
+Shipeasy connector today.
 
 ## Headline workflows
 
@@ -331,7 +334,7 @@ namespace.
 | `/shipeasy:ops:list` | `[--type bug\|feature\|error\|alert] [--status <s>] [--priority high\|critical\|medium\|low] [--name-contains <s>]` | Unified read view over the operational inbox. `--type` picks the source (default `bug`); errors and alerts are read-only. |
 | `/shipeasy:ops:report` | `[--type bug\|feature] "<title>"` | File a single bug report or feature request against the bound project. |
 | `/shipeasy:ops:work` | `[--type bug\|feature\|error\|alert\|all] [--status <s>] [--priority high\|critical] [--limit <N>] [--pr] [--dry-run]` | The unified work loop (replaces `bugs:fix` + `feats:implement`). Loops over bugs + feature requests + production errors + alerts, one atomic diff each: bugs fix-first, features design-first, errors/alerts diagnose-first. `--pr` commits each item, opens one PR, links it to every fixed bug, and adds `Closes #<issue>` for any item with a connected GitHub issue (the mode the trigger runs). `--dry-run` prints the combined queue. Requires CLI ≥ 1.8.0. |
-| `/shipeasy:ops:create_trigger` | `[--provider claude] [--frequency daily\|weekdays\|weekly\|6h] [--dry-run]` | Provision a recurring feedback trigger that runs `/shipeasy:ops:work --pr` on a schedule, registered as a Shipeasy connector. Provider-pluggable; `claude` (default, the only provider today) backs it with a scheduled Claude Code routine (via `/schedule`). No GitHub Actions. |
+| `/shipeasy:ops:create_trigger` | `[--provider claude\|codex\|…] [--frequency daily\|weekdays\|weekly\|6h] [--dry-run]` | Provision a recurring feedback trigger that runs `/shipeasy:ops:work --pr` on a schedule. Provider-pluggable; `claude` (default) backs it with a scheduled Claude Code routine (via `/schedule`, no GitHub Actions) and registers a Shipeasy connector. `codex` (confirmed) uses a GitHub Actions `schedule:` cron → Codex Cloud task; other providers per `TRIGGER-INSTALL.md`. |
 
 ## Skill auto-triggers (no slash command needed)
 
@@ -415,10 +418,11 @@ its own `commands/<area>/install.md`:
   diagnose-first. Read-only sources (errors/alerts) get a code fix, no status
   write. Never `git commit`s; never deletes; stops on the first 401/403.
   Requires CLI ≥ 1.8.0 (`shipeasy alerts` + `feedback bugs attachments`).
-- **`/shipeasy:ops:create_trigger`** (`--provider claude`, the only provider
-  today) — a scheduled Claude Code routine (via `/schedule`) that runs the
-  bug+feature loop unattended, registered as a Shipeasy connector. No GitHub
-  Actions.
+- **`/shipeasy:ops:create_trigger`** (`--provider claude` default; `codex`
+  confirmed) — `claude` is a scheduled Claude Code routine (via `/schedule`, no
+  GitHub Actions) that runs the bug+feature loop unattended, registered as a
+  Shipeasy connector; `codex` is a GitHub Actions `schedule:` cron driving a
+  Codex Cloud task (`TRIGGER-INSTALL.md`). Only `claude` registers a connector.
 
 ### Kill switches: `toggle_switch` instead of `update`
 
