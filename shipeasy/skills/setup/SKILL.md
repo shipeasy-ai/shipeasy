@@ -151,22 +151,29 @@ find . -maxdepth 4 \
      -o -name 'Package.swift' -o -name 'build.gradle*' \) -print
 ```
 
-Classify each hit:
+Classify each hit. **All eight SDKs are published** — there is no
+"no SDK yet" language anymore; every detected target gets a real install:
 
-| Manifest found             | Language    | Default SDK install command (run from that dir)            | Published? |
-| -------------------------- | ----------- | ---------------------------------------------------------- | ---------- |
-| `package.json` (+ React)   | js-react    | `pnpm add @shipeasy/sdk @shipeasy/react` (auto-detect pm)  | ✓ npm      |
-| `package.json` (Node only) | js-node     | `pnpm add @shipeasy/sdk`                                   | ✓ npm      |
-| `pyproject.toml`           | python      | (no PyPI package yet — instruct user, do not auto-install) | ✗          |
-| `Gemfile`                  | ruby        | (no RubyGems yet — instruct user)                          | ✗          |
-| `go.mod`                   | go          | (no Go module yet — instruct user)                         | ✗          |
-| `pom.xml` / `build.gradle` | java/kotlin | (no Maven Central yet — instruct user)                     | ✗          |
-| `composer.json`            | php         | (no Packagist yet — instruct user)                         | ✗          |
-| `Package.swift`            | swift       | (no SPM yet — instruct user)                               | ✗          |
+| Manifest found             | Language    | Default SDK install command (run from that dir)                                  | Published?        |
+| -------------------------- | ----------- | -------------------------------------------------------------------------------- | ----------------- |
+| `package.json` (+ React)   | js-react    | `pnpm add @shipeasy/sdk @shipeasy/react` (auto-detect pm)                         | ✓ npm             |
+| `package.json` (Node only) | js-node     | `pnpm add @shipeasy/sdk`                                                          | ✓ npm             |
+| `pyproject.toml`           | python      | `pip install shipeasy` (or add `shipeasy` to pyproject / poetry / uv)            | ✓ PyPI            |
+| `Gemfile`                  | ruby        | add `gem "shipeasy-sdk"` to the Gemfile, then `bundle install`                    | ✓ RubyGems        |
+| `go.mod`                   | go          | `go get github.com/shipeasy-ai/sdk-go`                                            | ✓ Go proxy        |
+| `pom.xml`                  | java        | Maven dep `ai.shipeasy:shipeasy:<latest>`                                         | ✓ Maven Central   |
+| `build.gradle(.kts)`       | java/kotlin | `implementation("ai.shipeasy:shipeasy:<latest>")` — Kotlin DSL → `shipeasy-kotlin` | ✓ Maven Central   |
+| `composer.json`            | php         | `composer require shipeasy/shipeasy`                                              | ✓ Packagist       |
+| `Package.swift`            | swift       | add `.package(url: "https://github.com/shipeasy-ai/sdk-swift.git", from: "<latest>")` | ✓ SwiftPM     |
+
+For the registries that need an explicit version (Maven Central, SwiftPM),
+resolve `<latest>` from the registry rather than hard-coding a number.
 
 A monorepo with `apps/web/package.json` (React) and `apps/api/go.mod`
-(Go backend) → two targets: install JS SDK in `apps/web`, surface "no Go
-SDK published yet" for `apps/api` and continue.
+(Go backend) → two targets: install the JS SDK in `apps/web` **and** the Go
+SDK (`go get github.com/shipeasy-ai/sdk-go`) in `apps/api`. Likewise a Rails
+`api/Gemfile` gets `gem "shipeasy-sdk"` — none of these are "manual
+follow-up" targets.
 
 **Skip** any directory whose `package.json` already has `@shipeasy/sdk`
 in deps. That subproject is already onboarded.
@@ -269,9 +276,47 @@ VITE_SHIPEASY_CLIENT_KEY=sdk_client_…          # Vite
 PUBLIC_SHIPEASY_CLIENT_KEY=sdk_client_…        # Astro / SvelteKit / generic
 ```
 
-### 4b. Non-JS targets
+### 4b. Non-JS targets (python / ruby / go / java / kotlin / php / swift)
 
-Surface a one-line notice and continue. Do **not** invent a pip/gem/go-get install.
+These are **published, server-side** SDKs — install them for real using
+the command from the step-1 table (e.g. `bundle add shipeasy-sdk` for a
+Rails `Gemfile`, `go get github.com/shipeasy-ai/sdk-go` for a Go service).
+They read flags/experiments with the **server** key only; there is no
+client/browser key for these targets.
+
+#### Detect the secret store, then offer it (don't assume)
+
+Persist `SHIPEASY_SERVER_KEY` to the subproject's **idiomatic** secret
+store — do **not** blindly write a JS `.env.local`. First **scan the
+subproject** for what it already uses, then present the choice to the user
+with `AskUserQuestion` (single-select; put the detected/idiomatic store
+**first** and mark it "(Recommended)"). Detection signals → recommended store:
+
+| Scan signal in the subproject                                   | Framework / env   | Recommended secret store (offer first)                                   |
+| --------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------ |
+| `config/credentials.yml.enc` + `config/master.key`, `Gemfile` w/ rails | Rails       | `rails credentials:edit` → add `shipeasy_server_key:` (encrypted creds)  |
+| `Gemfile` w/ `dotenv`, existing `.env`                          | Rails/Rack + dotenv | append to `.env` (confirm it's gitignored)                             |
+| `config/secrets.yml`, `config.ru` (Sinatra/Hanami)             | Rack app          | process env / `.env`                                                      |
+| `manage.py` / `settings.py`, `django-environ`                   | Django            | `.env` via `django-environ`, or the platform's env                       |
+| `pyproject.toml` + `pydantic-settings` / `os.environ` usage     | Python service    | `.env` or process env                                                     |
+| `application.properties` / `application.yml`                    | Spring (Java/Kotlin) | `application.properties` ref to `${SHIPEASY_SERVER_KEY}` + process env |
+| `.env` + framework agnostic, or nothing detected               | Go / PHP / other  | process env; create `.env` (gitignored) if the app reads one             |
+| `fly.toml` / `render.yaml` / `Procfile` / k8s manifests present | any (deployed)    | also set it in that platform's secret manager (`fly secrets set`, etc.)  |
+
+Rules:
+
+- **Scan before offering.** Read the manifest + a quick look for the files
+  above so the recommended option is real, not a guess.
+- **Offer, then act.** Surface the install command and the chosen store via
+  `AskUserQuestion`; only write the secret after the user picks. Always
+  include a plain-`.env` fallback option.
+- For encrypted Rails credentials, run `rails credentials:edit` (or
+  `EDITOR=...`) — never hand-edit the `.enc`. Reference it in code as
+  `Rails.application.credentials.shipeasy_server_key`.
+- Never echo the key value into chat, commits, or PRs. Confirm any `.env`
+  is gitignored before staging.
+- If a registry is briefly unreachable, note it and continue — do not claim
+  "no SDK exists".
 
 ### Hard rules
 
@@ -501,21 +546,32 @@ make this the first line the user sees, before the feature menu:
     installs below.
 ```
 
-```
-Next — enable the features you want (three install sections):
-  /shipeasy:flags:install         # gates + configs + kill switches + experiments + events
-  /shipeasy:ops:install           # feedback (bugs + features) + errors + alerts
-  /shipeasy:i18n:install          # translations
+Dashboard: `https://app.shipeasy.ai/projects/<project_id>`
 
-Or via CLI directly:
-  shipeasy modules enable experiments
-  shipeasy modules enable events
-  shipeasy modules enable gates && shipeasy modules enable configs
-  shipeasy modules enable translations
-  shipeasy modules enable feedback
+### Next steps — ask which feature installs to run
 
-Dashboard:  https://app.shipeasy.ai/projects/<project_id>
-```
+Do **not** print the feature list as plain text. Use the `AskUserQuestion`
+tool with **`multiSelect: true`** (the installs are independent — the user
+may pick several or none), header `"Feature installs"`, and one clean,
+self-contained option per install with its docs link:
+
+- **Flags & experiments** — feature gates, dynamic configs, kill switches,
+  A/B experiments, and event metrics. Roll features out gradually, kill
+  them instantly, and measure impact. Docs:
+  https://docs.shipeasy.ai/flags-experiments → runs `/shipeasy:flags:install`
+- **Feedback, errors & alerts** — in-app bug/feature reports, production
+  error tracking, and metric-threshold alerts; this is the "ops" surface
+  the devtools overlay feeds. Docs:
+  https://docs.shipeasy.ai/feedback → runs `/shipeasy:ops:install`
+- **Translations (i18n)** — wrap UI copy with `i18n.t()`, manage keys, and
+  ship translations over the CDN. Docs:
+  https://docs.shipeasy.ai/translations → runs `/shipeasy:i18n:install`
+
+For each option the user selects, invoke the corresponding feature install
+in order. If the user selects none, finish — they can run any install
+later. (Each install ultimately just enables the matching module — e.g.
+`shipeasy modules enable feedback` — but prefer the install skills, which
+also verify + wire each feature.)
 
 ---
 
