@@ -3,13 +3,13 @@
   "owner": { "name": "Shipeasy", "url": "https://shipeasy.ai" },
   "metadata": {
     "description": "Shipeasy — feature flags, A/B experiments, event metrics, translations, and in-app feedback. One plugin, one MCP registration.",
-    "version": "3.6.0"
+    "version": "3.7.0"
   },
   "plugins": [
     {
       "name": "shipeasy",
       "description": "End-to-end Shipeasy: SDK install + auth + bind, experiments, metrics, gates, configs, kill switches, alert rules, translations, and feedback. Bundles the seven area skills and the shipeasy MCP server. Reuses the same shipeasy/skills/ as the Claude Code and Codex plugins — no content duplicated.",
-      "version": "3.6.0",
+      "version": "3.7.0",
       "source": "./shipeasy"
     }
   ]
