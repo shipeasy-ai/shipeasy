@@ -585,3 +585,37 @@ git commit -m "chore: onboard Shipeasy base (SDK + auth + bind)"
 ```
 
 Confirm `.env.local` is gitignored before any `git add`. Never `git add -A`.
+
+---
+
+## 11. Offer the automated feedback trigger (always — the final step)
+
+**This is always the last step of the install**, no matter which feature
+installs the user picked in step 9. Once the base (and any selected
+features) are in, offer to provision the **automated feedback trigger** —
+a recurring, unattended agent that runs `/shipeasy:ops:work --pr` on a
+schedule, burning down the bug + feature-request + error/alert queue and
+opening one PR per item.
+
+Ask with `AskUserQuestion` (single-select; recommend "Yes"). Keep the
+explanation short and link the docs:
+
+> **Set up the automated feedback trigger?** A scheduled agent that, on the
+> cadence you choose (daily / weekdays / weekly / every 6h), picks up new
+> bug reports, feature requests, and auto-filed error/alert tickets and
+> opens a PR per item — hands-off queue burndown. Docs:
+> https://docs.shipeasy.ai/feedback/connectors
+
+- **Yes, set it up** → invoke the `/shipeasy:ops:create_trigger` command
+  (the `claude` provider by default). It owns the full provisioning flow —
+  provider auth, the schedule, GitHub connection for cloud sessions, the
+  restricted `ops` key, and registering the Shipeasy connector. If the
+  **feedback** module isn't enabled yet (user skipped `/shipeasy:ops:install`
+  in step 9), that command enables it as part of its prerequisites — don't
+  block on it here.
+- **Not now** → finish; mention it can be added later with
+  `/shipeasy:ops:create_trigger`.
+
+Do not hand-roll the scheduling, the `ops` key, or any GitHub Actions
+workflow here — always delegate to `/shipeasy:ops:create_trigger`, which is
+the single source of truth for trigger provisioning.
