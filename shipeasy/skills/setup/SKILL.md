@@ -417,9 +417,12 @@ await shipeasy({ apiKey: process.env.SHIPEASY_SERVER_KEY ?? "" });
 
 ## 6. Offer the devtools overlay (ask first)
 
-The base install has now rendered `getBootstrapHtml()` (step 5), which is
-all the **devtools overlay** needs to work. Before moving on, ask the user
-whether to turn it on — do **not** enable it silently.
+The devtools overlay is a **standalone `<script>` tag** that works on any
+platform — Next.js, Rails, Django, Laravel, static HTML. It does not
+require the server SDK or `getBootstrapHtml()`.
+
+Before adding it, ask the user whether to turn it on — do **not** enable
+it silently.
 
 Use the `AskUserQuestion` tool (single question, single-select) so the
 choice is explicit. Frame it with this brief explanation and the docs link:
@@ -430,26 +433,56 @@ choice is explicit. Frame it with this brief explanation and the docs link:
 > one **for your current session only** — no redeploy, no dashboard, nobody
 > else affected. Great for QA, demos, and bug repro. It's also the same
 > overlay end users use to file bug/feature reports once the feedback module
-> is on. Docs: https://docs.shipeasy.ai/sdks/devtools-overlay
+> is on. Docs: https://docs.shipeasy.ai/feedback/devtools
 
 Offer two options:
 
-- **Yes, enable it** — enables the feedback module so the overlay can both
-  flip resources and capture reports, then verifies it mounts.
+- **Yes, enable it** — add the script tag to the HTML `<head>`, enable the
+  feedback module, verify the overlay mounts.
 - **Not now** — skip; it can be turned on later via `/shipeasy:ops:install`.
 
 If the user confirms (**Yes, enable it**):
 
-```bash
-shipeasy modules enable feedback
-shipeasy modules list      # expect: feedback ✓
-```
+1. Add this to the HTML `<head>` (framework-specific placement below):
 
-Then verify the overlay mounts: load any page that renders
-`getBootstrapHtml()` with `?se=1` appended (or press `Shift+Alt+S`). The
-panel mounts in a Shadow DOM overlay and lists the project's resources. If
-it never appears, base setup is incomplete — re-check that
-`getBootstrapHtml()` is rendered into `<head>` (step 5a).
+   ```html
+   <script
+     src="https://cdn.shipeasy.ai/se-devtools.js"
+     data-client-api-key="NEXT_PUBLIC_SHIPEASY_CLIENT_KEY_VALUE"
+     data-project-id="PROJECT_ID"
+   ></script>
+   ```
+
+   **Next.js App Router** (`app/layout.tsx`):
+   ```tsx
+   <script
+     src={
+       process.env.NODE_ENV !== "production"
+         ? "/se-devtools.js"
+         : "https://cdn.shipeasy.ai/se-devtools.js"
+     }
+     data-client-api-key={process.env.NEXT_PUBLIC_SHIPEASY_CLIENT_KEY}
+     data-project-id={process.env.NEXT_PUBLIC_SHIPEASY_PROJECT_ID}
+   />
+   ```
+   Add `NEXT_PUBLIC_SHIPEASY_PROJECT_ID=<project-id>` to the env file
+   alongside the existing `NEXT_PUBLIC_SHIPEASY_CLIENT_KEY`. The project
+   ID is shown in Dashboard → Settings.
+
+   **Any other platform** — substitute the literal values from the
+   dashboard into `data-client-api-key` and `data-project-id` directly.
+
+2. Enable the feedback module and verify:
+
+   ```bash
+   shipeasy modules enable feedback
+   shipeasy modules list      # expect: feedback ✓
+   ```
+
+3. Verify the overlay mounts: open any page with `?se=1` appended (or
+   press `Shift+Alt+S`). The panel mounts in a Shadow DOM overlay and lists
+   the project's resources. If it never appears, open the browser console —
+   a missing attribute logs a clear error.
 
 The override toggles are session-scoped and client-side only — they never
 write to the dashboard and never affect other users.
