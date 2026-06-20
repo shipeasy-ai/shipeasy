@@ -167,21 +167,37 @@ export const TOOLS: Tool[] = [
   // ────────────────────────── experimentation ──────────────────────────
   {
     name: "exp_create_gate",
-    description: "Create a feature gate with targeting rules and rollout percentage.",
+    description:
+      "Create a feature gate. A flat gate is `rules` + a single `rollout` %. For tiered " +
+      "rollouts (e.g. 'US @ 50% → bots @ 30% → everyone else @ 10%') pass `stack` — an ordered " +
+      "list of steps evaluated first-match-wins; flat `rules`/`rollout` are then ignored.",
     inputSchema: {
       type: "object",
       required: ["name"],
       properties: {
         name: { type: "string", description: "Snake_case; auto-slugged." },
         description: { type: "string" },
-        rollout: { type: "number", description: "0–100" },
-        rules: { type: "string", description: "JSON rules array" },
+        rollout: { type: "number", description: "Flat-gate rollout, 0–100." },
+        rules: { type: "string", description: "Flat-gate JSON rules array." },
+        stack: {
+          type: "string",
+          description:
+            "Optional gatekeeper stack — a JSON array of ordered steps, evaluated top-to-bottom, " +
+            "first match wins; takes precedence over flat rules/rollout. Each step is either a " +
+            'condition: { "id": "<stable-id>", "type": "condition", "rules": [{attr,op,value}], ' +
+            '"rolloutPct": <0-10000 basis points> } — rules match then bucket at rolloutPct (omit ⇒ ' +
+            '100%); or a rollout: { "id": "<id>", "type": "rollout", "rolloutPct": <0-10000 bp> }. ' +
+            'End with a catch-all rollout step (no rules) to decide everyone who fell through. ' +
+            "rolloutPct is BASIS POINTS: 5000 = 50%, 1000 = 10%, 100 = 1%.",
+        },
       },
     },
   },
   {
     name: "exp_update_gate",
-    description: "Update a feature gate's rollout, rules, or enabled flag.",
+    description:
+      "Update a feature gate's rollout, rules, gatekeeper stack, or enabled flag. Pass `stack` " +
+      "to replace the tiered rollout wholesale (same shape as exp_create_gate).",
     inputSchema: {
       type: "object",
       required: ["name"],
@@ -189,6 +205,12 @@ export const TOOLS: Tool[] = [
         name: { type: "string" },
         rollout: { type: "number", description: "0–100" },
         rules: { type: "string", description: "JSON rules array" },
+        stack: {
+          type: "string",
+          description:
+            "JSON array of ordered first-match-wins steps (condition/rollout, rolloutPct in basis " +
+            "points) — replaces the gatekeeper stack wholesale. See exp_create_gate for the shape.",
+        },
         enabled: { type: "boolean" },
       },
     },
@@ -365,7 +387,7 @@ export const TOOLS: Tool[] = [
   {
     name: "exp_create_experiment",
     description:
-      "Create an experiment draft with groups, params, optional targeting gate, and a success (goal) metric. Pass success_event (+ success_aggregation) to attach the goal metric inline — required before the experiment can be started. Does NOT start — call exp_start_experiment.",
+      "Create an experiment draft with groups, params, optional targeting gate, a success (goal) metric, optional guardrail metrics, and full statistical config. Pass success_event (+ success_aggregation) to attach the goal metric inline — required before the experiment can be started. Does NOT start — call exp_start_experiment.",
     inputSchema: {
       type: "object",
       required: ["name", "universe"],
@@ -377,6 +399,11 @@ export const TOOLS: Tool[] = [
         groups: { type: "string", description: "JSON [{name,weight,params}]" },
         params_schema: { type: "object" },
         targeting_gate: { type: "string" },
+        bucket_by: {
+          type: "string",
+          description:
+            "User-attribute used as the bucketing key. Defaults to user_id. Use e.g. company_id / account_id to keep a whole org on one variant, or session_id / device_id for anonymous traffic.",
+        },
         success_event: {
           type: "string",
           description:
@@ -392,13 +419,35 @@ export const TOOLS: Tool[] = [
           description:
             "Numeric event property to reduce over. Required only for sum / avg aggregations (e.g. 'amount').",
         },
+        guardrail_metrics: {
+          type: "string",
+          description:
+            "Optional JSON array of guardrail metrics — safety metrics that must NOT regress (latency, error rate, refunds…). Each entry is a metric-DSL query string, e.g. '[\"avg(latency_ms)\",\"count_users(error_shown)\"]', or an object { \"query\": \"...\", \"name\": \"...\" }. Up to 10. The analysis pass classifies these separately (advisory vs hold) and alerts on a breach independent of the goal.",
+        },
+        significance_threshold: {
+          type: "number",
+          description: "p-value cutoff (alpha). Default 0.05. Non-0.05 needs Pro plan or higher.",
+        },
+        min_runtime_days: {
+          type: "number",
+          description: "Minimum days to run before results are conclusive. Default 0.",
+        },
+        min_sample_size: {
+          type: "number",
+          description: "Minimum exposures per group before results are conclusive. Default 100.",
+        },
+        sequential_testing: {
+          type: "boolean",
+          description:
+            "Enable always-valid (sequential / mSPRT) p-values so you can peek without inflating false positives. Default false. Requires Premium plan or higher.",
+        },
       },
     },
   },
   {
     name: "exp_update_experiment",
     description:
-      "Update a draft (or running) experiment's allocation, groups, targeting gate, stats thresholds, or goal metric. Pass success_event (+ success_aggregation) to attach/replace the goal metric — use this to make a draft startable when it's missing one.",
+      "Update a draft (or running) experiment's allocation, groups, targeting gate, bucketing, stats thresholds, guardrail metrics, or goal metric. Pass success_event (+ success_aggregation) to attach/replace the goal metric — use this to make a draft startable when it's missing one.",
     inputSchema: {
       type: "object",
       required: ["name"],
@@ -411,9 +460,23 @@ export const TOOLS: Tool[] = [
           description:
             "Gate name; pass empty string or omit to leave unchanged; pass the literal 'none' to clear the gate",
         },
+        bucket_by: {
+          type: "string",
+          description:
+            "User-attribute used as the bucketing key (user_id default; e.g. company_id). Immutable while running.",
+        },
         significance_threshold: { type: "number", description: "0.0001–0.5" },
         min_runtime_days: { type: "number" },
         min_sample_size: { type: "number" },
+        sequential_testing: {
+          type: "boolean",
+          description: "Toggle always-valid sequential p-values. Requires Premium plan or higher.",
+        },
+        guardrail_metrics: {
+          type: "string",
+          description:
+            "JSON array of guardrail metrics (DSL query strings or { query, name } objects) — replaces the guardrail set. See exp_create_experiment.",
+        },
         success_event: {
           type: "string",
           description: "Event name for the goal metric. Attaches/replaces the role=goal metric.",

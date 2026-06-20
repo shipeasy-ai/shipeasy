@@ -12,6 +12,7 @@ export async function handleCreateGate(input: {
   description?: string;
   rollout?: number;
   rules?: string;
+  stack?: string;
 }) {
   const handle = await getAdminClient();
   if (!handle) return notAuthenticated();
@@ -21,6 +22,9 @@ export async function handleCreateGate(input: {
       name: input.name,
       rollout_pct: Math.round((input.rollout ?? 0) * 100),
       rules: input.rules ? JSON.parse(input.rules) : [],
+      // Optional gatekeeper stack (ordered first-match-wins tiers). When present
+      // it takes precedence over flat rules/rollout at evaluation time.
+      ...(input.stack ? { stack: JSON.parse(input.stack) } : {}),
     });
     return ok(result);
   } catch (err) {
@@ -32,6 +36,7 @@ export async function handleUpdateGate(input: {
   name: string;
   rollout?: number;
   rules?: string;
+  stack?: string;
   enabled?: boolean;
 }) {
   const handle = await getAdminClient();
@@ -42,6 +47,8 @@ export async function handleUpdateGate(input: {
     const patch: Record<string, unknown> = {};
     if (input.rollout !== undefined) patch.rollout_pct = Math.round(input.rollout * 100);
     if (input.rules !== undefined) patch.rules = JSON.parse(input.rules);
+    // Replaces the gatekeeper stack wholesale; pass "null" to revert to flat.
+    if (input.stack !== undefined) patch.stack = input.stack ? JSON.parse(input.stack) : null;
     if (input.enabled !== undefined) patch.enabled = input.enabled;
     const result = await handle.client.gates.update(gate.id, patch);
     return ok(result);
@@ -306,6 +313,33 @@ function buildGoalMetric(input: {
   }
 }
 
+// Parse the guardrail_metrics arg — a JSON array of metric-DSL query strings or
+// { query, name } objects — into the inline-metric shape the admin API upserts
+// and attaches with role=guardrail. Tolerates a bad/empty string (→ no guardrails)
+// rather than failing the whole create.
+function parseGuardrails(raw: string | undefined): { query: string; name?: string }[] {
+  if (!raw) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  const out: { query: string; name?: string }[] = [];
+  for (const entry of parsed) {
+    if (typeof entry === "string") {
+      const query = entry.trim();
+      if (query) out.push({ query });
+    } else if (entry && typeof entry === "object") {
+      const o = entry as { query?: unknown; name?: unknown };
+      const query = typeof o.query === "string" ? o.query.trim() : "";
+      if (query) out.push(typeof o.name === "string" && o.name ? { query, name: o.name } : { query });
+    }
+  }
+  return out;
+}
+
 export async function handleCreateExperiment(input: {
   name: string;
   description?: string;
@@ -314,9 +348,15 @@ export async function handleCreateExperiment(input: {
   groups?: string;
   params_schema?: object;
   targeting_gate?: string;
+  bucket_by?: string;
   success_event?: string;
   success_aggregation?: string;
   success_value?: string;
+  guardrail_metrics?: string;
+  significance_threshold?: number;
+  min_runtime_days?: number;
+  min_sample_size?: number;
+  sequential_testing?: boolean;
 }) {
   const handle = await getAdminClient();
   if (!handle) return notAuthenticated();
@@ -330,6 +370,7 @@ export async function handleCreateExperiment(input: {
 
   try {
     const goal_metric = buildGoalMetric(input);
+    const guardrail_metrics = parseGuardrails(input.guardrail_metrics);
     const result = await handle.client.experiments.create({
       name: input.name,
       universe: input.universe,
@@ -337,13 +378,16 @@ export async function handleCreateExperiment(input: {
       groups,
       params: (input.params_schema ?? {}) as Record<string, "string" | "bool" | "number">,
       targeting_gate: input.targeting_gate ?? null,
-      significance_threshold: 0.05,
-      min_runtime_days: 0,
-      min_sample_size: 100,
-      sequential_testing: false,
+      bucket_by: input.bucket_by ?? null,
+      significance_threshold: input.significance_threshold ?? 0.05,
+      min_runtime_days: input.min_runtime_days ?? 0,
+      min_sample_size: input.min_sample_size ?? 100,
+      sequential_testing: input.sequential_testing ?? false,
       // Inline goal metric → event + metric auto-upserted and attached with
       // role=goal, so the draft is immediately startable (no separate call).
       ...(goal_metric ? { goal_metric } : {}),
+      // Inline guardrail metrics → upserted and attached with role=guardrail.
+      ...(guardrail_metrics.length ? { guardrail_metrics } : {}),
     });
     return ok(result);
   } catch (err) {
@@ -356,9 +400,12 @@ export async function handleUpdateExperiment(input: {
   allocation?: number;
   groups?: string;
   targeting_gate?: string | null;
+  bucket_by?: string;
   significance_threshold?: number;
   min_runtime_days?: number;
   min_sample_size?: number;
+  sequential_testing?: boolean;
+  guardrail_metrics?: string;
   success_event?: string;
   success_aggregation?: string;
   success_value?: string;
@@ -376,10 +423,14 @@ export async function handleUpdateExperiment(input: {
     if (input.targeting_gate !== undefined && input.targeting_gate !== "") {
       patch.targeting_gate = input.targeting_gate === "none" ? null : input.targeting_gate;
     }
+    if (input.bucket_by !== undefined) patch.bucket_by = input.bucket_by || null;
     if (input.significance_threshold !== undefined)
       patch.significance_threshold = input.significance_threshold;
     if (input.min_runtime_days !== undefined) patch.min_runtime_days = input.min_runtime_days;
     if (input.min_sample_size !== undefined) patch.min_sample_size = input.min_sample_size;
+    if (input.sequential_testing !== undefined)
+      patch.sequential_testing = input.sequential_testing;
+    if (input.guardrail_metrics !== undefined) patch.guardrail_metrics = parseGuardrails(input.guardrail_metrics);
     // Attach / replace the goal metric so a draft missing one can be made
     // startable without recreating it.
     const goal_metric = buildGoalMetric(input);
