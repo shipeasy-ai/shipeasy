@@ -265,8 +265,10 @@ function applyReplacementsWithPlan(
   const sorted = [...entries].sort((a, b) => b.raw.pos - a.raw.pos);
   let result = source;
   for (const { raw, finalKey } of sorted) {
+    const defaultArg =
+      raw.variables.length === 0 ? `, "${raw.value.replace(/"/g, '\\"')}"` : "";
     const varsArg = raw.variables.length > 0 ? `, { ${raw.variables.join(", ")} }` : "";
-    const callExpr = `t("${finalKey}"${varsArg})`;
+    const callExpr = `t("${finalKey}"${defaultArg}${varsArg})`;
     const replacement =
       raw.kind === "jsx_attr" ? `{${callExpr}}` : `${raw.leading}{${callExpr}}${raw.trailing}`;
     result = result.slice(0, raw.pos) + replacement + result.slice(raw.end);
