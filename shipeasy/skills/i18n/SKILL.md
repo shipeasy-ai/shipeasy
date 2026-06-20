@@ -85,6 +85,49 @@ i18n.t("landing.hero.meta_install", "{{seconds}}s install", { seconds: "8" });
 
 Stored value: `"{{seconds}}s install"`. Curly braces are placeholders.
 
+### Call `t()` at render time — never at module load
+
+`i18n.t()` must run **during render**, not when a module is first imported.
+A call evaluated at import time bakes into a frozen string before translations
+have loaded and before the edit-labels devtools can patch `t()` — so the string
+**never picks up a live translation** (it's stuck on the fallback / first locale)
+**and is not editable** in the click-to-edit devtools overlay.
+
+The classic trap is a module-level config array (sidebar/nav/menu/tab
+definitions, command-palette entries, schema field titles):
+
+```tsx
+// ❌ WRONG — evaluated once at import, frozen, not translatable/editable
+const NAV = [{ to: "/dashboard", label: i18n.t("nav.dashboard", "Dashboard") }];
+
+// ✅ RIGHT — store a thunk, call it during render
+const NAV = [{ to: "/dashboard", label: () => i18n.t("nav.dashboard", "Dashboard") }];
+// type: label: string | (() => string)
+function resolveLabel(l: string | (() => string)) {
+  return typeof l === "function" ? l() : l;
+}
+// in the component: <Item label={resolveLabel(item.label)} />
+```
+
+Strings written directly in JSX (`<h1>{i18n.t("page.title", "Title")}</h1>`) are
+already render-time and need no change — this only bites pre-computed constants.
+
+### Attributes: only translate what the user reads
+
+Wrap translatable **user-visible** attributes — `aria-label`, `title`,
+`placeholder`, `alt`. **Never** wrap structural / reference attributes:
+`aria-controls`, `aria-describedby`, `aria-labelledby`, `id`, `for`, `name`,
+`role`, `href`, `data-*`. Their values are IDs/relationships, not copy —
+translating one breaks the control (a renamed `aria-controls` no longer matches
+its panel `id`) and surfaces a junk "label" in the edit-labels overlay.
+
+```tsx
+// ❌ aria-controls is an ID reference, not copy
+<button aria-controls={i18n.t("nav.submenuId", "submenu-{{id}}", { id })}>
+// ✅ leave structural attributes as plain values
+<button aria-controls={`submenu-${id}`} aria-label={i18n.t("nav.openMenu", "Open menu")}>
+```
+
 ## Workflow
 
 ### 1. Identify text
@@ -163,3 +206,10 @@ Or `/shipeasy:i18n:migrate <library>`.
   or build a custom `lib/shipeasy.ts` wrapper.
 - One `publish` per chunk, after all keys are created — not once per key.
 - Never edit chunks the agent didn't create unless explicitly asked.
+- Call `i18n.t()` at render time, never at module load. In static config arrays
+  (nav/menu/tab/command definitions) store a `() => i18n.t(...)` thunk and
+  resolve it during render — an eagerly-evaluated label is frozen, untranslated,
+  and not editable.
+- Only translate user-visible attributes (`aria-label`, `title`, `placeholder`,
+  `alt`). Never translate structural attributes (`aria-controls`,
+  `aria-describedby`, `aria-labelledby`, `id`, `for`, `name`, `role`, `href`).
