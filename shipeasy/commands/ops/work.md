@@ -293,7 +293,30 @@ shipeasy ops.notify --item <#number> \
 Make it **self-contained and actionable** — the human reads only this card, not
 your transcript. 3–6 ordered steps, each naming the exact file, command, env
 var, or dashboard page. The notification stands out in the bell with a violet
-"from your agent" accent and reveals the full step-by-step guide on hover.
+"from your agent" accent and expands the full step-by-step guide on demand (a
+"Details" toggle). `--summary` and each `--step` render **markdown** (lists,
+`code`, **bold**), so write them naturally — no need to flatten formatting.
+
+**Reference entities inline so the card links them.** Anywhere in `--title`,
+`--summary`, or a `--step`, mention an admin entity with a reference token and
+the dashboard turns it into a hover chip (entity name + live status) that
+deep-links to that entity. Prefer these over bare names:
+
+| Entity            | Token                  | Aliases     |
+| ----------------- | ---------------------- | ----------- |
+| feedback item     | `#42`                  | `@feedback:42` |
+| feature flag/gate | `@gate:<name>`         | `@flag:`    |
+| experiment        | `@experiment:<name>`   | `@exp:`     |
+| dynamic config    | `@config:<name>`       |             |
+| kill switch       | `@killswitch:<name>`   | `@ks:`      |
+| metric            | `@metric:<name>`       |             |
+| universe          | `@universe:<name>`     |             |
+| alert rule        | `@alert:<name>`        |             |
+
+`<name>` is the entity's immutable name — the same slug you pass to the MCP/CLI
+(e.g. `features.checkout`); feedback uses its `#number`. Tokens degrade to plain
+text wherever they aren't rendered, so they're always safe to use — e.g. a step
+like `Roll back @gate:checkout-flow once #42 reproduces.`
 
 `--item <#number>` ties the card to the queue item and sets a stable dedupe key
 (`feedback:<n>`), so re-running the loop over the same still-blocked item
