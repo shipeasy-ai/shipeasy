@@ -339,7 +339,26 @@ it exits cleanly without opening any PR. Don't merge.
 ```
 
 After `/schedule` creates the routine, capture **`ROUTINE_ID`** — the routine's
-id (shown by `/schedule` / its routine list). Then do 4a (required) and 4b.
+id (shown by `/schedule` / its routine list).
+
+**Immediately record the trigger in Shipeasy — even before any fire token.** A
+trigger should land in our storage the moment the routine exists, so the
+dashboard knows the project has one set up. Register it **tokenless** right now
+(the fire token is web-UI-only and optional — step 4b upgrades this same record
+if/when you fetch it):
+
+```bash
+npx -y @shipeasy/cli connectors create-trigger --routine-id "$ROUTINE_ID"
+```
+
+This is **idempotent by routine id**: re-running `create-trigger` later with
+`--token` (step 4b) upgrades this same connector instead of creating a
+duplicate. A tokenless connector shows up in **Feedback → Connectors** as
+registered but **not fireable** (no "Fire now" / event auto-fire) until a token
+is added. Don't make this conditional or skip it — a tokenless record is the
+baseline; the token is the upgrade.
+
+Then do 4a (required network) and — optionally — 4b (add the fire token).
 
 ## 4a. The `shipeasy` cloud environment — network allowlist (required)
 
@@ -378,10 +397,12 @@ trigger picks it from a list instead of repeating the walkthrough:
 > this when triggers for multiple Shipeasy projects share the environment —
 > the env pins one project; per-routine prompt exports don't.
 
-## 4b. Register the routine as a Shipeasy connector
+## 4b. Upgrade the trigger with its fire token (optional)
 
-Record the trigger in Shipeasy so it shows up in **Feedback → Connectors** and
-can be fired on demand or auto-fired on new feedback.
+The trigger is already recorded (step 4, tokenless). This step **adds the fire
+token** so it becomes fireable — "Fire now" on demand and event auto-fire. It
+re-runs the same `connectors create-trigger` (idempotent by routine id), this
+time **with** `--token`, upgrading the record in place.
 
 **The routine's fire token (`ROUTINE_TOKEN`) is web-UI-only — don't hunt for a
 programmatic path.** The bearer for
@@ -408,10 +429,11 @@ routines UI, shown **once**, and there is no API or CLI to mint or read it
    rm -f /tmp/.se_routine_token
    ```
 
-This step is **deferrable**: the schedule is already live without it — the
-connector only adds "Fire now" + event auto-fire in the Feedback tab. If the
-user doesn't want to fetch the token now, skip to step 6 and note in the
-hand-off how to register later (steps 1–3 above).
+This step is **deferrable**: the trigger is already recorded (step 4) and the
+schedule is already live — adding the token only unlocks "Fire now" + event
+auto-fire in the Feedback tab. If the user doesn't want to fetch the token now,
+skip to step 6 and note in the hand-off how to upgrade later (steps 1–3 above);
+the tokenless connector stays registered in the meantime.
 
 The connector is registered **enabled but with auto-fire off** — "Fire now"
 works immediately, but no run kicks off on a new bug/feature until the user
