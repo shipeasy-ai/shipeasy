@@ -3,6 +3,7 @@
 exports[`command tree > matches the registered command surface (snapshot) 1`] = `
 [
   "alert-rules",
+  "alert-rules channels",
   "alert-rules create",
   "alert-rules delete",
   "alert-rules list",
