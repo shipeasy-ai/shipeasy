@@ -578,6 +578,23 @@ export const TOOLS: Tool[] = [
           description: "Severity of the raised alert. Default 'warn'.",
         },
         enabled: { type: "boolean", description: "Whether the cron evaluates it. Default true." },
+        notify: {
+          type: "object",
+          description:
+            "Where to deliver this rule's alert, overriding the project default. Omit to inherit the default. Pick a Slack channel from the project's real channels (use the dashboard channel picker / `list_resources`) — never invent an id.",
+          properties: {
+            slack_channel: {
+              type: "object",
+              description: "Slack channel to post to (requires a Slack connector).",
+              properties: {
+                id: { type: "string", description: "Slack channel id, e.g. C0123ABCD." },
+                name: { type: "string", description: "Channel name without the leading #." },
+              },
+              required: ["id", "name"],
+            },
+            email: { type: "string", description: "Email address to notify for this rule." },
+          },
+        },
       },
     },
   },
@@ -596,6 +613,22 @@ export const TOOLS: Tool[] = [
         window_hours: { type: "number", description: "Whole hours, 1–720." },
         severity: { type: "string", enum: ["danger", "warn", "info"] },
         enabled: { type: "boolean" },
+        notify: {
+          type: "object",
+          description:
+            "Replace the rule's delivery target. `slack_channel` requires a Slack connector; pick a real channel, never invent an id. Pass an empty object to keep, or set fields to null to clear back to the project default.",
+          properties: {
+            slack_channel: {
+              type: "object",
+              properties: {
+                id: { type: "string" },
+                name: { type: "string" },
+              },
+              required: ["id", "name"],
+            },
+            email: { type: "string" },
+          },
+        },
       },
     },
   },

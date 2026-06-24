@@ -168,6 +168,32 @@ describe("handleCreateAlertRule", () => {
     expect((result as ToolResult).isError).toBe(true);
     expect(result.content[0].text).toContain("not found");
   });
+
+  it("maps notify.slack_channel → notify.slackChannel on the API body", async () => {
+    const fetchMock = mockFetch({
+      "/api/admin/metrics": [{ id: "met-1", name: "checkout_error_rate" }],
+      "/api/admin/alert-rules": { id: "ar-1" },
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { handleCreateAlertRule } = await import("../tools/exp/index.js");
+    await handleCreateAlertRule({
+      name: "Checkout errors",
+      metric: "checkout_error_rate",
+      comparator: "gt",
+      threshold: 0,
+      notify: { slack_channel: { id: "C1", name: "incidents" }, email: "on@call.test" },
+    });
+    const postCall = fetchMock.mock.calls.find(
+      (c) =>
+        String(c[0]).includes("/api/admin/alert-rules") &&
+        (c[1] as RequestInit | undefined)?.method === "POST",
+    );
+    const body = JSON.parse((postCall![1] as RequestInit).body as string);
+    expect(body.notify).toEqual({
+      slackChannel: { id: "C1", name: "incidents" },
+      email: "on@call.test",
+    });
+  });
 });
 
 describe("handleUpdateAlertRule", () => {
