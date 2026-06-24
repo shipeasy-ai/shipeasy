@@ -38,10 +38,15 @@ export function connectorsCommand(parent: Command): void {
     .command("create-trigger")
     .description(
       "Register a Claude trigger connector for a Claude Code routine. The routine " +
-        "bearer token is encrypted at rest server-side and never logged.",
+        "bearer token is encrypted at rest server-side and never logged. Omit " +
+        "--token to record a tokenless trigger (registered but not fireable until " +
+        "a token is added); re-running with --token upgrades the same routine.",
     )
     .requiredOption("--routine-id <id>", "Claude Code routine id to fire")
-    .requiredOption("--token <token>", "Routine bearer token (used to fire the routine)")
+    .option(
+      "--token <token>",
+      "Routine bearer token (used to fire the routine); omit to record a tokenless trigger",
+    )
     .option("--text <prompt>", "Default prompt sent when the routine is fired without one")
     .option("--name <name>", "Connector display name", "Claude trigger")
     .option(
@@ -56,6 +61,7 @@ export function connectorsCommand(parent: Command): void {
         if (!routineId) throw new ApiError("Missing --routine-id", 400);
         const events = parseEvents(opts.events);
         const client = getApiClient(opts.project, { requireBinding: true });
+        const token = opts.token ? String(opts.token) : undefined;
         const created = await client.request<{ id: string }>("POST", "/api/admin/connectors", {
           provider: "claude_trigger",
           name: opts.name,
@@ -64,14 +70,19 @@ export function connectorsCommand(parent: Command): void {
             routineId,
             ...(opts.text ? { fireText: String(opts.text) } : {}),
           },
-          token: String(opts.token),
+          ...(token ? { token } : {}),
           enabled: true,
         });
         if (opts.json) return printJson(created);
         console.log(
           `Registered Claude trigger connector: routine ${routineId} (${created.id.slice(0, 8)})`,
         );
-        if (events.length === 0) {
+        if (!token) {
+          console.log(
+            "Tokenless — recorded but not fireable yet. Re-run with --token (or add it in the " +
+              "dashboard's Triggers page) to enable Fire now + event auto-fire.",
+          );
+        } else if (events.length === 0) {
           console.log(
             "Auto-fire is off — enable events in the Feedback → Connectors panel or fire on demand.",
           );
@@ -82,6 +93,10 @@ export function connectorsCommand(parent: Command): void {
     });
 
   withExamples(createTrigger, [
+    {
+      note: "Record a tokenless trigger (no fire token yet)",
+      run: "shipeasy connectors create-trigger --routine-id rt_abc123",
+    },
     {
       note: "Register a routine, auto-fire on new bugs",
       run:
