@@ -1,6 +1,6 @@
 ---
 description: Provision a recurring, unattended feedback trigger that, on a schedule, runs /shipeasy:ops:work --pr against the bound project — burning down the bug + feature-request + error/alert queue and opening one PR per item. Provider-pluggable via --provider <platform>: claude (default; Claude Code scheduled routine in Anthropic's cloud, also registered as a Shipeasy connector), cursor, copilot, windsurf, codex, cline, openclaw, opencode, continue, gemini. Each provider schedules the SAME work — only the scheduler + headless launch + auth differ (native cloud scheduler, native local daemon, or headless run + external cron/Actions). Full per-platform walkthrough lives in TRIGGER-INSTALL.md. The claude flow does NOT use GitHub Actions; Tier-C providers (opencode/continue/gemini/codex) legitimately can.
-argument-hint: "[--provider claude|cursor|copilot|windsurf|codex|cline|openclaw|opencode|continue|gemini] [--frequency daily|weekdays|weekly|6h] [--dry-run]"
+argument-hint: "[--provider claude|cursor|copilot|windsurf|codex|cline|openclaw|opencode|continue|gemini] [--frequency 4h|6h|daily|weekdays|weekly] [--dry-run]"
 ---
 
 ## Provider selection
@@ -199,15 +199,17 @@ Call the **AskUserQuestion** tool to ask the user how often the trigger should
 run. (If `--frequency` was passed in `$ARGUMENTS`, skip the question and use
 it.) Offer these options and map the answer to a cron expression (UTC):
 
-| Choice             | Cron          | Meaning                           |
-| ------------------ | ------------- | --------------------------------- |
-| Daily (9am UTC)    | `0 9 * * *`   | Once every morning (good default) |
-| Weekdays (9am UTC) | `0 9 * * 1-5` | Mon–Fri, skips weekends           |
-| Weekly (Mon 9am)   | `0 9 * * 1`   | Once a week, lighter spend        |
-| Every 6 hours      | `0 */6 * * *` | Fast-moving queues                |
+| Choice (`--frequency`) | Cron          | Meaning                            |
+| ---------------------- | ------------- | ---------------------------------- |
+| Every 4 hours (`4h`)   | `0 */4 * * *` | Stays on top of the queue (default)|
+| Every 6 hours (`6h`)   | `0 */6 * * *` | Fast-moving queues                 |
+| Daily (`daily`, 9am)   | `0 9 * * *`   | Once every morning                 |
+| Weekdays (`weekdays`)  | `0 9 * * 1-5` | Mon–Fri, skips weekends            |
+| Weekly (`weekly`, Mon) | `0 9 * * 1`   | Once a week, lighter spend         |
 
-If the user picks "Other", accept any valid 5-field cron string verbatim. Hold
-the chosen cron as `<CRON>` for step 3.
+The dashboard's Triggers page defaults to **every 4 hours** and passes
+`--frequency 4h`. If the user picks "Other", accept any valid 5-field cron
+string verbatim. Hold the chosen cron as `<CRON>` for step 3.
 
 ## 2. Mint the restricted Shipeasy key the routine needs
 
