@@ -291,9 +291,27 @@ jobs:
           SHIPEASY_CLI_TOKEN: ${{ secrets.SHIPEASY_OPS_KEY }}
           SHIPEASY_PROJECT_ID: ${{ secrets.SHIPEASY_PROJECT_ID }}
         with:
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           prompt: "<TRIGGER PROMPT>"
-          settings: '{ "approval-mode": "yolo" }'
+          # Do NOT put `settings: '{ "approval-mode": "yolo" }'` here — settings.json
+          # only accepts general.defaultApprovalMode = default|auto_edit|plan, and
+          # `yolo` there throws an enum error on startup. `yolo` is a CLI flag only.
+          # Scope tools in `settings` if you want; gate-off goes on the CLI:
+          settings: |
+            { "tools": { "core": ["ShellTool(git)", "WriteFileTool", "ReplaceTool"] } }
 ```
+
+> **Disabling the human gate (verified 2026-06-24).** Auto-approval (`yolo`) is a
+> **CLI flag** — `gemini --approval-mode=yolo` (or `--yolo`) — and is **not** a
+> `settings.json` key. If the pinned `run-gemini-cli` version exposes no yolo
+> passthrough input, drive the CLI directly in a `run:` step instead:
+> `npx https://github.com/google-gemini/gemini-cli --approval-mode=yolo --prompt "<TRIGGER PROMPT>"`.
+> Auth is `gemini_api_key` (env `GEMINI_API_KEY`) or `use_vertex_ai: true` + WIF.
+>
+> **Prefer no Actions at all?** Use **Jules** — Google's async coding agent
+> (Gemini-powered, distinct from the Gemini CLI). It is **Shipeasy-fireable** (see
+> below): the dashboard's guided Gemini flow registers a Jules connector, so
+> Shipeasy launches the session and there is no workflow to maintain.
 
 > This is the one place GitHub Actions is the right tool. The `claude` provider
 > deliberately avoids Actions because it has a better native scheduler; Tier-C
@@ -330,14 +348,30 @@ is a Cloudflare Worker, so it can only fire a provider that exposes:
 
 By that bar, providers split in two:
 
-**Shipeasy-fireable (can be a connector):**
+**Shipeasy-fireable (wired as a connector — guided flow on the dashboard `/triggers` page):**
 
-- **`claude`** — ✅ today. `POST …/v1/claude_code/routines/<id>/fire` with a
-  per-routine bearer token. This is why claude is the only registered connector.
-- **`cursor`** — ✅ viable (not yet wired). `POST https://api.cursor.com/v1/agents`
-  with `Authorization: Bearer $CURSOR_API_KEY` starts a run from nothing and
-  `autoCreatePR` opens the PR. A static key + a pure-HTTP start endpoint — it
-  meets both criteria, so it's the natural **second** connector.
+- **`claude`** — ✅ live. `POST …/v1/claude_code/routines/<id>/fire` with a
+  per-routine bearer token. The only *routine* connector (preconfigured run);
+  the three below are *cold-fire* (the whole job rides in the launch prompt).
+- **`cursor`** — ✅ live. `POST https://api.cursor.com/v1/agents` with
+  `Authorization: Bearer $CURSOR_API_KEY`, `repos[].url` + `autoCreatePR: true`
+  starts a run from nothing and opens the PR via Cursor's GitHub App. The ops key
+  rides the launch `envVars`, so it never appears in the prompt.
+- **`copilot`** — ✅ live (with an auth caveat). `POST
+  https://api.github.com/agents/repos/<owner>/<repo>/tasks` with
+  `{ prompt, create_pull_request: true }` starts a cloud-agent task from nothing.
+  **Auth: a user-to-server token only** — a fine-grained user PAT with the
+  **"Agent tasks"** repo permission (read+write) for a Copilot-licensed account.
+  The Actions `GITHUB_TOKEN` and GitHub App *installation* tokens are rejected.
+  The agent reads `SHIPEASY_CLI_TOKEN` from the repo's own **Agents** secret
+  store, so Shipeasy stores only the PAT.
+- **`gemini` (Jules)** — ✅ live. `POST
+  https://jules.googleapis.com/v1alpha/sessions` with header `X-Goog-Api-Key`,
+  `sourceContext.source = sources/github/<owner>/<repo>` and
+  `automationMode: "AUTO_CREATE_PR"` starts a Jules session that opens a PR.
+  Jules exposes no env channel, so the restricted ops key is embedded in the
+  session prompt (safe — it's the limited `ops` key). The Gemini-CLI-in-Actions
+  path above remains a fallback for teams that prefer GitHub Actions.
 
 **Platform-scheduled only (NOT Shipeasy-fireable):**
 
@@ -349,18 +383,22 @@ By that bar, providers split in two:
   actors). Codex's always-on path is its **own** scheduler — a GitHub Actions
   `schedule:` running `codex exec`, or local Automations. Do not try to fire it
   from Shipeasy.
-- **`copilot`** — ❌ same shape as codex: the cloud agent is mention/assignment-
-  triggered and rejects the default Actions token (needs a user PAT). Scheduled
-  via Copilot automations or a scheduled Actions job, not by Shipeasy.
-- **`windsurf` / `cline` / `openclaw` / `opencode` / `continue` / `gemini`** —
-  ❌ scheduled by their own surface (Devin Scheduled Sessions, `cline schedule`,
-  `openclaw cron`, system cron, or a GitHub Actions `schedule:` job). Pause /
-  run / inspect them there.
+- **`windsurf` / `cline` / `openclaw` / `opencode` / `continue`** — ❌ scheduled
+  by their own surface (Devin Scheduled Sessions, `cline schedule`, `openclaw
+  cron`, system cron, or a GitHub Actions `schedule:` job). Pause / run / inspect
+  them there. (The Gemini *CLI* in Actions is here too; **Jules** is the fireable
+  Gemini path above.)
 
-**Rule of thumb:** if a provider can't be started from nothing by one
-authenticated HTTP call, Shipeasy can't fire it — it must be scheduled on the
-provider's own platform. Only `claude` (live) and `cursor` (candidate) clear
-that bar.
+**Rule of thumb:** if a provider can be started from nothing by one authenticated
+HTTP call, Shipeasy can fire it — `claude`, `cursor`, `copilot`, and `gemini`
+(Jules) all clear that bar (verified 2026-06-24). Everything else is scheduled on
+the provider's own platform.
+
+> **Note — `copilot`/`gemini` schedule story.** As fireable connectors these
+> auto-fire on new feedback + on demand ("Trigger now"). For a *fixed cadence*
+> (e.g. nightly when no new feedback arrives), Shipeasy's own scheduled fire is
+> event/manual; use the platform's native scheduler (Copilot automations, Jules
+> scheduled tasks — both UI-only) or a GitHub Actions `schedule:` job for that.
 
 ## What's confirmed vs. moving
 
