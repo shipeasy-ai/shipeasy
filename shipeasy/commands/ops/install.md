@@ -1,284 +1,278 @@
 ---
 name: ops-install
-description: Enable the feedback module + error collection, verify the devtools overlay and error capture, drop project pointer skills (feedback + see() error reporting), and add the CLAUDE.md error-handling rule
+description: Enable the feedback module + error collection, wire the devtools overlay and see() error reporting per the project's language docs, and add the CLAUDE.md error-handling rule. Language-agnostic — pulls the live per-language docs page rather than hard-coding any one SDK.
 user-invocable: true
 ---
 
-Run the ops-module setup for Shipeasy — the in-app feedback overlay
-(bug reports + feature requests), auto-collected production errors, and
-metric-threshold alerts. This is one of the three install sections
-(`ops` / `flags` / `i18n`) and is the single feedback install — it
-replaces the old per-feature `/shipeasy:bugs:install`.
+Per-project install for the **ops module** — the in-app feedback overlay
+(bug reports + feature requests), auto-collected production errors, `see()`
+error reporting, and metric-threshold alerts. One of the three install
+sections (`ops` / `flags` / `i18n`); it replaces the old per-feature
+`/shipeasy:bugs:install`.
 
-Prereq: `/shipeasy:setup` already ran successfully and `.shipeasy`
-exists at the repo root.
+This command is a **thin, language-agnostic wrapper**. It does not embed
+any single SDK's snippets — it detects the project's language(s), pulls the
+live docs page for each, and follows that page for the SDK lib + wiring. The
+docs are the version-correct source of truth; this command never goes stale
+against a particular SDK's API.
 
-Steps:
+Prereq: `/shipeasy:setup` already ran successfully and `.shipeasy` exists at
+the repo root (base setup installs the SDK + the one `configure(...)` boot
+this builds on). If it didn't, stop and send the user to `/shipeasy:setup`.
 
-1. Confirm base is in place:
+## First fix: update before you debug
 
-   ```bash
-   test -f .shipeasy && shipeasy whoami | grep -q "Bound dir" && echo OK
-   ```
+Most failures here — `unknown command` / `unknown option`, a missing
+subcommand, an unexpected `400`/`404` — are **version drift**. Update to
+latest and retry once before treating anything as a bug:
 
-   If the check fails, stop and tell the user to run `/shipeasy:setup` first.
+- **CLI:** `npm i -g @shipeasy/cli@latest` (or one-off `npx @shipeasy/cli@latest <cmd>`).
+- **Plugin (skills + slash commands):** `/plugin marketplace update shipeasy`
+  then `/plugin install shipeasy@shipeasy`.
 
-2. Enable the feedback module:
+---
 
-   ```bash
-   shipeasy modules enable feedback
-   shipeasy modules list      # expect: feedback ✓
-   ```
+## 1. Confirm base is in place
 
-3. Verify the devtools overlay (the same overlay end users use to submit
-   reports). `getBootstrapHtml()` lazily injects `se-devtools.js` when
-   the URL contains `?se` / `?se_devtools`. Confirm by loading any page
-   with `?se=1` appended.
+```bash
+test -f .shipeasy && shipeasy whoami | grep -q "Bound dir" && echo OK
+```
 
-   If the panel never appears, base setup is incomplete — send the user
-   back to `/shipeasy:setup` to render `getBootstrapHtml()` into `<head>`.
+If the check fails, stop and tell the user to run `/shipeasy:setup` first.
 
-4. **Set up error collection (ask the user first).** Error collection is
-   the **errors primitive** (`@shipeasy/sdk` ≥ 5.0.0): the client SDK's
-   `autoCollect` errors group wraps `fetch` (5xx + network failures only —
-   each named to a specific endpoint), shipping structured `type:"error"`
-   events to `/collect`. It does **not** blanket-capture `window.onerror`
-   / `unhandledrejection` (those produced generic, unactionable issues).
-   Reports fold into fingerprint-grouped issues with a near-real-time
-   occurrence timeline — the Errors dashboard tab and `shipeasy ops.errors`.
-   Handled exceptions are reported explicitly with `see()` (next steps).
+---
 
-   This group is **on by default** the moment the client SDK is
-   initialised (`shipeasy({ clientKey })` from `/shipeasy:setup`) — so
-   there's nothing extra to enable for the happy path. Ask the user
-   whether they want production error collection on:
-   - **Keep it on (default):** confirm the client `shipeasy({ clientKey })`
-     call has no `autoCollect: { errors: false }` override, then verify
-     capture once events flow in:
+## 2. Enable the feedback module
 
-     ```bash
-     shipeasy ops.errors list        # [] until the first error lands; never 403
-     ```
+```bash
+shipeasy modules enable feedback
+shipeasy modules list      # expect: feedback ✓
+```
 
-   - **Opt out:** narrow the client init to disable just that group,
-     leaving vitals + engagement intact:
+The toggle is per-project (same `.shipeasy` binding). It turns on the
+feedback queue (bugs + feature requests) and auto-filed production-error /
+alert tickets. No rebuild needed — devtools picks it up on next load.
 
-     ```ts
-     // a "use client" component, once at startup
-     shipeasy({ clientKey, autoCollect: { errors: false } });
-     ```
+---
 
-   Do not add a separate error-reporting SDK, wrapper, or `init` call —
-   error collection is part of the same SDK and the same `shipeasy()`
-   entry point (see the SDK design rules).
+## 3. Detect the project's language(s) and pull the matching docs
 
-5. Smoke-test the CLI mirror:
+Base setup already recorded the install targets. Re-detect if unsure (same
+scan as `/shipeasy:setup` step 1: `package.json`, `pyproject.toml`,
+`Gemfile`, `go.mod`, `pom.xml`, `composer.json`, `Package.swift`,
+`build.gradle*`). For **each** target, pull its per-language docs page and
+follow it — do **not** hard-code snippets from memory:
 
-   ```bash
-   shipeasy feedback bugs list           # returns [] or rows, never 403
-   shipeasy feedback features list
-   shipeasy ops.errors list              # read-only tracked errors
-   ```
+| Target manifest             | Language       | Pull this docs page                         |
+| --------------------------- | -------------- | ------------------------------------------- |
+| `package.json` (server/Node)| node / ts      | https://docs.shipeasy.ai/sdks/node-typescript |
+| `package.json` (browser/React)| browser     | https://docs.shipeasy.ai/sdks/browser-react |
+| `pyproject.toml`            | python         | https://docs.shipeasy.ai/sdks/python        |
+| `Gemfile`                   | ruby           | https://docs.shipeasy.ai/sdks/ruby          |
+| `go.mod`                    | go             | https://docs.shipeasy.ai/sdks/go            |
+| `composer.json`             | php            | https://docs.shipeasy.ai/sdks/php           |
+| `pom.xml`                   | java           | https://docs.shipeasy.ai/sdks/java          |
+| `build.gradle(.kts)`        | java / kotlin  | https://docs.shipeasy.ai/sdks/kotlin        |
+| `Package.swift`             | swift          | https://docs.shipeasy.ai/sdks/swift         |
 
-6. **Drop the project pointer skill.** Write the file below to
-   `<repo-root>/.claude/skills/shipeasy-bugs/SKILL.md` via the Write
-   tool (create the directory if missing). Do **not** overwrite an
-   existing file unless the user asked for a refresh.
+Each page's **"Errors & feedback"** section is the per-language source of
+truth for the two ops surfaces below — `see()` error reporting (every
+language) and the devtools overlay (any project with a browser surface).
+Also pull the universal pages once:
 
-   ````markdown
-   ---
-   name: shipeasy-bugs
-   description: Project pointer — Shipeasy feedback module is enabled here. Triggers on "bug report", "feature request", "feedback", "user-reported issue", "report a bug", "production error".
-   ---
+- Devtools overlay (platform-agnostic `<script>` tag): https://docs.shipeasy.ai/feedback/devtools
+- `see()` error reporting: https://docs.shipeasy.ai/feedback/error-reporting
+- Errors dashboard & triage: https://docs.shipeasy.ai/feedback/errors
 
-   # Shipeasy bug reports, feature requests + errors (project pointer)
+Use WebFetch to pull these. If a page is briefly unreachable, note it and
+fall back to the SDK's shipped README (`/shipeasy:setup` step 4c) — never
+substitute hard-coded snippets from training data.
 
-   This project has the Shipeasy `feedback` module enabled and
-   auto-collects production errors through the events system. The full
-   skill lives in the `shipeasy` Claude Code plugin.
+---
 
-   ## With plugin installed
+## 4. Wire the devtools overlay (browser surfaces only — ask first)
 
-   - Skill: `shipeasy-bugs`
-   - Commands: `/shipeasy:ops:report`, `/shipeasy:ops:list`, `/shipeasy:ops:work`, `/shipeasy:ops:install`
+The overlay is a **standalone `<script>` tag** that works on any platform
+(Next.js, Rails, Django, Laravel, static HTML) — it's the same panel end
+users file bug/feature reports from, and it does not require the server SDK.
+Only relevant for a project with a browser-rendered surface; skip for a
+headless service.
 
-   ## Without the plugin
+Ask before adding it (`AskUserQuestion`, single-select) — don't enable it
+silently. If the user confirms, follow the **"Add the script tag"** section
+of https://docs.shipeasy.ai/feedback/devtools — the current shape is:
 
-   ```bash
-   claude plugin marketplace add shipeasy-ai/shipeasy
-   claude plugin install shipeasy@shipeasy
-   /shipeasy:setup            # if not already onboarded
-   /shipeasy:ops:install        # enables feedback + error collection + verifies overlay
-   /shipeasy:ops:list           # list bugs / features / errors / alerts (--type filter)
-   /shipeasy:ops:work           # burn down bugs + features + errors + alerts, one-by-one
-   ```
+```html
+<script
+  src="https://cdn.shipeasy.ai/se-devtools.js"
+  data-client-api-key="YOUR_CLIENT_KEY"
+  data-project-id="YOUR_PROJECT_ID"
+></script>
+```
 
-   Cursor / Windsurf / non-Claude harness:
+Both attributes are required (the script logs a clear `console.error` and
+bails if either is missing). For framework-specific placement (e.g. the
+Next.js App Router `app/layout.tsx` dev-vs-prod `src`), follow the docs
+page. Verify it mounts: open any page with `?se=1` appended (or press
+`Shift+Alt+S`).
 
-   ```bash
-   npx @shipeasy/cli plugin install
-   ```
+> The old `getBootstrapHtml()` inline loader is gone — never render it. The
+> overlay is loaded by the declarative `<script>` tag above (or, inside a
+> JS bundle, the SDK's `loadDevtools()` — see the browser-react docs page).
 
-   ## Doing the workflow by hand
+---
 
-   ```bash
-   shipeasy modules enable feedback
+## 5. Error collection + see() reporting (ask before turning collection on)
 
-   shipeasy feedback bugs create "Title" --description "what / where / repro"
-   shipeasy feedback bugs list --status open --json
-   shipeasy feedback bugs update <id> --status in_progress
-   shipeasy feedback bugs update <id> --status ready_for_qa
-   shipeasy feedback features create "Title" --description "…"
-   shipeasy feedback features list
+Two layers, both part of the same SDK — no separate error SDK, no second key:
 
-   shipeasy ops.errors list              # auto-tracked production errors (read-only)
-   shipeasy ops.errors get <id>
-   ```
+- **Auto-collected client errors (browser/JS only).** The client SDK's
+  `autoCollect` errors group wraps `fetch` (5xx + network failures, each
+  named to a specific endpoint) and ships `type:"error"` events to
+  `/collect`. It's **on by default** the moment the client SDK is
+  initialised — nothing extra to enable. Ask the user whether to keep it on:
+  - **Keep on (default):** confirm the client init has no
+    `autoCollect: { errors: false }` override.
+  - **Opt out:** narrow the client init per the browser-react docs page
+    (`autoCollect: { errors: false }`), leaving vitals + engagement intact.
 
-   Status lifecycle: `open → triaged → in_progress → ready_for_qa →
-   resolved` (or `wont_fix`). Developers flip to `ready_for_qa` after
-   the fix; QA flips to `resolved` after dashboard verification.
+  It does **not** blanket-capture `window.onerror` / `unhandledrejection`
+  (those produced generic, unactionable issues).
 
-   The in-page overlay opens on any URL with `?se=1` appended (requires
-   `getBootstrapHtml()` rendered into `<head>` by base setup). Error
-   collection is on by default via the client SDK's `autoCollect` errors
-   group (reports into the errors primitive — see the `shipeasy-see`
-   skill for explicit `see()` reporting in catch blocks) — disable with
-   `shipeasy({ clientKey, autoCollect: { errors: false } })`.
-   ````
+- **`see()` for handled exceptions (every language).** Handled exceptions
+  are reported explicitly with `see()`, which folds them into the
+  fingerprint-grouped errors primitive with a product consequence. The exact
+  grammar is per-language — follow the **"Errors & feedback"** section of the
+  docs page you pulled in step 3 (e.g. `causes_the().to()` in Python/Ruby/JS,
+  `causesThe().to()` in Go/PHP/Java/Kotlin/Swift). Don't add a separate
+  error-reporting SDK or `init` call — `see()` rides the same boot.
 
-7. **Drop the see() error-reporting pointer skill.** Write the file below
-   to `<repo-root>/.claude/skills/shipeasy-see/SKILL.md` via the Write
-   tool (create the directory if missing). Do **not** overwrite an
-   existing file unless the user asked for a refresh. This is the
-   project-local trigger for the full `see` skill that ships with the
-   plugin — it makes every error-handling task in this repo route through
-   the see() rules.
+Verify capture once events flow:
 
-   ````markdown
-   ---
-   name: shipeasy-see
-   description: Project rule — error handling in this repo uses see() from @shipeasy/sdk. Triggers on try/catch, error handling, exceptions, error logging, console.error in catch blocks, "handle this error", "add error handling".
-   ---
+```bash
+shipeasy ops.errors list        # [] until the first error lands; never 403
+```
 
-   # see() — required error reporting (project pointer)
+---
 
-   This project reports errors into the Shipeasy errors primitive. Every
-   handled exception documents its product consequence:
+## 6. Smoke-test the CLI mirror
 
-   ```ts
-   import { see } from "@shipeasy/sdk/client"; // or "@shipeasy/sdk/server"
+```bash
+shipeasy feedback bugs list           # returns [] or rows, never 403
+shipeasy feedback features list
+shipeasy ops.errors list              # read-only tracked errors
+```
 
-   try {
-     await submitOrder(order);
-   } catch (e) {
-     see(e).causes_the("checkout").to("use cached prices").extras({ order_id: order.id });
-   }
-   ```
+A `403` here means the module didn't enable — re-run step 2.
 
-   - Non-exception problems: `see.Violation("name").causes_the(…).to(…).extras({…})`
-     — no `.message()`; never put variable data in the name (it's the
-     fingerprint key), put context in `.extras()`.
-   - Expected control-flow exceptions: `see.ControlFlowException(e).because("because …")`
-     — reports nothing, auto-capture skips it.
-   - `see()` then `throw` is **fine** — the re-thrown error links to the inner
-     report as a `caused_by` chain (no double-count). **Never** an empty catch ·
-     **never** `console.error`-only handling · no PII in extras.
-   - If you don't know the consequence, don't catch the exception.
+---
 
-   The full skill (consequence-writing guide, anti-patterns, examples) is
-   `see` in the `shipeasy` Claude Code plugin:
+## 7. Skills are installed via the generic command — do NOT hand-write them
 
-   ```bash
-   claude plugin marketplace add shipeasy-ai/shipeasy
-   claude plugin install shipeasy@shipeasy
-   ```
+The `ops` and `see` skills (and the rest of the platform) ship in the
+**Shipeasy plugin**. Because you reached this command as a slash command,
+the plugin is already installed and both skills are live — **there is
+nothing to write here.** Do **not** generate `.claude/skills/*/SKILL.md`
+files by hand: hand-copied skill bodies drift out of sync with the published
+skills and break silently. The repo already carries the breadcrumb pointer
+that base `/shipeasy:setup` drops (`.claude/skills/shipeasy-setup/SKILL.md`),
+which lists every install command including this one.
 
-   Triage the resulting issues with `/shipeasy:ops:list --type error` and
-   `/shipeasy:ops:work`, or in the dashboard Errors tab.
-   ````
+If a contributor's checkout is missing the skills, they install them with
+the generic, always-current command — never a hand-written copy:
 
-8. **Add the CLAUDE.md error-handling rule (ask once, default yes).**
-   Append the block below to the repo-root `CLAUDE.md` (create the file
-   if missing). Skip if a `see()` rule is already present — never
-   duplicate it. This is what makes Claude wrap error handling in see()
-   on every future task, not just when the skill happens to trigger:
+```bash
+# Claude Code / Codex / Copilot (native plugin → all skills incl. ops + see)
+claude plugin marketplace add shipeasy-ai/shipeasy
+claude plugin install shipeasy@shipeasy
 
-   ```markdown
-   ## Error handling
+# Any other agent (Cursor, Windsurf, Gemini, OpenCode, Continue, …)
+npx skills add https://github.com/shipeasy-ai/shipeasy --full-depth -a <agent>
+```
 
-   **HARD RULE: every handled exception is reported with `see()` from
-   `@shipeasy/sdk` (client or server entrypoint).** A catch block that
-   swallows or logs to console only is wrong (reporting then re-throwing is
-   fine — the occurrences link as a `caused_by` chain):
+---
 
-   - Handle it → `see(e).causes_the(<subject>).to(<outcome>).extras({…})`
-   - Expected control flow → `see.ControlFlowException(e).because("because …")`
-   - Can't name the consequence → don't catch; let an outer boundary own it
-   - `see()` then `throw` is fine — they link as a `caused_by` chain, not a dupe
+## 8. Add the CLAUDE.md error-handling rule (ask once, default yes)
 
-   See `.claude/skills/shipeasy-see/SKILL.md` for the full rules.
-   ```
+Append the block below to the repo-root `CLAUDE.md` (create it if missing).
+**Skip if a `see()` rule is already present** — never duplicate it. This is
+what makes the agent wrap error handling in `see()` on every future task,
+not just when the skill happens to trigger:
 
-9. Print the hand-off:
+```markdown
+## Error handling
 
-   ```
-   ✅ shipeasy ops setup complete
-   Module:   feedback ✓   (events on by default → error collection)
-   Wired:    devtools overlay (?se=1 on any page rendering getBootstrapHtml)
-             auto error capture (network failures → errors primitive)
-   Pointer:  .claude/skills/shipeasy-bugs/SKILL.md
-             .claude/skills/shipeasy-see/SKILL.md
-   Rule:     CLAUDE.md — handled exceptions must use see()
-   Next:     /shipeasy:ops:report bug "<title>"  — file a single bug/feature
-             /shipeasy:ops:list --type error     — list bugs/features/errors/alerts
-             /shipeasy:ops:work                  — burn down bugs+features+errors+alerts
-             shipeasy ops.errors list            — triage tracked production errors
-             or have end users submit via the in-page Report panel.
-   ```
+**HARD RULE: every handled exception is reported with `see()` from the
+Shipeasy SDK (client or server entrypoint).** A catch block that swallows or
+logs to console only is wrong (reporting then re-throwing is fine — the
+occurrences link as a `caused_by` chain):
 
-10. **Offer the follow-on setup (ask the user).** The module is wired, but
-    two high-value steps still need a decision. Call **AskUserQuestion**
-    with `multiSelect: true` so the user can pick either, both, or neither:
+- Handle it → `see(e).causes_the(<subject>).to(<outcome>).extras({…})`
+  (camelCase `causesThe` in Go/PHP/Java/Kotlin/Swift)
+- Expected control flow → `see.ControlFlowException(e).because("because …")`
+- Can't name the consequence → don't catch; let an outer boundary own it
 
-    - **Question:** "Ops module is installed. What would you like to set up
-      next?" (header: `Next steps`)
-    - **Option A — "Wrap errors in see()"**: walk the project's handled
-      exceptions (try/catch blocks, swallowed catches, `console.error`-only
-      handlers) and report each through `see()` per the `shipeasy-see`
-      rules. Description: "Audit catch blocks across the project and add
-      see() consequence reporting to every handled exception. Docs:
-      https://docs.shipeasy.ai/feedback/error-reporting"
-    - **Option B — "Configure alerts"**: description "Survey the project,
-      propose a few alert rules, then build each end-to-end (event → metric
-      → alert) and wire the events. Docs:
-      https://docs.shipeasy.ai/feedback/alerts"
+Full grammar: the `see` skill (Shipeasy plugin) and
+https://docs.shipeasy.ai/feedback/error-reporting.
+```
 
-    Include the matching docs link in each option's `description` exactly as
-    above so the user can read what the step does before choosing.
+---
 
-    Act on whatever the user selects (do nothing for options they leave
-    unchecked):
+## 9. Hand-off report
 
-    - **If "Wrap errors in see()" is selected:** invoke the `see` skill and
-      sweep the codebase for handled exceptions, applying `see()` reporting
-      per its rules (handle → `causes_the().to().extras()`; control flow →
-      `see.ControlFlowException(e).because(…)`; see()-then-throw is fine,
-      never empty catch, never console-only). Do not touch boundaries that already
-      report (withAdmin/errorResponse, client auto-capture, SectionBoundary,
-      the client-error sink) — only swallowed / control-flow catches.
+```
+✅ shipeasy ops setup complete
+Module:   feedback ✓   (events on by default → error collection)
+Wired:    devtools overlay (?se=1 on any browser surface) <enabled | declined | n/a — headless>
+          auto error capture (network failures → errors primitive)
+          see() error reporting per the project's language docs
+Skills:   ops + see — live via the installed plugin (no hand-written copies)
+Rule:     CLAUDE.md — handled exceptions must use see()
+Next:     /shipeasy:ops:report bug "<title>"  — file a single bug/feature
+          /shipeasy:ops:list --type error     — list bugs/features/errors/alerts
+          /shipeasy:ops:work                  — burn down bugs+features+errors+alerts
+          shipeasy ops.errors list            — triage tracked production errors
+          or have end users submit via the in-page Report panel.
+```
 
-    - **If "Configure alerts" is selected:** first read the project to
-      understand what's worth watching (error volume, latency/5xx on the SDK
-      hot path, cron/queue outcomes, key user actions), then propose **3–5
-      concrete alert rules** to the user (metric + comparator + threshold +
-      window + severity for each) and let them confirm or trim the set. For
-      each confirmed alert, build the whole chain with the shipeasy CLI:
-      1. ensure the backing **event** is emitted from the code (instrument
-         it where it isn't already — wire the events);
-      2. create the **metric** over that event
-         (`shipeasy metrics create …`, see `/shipeasy:metrics:grammar` for
-         the DSL);
-      3. create the **alert rule** on that metric
-         (`shipeasy alerts create …` / `/shipeasy:alerts:create`).
-      Confirm each rule lands with `shipeasy alerts list`.
+---
+
+## 10. Offer the follow-on setup (ask the user)
+
+The module is wired, but two high-value steps still need a decision. Call
+**AskUserQuestion** with `multiSelect: true` so the user can pick either,
+both, or neither.
+
+- **Question:** "Ops module is installed. What would you like to set up
+  next?" (header: `Next steps`)
+- **Option A — "Wrap errors in see()"**: "Audit catch blocks across the
+  project and add `see()` consequence reporting to every handled exception
+  (per the project's language). Docs:
+  https://docs.shipeasy.ai/feedback/error-reporting"
+- **Option B — "Configure alerts"**: "Survey the project, propose a few
+  alert rules, then build each end-to-end (event → metric → alert) and wire
+  the events. Docs: https://docs.shipeasy.ai/feedback/alerts"
+
+Act on whatever the user selects (do nothing for unchecked options):
+
+- **"Wrap errors in see()":** invoke the `see` skill and sweep the codebase
+  for handled exceptions, applying `see()` per its rules and the project's
+  language grammar (handle → `causes_the().to().extras()`; control flow →
+  `see.ControlFlowException(e).because(…)`; `see()`-then-`throw` is fine,
+  never an empty catch, never console-only). Do **not** touch boundaries that
+  already report (e.g. `withAdmin`/`errorResponse`, client auto-capture,
+  framework error boundaries, the client-error sink) — only swallowed /
+  control-flow catches.
+
+- **"Configure alerts":** read the project to understand what's worth
+  watching (error volume, latency/5xx on the hot path, cron/queue outcomes,
+  key user actions), then propose **3–5 concrete alert rules** (metric +
+  comparator + threshold + window + severity) and let the user confirm or
+  trim. For each confirmed rule, build the whole chain:
+  1. ensure the backing **event** is emitted from the code (instrument it
+     where it isn't already);
+  2. create the **metric** over that event (`shipeasy metrics create …`, see
+     `/shipeasy:metrics:grammar` for the DSL);
+  3. create the **alert rule** (`shipeasy alerts create …` /
+     `/shipeasy:alerts:create`).
+  Confirm each rule lands with `shipeasy alerts list`.
