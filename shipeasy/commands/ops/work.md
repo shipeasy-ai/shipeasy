@@ -108,6 +108,15 @@ hovercard mark them); once `open`, they flow through this loop like any other
 item. If a `--status pending_approval` run is requested explicitly, print the
 list and stop — surfacing them for review is fine; working them is not.
 
+**The `triage` gate — never work these either.** Questions and error messages
+users submit to the "Stuck in onboarding?" assistant land as `triage` rows in
+Shipeasy's own project (rose "Triage" badge). They are onboarding-friction
+signal for a human to read and turn into docs/product fixes, not actionable
+tickets. **Drop every `triage` row from the queue** — same rule as
+`pending_approval`: do not investigate, fix, status-flip, or PR them, *even when
+`--status all` was passed*. A human triages them in the dashboard (moving the
+real ones to `open` with a proper title); only then do they flow through this loop.
+
 Print the combined queue, grouped by type, before starting:
 
 ```
