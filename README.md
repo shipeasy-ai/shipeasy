@@ -29,8 +29,8 @@ MCP config snippet.
 ### Tier 2 — skills + MCP (OpenCode, Cursor, Windsurf, Cline, Gemini, Continue, …)
 
 ```bash
-# 1. skills — reads SKILL.md (area skills + per-command .curated mirror), writes them into the agent's skills dir
-npx skills add https://github.com/shipeasy-ai/shipeasy -a <agent>
+# 1. skills — area skills by default; add --full-depth for the per-command (slash) mirror too
+npx skills add https://github.com/shipeasy-ai/shipeasy --full-depth -a <agent>
 
 # 2. MCP — add the shipeasy server to that agent's MCP config (see INSTALL.md for the exact file)
 #    most agents use the standard mcpServers shape:
@@ -46,7 +46,7 @@ One plugin, one MCP registration, all features included. Per-feature
 opt-in is controlled by enabling/disabling modules on the project
 (`shipeasy modules enable <name>`), not by installing additional plugins.
 
-**What ports where.** The seven area skills and the `shipeasy` MCP server port
+**What ports where.** The eight area skills and the `shipeasy` MCP server port
 to *every* agent. The `/shipeasy:<area>:<verb>` **slash commands are Claude
 Code-only** — no other host has a plugin slash-command primitive, so on Codex,
 Copilot, OpenCode, etc. you reach the same flows by letting a skill auto-trigger
@@ -80,7 +80,7 @@ marketplace/
     │   ├── ks/{create,list,toggle_switch}.md
     │   ├── i18n/{install,extract,migrate,validate,update,profiles,translate}.md
     │   └── ops/{install,list,report,work,create_trigger}.md
-    └── skills/                          # seven area skills (shared by both hosts)
+    └── skills/                          # 8 area skills + .curated/ per-command mirror
         ├── setup/SKILL.md
         ├── experiments/SKILL.md
         ├── metrics/SKILL.md
@@ -102,7 +102,7 @@ lands. Each per-plugin job:
 
 1. **Validates wiring deterministically** — `node scripts/validate-plugin.mjs <host>`
    parses that host's marketplace + plugin manifests, asserts the marketplace
-   `source` resolves to `./shipeasy`, that all seven area skills are present with
+   `source` resolves to `./shipeasy`, that all eight area skills are present with
    a valid `name`/`description`, that the per-command `.curated` mirror is in
    sync with the slash commands (`sync-skill-mirror.mjs --check`), and that the
    MCP file registers `shipeasy` (Copilot additionally requires

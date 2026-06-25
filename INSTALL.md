@@ -4,23 +4,31 @@ Shipeasy ships two things to a coding agent:
 
 1. **Skills** — `SKILL.md` files that auto-trigger on natural-language phrasing
    and walk the agent through each workflow:
-   - **7 area skills** (`flags`, `experiments`, `metrics`, `i18n`, `ops`,
-     `see`, `setup`) — the umbrella guides for each subsystem.
+   - **8 area skills** (`flags`, `experiments`, `metrics`, `i18n`, `ops`,
+     `alerts`, `see`, `setup`) — the umbrella guides, one per subsystem. These
+     cover *every* feature (e.g. `flags` covers configs + kill switches, `ops`
+     covers the bug/feature/error inbox), driving the same MCP tools.
    - **A per-command mirror** under `skills/.curated/` — one skill per
      `/shipeasy:<area>:<verb>` slash command (e.g. `ops-work`, `alerts-create`,
-     `ks-toggle_switch`), so every host reaches the *full* command surface, not
-     just the seven umbrellas. These are symlinks to the same command files
-     Claude Code uses — one source of truth, no duplication (see
+     `ks-toggle_switch`), the 1:1 portable equivalent of Claude Code's slash
+     commands. These are **symlinks** to the same command files Claude Code uses
+     — one source of truth, no duplication (see
      [`scripts/sync-skill-mirror.mjs`](./scripts/sync-skill-mirror.mjs)).
 2. **The `shipeasy` MCP server** — `npx -y @shipeasy/mcp@latest`, the tool
    surface that actually creates gates, drafts experiments, pushes i18n keys,
    files feedback, etc.
 
-(Claude Code reads the command files directly as `/shipeasy:<area>:<verb>`
-**slash commands** and ignores the dot-prefixed `skills/.curated/` mirror, so
-nothing double-registers. No other host has a slash-command primitive, so
-everywhere else the mirror delivers the same flows as skills — reached by
-phrasing or `@shipeasy`.)
+**How each consumer sees those two skill layers:**
+
+- **Claude Code** reads the command files directly as `/shipeasy:<area>:<verb>`
+  **slash commands**, and its plugin loader ignores the dot-prefixed
+  `skills/.curated/` mirror — so the slash commands never double-register, and
+  CC just gets the 8 area skills + the slash commands.
+- **The `skills` CLI** (every other host) installs the **8 area skills by
+  default** from the bare repo URL. To also pull the per-command mirror (the
+  portable slash-command equivalents), add **`--full-depth`** — see Tier 2. No
+  host has a slash-command primitive, so there the mirror delivers those flows
+  as ordinary phrasing/`@shipeasy`-triggered skills.
 
 Both artifacts live **once** in this repo under [`shipeasy/`](./shipeasy) and
 are *referenced* by every host's manifest — nothing is duplicated per agent.
@@ -96,9 +104,14 @@ For every other agent: install the skills, then run onboarding — the `setup`
 skill registers the MCP server for you.
 
 ```bash
-npx skills add https://github.com/shipeasy-ai/shipeasy -a <agent>
+# full surface (8 area skills + the per-command slash-command mirror):
+npx skills add https://github.com/shipeasy-ai/shipeasy --full-depth -a <agent>
 # then, in the agent:  "set up shipeasy in this repo"
 ```
+
+(Drop `--full-depth` to install just the 8 area skills — they already cover
+every feature via the MCP tools. Add it to also get the 1:1 per-command skills,
+the portable equivalents of Claude Code's `/shipeasy:<area>:<verb>` commands.)
 
 The `skills` CLI copies **skill text only** — it does not register MCP servers.
 But you no longer have to hand-edit MCP config: the `setup` skill detects that
@@ -115,16 +128,23 @@ the server yourself, or if auto-registration didn't fit your host.
 
 [`vercel-labs/skills`](https://github.com/vercel-labs/skills) reads `SKILL.md`
 files and writes them into the target agent's skills directory. Point it at the
-**bare repo** — the CLI reads `.claude-plugin/marketplace.json`, follows its
-`source: ./shipeasy`, and discovers both the area skills (`skills/`) and the
-per-command mirror (`skills/.curated/`):
+**bare repo** (no branch path needed) — the CLI reads
+`.claude-plugin/marketplace.json` and follows its `source: ./shipeasy`:
 
 ```bash
-npx skills add https://github.com/shipeasy-ai/shipeasy -a <agent>
+npx skills add https://github.com/shipeasy-ai/shipeasy --full-depth -a <agent>
 ```
 
-(The older `…/tree/main/shipeasy` subpath form still works — it just re-roots
-discovery one level lower. Either resolves to the same skill set.)
+Discovery depth:
+
+- **bare URL, no flag** → the 8 area skills (`skills/<name>/SKILL.md`). The
+  CLI's manifest-mode scan only walks depth-1, so it stops there.
+- **`--full-depth`** → also the per-command mirror under `skills/.curated/`
+  (the 1:1 slash-command equivalents). **Recommended** — this is the full
+  surface.
+- The `…/tree/main/shipeasy` subpath form also pulls the full set (it re-roots
+  inside the plugin and scans the `.curated/` container directly), if you'd
+  rather not pass `--full-depth`.
 
 Add `-g` to install into the user-global skills dir instead of the project.
 `<agent>` values: `opencode`, `cursor`, `windsurf`, `cline`, `gemini-cli`,
@@ -220,8 +240,8 @@ commands. To wire Shipeasy into your app:
 
 | Capability | Claude Code | Codex | Copilot CLI | Tier-2 (OpenCode, Cursor, …) |
 | --- | :---: | :---: | :---: | :---: |
-| 7 area skills | ✅ | ✅ | ✅ | ✅ |
-| Full per-command surface | ✅ slash cmds | @shipeasy + skills | @shipeasy + skills | ✅ `.curated` mirror |
+| 8 area skills (cover every feature) | ✅ | ✅ | ✅ | ✅ |
+| Per-command (slash) surface | ✅ slash cmds | @shipeasy + skills | @shipeasy + skills | ✅ via `--full-depth` |
 | `shipeasy` MCP server | ✅ | ✅ | ✅ | ✅ |
 | `/shipeasy:*` slash commands | ✅ | — | — | — |
 | One-command install | ✅ | ✅ | ✅ | skills CLI; MCP self-registers on setup |

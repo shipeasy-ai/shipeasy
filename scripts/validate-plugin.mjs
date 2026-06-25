@@ -21,7 +21,7 @@ const ROOT = process.cwd();
 // The area skills — the natural-language umbrella, loaded by every host. The
 // per-command mirror (skills/.curated/<ns>-<verb>/) is validated separately by
 // sync-skill-mirror.mjs --check (run at the end).
-const EXPECTED_SKILLS = ["experiments", "flags", "i18n", "metrics", "ops", "see", "setup"];
+const EXPECTED_SKILLS = ["alerts", "experiments", "flags", "i18n", "metrics", "ops", "see", "setup"];
 
 const HOSTS = {
   claude: {
