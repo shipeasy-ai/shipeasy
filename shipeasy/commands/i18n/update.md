@@ -1,6 +1,8 @@
 ---
+name: i18n-update
 description: Change the value of one existing i18n key (the only overwrite path — push/extract are insert-only)
 argument-hint: "<key> <new-value> [--profile <name>] [--description <text>]"
+user-invocable: true
 ---
 
 Update the value of a **single existing** key in a profile. This is the

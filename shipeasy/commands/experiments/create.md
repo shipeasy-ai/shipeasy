@@ -1,6 +1,8 @@
 ---
+name: experiments-create
 description: Analyze the project, propose variation points + a success metric, then create a Shipeasy A/B experiment end-to-end (events instrumented, metric created, experiment drafted).
 argument-hint: "<name>"
+user-invocable: true
 ---
 
 Drive the whole "design a new A/B test" flow from analysis to draft.

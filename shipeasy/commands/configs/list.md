@@ -1,6 +1,8 @@
 ---
+name: configs-list
 description: List dynamic configs with optional filters (folder, name contains)
 argument-hint: "[--folder <f>] [--name-contains <s>]"
+user-invocable: true
 ---
 
 Tabular or JSON list of all configs in the bound project. Follow the

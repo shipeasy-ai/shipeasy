@@ -1,6 +1,8 @@
 ---
+name: flags-list
 description: List feature gates with optional filters (folder, enabled, rollout, name contains)
 argument-hint: "[--folder <f>] [--enabled true|false] [--min-rollout <pct>] [--name-contains <s>]"
+user-invocable: true
 ---
 
 Tabular or JSON list of all gates in the bound project. Follow the

@@ -1,0 +1,1 @@
+../../../commands/ops/create_trigger.md

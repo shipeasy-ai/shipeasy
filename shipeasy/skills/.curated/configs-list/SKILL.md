@@ -1,0 +1,1 @@
+../../../commands/configs/list.md

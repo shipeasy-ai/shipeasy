@@ -1,6 +1,8 @@
 ---
+name: ks-create
 description: Create a Shipeasy kill switch (admin resource that ships in the KV blob alongside gates + configs)
 argument-hint: "<switch-name>"
+user-invocable: true
 ---
 
 Create a kill switch. A killswitch is a **separate admin resource**

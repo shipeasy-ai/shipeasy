@@ -1,6 +1,8 @@
 ---
+name: experiments-update
 description: Update an experiment's allocation, groups, targeting gate, or stats thresholds
 argument-hint: "<name> [--allocation <pct>] [--groups <json>] [--targeting-gate <name>] [--significance <p>] [--min-runtime-days <n>] [--min-sample-size <n>]"
+user-invocable: true
 ---
 
 Update a draft (or running) experiment. Follow the `experiments` skill.

@@ -1,6 +1,8 @@
 ---
+name: configs-update
 description: Update a Shipeasy dynamic config's value (flat update, all envs)
 argument-hint: "<config-name> <json-value>"
+user-invocable: true
 ---
 
 Update an existing config's value. The flat-update path applies to

@@ -1,6 +1,8 @@
 ---
+name: i18n-extract
 description: Extract hardcoded user-visible strings and wrap them with i18n.t() from @shipeasy/sdk/client
 argument-hint: "[target-dir]"
+user-invocable: true
 ---
 
 You are running an automated i18n extraction. Do not pause to ask the user

@@ -1,6 +1,8 @@
 ---
+name: alerts-create
 description: Create a metric-threshold alert rule (the cron raises an alert when the metric crosses the threshold)
 argument-hint: "<name> --metric <id|name> --comparator gt|gte|lt|lte --threshold <n> [--window <hours>] [--severity danger|warn|info] [--disabled]"
+user-invocable: true
 ---
 
 Create an **alert rule** — a metric-threshold definition the analysis cron

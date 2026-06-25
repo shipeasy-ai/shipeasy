@@ -1,6 +1,8 @@
 ---
+name: configs-create
 description: Create a Shipeasy dynamic config (typed JSON value with targeting)
 argument-hint: "<config-name> [json-default]"
+user-invocable: true
 ---
 
 Create or update a Shipeasy dynamic config. Follow the `flags` skill.

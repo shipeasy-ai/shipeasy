@@ -1,6 +1,8 @@
 ---
-description: Provision a recurring, unattended feedback trigger that, on a schedule, runs /shipeasy:ops:work --pr against the bound project — burning down the bug + feature-request + error/alert queue and opening one PR per item. Provider-pluggable via --provider <platform>: claude (default; Claude Code scheduled routine in Anthropic's cloud, also registered as a Shipeasy connector), cursor, copilot, windsurf, codex, cline, openclaw, opencode, continue, gemini. Each provider schedules the SAME work — only the scheduler + headless launch + auth differ (native cloud scheduler, native local daemon, or headless run + external cron/Actions). Full per-platform walkthrough lives in TRIGGER-INSTALL.md. The claude flow does NOT use GitHub Actions; Tier-C providers (opencode/continue/gemini/codex) legitimately can.
+name: ops-create_trigger
+description: "Provision a recurring, unattended feedback trigger that, on a schedule, runs /shipeasy:ops:work --pr against the bound project — burning down the bug + feature-request + error/alert queue and opening one PR per item. Provider-pluggable via --provider <platform>: claude (default; Claude Code scheduled routine in Anthropic's cloud, also registered as a Shipeasy connector), cursor, copilot, windsurf, codex, cline, openclaw, opencode, continue, gemini. Each provider schedules the SAME work — only the scheduler + headless launch + auth differ (native cloud scheduler, native local daemon, or headless run + external cron/Actions). Full per-platform walkthrough lives in TRIGGER-INSTALL.md. The claude flow does NOT use GitHub Actions; Tier-C providers (opencode/continue/gemini/codex) legitimately can."
 argument-hint: "[--provider claude|cursor|copilot|windsurf|codex|cline|openclaw|opencode|continue|gemini] [--frequency 4h|6h|daily|weekdays|weekly] [--dry-run]"
+user-invocable: true
 ---
 
 ## Provider selection

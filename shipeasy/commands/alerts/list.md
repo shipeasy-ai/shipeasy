@@ -1,6 +1,8 @@
 ---
+name: alerts-list
 description: List the project's metric-threshold alert rules (id, metric, condition, window, severity, on/off)
 argument-hint: "[--json]"
+user-invocable: true
 ---
 
 Tabular or JSON list of every **alert rule** in the bound project. These are the

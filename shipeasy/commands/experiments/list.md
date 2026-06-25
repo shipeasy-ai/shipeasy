@@ -1,6 +1,8 @@
 ---
+name: experiments-list
 description: List experiments with optional filters (status, universe, name contains)
 argument-hint: "[--status draft|running|stopped|archived] [--universe <name>] [--name-contains <s>]"
+user-invocable: true
 ---
 
 Tabular or JSON list of all experiments in the bound project. Follow

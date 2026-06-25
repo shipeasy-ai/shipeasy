@@ -1,6 +1,8 @@
 ---
+name: ks-list
 description: List killswitches with optional filters (folder, prod value, name contains)
 argument-hint: "[--folder <f>] [--value on|off] [--name-contains <s>]"
+user-invocable: true
 ---
 
 Tabular or JSON list of all killswitch resources in the bound project.

@@ -1,5 +1,7 @@
 ---
+name: flags-install
 description: One-shot install for the whole flags + experimentation platform — gates, dynamic configs, kill switches, A/B experiments, and event metrics
+user-invocable: true
 ---
 
 Per-project install for the **flags platform** — the single command that

@@ -1,0 +1,1 @@
+../../../commands/flags/install.md

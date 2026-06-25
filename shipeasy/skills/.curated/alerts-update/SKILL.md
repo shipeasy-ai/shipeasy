@@ -1,0 +1,1 @@
+../../../commands/alerts/update.md

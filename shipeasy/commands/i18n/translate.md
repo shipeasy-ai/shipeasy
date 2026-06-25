@@ -1,6 +1,8 @@
 ---
+name: i18n-translate
 description: Machine-translate a project into a new locale — seed a target profile from the source, run Anthropic translation on the draft, then publish
 argument-hint: "<target-profile> [--from <source-profile>] [--glossary <term=translation,...>]"
+user-invocable: true
 ---
 
 Stand up a new locale end-to-end: create the target profile seeded from the

@@ -1,6 +1,8 @@
 ---
+name: ks-toggle_switch
 description: Toggle one named override switch on a kill switch (set or unset a per-key boolean override on one env) — the dashboard "switches" feature
 argument-hint: "<folder.name> <switch-key> [on|off] [--env prod|staging|dev]"
+user-invocable: true
 ---
 
 Flip a single **named override** on an existing kill switch. This replaces

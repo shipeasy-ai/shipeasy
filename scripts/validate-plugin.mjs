@@ -15,9 +15,13 @@
 
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
+import { spawnSync } from "node:child_process";
 
 const ROOT = process.cwd();
-const EXPECTED_SKILLS = ["bugs", "experiments", "flags", "i18n", "metrics", "see", "setup"];
+// The area skills — the natural-language umbrella, loaded by every host. The
+// per-command mirror (skills/.curated/<ns>-<verb>/) is validated separately by
+// sync-skill-mirror.mjs --check (run at the end).
+const EXPECTED_SKILLS = ["experiments", "flags", "i18n", "metrics", "ops", "see", "setup"];
 
 const HOSTS = {
   claude: {
@@ -158,6 +162,18 @@ for (const k of keys) {
     process.exit(2);
   }
   validateHost(k);
+}
+
+// Cross-host: the per-command skill mirror (skills/.curated/) must be in sync
+// with the slash commands. Run once regardless of which host(s) we validated.
+console.log("\n[mirror] per-command skill mirror");
+const mirror = spawnSync(process.execPath, [join(ROOT, "scripts/sync-skill-mirror.mjs"), "--check"], {
+  encoding: "utf8",
+});
+process.stdout.write((mirror.stdout || "").replace(/^/gm, "  "));
+if (mirror.status !== 0) {
+  process.stderr.write((mirror.stderr || "").replace(/^/gm, "  "));
+  failures++;
 }
 
 console.log("");

@@ -1,6 +1,8 @@
 ---
+name: experiments-start
 description: Start a Shipeasy A/B experiment (draft → running)
 argument-hint: "<name>"
+user-invocable: true
 ---
 
 Start a draft experiment so it begins assigning traffic. Follow the

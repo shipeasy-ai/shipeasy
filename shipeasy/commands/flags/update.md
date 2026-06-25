@@ -1,6 +1,8 @@
 ---
+name: flags-update
 description: Update a Shipeasy feature gate's rollout, rules, or enabled flag
 argument-hint: "<gate-name> [--rollout <pct>] [--rules <json>] [--enable|--disable]"
+user-invocable: true
 ---
 
 Update an existing feature gate. Follow the `flags` skill.

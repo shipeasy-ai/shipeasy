@@ -1,6 +1,8 @@
 ---
+name: experiments-stop
 description: Stop a Shipeasy experiment and record the winner
 argument-hint: "<name> [--winner treatment|control|null]"
+user-invocable: true
 ---
 
 Stop a running experiment. Freezes assignment and writes the final

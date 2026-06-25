@@ -1,6 +1,8 @@
 ---
+name: i18n-migrate
 description: Migrate an existing i18n library (react-i18next, react-intl, lingui, next-intl, raw-i18next) to Shipeasy
 argument-hint: "<library-name>"
+user-invocable: true
 ---
 
 Migrate the project's existing i18n library to `@shipeasy/sdk` i18n.

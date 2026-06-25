@@ -2,16 +2,25 @@
 
 Shipeasy ships two things to a coding agent:
 
-1. **Seven skills** — `SKILL.md` files (`flags`, `experiments`, `metrics`,
-   `i18n`, `bugs`, `see`, `setup`) that auto-trigger on natural-language
-   phrasing and walk the agent through each workflow.
+1. **Skills** — `SKILL.md` files that auto-trigger on natural-language phrasing
+   and walk the agent through each workflow:
+   - **7 area skills** (`flags`, `experiments`, `metrics`, `i18n`, `ops`,
+     `see`, `setup`) — the umbrella guides for each subsystem.
+   - **A per-command mirror** under `skills/.curated/` — one skill per
+     `/shipeasy:<area>:<verb>` slash command (e.g. `ops-work`, `alerts-create`,
+     `ks-toggle_switch`), so every host reaches the *full* command surface, not
+     just the seven umbrellas. These are symlinks to the same command files
+     Claude Code uses — one source of truth, no duplication (see
+     [`scripts/sync-skill-mirror.mjs`](./scripts/sync-skill-mirror.mjs)).
 2. **The `shipeasy` MCP server** — `npx -y @shipeasy/mcp@latest`, the tool
    surface that actually creates gates, drafts experiments, pushes i18n keys,
    files feedback, etc.
 
-(Claude Code additionally gets the `/shipeasy:<area>:<verb>` **slash commands**.
-No other host has a plugin slash-command primitive, so everywhere else you use
-the skills + MCP instead — same flows, reached by phrasing or `@shipeasy`.)
+(Claude Code reads the command files directly as `/shipeasy:<area>:<verb>`
+**slash commands** and ignores the dot-prefixed `skills/.curated/` mirror, so
+nothing double-registers. No other host has a slash-command primitive, so
+everywhere else the mirror delivers the same flows as skills — reached by
+phrasing or `@shipeasy`.)
 
 Both artifacts live **once** in this repo under [`shipeasy/`](./shipeasy) and
 are *referenced* by every host's manifest — nothing is duplicated per agent.
@@ -61,9 +70,9 @@ In the Codex TUI (`/plugins` opens the browser, or add the source directly):
 /plugin install shipeasy@shipeasy
 ```
 
-Gets the seven skills + MCP. Invoke explicitly with `@shipeasy`, or just
-describe the task and let a skill trigger. (No slash commands — Codex plugins
-have no command primitive.)
+Gets the area skills + MCP. (Codex plugins have no slash-command primitive, so
+invoke explicitly with `@shipeasy`, or describe the task and let a skill
+trigger.)
 
 ### GitHub Copilot CLI
 
@@ -87,7 +96,7 @@ For every other agent: install the skills, then run onboarding — the `setup`
 skill registers the MCP server for you.
 
 ```bash
-npx skills add https://github.com/shipeasy-ai/shipeasy/tree/main/shipeasy -a <agent>
+npx skills add https://github.com/shipeasy-ai/shipeasy -a <agent>
 # then, in the agent:  "set up shipeasy in this repo"
 ```
 
@@ -106,12 +115,16 @@ the server yourself, or if auto-registration didn't fit your host.
 
 [`vercel-labs/skills`](https://github.com/vercel-labs/skills) reads `SKILL.md`
 files and writes them into the target agent's skills directory. Point it at the
-**plugin subpath** (`/tree/main/shipeasy`) so it re-roots discovery at our
-`skills/` folder:
+**bare repo** — the CLI reads `.claude-plugin/marketplace.json`, follows its
+`source: ./shipeasy`, and discovers both the area skills (`skills/`) and the
+per-command mirror (`skills/.curated/`):
 
 ```bash
-npx skills add https://github.com/shipeasy-ai/shipeasy/tree/main/shipeasy -a <agent>
+npx skills add https://github.com/shipeasy-ai/shipeasy -a <agent>
 ```
+
+(The older `…/tree/main/shipeasy` subpath form still works — it just re-roots
+discovery one level lower. Either resolves to the same skill set.)
 
 Add `-g` to install into the user-global skills dir instead of the project.
 `<agent>` values: `opencode`, `cursor`, `windsurf`, `cline`, `gemini-cli`,
@@ -207,7 +220,8 @@ commands. To wire Shipeasy into your app:
 
 | Capability | Claude Code | Codex | Copilot CLI | Tier-2 (OpenCode, Cursor, …) |
 | --- | :---: | :---: | :---: | :---: |
-| Seven skills | ✅ | ✅ | ✅ | ✅ |
+| 7 area skills | ✅ | ✅ | ✅ | ✅ |
+| Full per-command surface | ✅ slash cmds | @shipeasy + skills | @shipeasy + skills | ✅ `.curated` mirror |
 | `shipeasy` MCP server | ✅ | ✅ | ✅ | ✅ |
 | `/shipeasy:*` slash commands | ✅ | — | — | — |
 | One-command install | ✅ | ✅ | ✅ | skills CLI; MCP self-registers on setup |

@@ -92,7 +92,7 @@ the directory is non-empty: ask the user before `git init`.
 
 The base onboarding below runs entirely through the `shipeasy` **CLI**, so it
 does not need MCP tools. But the **feature** skills the user runs next —
-`flags`, `experiments`, `metrics`, `i18n`, `bugs` — create resources through the
+`flags`, `experiments`, `metrics`, `i18n`, `ops` — create resources through the
 `shipeasy` **MCP server**. A native-plugin install (Claude Code / Codex /
 Copilot, "Tier 1") already registered it; a **skills-CLI install**
 (`npx skills add shipeasy-ai/shipeasy`, "Tier 2") copies skill text **only** and

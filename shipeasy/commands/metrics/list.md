@@ -1,6 +1,8 @@
 ---
+name: metrics-list
 description: List metrics with optional filters (folder, event, aggregation, name contains)
 argument-hint: "[--folder <f>] [--event <name>] [--agg <count|sum|avg|...>] [--name-contains <s>]"
+user-invocable: true
 ---
 
 Tabular or JSON list of all metrics in the bound project. Follow the

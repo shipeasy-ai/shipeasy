@@ -1,6 +1,8 @@
 ---
+name: metrics-show
 description: Show one Shipeasy metric by id
 argument-hint: "<id>"
+user-invocable: true
 ---
 
 Prereq: `.shipeasy` bound.

@@ -1,6 +1,8 @@
 ---
+name: ops-list
 description: List operational items — bug reports, feature requests, tracked production errors, or active alerts — with a --type filter
 argument-hint: "[--type bug|feature|error|alert|all] [--status <s>] [--priority high|critical|medium|nice_to_have] [--name-contains <s>]"
+user-invocable: true
 ---
 
 Read view over the bound project's operational inbox — the unified `feedback`

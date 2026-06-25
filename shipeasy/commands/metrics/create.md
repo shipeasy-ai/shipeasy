@@ -1,6 +1,8 @@
 ---
+name: metrics-create
 description: Create a Shipeasy metric (event-backed query) for tracking or experiment success
 argument-hint: "<name> --event <event> --query '<dsl>'"
+user-invocable: true
 ---
 
 Create a new metric. Follow the `metrics` skill.

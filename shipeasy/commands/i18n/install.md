@@ -1,5 +1,7 @@
 ---
+name: i18n-install
 description: Enable the translations module, create the en:prod profile, and (if needed) inject the loader script
+user-invocable: true
 ---
 
 Per-feature install for `i18n` (translations). Prereq: `/shipeasy:setup`

@@ -1,6 +1,8 @@
 ---
+name: alerts-update
 description: Update an alert rule's threshold, comparator, window, severity, name, or enabled flag (metric is immutable)
 argument-hint: "<id> [--threshold <n>] [--comparator gt|gte|lt|lte] [--window <hours>] [--severity danger|warn|info] [--name <s>] [--enabled true|false]"
+user-invocable: true
 ---
 
 Tune an existing **alert rule**. The first argument is the rule `id`, a unique

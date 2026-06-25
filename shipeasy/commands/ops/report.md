@@ -1,10 +1,12 @@
 ---
+name: ops-report
 description: File an operational item — a bug report or feature request — against the bound project
 argument-hint: "[--type bug|feature] <title>"
+user-invocable: true
 ---
 
 File a bug report or feature request against the bound project. This
-replaces the old `/shipeasy:bugs:report`. Follow the `bugs` skill.
+replaces the old `/shipeasy:bugs:report`. Follow the `ops` skill.
 
 Prereq:
 

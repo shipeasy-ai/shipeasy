@@ -1,5 +1,7 @@
 ---
+name: ops-install
 description: Enable the feedback module + error collection, verify the devtools overlay and error capture, drop project pointer skills (feedback + see() error reporting), and add the CLAUDE.md error-handling rule
+user-invocable: true
 ---
 
 Run the ops-module setup for Shipeasy — the in-app feedback overlay

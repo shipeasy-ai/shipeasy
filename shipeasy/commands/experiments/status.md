@@ -1,6 +1,8 @@
 ---
+name: experiments-status
 description: Show enrolment + significance state for a Shipeasy experiment
 argument-hint: "<name>"
+user-invocable: true
 ---
 
 Show experiment status. Follow the `experiments` skill.

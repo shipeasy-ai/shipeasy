@@ -10,10 +10,12 @@ on:
     branches: [main]
     paths:
       - "shipeasy/skills/**"
+      - "shipeasy/commands/**"
       - "shipeasy/.codex-plugin/**"
       - "shipeasy/.mcp.json"
       - ".agents/plugins/**"
       - "scripts/validate-plugin.mjs"
+      - "scripts/sync-skill-mirror.mjs"
       - ".github/workflows/install-codex.yml"
   pull_request:
   workflow_dispatch:
@@ -41,16 +43,18 @@ jobs:
           npm i -g @openai/codex
           codex --version
 
-      - name: Install all 7 skills via the skills CLI (auth-free)
+      - name: Install all skills via the skills CLI (auth-free)
         run: |
           set -euo pipefail
+          # Expected = area skills + the .curated per-command mirror, from source.
+          expected="$(find "$GITHUB_WORKSPACE/shipeasy/skills" -name SKILL.md | wc -l | tr -d ' ')"
           work="$(mktemp -d)"
           cd "$work"
           npx -y skills add "$GITHUB_WORKSPACE/shipeasy" -a codex --copy -y
           count="$(find . -name SKILL.md | wc -l | tr -d ' ')"
-          echo "Installed $count skill(s):"
+          echo "Installed $count skill(s) (expected $expected):"
           find . -name SKILL.md | sort
-          test "$count" -eq 7
+          test "$count" -eq "$expected"
 
       - name: Native plugin install
         run: |

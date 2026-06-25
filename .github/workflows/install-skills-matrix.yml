@@ -1,15 +1,18 @@
 name: install · Tier-2 agents (skills)
 
-# Smoke-tests that all seven Shipeasy skills install into every Tier-2 agent
-# (the ones without a bundled-plugin system) via the vercel-labs/skills CLI.
+# Smoke-tests that the full Shipeasy skill set installs into every Tier-2 agent
+# (the ones without a bundled-plugin system) via the vercel-labs/skills CLI:
+# the 7 area skills (skills/) plus the per-command mirror (skills/.curated/).
 # Together with install-{claude,codex,copilot}.yml this covers every platform in
 # INSTALL.md. Auth-free and deterministic — installs from this checkout and
-# asserts exactly seven SKILL.md files land in the agent's skills directory.
+# asserts the installed SKILL.md count matches the source tree.
 on:
   push:
     branches: [main]
     paths:
       - "shipeasy/skills/**"
+      - "shipeasy/commands/**"
+      - "scripts/sync-skill-mirror.mjs"
       - ".github/workflows/install-skills-matrix.yml"
   pull_request:
   workflow_dispatch:
@@ -41,13 +44,15 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Install all 7 skills via the skills CLI (auth-free)
+      - name: Install all skills via the skills CLI (auth-free)
         run: |
           set -euo pipefail
+          # Expected = area skills + the .curated per-command mirror, from source.
+          expected="$(find "$GITHUB_WORKSPACE/shipeasy/skills" -name SKILL.md | wc -l | tr -d ' ')"
           work="$(mktemp -d)"
           cd "$work"
           npx -y skills add "$GITHUB_WORKSPACE/shipeasy" -a "${{ matrix.agent }}" --copy -y
           count="$(find . -name SKILL.md | wc -l | tr -d ' ')"
-          echo "Installed $count skill(s) for ${{ matrix.agent }}:"
+          echo "Installed $count skill(s) for ${{ matrix.agent }} (expected $expected):"
           find . -name SKILL.md | sort
-          test "$count" -eq 7
+          test "$count" -eq "$expected"

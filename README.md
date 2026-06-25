@@ -29,8 +29,8 @@ MCP config snippet.
 ### Tier 2 — skills + MCP (OpenCode, Cursor, Windsurf, Cline, Gemini, Continue, …)
 
 ```bash
-# 1. skills — reads SKILL.md from the plugin subpath, writes them into the agent's skills dir
-npx skills add https://github.com/shipeasy-ai/shipeasy/tree/main/shipeasy -a <agent>
+# 1. skills — reads SKILL.md (area skills + per-command .curated mirror), writes them into the agent's skills dir
+npx skills add https://github.com/shipeasy-ai/shipeasy -a <agent>
 
 # 2. MCP — add the shipeasy server to that agent's MCP config (see INSTALL.md for the exact file)
 #    most agents use the standard mcpServers shape:
@@ -96,21 +96,24 @@ GitHub Actions smoke-tests that **every platform in [`INSTALL.md`](./INSTALL.md)
 can install Shipeasy. Three per-plugin workflows —
 `.github/workflows/install-{claude,codex,copilot}.yml` — cover the Tier-1 hosts,
 and `install-skills-matrix.yml` covers the Tier-2 agents (Cursor, Windsurf,
-Cline, Gemini, OpenCode, Continue, OpenClaw) by installing all seven skills via
-the [`skills`](https://github.com/vercel-labs/skills) CLI and asserting they
-land. Each per-plugin job:
+Cline, Gemini, OpenCode, Continue, OpenClaw) by installing the full skill set via
+the [`skills`](https://github.com/vercel-labs/skills) CLI and asserting it
+lands. Each per-plugin job:
 
 1. **Validates wiring deterministically** — `node scripts/validate-plugin.mjs <host>`
    parses that host's marketplace + plugin manifests, asserts the marketplace
-   `source` resolves to `./shipeasy`, that all seven skills are present with a
-   valid `name`/`description`, and that the MCP file registers `shipeasy`
-   (Copilot additionally requires `type: "local"`). No network, no auth — this
-   is the gate that catches a bad manifest path or schema.
+   `source` resolves to `./shipeasy`, that all seven area skills are present with
+   a valid `name`/`description`, that the per-command `.curated` mirror is in
+   sync with the slash commands (`sync-skill-mirror.mjs --check`), and that the
+   MCP file registers `shipeasy` (Copilot additionally requires
+   `type: "local"`). No network, no auth — this is the gate that catches a bad
+   manifest path or schema.
 2. **Installs the host CLI** (`@anthropic-ai/claude-code`, `@openai/codex`,
    `@github/copilot`) and prints its version.
-3. **Installs all seven skills** from the checkout via the
+3. **Installs the full skill set** from the checkout via the
    [`skills`](https://github.com/vercel-labs/skills) CLI (`-a claude-code` /
-   `codex` / `github-copilot`) and asserts exactly seven `SKILL.md` land.
+   `codex` / `github-copilot`) and asserts the installed `SKILL.md` count
+   matches the source tree (area skills + `.curated` mirror).
 4. **Attempts the native plugin install** as a non-blocking probe. This step is
    best-effort because headless native install isn't available everywhere yet:
    Claude Code has no headless `plugin install` ([claude-code#12840](https://github.com/anthropics/claude-code/issues/12840)),
@@ -350,7 +353,7 @@ matches against.
 | `metrics` | "create metric", "track metric", "metric DSL", "event metric", "success metric definition", "what metrics do we have". |
 | `flags` | "feature flag", "feature gate", "rollout", "kill switch", "dynamic config", "remote config". |
 | `i18n` | "translate", "i18n", "add a key", "make this translatable", "user-facing copy changes". |
-| `bugs` | "bug report", "feature request", "feedback", "user-reported issue", "report a bug", "fix open bugs", "burn down the bug queue". |
+| `ops` | "bug report", "feature request", "feedback", "user-reported issue", "report a bug", "operational queue", "fix open bugs", "burn down the queue", "work the inbox", "set up a recurring fix trigger". |
 
 ### Examples of fully command-less use
 
@@ -362,8 +365,8 @@ matches against.
 | *"Kill switch for the new checkout if it breaks"* | `flags` | Creates a `kill_checkout` gate defaulting **on** that the old code path gates on. |
 | *"Wrap the homepage hero copy so we can translate it"* | `i18n` | Runs the `i18n.t(...)` wrap workflow, creates keys, pushes + publishes the chunk. |
 | *"Migrate this repo from react-i18next to Shipeasy"* | `i18n` | Runs `shipeasy codemod i18n --migrate react-i18next`, pushes existing translations, removes the old library. |
-| *"I got a customer bug report about the checkout button"* | `bugs` | Files a single bug via `shipeasy feedback bugs create …`. |
-| *"Resolve every open bug we have"* | `bugs` | Recommends `/shipeasy:ops:work` (the looping orchestrator over bugs + features + errors + alerts) — the skill alone won't drive the multi-item loop. |
+| *"I got a customer bug report about the checkout button"* | `ops` | Files a single bug via `shipeasy feedback bugs create …`. |
+| *"Resolve every open bug we have"* | `ops` | Recommends `/shipeasy:ops:work` (the looping orchestrator over bugs + features + errors + alerts) — the umbrella skill points at the `ops-work` mirror skill / slash command that drives the multi-item loop. |
 | *"Stop the checkout-v2 experiment and ship treatment"* | `experiments` | `exp_stop_experiment { name, winner: "treatment" }`. |
 | *"How significant is the checkout experiment so far?"* | `experiments` | `exp_experiment_status { name }`, surfaces enrolment per group + p-value + recommendation. |
 
@@ -462,7 +465,7 @@ bugs@shipeasy
 
 they should uninstall all five and install `shipeasy@shipeasy` instead.
 The new plugin owns the same MCP server, the same skills (renamed:
-`setup`, `experiments`, `metrics`, `flags`, `i18n`, `bugs`), and the same
+`setup`, `experiments`, `metrics`, `flags`, `i18n`, `ops`), and the same
 underlying CLI flows. Only the slash command names changed —
 `/shipeasy-setup` → `/shipeasy:setup`, `/shipeasy-flag` →
 `/shipeasy:flags:create`, etc.

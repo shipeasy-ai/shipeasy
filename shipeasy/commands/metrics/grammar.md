@@ -1,5 +1,7 @@
 ---
+name: metrics-grammar
 description: Print the Shipeasy metric query DSL grammar
+user-invocable: true
 ---
 
 ```bash

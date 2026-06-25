@@ -1,6 +1,8 @@
 ---
+name: i18n-validate
 description: Check that every i18n key referenced in code (i18n.t("key", …)) actually exists on the server — a CI/pre-commit drift gate
 argument-hint: "[paths...] [--profile <name>]"
+user-invocable: true
 ---
 
 Scan source for `i18n.t("<key>", …)` references and confirm each one exists

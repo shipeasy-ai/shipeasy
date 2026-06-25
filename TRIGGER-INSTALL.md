@@ -69,7 +69,7 @@ comes from `~/.config/shipeasy/config.json`. **Never print either value.**
 
 `<PLUGIN-INSTALL-FOR-THIS-HOST>` is the host's install line from
 [`INSTALL.md`](./INSTALL.md): the plugin install for `claude`/`copilot`, or
-`npx -y skills add https://github.com/shipeasy-ai/shipeasy/tree/main/shipeasy -a <agent>`
+`npx -y skills add https://github.com/shipeasy-ai/shipeasy -a <agent>`
 for the rest. The run also needs `@shipeasy/mcp` reachable — most hosts already
 have it from setup.
 

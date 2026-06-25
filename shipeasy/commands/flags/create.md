@@ -1,6 +1,8 @@
 ---
+name: flags-create
 description: Create a Shipeasy feature gate with the right rollout/targeting shape
 argument-hint: "<gate-name> [percent]"
+user-invocable: true
 ---
 
 Create or update a Shipeasy feature gate. Follow the `flags` skill.

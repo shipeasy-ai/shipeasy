@@ -1,6 +1,8 @@
 ---
+name: experiments-archive
 description: Archive a stopped Shipeasy experiment (hides from default list, preserves results)
 argument-hint: "<name>"
+user-invocable: true
 ---
 
 Archive a stopped experiment. Archiving moves the experiment out of the

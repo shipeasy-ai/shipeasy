@@ -1,0 +1,1 @@
+../../../commands/configs/update.md

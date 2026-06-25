@@ -1,6 +1,8 @@
 ---
+name: i18n-profiles
 description: List or create i18n locale profiles (e.g. en:prod, fr:prod) for the bound project
 argument-hint: "[list] | [create <name> [--locales <csv>] [--default-locale <locale>] [--from <source-profile>]]"
+user-invocable: true
 ---
 
 Manage the project's i18n **locale profiles** — the named buckets keys live

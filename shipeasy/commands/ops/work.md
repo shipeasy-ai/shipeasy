@@ -1,6 +1,8 @@
 ---
+name: ops-work
 description: Burn down the operational queue — the unified feedback table of bugs, feature requests, and auto-filed error/alert tickets — one item at a time, each as its own atomic diff. With --pr, commits each item on its own branch and opens one pull request PER item, each closing its connected GitHub issue and flipping the item to ready_for_qa (the mode the scheduled trigger uses).
 argument-hint: "[--type bug|feature|error|alert|measure_plan|all] [--status <s>] [--priority high|critical] [--limit <N>] [--pr] [--dry-run]"
+user-invocable: true
 ---
 
 The single end-to-end "work the inbox" loop. **The queue is ONE table** — the
@@ -39,7 +41,7 @@ branch + PR, flip to `ready_for_qa`). This is the Claude-Code half of the split
 
 **Loop, do not batch.** Each item is its own mini-investigation + fix;
 finishing one before starting the next keeps every diff reviewable and avoids
-cross-item contamination. Follow the `bugs` skill for triage semantics.
+cross-item contamination. Follow the `ops` skill for triage semantics.
 
 Prereqs:
 

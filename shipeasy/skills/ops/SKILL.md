@@ -1,16 +1,24 @@
 ---
-name: bugs
-description: File, fix, and manage in-app bug reports and feature requests captured by Shipeasy devtools. Trigger on "bug report", "feature request", "feedback", "user-reported issue", "report a bug", "fix open bugs", "burn down the bug queue".
+name: ops
+description: File, fix, and manage the Shipeasy operational inbox — in-app bug reports, feature requests, and auto-filed production-error/alert tickets — one unified feedback queue. Trigger on "bug report", "feature request", "feedback", "user-reported issue", "report a bug", "operational queue", "ops inbox", "production error ticket", "fix open bugs", "burn down the queue", "work the inbox", "set up a recurring fix routine/trigger".
 user-invocable: true
 ---
 
-# Shipeasy bugs & feature requests
+# Shipeasy ops — the operational inbox
 
-The `feedback` module captures user-submitted bug reports and feature
-requests through the in-browser devtools overlay (`?se=1` /
-`?se_devtools=1` on any page that loads the devtools `<script>` tag). The CLI
-mirrors the same admin API so reports can also be filed and triaged from
-a terminal or a CI script.
+The `feedback` module is a single queue of operational work: user-submitted
+**bug reports** and **feature requests** (captured through the in-browser
+devtools overlay — `?se=1` / `?se_devtools=1` on any page that loads the
+devtools `<script>` tag), plus auto-filed **production-error** and **alert**
+tickets. The CLI mirrors the same admin API, so items can be filed, listed,
+triaged, and worked from a terminal or a CI script.
+
+> **On Claude Code** each verb below is also a slash command
+> (`/shipeasy:ops:install`, `/shipeasy:ops:report`, `/shipeasy:ops:list`,
+> `/shipeasy:ops:work`, `/shipeasy:ops:create_trigger`). On every other host
+> those same flows arrive as the mirrored `ops-*` skills (`ops-work`,
+> `ops-list`, `ops-report`, `ops-install`, `ops-create_trigger`) and the
+> `shipeasy` MCP tools — same behaviour, reached by phrasing or `@shipeasy`.
 
 ## First fix: update before you debug
 
