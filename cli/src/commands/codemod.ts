@@ -82,7 +82,7 @@ export function codemodCommand(parent: Command): void {
         if (targets.length === 0) {
           console.error(
             "\n  Error: no target directory found. Pass an explicit path " +
-              "(e.g. `shipeasy codemod i18n app`) or create a `.i18n-codemod.json` " +
+              "(e.g. `shipeasy i18n codemod i18n app`) or create a `.i18n-codemod.json` " +
               "with `srcDir` pointing at your source root.\n",
           );
           process.exit(1);
@@ -109,9 +109,9 @@ export function codemodCommand(parent: Command): void {
     });
 
   withExamples(codemodI18n, [
-    { note: "Preview extraction over app/", run: "shipeasy codemod i18n app --dry-run" },
-    { note: "Run only JSX text extraction", run: "shipeasy codemod i18n ./src --type jsx-text" },
-    { note: "Migrate from react-i18next", run: "shipeasy codemod i18n --migrate react-i18next" },
+    { note: "Preview extraction over app/", run: "shipeasy i18n codemod i18n app --dry-run" },
+    { note: "Run only JSX text extraction", run: "shipeasy i18n codemod i18n ./src --type jsx-text" },
+    { note: "Migrate from react-i18next", run: "shipeasy i18n codemod i18n --migrate react-i18next" },
   ]);
 }
 

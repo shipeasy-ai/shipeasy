@@ -32,7 +32,7 @@ export function universesCommand(parent: Command): void {
       }
     });
 
-  withExamples(listUniverses, [{ run: "shipeasy universes list" }]);
+  withExamples(listUniverses, [{ run: "shipeasy flags experiments universes list" }]);
 
   const createUniverse = u
     .command("create <name>")
@@ -58,10 +58,10 @@ export function universesCommand(parent: Command): void {
     });
 
   withExamples(createUniverse, [
-    { note: "Default user_id unit, no holdout", run: "shipeasy universes create web" },
+    { note: "Default user_id unit, no holdout", run: "shipeasy flags experiments universes create web" },
     {
       note: "10% holdout, keyed on account_id",
-      run: "shipeasy universes create web --unit-type account_id --holdout 0,999",
+      run: "shipeasy flags experiments universes create web --unit-type account_id --holdout 0,999",
     },
   ]);
 
@@ -87,8 +87,8 @@ export function universesCommand(parent: Command): void {
     });
 
   withExamples(updateUniverse, [
-    { note: "Set a 5% holdout", run: "shipeasy universes update web --holdout 0,499" },
-    { note: "Clear the holdout", run: "shipeasy universes update web --holdout null" },
+    { note: "Set a 5% holdout", run: "shipeasy flags experiments universes update web --holdout 0,499" },
+    { note: "Clear the holdout", run: "shipeasy flags experiments universes update web --holdout null" },
   ]);
 
   const deleteUniverse = u
@@ -106,7 +106,7 @@ export function universesCommand(parent: Command): void {
       }
     });
 
-  withExamples(deleteUniverse, [{ run: "shipeasy universes delete web" }]);
+  withExamples(deleteUniverse, [{ run: "shipeasy flags experiments universes delete web" }]);
 }
 
 function parseHoldout(raw: string | undefined): [number, number] | null {

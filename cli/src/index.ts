@@ -10,24 +10,19 @@ import { killswitchesCommand } from "./commands/killswitches";
 import { experimentsCommand } from "./commands/experiments";
 import { configsCommand } from "./commands/configs";
 import { universesCommand } from "./commands/universes";
-import { feedbackCommand } from "./commands/feedback";
-import { connectorsCommand } from "./commands/connectors";
 import { opsCommand } from "./commands/ops";
-import { alertsCommand } from "./commands/alerts";
-import { alertRulesCommand } from "./commands/alert-rules";
 import { keysCommand } from "./commands/keys";
-import { scanCommand } from "./commands/scan";
 import { i18nCommand } from "./commands/i18n";
 import { codemodCommand } from "./commands/codemod";
 import { mcpCommand } from "./commands/mcp";
 import { setupCommand } from "./commands/setup";
 import { projectsCommand } from "./commands/projects";
-import { modulesCommand } from "./commands/modules";
 import { metricsCommand } from "./commands/metrics";
+import { eventsCommand } from "./commands/events";
 import { bindProject, readProjectConfig } from "./util/project-config";
 import { printJson } from "./util/output";
 import { reportCliError } from "./util/error-reporter";
-import { withExamples, withDetails, withOutput } from "./util/examples";
+import { withExamples, withDetails, withOutput, withTreeHelp } from "./util/examples";
 
 interface ProjectMeta {
   id: string;
@@ -277,25 +272,35 @@ export function buildProgram(): Command {
     { run: "shipeasy bind proj_abc123 --name 'Acme Web'" },
   ]);
 
+  // ── Core (top-level) ──────────────────────────────────────────────────────
   setupCommand(program);
   projectsCommand(program);
-  modulesCommand(program);
-  flagsCommand(program);
-  killswitchesCommand(program);
-  experimentsCommand(program);
-  metricsCommand(program);
-  configsCommand(program);
-  universesCommand(program);
-  feedbackCommand(program);
-  connectorsCommand(program);
-  opsCommand(program);
-  alertsCommand(program);
-  alertRulesCommand(program);
-  keysCommand(program);
-  scanCommand(program);
-  i18nCommand(program);
-  codemodCommand(program);
   mcpCommand(program);
+
+  // ── flags module — feature flags, kill switches, experiments, configs ─────
+  const flags = program
+    .command("flags")
+    .description("Feature flags, kill switches, experiments & configs");
+  flagsCommand(flags); // -> flags flags
+  killswitchesCommand(flags); // -> flags killswitch|ks
+  const experiments = experimentsCommand(flags); // -> flags experiments
+  universesCommand(experiments); // -> flags experiments universes
+  configsCommand(flags); // -> flags configs
+  withTreeHelp(flags);
+
+  // ── metrics module — metric definitions + the event catalog ───────────────
+  const metrics = metricsCommand(program); // -> metrics …
+  eventsCommand(metrics); // -> metrics events …
+  withTreeHelp(metrics);
+
+  // ── ops module — unified queue, tickets, alert rules, connectors ──────────
+  opsCommand(program);
+
+  // ── i18n module — string manager + SDK keys + source codemods ─────────────
+  const i18n = i18nCommand(program); // -> i18n …
+  keysCommand(i18n); // -> i18n keys
+  codemodCommand(i18n); // -> i18n codemod
+  withTreeHelp(i18n);
 
   applyExitOverride(program);
   return program;

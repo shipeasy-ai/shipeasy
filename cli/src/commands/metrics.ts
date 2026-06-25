@@ -44,8 +44,8 @@ Notes
 - Filter labels and value labels must be declared on the source event.
 `;
 
-export function metricsCommand(program: Command): void {
-  const cmd = program.command("metrics").description("Manage event metrics");
+export function metricsCommand(program: Command): Command {
+  const cmd = program.command("metrics").description("Event metrics + event catalog");
 
   const grammarCmd = cmd
     .command("grammar")
@@ -211,6 +211,8 @@ export function metricsCommand(program: Command): void {
     });
 
   withExamples(deleteCmd, [{ run: "shipeasy metrics delete 3f9a2c1b" }]);
+
+  return cmd;
 }
 
 function handleError(e: unknown): void {

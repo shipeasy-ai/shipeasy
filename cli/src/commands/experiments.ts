@@ -13,7 +13,7 @@ function verdict(results: ExperimentResult[]): string {
   return last.p_value < 0.05 ? "Ship" : "Hold";
 }
 
-export function experimentsCommand(parent: Command): void {
+export function experimentsCommand(parent: Command): Command {
   const exp = parent.command("experiments").description("Manage experiments");
 
   const listExp = exp
@@ -44,7 +44,7 @@ export function experimentsCommand(parent: Command): void {
       }
     });
 
-  withExamples(listExp, [{ run: "shipeasy experiments list" }]);
+  withExamples(listExp, [{ run: "shipeasy flags experiments list" }]);
 
   const createExp = exp
     .command("create <name>")
@@ -83,11 +83,11 @@ export function experimentsCommand(parent: Command): void {
   withExamples(createExp, [
     {
       note: "Default 50/50 control vs test, full traffic",
-      run: "shipeasy experiments create pricing-page",
+      run: "shipeasy flags experiments create pricing-page",
     },
     {
       note: "Custom groups + weights in a named universe",
-      run: "shipeasy experiments create checkout-cta --universe web --allocation 100 \\\n  --groups '[{\"name\":\"control\",\"weight\":5000,\"params\":{\"label\":\"Pay\"}},{\"name\":\"v1\",\"weight\":5000,\"params\":{\"label\":\"Buy now\"}}]'",
+      run: "shipeasy flags experiments create checkout-cta --universe web --allocation 100 \\\n  --groups '[{\"name\":\"control\",\"weight\":5000,\"params\":{\"label\":\"Pay\"}},{\"name\":\"v1\",\"weight\":5000,\"params\":{\"label\":\"Buy now\"}}]'",
     },
   ]);
 
@@ -129,11 +129,11 @@ export function experimentsCommand(parent: Command): void {
   withExamples(updateExp, [
     {
       note: "Dial allocation up to 50%",
-      run: "shipeasy experiments update pricing-page --allocation 50",
+      run: "shipeasy flags experiments update pricing-page --allocation 50",
     },
     {
       note: "Clear targeting + tighten significance",
-      run: "shipeasy experiments update checkout-cta --targeting-gate null --significance 0.01",
+      run: "shipeasy flags experiments update checkout-cta --targeting-gate null --significance 0.01",
     },
   ]);
 
@@ -152,7 +152,7 @@ export function experimentsCommand(parent: Command): void {
       }
     });
 
-  withExamples(deleteExp, [{ run: "shipeasy experiments delete pricing-page" }]);
+  withExamples(deleteExp, [{ run: "shipeasy flags experiments delete pricing-page" }]);
 
   const startExp = exp
     .command("start <name>")
@@ -169,7 +169,7 @@ export function experimentsCommand(parent: Command): void {
       }
     });
 
-  withExamples(startExp, [{ run: "shipeasy experiments start pricing-page" }]);
+  withExamples(startExp, [{ run: "shipeasy flags experiments start pricing-page" }]);
 
   const stopExp = exp
     .command("stop <name>")
@@ -186,7 +186,7 @@ export function experimentsCommand(parent: Command): void {
       }
     });
 
-  withExamples(stopExp, [{ run: "shipeasy experiments stop pricing-page" }]);
+  withExamples(stopExp, [{ run: "shipeasy flags experiments stop pricing-page" }]);
 
   const archiveExp = exp
     .command("archive <name>")
@@ -203,7 +203,7 @@ export function experimentsCommand(parent: Command): void {
       }
     });
 
-  withExamples(archiveExp, [{ run: "shipeasy experiments archive pricing-page" }]);
+  withExamples(archiveExp, [{ run: "shipeasy flags experiments archive pricing-page" }]);
 
   const reanalyzeExp = exp
     .command("reanalyze <name>")
@@ -220,7 +220,7 @@ export function experimentsCommand(parent: Command): void {
       }
     });
 
-  withExamples(reanalyzeExp, [{ run: "shipeasy experiments reanalyze pricing-page" }]);
+  withExamples(reanalyzeExp, [{ run: "shipeasy flags experiments reanalyze pricing-page" }]);
 
   const statusExp = exp
     .command("status <name>")
@@ -263,7 +263,9 @@ export function experimentsCommand(parent: Command): void {
       }
     });
 
-  withExamples(statusExp, [{ run: "shipeasy experiments status pricing-page" }]);
+  withExamples(statusExp, [{ run: "shipeasy flags experiments status pricing-page" }]);
+
+  return exp;
 }
 
 function handleError(e: unknown): void {

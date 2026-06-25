@@ -49,24 +49,51 @@ describe("command tree", () => {
       "bind",
       "setup",
       "projects",
-      "modules",
+      "mcp",
       "flags",
+      "metrics",
+      "ops",
+      "i18n",
+    ]) {
+      expect(top).toContain(name);
+    }
+  });
+
+  it("exposes exactly the core + four-module top level (no stray commands)", () => {
+    const top = program.commands.map((c) => c.name()).filter((n) => n !== "help");
+    // The full top-level surface — core commands plus the four module roots.
+    // Anything else (promoted into a module or removed) must not appear here.
+    expect([...top].sort()).toEqual(
+      [
+        "login",
+        "logout",
+        "whoami",
+        "bind",
+        "setup",
+        "projects",
+        "mcp",
+        "flags",
+        "metrics",
+        "ops",
+        "i18n",
+      ].sort(),
+    );
+    // Spot-check the commands that were promoted-into-modules or deleted.
+    for (const gone of [
       "killswitch",
       "experiments",
-      "metrics",
       "configs",
       "universes",
       "feedback",
       "connectors",
-      "alerts",
       "alert-rules",
+      "alerts",
       "keys",
-      "scan",
-      "i18n",
       "codemod",
-      "mcp",
+      "modules",
+      "scan",
     ]) {
-      expect(top).toContain(name);
+      expect(top).not.toContain(gone);
     }
   });
 

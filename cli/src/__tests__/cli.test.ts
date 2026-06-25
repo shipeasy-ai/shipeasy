@@ -51,16 +51,17 @@ describe("shipeasy CLI", () => {
   // Auth-requiring commands must fail closed (never silently no-op) when there
   // is no session. Each should surface an error and request exit(1).
   it.each([
-    ["flags", "list"],
-    ["experiments", "list"],
-    ["configs", "list"],
+    ["flags", "flags", "list"],
+    ["flags", "experiments", "list"],
+    ["flags", "configs", "list"],
     ["metrics", "list"],
-    ["keys", "list"],
-    ["ops.list"],
-    ["ops.get", "7"],
-    ["ops.update", "7", "--status", "resolved"],
-    ["ops.link-pr", "7", "44", "--url", "https://github.com/a/b/pull/44"],
-    ["ops.errors", "update", "abc", "--status", "resolved"],
+    ["metrics", "events", "list"],
+    ["i18n", "keys", "list"],
+    ["ops", "list"],
+    ["ops", "get", "7"],
+    ["ops", "update", "7", "--status", "resolved"],
+    ["ops", "link-pr", "7", "44", "--url", "https://github.com/a/b/pull/44"],
+    ["ops", "alerts", "list"],
   ])("`%s` fails closed when not logged in", async (...argv: string[]) => {
     vi.resetModules();
     vi.doMock("../auth/storage", () => NULL_STORAGE);

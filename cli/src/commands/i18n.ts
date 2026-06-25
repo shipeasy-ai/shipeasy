@@ -98,7 +98,7 @@ interface CreatedKey {
   expires_at: string | null;
 }
 
-export function i18nCommand(parent: Command): void {
+export function i18nCommand(parent: Command): Command {
   const i18n = parent.command("i18n").description("String Manager (i18n) tools");
 
   const installLoader = i18n
@@ -686,4 +686,6 @@ export function i18nCommand(parent: Command): void {
       run: "shipeasy i18n profiles create fr:prod --locales fr,fr-CA --default-locale fr",
     },
   ]);
+
+  return i18n;
 }

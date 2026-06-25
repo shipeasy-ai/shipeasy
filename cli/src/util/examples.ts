@@ -34,6 +34,59 @@ export function getExamples(cmd: Command): CliExample[] {
   return REGISTRY.get(cmd) ?? [];
 }
 
+/**
+ * Render the full subtree of `root` as an indented list — every descendant
+ * command down to the leaves, each with its one-line description and (when
+ * present) a representative example. This is what makes `shipeasy <module>
+ * --help` self-documenting: an agent runs it once and sees everything the
+ * module can do without drilling into each subcommand.
+ */
+function renderTree(root: Command): string {
+  const lines: string[] = ["", "Command tree:"];
+  const walk = (cmd: Command, depth: number): void => {
+    for (const sub of cmd.commands) {
+      // Skip commander's implicit `help` subcommand.
+      if (sub.name() === "help") continue;
+      const indent = "  ".repeat(depth + 1);
+      const aliases = sub.aliases?.() ?? [];
+      const name = aliases.length ? `${sub.name()}|${aliases.join("|")}` : sub.name();
+      const args = sub.registeredArguments
+        ?.map((a) => (a.required ? `<${a.name()}>` : `[${a.name()}]`))
+        .join(" ");
+      const sig = args ? `${name} ${args}` : name;
+      const desc = sub.description();
+      lines.push(`${indent}${sig}${desc ? `  — ${desc}` : ""}`);
+      const ex = getExamples(sub)[0];
+      // Show only the first line of the example (multi-line examples use
+      // backslash continuations that read poorly in a dense tree) — and drop
+      // the trailing `\` so it doesn't look like a broken command.
+      if (ex) {
+        const firstLine = ex.run.split("\n")[0].replace(/\s*\\$/, "").trim();
+        lines.push(`${indent}    e.g. ${firstLine}`);
+      }
+      walk(sub, depth + 1);
+    }
+  };
+  walk(root, 0);
+  return lines.join("\n");
+}
+
+/**
+ * Turn `cmd` into a self-documenting module command: bare `shipeasy <cmd>`
+ * prints its help, and `--help` appends the full descendant tree (see
+ * `renderTree`). Use on the four module roots (`flags`, `metrics`, `ops`,
+ * `i18n`) — the recursion covers everything nested beneath them. Returns the
+ * command for chaining.
+ */
+export function withTreeHelp(cmd: Command): Command {
+  cmd.addHelpText("after", () => renderTree(cmd));
+  // No-arg invocation (`shipeasy flags`) shows the tree instead of erroring on
+  // a missing subcommand. outputHelp() includes the `after` text above and does
+  // not throw under exitOverride.
+  cmd.action(() => cmd.outputHelp());
+  return cmd;
+}
+
 export interface CliOutput {
   /**
    * A representative result value — what the command prints with `--json`.

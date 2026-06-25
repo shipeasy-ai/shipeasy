@@ -26,7 +26,7 @@ export function configsCommand(parent: Command): void {
       }
     });
 
-  withExamples(listConfigs, [{ run: "shipeasy configs list" }]);
+  withExamples(listConfigs, [{ run: "shipeasy flags configs list" }]);
 
   const getConfig = configs
     .command("get <name>")
@@ -45,7 +45,7 @@ export function configsCommand(parent: Command): void {
       }
     });
 
-  withExamples(getConfig, [{ run: "shipeasy configs get pricing" }]);
+  withExamples(getConfig, [{ run: "shipeasy flags configs get pricing" }]);
 
   const createConfig = configs
     .command("create <name>")
@@ -76,10 +76,10 @@ export function configsCommand(parent: Command): void {
     });
 
   withExamples(createConfig, [
-    { note: "Permissive schema, empty value", run: "shipeasy configs create pricing" },
+    { note: "Permissive schema, empty value", run: "shipeasy flags configs create pricing" },
     {
       note: "Seed an initial value",
-      run: 'shipeasy configs create pricing --value \'{"free_trial_days":14}\'',
+      run: 'shipeasy flags configs create pricing --value \'{"free_trial_days":14}\'',
     },
   ]);
 
@@ -104,7 +104,7 @@ export function configsCommand(parent: Command): void {
   withExamples(updateConfig, [
     {
       note: "Overwrite the value (all envs)",
-      run: 'shipeasy configs update pricing --value \'{"free_trial_days":30}\'',
+      run: 'shipeasy flags configs update pricing --value \'{"free_trial_days":30}\'',
     },
   ]);
 
@@ -128,7 +128,7 @@ export function configsCommand(parent: Command): void {
   withExamples(draftConfig, [
     {
       note: "Stage a prod value to publish later",
-      run: 'shipeasy configs draft pricing --env prod --value \'{"free_trial_days":30}\'',
+      run: 'shipeasy flags configs draft pricing --env prod --value \'{"free_trial_days":30}\'',
     },
   ]);
 
@@ -149,7 +149,7 @@ export function configsCommand(parent: Command): void {
     });
 
   withExamples(publishConfig, [
-    { note: "Promote the staged draft to prod", run: "shipeasy configs publish pricing --env prod" },
+    { note: "Promote the staged draft to prod", run: "shipeasy flags configs publish pricing --env prod" },
   ]);
 
   const deleteConfig = configs
@@ -167,7 +167,7 @@ export function configsCommand(parent: Command): void {
       }
     });
 
-  withExamples(deleteConfig, [{ run: "shipeasy configs delete pricing" }]);
+  withExamples(deleteConfig, [{ run: "shipeasy flags configs delete pricing" }]);
 }
 
 function handleError(e: unknown): void {

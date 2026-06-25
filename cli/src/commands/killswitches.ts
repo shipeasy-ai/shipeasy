@@ -40,7 +40,7 @@ export function killswitchesCommand(parent: Command): void {
       }
     });
 
-  withExamples(listKillswitches, [{ run: "shipeasy killswitch list" }]);
+  withExamples(listKillswitches, [{ run: "shipeasy flags killswitch list" }]);
 
   const createKillswitch = ks
     .command("create <name>")
@@ -70,10 +70,10 @@ export function killswitchesCommand(parent: Command): void {
     });
 
   withExamples(createKillswitch, [
-    { note: "Default OFF", run: "shipeasy killswitch create payments.stripe-gateway" },
+    { note: "Default OFF", run: "shipeasy flags killswitch create payments.stripe-gateway" },
     {
       note: "Pre-seed per-key switches",
-      run: 'shipeasy killswitch create payments.stripe-gateway --switches \'{"refunds":true,"payouts":false}\'',
+      run: 'shipeasy flags killswitch create payments.stripe-gateway --switches \'{"refunds":true,"payouts":false}\'',
     },
   ]);
 
@@ -104,10 +104,10 @@ export function killswitchesCommand(parent: Command): void {
     });
 
   withExamples(updateKillswitch, [
-    { note: "Flip the default ON", run: "shipeasy killswitch update payments.stripe-gateway --value true" },
+    { note: "Flip the default ON", run: "shipeasy flags killswitch update payments.stripe-gateway --value true" },
     {
       note: "Replace the whole switches map",
-      run: 'shipeasy killswitch update payments.stripe-gateway --switches \'{"refunds":false}\'',
+      run: 'shipeasy flags killswitch update payments.stripe-gateway --switches \'{"refunds":false}\'',
     },
   ]);
 
@@ -126,7 +126,7 @@ export function killswitchesCommand(parent: Command): void {
       }
     });
 
-  withExamples(deleteKillswitch, [{ run: "shipeasy killswitch delete payments.stripe-gateway" }]);
+  withExamples(deleteKillswitch, [{ run: "shipeasy flags killswitch delete payments.stripe-gateway" }]);
 
   const setSwitch = ks
     .command("set <name> <switch_key> <value>")
@@ -164,8 +164,8 @@ export function killswitchesCommand(parent: Command): void {
   );
 
   withExamples(setSwitch, [
-    { note: "Kill refunds in prod", run: "shipeasy killswitch set payments.stripe-gateway refunds true" },
-    { note: "Target staging instead", run: "shipeasy killswitch set payments.stripe-gateway refunds true --env staging" },
+    { note: "Kill refunds in prod", run: "shipeasy flags killswitch set payments.stripe-gateway refunds true" },
+    { note: "Target staging instead", run: "shipeasy flags killswitch set payments.stripe-gateway refunds true --env staging" },
   ]);
 
   const unsetSwitch = ks
@@ -193,8 +193,8 @@ export function killswitchesCommand(parent: Command): void {
   );
 
   withExamples(unsetSwitch, [
-    { run: "shipeasy killswitch unset payments.stripe-gateway refunds" },
-    { note: "From staging", run: "shipeasy killswitch unset payments.stripe-gateway refunds --env staging" },
+    { run: "shipeasy flags killswitch unset payments.stripe-gateway refunds" },
+    { note: "From staging", run: "shipeasy flags killswitch unset payments.stripe-gateway refunds --env staging" },
   ]);
 }
 

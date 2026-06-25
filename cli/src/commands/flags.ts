@@ -33,7 +33,7 @@ export function flagsCommand(parent: Command): void {
       }
     });
 
-  withExamples(listFlags, [{ run: "shipeasy flags list" }]);
+  withExamples(listFlags, [{ run: "shipeasy flags flags list" }]);
 
   withOutput(listFlags, {
     note: "with --json",
@@ -74,10 +74,10 @@ export function flagsCommand(parent: Command): void {
     });
 
   withExamples(createFlag, [
-    { note: "Off by default; flip it on later", run: "shipeasy flags create checkout-v2" },
+    { note: "Off by default; flip it on later", run: "shipeasy flags flags create checkout-v2" },
     {
       note: "Roll out to 25% of pro-plan users",
-      run: 'shipeasy flags create new-ui --rollout 25 --rules \'[{"attr":"plan","op":"eq","value":"pro"}]\'',
+      run: 'shipeasy flags flags create new-ui --rollout 25 --rules \'[{"attr":"plan","op":"eq","value":"pro"}]\'',
     },
   ]);
 
@@ -96,7 +96,7 @@ export function flagsCommand(parent: Command): void {
       }
     });
 
-  withExamples(enableFlag, [{ run: "shipeasy flags enable checkout-v2" }]);
+  withExamples(enableFlag, [{ run: "shipeasy flags flags enable checkout-v2" }]);
 
   const disableFlag = flags
     .command("disable <name>")
@@ -113,7 +113,7 @@ export function flagsCommand(parent: Command): void {
       }
     });
 
-  withExamples(disableFlag, [{ run: "shipeasy flags disable checkout-v2" }]);
+  withExamples(disableFlag, [{ run: "shipeasy flags flags disable checkout-v2" }]);
 
   const rolloutFlag = flags
     .command("rollout <name> <pct>")
@@ -132,8 +132,8 @@ export function flagsCommand(parent: Command): void {
     });
 
   withExamples(rolloutFlag, [
-    { note: "Ramp to 50%", run: "shipeasy flags rollout checkout-v2 50" },
-    { note: "Instant kill — set to 0", run: "shipeasy flags rollout checkout-v2 0" },
+    { note: "Ramp to 50%", run: "shipeasy flags flags rollout checkout-v2 50" },
+    { note: "Instant kill — set to 0", run: "shipeasy flags flags rollout checkout-v2 0" },
   ]);
 
   const deleteFlag = flags
@@ -151,7 +151,7 @@ export function flagsCommand(parent: Command): void {
       }
     });
 
-  withExamples(deleteFlag, [{ run: "shipeasy flags delete checkout-v2" }]);
+  withExamples(deleteFlag, [{ run: "shipeasy flags flags delete checkout-v2" }]);
 }
 
 function handleError(e: unknown): void {

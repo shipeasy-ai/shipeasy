@@ -1,8 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import { detect } from "package-manager-detector";
-import type { Command } from "commander";
-import { withExamples } from "../util/examples";
 
 // ── types ──────────────────────────────────────────────────────────────────
 
@@ -408,67 +406,3 @@ export async function detectProject(
   return { status: "ok", projects: results };
 }
 
-// ── CLI command wiring ─────────────────────────────────────────────────────
-
-function printHuman(result: DetectResult | ClarificationNeeded): void {
-  if (result.status === "needs_clarification") {
-    console.error(`⚠  ${result.reason}`);
-    console.error(`\n${result.question}`);
-    return;
-  }
-
-  for (const project of result.projects) {
-    console.log(`\nPath:            ${project.path}`);
-    console.log(`Language:        ${project.language}`);
-    console.log(`Frameworks:      ${project.frameworks.join(", ") || "—"}`);
-    console.log(`Package manager: ${project.package_manager}`);
-    if (project.entry_points.length) {
-      console.log(`Entry points:    ${project.entry_points.join(", ")}`);
-    }
-
-    const exp = project.shipeasy.experimentation_sdk;
-    console.log(`\nExperimentation SDK:`);
-    console.log(`  installed:  ${exp.installed}${exp.version ? ` (${exp.version})` : ""}`);
-    if (exp.installed) console.log(`  configured: ${exp.configured}`);
-    if (exp.subentry) console.log(`  subentry:   ${exp.subentry}`);
-
-    const i18n = project.shipeasy.i18n_sdk;
-    console.log(`\ni18n SDK:`);
-    console.log(`  installed:  ${i18n.installed}${i18n.version ? ` (${i18n.version})` : ""}`);
-    if (i18n.installed) console.log(`  configured: ${i18n.configured}`);
-    if (i18n.profile) console.log(`  profile:    ${i18n.profile}`);
-
-    const loader = project.shipeasy.loader_script_tag;
-    console.log(`\nLoader script:   ${loader.present ? "present" : "not found"}`);
-    if (loader.data_key) console.log(`  data-key:     ${loader.data_key}`);
-    if (loader.data_profile) console.log(`  data-profile: ${loader.data_profile}`);
-
-    if (project.shipeasy.env_keys_detected.length) {
-      console.log(`\nEnv keys found:  ${project.shipeasy.env_keys_detected.join(", ")}`);
-    }
-  }
-}
-
-export function scanCommand(program: Command): void {
-  const scanCmd = program
-    .command("scan [paths...]")
-    .description("Detect project language, framework, and ShipEasy SDK state")
-    .option("--json", "Output raw JSON")
-    .action(async (paths: string[], opts: { json?: boolean }) => {
-      const result = await detectProject(paths.length ? paths : undefined);
-
-      if (opts.json) {
-        console.log(JSON.stringify(result, null, 2));
-      } else {
-        printHuman(result);
-      }
-
-      if (result.status === "needs_clarification") process.exit(1);
-    });
-
-  withExamples(scanCmd, [
-    { note: "Scan the current directory", run: "shipeasy scan" },
-    { note: "Scan a specific app in a monorepo", run: "shipeasy scan ./apps/web" },
-    { note: "Raw JSON for tooling", run: "shipeasy scan ./src --json" },
-  ]);
-}

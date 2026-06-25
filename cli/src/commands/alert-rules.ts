@@ -4,8 +4,7 @@ import { printJson, printTable } from "../util/output";
 import { withExamples } from "../util/examples";
 
 // Alert *rules* are the user-defined metric-threshold definitions the cron
-// evaluates to raise alerts. They're writable (unlike raised alerts, which are
-// read-only — see `shipeasy alerts`). A rule's `metric` is fixed at create
+// evaluates to raise alerts. A rule's `metric` is fixed at create
 // time (it also pins the aggregation), so `update` exposes no --metric flag;
 // only the threshold / comparator / window / severity / name / enabled knobs
 // are tunable. To repoint a rule at a different metric, delete + recreate.
@@ -87,16 +86,16 @@ async function resolveSlackChannel(
   if (byName.length > 1)
     throw new ApiError(`Slack channel name '${stripped}' is ambiguous — pass a channel id`, 400);
   throw new ApiError(
-    `Slack channel '${idOrName}' not found (run \`shipeasy alert-rules channels\`)`,
+    `Slack channel '${idOrName}' not found (run \`shipeasy ops alerts channels\`)`,
     404,
   );
 }
 
-export function alertRulesCommand(parent: Command): void {
+export function alertRulesCommand(parent: Command): Command {
   const ar = parent
-    .command("alert-rules")
+    .command("alerts")
     .alias("ar")
-    .description("Manage metric-threshold alert rules (writable; `shipeasy alerts` is read-only)");
+    .description("Create & manage metric-threshold alert rules the analysis cron evaluates");
 
   const listRules = ar
     .command("list")
@@ -127,7 +126,7 @@ export function alertRulesCommand(parent: Command): void {
       }
     });
 
-  withExamples(listRules, [{ run: "shipeasy alert-rules list" }]);
+  withExamples(listRules, [{ run: "shipeasy ops alerts list" }]);
 
   const channels = ar
     .command("channels")
@@ -151,7 +150,7 @@ export function alertRulesCommand(parent: Command): void {
       }
     });
 
-  withExamples(channels, [{ run: "shipeasy alert-rules channels" }]);
+  withExamples(channels, [{ run: "shipeasy ops alerts channels" }]);
 
   const createRule = ar
     .command("create <name>")
@@ -164,7 +163,7 @@ export function alertRulesCommand(parent: Command): void {
     .option("--disabled", "Create the rule disabled (default: enabled)")
     .option(
       "--slack-channel <id|name>",
-      "Slack channel to post this rule's alert to (run `alert-rules channels`)",
+      "Slack channel to post this rule's alert to (run `shipeasy ops alerts channels`)",
     )
     .option("--email <addr>", "Email address to notify for this rule")
     .option("--json", "Output as JSON")
@@ -202,15 +201,15 @@ export function alertRulesCommand(parent: Command): void {
   withExamples(createRule, [
     {
       note: "Alert when error rate exceeds 50 / 24h",
-      run: "shipeasy alert-rules create high-error-rate --metric api-errors \\\n  --comparator gt --threshold 50",
+      run: "shipeasy ops alerts create high-error-rate --metric api-errors \\\n  --comparator gt --threshold 50",
     },
     {
       note: "Danger if checkouts drop below 100 in 6h",
-      run: "shipeasy alert-rules create low-checkouts --metric checkouts \\\n  --comparator lt --threshold 100 --window 6 --severity danger",
+      run: "shipeasy ops alerts create low-checkouts --metric checkouts \\\n  --comparator lt --threshold 100 --window 6 --severity danger",
     },
     {
       note: "Post to a specific Slack channel + email on-call",
-      run: "shipeasy alert-rules create high-error-rate --metric api-errors \\\n  --comparator gt --threshold 50 --slack-channel '#incidents' --email oncall@acme.com",
+      run: "shipeasy ops alerts create high-error-rate --metric api-errors \\\n  --comparator gt --threshold 50 --slack-channel '#incidents' --email oncall@acme.com",
     },
   ]);
 
@@ -223,7 +222,7 @@ export function alertRulesCommand(parent: Command): void {
     .option("--window <hours>", "Lookback window in whole hours (1–720)")
     .option("--severity <level>", `Severity: ${SEVERITIES.join(" | ")}`)
     .option("--enabled <bool>", "Enable/disable the rule (true|false)")
-    .option("--slack-channel <id|name>", "Set the Slack channel target (run `alert-rules channels`)")
+    .option("--slack-channel <id|name>", "Set the Slack channel target (run `shipeasy ops alerts channels`)")
     .option("--email <addr>", "Set the email target")
     .option("--clear-target", "Clear this rule's target back to the project default")
     .option("--json", "Output as JSON")
@@ -262,9 +261,9 @@ export function alertRulesCommand(parent: Command): void {
   withExamples(updateRule, [
     {
       note: "Raise the threshold",
-      run: "shipeasy alert-rules update high-error-rate --threshold 100",
+      run: "shipeasy ops alerts update high-error-rate --threshold 100",
     },
-    { note: "Disable a rule", run: "shipeasy alert-rules update high-error-rate --enabled false" },
+    { note: "Disable a rule", run: "shipeasy ops alerts update high-error-rate --enabled false" },
   ]);
 
   const deleteRule = ar
@@ -282,5 +281,7 @@ export function alertRulesCommand(parent: Command): void {
       }
     });
 
-  withExamples(deleteRule, [{ run: "shipeasy alert-rules delete high-error-rate" }]);
+  withExamples(deleteRule, [{ run: "shipeasy ops alerts delete high-error-rate" }]);
+
+  return ar;
 }

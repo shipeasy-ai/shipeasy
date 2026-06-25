@@ -1,43 +1,25 @@
 import { Command } from "commander";
 import { getApiClient, ApiError } from "../api/client";
 import { printTable, printJson } from "../util/output";
-import { defineFeedbackResource, handleError, BUGS_SPEC, FEATURES_SPEC } from "./feedback";
-import { withExamples } from "../util/examples";
+import { handleError } from "./feedback";
+import { alertRulesCommand } from "./alert-rules";
+import { withExamples, withTreeHelp } from "../util/examples";
 
-// ── ops: a flat alias namespace ──────────────────────────────────────────────
+// ── ops: the operational module ──────────────────────────────────────────────
 //
-// `ops` groups the operational read/triage surfaces behind a single, discover-
-// able prefix. Unlike the nested `feedback bugs …` tree these are registered as
-// *flat dotted* commands — `shipeasy ops.bugs`, `shipeasy ops.features`,
-// `shipeasy ops.errors` — so each sub-CLI is referenced explicitly. Bare
-// `shipeasy ops` is not itself runnable; it prints the index below.
-
-interface ErrorItem {
-  id: string;
-  fingerprint: string;
-  message: string;
-  errorType: string | null;
-  source: string | null;
-  status: string;
-  count: number;
-  firstSeenAt: string;
-  lastSeenAt: string;
-  [key: string]: unknown;
-}
-
-const ERROR_STATUSES = ["open", "resolved", "ignored"] as const;
-const ERRORS_ENDPOINT = "/api/admin/errors";
-
-function findByIdOrPrefix(items: ErrorItem[], id: string): ErrorItem | undefined {
-  return items.find((i) => i.id === id || i.id.startsWith(id));
-}
+// `ops` groups the operational read/triage/fix surfaces under one parent. They
+// are native nested subcommands (`shipeasy ops list`, `shipeasy ops update`,
+// `shipeasy ops alerts`), so `shipeasy ops --help` prints the whole tree (via
+// `withTreeHelp`) and an agent can discover them in one call. The unified queue
+// (`ops list`/`get`/`update`) spans every ticket type — bugs, feature requests,
+// and auto-filed error/alert tickets alike.
 
 // ── Unified feedback queue (bugs + features + auto-filed error/alert tickets) ──
 //
-// `ops.list`/`get`/`update`/`link-pr` are the commands `/shipeasy:ops:work`
+// `ops list`/`get`/`update`/`link-pr` are the commands `/shipeasy:ops:work`
 // drives end-to-end. They hit the single `/api/admin/feedback` surface so the
 // loop never has to curl, and they cover the `error`/`alert` ticket types that
-// `ops.bugs`/`ops.features` (the per-type CLIs) don't.
+// `ops bugs`/`ops features` (the per-type CLIs) don't.
 
 const FEEDBACK_ENDPOINT = "/api/admin/feedback";
 const FEEDBACK_TYPES = ["bug", "feature_request", "error", "alert"] as const;
@@ -74,7 +56,7 @@ function feedbackPath(handle: string): string {
 
 function defineUnifiedQueue(parent: Command): void {
   const opsList = parent
-    .command("ops.list")
+    .command("list")
     .description("List the unified operational queue (bugs + features + error/alert tickets)")
     .option("--type <type>", `Filter by type: ${FEEDBACK_TYPES.join("|")}|all`, "all")
     .option("--status <status>", `Filter by status: ${FEEDBACK_STATUSES.join("|")}|all`, "open")
@@ -124,12 +106,12 @@ function defineUnifiedQueue(parent: Command): void {
     });
 
   withExamples(opsList, [
-    { note: "Open critical items only", run: "shipeasy ops.list --priority critical" },
-    { note: "Just error tickets", run: "shipeasy ops.list --type error" },
+    { note: "Open critical items only", run: "shipeasy ops list --priority critical" },
+    { note: "Just error tickets", run: "shipeasy ops list --type error" },
   ]);
 
   const opsGet = parent
-    .command("ops.get <handle>")
+    .command("get <handle>")
     .description("Show one queue item by number (#7 → 7) or id — any type")
     .option("--json", "Output as JSON")
     .option("--project <id>", "Project ID override")
@@ -145,11 +127,11 @@ function defineUnifiedQueue(parent: Command): void {
     });
 
   withExamples(opsGet, [
-    { note: "By queue number", run: "shipeasy ops.get 7" },
+    { note: "By queue number", run: "shipeasy ops get 7" },
   ]);
 
   const opsUpdate = parent
-    .command("ops.update <handle>")
+    .command("update <handle>")
     .description("Flip a queue item's status (any type) — and optionally its priority")
     .option("--status <status>", `New status: ${FEEDBACK_STATUSES.join("|")}`)
     .option("--priority <priority>", `New priority: ${FEEDBACK_PRIORITIES.join("|")}`)
@@ -183,12 +165,12 @@ function defineUnifiedQueue(parent: Command): void {
     });
 
   withExamples(opsUpdate, [
-    { note: "Resolve item #7", run: "shipeasy ops.update 7 --status resolved" },
-    { note: "Bump priority", run: "shipeasy ops.update 7 --priority high" },
+    { note: "Resolve item #7", run: "shipeasy ops update 7 --status resolved" },
+    { note: "Bump priority", run: "shipeasy ops update 7 --priority high" },
   ]);
 
   const opsLinkPr = parent
-    .command("ops.link-pr <handle> <pr-number>")
+    .command("link-pr <handle> <pr-number>")
     .description(
       "Link the PR that fixed a queue item (any type). Records connector_data.github.pr; ops-key safe.",
     )
@@ -222,7 +204,7 @@ function defineUnifiedQueue(parent: Command): void {
   withExamples(opsLinkPr, [
     {
       note: "Link the fixing PR (with URL)",
-      run: "shipeasy ops.link-pr 7 42 --url https://github.com/acme/app/pull/42",
+      run: "shipeasy ops link-pr 7 42 --url https://github.com/acme/app/pull/42",
     },
   ]);
 }
@@ -242,7 +224,7 @@ function collect(value: string, prev: string[]): string[] {
 
 function defineNotify(parent: Command): void {
   const opsNotify = parent
-    .command("ops.notify")
+    .command("notify")
     .description("Raise a 'needs your attention' bell notification (agent escalation, create-only)")
     .requiredOption("--title <text>", "One-line headline of what's blocked")
     .requiredOption("--summary <text>", "One sentence: why it can't be fixed in code")
@@ -284,7 +266,7 @@ function defineNotify(parent: Command): void {
     {
       note: "Escalate a blocked item to the bell",
       run:
-        'shipeasy ops.notify --item 7 \\\n' +
+        'shipeasy ops notify --item 7 \\\n' +
         '  --title "Needs a DB migration" \\\n' +
         '  --summary "Fix requires a schema change I can\'t apply in code" \\\n' +
         '  --step "Add the column via wrangler d1 migrations" \\\n' +
@@ -293,144 +275,18 @@ function defineNotify(parent: Command): void {
   ]);
 }
 
-/**
- * `ops.errors` — read-only view over auto-tracked production errors. Errors are
- * folded in by the ingestion path, never filed by hand, so only `list`/`get`
- * exist (no create/update/delete).
- */
-function defineErrorsResource(parent: Command): void {
-  const group = parent.command("ops.errors").description("Tracked production errors (read-only)");
+export function opsCommand(parent: Command): Command {
+  const ops = parent.command("ops").description("Operational queue, tickets & alert rules");
 
-  const errorsList = group
-    .command("list")
-    .description("List tracked errors (most-recently-seen first)")
-    .option("--status <status>", `Filter by status: ${ERROR_STATUSES.join("|")}`)
-    .option("--json", "Output as JSON")
-    .option("--project <id>", "Project ID override")
-    .action(async (opts) => {
-      try {
-        const client = getApiClient(opts.project);
-        let items = await client.request<ErrorItem[]>("GET", ERRORS_ENDPOINT);
-        if (opts.status) {
-          if (!ERROR_STATUSES.includes(opts.status))
-            throw new ApiError(`Invalid status: ${opts.status}`, 400);
-          items = items.filter((i) => i.status === opts.status);
-        }
-        if (opts.json) return printJson(items);
-        if (!items.length) return void console.log("No errors found.");
-        printTable(
-          ["ID", "Type", "Message", "Source", "Count", "Status", "Last seen"],
-          items.map((i) => [
-            i.id.slice(0, 8),
-            i.errorType ?? "—",
-            i.message.length > 60 ? `${i.message.slice(0, 57)}…` : i.message,
-            i.source ?? "—",
-            String(i.count),
-            i.status,
-            i.lastSeenAt,
-          ]),
-        );
-      } catch (e) {
-        handleError(e);
-      }
-    });
+  // The unified queue (`ops list`/`get`/`update`/`link-pr`) over /api/admin/feedback —
+  // spans bugs, feature requests, and auto-filed error/alert tickets.
+  defineUnifiedQueue(ops);
+  // ops notify — raise a bell notification when a fix isn't in code.
+  defineNotify(ops);
+  // alert RULES (writable) live under ops as `ops alerts`.
+  alertRulesCommand(ops);
 
-  withExamples(errorsList, [
-    { note: "Only unresolved errors", run: "shipeasy ops.errors list --status open" },
-  ]);
-
-  const errorsGet = group
-    .command("get <id>")
-    .description("Show one tracked error by id (or id prefix)")
-    .option("--json", "Output as JSON")
-    .option("--project <id>", "Project ID override")
-    .action(async (id: string, opts) => {
-      try {
-        const client = getApiClient(opts.project);
-        const items = await client.request<ErrorItem[]>("GET", ERRORS_ENDPOINT);
-        const match = findByIdOrPrefix(items, id);
-        if (!match) throw new ApiError(`Error not found: ${id}`, 404);
-        const full = await client.request<Record<string, unknown>>(
-          "GET",
-          `${ERRORS_ENDPOINT}/${match.id}`,
-        );
-        if (opts.json) return printJson(full);
-        console.log(JSON.stringify(full, null, 2));
-      } catch (e) {
-        handleError(e);
-      }
-    });
-
-  withExamples(errorsGet, [
-    { note: "Inspect by id prefix", run: "shipeasy ops.errors get a1b2c3d4" },
-  ]);
-
-  // The one write errors support: status (open/resolved/ignored). A resolved
-  // error reopens automatically if it recurs, so flipping it after a fix lands
-  // is safe pre-deploy. Ops-key allow-listed.
-  const errorsUpdate = group
-    .command("update <id>")
-    .description(`Set a tracked error's status: ${ERROR_STATUSES.join("|")}`)
-    .requiredOption("--status <status>", `New status: ${ERROR_STATUSES.join("|")}`)
-    .option("--json", "Output as JSON")
-    .option("--project <id>", "Project ID override")
-    .action(async (id: string, opts) => {
-      try {
-        if (!ERROR_STATUSES.includes(opts.status))
-          throw new ApiError(`Invalid status: ${opts.status}`, 400);
-        const client = getApiClient(opts.project, { requireBinding: true });
-        const items = await client.request<ErrorItem[]>("GET", ERRORS_ENDPOINT);
-        const match = findByIdOrPrefix(items, id);
-        if (!match) throw new ApiError(`Error not found: ${id}`, 404);
-        const updated = await client.request<Record<string, unknown>>(
-          "PATCH",
-          `${ERRORS_ENDPOINT}/${match.id}`,
-          { status: opts.status },
-        );
-        if (opts.json) return printJson(updated);
-        console.log(`Updated ${match.id.slice(0, 8)}: status → ${opts.status}`);
-      } catch (e) {
-        handleError(e);
-      }
-    });
-
-  withExamples(errorsUpdate, [
-    { note: "Mark resolved after a fix lands", run: "shipeasy ops.errors update a1b2c3d4 --status resolved" },
-  ]);
-}
-
-export function opsCommand(parent: Command): void {
-  // Bare `ops` is an index, not a runnable command. Commander still needs it
-  // registered so `shipeasy ops` resolves here instead of erroring out.
-  parent
-    .command("ops")
-    .description("Operational CLIs — reference a sub-CLI explicitly (see `shipeasy ops`)")
-    .action(() => {
-      console.log("ops — operational CLIs. Reference a command explicitly:");
-      console.log("");
-      console.log("  shipeasy ops.list                The unified queue (bugs+features+tickets)");
-      console.log("  shipeasy ops.get <handle>        Show one queue item (#number or id)");
-      console.log("  shipeasy ops.update <handle>     Flip an item's status/priority (any type)");
-      console.log("  shipeasy ops.link-pr <h> <n>     Link the PR that fixed an item");
-      console.log("  shipeasy ops.notify              Raise a bell notification (escalation)");
-      console.log("  shipeasy ops.bugs <command>      Bug reports (mirrors `feedback bugs`)");
-      console.log(
-        "  shipeasy ops.features <command>  Feature requests (mirrors `feedback features`)",
-      );
-      console.log(
-        "  shipeasy ops.errors <command>    Tracked production errors (list, get, update)",
-      );
-      console.log("");
-      console.log("Run `shipeasy ops.<name> --help` to see a sub-CLI's commands.");
-    });
-
-  // The unified queue (`ops.list`/`get`/`update`/`link-pr`) over /api/admin/feedback.
-  defineUnifiedQueue(parent);
-  // ops.notify — raise a bell notification when a fix isn't in code.
-  defineNotify(parent);
-  // bugs/features mirror the existing feedback CLIs, registered flat as
-  // `ops.bugs` / `ops.features`.
-  defineFeedbackResource(parent, { ...BUGS_SPEC, command: "ops.bugs" });
-  defineFeedbackResource(parent, { ...FEATURES_SPEC, command: "ops.features" });
-  defineErrorsResource(parent);
+  // `shipeasy ops --help` prints the full subtree; bare `shipeasy ops` shows it.
+  withTreeHelp(ops);
+  return ops;
 }

@@ -11,7 +11,7 @@ interface UpsertResult {
   created: boolean;
 }
 
-export function projectsCommand(parent: Command): void {
+export function projectsCommand(parent: Command): Command {
   const projects = parent
     .command("projects")
     .description("Manage Shipeasy projects scoped to your account");
@@ -74,4 +74,6 @@ export function projectsCommand(parent: Command): void {
       run: 'shipeasy projects upsert --domain shouks.app --name "Shouks" --no-bind',
     },
   ]);
+
+  return projects;
 }
