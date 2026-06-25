@@ -1,6 +1,6 @@
 {
   "name": "@shipeasy/mcp",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Feature flags, A/B experiments, kill switches, dynamic config & i18n — Shipeasy MCP server.",
   "mcpName": "ai.shipeasy/mcp",
   "keywords": [

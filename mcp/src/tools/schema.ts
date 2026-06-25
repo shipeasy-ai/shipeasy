@@ -838,4 +838,53 @@ export const TOOLS: Tool[] = [
       },
     },
   },
+
+  // ───────────────────────── feedback (bugs / features) ─────────────────────
+  {
+    name: "file_bug",
+    description:
+      "File a bug report into the bound project's feedback queue (and, where a GitHub/Slack connector is configured, open a real issue / post a message). The body fields become the GitHub issue body verbatim — so if the report is vague (no clear repro, no expected-vs-actual), ask the user ONE or TWO short clarifying questions FIRST, then fold the answers into the fields below. Create-only.",
+    inputSchema: {
+      type: "object",
+      required: ["title"],
+      properties: {
+        title: { type: "string", description: "Short, specific one-line summary of the bug." },
+        steps_to_reproduce: {
+          type: "string",
+          description: "Explicit/numbered steps to reproduce. Markdown allowed.",
+        },
+        actual_result: { type: "string", description: "What actually happens (the breakage)." },
+        expected_result: { type: "string", description: "What was expected instead." },
+        priority: {
+          type: "string",
+          enum: ["nice_to_have", "medium", "high", "critical"],
+          description: "Optional severity; omit if unsure and let the team triage.",
+        },
+        page_url: { type: "string", description: "Optional URL where the bug occurs." },
+      },
+    },
+  },
+  {
+    name: "file_feature",
+    description:
+      "File a feature request into the bound project's feedback queue (and, where a GitHub/Slack connector is configured, open a real issue / post a message). The body fields become the GitHub issue body verbatim — so if it's unclear WHAT exactly to build (scope, surface, acceptance criteria), ask the user ONE or TWO short clarifying questions FIRST, then fold the answers into the fields below. Create-only.",
+    inputSchema: {
+      type: "object",
+      required: ["title"],
+      properties: {
+        title: { type: "string", description: "Short, specific one-line summary of the request." },
+        description: {
+          type: "string",
+          description: "What to build and how it should behave — the concrete proposal.",
+        },
+        use_case: { type: "string", description: "Why it's needed / the problem it solves." },
+        priority: {
+          type: "string",
+          enum: ["nice_to_have", "medium", "high", "critical"],
+          description: "Optional importance; omit if unsure and let the team triage.",
+        },
+        page_url: { type: "string", description: "Optional related URL." },
+      },
+    },
+  },
 ];

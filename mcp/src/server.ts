@@ -53,6 +53,7 @@ import {
   handleDeleteAlertRule,
 } from "./tools/exp/index.js";
 import { handleOpsNotify } from "./tools/ops/notify.js";
+import { handleFileBug, handleFileFeature } from "./tools/ops/feedback.js";
 
 const SERVER_NAME = "shipeasy";
 const SERVER_VERSION = "0.1.0";
@@ -251,6 +252,14 @@ export async function startStdioServer(): Promise<void> {
     if (toolName === "ops_notify") {
       const args = params.arguments ?? {};
       return handleOpsNotify(args as Parameters<typeof handleOpsNotify>[0]);
+    }
+    if (toolName === "file_bug") {
+      const args = params.arguments ?? {};
+      return handleFileBug(args as Parameters<typeof handleFileBug>[0]);
+    }
+    if (toolName === "file_feature") {
+      const args = params.arguments ?? {};
+      return handleFileFeature(args as Parameters<typeof handleFileFeature>[0]);
     }
     if (toolName === "auth_login") {
       return {

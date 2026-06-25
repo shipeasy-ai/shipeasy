@@ -5,8 +5,10 @@ import { TOOLS } from "./schema.js";
 export const ALL_TOOLS: Tool[] = TOOLS;
 
 /**
- * Experimentation-domain tools only — the subset the in-dashboard assistant
- * is allowed to use. Excludes all i18n_*, detect_project, feedback tools.
+ * The tool subset the assistant surfaces (in-dashboard Jarvis, the Slack /mcp
+ * server, and the @-mention Slack bot). Experimentation-domain tools plus the
+ * two feedback-filing tools (file_bug / file_feature). Excludes all i18n_*,
+ * detect_project, auth_*, and the internal ops_notify escalation tool.
  */
 export const EXPERIMENT_TOOL_NAMES = [
   "list_resources",
@@ -35,6 +37,8 @@ export const EXPERIMENT_TOOL_NAMES = [
   "exp_create_alert_rule",
   "exp_update_alert_rule",
   "exp_delete_alert_rule",
+  "file_bug",
+  "file_feature",
 ] as const;
 
 export type ExperimentToolName = (typeof EXPERIMENT_TOOL_NAMES)[number];
