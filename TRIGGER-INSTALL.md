@@ -171,74 +171,99 @@ openclaw cron create "0 9 * * 1-5" "<TRIGGER PROMPT>" \
 profiles — OAuth profiles do not seed — so the embedded coding agent must be
 configured with an API key, not a login.
 
-### `codex` — confirmed flow: Codex plugin + GitHub Actions cron → Codex Cloud
+### `codex` — confirmed flow: GitHub Actions cron → `codex cloud exec` → Codex Cloud
 
-This is the **verified, recommended** Codex path (confirmed working 2026-06-18).
-Codex now has its own plugin system that **mirrors Claude's**, so the Shipeasy
-slash commands + `ops:work` workflow install the same way; a **GitHub Actions
-`schedule:` cron** drives a **Codex Cloud** task on each fire (the always-on
-cloud path — machine can be off); and the run's network + secrets are configured
-**once**, in the Codex Cloud environment.
+This is the **verified, recommended** Codex path (confirmed working 2026-06-24).
+Codex has its own plugin system that **mirrors Claude's**, so the Shipeasy slash
+commands install the same way. The scheduler is a **GitHub Actions `schedule:`
+cron** whose one job runs **`codex cloud exec --env <ENV_ID>`** — that submits a
+real **Codex Cloud** task (the always-on cloud path — machine can be off after
+submission). The task runs **inside the named Codex Cloud environment**, so its
+network access + Shipeasy creds are configured **once, on the environment page**;
+the GitHub runner only carries the two secrets needed to *submit* the task.
 
-**1. Install the Shipeasy plugin in Codex (one-time, in your terminal).** This
-is the Codex analog of `claude plugin marketplace add` / `claude plugin install`:
+**Do the work upfront — don't just hand the user a checklist.** `create_trigger
+--provider codex` should: mint the `ops` key, **write the workflow file** with
+the Write tool, **open the Codex Cloud environment page in the browser**
+(`open`/`xdg-open`), then **pause** while the user sets network + creds there,
+and on return **commit the workflow** and fire one verification task. The only
+genuinely manual, no-API step is the environment page.
+
+**1. Install the Shipeasy plugin in Codex (one-time, in your terminal).** The
+Codex analog of `claude plugin marketplace add` / `claude plugin install`:
 
 ```bash
 codex plugin marketplace add shipeasy-ai/shipeasy
 codex plugin add shipeasy@shipeasy
 ```
 
-The command is then available in the Codex harness as:
+In the Codex harness the command is addressed by handle:
 
 ```
-@Shipeasy /shipeasy:ops:create_trigger --provider codex --frequency daily
+@Shipeasy /shipeasy:ops:create_trigger --provider codex --frequency 4h
 ```
 
-That same plugin-install pair is the `<PLUGIN-INSTALL-FOR-THIS-HOST>` line in the
-shared trigger prompt — for Codex it is
-`codex plugin marketplace add shipeasy-ai/shipeasy && codex plugin add shipeasy@shipeasy`
-(NOT the `claude plugin …` lines the `claude` routine uses).
-
-**2. Configure the Codex Cloud environment (UI-only — open the page and WAIT).**
-The scheduled run executes in a **Codex Cloud environment**, which defaults to a
-restricted network and carries no Shipeasy creds — so the first run cannot reach
-`api.shipeasy.ai` or authenticate until this is set up, and there is no CLI/API
-for it. **Open the environments settings page, hand it to the user, and ask them
-to return when they're done so you can finish configuring the trigger:**
+**2. Open the Codex Cloud environment page and WAIT (the one manual step).** The
+task executes in a **Codex Cloud environment**, which defaults to a restricted
+network and carries no Shipeasy creds — so until this is set the task can't reach
+`api.shipeasy.ai` or authenticate, and there is **no CLI/API** to configure it.
+**Open the page for the user, then pause and ask them to return when done:**
 
   https://chatgpt.com/codex/cloud/settings/environments
 
-This is the Codex analog of Claude's `shipeasy` cloud environment (step 4a in
-`create_trigger.md`). In that page:
+On that page (the Codex analog of Claude's `shipeasy` cloud environment):
 
-- **Network access** → allow `shipeasy.ai` and `api.shipeasy.ai`, keeping the
-  default package-manager allowlist so `npm install -g @shipeasy/cli@latest`
-  still works (GitHub clone/push/PR rides Codex's own GitHub integration and is
-  unaffected).
+- **Network access** → **Custom**, allow `shipeasy.ai` and `api.shipeasy.ai`,
+  keeping the default package-manager allowlist.
 - **Environment variables / secrets** → set `SHIPEASY_CLI_TOKEN` (the restricted
   `ops` key — see Auth & safety below; never an admin/login token) and
-  `SHIPEASY_PROJECT_ID`. Setting them here lets you drop the two `export` lines
-  from the trigger prompt.
+  `SHIPEASY_PROJECT_ID`. These live here because the **task runs here**.
+- Note the **environment id** (`codex cloud` lists it, or the dashboard) — it's
+  the `--env` value the scheduler passes.
 
-**The Codex Cloud task runs under the user's own ChatGPT/Codex account token —
-confirm with the user that it's their token being used** before you provision
-the schedule.
+**3. Write + commit the GitHub Actions workflow.** The job submits the cloud task
+on `<CRON>` via `codex cloud exec`. The runner only needs `CODEX_API_KEY` (to
+authenticate the submit) and `CODEX_ENV_ID` (the env from step 2) as repo
+secrets — the Shipeasy creds + network are already on the environment:
 
-**3. Schedule it with a GitHub Actions `schedule:` cron** on `<CRON>` whose run
-step kicks off the Codex Cloud task (the environment from step 2 supplies its
-network + creds). Use the Tier-C GitHub Actions shape below, swapping the run
-step for the Codex Cloud dispatch.
+```yaml
+# .github/workflows/shipeasy-trigger.yml
+name: Shipeasy trigger (Codex)
+on:
+  schedule:
+    - cron: "<CRON>"
+  workflow_dispatch: {}
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - run: npm install -g @openai/codex
+      - name: Submit a Codex Cloud task
+        env:
+          CODEX_API_KEY: ${{ secrets.CODEX_API_KEY }}
+        run: codex cloud exec --env ${{ secrets.CODEX_ENV_ID }} "Run /shipeasy:ops:work --pr for this project and follow that workflow exactly."
+```
 
-> **Fallbacks, if you don't want the Actions-cloud path:** (a) **Codex
-> Automations** (Codex app → Automations) take full cron but run **locally — the
-> machine must be powered on** when they fire; (b) **Tier C `codex exec`** —
-> `codex exec --sandbox danger-full-access "<PROMPT>"` driven by system cron or
-> the same Actions `schedule:` job, running in the runner itself (configure creds
-> as Actions secrets, not the Cloud environments page). A fully-cloud, machine-off
-> native Automations cron has been signalled but is **not in the official docs**
-> as of 2026-06-18 — re-check the
-> [Codex changelog](https://developers.openai.com/codex/changelog) before relying
-> on it.
+**4. Verify (and the instant trigger).** Fire one task on demand — this is the
+real "instant trigger", a one-liner that submits to Codex Cloud (machine off):
+
+```bash
+codex cloud exec --env <ENV_ID> "Run /shipeasy:ops:work --pr for this project and follow that workflow exactly."
+```
+
+`workflow_dispatch` (`gh workflow run shipeasy-trigger.yml`) runs the same
+submit from GitHub. **Note:** `codex cloud exec` is a **CLI**, not a public REST
+endpoint — Shipeasy's Worker can't fire the task itself (a REST task-lifecycle
+API is an open request, [openai/codex#24777](https://github.com/openai/codex/issues/24777)),
+so unlike a Claude routine there is no Shipeasy connector / auto-fire-on-new-bug
+for Codex. The schedule + manual `codex cloud exec` cover unattended + on-demand.
+
+> **Fallbacks:** (a) **Codex Automations** (Codex app → Automations) take the
+> same cron but run **locally — the machine must be powered on**; (b) running the
+> work in the runner itself with `codex exec --sandbox danger-full-access
+> "<PROMPT>"` (creds as Actions secrets, not the Cloud environments page) instead
+> of dispatching to the cloud. Prefer `codex cloud exec` — machine-off and the
+> env page is the single config surface.
 
 ---
 
@@ -257,7 +282,7 @@ The headless command per provider (pass the trigger prompt):
 
 | Provider | Headless command | Unattended auth |
 | --- | --- | --- |
-| `codex` | `codex exec --sandbox danger-full-access "<PROMPT>"` | `CODEX_API_KEY` / `OPENAI_API_KEY` |
+| `codex` | `codex cloud exec --env <ENV_ID> "<PROMPT>"` (submit to Codex Cloud; or in-runner `codex exec --sandbox danger-full-access "<PROMPT>"`) | `CODEX_API_KEY` / `OPENAI_API_KEY` |
 | `opencode` | `opencode run "<PROMPT>"` (config `permission: "allow"`, or `--dangerously-skip-permissions`) | provider key env (e.g. `ANTHROPIC_API_KEY`) |
 | `continue` | `cn -p --auto "<PROMPT>"` | `CONTINUE_API_KEY` |
 | `gemini` | `gemini -p "<PROMPT>" --approval-mode=yolo` | `GEMINI_API_KEY`, or Vertex `GOOGLE_APPLICATION_CREDENTIALS` + `GOOGLE_GENAI_USE_VERTEXAI=true` |
@@ -375,14 +400,14 @@ By that bar, providers split in two:
 
 **Platform-scheduled only (NOT Shipeasy-fireable):**
 
-- **`codex`** — ❌ no fire endpoint. Codex Cloud is triggered by the web UI, the
-  IDE, the `codex` CLI, or an **`@codex` GitHub mention** — none usable from our
-  Worker: a cold scheduled run has no issue/PR thread to comment on, and even
-  creating one wouldn't fire it (the mention must come from the *Codex-connected
-  account*, not a Shipeasy token; agent-mention triggers are gated to authorized
-  actors). Codex's always-on path is its **own** scheduler — a GitHub Actions
-  `schedule:` running `codex exec`, or local Automations. Do not try to fire it
-  from Shipeasy.
+- **`codex`** — ❌ no fire endpoint **for our Worker**. A real cloud task IS
+  scriptable — `codex cloud exec --env <ENV_ID> "<PROMPT>"` submits one (machine
+  off) — but only from the `codex` CLI authed as the Codex-connected account;
+  there is **no public REST task-creation API** Shipeasy could call (open request,
+  [openai/codex#24777](https://github.com/openai/codex/issues/24777)). So the
+  always-on path is Codex's **own** scheduler — a GitHub Actions `schedule:`
+  running `codex cloud exec`, or local Automations — and the instant trigger is
+  that same one-liner (or `gh workflow run`). Do not try to fire it from Shipeasy.
 - **`windsurf` / `cline` / `openclaw` / `opencode` / `continue`** — ❌ scheduled
   by their own surface (Devin Scheduled Sessions, `cline schedule`, `openclaw
   cron`, system cron, or a GitHub Actions `schedule:` job). Pause / run / inspect
