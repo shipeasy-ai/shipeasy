@@ -59,17 +59,18 @@ Only treat it as a real bug if it still fails on the latest CLI **and** plugin.
    in the repo). Commit it.
 6. **One configure call per runtime.** Never write `src/lib/shipeasy.ts`
    wrappers or per-feature config files.
-7. **JS-ONLY SDK install.** The only published Shipeasy SDKs are
-   `@shipeasy/sdk` and `@shipeasy/react` on npm. **NEVER** run
-   `gem install`, `bundle add`, `pip install`, `poetry add`, `go get`,
-   `go mod tidy` (with intent to add a shipeasy dep), `composer require`,
-   `mvn install`, `gradle … --refresh-dependencies`, `swift package
-add-dependency`, or any other non-npm package manager during this
-   skill. If a subproject is Ruby/Python/Go/Java/PHP/Swift, **only print
-   a one-line "no SDK published yet" notice** and move on. Failing to
-   follow this rule WILL break unrelated parts of the user's project
-   (Gemfile.lock churn, pyproject regressions, etc.). This is
-   non-negotiable.
+7. **Install the idiomatic SDK per language, then read ITS shipped README
+   for config.** All **eight** SDKs are published (JS/TS, Python, Ruby, Go,
+   PHP, Java, Kotlin, Swift — see the step-1 table), so every detected
+   target gets a real install with that ecosystem's own package manager.
+   Use the project's existing tool (don't switch pnpm↔npm, don't hand-edit
+   lockfiles, don't `--refresh-dependencies`, and never churn unrelated
+   deps). **After installing, pull the installed version's README** (step
+   4c) and follow its Quickstart — the README is the version-correct source
+   of truth for the one global `configure(...)` call + `Client(user)` usage,
+   so this skill never has to hard-code (and never goes stale on) the SDK's
+   interface. If a registry is briefly unreachable, note it and continue —
+   do not claim "no SDK exists".
 
 ---
 
@@ -323,95 +324,114 @@ Rules:
 - Never commit a server key. Confirm `.env.local` is in `.gitignore` before any `git add`.
 - Never echo a server key into chat output, PR descriptions, commit messages, or test fixtures.
 
+### 4c. Pull the SDK docs — read the INSTALLED version's README
+
+Right after installing, **read the README that ships with the version you just
+installed**, and use it (not this skill, not your training data) as the source of
+truth for the `configure(...)` + `Client(user)` wiring in step 5. Six of the eight
+ecosystems vendor the README into the installed package, so this is genuinely
+version-correct: when the user later bumps the SDK and re-runs this, they pull the
+guide that matches their new version. Echo the relevant Quickstart section to the
+user.
+
+Run the matching command from the subproject dir (each falls back to the
+GitHub README **at the installed version tag** if the local copy isn't found):
+
+| Lang | Read the installed README (version-correct) |
+| --- | --- |
+| **js/ts** (npm) | `cat node_modules/@shipeasy/sdk/README.md` |
+| **python** (PyPI) | `python -c "import importlib.metadata as m; print(m.metadata('shipeasy').get_payload() or m.metadata('shipeasy').get('Description',''))"` |
+| **ruby** (gem) | `gem contents shipeasy-sdk \| grep -i 'README' \| head -1 \| xargs cat` |
+| **go** (proxy) | `cat "$(go env GOMODCACHE)/github.com/shipeasy-ai/sdk-go@$(go list -m -f '{{.Version}}' github.com/shipeasy-ai/sdk-go)/README.md"` |
+| **php** (Composer) | `cat vendor/shipeasy/shipeasy/README.md` |
+| **swift** (SwiftPM) | `cat .build/checkouts/sdk-swift/README.md` (after `swift package resolve`) |
+| **java / kotlin** (Maven Central) | jars don't carry the README → fetch the tag: `V=<resolved-version>; curl -fsSL "https://raw.githubusercontent.com/shipeasy-ai/sdk-java/v$V/README.md"` (use `sdk-kotlin` for Kotlin) |
+
+Universal GitHub fallback when the local read fails (substitute the repo +
+resolved version): `curl -fsSL "https://raw.githubusercontent.com/shipeasy-ai/<repo>/v<version>/README.md"`. Repos: `sdk` (js/ts), `sdk-python`, `sdk-ruby`, `sdk-go`, `sdk-php`, `sdk-java`, `sdk-kotlin`, `sdk-swift`.
+
+If a README's Quickstart and step 5 below ever disagree, **the README wins** —
+it's pinned to the code the user actually installed.
+
 ---
 
-## 5. Initialize the SDK — one configure call per JS subproject
+## 5. Initialize the SDK — one global `configure(...)`, then `new Client(user)`
+
+**The recommended shape is the same in every language: one global
+`configure(...)` call at startup, then a cheap user-bound `Client(user)` for
+every evaluation.** `configure(...)` takes the api key plus an optional
+`attributes` transform — a function from *your own user object* to the Shipeasy
+attribute map — so every flag/experiment read carries the same attributes
+without re-passing them. The `Client` getters take **no user argument** (the
+user is bound at construction):
+
+```ts
+// once, at startup (server side)
+import { configure } from "@shipeasy/sdk/server";
+configure({
+  apiKey: process.env.SHIPEASY_SERVER_KEY ?? "",
+  attributes: (u) => ({ user_id: u.id, plan: u.plan, country: u.country }),
+});
+
+// per request / per user — leverage the constructor:
+import { Client } from "@shipeasy/sdk/server";
+const flags = new Client(currentUser);
+if (flags.getFlag("new_checkout")) { /* ship it */ }
+```
+
+**Authoritative source: the README you pulled in step 4c.** The exact import
+paths, the browser-vs-server key field, and any framework SSR wiring are pinned
+to the installed version there — follow it. The notes below are just the
+per-target shape; if they disagree with the README, the README wins.
 
 ### 5a. Next.js App Router subproject
 
-Edit `<subproject>/app/layout.tsx` (or `<subproject>/src/app/layout.tsx`)
-— whichever exists. Render `getBootstrapHtml()` into `<head>`. Without
-it, client-side flag evaluation pays an extra round-trip on first paint
-and the devtools overlay (used by the `bugs` feature) never appears.
+- **Browser key field is `clientKey`; server key field is `apiKey`.** Call
+  `configure({ clientKey: process.env.NEXT_PUBLIC_SHIPEASY_CLIENT_KEY ?? "" })`
+  once in a top-level `"use client"` startup component, then read with
+  `new Client(user)` (browser reads are ready after `await client.ready()`).
+- **SSR bootstrap (flash-free first paint) + i18n** are emitted by the
+  server `shipeasy({ serverKey })` handle's bootstrap tags in the root layout —
+  follow the README's "SSR / Next.js" section for the current tag-rendering
+  shape (it changes across versions; don't hand-roll it from memory).
+- **Edge middleware** mints the shared `__se_anon_id` bucketing cookie so
+  fractional rollouts don't flash on request #1. This drop-in is stable:
 
-```tsx
-import type { Metadata } from "next";
-import { headers } from "next/headers";
-import { shipeasy } from "@shipeasy/sdk/server";
-import { i18n } from "@shipeasy/sdk/client";
+  ```ts
+  // <subproject>/middleware.ts — no existing middleware:
+  export { middleware, config } from "@shipeasy/sdk/next";
+  ```
 
-async function configureShipeasy() {
-  const h = await headers();
-  return shipeasy({
-    apiKey: process.env.SHIPEASY_SERVER_KEY ?? "",
-    clientKey: process.env.NEXT_PUBLIC_SHIPEASY_CLIENT_KEY ?? "",
-    urlOverrides: h.get("x-se-search") ?? undefined,
-  });
-}
+  If one already exists, compose: `export default withShipeasy(existingMiddleware)`
+  (import `withShipeasy` from `@shipeasy/sdk/next`; keep their `config`). Never
+  set the cookie by hand — it is always minted by code.
 
-export async function generateMetadata(): Promise<Metadata> {
-  await configureShipeasy();
-  return { title: "My App", description: i18n.t("layout.description") };
-}
+### 5b. Vite / CRA / plain HTML (browser)
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const seConfig = await configureShipeasy();
-  return (
-    <html lang="en">
-      <head>
-        {/* eslint-disable-next-line react/no-danger */}
-        <script dangerouslySetInnerHTML={{ __html: seConfig.getBootstrapHtml() }} />
-      </head>
-      <body>{children}</body>
-    </html>
-  );
-}
-```
-
-#### Edge middleware — required for flash-free SSR bucketing
-
-Add a middleware so the shared `__se_anon_id` bucketing cookie is minted at the
-edge on the first request. Without it, a gate read during SSR has no stable unit
-on request #1, so a **fractional** rollout (e.g. 30%) can flash/flip on first
-paint before the cookie settles client-side. (100%-rollout gates work without
-it; the middleware is what makes partial rollouts render correctly from the very
-first byte.) A Next Server Component can't set cookies during render, so this
-edge step is the only place to mint it pre-render.
-
-Create `<subproject>/middleware.ts` (or `src/middleware.ts`):
-
-```ts
-// No existing middleware — use the drop-in:
-export { middleware, config } from "@shipeasy/sdk/next";
-```
-
-If the subproject **already has** a `middleware.ts`, compose instead of
-overwriting:
-
-```ts
-import { withShipeasy } from "@shipeasy/sdk/next";
-import { existingMiddleware, config } from "./your-middleware"; // keep their config
-
-export default withShipeasy(existingMiddleware);
-export { config };
-```
-
-If their middleware forwards custom request headers via
-`NextResponse.next({ request: { headers } })`, prefer the primitives
-(`readOrMintAnonId(req, requestHeaders)` + `commitAnonId(res, result, req)`)
-inside their handler so the forwarding is preserved. Never ask the user to set
-the cookie by hand — it is always minted by code.
-
-### 5b. Vite / CRA / plain HTML
-
-Call `shipeasy({ apiKey: ... })` once near the top of `main.ts` / `main.tsx`.
+`configure({ clientKey: import.meta.env.VITE_SHIPEASY_CLIENT_KEY ?? "" })` once
+near the top of `main.ts` / `main.tsx`, then `new Client(user)` for reads.
 
 ### 5c. Node service (`js-node`, no React)
 
 ```ts
-import { shipeasy } from "@shipeasy/sdk/server";
-await shipeasy({ apiKey: process.env.SHIPEASY_SERVER_KEY ?? "" });
+import { configure, Client } from "@shipeasy/sdk/server";
+configure({ apiKey: process.env.SHIPEASY_SERVER_KEY ?? "" });
+// per request:
+const flags = new Client(req.user);
 ```
+
+### 5d. Non-JS server SDKs (python / ruby / go / java / kotlin / php / swift)
+
+Same two-step shape, idiomatic per language — **follow the Quickstart in the
+README you pulled in step 4c** (it's version-matched). The canonical forms:
+`shipeasy.configure(api_key=…, attributes=…)` → `shipeasy.Client(user)` (Python);
+`shipeasy.Configure(shipeasy.Options{APIKey: …})` → `shipeasy.NewClient(user)`
+(Go); `Shipeasy.configure { |c| c.api_key = … }` → `Shipeasy::Client.new(user)`
+(Ruby); `Shipeasy\configure($key, $fn)` → `new Shipeasy\Client($user)` (PHP);
+`Shipeasy.configure(key)` → `new Client(user)` (Java); `configure(key)` →
+`Client(user)` (Kotlin); `configure(apiKey:)` → `try Client(user)` with `await`
+reads (Swift). These read flags/experiments with the **server** key only — no
+browser key.
 
 ---
 
@@ -419,7 +439,7 @@ await shipeasy({ apiKey: process.env.SHIPEASY_SERVER_KEY ?? "" });
 
 The devtools overlay is a **standalone `<script>` tag** that works on any
 platform — Next.js, Rails, Django, Laravel, static HTML. It does not
-require the server SDK or `getBootstrapHtml()`.
+require the server SDK or the SSR bootstrap tags.
 
 Before adding it, ask the user whether to turn it on — do **not** enable
 it silently.

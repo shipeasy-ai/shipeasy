@@ -8,7 +8,7 @@ user-invocable: true
 
 The `feedback` module captures user-submitted bug reports and feature
 requests through the in-browser devtools overlay (`?se=1` /
-`?se_devtools=1` on any page that loads `getBootstrapHtml()`). The CLI
+`?se_devtools=1` on any page that loads the devtools `<script>` tag). The CLI
 mirrors the same admin API so reports can also be filed and triaged from
 a terminal or a CI script.
 
