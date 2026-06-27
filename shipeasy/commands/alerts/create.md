@@ -32,7 +32,7 @@ Steps:
 2. If MCP is registered, prefer the typed tool (resolves the metric by id or
    name for you and returns typed errors):
    ```
-   mcp tool: exp_create_alert_rule {
+   mcp tool: ops_alerts_create {
      "name":        "<label>",
      "metric":      "<metric id or name>",
      "comparator":  "gt" | "gte" | "lt" | "lte",

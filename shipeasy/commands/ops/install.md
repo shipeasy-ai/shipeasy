@@ -158,8 +158,8 @@ shipeasy ops.errors list        # [] until the first error lands; never 403
 ## 6. Smoke-test the CLI mirror
 
 ```bash
-shipeasy feedback bugs list           # returns [] or rows, never 403
-shipeasy feedback features list
+shipeasy ops bug list           # returns [] or rows, never 403
+shipeasy ops feature list
 shipeasy ops.errors list              # read-only tracked errors
 ```
 

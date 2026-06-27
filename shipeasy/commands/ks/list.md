@@ -8,13 +8,13 @@ user-invocable: true
 Tabular or JSON list of all killswitch resources in the bound project.
 
 CLI exposes `--json` only — filters apply client-side. For an unfiltered
-table, run `shipeasy ks list` directly.
+table, run `shipeasy release ks list` directly.
 
 Steps:
 
 1. Pull the JSON list:
    ```bash
-   shipeasy ks list --json > /tmp/se-ks.json
+   shipeasy release ks list --json > /tmp/se-ks.json
    ```
 
 2. Apply filters. The CLI returns each row with `envs.{dev,staging,prod}`

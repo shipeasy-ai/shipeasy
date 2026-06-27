@@ -21,17 +21,17 @@ types (`bug`, `feature`).
 Steps:
 
 1. Pick the type from `--type` (default `bug`):
-   - `bug` → `shipeasy feedback bugs create` (something broken).
-   - `feature` → `shipeasy feedback features create` (something missing).
+   - `bug` → `shipeasy ops bug create` (something broken).
+   - `feature` → `shipeasy ops feature create` (something missing).
 
 2. Run:
 
    ```bash
-   shipeasy feedback bugs create "<title>" \
+   shipeasy ops bug create "<title>" \
      --description "<what / where / repro>" \
      [--page-url "<url>"]
    # or
-   shipeasy feedback features create "<title>" \
+   shipeasy ops feature create "<title>" \
      --description "<use case>" \
      [--page-url "<url>"]
    ```

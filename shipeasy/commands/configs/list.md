@@ -9,13 +9,13 @@ Tabular or JSON list of all configs in the bound project. Follow the
 `flags` skill (configs share the flags namespace).
 
 CLI exposes `--json` only — filters apply client-side. For an unfiltered
-table, run `shipeasy configs list` directly.
+table, run `shipeasy release configs list` directly.
 
 Steps:
 
 1. Pull the JSON list:
    ```bash
-   shipeasy configs list --json > /tmp/se-configs.json
+   shipeasy release configs list --json > /tmp/se-configs.json
    ```
 
 2. Apply filters (skip any flag not passed):
@@ -34,4 +34,4 @@ Steps:
    ```
 
 Field reference: `name`, `folder`, `schema` (JSON object), `updatedAt`.
-For one config's full value, use `shipeasy configs get <name> --json`.
+For one config's full value, use `shipeasy release configs get <name> --json`.

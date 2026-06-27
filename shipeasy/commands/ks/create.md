@@ -35,11 +35,11 @@ Fields (no rollout percent, no targeting — killswitches are binary):
 
 Steps:
 
-1. If MCP is registered, use `exp_create_killswitch` for typed errors.
+1. If MCP is registered, use `release_killswitch_create` for typed errors.
    `switches` is a **JSON-encoded string**, not a raw object:
 
    ```
-   mcp tool: exp_create_killswitch {
+   mcp tool: release_killswitch_create {
      "name":        "kill.<feature>",
      "value":       true,
      "switches":    "{\"checkout\":true,\"signup\":true}"   // optional
@@ -50,7 +50,7 @@ Steps:
    positional):
 
    ```bash
-   shipeasy ks create kill.<feature> --value true \
+   shipeasy release ks create kill.<feature> --value true \
      [--switches '{"checkout":true}'] \
      [--description "<text>"]
    ```
@@ -58,9 +58,9 @@ Steps:
 3. Flip a switch entry per env (default env `prod`):
 
    ```bash
-   shipeasy ks set   kill.<feature> <switch_key> false
-   shipeasy ks unset kill.<feature> <switch_key>
-   # MCP: exp_set_killswitch_switch { name, switch_key, value, env }
+   shipeasy release ks set   kill.<feature> <switch_key> false
+   shipeasy release ks unset kill.<feature> <switch_key>
+   # MCP: release_killswitch_set { name, switch_key, value, env }
    ```
 
 4. **For runtime code branching, use a gate instead.** The SDK

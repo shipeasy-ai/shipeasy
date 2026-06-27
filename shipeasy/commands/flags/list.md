@@ -10,13 +10,13 @@ Tabular or JSON list of all gates in the bound project. Follow the
 
 The CLI itself only exposes `--json` — filtering is applied
 **client-side** here. For a one-shot tabular view with no filter, just
-run `shipeasy flags list` directly.
+run `shipeasy release flags list` directly.
 
 Steps:
 
 1. Pull the JSON list:
    ```bash
-   shipeasy flags list --json > /tmp/se-flags.json
+   shipeasy release flags list --json > /tmp/se-flags.json
    ```
 
 2. Apply requested filters from `$ARGUMENTS` (skip any flag the user

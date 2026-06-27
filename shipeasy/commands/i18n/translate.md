@@ -37,7 +37,7 @@ source profile (default `en:prod`).
 2. **Find the draft id** for the target (the seed produced one):
 
    ```
-   mcp tool: list_resources { "type": "drafts" }
+   mcp tool: i18n_drafts_list
    ```
 
    If no draft exists (e.g. the profile was created without seeding), create

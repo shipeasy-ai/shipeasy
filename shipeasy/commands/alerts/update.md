@@ -21,7 +21,7 @@ Steps:
 
 1. If MCP is registered, prefer the typed tool:
    ```
-   mcp tool: exp_update_alert_rule {
+   mcp tool: ops_alerts_update {
      "id":          "<id | id-prefix | name>",
      "threshold":   <number>,        // any subset of these
      "comparator":  "gt" | "gte" | "lt" | "lte",

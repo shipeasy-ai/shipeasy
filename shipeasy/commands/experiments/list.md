@@ -9,13 +9,13 @@ Tabular or JSON list of all experiments in the bound project. Follow
 the `experiments` skill.
 
 CLI exposes `--json` only — filters apply client-side. For an unfiltered
-table, run `shipeasy experiments list` directly.
+table, run `shipeasy release experiments list` directly.
 
 Steps:
 
 1. Pull the JSON list:
    ```bash
-   shipeasy experiments list --json > /tmp/se-exp.json
+   shipeasy release experiments list --json > /tmp/se-exp.json
    ```
 
 2. Apply filters:

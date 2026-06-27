@@ -66,10 +66,10 @@ Steps:
 4. Verify the admin paths the CLI uses are reachable (never `403`):
 
    ```bash
-   shipeasy flags list        # [] or rows
-   shipeasy configs list      # [] or rows
-   shipeasy ks list           # [] or rows
-   shipeasy experiments list  # [] or rows
+   shipeasy release flags list        # [] or rows
+   shipeasy release configs list      # [] or rows
+   shipeasy release ks list           # [] or rows
+   shipeasy release experiments list  # [] or rows
    shipeasy metrics list      # [] or rows
    shipeasy alert-rules list  # [] or rows
    ```

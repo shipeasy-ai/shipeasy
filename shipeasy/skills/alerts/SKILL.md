@@ -50,7 +50,7 @@ Defaults: `--window 24` (whole **hours**, 1–720), `--severity warn`, enabled.
 2. Prefer the typed MCP tool when the server is registered (it resolves the
    metric by id or name and returns typed errors):
    ```
-   mcp tool: exp_create_alert_rule {
+   mcp tool: ops_alerts_create {
      "name":         "<label>",
      "metric":       "<metric id or name>",
      "comparator":   "gt" | "gte" | "lt" | "lte",
@@ -73,7 +73,7 @@ use `--window 1` and call out the rounding.
 ## List
 
 ```
-mcp tool: list_resources { "kind": "alert_rules" }
+mcp tool: ops_alerts_list
 ```
 or `shipeasy alert-rules list [--json]`. Fields: `id`, `name`, `metricId`,
 `metricName`, `comparator`, `threshold`, `windowHours`, `severity`, `enabled`,
@@ -83,7 +83,7 @@ the `ops` skill (`/shipeasy:ops:list --type alert`).
 
 ## Update
 
-`exp_update_alert_rule { "id": "<id|prefix|name>", … }` or
+`ops_alerts_update { "id": "<id|prefix|name>", … }` or
 `shipeasy alert-rules update <id> [--threshold] [--comparator] [--window]
 [--severity] [--name] [--enabled true|false]`. There is **no `--metric` flag**
 (immutable). `--enabled false` pauses evaluation without deleting.

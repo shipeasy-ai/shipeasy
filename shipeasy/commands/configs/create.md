@@ -25,12 +25,12 @@ Steps:
    call sites consume it, changing keys/types is a breaking change.
    Example: `{ "max_items": 10, "show_banner": false }`.
 
-2. If MCP is registered, use `exp_create_config` for typed errors.
+2. If MCP is registered, use `release_configs_create` for typed errors.
    **Both `value` and `schema` are JSON-encoded strings**, not raw JSON
    objects:
 
    ```
-   mcp tool: exp_create_config {
+   mcp tool: release_configs_create {
      "name":   "<name>",
      "value":  "{\"max_items\":10,\"show_banner\":false}",
      "schema": "{\"type\":\"object\",\"properties\":{...}}"   // optional
@@ -40,7 +40,7 @@ Steps:
 3. Otherwise the CLI (positional `<name>`):
 
    ```bash
-   shipeasy configs create <name> \
+   shipeasy release configs create <name> \
      --value  '<json-value>' \
      [--schema '<json-schema>']
    ```

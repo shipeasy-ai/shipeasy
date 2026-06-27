@@ -53,11 +53,11 @@ uses. Devtools picks it up on the next load — no rebuild required.
 ## Filing from the CLI
 
 ```bash
-shipeasy feedback bugs create "Checkout button is unresponsive on mobile" \
+shipeasy ops bug create "Checkout button is unresponsive on mobile" \
   --description "Tapping 'Pay' on iOS Safari does nothing on slow 3G." \
   --page-url "https://acme.com/checkout"
 
-shipeasy feedback features create "Bulk-archive in dashboard" \
+shipeasy ops feature create "Bulk-archive in dashboard" \
   --description "Lets ops clear stale gates without opening each row."
 ```
 
@@ -66,11 +66,11 @@ Slash equivalent: `/shipeasy:ops:report [--type bug|feature] "<title>"`.
 ## Listing & triage
 
 ```bash
-shipeasy feedback bugs list
-shipeasy feedback bugs list --status open --json    # work queue
-shipeasy feedback bugs update <id> --status in_progress
+shipeasy ops bug list
+shipeasy ops bug list --status open --json    # work queue
+shipeasy ops bug update <id> --status in_progress
 
-shipeasy feedback features list
+shipeasy ops feature list
 ```
 
 `list` returns the most-recent rows; pipe through `--json` for scripts.
@@ -141,4 +141,4 @@ if you need a programmatic read path.
 | ------------------------- | ------------------------------------------------- |
 | `403 module not enabled`  | Run `shipeasy modules enable feedback` and retry. |
 | `401`                     | Re-run `shipeasy login`.                          |
-| `404 not found` on update | Check the ID with `shipeasy feedback bugs list`.  |
+| `404 not found` on update | Check the ID with `shipeasy ops bug list`.  |

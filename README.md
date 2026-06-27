@@ -216,7 +216,7 @@ Prereqs:
 
 - `feedback` module enabled (`/shipeasy:ops:install`).
 - CLI ≥ `1.8.0` — `shipeasy alerts` (1.8.0) and
-  `shipeasy feedback bugs attachments` (1.4.0). Older CLIs lack those
+  `shipeasy ops bug attachments` (1.4.0). Older CLIs lack those
   subcommands.
 
 ### 2. Create a metric from a vague request — no slash command needed
@@ -277,7 +277,7 @@ End-to-end experiment design. Given just an experiment name, the command:
 3. **Provisions in order**, halting on first failure:
    - instruments the event (if new) — single Edit at the conversion point;
    - `shipeasy metrics create <metric_name> --event <event> --query '<dsl>'`;
-   - `exp_create_experiment` (MCP) with default `control 50 /
+   - `release_experiments_create` (MCP) with default `control 50 /
      treatment 50` groups and the picked metric as `success_metric`;
    - edits the variation point to branch on `experiments.assign(...)`.
 4. **Verifies** with `shipeasy metrics list` + `shipeasy experiments
@@ -305,7 +305,7 @@ namespace.
 | `/shipeasy:i18n:install` | — | Enable the `translations` module, create the `en:prod` profile, inject the loader script if `getBootstrapHtml()` isn't rendered, smoke-test a key push+publish. |
 | **Experiments** | | |
 | `/shipeasy:experiments:create` | `<name>` | Full design flow: analyse the project for variation points + success metric candidates, ask via `AskUserQuestion`, instrument any new event, create the metric, draft the experiment, edit the variant branch. Stops in `draft` state. |
-| `/shipeasy:experiments:list` | `[--status draft\|running\|stopped\|archived] [--universe <n>] [--name-contains <s>]` | Filtered tabular list. Pulls `shipeasy experiments list --json`, applies filters client-side. |
+| `/shipeasy:experiments:list` | `[--status draft\|running\|stopped\|archived] [--universe <n>] [--name-contains <s>]` | Filtered tabular list. Pulls `shipeasy release experiments list --json`, applies filters client-side. |
 | `/shipeasy:experiments:start` | `<name>` | Move a draft experiment to running — begins assigning traffic. Immutable after this point. |
 | `/shipeasy:experiments:status` | `<name>` | Enrolment per group, current p-value, significance state, recommendation (`keep_running` / `ship_treatment` / `ship_control` / `inconclusive`). |
 | `/shipeasy:experiments:update` | `<name> [--allocation <pct>] [--groups <json>] [--params <json>] [--targeting-gate <name>] [--significance <p>] [--min-runtime-days <n>] [--min-sample-size <n>]` | Patch a draft (or running) experiment. On `running` only stats thresholds + targeting-gate are editable — the API refuses changes to `allocation`/`groups`/`params`/`universe`/`salt` (all assignment-hash inputs). |
@@ -319,10 +319,10 @@ namespace.
 | **Flags / configs / kill switches** | | |
 | `/shipeasy:flags:create` | `<gate-name> [percent]` | Create a boolean feature gate. Defaults: `rollout: 0`, no targeting. SDK-side safe value via `gates.check(name, { default: false })`. |
 | `/shipeasy:flags:list` | `[--folder <f>] [--enabled true\|false] [--min-rollout <pct>] [--name-contains <s>]` | Filtered tabular list of gates. |
-| `/shipeasy:flags:update` | `<gate-name> [--rollout <pct>] [--rules <json>] [--enable\|--disable]` | Patch rollout, rules, or enabled state. Prefer `shipeasy flags rollout`/`enable`/`disable` for single-field tweaks. |
+| `/shipeasy:flags:update` | `<gate-name> [--rollout <pct>] [--rules <json>] [--enable\|--disable]` | Patch rollout, rules, or enabled state. Prefer `shipeasy release flags rollout`/`enable`/`disable` for single-field tweaks. |
 | `/shipeasy:configs:create` | `<config-name> [json-default]` | Create a dynamic config (typed JSON value). |
 | `/shipeasy:configs:list` | `[--folder <f>] [--name-contains <s>]` | Filtered tabular list of configs. |
-| `/shipeasy:configs:update` | `<config-name> <json-value>` | Flat update of the config value (all envs). For per-env staging use the `shipeasy configs draft` / `publish` CLI flow. |
+| `/shipeasy:configs:update` | `<config-name> <json-value>` | Flat update of the config value (all envs). For per-env staging use the `shipeasy release configs draft` / `publish` CLI flow. |
 | `/shipeasy:ks:create` | `<folder.name>` | Create a killswitch admin resource (boolean `value` + optional named `switches` overrides). Not SDK-readable; for runtime gating, use a gate. |
 | `/shipeasy:ks:list` | `[--folder <f>] [--value on\|off] [--name-contains <s>]` | Filtered tabular list. Filter applies to the prod-env value by default. |
 | `/shipeasy:ks:toggle_switch` | `<folder.name> <switch-key> [on\|off] [--env <env>]` | Set or unset one **named override** on a kill switch (the dashboard "switches" feature) — a custom-named key carrying its own boolean, typically the opposite of the flat default. Per key, per env. Replaces the old `ks:update`. |
@@ -361,14 +361,14 @@ matches against.
 | --- | --- | --- |
 | *"Create a metric that measures how often users complete checkout"* | `metrics` | Greps for `events.track(...)` call sites + uninstrumented action points (form submits, primary CTAs, mirrors of `posthog.capture`/`segment.track`/etc.), proposes 2–4 `{ event, aggregation, why }` candidates via `AskUserQuestion`, instruments the chosen event if new, runs `shipeasy metrics create …`. |
 | *"Set up Shipeasy in this repo"* | `setup` | Detects subprojects, runs `shipeasy login` via Bash, mints server+client keys, wires `shipeasy({…})` + `getBootstrapHtml()` into the root layout, persists keys per-subproject to the right secret store. |
-| *"Ship a feature gate for the new pricing page at 5%"* | `flags` | Calls `exp_create_gate` with `rollout: 5`, shows the `gates.check(...)` call site you need to add. |
+| *"Ship a feature gate for the new pricing page at 5%"* | `flags` | Calls `release_flags_create` with `rollout: 5`, shows the `gates.check(...)` call site you need to add. |
 | *"Kill switch for the new checkout if it breaks"* | `flags` | Creates a `kill_checkout` gate defaulting **on** that the old code path gates on. |
 | *"Wrap the homepage hero copy so we can translate it"* | `i18n` | Runs the `i18n.t(...)` wrap workflow, creates keys, pushes + publishes the chunk. |
 | *"Migrate this repo from react-i18next to Shipeasy"* | `i18n` | Runs `shipeasy codemod i18n --migrate react-i18next`, pushes existing translations, removes the old library. |
-| *"I got a customer bug report about the checkout button"* | `ops` | Files a single bug via `shipeasy feedback bugs create …`. |
+| *"I got a customer bug report about the checkout button"* | `ops` | Files a single bug via `shipeasy ops bug create …`. |
 | *"Resolve every open bug we have"* | `ops` | Recommends `/shipeasy:ops:work` (the looping orchestrator over bugs + features + errors + alerts) — the umbrella skill points at the `ops-work` mirror skill / slash command that drives the multi-item loop. |
-| *"Stop the checkout-v2 experiment and ship treatment"* | `experiments` | `exp_stop_experiment { name, winner: "treatment" }`. |
-| *"How significant is the checkout experiment so far?"* | `experiments` | `exp_experiment_status { name }`, surfaces enrolment per group + p-value + recommendation. |
+| *"Stop the checkout-v2 experiment and ship treatment"* | `experiments` | `release_experiments_stop { name, winner: "treatment" }`. |
+| *"How significant is the checkout experiment so far?"* | `experiments` | `release_experiments_status { name }`, surfaces enrolment per group + p-value + recommendation. |
 
 If you want the *work-the-whole-inbox* loop (bugs + feature requests +
 production errors + alerts), the experiment-design loop, or the
@@ -409,7 +409,7 @@ its own `commands/<area>/install.md`:
 `ops` owns every operational read/triage surface:
 
 - **`/shipeasy:ops:list [--type bug|feature|error|alert]`** — one read view
-  over four sources. `bug`/`feature` come from `shipeasy feedback …`,
+  over four sources. `bug`/`feature` come from `shipeasy ops …`,
   `error` from `shipeasy ops.errors`, `alert` from `shipeasy alerts`. Errors
   and alerts are platform-produced and read-only.
 - **`/shipeasy:ops:report [--type bug|feature] "<title>"`** — file a single
@@ -438,8 +438,8 @@ free text — the *key* is the custom string. (Typed/string values are a
 dynamic-config feature, not a kill-switch one.)
 
 `/shipeasy:ks:toggle_switch <folder.name> <switch-key> [on|off] [--env <env>]`
-sets or unsets one named override on one env — `shipeasy ks set` / `ks unset`
-under the hood (MCP `exp_set_killswitch_switch` / `exp_unset_killswitch_switch`).
+sets or unsets one named override on one env — `shipeasy release ks set` / `ks unset`
+under the hood (MCP `release_killswitch_set` / `release_killswitch_unset`).
 It replaces the old wholesale `ks:update`; definition-level edits (rename,
 description, flat-default flip) happen in the dashboard.
 

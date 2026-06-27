@@ -24,7 +24,7 @@ Steps:
 
 1. Check current state first:
    ```
-   mcp tool: exp_experiment_status { "name": "<name>" }
+   mcp tool: release_experiments_status { "name": "<name>" }
    ```
    If state is `stopped` or `archived`, this command can't help — those
    are terminal.
@@ -32,7 +32,7 @@ Steps:
 2. Build the patch. Pass only the fields you're changing — omitted
    fields are left untouched. Use MCP:
    ```
-   mcp tool: exp_update_experiment {
+   mcp tool: release_experiments_update {
      "name":                   "<name>",
      "allocation":             <pct>,            // 0–100
      "groups":                 "<json-string>",  // JSON-encoded array
@@ -45,7 +45,7 @@ Steps:
 
 3. CLI fallback:
    ```bash
-   shipeasy experiments update <name> \
+   shipeasy release experiments update <name> \
      [--allocation <pct>] \
      [--groups '<json>'] \
      [--params '<json>'] \
@@ -56,12 +56,12 @@ Steps:
    ```
 
 4. After the update, re-check status to confirm the change landed:
-   `shipeasy experiments status <name>`.
+   `shipeasy release experiments status <name>`.
 
 Hard rules:
 
 - One success metric, pre-registered at creation. Don't add a second
-  via update — `exp_update_experiment` doesn't accept `success_*`
+  via update — `release_experiments_update` doesn't accept `success_*`
   fields for that reason.
 - Don't widen `targeting-gate` on a running experiment mid-flight to
   "rescue" a slow ramp — that's a fresh exposure population and

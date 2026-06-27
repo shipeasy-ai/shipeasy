@@ -13,7 +13,7 @@ Steps:
 
 1. If MCP is registered, list via the unified resource lister:
    ```
-   mcp tool: list_resources { "kind": "alert_rules" }
+   mcp tool: ops_alerts_list
    ```
 
 2. Otherwise use the CLI:

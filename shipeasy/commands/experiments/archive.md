@@ -16,7 +16,7 @@ the record (winner, p-value, enrolled counts) auditable; delete erases
 it.
 
 ```bash
-shipeasy experiments archive <name>
+shipeasy release experiments archive <name>
 ```
 
 (No MCP tool — CLI only.)

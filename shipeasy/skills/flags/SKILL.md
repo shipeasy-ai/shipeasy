@@ -38,7 +38,7 @@ kill switches, experiments, and events) or
 Prefer MCP tools — they validate input shapes and return typed errors:
 
 ```
-mcp tool: exp_create_gate {
+mcp tool: release_flags_create {
   "name": "checkout_v2",
   "rollout_percent": 10,
   "targeting": [{ "attribute": "country", "op": "in", "values": ["US","CA"] }],
@@ -47,7 +47,7 @@ mcp tool: exp_create_gate {
 ```
 
 ```
-mcp tool: exp_create_config {
+mcp tool: release_configs_create {
   "name": "search_ranking",
   "value_type": "json",
   "default_value": { "boost": 1.0, "model": "v3" },
@@ -60,10 +60,10 @@ mcp tool: exp_create_config {
 CLI equivalents:
 
 ```bash
-shipeasy flags create --help
-shipeasy flags list
-shipeasy flags update <name>      # adjust rollout / targeting
-shipeasy flags archive <name>     # disable a gate without deleting
+shipeasy release flags create --help
+shipeasy release flags list
+shipeasy release flags update <name>      # adjust rollout / targeting
+shipeasy release flags archive <name>     # disable a gate without deleting
 ```
 
 Slash equivalents:

@@ -9,10 +9,10 @@ Start a draft experiment so it begins assigning traffic. Follow the
 `experiments` skill.
 
 ```
-mcp tool: exp_start_experiment { "name": "<name>" }
+mcp tool: release_experiments_start { "name": "<name>" }
 ```
 
-CLI fallback: `shipeasy experiments start <name>`.
+CLI fallback: `shipeasy release experiments start <name>`.
 
 Once running, the experiment is immutable — groups, allocation, and
 success metric cannot change. To modify, stop and recreate under a new

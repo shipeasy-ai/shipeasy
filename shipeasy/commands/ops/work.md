@@ -148,20 +148,20 @@ files; serial keeps blame clean and lets the user halt mid-loop.
 
 Every item — **any type** — takes the same status write:
 `shipeasy ops.update <#number|id> --status <status>` (it resolves the per-item
-number or the id; bugs/features can also use `shipeasy feedback … update`).
+number or the id; bugs/features can also use `shipeasy ops … update`).
 Flip to `in_progress` when you start an item.
 
 ### 1a. Bugs
 
-1. `shipeasy feedback bugs get "$ID" --json` — read `title`, `description`,
+1. `shipeasy ops bug get "$ID" --json` — read `title`, `description`,
    `pageUrl`, `priority`, `context`, `attachments[]`.
-2. `shipeasy feedback bugs attachments "$ID" --json` — download each. **Read
+2. `shipeasy ops bug attachments "$ID" --json` — download each. **Read
    screenshots into context** (the image renders to you). **Recordings**
    (`.webm`/`.mp4`) can't be watched — surface the `file://` path and ask
    whether screenshots+text suffice; don't silently skip.
 3. Flip to `in_progress` (skip if already):
    `shipeasy ops.update <#number|id> --status in_progress` (or
-   `shipeasy feedback bugs update`).
+   `shipeasy ops bug update`).
 4. Investigate from `pageUrl` / stack frame / screenshot text. Reproduce
    locally if the dev server is up. Reuse `superpowers:systematic-debugging`
    when the cause isn't obvious — don't guess.
@@ -260,7 +260,7 @@ and i18n publishing — always reach them through the CLI / the matching skill,
 never a raw HTTP call:
 
 - **Create** gates, dynamic configs, experiments, kill switches, events,
-  metrics, and alert rules — via `shipeasy flags create` / `configs create` /
+  metrics, and alert rules — via `shipeasy release flags create` / `configs create` /
   `experiments create` / `killswitches create` / `metrics create` /
   `alert-rules create`, or the `/shipeasy:flags:*`, `/shipeasy:experiments:create`,
   `/shipeasy:metrics:create`, `/shipeasy:alerts:create` skills. Typical uses:

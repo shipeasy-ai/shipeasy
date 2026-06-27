@@ -14,20 +14,20 @@ Steps:
 
 1. **Rollout bump only** (most common): use the dedicated CLI verb.
    ```bash
-   shipeasy flags rollout <name> <pct>      # 0–100
+   shipeasy release flags rollout <name> <pct>      # 0–100
    ```
 
 2. **Enable / disable** a gate without changing its config:
    ```bash
-   shipeasy flags enable  <name>
-   shipeasy flags disable <name>
+   shipeasy release flags enable  <name>
+   shipeasy release flags disable <name>
    ```
    Disabling makes `gates.check` return the SDK-side default (typically
    `false`) regardless of rollout — useful for incident response.
 
 3. **Combined changes** (rollout + rules + enabled in one call) via MCP:
    ```
-   mcp tool: exp_update_gate {
+   mcp tool: release_flags_update {
      "name":    "<name>",
      "rollout": <pct>,
      "rules":   "<json-encoded rules array>",

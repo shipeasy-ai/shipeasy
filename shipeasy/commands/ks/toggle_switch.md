@@ -48,15 +48,15 @@ setting), and `--env` (default `prod`).
 1. **Set / update** the override (creates the named key if absent):
 
    ```bash
-   shipeasy ks set <folder.name> <switch-key> <on|off> --env <env>
+   shipeasy release ks set <folder.name> <switch-key> <on|off> --env <env>
    # e.g. carve out an exception that flips checkout off while the default stays on:
-   shipeasy ks set payments.legacy checkout off --env prod
+   shipeasy release ks set payments.legacy checkout off --env prod
    ```
 
    MCP equivalent (typed errors):
 
    ```
-   mcp tool: exp_set_killswitch_switch {
+   mcp tool: release_killswitch_set {
      "name":      "<folder.name>",
      "switch_key":"<switch-key>",
      "value":     true,
@@ -68,8 +68,8 @@ setting), and `--env` (default `prod`).
    `value` again):
 
    ```bash
-   shipeasy ks unset <folder.name> <switch-key> --env <env>
-   # MCP: exp_unset_killswitch_switch { name, switch_key, env }
+   shipeasy release ks unset <folder.name> <switch-key> --env <env>
+   # MCP: release_killswitch_unset { name, switch_key, env }
    ```
 
 3. Confirm with `/shipeasy:ks:list` (the prod-env switch count + value column

@@ -101,7 +101,7 @@ state regardless of how it was installed.
 
 **First, check whether it's already there.** If you already have `shipeasy` MCP
 tools available (tool names containing `shipeasy__`, e.g.
-`…shipeasy__exp_create_gate`, `…shipeasy__i18n_push_keys`), it's registered —
+`…shipeasy__release_flags_create`, `…shipeasy__i18n_push_keys`), it's registered —
 **skip this entire step.** Only register when those tools are absent.
 
 **If absent, register it for the current host** (write the config file if

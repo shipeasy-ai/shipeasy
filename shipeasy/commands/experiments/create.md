@@ -98,7 +98,7 @@ shipeasy metrics create "<metric_name>" \
 MCP for typed errors:
 
 ```
-mcp tool: exp_create_experiment {
+mcp tool: release_experiments_create {
   "name": "<name from $ARGUMENTS>",
   "universe": "default",
   "groups": [
@@ -126,7 +126,7 @@ if (group === "treatment") {
 
 ```bash
 shipeasy metrics list                       # the new metric appears
-shipeasy experiments status "<name>"        # state: draft
+shipeasy release experiments status "<name>"        # state: draft
 ```
 
 Plus build/type-check the touched files.

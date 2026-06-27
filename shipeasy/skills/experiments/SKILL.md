@@ -50,7 +50,7 @@ Before creating, decide:
 ## Creating
 
 ```
-mcp tool: exp_create_experiment {
+mcp tool: release_experiments_create {
   "name": "checkout_button_v2",
   "universe": "default",
   "groups": [
@@ -65,17 +65,17 @@ mcp tool: exp_create_experiment {
 This creates a **draft**. Start it:
 
 ```
-mcp tool: exp_start_experiment { "name": "checkout_button_v2" }
+mcp tool: release_experiments_start { "name": "checkout_button_v2" }
 ```
 
 CLI equivalents:
 
 ```bash
-shipeasy experiments list
-shipeasy experiments create --help
-shipeasy experiments start <name>
-shipeasy experiments stop <name>
-shipeasy experiments status <name>
+shipeasy release experiments list
+shipeasy release experiments create --help
+shipeasy release experiments start <name>
+shipeasy release experiments stop <name>
+shipeasy release experiments status <name>
 ```
 
 Slash equivalents:
@@ -107,14 +107,14 @@ analysis cron.
 ## Stopping
 
 ```
-mcp tool: exp_experiment_status { "name": "checkout_button_v2" }
+mcp tool: release_experiments_status { "name": "checkout_button_v2" }
 ```
 
 Returns enrolled count per group, current p-value, significance flag,
 and a recommendation (`keep_running`, `ship_treatment`, `ship_control`,
 `inconclusive`).
 
-Stop with `exp_stop_experiment { "name": ..., "winner": "treatment" }`
+Stop with `release_experiments_stop { "name": ..., "winner": "treatment" }`
 (or `null` for inconclusive).
 
 ## Holdouts

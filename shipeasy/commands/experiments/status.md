@@ -8,10 +8,10 @@ user-invocable: true
 Show experiment status. Follow the `experiments` skill.
 
 ```
-mcp tool: exp_experiment_status { "name": "<name>" }
+mcp tool: release_experiments_status { "name": "<name>" }
 ```
 
-CLI fallback: `shipeasy experiments status <name>`.
+CLI fallback: `shipeasy release experiments status <name>`.
 
 Returns: enrolled count per group, current p-value, whether the metric
 has reached significance at the configured alpha, and a recommendation
