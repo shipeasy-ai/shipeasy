@@ -35,14 +35,16 @@ const GROUPS: { key: string; title: string; blurb: string; match: (n: string) =>
     title: "Shared",
     blurb:
       "Project detection, binding, auth, and read-only resource lookups. Use these before any write tool — every write refuses to run until the cwd is bound to a project.",
-    match: (n) => !/^(exp|i18n|ops)_/.test(n),
+    match: (n) => !/^(exp|release|i18n|ops)_/.test(n),
   },
   {
     key: "exp",
     title: "Flags & experiments",
     blurb:
-      "Create and manage gates, dynamic configs, kill switches, universes, experiments, and alert rules.",
-    match: (n) => n.startsWith("exp_"),
+      "Create and manage gates, dynamic configs, kill switches, universes, experiments, and alert rules. The gate/kill-switch/config/universe tools are generated from the shared operation registry (@shipeasy/openapi); experiment and alert-rule tools are hand-written.",
+    // `release_*` (registry-driven) + the remaining hand-written `exp_*`
+    // (experiments + alert rules) all belong to this group.
+    match: (n) => n.startsWith("exp_") || n.startsWith("release_"),
   },
   {
     key: "i18n",

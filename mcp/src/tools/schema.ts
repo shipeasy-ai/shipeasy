@@ -1,15 +1,18 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { RELEASE_REGISTRY_TOOLS } from "./release.js";
 
 /**
  * Tool catalog for @shipeasy/mcp.
  *
  * Full plan + input/output shapes: packages/mcp/README.md § "Tool catalog".
  *
- * Every handler currently returns NOT_IMPLEMENTED (see src/index.ts). This
- * schema file is the source of truth; implement handlers in src/tools/** and
- * wire them into the switch in src/index.ts.
+ * `STATIC_TOOLS` are hand-written tools. The gate/kill-switch/config/universe
+ * tools are NOT here — they are generated from the shared operation registry
+ * (`RELEASE_REGISTRY_TOOLS`, see ./release.ts) and concatenated below, so one
+ * definition drives the CLI, the MCP server, and the docs. The exported `TOOLS`
+ * is the full catalog (static + registry-generated).
  */
-export const TOOLS: Tool[] = [
+const STATIC_TOOLS: Tool[] = [
   // ────────────────────────────── shared ──────────────────────────────
   {
     name: "detect_project",
@@ -164,228 +167,12 @@ export const TOOLS: Tool[] = [
     },
   },
 
-  // ────────────────────────── experimentation ──────────────────────────
+  // ────────────────────────── experiments ──────────────────────────
+  // Hand-written: the goal-metric DSL, guardrails, and ship/hold/wait verdict
+  // here are richer than the thin registry experiment op. Gate / kill switch /
+  // config / universe tools are registry-generated (see TOOLS export below).
   {
-    name: "exp_create_gate",
-    description:
-      "Create a feature gate. A flat gate is `rules` + a single `rollout` %. For tiered " +
-      "rollouts (e.g. 'US @ 50% → bots @ 30% → everyone else @ 10%') pass `stack` — an ordered " +
-      "list of steps evaluated first-match-wins; flat `rules`/`rollout` are then ignored.",
-    inputSchema: {
-      type: "object",
-      required: ["name"],
-      properties: {
-        name: { type: "string", description: "Snake_case; auto-slugged." },
-        description: { type: "string" },
-        rollout: { type: "number", description: "Flat-gate rollout, 0–100." },
-        rules: { type: "string", description: "Flat-gate JSON rules array." },
-        stack: {
-          type: "string",
-          description:
-            "Optional gatekeeper stack — a JSON array of ordered steps, evaluated top-to-bottom, " +
-            "first match wins; takes precedence over flat rules/rollout. Each step is either a " +
-            'condition: { "id": "<stable-id>", "type": "condition", "rules": [{attr,op,value}], ' +
-            '"rolloutPct": <0-10000 basis points> } — rules match then bucket at rolloutPct (omit ⇒ ' +
-            '100%); or a rollout: { "id": "<id>", "type": "rollout", "rolloutPct": <0-10000 bp> }. ' +
-            'End with a catch-all rollout step (no rules) to decide everyone who fell through. ' +
-            "rolloutPct is BASIS POINTS: 5000 = 50%, 1000 = 10%, 100 = 1%.",
-        },
-      },
-    },
-  },
-  {
-    name: "exp_update_gate",
-    description:
-      "Update a feature gate's rollout, rules, gatekeeper stack, or enabled flag. Pass `stack` " +
-      "to replace the tiered rollout wholesale (same shape as exp_create_gate).",
-    inputSchema: {
-      type: "object",
-      required: ["name"],
-      properties: {
-        name: { type: "string" },
-        rollout: { type: "number", description: "0–100" },
-        rules: { type: "string", description: "JSON rules array" },
-        stack: {
-          type: "string",
-          description:
-            "JSON array of ordered first-match-wins steps (condition/rollout, rolloutPct in basis " +
-            "points) — replaces the gatekeeper stack wholesale. See exp_create_gate for the shape.",
-        },
-        enabled: { type: "boolean" },
-      },
-    },
-  },
-  {
-    name: "exp_create_killswitch",
-    description:
-      "Create a killswitch — a static `{ value, switches }` config delivered as-is to the client. Name must be `folder.name`. Switches take precedence over `value` for that switch_key.",
-    inputSchema: {
-      type: "object",
-      required: ["name"],
-      properties: {
-        name: {
-          type: "string",
-          description: "`folder.name` — exactly two lowercase segments separated by a dot.",
-        },
-        description: { type: "string" },
-        value: { type: "boolean", description: "Default value (default false)." },
-        switches: {
-          type: "string",
-          description:
-            "JSON object of { switch_key: bool } overrides; takes precedence over value.",
-        },
-      },
-    },
-  },
-  {
-    name: "exp_update_killswitch",
-    description: "Update a killswitch's default value, switches map, or description.",
-    inputSchema: {
-      type: "object",
-      required: ["name"],
-      properties: {
-        name: { type: "string" },
-        value: { type: "boolean" },
-        switches: {
-          type: "string",
-          description: "JSON { switch_key: bool } — replaces wholesale.",
-        },
-        description: { type: "string" },
-      },
-    },
-  },
-  {
-    name: "exp_delete_killswitch",
-    description: "Delete a killswitch by name.",
-    inputSchema: {
-      type: "object",
-      required: ["name"],
-      properties: { name: { type: "string" } },
-    },
-  },
-  {
-    name: "exp_set_killswitch_switch",
-    description:
-      "Set or update one switch entry on one env. Lets you flip individual lanes (e.g. `eu_only`) without touching the rest of the killswitch.",
-    inputSchema: {
-      type: "object",
-      required: ["name", "env", "switch_key", "value"],
-      properties: {
-        name: { type: "string" },
-        env: { type: "string", enum: ["dev", "staging", "prod"] },
-        switch_key: { type: "string" },
-        value: { type: "boolean" },
-      },
-    },
-  },
-  {
-    name: "exp_unset_killswitch_switch",
-    description: "Remove one switch entry from one env. Falls back to the default value.",
-    inputSchema: {
-      type: "object",
-      required: ["name", "env", "switch_key"],
-      properties: {
-        name: { type: "string" },
-        env: { type: "string", enum: ["dev", "staging", "prod"] },
-        switch_key: { type: "string" },
-      },
-    },
-  },
-  {
-    name: "exp_delete_gate",
-    description: "Delete a feature gate by name. Refuses if used by a running experiment.",
-    inputSchema: {
-      type: "object",
-      required: ["name"],
-      properties: { name: { type: "string" } },
-    },
-  },
-  {
-    name: "exp_create_config",
-    description:
-      "Create a remote-config object validated against a JSON Schema. Configs are object-only.",
-    inputSchema: {
-      type: "object",
-      required: ["name"],
-      properties: {
-        name: { type: "string" },
-        schema: {
-          type: "string",
-          description:
-            "JSON Schema (must have top-level type=object). Defaults to a permissive object schema.",
-        },
-        value: {
-          type: "string",
-          description: "Initial value as JSON object. Defaults to {}.",
-        },
-        description: { type: "string" },
-      },
-    },
-  },
-  {
-    name: "exp_update_config",
-    description:
-      "Update a config's value (legacy flat update — applies to all envs). Use the dashboard for per-env draft/publish.",
-    inputSchema: {
-      type: "object",
-      required: ["name", "value"],
-      properties: {
-        name: { type: "string" },
-        value: { type: "string", description: "JSON-encoded value" },
-      },
-    },
-  },
-  {
-    name: "exp_delete_config",
-    description: "Delete a config by name.",
-    inputSchema: {
-      type: "object",
-      required: ["name"],
-      properties: { name: { type: "string" } },
-    },
-  },
-  {
-    name: "exp_create_universe",
-    description: "Create an experiment universe (container with optional holdout range).",
-    inputSchema: {
-      type: "object",
-      required: ["name"],
-      properties: {
-        name: { type: "string" },
-        unit_type: { type: "string", description: "Default: user_id" },
-        holdout_range: {
-          type: "string",
-          description: "Holdout range as 'lo,hi' integers in [0,9999]; omit for none",
-        },
-      },
-    },
-  },
-  {
-    name: "exp_update_universe",
-    description: "Update a universe's holdout range.",
-    inputSchema: {
-      type: "object",
-      required: ["name"],
-      properties: {
-        name: { type: "string" },
-        holdout_range: {
-          type: "string",
-          description: "Holdout range as 'lo,hi' integers in [0,9999], or 'null' to clear",
-        },
-      },
-    },
-  },
-  {
-    name: "exp_delete_universe",
-    description: "Delete a universe by name. Refuses if any experiment still references it.",
-    inputSchema: {
-      type: "object",
-      required: ["name"],
-      properties: { name: { type: "string" } },
-    },
-  },
-  {
-    name: "exp_create_experiment",
+    name: "release_experiments_create",
     description:
       "Create an experiment draft with groups, params, optional targeting gate, a success (goal) metric, optional guardrail metrics, and full statistical config. Pass success_event (+ success_aggregation) to attach the goal metric inline — required before the experiment can be started. Does NOT start — call exp_start_experiment.",
     inputSchema: {
@@ -445,7 +232,7 @@ export const TOOLS: Tool[] = [
     },
   },
   {
-    name: "exp_update_experiment",
+    name: "release_experiments_update",
     description:
       "Update a draft (or running) experiment's allocation, groups, targeting gate, bucketing, stats thresholds, guardrail metrics, or goal metric. Pass success_event (+ success_aggregation) to attach/replace the goal metric — use this to make a draft startable when it's missing one.",
     inputSchema: {
@@ -494,7 +281,7 @@ export const TOOLS: Tool[] = [
     },
   },
   {
-    name: "exp_delete_experiment",
+    name: "release_experiments_archive",
     description:
       "Soft-delete (archive) an experiment by name. The name stays reserved; restore it with exp_restore_experiment.",
     inputSchema: {
@@ -504,7 +291,7 @@ export const TOOLS: Tool[] = [
     },
   },
   {
-    name: "exp_restore_experiment",
+    name: "release_experiments_restore",
     description:
       "Restore a soft-deleted (archived) experiment back to draft so it can be re-completed and started. Only works if it never started; preserves the attached goal metric.",
     inputSchema: {
@@ -514,7 +301,7 @@ export const TOOLS: Tool[] = [
     },
   },
   {
-    name: "exp_start_experiment",
+    name: "release_experiments_start",
     description: "Transition a draft experiment to running.",
     inputSchema: {
       type: "object",
@@ -523,7 +310,7 @@ export const TOOLS: Tool[] = [
     },
   },
   {
-    name: "exp_stop_experiment",
+    name: "release_experiments_stop",
     description: "Stop a running experiment; optionally promote a winning group.",
     inputSchema: {
       type: "object",
@@ -535,7 +322,7 @@ export const TOOLS: Tool[] = [
     },
   },
   {
-    name: "exp_experiment_status",
+    name: "release_experiments_status",
     description: "Return experiment stats + ship/hold/wait verdict.",
     inputSchema: {
       type: "object",
@@ -888,3 +675,10 @@ export const TOOLS: Tool[] = [
     },
   },
 ];
+
+/**
+ * Full tool catalog = hand-written tools + the registry-generated release tools
+ * (gate / kill switch / config / universe). Experiment + alert-rule tools stay
+ * hand-written (richer goal-metric/verdict + ops-module ownership).
+ */
+export const TOOLS: Tool[] = [...STATIC_TOOLS, ...RELEASE_REGISTRY_TOOLS];

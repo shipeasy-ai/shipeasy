@@ -27,23 +27,9 @@ import { handlePublishProfile } from "./tools/i18n/publish.js";
 import { handleDiscoverSite } from "./tools/i18n/discover.js";
 import { handleCodemodPreview, handleCodemodApply } from "./tools/i18n/codemod.js";
 import {
-  handleCreateGate,
-  handleUpdateGate,
-  handleDeleteGate,
-  handleCreateConfig,
-  handleUpdateConfig,
-  handleDeleteConfig,
-  handleCreateKillswitch,
-  handleUpdateKillswitch,
-  handleDeleteKillswitch,
-  handleSetKillswitchSwitch,
-  handleUnsetKillswitchSwitch,
-  handleCreateUniverse,
-  handleUpdateUniverse,
-  handleDeleteUniverse,
   handleCreateExperiment,
   handleUpdateExperiment,
-  handleDeleteExperiment,
+  handleArchiveExperiment,
   handleRestoreExperiment,
   handleStartExperiment,
   handleStopExperiment,
@@ -54,6 +40,11 @@ import {
 } from "./tools/exp/index.js";
 import { handleOpsNotify } from "./tools/ops/notify.js";
 import { handleFileBug, handleFileFeature } from "./tools/ops/feedback.js";
+import {
+  RELEASE_REGISTRY_DISPATCH,
+  RELEASE_REGISTRY_OPS_BY_TOOL,
+} from "./tools/release.js";
+import { getAdminClient, notAuthenticated, notBound, ok, apiErr } from "./util/api-client.js";
 
 const SERVER_NAME = "shipeasy";
 const SERVER_VERSION = "0.1.0";
@@ -82,6 +73,21 @@ export async function startStdioServer(): Promise<void> {
         isError: true,
         content: [{ type: "text", text: `Error: unknown tool "${toolName}"` }],
       };
+    }
+
+    // Registry-driven release tools (gate / kill switch / config / universe):
+    // one generic branch replaces ~14 hand-written ones. The op's `mutates`
+    // flag drives the binding guard — read ops (list/get) run unbound.
+    const regOp = RELEASE_REGISTRY_OPS_BY_TOOL.get(toolName);
+    if (regOp) {
+      const handle = await getAdminClient();
+      if (!handle) return notAuthenticated();
+      if (regOp.mutates && !handle.bound) return notBound(handle);
+      try {
+        return ok(await RELEASE_REGISTRY_DISPATCH[toolName](handle.client, params.arguments ?? {}));
+      } catch (e) {
+        return apiErr(e);
+      }
     }
 
     // Real handlers for the auth-surface tools — everything else is still a stub
@@ -153,87 +159,33 @@ export async function startStdioServer(): Promise<void> {
       const args = params.arguments ?? {};
       return handleCodemodApply(args as Parameters<typeof handleCodemodApply>[0]);
     }
-    if (toolName === "exp_create_gate") {
-      const args = params.arguments ?? {};
-      return handleCreateGate(args as Parameters<typeof handleCreateGate>[0]);
-    }
-    if (toolName === "exp_update_gate") {
-      const args = params.arguments ?? {};
-      return handleUpdateGate(args as Parameters<typeof handleUpdateGate>[0]);
-    }
-    if (toolName === "exp_delete_gate") {
-      const args = params.arguments ?? {};
-      return handleDeleteGate(args as Parameters<typeof handleDeleteGate>[0]);
-    }
-    if (toolName === "exp_create_config") {
-      const args = params.arguments ?? {};
-      return handleCreateConfig(args as Parameters<typeof handleCreateConfig>[0]);
-    }
-    if (toolName === "exp_update_config") {
-      const args = params.arguments ?? {};
-      return handleUpdateConfig(args as Parameters<typeof handleUpdateConfig>[0]);
-    }
-    if (toolName === "exp_delete_config") {
-      const args = params.arguments ?? {};
-      return handleDeleteConfig(args as Parameters<typeof handleDeleteConfig>[0]);
-    }
-    if (toolName === "exp_create_killswitch") {
-      const args = params.arguments ?? {};
-      return handleCreateKillswitch(args as Parameters<typeof handleCreateKillswitch>[0]);
-    }
-    if (toolName === "exp_update_killswitch") {
-      const args = params.arguments ?? {};
-      return handleUpdateKillswitch(args as Parameters<typeof handleUpdateKillswitch>[0]);
-    }
-    if (toolName === "exp_delete_killswitch") {
-      const args = params.arguments ?? {};
-      return handleDeleteKillswitch(args as Parameters<typeof handleDeleteKillswitch>[0]);
-    }
-    if (toolName === "exp_set_killswitch_switch") {
-      const args = params.arguments ?? {};
-      return handleSetKillswitchSwitch(args as Parameters<typeof handleSetKillswitchSwitch>[0]);
-    }
-    if (toolName === "exp_unset_killswitch_switch") {
-      const args = params.arguments ?? {};
-      return handleUnsetKillswitchSwitch(args as Parameters<typeof handleUnsetKillswitchSwitch>[0]);
-    }
-    if (toolName === "exp_create_universe") {
-      const args = params.arguments ?? {};
-      return handleCreateUniverse(args as Parameters<typeof handleCreateUniverse>[0]);
-    }
-    if (toolName === "exp_update_universe") {
-      const args = params.arguments ?? {};
-      return handleUpdateUniverse(args as Parameters<typeof handleUpdateUniverse>[0]);
-    }
-    if (toolName === "exp_delete_universe") {
-      const args = params.arguments ?? {};
-      return handleDeleteUniverse(args as Parameters<typeof handleDeleteUniverse>[0]);
-    }
-    if (toolName === "exp_create_experiment") {
+    // Gate / kill switch / config / universe are handled by the registry
+    // dispatch above. Experiments stay hand-written (renamed to release_*).
+    if (toolName === "release_experiments_create") {
       const args = params.arguments ?? {};
       return handleCreateExperiment(args as Parameters<typeof handleCreateExperiment>[0]);
     }
-    if (toolName === "exp_update_experiment") {
+    if (toolName === "release_experiments_update") {
       const args = params.arguments ?? {};
       return handleUpdateExperiment(args as Parameters<typeof handleUpdateExperiment>[0]);
     }
-    if (toolName === "exp_delete_experiment") {
+    if (toolName === "release_experiments_archive") {
       const args = params.arguments ?? {};
-      return handleDeleteExperiment(args as Parameters<typeof handleDeleteExperiment>[0]);
+      return handleArchiveExperiment(args as Parameters<typeof handleArchiveExperiment>[0]);
     }
-    if (toolName === "exp_restore_experiment") {
+    if (toolName === "release_experiments_restore") {
       const args = params.arguments ?? {};
       return handleRestoreExperiment(args as Parameters<typeof handleRestoreExperiment>[0]);
     }
-    if (toolName === "exp_start_experiment") {
+    if (toolName === "release_experiments_start") {
       const args = params.arguments ?? {};
       return handleStartExperiment(args as Parameters<typeof handleStartExperiment>[0]);
     }
-    if (toolName === "exp_stop_experiment") {
+    if (toolName === "release_experiments_stop") {
       const args = params.arguments ?? {};
       return handleStopExperiment(args as Parameters<typeof handleStopExperiment>[0]);
     }
-    if (toolName === "exp_experiment_status") {
+    if (toolName === "release_experiments_status") {
       const args = params.arguments ?? {};
       return handleExperimentStatus(args as Parameters<typeof handleExperimentStatus>[0]);
     }

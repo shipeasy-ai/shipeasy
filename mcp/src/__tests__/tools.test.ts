@@ -104,32 +104,34 @@ function write(dir: string, file: string, content: string) {
 
 // ── exp tools ───────────────────────────────────────────────────────────────
 
-describe("handleCreateGate", () => {
-  beforeEach(() => {
-    vi.stubGlobal(
-      "fetch",
-      mockFetch({
-        "/api/admin/gates": { id: "gate-1", name: "my_gate" },
-      }),
-    );
-  });
+// Gate / kill switch / config / universe tools are now generated from the
+// shared operation registry (@shipeasy/openapi). The facade→wire mapping is
+// unit-tested there; here we assert the registry tools are exposed and the
+// dispatch resolves a gate-create through the typed admin client.
+describe("registry-driven release tools (gate/ks/config/universe)", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("happy path — creates a gate", async () => {
-    const { handleCreateGate } = await import("../tools/exp/index.js");
-    const result = await handleCreateGate({ name: "my_gate", rollout: 50 });
-    expect((result as ToolResult).isError).toBeUndefined();
-    const data = parseResult(result);
-    expect(data.name).toBe("my_gate");
+  it("exposes the renamed release_* tools in the catalog", async () => {
+    const { TOOLS } = await import("../tools/schema.js");
+    const names = TOOLS.map((t) => t.name);
+    expect(names).toContain("release_flags_create");
+    expect(names).toContain("release_killswitch_set");
+    expect(names).toContain("release_configs_publish");
+    expect(names).toContain("release_experiments_universes_create");
+    // the old exp_*_gate names are gone
+    expect(names).not.toContain("exp_create_gate");
   });
 
-  it("returns notAuthenticated when no config", async () => {
-    const { readConfig } = await import("../auth/config.js");
-    vi.mocked(readConfig).mockResolvedValueOnce(null);
-    const { handleCreateGate } = await import("../tools/exp/index.js");
-    const result = await handleCreateGate({ name: "my_gate" });
-    expect((result as ToolResult).isError).toBe(true);
-    expect(result.content[0].text).toContain("Not authenticated");
+  it("dispatches release_flags_create through the admin client", async () => {
+    vi.stubGlobal("fetch", mockFetch({ "/api/admin/gates": { id: "gate-1", name: "my_gate" } }));
+    const { RELEASE_REGISTRY_DISPATCH } = await import("../tools/release.js");
+    const { getAdminClient } = await import("../util/api-client.js");
+    const handle = await getAdminClient();
+    const data = await RELEASE_REGISTRY_DISPATCH.release_flags_create(handle!.client, {
+      name: "my_gate",
+      rollout: 50,
+    });
+    expect((data as { name: string }).name).toBe("my_gate");
   });
 });
 
