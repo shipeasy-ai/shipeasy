@@ -1,0 +1,7 @@
+# Only the three TS packages are workspace members. The plugin tree (shipeasy/)
+# and scripts/ are NOT npm packages — they're left out deliberately so pnpm
+# never tries to link or publish them.
+packages:
+  - "openapi"
+  - "mcp"
+  - "cli"

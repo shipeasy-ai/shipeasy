@@ -1,0 +1,20 @@
+name: CI
+on:
+  push:
+    paths: ["openapi/**", "mcp/**", "cli/**", "package.json", "pnpm-workspace.yaml", "turbo.json"]
+  pull_request:
+    paths: ["openapi/**", "mcp/**", "cli/**", "package.json", "pnpm-workspace.yaml", "turbo.json"]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+        with: { version: 10 }
+      - uses: actions/setup-node@v6
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm type-check
+      - run: pnpm test

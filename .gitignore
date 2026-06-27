@@ -1,0 +1,6 @@
+# Workspace artifacts added when the three TS packages move into this repo.
+# The plugin marketplace half of the repo (shipeasy/, scripts/) is unaffected.
+node_modules/
+dist/
+.turbo/
+*.tsbuildinfo
