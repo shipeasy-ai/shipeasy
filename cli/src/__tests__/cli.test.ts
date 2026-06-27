@@ -51,9 +51,9 @@ describe("shipeasy CLI", () => {
   // Auth-requiring commands must fail closed (never silently no-op) when there
   // is no session. Each should surface an error and request exit(1).
   it.each([
-    ["flags", "flags", "list"],
-    ["flags", "experiments", "list"],
-    ["flags", "configs", "list"],
+    ["release", "flags", "list"],
+    ["release", "experiments", "list"],
+    ["release", "configs", "list"],
     ["metrics", "list"],
     ["metrics", "events", "list"],
     ["i18n", "keys", "list"],

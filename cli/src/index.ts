@@ -5,11 +5,7 @@ import { Command, CommanderError } from "commander";
 import { login } from "./auth/login";
 import { clearCredentials, loadCredentials } from "./auth/storage";
 import { getApiClient, ApiError } from "./api/client";
-import { flagsCommand } from "./commands/flags";
-import { killswitchesCommand } from "./commands/killswitches";
-import { experimentsCommand } from "./commands/experiments";
-import { configsCommand } from "./commands/configs";
-import { universesCommand } from "./commands/universes";
+import { releaseCommand } from "./commands/release";
 import { opsCommand } from "./commands/ops";
 import { keysCommand } from "./commands/keys";
 import { i18nCommand } from "./commands/i18n";
@@ -277,16 +273,10 @@ export function buildProgram(): Command {
   projectsCommand(program);
   mcpCommand(program);
 
-  // ── flags module — feature flags, kill switches, experiments, configs ─────
-  const flags = program
-    .command("flags")
-    .description("Feature flags, kill switches, experiments & configs");
-  flagsCommand(flags); // -> flags flags
-  killswitchesCommand(flags); // -> flags killswitch|ks
-  const experiments = experimentsCommand(flags); // -> flags experiments
-  universesCommand(experiments); // -> flags experiments universes
-  configsCommand(flags); // -> flags configs
-  withTreeHelp(flags);
+  // ── release module — feature flags, kill switches, experiments, configs ───
+  // Subcommands are generated from the @shipeasy/openapi operation registry
+  // (see commands/release.ts). `flags flags …` became `release flags …`.
+  releaseCommand(program);
 
   // ── metrics module — metric definitions + the event catalog ───────────────
   const metrics = metricsCommand(program); // -> metrics …
