@@ -1,0 +1,56 @@
+{
+  "name": "@shipeasy/cli",
+  "version": "2.1.0",
+  "description": "CLI for the Shipeasy platform (flags, experiments, translations, bugs)",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shipeasy-ai/cli.git"
+  },
+  "homepage": "https://shipeasy.ai",
+  "bin": {
+    "shipeasy": "./bin/shipeasy.js"
+  },
+  "files": [
+    "dist/",
+    "bin/",
+    "codemods/"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs --dts",
+    "dev": "tsx src/index.ts",
+    "docs": "tsx scripts/gen-cli-docs.ts",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@babel/parser": "^7.29.0",
+    "@babel/traverse": "^7.29.0",
+    "@babel/types": "^7.29.0",
+    "@shipeasy/openapi": "workspace:^1.6.0",
+    "@shipeasy/mcp": "workspace:^2.0.0",
+    "chalk": "^5.3.0",
+    "cli-table3": "^0.6.5",
+    "commander": "^12.1.0",
+    "conf": "^13.0.0",
+    "open": "^10.1.0",
+    "ora": "^8.1.0",
+    "package-manager-detector": "^1.6.0",
+    "prompts": "^2.4.2",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.39",
+    "@types/prompts": "^2.4.9",
+    "tsx": "^4.19.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.7.4",
+    "vitest": "^2.1.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
