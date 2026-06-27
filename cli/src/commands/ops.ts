@@ -1,9 +1,17 @@
 import { Command } from "commander";
 import { getApiClient, ApiError } from "../api/client";
 import { printTable, printJson } from "../util/output";
-import { handleError } from "./feedback";
 import { alertRulesCommand } from "./alert-rules";
 import { withExamples, withTreeHelp } from "../util/examples";
+
+function handleError(e: unknown): never {
+  if (e instanceof ApiError) {
+    console.error(`Error (${e.status}): ${e.message}`);
+  } else {
+    console.error(String(e));
+  }
+  process.exit(1);
+}
 
 // ── ops: the operational module ──────────────────────────────────────────────
 //
