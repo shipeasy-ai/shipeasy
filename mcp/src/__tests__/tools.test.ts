@@ -132,10 +132,10 @@ describe("registry-driven release tools", () => {
 
   it("dispatches release_flags_create through the admin client", async () => {
     vi.stubGlobal("fetch", mockFetch({ "/api/admin/gates": { id: "gate-1", name: "my_gate" } }));
-    const { RELEASE_REGISTRY_DISPATCH } = await import("../tools/release.js");
+    const { REGISTRY_DISPATCH } = await import("../tools/registry.js");
     const { getAdminClient } = await import("../util/api-client.js");
     const handle = await getAdminClient();
-    const data = await RELEASE_REGISTRY_DISPATCH.release_flags_create(handle!.client, {
+    const data = await REGISTRY_DISPATCH.release_flags_create(handle!.client, {
       name: "my_gate",
       rollout: 50,
     });
@@ -145,10 +145,10 @@ describe("registry-driven release tools", () => {
   it("dispatches release_experiments_create with an inline goal metric", async () => {
     const fetchMock = mockFetch({ "/api/admin/experiments": { id: "exp-1", name: "my_exp" } });
     vi.stubGlobal("fetch", fetchMock);
-    const { RELEASE_REGISTRY_DISPATCH } = await import("../tools/release.js");
+    const { REGISTRY_DISPATCH } = await import("../tools/registry.js");
     const { getAdminClient } = await import("../util/api-client.js");
     const handle = await getAdminClient();
-    await RELEASE_REGISTRY_DISPATCH.release_experiments_create(handle!.client, {
+    await REGISTRY_DISPATCH.release_experiments_create(handle!.client, {
       name: "my_exp",
       universe: "u-1",
       successEvent: "checkout_completed",
@@ -158,109 +158,81 @@ describe("registry-driven release tools", () => {
   });
 });
 
-describe("handleCreateAlertRule", () => {
-  beforeEach(() => {
-    vi.stubGlobal(
-      "fetch",
-      mockFetch({
-        "/api/admin/metrics": [{ id: "met-1", name: "checkout_error_rate" }],
-        "/api/admin/alert-rules": { id: "ar-1" },
-      }),
-    );
+// ── full-surface registry tools (metrics / events / ops / docs / generic-read removal) ──
+
+describe("full-surface registry catalog", () => {
+  it("exposes the new module tools and drops the retired hand-written ones", async () => {
+    const { TOOLS } = await import("../tools/schema.js");
+    const names = TOOLS.map((t) => t.name);
+    // new modules
+    expect(names).toContain("metrics_create");
+    expect(names).toContain("events_list");
+    expect(names).toContain("ops_create");
+    expect(names).toContain("ops_alerts_create");
+    expect(names).toContain("ops_notify");
+    expect(names).toContain("projects_current");
+    expect(names).toContain("attributes_list");
+    expect(names).toContain("docs_get");
+    // retired tools are gone
+    for (const gone of [
+      "list_resources",
+      "get_resource",
+      "get_sdk_snippet",
+      "exp_create_alert_rule",
+      "file_bug",
+      "file_feature",
+    ]) {
+      expect(names).not.toContain(gone);
+    }
   });
+});
+
+describe("ops_alerts_create (registry)", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("resolves the metric by name and creates the rule", async () => {
-    const { handleCreateAlertRule } = await import("../tools/exp/index.js");
-    const result = await handleCreateAlertRule({
-      name: "Checkout errors",
-      metric: "checkout_error_rate",
-      comparator: "gt",
-      threshold: 0,
-    });
-    expect((result as ToolResult).isError).toBeUndefined();
-    expect(parseResult(result).id).toBe("ar-1");
-  });
-
-  it("errors when the metric can't be resolved", async () => {
-    const { handleCreateAlertRule } = await import("../tools/exp/index.js");
-    const result = await handleCreateAlertRule({
-      name: "x",
-      metric: "does_not_exist",
-      comparator: "gt",
-      threshold: 0,
-    });
-    expect((result as ToolResult).isError).toBe(true);
-    expect(result.content[0].text).toContain("not found");
-  });
-
-  it("maps notify.slack_channel → notify.slackChannel on the API body", async () => {
+  it("resolves the metric by name + maps the Slack channel into the rule", async () => {
     const fetchMock = mockFetch({
       "/api/admin/metrics": [{ id: "met-1", name: "checkout_error_rate" }],
+      "/api/admin/slack/channels": { connected: true, channels: [{ id: "C1", name: "incidents" }] },
       "/api/admin/alert-rules": { id: "ar-1" },
     });
     vi.stubGlobal("fetch", fetchMock);
-    const { handleCreateAlertRule } = await import("../tools/exp/index.js");
-    await handleCreateAlertRule({
+    const { REGISTRY_DISPATCH } = await import("../tools/registry.js");
+    const { getAdminClient } = await import("../util/api-client.js");
+    const handle = await getAdminClient();
+    const data = await REGISTRY_DISPATCH.ops_alerts_create(handle!.client, {
       name: "Checkout errors",
       metric: "checkout_error_rate",
       comparator: "gt",
       threshold: 0,
-      notify: { slack_channel: { id: "C1", name: "incidents" }, email: "on@call.test" },
+      slackChannel: "#incidents",
     });
+    expect((data as { id: string }).id).toBe("ar-1");
     const postCall = fetchMock.mock.calls.find(
       (c) =>
         String(c[0]).includes("/api/admin/alert-rules") &&
         (c[1] as RequestInit | undefined)?.method === "POST",
     );
     const body = JSON.parse((postCall![1] as RequestInit).body as string);
-    expect(body.notify).toEqual({
-      slackChannel: { id: "C1", name: "incidents" },
-      email: "on@call.test",
+    expect(body.metricId).toBe("met-1");
+    expect(body.notify.slackChannel).toEqual({ id: "C1", name: "incidents" });
+  });
+});
+
+describe("ops_create (registry)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("files a bug through the bug endpoint", async () => {
+    const fetchMock = mockFetch({ "/api/admin/bugs": { id: "fb-1", number: 7 } });
+    vi.stubGlobal("fetch", fetchMock);
+    const { REGISTRY_DISPATCH } = await import("../tools/registry.js");
+    const { getAdminClient } = await import("../util/api-client.js");
+    const handle = await getAdminClient();
+    const data = await REGISTRY_DISPATCH.ops_create(handle!.client, {
+      type: "bug",
+      title: "Checkout 500s on Safari",
     });
-  });
-});
-
-describe("handleUpdateAlertRule", () => {
-  beforeEach(() => {
-    vi.stubGlobal(
-      "fetch",
-      mockFetch({
-        "/api/admin/alert-rules/ar-1": { id: "ar-1" },
-        "/api/admin/alert-rules": [{ id: "ar-1", name: "Checkout errors", metricId: "met-1" }],
-      }),
-    );
-  });
-  afterEach(() => vi.unstubAllGlobals());
-
-  it("resolves by id and patches tunable knobs", async () => {
-    const { handleUpdateAlertRule } = await import("../tools/exp/index.js");
-    const result = await handleUpdateAlertRule({ id: "ar-1", threshold: 5, severity: "danger" });
-    expect((result as ToolResult).isError).toBeUndefined();
-    expect(parseResult(result).id).toBe("ar-1");
-  });
-
-  it("errors on an empty patch", async () => {
-    const { handleUpdateAlertRule } = await import("../tools/exp/index.js");
-    const result = await handleUpdateAlertRule({ id: "ar-1" });
-    expect((result as ToolResult).isError).toBe(true);
-    expect(result.content[0].text).toContain("Nothing to update");
-  });
-});
-
-// ── list_resources ──────────────────────────────────────────────────────────
-
-describe("handleListResources", () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  it("lists profiles", async () => {
-    const profiles = [{ id: "p-1", name: "en:prod" }];
-    vi.stubGlobal("fetch", mockFetch({ "/api/admin/i18n/profiles": profiles }));
-    const { handleListResources } = await import("../tools/shared/list-resources.js");
-    const result = await handleListResources({ kind: "profiles" });
-    const data = parseResult(result);
-    expect(data.count).toBe(1);
-    expect(data.items[0].name).toBe("en:prod");
+    expect((data as { number: number }).number).toBe(7);
   });
 });
 

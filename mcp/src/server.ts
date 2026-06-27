@@ -16,9 +16,6 @@ import { RESOURCE_TEMPLATES } from "./resources/schema.js";
 import { handleAuthCheck, handleAuthLogout } from "./tools/shared/auth.js";
 import { handleUpsertProject } from "./tools/projects/upsert.js";
 import { handleDetectProject } from "./tools/shared/detect-project.js";
-import { handleListResources } from "./tools/shared/list-resources.js";
-import { handleGetResource } from "./tools/shared/get-resource.js";
-import { handleGetSdkSnippet } from "./tools/shared/sdk-snippet.js";
 import { handleInstallLoader } from "./tools/i18n/loader.js";
 import { handleCreateProfile } from "./tools/i18n/profiles.js";
 import { handlePushKeys, handleCreateKey, handleValidateKeys } from "./tools/i18n/keys.js";
@@ -26,17 +23,7 @@ import { handleScanCode } from "./tools/i18n/scan.js";
 import { handlePublishProfile } from "./tools/i18n/publish.js";
 import { handleDiscoverSite } from "./tools/i18n/discover.js";
 import { handleCodemodPreview, handleCodemodApply } from "./tools/i18n/codemod.js";
-import {
-  handleCreateAlertRule,
-  handleUpdateAlertRule,
-  handleDeleteAlertRule,
-} from "./tools/exp/index.js";
-import { handleOpsNotify } from "./tools/ops/notify.js";
-import { handleFileBug, handleFileFeature } from "./tools/ops/feedback.js";
-import {
-  RELEASE_REGISTRY_DISPATCH,
-  RELEASE_REGISTRY_OPS_BY_TOOL,
-} from "./tools/release.js";
+import { REGISTRY_DISPATCH, REGISTRY_OPS_BY_TOOL } from "./tools/registry.js";
 import { getAdminClient, notAuthenticated, notBound, ok, apiErr } from "./util/api-client.js";
 
 const SERVER_NAME = "shipeasy";
@@ -68,16 +55,18 @@ export async function startStdioServer(): Promise<void> {
       };
     }
 
-    // Registry-driven release tools (gate / kill switch / config / universe):
-    // one generic branch replaces ~14 hand-written ones. The op's `mutates`
-    // flag drives the binding guard — read ops (list/get) run unbound.
-    const regOp = RELEASE_REGISTRY_OPS_BY_TOOL.get(toolName);
+    // Registry-driven tools — gates, kill switches, configs, universes,
+    // experiments, metrics, events, ops (queue + alert rules), `projects
+    // current`, attributes, SDK-docs, and the read-only i18n list ops. One
+    // generic branch replaces dozens of hand-written ones. The op's `mutates`
+    // flag drives the binding guard — read ops (list/get/docs) run unbound.
+    const regOp = REGISTRY_OPS_BY_TOOL.get(toolName);
     if (regOp) {
       const handle = await getAdminClient();
       if (!handle) return notAuthenticated();
       if (regOp.mutates && !handle.bound) return notBound(handle);
       try {
-        return ok(await RELEASE_REGISTRY_DISPATCH[toolName](handle.client, params.arguments ?? {}));
+        return ok(await REGISTRY_DISPATCH[toolName](handle.client, params.arguments ?? {}));
       } catch (e) {
         return apiErr(e);
       }
@@ -96,10 +85,6 @@ export async function startStdioServer(): Promise<void> {
     }
     if (toolName === "auth_check") return handleAuthCheck();
     if (toolName === "auth_logout") return handleAuthLogout();
-    if (toolName === "list_resources") {
-      const args = params.arguments ?? {};
-      return handleListResources(args as Parameters<typeof handleListResources>[0]);
-    }
     if (toolName === "i18n_create_profile") {
       const args = (params.arguments ?? {}) as { name: string };
       return handleCreateProfile(args);
@@ -132,14 +117,6 @@ export async function startStdioServer(): Promise<void> {
       };
       return handleInstallLoader(args);
     }
-    if (toolName === "get_resource") {
-      const args = params.arguments ?? {};
-      return handleGetResource(args as Parameters<typeof handleGetResource>[0]);
-    }
-    if (toolName === "get_sdk_snippet") {
-      const args = params.arguments ?? {};
-      return handleGetSdkSnippet(args as unknown as Parameters<typeof handleGetSdkSnippet>[0]);
-    }
     if (toolName === "i18n_discover_site") {
       const args = (params.arguments ?? {}) as { url: string };
       return handleDiscoverSite(args);
@@ -152,32 +129,9 @@ export async function startStdioServer(): Promise<void> {
       const args = params.arguments ?? {};
       return handleCodemodApply(args as Parameters<typeof handleCodemodApply>[0]);
     }
-    // Gate / kill switch / config / universe / experiment are all handled by
-    // the registry dispatch above. Only alert rules remain hand-written below.
-    if (toolName === "exp_create_alert_rule") {
-      const args = params.arguments ?? {};
-      return handleCreateAlertRule(args as Parameters<typeof handleCreateAlertRule>[0]);
-    }
-    if (toolName === "exp_update_alert_rule") {
-      const args = params.arguments ?? {};
-      return handleUpdateAlertRule(args as Parameters<typeof handleUpdateAlertRule>[0]);
-    }
-    if (toolName === "exp_delete_alert_rule") {
-      const args = params.arguments ?? {};
-      return handleDeleteAlertRule(args as Parameters<typeof handleDeleteAlertRule>[0]);
-    }
-    if (toolName === "ops_notify") {
-      const args = params.arguments ?? {};
-      return handleOpsNotify(args as Parameters<typeof handleOpsNotify>[0]);
-    }
-    if (toolName === "file_bug") {
-      const args = params.arguments ?? {};
-      return handleFileBug(args as Parameters<typeof handleFileBug>[0]);
-    }
-    if (toolName === "file_feature") {
-      const args = params.arguments ?? {};
-      return handleFileFeature(args as Parameters<typeof handleFileFeature>[0]);
-    }
+    // Everything else — every CRUD/read/docs surface incl. alert rules, the
+    // unified queue (`ops_create`/`ops_notify`), metrics, events — is handled by
+    // the registry dispatch above.
     if (toolName === "auth_login") {
       return {
         isError: true,
