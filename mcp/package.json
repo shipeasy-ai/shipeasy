@@ -1,0 +1,87 @@
+{
+  "name": "@shipeasy/mcp",
+  "version": "2.0.0",
+  "description": "Feature flags, A/B experiments, kill switches, dynamic config & i18n — Shipeasy MCP server.",
+  "mcpName": "ai.shipeasy/mcp",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "mcp-server",
+    "feature-flags",
+    "feature-gates",
+    "feature-management",
+    "feature-toggles",
+    "ab-testing",
+    "split-testing",
+    "experimentation",
+    "experiments",
+    "kill-switch",
+    "dynamic-config",
+    "remote-config",
+    "progressive-delivery",
+    "feature-rollout",
+    "canary-release",
+    "i18n",
+    "internationalization",
+    "localization",
+    "translations",
+    "shipeasy",
+    "claude",
+    "claude-code",
+    "cursor",
+    "windsurf",
+    "ai-agent",
+    "llm-tools"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shipeasy-ai/mcp.git"
+  },
+  "bin": {
+    "shipeasy-mcp": "./bin/mcp.js"
+  },
+  "exports": {
+    "./i18n/scan": {
+      "types": "./dist/tools/i18n/scan.d.ts",
+      "default": "./dist/tools/i18n/scan.js"
+    },
+    "./tools-manifest": {
+      "types": "./dist/tools/manifest.d.ts",
+      "default": "./dist/tools/manifest.js"
+    }
+  },
+  "files": [
+    "bin/",
+    "dist/",
+    "src/prompts/*.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/index.ts",
+    "type-check": "tsc --noEmit",
+    "docs": "tsx scripts/gen-mcp-docs.ts",
+    "registry:gen": "tsx scripts/gen-server-json.ts",
+    "test": "vitest run",
+    "start": "node bin/mcp.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@shipeasy/openapi": "workspace:^1.6.0",
+    "package-manager-detector": "^1.6.0",
+    "typescript": "^5.7.4",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.39",
+    "tsx": "^4.19.0",
+    "vitest": "^2.1.9"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
