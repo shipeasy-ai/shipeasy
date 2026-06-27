@@ -27,13 +27,6 @@ import { handlePublishProfile } from "./tools/i18n/publish.js";
 import { handleDiscoverSite } from "./tools/i18n/discover.js";
 import { handleCodemodPreview, handleCodemodApply } from "./tools/i18n/codemod.js";
 import {
-  handleCreateExperiment,
-  handleUpdateExperiment,
-  handleArchiveExperiment,
-  handleRestoreExperiment,
-  handleStartExperiment,
-  handleStopExperiment,
-  handleExperimentStatus,
   handleCreateAlertRule,
   handleUpdateAlertRule,
   handleDeleteAlertRule,
@@ -159,36 +152,8 @@ export async function startStdioServer(): Promise<void> {
       const args = params.arguments ?? {};
       return handleCodemodApply(args as Parameters<typeof handleCodemodApply>[0]);
     }
-    // Gate / kill switch / config / universe are handled by the registry
-    // dispatch above. Experiments stay hand-written (renamed to release_*).
-    if (toolName === "release_experiments_create") {
-      const args = params.arguments ?? {};
-      return handleCreateExperiment(args as Parameters<typeof handleCreateExperiment>[0]);
-    }
-    if (toolName === "release_experiments_update") {
-      const args = params.arguments ?? {};
-      return handleUpdateExperiment(args as Parameters<typeof handleUpdateExperiment>[0]);
-    }
-    if (toolName === "release_experiments_archive") {
-      const args = params.arguments ?? {};
-      return handleArchiveExperiment(args as Parameters<typeof handleArchiveExperiment>[0]);
-    }
-    if (toolName === "release_experiments_restore") {
-      const args = params.arguments ?? {};
-      return handleRestoreExperiment(args as Parameters<typeof handleRestoreExperiment>[0]);
-    }
-    if (toolName === "release_experiments_start") {
-      const args = params.arguments ?? {};
-      return handleStartExperiment(args as Parameters<typeof handleStartExperiment>[0]);
-    }
-    if (toolName === "release_experiments_stop") {
-      const args = params.arguments ?? {};
-      return handleStopExperiment(args as Parameters<typeof handleStopExperiment>[0]);
-    }
-    if (toolName === "release_experiments_status") {
-      const args = params.arguments ?? {};
-      return handleExperimentStatus(args as Parameters<typeof handleExperimentStatus>[0]);
-    }
+    // Gate / kill switch / config / universe / experiment are all handled by
+    // the registry dispatch above. Only alert rules remain hand-written below.
     if (toolName === "exp_create_alert_rule") {
       const args = params.arguments ?? {};
       return handleCreateAlertRule(args as Parameters<typeof handleCreateAlertRule>[0]);

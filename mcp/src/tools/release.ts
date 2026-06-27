@@ -3,6 +3,7 @@ import {
   killswitchOperations,
   configOperations,
   universeOperations,
+  experimentOperations,
   operationsToMcpTools,
   operationsToDispatch,
   opMcpName,
@@ -13,19 +14,19 @@ import {
  * The `release`-module surface the MCP server drives straight off the shared
  * operation registry (one `Operation[]` → CLI subcommands + MCP tools + docs).
  *
- * Scope: gate, kill switch, config, universe — the four resources whose MCP
- * tools are a 1:1 match for the registry op. The **experiment** resource is
- * deliberately NOT here: its MCP tools (`release_experiments_*`) stay
- * hand-written in `schema.ts` / `exp/index.ts` because they carry the
- * goal-metric DSL, guardrail metrics, and ship/hold/wait verdict that the thin
- * registry op doesn't model. Alert rules live in the `ops` module and are also
- * hand-written. Both are layered on top of these registry tools.
+ * Scope: gate, kill switch, config, universe, and experiment. The experiment op
+ * now carries everything that used to be hand-written here (goal-metric DSL,
+ * guardrail metrics, `bucketBy`, sequential testing, the ship/hold/wait
+ * verdict on `status`), so there are no bespoke `release_experiments_*` tools
+ * left. Alert rules still live in the `ops` module and are hand-written until
+ * that module is ported.
  */
 export const RELEASE_REGISTRY_OPS: Operation[] = [
   ...gateOperations,
   ...killswitchOperations,
   ...configOperations,
   ...universeOperations,
+  ...experimentOperations,
 ];
 
 /** MCP `tools/list` entries for the registry-driven release tools. */

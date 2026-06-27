@@ -108,18 +108,26 @@ function write(dir: string, file: string, content: string) {
 // shared operation registry (@shipeasy/openapi). The facade→wire mapping is
 // unit-tested there; here we assert the registry tools are exposed and the
 // dispatch resolves a gate-create through the typed admin client.
-describe("registry-driven release tools (gate/ks/config/universe)", () => {
+// Gate / kill switch / config / universe / experiment tools are now generated
+// from the shared operation registry (@shipeasy/openapi). The facade→wire
+// mapping (incl. the experiment goal-metric DSL, guardrails, and verdict) is
+// unit-tested there; here we assert the catalog exposes them and the dispatch
+// resolves through the typed admin client.
+describe("registry-driven release tools", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("exposes the renamed release_* tools in the catalog", async () => {
+  it("exposes the renamed release_* tools in the catalog (incl. experiments)", async () => {
     const { TOOLS } = await import("../tools/schema.js");
     const names = TOOLS.map((t) => t.name);
     expect(names).toContain("release_flags_create");
     expect(names).toContain("release_killswitch_set");
     expect(names).toContain("release_configs_publish");
     expect(names).toContain("release_experiments_universes_create");
-    // the old exp_*_gate names are gone
+    expect(names).toContain("release_experiments_create");
+    expect(names).toContain("release_experiments_status");
+    // old exp_* names are gone (alert rules excepted — ops module)
     expect(names).not.toContain("exp_create_gate");
+    expect(names).not.toContain("exp_create_experiment");
   });
 
   it("dispatches release_flags_create through the admin client", async () => {
@@ -132,6 +140,21 @@ describe("registry-driven release tools (gate/ks/config/universe)", () => {
       rollout: 50,
     });
     expect((data as { name: string }).name).toBe("my_gate");
+  });
+
+  it("dispatches release_experiments_create with an inline goal metric", async () => {
+    const fetchMock = mockFetch({ "/api/admin/experiments": { id: "exp-1", name: "my_exp" } });
+    vi.stubGlobal("fetch", fetchMock);
+    const { RELEASE_REGISTRY_DISPATCH } = await import("../tools/release.js");
+    const { getAdminClient } = await import("../util/api-client.js");
+    const handle = await getAdminClient();
+    await RELEASE_REGISTRY_DISPATCH.release_experiments_create(handle!.client, {
+      name: "my_exp",
+      universe: "u-1",
+      successEvent: "checkout_completed",
+    });
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.goal_metric).toEqual({ query: "count_users(checkout_completed)" });
   });
 });
 
@@ -222,242 +245,6 @@ describe("handleUpdateAlertRule", () => {
     const result = await handleUpdateAlertRule({ id: "ar-1" });
     expect((result as ToolResult).isError).toBe(true);
     expect(result.content[0].text).toContain("Nothing to update");
-  });
-});
-
-describe("handleCreateExperiment", () => {
-  beforeEach(() => {
-    vi.stubGlobal(
-      "fetch",
-      mockFetch({
-        "/api/admin/experiments": { id: "exp-1", name: "my_exp" },
-      }),
-    );
-  });
-  afterEach(() => vi.unstubAllGlobals());
-
-  it("happy path — creates an experiment with default groups", async () => {
-    const { handleCreateExperiment } = await import("../tools/exp/index.js");
-    const result = await handleCreateExperiment({ name: "my_exp", universe: "u-1" });
-    expect((result as ToolResult).isError).toBeUndefined();
-    const data = parseResult(result);
-    expect(data.name).toBe("my_exp");
-  });
-
-  it("parses custom groups from JSON string", async () => {
-    const { handleCreateExperiment } = await import("../tools/exp/index.js");
-    const groups = JSON.stringify([
-      { name: "ctrl", weight: 3000, params: {} },
-      { name: "treat_a", weight: 3000, params: {} },
-      { name: "treat_b", weight: 4000, params: {} },
-    ]);
-    const result = await handleCreateExperiment({ name: "my_exp", universe: "u-1", groups });
-    expect((result as ToolResult).isError).toBeUndefined();
-  });
-
-  it("attaches an inline goal metric from success_event (count_users default)", async () => {
-    const fetchMock = mockFetch({
-      "/api/admin/experiments": { id: "exp-1", name: "my_exp" },
-    });
-    vi.stubGlobal("fetch", fetchMock);
-    const { handleCreateExperiment } = await import("../tools/exp/index.js");
-    const result = await handleCreateExperiment({
-      name: "my_exp",
-      universe: "u-1",
-      success_event: "landing_cta_clicked",
-    });
-    expect((result as ToolResult).isError).toBeUndefined();
-    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
-    expect(body.goal_metric).toEqual({ query: "count_users(landing_cta_clicked)" });
-  });
-
-  it("maps count_events to the DSL `count(...)` form", async () => {
-    const fetchMock = mockFetch({
-      "/api/admin/experiments": { id: "exp-1", name: "my_exp" },
-    });
-    vi.stubGlobal("fetch", fetchMock);
-    const { handleCreateExperiment } = await import("../tools/exp/index.js");
-    await handleCreateExperiment({
-      name: "my_exp",
-      universe: "u-1",
-      success_event: "purchase",
-      success_aggregation: "count_events",
-    });
-    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
-    expect(body.goal_metric).toEqual({ query: "count(purchase)" });
-  });
-
-  it("errors when sum/avg goal metric is missing success_value", async () => {
-    const { handleCreateExperiment } = await import("../tools/exp/index.js");
-    const result = await handleCreateExperiment({
-      name: "my_exp",
-      universe: "u-1",
-      success_event: "purchase",
-      success_aggregation: "sum",
-    });
-    expect((result as ToolResult).isError).toBe(true);
-    expect(result.content[0].text).toContain("success_value");
-  });
-
-  it("builds a sum goal metric with success_value", async () => {
-    const fetchMock = mockFetch({
-      "/api/admin/experiments": { id: "exp-1", name: "my_exp" },
-    });
-    vi.stubGlobal("fetch", fetchMock);
-    const { handleCreateExperiment } = await import("../tools/exp/index.js");
-    await handleCreateExperiment({
-      name: "my_exp",
-      universe: "u-1",
-      success_event: "purchase",
-      success_aggregation: "sum",
-      success_value: "amount",
-    });
-    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
-    expect(body.goal_metric).toEqual({ query: "sum(purchase, amount)" });
-  });
-
-  it("omits goal_metric when no success_event is given", async () => {
-    const fetchMock = mockFetch({
-      "/api/admin/experiments": { id: "exp-1", name: "my_exp" },
-    });
-    vi.stubGlobal("fetch", fetchMock);
-    const { handleCreateExperiment } = await import("../tools/exp/index.js");
-    await handleCreateExperiment({ name: "my_exp", universe: "u-1" });
-    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
-    expect(body.goal_metric).toBeUndefined();
-  });
-});
-
-describe("handleUpdateExperiment — goal metric", () => {
-  const draft = { id: "exp-1", name: "my_exp", status: "draft" };
-  afterEach(() => vi.unstubAllGlobals());
-
-  it("attaches/replaces the goal metric from success_event", async () => {
-    // Capture the PATCH body. resolve() GETs by id (200) for `exp-1`, but here
-    // we pass the name, so it 404s by name then lists. Use expFetch + spy.
-    const fetchMock = expFetch({ detail: draft });
-    vi.stubGlobal("fetch", fetchMock);
-    const { handleUpdateExperiment } = await import("../tools/exp/index.js");
-    const result = await handleUpdateExperiment({
-      name: "my_exp",
-      success_event: "landing_cta_clicked",
-    });
-    expect((result as ToolResult).isError).toBeUndefined();
-    const patchCall = fetchMock.mock.calls.find(
-      (c) => (c[1] as RequestInit | undefined)?.method === "PATCH",
-    );
-    const body = JSON.parse((patchCall![1] as RequestInit).body as string);
-    expect(body.goal_metric).toEqual({ query: "count_users(landing_cta_clicked)" });
-  });
-});
-
-describe("handleRestoreExperiment", () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  it("restores a soft-deleted experiment back to draft", async () => {
-    const archived = { id: "exp-1", name: "my_exp", status: "archived" };
-    const fetchMock = expFetch({ detail: archived, status: { id: "exp-1", status: "draft" } });
-    vi.stubGlobal("fetch", fetchMock);
-    const { handleRestoreExperiment } = await import("../tools/exp/index.js");
-    const result = await handleRestoreExperiment({ name: "my_exp" });
-    expect((result as ToolResult).isError).toBeUndefined();
-    expect(parseResult(result).status).toBe("draft");
-    const statusCall = fetchMock.mock.calls.find((c) => String(c[0]).includes("/status"));
-    const body = JSON.parse((statusCall![1] as RequestInit).body as string);
-    expect(body.status).toBe("draft");
-  });
-});
-
-describe("handleStartExperiment / handleStopExperiment", () => {
-  const experimentList = [
-    {
-      id: "exp-1",
-      name: "my_exp",
-      status: "draft",
-      significance_threshold: 0.05,
-      min_runtime_days: 0,
-    },
-  ];
-
-  beforeEach(() => {
-    vi.stubGlobal(
-      "fetch",
-      expFetch({ detail: experimentList[0], status: { id: "exp-1", status: "running" } }),
-    );
-  });
-  afterEach(() => vi.unstubAllGlobals());
-
-  it("starts an experiment by name", async () => {
-    const { handleStartExperiment } = await import("../tools/exp/index.js");
-    const result = await handleStartExperiment({ name: "my_exp" });
-    expect((result as ToolResult).isError).toBeUndefined();
-    const data = parseResult(result);
-    expect(data.status).toBe("running");
-  });
-
-  it("stops an experiment by name", async () => {
-    vi.stubGlobal(
-      "fetch",
-      expFetch({ detail: experimentList[0], status: { id: "exp-1", status: "stopped" } }),
-    );
-    const { handleStopExperiment } = await import("../tools/exp/index.js");
-    const result = await handleStopExperiment({ name: "my_exp" });
-    expect((result as ToolResult).isError).toBeUndefined();
-    const data = parseResult(result);
-    expect(data.status).toBe("stopped");
-  });
-
-  it("includes promote_group note when specified", async () => {
-    vi.stubGlobal(
-      "fetch",
-      expFetch({ detail: experimentList[0], status: { id: "exp-1", status: "stopped" } }),
-    );
-    const { handleStopExperiment } = await import("../tools/exp/index.js");
-    const result = await handleStopExperiment({ name: "my_exp", promote_group: "treatment" });
-    const data = parseResult(result);
-    expect(data.promote_group_note).toContain("treatment");
-  });
-});
-
-describe("handleExperimentStatus", () => {
-  const experimentList = [
-    {
-      id: "exp-1",
-      name: "my_exp",
-      status: "running",
-      significance_threshold: 0.05,
-      min_runtime_days: 7,
-      started_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-  ];
-
-  afterEach(() => vi.unstubAllGlobals());
-
-  it("returns wait verdict when no results", async () => {
-    vi.stubGlobal("fetch", expFetch({ detail: experimentList[0], results: [] }));
-    const { handleExperimentStatus } = await import("../tools/exp/index.js");
-    const result = await handleExperimentStatus({ name: "my_exp" });
-    const data = parseResult(result);
-    expect(data.verdict).toBe("wait");
-    expect(data.reason).toBe("no data yet");
-  });
-
-  it("returns ship verdict when p_value < threshold", async () => {
-    const results = [{ group: "treatment", p_value: 0.01 }];
-    vi.stubGlobal("fetch", expFetch({ detail: experimentList[0], results }));
-    const { handleExperimentStatus } = await import("../tools/exp/index.js");
-    const result = await handleExperimentStatus({ name: "my_exp" });
-    const data = parseResult(result);
-    expect(data.verdict).toBe("ship");
-  });
-
-  it("returns not_running when experiment is stopped", async () => {
-    const stopped = { ...experimentList[0], status: "stopped" };
-    vi.stubGlobal("fetch", expFetch({ detail: stopped, results: [] }));
-    const { handleExperimentStatus } = await import("../tools/exp/index.js");
-    const result = await handleExperimentStatus({ name: "my_exp" });
-    const data = parseResult(result);
-    expect(data.verdict).toBe("not_running");
   });
 });
 
