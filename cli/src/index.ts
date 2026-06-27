@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { Command, CommanderError } from "commander";
 import { login } from "./auth/login";
 import { clearCredentials, loadCredentials } from "./auth/storage";
-import { getApiClient, ApiError } from "./api/client";
+import { getAdminClient, ApiError } from "./api/client";
 import { releaseCommand } from "./commands/release";
 import { opsCommand } from "./commands/ops";
 import { keysCommand } from "./commands/keys";
@@ -15,6 +15,8 @@ import { setupCommand } from "./commands/setup";
 import { projectsCommand } from "./commands/projects";
 import { metricsCommand } from "./commands/metrics";
 import { eventsCommand } from "./commands/events";
+import { docsCommand } from "./commands/docs";
+import { attributesCommand } from "./commands/attributes";
 import { bindProject, readProjectConfig } from "./util/project-config";
 import { printJson } from "./util/output";
 import { reportCliError } from "./util/error-reporter";
@@ -136,15 +138,15 @@ export function buildProgram(): Command {
       }
 
       const bound = readProjectConfig(process.cwd());
+      // The active project is resolved exactly like getAdminClient does: the
+      // .shipeasy binding wins, else the CLI session default.
+      const activeProjectId = bound.project_id ?? creds.project_id;
       let project: ProjectMeta | null = null;
       let projectError: string | null = null;
-      let client: ReturnType<typeof getApiClient> | null = null;
       try {
-        client = getApiClient();
-        project = await client.request<ProjectMeta>(
-          "GET",
-          `/api/admin/projects/${client.projectId}`,
-        );
+        // `projects current` resolves the project from the auth header — no id
+        // in the request — which is why it works as a thin registry-driven whoami.
+        project = (await getAdminClient().projects.current()) as ProjectMeta;
       } catch (e) {
         projectError = e instanceof ApiError ? `API error (${e.status}): ${e.message}` : String(e);
       }
@@ -162,7 +164,7 @@ export function buildProgram(): Command {
           bound_dir: bound.project_id
             ? { project_id: bound.project_id, project_name: bound.project_name ?? null }
             : null,
-          active_project_id: client?.projectId ?? creds.project_id,
+          active_project_id: activeProjectId,
           project,
           project_error: projectError,
         });
@@ -183,7 +185,7 @@ export function buildProgram(): Command {
       }
 
       if (project) {
-        const activeId = client?.projectId ?? creds.project_id;
+        const activeId = activeProjectId;
         console.log("");
         console.log(`Active project: ${project.name} (${activeId})`);
         console.log(`  domain:        ${project.domain ?? "—"}`);
@@ -272,6 +274,10 @@ export function buildProgram(): Command {
   setupCommand(program);
   projectsCommand(program);
   mcpCommand(program);
+  // SDK docs (`docs list/get/skill`) + targeting attributes (`attributes list`)
+  // — both registry-driven; docs replaces the old static get_sdk_snippet.
+  docsCommand(program);
+  attributesCommand(program);
 
   // ── release module — feature flags, kill switches, experiments, configs ───
   // Subcommands are generated from the @shipeasy/openapi operation registry

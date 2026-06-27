@@ -54,6 +54,8 @@ describe("command tree", () => {
       "metrics",
       "ops",
       "i18n",
+      "docs",
+      "attributes",
     ]) {
       expect(top).toContain(name);
     }
@@ -76,6 +78,8 @@ describe("command tree", () => {
         "metrics",
         "ops",
         "i18n",
+        "docs",
+        "attributes",
       ].sort(),
     );
     // Spot-check the commands that were promoted-into-modules or deleted.

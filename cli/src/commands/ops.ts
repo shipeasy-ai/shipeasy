@@ -1,300 +1,156 @@
-import { Command } from "commander";
-import { getApiClient, ApiError } from "../api/client";
-import { printTable, printJson } from "../util/output";
-import { alertRulesCommand } from "./alert-rules";
-import { withExamples, withTreeHelp } from "../util/examples";
+import type { Command } from "commander";
+import { opsOperations, opId, type Operation, type OpInput } from "@shipeasy/openapi";
+import { printTable } from "../util/output";
+import { withTreeHelp } from "../util/examples";
+import { mountResource } from "./_registry";
 
-function handleError(e: unknown): never {
-  if (e instanceof ApiError) {
-    console.error(`Error (${e.status}): ${e.message}`);
-  } else {
-    console.error(String(e));
-  }
-  process.exit(1);
-}
+/**
+ * The `ops` module — the unified operational queue (bugs + feature requests +
+ * auto-filed error/alert tickets) AND alert rules (`ops alerts …`). Every
+ * subcommand is generated from the shared registry (`opsOperations`), so the
+ * deleted hand-written `feedback`/`alert-rules` CLI modules and the MCP filing
+ * tools all collapse to one definition.
+ *
+ * The CLI additionally mounts a per-type alias subtree (`ops bug …`,
+ * `ops feature …`) — consumer-side only (it pre-binds the `--type` param), no
+ * registry change. MCP stays flat with one `ops_*` set + a `type` arg.
+ */
 
-// ── ops: the operational module ──────────────────────────────────────────────
-//
-// `ops` groups the operational read/triage/fix surfaces under one parent. They
-// are native nested subcommands (`shipeasy ops list`, `shipeasy ops update`,
-// `shipeasy ops alerts`), so `shipeasy ops --help` prints the whole tree (via
-// `withTreeHelp`) and an agent can discover them in one call. The unified queue
-// (`ops list`/`get`/`update`) spans every ticket type — bugs, feature requests,
-// and auto-filed error/alert tickets alike.
+// ── human-readable output per op (the --json path is handled by the adapter) ──
 
-// ── Unified feedback queue (bugs + features + auto-filed error/alert tickets) ──
-//
-// `ops list`/`get`/`update`/`link-pr` are the commands `/shipeasy:ops:work`
-// drives end-to-end. They hit the single `/api/admin/feedback` surface so the
-// loop never has to curl, and they cover the `error`/`alert` ticket types that
-// `ops bugs`/`ops features` (the per-type CLIs) don't.
-
-const FEEDBACK_ENDPOINT = "/api/admin/feedback";
-const FEEDBACK_TYPES = ["bug", "feature_request", "error", "alert"] as const;
-const FEEDBACK_STATUSES = [
-  "open",
-  "triaged",
-  "in_progress",
-  "ready_for_qa",
-  "resolved",
-  "wont_fix",
-] as const;
-const FEEDBACK_PRIORITIES = ["nice_to_have", "medium", "high", "critical"] as const;
-// Descending urgency rank for queue sorting (highest first; null/none last).
-const PRIORITY_RANK: Record<string, number> = { critical: 4, high: 3, medium: 2, nice_to_have: 1 };
-
-interface FeedbackQueueItem {
+interface QueueRow {
   id: string;
   number: number | null;
   type: string;
   title: string;
   status: string;
   priority: string | null;
-  sourceRef?: string | null;
   createdAt: string;
-  [key: string]: unknown;
 }
 
-/** Handle the user passes to get/update/link-pr — the per-project number or the
- *  full id. The admin API resolves either (resolveByHandle byNumber), so pass it
- *  straight through rather than fetching + prefix-matching. */
-function feedbackPath(handle: string): string {
-  return `${FEEDBACK_ENDPOINT}/${encodeURIComponent(handle)}`;
+interface AlertRow {
+  id: string;
+  name: string;
+  metricName?: string | null;
+  metricId: string;
+  comparator: string;
+  threshold: number;
+  windowHours: number;
+  severity: string;
+  enabled: boolean;
+  updatedAt: string;
 }
 
-function defineUnifiedQueue(parent: Command): void {
-  const opsList = parent
-    .command("list")
-    .description("List the unified operational queue (bugs + features + error/alert tickets)")
-    .option("--type <type>", `Filter by type: ${FEEDBACK_TYPES.join("|")}|all`, "all")
-    .option("--status <status>", `Filter by status: ${FEEDBACK_STATUSES.join("|")}|all`, "open")
-    .option("--priority <priority>", `Filter by priority: ${FEEDBACK_PRIORITIES.join("|")}`)
-    .option("--limit <n>", "Max rows", "200")
-    .option("--json", "Output as JSON")
-    .option("--project <id>", "Project ID override")
-    .action(async (opts) => {
-      try {
-        if (opts.type !== "all" && !FEEDBACK_TYPES.includes(opts.type))
-          throw new ApiError(`Invalid type: ${opts.type}`, 400);
-        if (opts.priority && !FEEDBACK_PRIORITIES.includes(opts.priority))
-          throw new ApiError(`Invalid priority: ${opts.priority}`, 400);
-        const client = getApiClient(opts.project);
-        const qs = new URLSearchParams({
-          type: opts.type,
-          status: opts.status,
-          limit: String(opts.limit),
-        });
-        let items = await client.request<FeedbackQueueItem[]>(
-          "GET",
-          `${FEEDBACK_ENDPOINT}?${qs.toString()}`,
-        );
-        if (opts.priority) items = items.filter((i) => i.priority === opts.priority);
-        // Queue order: priority desc, then oldest-first.
-        items.sort(
-          (a, b) =>
-            (PRIORITY_RANK[b.priority ?? ""] ?? 0) - (PRIORITY_RANK[a.priority ?? ""] ?? 0) ||
-            a.createdAt.localeCompare(b.createdAt),
-        );
-        if (opts.json) return printJson(items);
-        if (!items.length) return void console.log("Queue is clear.");
-        printTable(
-          ["#", "Type", "Priority", "Status", "Title", "Created"],
-          items.map((i) => [
-            i.number != null ? `#${i.number}` : i.id.slice(0, 8),
-            i.type,
-            i.priority ?? "—",
-            i.status,
-            i.title.length > 56 ? `${i.title.slice(0, 53)}…` : i.title,
-            i.createdAt,
-          ]),
-        );
-      } catch (e) {
-        handleError(e);
-      }
-    });
-
-  withExamples(opsList, [
-    { note: "Open critical items only", run: "shipeasy ops list --priority critical" },
-    { note: "Just error tickets", run: "shipeasy ops list --type error" },
-  ]);
-
-  const opsGet = parent
-    .command("get <handle>")
-    .description("Show one queue item by number (#7 → 7) or id — any type")
-    .option("--json", "Output as JSON")
-    .option("--project <id>", "Project ID override")
-    .action(async (handle: string, opts) => {
-      try {
-        const client = getApiClient(opts.project);
-        const full = await client.request<Record<string, unknown>>("GET", feedbackPath(handle));
-        if (opts.json) return printJson(full);
-        console.log(JSON.stringify(full, null, 2));
-      } catch (e) {
-        handleError(e);
-      }
-    });
-
-  withExamples(opsGet, [
-    { note: "By queue number", run: "shipeasy ops get 7" },
-  ]);
-
-  const opsUpdate = parent
-    .command("update <handle>")
-    .description("Flip a queue item's status (any type) — and optionally its priority")
-    .option("--status <status>", `New status: ${FEEDBACK_STATUSES.join("|")}`)
-    .option("--priority <priority>", `New priority: ${FEEDBACK_PRIORITIES.join("|")}`)
-    .option("--json", "Output as JSON")
-    .option("--project <id>", "Project ID override")
-    .action(async (handle: string, opts) => {
-      try {
-        const patch: Record<string, unknown> = {};
-        if (opts.status) {
-          if (!FEEDBACK_STATUSES.includes(opts.status))
-            throw new ApiError(`Invalid status: ${opts.status}`, 400);
-          patch.status = opts.status;
-        }
-        if (opts.priority) {
-          if (!FEEDBACK_PRIORITIES.includes(opts.priority))
-            throw new ApiError(`Invalid priority: ${opts.priority}`, 400);
-          patch.priority = opts.priority;
-        }
-        if (Object.keys(patch).length === 0)
-          throw new ApiError("Nothing to update — pass --status and/or --priority", 400);
-        const client = getApiClient(opts.project, { requireBinding: true });
-        const updated = await client.request<{ id: string }>("PATCH", feedbackPath(handle), patch);
-        if (opts.json) return printJson(updated);
-        const changed = Object.entries(patch)
-          .map(([k, v]) => `${k} → ${v}`)
-          .join(", ");
-        console.log(`Updated ${handle}: ${changed}`);
-      } catch (e) {
-        handleError(e);
-      }
-    });
-
-  withExamples(opsUpdate, [
-    { note: "Resolve item #7", run: "shipeasy ops update 7 --status resolved" },
-    { note: "Bump priority", run: "shipeasy ops update 7 --priority high" },
-  ]);
-
-  const opsLinkPr = parent
-    .command("link-pr <handle> <pr-number>")
-    .description(
-      "Link the PR that fixed a queue item (any type). Records connector_data.github.pr; ops-key safe.",
-    )
-    .option("--url <url>", "Explicit PR URL (recommended — required for error/alert tickets)")
-    .option("--remove", "Unlink the PR instead of setting one")
-    .option("--json", "Output as JSON")
-    .option("--project <id>", "Project ID override")
-    .action(async (handle: string, prNumberArg: string, opts) => {
-      try {
-        const client = getApiClient(opts.project, { requireBinding: true });
-        if (opts.remove) {
-          const res = await client.request("POST", `${feedbackPath(handle)}/link-pr`, {
-            prNumber: null,
-          });
-          if (opts.json) return printJson(res);
-          return void console.log(`Unlinked PR from ${handle}.`);
-        }
-        const prNumber = Number(prNumberArg);
-        if (!Number.isInteger(prNumber) || prNumber <= 0)
-          throw new ApiError(`Invalid PR number: ${prNumberArg}`, 400);
-        const body: Record<string, unknown> = { prNumber };
-        if (opts.url) body.prUrl = opts.url;
-        const res = await client.request("POST", `${feedbackPath(handle)}/link-pr`, body);
-        if (opts.json) return printJson(res);
-        console.log(`Linked PR #${prNumber} to ${handle}.`);
-      } catch (e) {
-        handleError(e);
-      }
-    });
-
-  withExamples(opsLinkPr, [
-    {
-      note: "Link the fixing PR (with URL)",
-      run: "shipeasy ops link-pr 7 42 --url https://github.com/acme/app/pull/42",
-    },
-  ]);
+function printResult(op: Operation, data: unknown, input: OpInput): void {
+  switch (opId(op)) {
+    case "ops.list": {
+      const items = data as QueueRow[];
+      if (!items.length) return void console.log("Queue is clear.");
+      return printTable(
+        ["#", "Type", "Priority", "Status", "Title", "Created"],
+        items.map((i) => [
+          i.number != null ? `#${i.number}` : i.id.slice(0, 8),
+          i.type,
+          i.priority ?? "—",
+          i.status,
+          i.title.length > 56 ? `${i.title.slice(0, 53)}…` : i.title,
+          i.createdAt,
+        ]),
+      );
+    }
+    case "ops.get":
+      return void console.log(JSON.stringify(data, null, 2));
+    case "ops.create": {
+      const r = data as { id: string; number?: number | null };
+      return void console.log(`Filed ${input.type}: ${input.title} (${r.number != null ? `#${r.number}` : r.id})`);
+    }
+    case "ops.update":
+      return void console.log(`Updated ${input.handle}.`);
+    case "ops.link-pr":
+      return void console.log(input.remove ? `Unlinked PR from ${input.handle}.` : `Linked PR to ${input.handle}.`);
+    case "ops.notify": {
+      const r = data as { dedupeKey: string; dispatched: boolean };
+      return void console.log(
+        r.dispatched ? `Raised notification: ${input.title}` : `Already raised (deduped on ${r.dedupeKey}).`,
+      );
+    }
+    case "ops.alerts.list": {
+      const rows = data as AlertRow[];
+      if (!rows.length) return void console.log("No alert rules found.");
+      return printTable(
+        ["ID", "Name", "Metric", "Condition", "Window", "Severity", "On"],
+        rows.map((r) => [
+          r.id.slice(0, 8),
+          r.name,
+          r.metricName ?? r.metricId.slice(0, 8),
+          `${r.comparator} ${r.threshold}`,
+          `${r.windowHours}h`,
+          r.severity,
+          r.enabled ? "yes" : "no",
+        ]),
+      );
+    }
+    case "ops.alerts.channels": {
+      const res = data as { connected: boolean; channels: { id: string; name: string; isPrivate?: boolean }[] };
+      if (!res.connected)
+        return void console.log("No Slack connector — connect Slack in Settings → Notifications.");
+      if (!res.channels.length) return void console.log("No channels visible to the bot.");
+      return printTable(
+        ["ID", "Name", "Visibility"],
+        res.channels.map((c) => [c.id, `#${c.name}`, c.isPrivate ? "private" : "public"]),
+      );
+    }
+    case "ops.alerts.create":
+      return void console.log(`Created alert rule: ${input.name}`);
+    case "ops.alerts.update":
+      return void console.log(`Updated alert rule: ${input.rule}`);
+    case "ops.alerts.archive":
+      return void console.log(`Archived alert rule: ${input.rule}`);
+    default:
+      return void console.log(JSON.stringify(data, null, 2));
+  }
 }
 
-// ── ops.notify — agent escalation to the bell ────────────────────────────────
-//
-// `/shipeasy:ops:work` fires this when an item can't be fixed in code and needs
-// a human. It raises an `ops.attention` bell notification carrying a step-by-
-// step guide (POST /api/admin/notifications, ops-key allow-listed, create-only).
+const queueOps = opsOperations.filter((o) => o.group.length === 1);
+const alertOps = opsOperations.filter((o) => o.group.join(" ") === "ops alerts");
 
-const NOTIFY_ENDPOINT = "/api/admin/notifications";
-
-/** Commander collector for a repeatable option (`--step a --step b`). */
-function collect(value: string, prev: string[]): string[] {
-  return [...prev, value];
-}
-
-function defineNotify(parent: Command): void {
-  const opsNotify = parent
-    .command("notify")
-    .description("Raise a 'needs your attention' bell notification (agent escalation, create-only)")
-    .requiredOption("--title <text>", "One-line headline of what's blocked")
-    .requiredOption("--summary <text>", "One sentence: why it can't be fixed in code")
-    .option("--step <text>", "A step the human should take (repeatable, ordered)", collect, [])
-    .option("--href <path>", "Dashboard-relative deep link to the related item")
-    .option("--item <number>", "Queue item this is about — sets a stable dedupe key (feedback:<n>)")
-    .option("--key <dedupe>", "Explicit dedupe key (overrides --item); re-runs collapse to one row")
-    .option("--json", "Output as JSON")
-    .option("--project <id>", "Project ID override")
-    .action(async (opts) => {
-      try {
-        const dedupeKey =
-          opts.key ?? (opts.item ? `feedback:${String(opts.item).replace(/^#/, "")}` : undefined);
-        const payload: Record<string, unknown> = {
-          title: opts.title,
-          summary: opts.summary,
-          steps: opts.step ?? [],
-        };
-        if (opts.href) payload.href = opts.href;
-        if (dedupeKey) payload.dedupeKey = dedupeKey;
-        const client = getApiClient(opts.project, { requireBinding: true });
-        const res = await client.request<{ dedupeKey: string; dispatched: boolean }>(
-          "POST",
-          NOTIFY_ENDPOINT,
-          payload,
-        );
-        if (opts.json) return printJson(res);
-        console.log(
-          res.dispatched
-            ? `Raised notification: ${opts.title}`
-            : `Already raised (deduped on ${res.dedupeKey}) — no new row.`,
-        );
-      } catch (e) {
-        handleError(e);
-      }
-    });
-
-  withExamples(opsNotify, [
-    {
-      note: "Escalate a blocked item to the bell",
-      run:
-        'shipeasy ops notify --item 7 \\\n' +
-        '  --title "Needs a DB migration" \\\n' +
-        '  --summary "Fix requires a schema change I can\'t apply in code" \\\n' +
-        '  --step "Add the column via wrangler d1 migrations" \\\n' +
-        '  --step "Re-run the fixer"',
-    },
-  ]);
+/**
+ * Clone the queue ops for an alias subtree: strip the `type` param and inject a
+ * fixed value, so `ops bug list` ≡ `ops list --type bug` with no registry
+ * change. Only the verbs that take/accept a type are aliased.
+ */
+function aliasOps(boundType: string): Operation[] {
+  return queueOps
+    .filter((o) => ["list", "get", "create", "update", "link-pr"].includes(o.name))
+    .map((op) => ({
+      ...op,
+      params: op.params.filter((p) => p.name !== "type"),
+      run: (client: Parameters<Operation["run"]>[0], input: OpInput) =>
+        op.run(client, { ...input, type: boundType }),
+    }));
 }
 
 export function opsCommand(parent: Command): Command {
   const ops = parent.command("ops").description("Operational queue, tickets & alert rules");
 
-  // The unified queue (`ops list`/`get`/`update`/`link-pr`) over /api/admin/feedback —
-  // spans bugs, feature requests, and auto-filed error/alert tickets.
-  defineUnifiedQueue(ops);
-  // ops notify — raise a bell notification when a fix isn't in code.
-  defineNotify(ops);
-  // alert RULES (writable) live under ops as `ops alerts`.
-  alertRulesCommand(ops);
+  // Unified queue (list/get/create/update/link-pr/notify) over /api/admin/feedback.
+  mountResource(ops, queueOps, printResult);
 
-  // `shipeasy ops --help` prints the full subtree; bare `shipeasy ops` shows it.
+  // Alert RULES live under `ops alerts` (alias `ar`).
+  const alerts = ops
+    .command("alerts")
+    .alias("ar")
+    .description("Create & manage metric-threshold alert rules the analysis cron evaluates");
+  mountResource(alerts, alertOps, printResult);
+
+  // Per-type alias subtrees — consumer-side convenience (pre-bound --type).
+  mountResource(ops.command("bug").description("Bug tickets (alias for `ops … --type bug`)"), aliasOps("bug"), printResult);
+  mountResource(
+    ops.command("feature").description("Feature requests (alias for `ops … --type feature_request`)"),
+    aliasOps("feature_request"),
+    printResult,
+  );
+
   withTreeHelp(ops);
   return ops;
 }
