@@ -13,7 +13,10 @@ export * from "./generated/sdk.gen.js";
 export { client, type CreateClientConfig } from "./generated/client.gen.js";
 export {
   createClient,
-  createConfig,
+  // Aliased: the bare `createConfig` name belongs to the `createConfig`
+  // operation (POST /configs) re-exported above via `sdk.gen`. This is hey-api's
+  // client-config builder.
+  createConfig as createClientConfig,
   type Client,
   type Config,
   type Options,

@@ -69,6 +69,8 @@
       - BAD_REQUEST
       - UNAUTHORIZED
       - FORBIDDEN
+    x-cli:
+      name: list
   post:
     operationId: createConfig
     summary: Create a dynamic config
@@ -176,6 +178,10 @@
       - FORBIDDEN
       - ALREADY_EXISTS
       - VALIDATION
+    x-cli:
+      name: create
+      positional:
+        - name
 /api/admin/configs/{id}:
   get:
     operationId: getConfig
@@ -269,6 +275,10 @@
       - UNAUTHORIZED
       - FORBIDDEN
       - NOT_FOUND
+    x-cli:
+      name: get
+      positional:
+        - id
   patch:
     operationId: updateConfig
     summary: Update a dynamic config
@@ -347,6 +357,10 @@
       - FORBIDDEN
       - NOT_FOUND
       - VALIDATION
+    x-cli:
+      name: update
+      positional:
+        - id
   delete:
     operationId: deleteConfig
     summary: Delete a dynamic config
@@ -390,6 +404,10 @@
       - UNAUTHORIZED
       - FORBIDDEN
       - NOT_FOUND
+    x-cli:
+      name: archive
+      positional:
+        - id
 /api/admin/configs/{id}/drafts:
   put:
     operationId: saveConfigDraft
@@ -457,6 +475,10 @@
       - FORBIDDEN
       - NOT_FOUND
       - VALIDATION
+    x-cli:
+      name: draft
+      positional:
+        - id
   delete:
     operationId: discardConfigDraft
     summary: Discard a draft
@@ -512,6 +534,10 @@
       - UNAUTHORIZED
       - FORBIDDEN
       - NOT_FOUND
+    x-cli:
+      name: discard-draft
+      positional:
+        - id
 /api/admin/configs/{id}/publish:
   post:
     operationId: publishConfigDraft
@@ -579,6 +605,10 @@
       - NOT_FOUND
       - INVALID_TRANSITION
       - VALIDATION
+    x-cli:
+      name: publish
+      positional:
+        - id
 /api/admin/configs/{id}/activity:
   get:
     operationId: listConfigActivity
@@ -639,3 +669,7 @@
       - UNAUTHORIZED
       - FORBIDDEN
       - NOT_FOUND
+    x-cli:
+      name: activity
+      positional:
+        - id

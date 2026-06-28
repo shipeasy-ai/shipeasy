@@ -54,8 +54,6 @@ describe("command tree", () => {
       "metrics",
       "ops",
       "i18n",
-      "docs",
-      "attributes",
     ]) {
       expect(top).toContain(name);
     }
@@ -78,16 +76,18 @@ describe("command tree", () => {
         "metrics",
         "ops",
         "i18n",
-        "docs",
-        "attributes",
       ].sort(),
     );
-    // Spot-check the commands that were promoted-into-modules or deleted.
+    // Spot-check the commands that live nested inside a module (not top-level):
+    // the release resources, attributes (now `release flags attributes`), the
+    // ops/alerts split, and the i18n-nested fs commands.
     for (const gone of [
       "killswitch",
       "experiments",
       "configs",
       "universes",
+      "attributes",
+      "events",
       "feedback",
       "connectors",
       "alert-rules",
@@ -96,6 +96,7 @@ describe("command tree", () => {
       "codemod",
       "modules",
       "scan",
+      "docs",
     ]) {
       expect(top).not.toContain(gone);
     }

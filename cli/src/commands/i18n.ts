@@ -1,12 +1,18 @@
 import { Command } from "commander";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve, join } from "node:path";
-import { scanFiles } from "@shipeasy/mcp/i18n/scan";
 import { getApiClient, ApiError } from "../api/client";
 import { printJson, printTable } from "../util/output";
 import { getI18nClientKey, saveI18nClientKey } from "../util/project-config";
 import { API_BASE_URL } from "../auth/storage";
 import { withExamples } from "../util/examples";
+
+// Lazily load the fs/AST source scanner from @shipeasy/mcp only when `i18n scan`
+// actually runs — keeps that package off the startup path (and lets the CLI run
+// while @shipeasy/mcp is mid-cutover to the new @shipeasy/openapi).
+type ScanModule = typeof import("@shipeasy/mcp/i18n/scan");
+const scanFiles = async (...args: Parameters<ScanModule["scanFiles"]>) =>
+  (await import("@shipeasy/mcp/i18n/scan")).scanFiles(...args);
 
 // ── env helpers ───────────────────────────────────────────────────────────────
 

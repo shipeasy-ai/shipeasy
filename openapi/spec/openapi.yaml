@@ -24,19 +24,8 @@ tags:
     summary: Feature delivery
     kind: nav
     description: Flags, kill switches, dynamic configs, experiments, and the universes they bucket in — the feature-delivery surface.
-  - name: Measurement
-    summary: Metrics & events
-    kind: nav
-    description: Event catalog, metric definitions, and the alert rules the analysis cron evaluates.
-  - name: Operations
-    summary: Ops queue & projects
-    kind: nav
-    description: The unified bug/feature/error/alert queue, notifications, project bootstrap, and targeting attributes.
-  - name: Localization
-    summary: String Manager (i18n)
-    kind: nav
-    description: Locale profiles, key push, and chunk publish — the worker-safe i18n REST surface.
-  - name: Gates
+  - name: Flags
+    parent: Release
     description: |-
       Feature gates: boolean flags evaluated at runtime against project rules + a percentage rollout.
 
@@ -51,8 +40,35 @@ tags:
       **Rollout basis points.** `rollout_pct` is in **basis points**, not percent. `0` = 0%, `100` = 1%, `5000` = 50%, `10000` = 100%. This allows sub-1% precision (e.g. `7` = 0.07%).
 
       **Lifecycle.** Create dark (`rollout_pct: 0`) → attach rules → ramp via PATCH → flip kill-switch via `disable`/`enable` → delete once retired. Deletion is blocked while a running experiment references the gate as a targeting gate.
+  - name: Killswitch
     parent: Release
+    x-cli:
+      aliases:
+        - ks
+    description: |-
+      Killswitches: per-env boolean overrides for kill-style operational toggles. Optimised for incident response — no rules, no rollout, just a flat boolean (plus optional per-key overrides) versioned per environment.
+
+      **Identity.** Each killswitch is keyed by `name` in `folder.name` form (e.g. `payments.checkout`). Immutable after create.
+
+      **Per-env values.** Every killswitch stores one version stream per env (`dev`, `stage`, `prod`). A `PATCH` with `value`/`switches` applies to **every** env in one shot (publishes a new version per env). To touch a single env, use `PUT /{id}/switch` and friends.
+
+      **Switches map.** Optional `switches: { key: bool }` overrides the flat `value` for specific named call sites — useful for region/feature-scoped kills.
+
+      **Versioning.** Each publish (create, update, set-switch, unset-switch) bumps the per-env `version` monotonically. SDKs deliver the latest published version.
+  - name: Configs
+    parent: Release
+    description: |-
+      Dynamic configs: JSON-Schema-validated structured values delivered to SDKs and editable per environment with a draft/publish workflow.
+
+      **Identity.** Each config is keyed by `name` in `folder.name` form (e.g. `pricing.tiers`). Immutable after create.
+
+      **Schema-first.** Every config carries a JSON Schema (draft 2020-12, top-level `type: 'object'`). Every published value is validated against it.
+
+      **Drafts → publish.** Per-env edits go through `PUT /{id}/drafts` (stages a value) then `POST /{id}/publish` (promotes to a new version). The flat `PATCH /{id}` republishes on **every** env in one shot — bypassing drafts.
+
+      **Versioning.** Each publish bumps the per-env `version` monotonically. SDKs deliver the latest published version for each env.
   - name: Experiments
+    parent: Release
     description: |-
       A/B/n experiments: randomised group assignment plus the analysis pipeline (t-test, sequential testing, SRM detection) on top of a universe.
 
@@ -67,32 +83,8 @@ tags:
       **Metrics.** Attach via `POST /{id}/metrics`. Each metric has a role: `goal` drives the decision, `guardrail` blocks ship on regression, `secondary` is informational.
 
       **Analysis.** Daily cron writes results to D1. Read via `GET /{id}/results` (latest per metric/group/day) or `GET /{id}/timeseries` (full history). `POST /{id}/reanalyze` requeues the analysis pass.
-    parent: Release
-  - name: Configs
-    description: |-
-      Dynamic configs: JSON-Schema-validated structured values delivered to SDKs and editable per environment with a draft/publish workflow.
-
-      **Identity.** Each config is keyed by `name` in `folder.name` form (e.g. `pricing.tiers`). Immutable after create.
-
-      **Schema-first.** Every config carries a JSON Schema (draft 2020-12, top-level `type: 'object'`). Every published value is validated against it.
-
-      **Drafts → publish.** Per-env edits go through `PUT /{id}/drafts` (stages a value) then `POST /{id}/publish` (promotes to a new version). The flat `PATCH /{id}` republishes on **every** env in one shot — bypassing drafts.
-
-      **Versioning.** Each publish bumps the per-env `version` monotonically. SDKs deliver the latest published version for each env.
-    parent: Release
-  - name: Killswitches
-    description: |-
-      Killswitches: per-env boolean overrides for kill-style operational toggles. Optimised for incident response — no rules, no rollout, just a flat boolean (plus optional per-key overrides) versioned per environment.
-
-      **Identity.** Each killswitch is keyed by `name` in `folder.name` form (e.g. `payments.checkout`). Immutable after create.
-
-      **Per-env values.** Every killswitch stores one version stream per env (`dev`, `stage`, `prod`). A `PATCH` with `value`/`switches` applies to **every** env in one shot (publishes a new version per env). To touch a single env, use `PUT /{id}/switch` and friends.
-
-      **Switches map.** Optional `switches: { key: bool }` overrides the flat `value` for specific named call sites — useful for region/feature-scoped kills.
-
-      **Versioning.** Each publish (create, update, set-switch, unset-switch) bumps the per-env `version` monotonically. SDKs deliver the latest published version.
-    parent: Release
   - name: Universes
+    parent: Experiments
     description: |-
       Universes: the shared bucketing space all experiments draw from.
 
@@ -103,14 +95,13 @@ tags:
       **Holdout.** `holdout_range` is an inclusive `[lo, hi]` bucket range (0–9999) reserved for measurement — callers hashed into the holdout are excluded from every experiment in the universe. Pro plan or higher.
 
       **Deletion.** Blocked while any non-archived experiment references the universe — archive those first.
-    parent: Release
   - name: Attributes
+    parent: Flags
     description: |-
       Targeting attributes: the auto-inferred schema of user-context keys the
       platform has observed in evaluation calls. Read-only — populated by the
       SDK hot path, surfaced here so you can see which keys (and value types)
       are available when writing gate/experiment targeting rules.
-    parent: Operations
   - name: Metrics
     description: |-
       Metrics: the event-backed queries that drive tracking dashboards and
@@ -126,8 +117,8 @@ tags:
 
       **Deletion.** Archive (soft-delete). Blocked while the metric is attached
       to a running experiment — stop those first.
-    parent: Measurement
   - name: Events
+    parent: Metrics
     description: |-
       Events: the catalog of event names (and their typed properties) that metric queries reference.
 
@@ -138,7 +129,6 @@ tags:
       **Properties.** Each event can declare typed properties (`name`, `type` of `string|number|boolean`, `required`). On update/approve the `properties` array replaces the full set — there is no merge.
 
       **Deletion.** Soft-delete (the user-facing verb is `archive`). Blocked while any metric still references the event — delete those metrics first.
-    parent: Measurement
   - name: Ops
     description: |-
       Operational queue: the unified feedback table of bug reports, feature
@@ -149,8 +139,11 @@ tags:
 
       **Handles.** A queue item is addressed by its per-project `number` (e.g. `7`)
       or its full id — the API resolves either.
-    parent: Operations
-  - name: Alert Rules
+  - name: Alerts
+    parent: Ops
+    x-cli:
+      aliases:
+        - ar
     description: |-
       Alert rules: the metric-threshold definitions the analysis cron evaluates each run.
 
@@ -159,7 +152,6 @@ tags:
       **Immutable metric.** The bound metric (and its aggregation) is fixed at create time — there is no update path for `metricId`. Tune `threshold`/`comparator`/`windowHours`/`severity`/`name`/`enabled` instead, or delete + recreate to repoint the rule at a different metric.
 
       **Delivery.** `notify` optionally targets a Slack channel and/or email for this rule; `null` falls back to the project's default notification settings. Slack targets require a connected Slack connector.
-    parent: Measurement
   - name: Projects
     description: |-
       Projects: the account-level container every other resource is scoped to.
@@ -167,7 +159,6 @@ tags:
       **Account-level, not bound-project-level.** Both operations resolve from the caller's credential rather than the `.shipeasy`-bound project — `current` reads the project the auth header maps to, and `upsert` find-or-creates under the session's owner. Neither touches the local `.shipeasy` binding; recording the result there is a consumer side-effect layered on top.
 
       **Idempotent upsert.** A project is keyed by `(owner_email, domain)`. Calling `upsert` again with the same domain returns the existing project with `created: false`, so it is safe to run on every install.
-    parent: Operations
   - name: i18n
     description: |-
       String Manager (i18n): the worker-safe REST surface — locale profiles, the
@@ -176,7 +167,15 @@ tags:
 
       The fs/AST parts (scan, validate, install-loader, codemod) are NOT part of
       this API — they stay in the fs-having CLI/MCP.
-    parent: Localization
+  - name: Profiles
+    parent: i18n
+    description: Locale profiles (e.g. `en:prod`) — create, list, and publish a profile's chunks to the CDN.
+  - name: Keys
+    parent: i18n
+    description: Translation keys — the insert-only push, single-key overwrite, and key listing.
+  - name: Drafts
+    parent: i18n
+    description: Machine-translation drafts awaiting review before publish.
 paths:
   /api/admin/gates:
     $ref: ./paths/gates.yaml#/~1api~1admin~1gates

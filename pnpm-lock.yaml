@@ -30,7 +30,7 @@ importers:
         specifier: workspace:^2.0.0
         version: link:../mcp
       '@shipeasy/openapi':
-        specifier: workspace:^1.6.0
+        specifier: workspace:^2.0.0
         version: link:../openapi
       chalk:
         specifier: ^5.3.0
@@ -78,6 +78,9 @@ importers:
       vitest:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@20.19.43)
+      yaml:
+        specifier: ^2.5.0
+        version: 2.9.0
 
   mcp:
     dependencies:

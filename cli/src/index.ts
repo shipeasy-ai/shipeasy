@@ -4,19 +4,14 @@ import { join } from "node:path";
 import { Command, CommanderError } from "commander";
 import { login } from "./auth/login";
 import { clearCredentials, loadCredentials } from "./auth/storage";
-import { getAdminClient, ApiError } from "./api/client";
-import { releaseCommand } from "./commands/release";
-import { opsCommand } from "./commands/ops";
+import { getApiClient, ApiError } from "./api/client";
+import { registerGeneratedCommands } from "./generated/commands.gen";
+import { genCtx } from "./commands/_gen-runtime";
 import { keysCommand } from "./commands/keys";
 import { i18nCommand } from "./commands/i18n";
 import { codemodCommand } from "./commands/codemod";
 import { mcpCommand } from "./commands/mcp";
 import { setupCommand } from "./commands/setup";
-import { projectsCommand } from "./commands/projects";
-import { metricsCommand } from "./commands/metrics";
-import { eventsCommand } from "./commands/events";
-import { docsCommand } from "./commands/docs";
-import { attributesCommand } from "./commands/attributes";
 import { bindProject, readProjectConfig } from "./util/project-config";
 import { printJson } from "./util/output";
 import { reportCliError } from "./util/error-reporter";
@@ -146,7 +141,7 @@ export function buildProgram(): Command {
       try {
         // `projects current` resolves the project from the auth header — no id
         // in the request — which is why it works as a thin registry-driven whoami.
-        project = (await getAdminClient().projects.current()) as ProjectMeta;
+        project = await getApiClient().request<ProjectMeta>("GET", "/api/admin/projects/current");
       } catch (e) {
         projectError = e instanceof ApiError ? `API error (${e.status}): ${e.message}` : String(e);
       }
@@ -270,31 +265,22 @@ export function buildProgram(): Command {
     { run: "shipeasy bind proj_abc123 --name 'Acme Web'" },
   ]);
 
-  // ── Core (top-level) ──────────────────────────────────────────────────────
+  // ── Generated command tree ────────────────────────────────────────────────
+  // The whole API surface — release (flags/killswitch/configs/experiments/
+  // universes/attributes), metrics + events, ops + alerts, projects — is
+  // PROJECTED FROM THE SPEC: structure from the tag tree, verbs/positional/
+  // synthetic-verbs from x-cli, flags from the request bodies, each command
+  // calling a generated sdk fn. Regenerate with `pnpm gen:cli`.
+  registerGeneratedCommands(program, genCtx);
+
+  // ── Custom commands (fs/AST + auth + install — not API endpoints) ─────────
   setupCommand(program);
-  projectsCommand(program);
   mcpCommand(program);
-  // SDK docs (`docs list/get/skill`) + targeting attributes (`attributes list`)
-  // — both registry-driven; docs replaces the old static get_sdk_snippet.
-  docsCommand(program);
-  attributesCommand(program);
 
-  // ── release module — feature flags, kill switches, experiments, configs ───
-  // Subcommands are generated from the @shipeasy/openapi operation registry
-  // (see commands/release.ts). `flags flags …` became `release flags …`.
-  releaseCommand(program);
-
-  // ── metrics module — metric definitions + the event catalog ───────────────
-  const metrics = metricsCommand(program); // -> metrics …
-  eventsCommand(metrics); // -> metrics events …
-  withTreeHelp(metrics);
-
-  // ── ops module — unified queue, tickets, alert rules, connectors ──────────
-  opsCommand(program);
-
-  // ── i18n module — string manager + SDK keys + source codemods ─────────────
+  // i18n stays hand-written (fs scan/codemod/loader + the file-based push/
+  // publish), with SDK-key minting + source codemods nested under it.
   const i18n = i18nCommand(program); // -> i18n …
-  keysCommand(i18n); // -> i18n keys
+  keysCommand(i18n); // -> i18n keys (SDK admin keys)
   codemodCommand(i18n); // -> i18n codemod
   withTreeHelp(i18n);
 

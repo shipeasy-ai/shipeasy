@@ -51,6 +51,8 @@
       - BAD_REQUEST
       - UNAUTHORIZED
       - FORBIDDEN
+    x-cli:
+      name: list
   post:
     operationId: createEvent
     summary: Register an event
@@ -117,6 +119,10 @@
       - FORBIDDEN
       - ALREADY_EXISTS
       - VALIDATION
+    x-cli:
+      name: create
+      positional:
+        - name
 /api/admin/events/{id}:
   get:
     operationId: getEvent
@@ -171,6 +177,10 @@
       - UNAUTHORIZED
       - FORBIDDEN
       - NOT_FOUND
+    x-cli:
+      name: get
+      positional:
+        - id
   patch:
     operationId: updateEvent
     summary: Update an event
@@ -237,6 +247,10 @@
       - FORBIDDEN
       - NOT_FOUND
       - VALIDATION
+    x-cli:
+      name: update
+      positional:
+        - id
   delete:
     operationId: deleteEvent
     summary: Archive an event
@@ -281,6 +295,10 @@
       - FORBIDDEN
       - NOT_FOUND
       - REFERENCED_IN_USE
+    x-cli:
+      name: archive
+      positional:
+        - id
 /api/admin/events/{id}/approve:
   post:
     operationId: approveEvent
@@ -348,3 +366,7 @@
       - FORBIDDEN
       - NOT_FOUND
       - VALIDATION
+    x-cli:
+      name: approve
+      positional:
+        - id

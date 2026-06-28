@@ -7,7 +7,7 @@
 
       **Use case:** Snapshot every gate in the project — for example to render an admin overview or to drive a CI check that asserts no gate is left at 100% in staging.
     tags:
-      - Gates
+      - Flags
     parameters:
       - $ref: ../components/parameters.yaml#/ProjectId
       - $ref: ../components/parameters.yaml#/PaginationLimit
@@ -60,6 +60,8 @@
       - BAD_REQUEST
       - UNAUTHORIZED
       - FORBIDDEN
+    x-cli:
+      name: list
   post:
     operationId: createGate
     summary: Create a feature gate
@@ -78,7 +80,7 @@
       - **Dashboard metadata** — populate `title`, `description`, `folder`, `group`, `owner_email` so the admin UI is self-documenting from day one.
       - **Disabled on create** — pre-provision with `enabled: false` for a future launch; flip on with `POST /{id}/enable` at go-live.
     tags:
-      - Gates
+      - Flags
     parameters:
       - $ref: ../components/parameters.yaml#/ProjectId
     requestBody:
@@ -179,6 +181,10 @@
       - FORBIDDEN
       - ALREADY_EXISTS
       - VALIDATION
+    x-cli:
+      name: create
+      positional:
+        - name
 /api/admin/gates/{id}:
   patch:
     operationId: updateGate
@@ -197,7 +203,7 @@
       - **Switch to gatekeeper stack** — send a non-null `stack`. To revert to flat eval, send `{ "stack": null }`.
       - **Update metadata** — any subset of `title`, `description`, `folder`, `group`, `owner_email`.
     tags:
-      - Gates
+      - Flags
     parameters:
       - $ref: ../components/parameters.yaml#/ProjectId
       - name: id
@@ -291,6 +297,10 @@
       - FORBIDDEN
       - NOT_FOUND
       - VALIDATION
+    x-cli:
+      name: update
+      positional:
+        - id
   delete:
     operationId: deleteGate
     summary: Delete a feature gate
@@ -299,7 +309,7 @@
 
       **Use case:** Tear down a gate after a feature has fully shipped and the rollout flag is no longer needed.
     tags:
-      - Gates
+      - Flags
     parameters:
       - $ref: ../components/parameters.yaml#/ProjectId
       - name: id
@@ -335,6 +345,10 @@
       - FORBIDDEN
       - NOT_FOUND
       - REFERENCED_IN_USE
+    x-cli:
+      name: archive
+      positional:
+        - id
 /api/admin/gates/{id}/enable:
   post:
     operationId: enableGate
@@ -344,7 +358,7 @@
 
       **Use case:** Re-enable a previously disabled gate without re-issuing a full update.
     tags:
-      - Gates
+      - Flags
     parameters:
       - $ref: ../components/parameters.yaml#/ProjectId
       - name: id
@@ -381,6 +395,10 @@
       - FORBIDDEN
       - NOT_FOUND
       - VALIDATION
+    x-cli:
+      name: enable
+      positional:
+        - id
 /api/admin/gates/{id}/disable:
   post:
     operationId: disableGate
@@ -390,7 +408,7 @@
 
       **Use case:** Flip a gate off in production without redeploying — the canonical kill-switch flow.
     tags:
-      - Gates
+      - Flags
     parameters:
       - $ref: ../components/parameters.yaml#/ProjectId
       - name: id
@@ -427,3 +445,7 @@
       - FORBIDDEN
       - NOT_FOUND
       - VALIDATION
+    x-cli:
+      name: disable
+      positional:
+        - id

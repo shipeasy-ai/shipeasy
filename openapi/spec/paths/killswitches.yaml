@@ -7,7 +7,7 @@
 
       **Use case:** Snapshot every killswitch in the project — e.g. to render an incident-response runbook listing every kill and its current trip state.
     tags:
-      - Killswitches
+      - Killswitch
     parameters:
       - $ref: ../components/parameters.yaml#/ProjectId
       - $ref: ../components/parameters.yaml#/PaginationLimit
@@ -57,6 +57,8 @@
       - BAD_REQUEST
       - UNAUTHORIZED
       - FORBIDDEN
+    x-cli:
+      name: list
   post:
     operationId: createKillswitch
     summary: Create a killswitch
@@ -71,7 +73,7 @@
       - **Pre-tripped** — `{ "value": true }` to ship the killswitch already engaged.
       - **With switches** — seed `switches` to carve out per-region/per-tenant kills from day one.
     tags:
-      - Killswitches
+      - Killswitch
     parameters:
       - $ref: ../components/parameters.yaml#/ProjectId
     requestBody:
@@ -130,6 +132,10 @@
       - FORBIDDEN
       - ALREADY_EXISTS
       - VALIDATION
+    x-cli:
+      name: create
+      positional:
+        - name
 /api/admin/killswitches/{id}:
   get:
     operationId: getKillswitch
@@ -139,7 +145,7 @@
 
       **Use case:** Fetch the current state of one killswitch — e.g. to verify a trip propagated before declaring an incident mitigated.
     tags:
-      - Killswitches
+      - Killswitch
     parameters:
       - $ref: ../components/parameters.yaml#/ProjectId
       - name: id
@@ -192,6 +198,10 @@
       - UNAUTHORIZED
       - FORBIDDEN
       - NOT_FOUND
+    x-cli:
+      name: get
+      positional:
+        - id
   patch:
     operationId: updateKillswitch
     summary: Update a killswitch
@@ -207,7 +217,7 @@
       - **Replace switches** — send the full new map; per-key edits use `PUT /{id}/switch`.
       - **Update description** — metadata-only patches don't bump versions.
     tags:
-      - Killswitches
+      - Killswitch
     parameters:
       - $ref: ../components/parameters.yaml#/ProjectId
       - name: id
@@ -272,6 +282,10 @@
       - FORBIDDEN
       - NOT_FOUND
       - VALIDATION
+    x-cli:
+      name: update
+      positional:
+        - id
   delete:
     operationId: deleteKillswitch
     summary: Delete a killswitch
@@ -280,7 +294,7 @@
 
       **Use case:** Tear down a killswitch after the feature it protected has been removed.
     tags:
-      - Killswitches
+      - Killswitch
     parameters:
       - $ref: ../components/parameters.yaml#/ProjectId
       - name: id
@@ -315,6 +329,10 @@
       - UNAUTHORIZED
       - FORBIDDEN
       - NOT_FOUND
+    x-cli:
+      name: archive
+      positional:
+        - id
 /api/admin/killswitches/{id}/switch:
   put:
     operationId: setKillswitchSwitch
@@ -329,7 +347,7 @@
       - **Trip a region** — `{ "env": "prod", "switchKey": "eu_region", "value": true }`.
       - **Untrip without removing** — same payload with `value: false`. To remove the entry entirely use `DELETE /{id}/switch`.
     tags:
-      - Killswitches
+      - Killswitch
     parameters:
       - $ref: ../components/parameters.yaml#/ProjectId
       - name: id
@@ -389,6 +407,10 @@
       - FORBIDDEN
       - NOT_FOUND
       - VALIDATION
+    x-cli:
+      name: set
+      positional:
+        - id
   delete:
     operationId: unsetKillswitchSwitch
     summary: Remove one switch entry
@@ -399,7 +421,7 @@
 
       **Use case:** Clean up a per-region override after the incident is resolved so the flat `value` governs again.
     tags:
-      - Killswitches
+      - Killswitch
     parameters:
       - $ref: ../components/parameters.yaml#/ProjectId
       - name: id
@@ -450,3 +472,7 @@
       - UNAUTHORIZED
       - FORBIDDEN
       - NOT_FOUND
+    x-cli:
+      name: unset
+      positional:
+        - id

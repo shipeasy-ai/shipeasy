@@ -7,7 +7,7 @@
 
       **Use case:** Discover which locale profiles exist before pushing keys or publishing a chunk.
     tags:
-      - i18n
+      - Profiles
     parameters:
       - $ref: ../components/parameters.yaml#/ProjectId
     responses:
@@ -39,6 +39,8 @@
       - BAD_REQUEST
       - UNAUTHORIZED
       - FORBIDDEN
+    x-cli:
+      name: list
   post:
     operationId: createI18nProfile
     summary: Create an i18n profile
@@ -47,7 +49,7 @@
 
       **Use case:** Stand up a new locale before seeding its keys.
     tags:
-      - i18n
+      - Profiles
     parameters:
       - $ref: ../components/parameters.yaml#/ProjectId
     requestBody:
@@ -89,6 +91,8 @@
       - FORBIDDEN
       - ALREADY_EXISTS
       - VALIDATION
+    x-cli:
+      name: create
 /api/admin/i18n/keys:
   get:
     operationId: listI18nKeys
@@ -98,7 +102,7 @@
 
       **Use case:** Read the current keys (and values) for a profile — e.g. to diff before a push.
     tags:
-      - i18n
+      - Keys
     parameters:
       - $ref: ../components/parameters.yaml#/ProjectId
       - name: profile_id
@@ -149,6 +153,8 @@
       - BAD_REQUEST
       - UNAUTHORIZED
       - FORBIDDEN
+    x-cli:
+      name: list
   post:
     operationId: pushI18nKeys
     summary: Push new i18n keys (insert-only)
@@ -157,7 +163,7 @@
 
       **Use case:** Seed newly-extracted keys without clobbering translations already in the profile.
     tags:
-      - i18n
+      - Keys
     parameters:
       - $ref: ../components/parameters.yaml#/ProjectId
     requestBody:
@@ -202,6 +208,8 @@
       - FORBIDDEN
       - ALREADY_EXISTS
       - VALIDATION
+    x-cli:
+      name: push
 /api/admin/i18n/keys/{id}:
   put:
     operationId: updateI18nKey
@@ -211,7 +219,7 @@
 
       **Use case:** Correct or re-translate a single string in place.
     tags:
-      - i18n
+      - Keys
     parameters:
       - $ref: ../components/parameters.yaml#/ProjectId
       - name: id
@@ -255,6 +263,10 @@
       - FORBIDDEN
       - NOT_FOUND
       - VALIDATION
+    x-cli:
+      name: update
+      positional:
+        - id
 /api/admin/i18n/drafts:
   get:
     operationId: listI18nDrafts
@@ -264,7 +276,7 @@
 
       **Use case:** Review machine-translation drafts before publishing them to a locale.
     tags:
-      - i18n
+      - Drafts
     parameters:
       - $ref: ../components/parameters.yaml#/ProjectId
     responses:
@@ -292,6 +304,8 @@
       - BAD_REQUEST
       - UNAUTHORIZED
       - FORBIDDEN
+    x-cli:
+      name: list
 /api/admin/i18n/profiles/{profileId}/publish:
   post:
     operationId: publishI18nProfile
@@ -301,7 +315,7 @@
 
       **Use case:** Ship the latest translations live after pushing/updating keys.
     tags:
-      - i18n
+      - Profiles
     parameters:
       - $ref: ../components/parameters.yaml#/ProjectId
       - name: profileId
@@ -345,3 +359,7 @@
       - FORBIDDEN
       - NOT_FOUND
       - VALIDATION
+    x-cli:
+      name: publish
+      positional:
+        - profileId

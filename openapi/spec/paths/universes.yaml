@@ -45,6 +45,8 @@
       - BAD_REQUEST
       - UNAUTHORIZED
       - FORBIDDEN
+    x-cli:
+      name: list
   post:
     operationId: createUniverse
     summary: Create a universe
@@ -117,6 +119,10 @@
       - PLAN_REQUIRED
       - ALREADY_EXISTS
       - VALIDATION
+    x-cli:
+      name: create
+      positional:
+        - name
 /api/admin/universes/{id}:
   patch:
     operationId: updateUniverse
@@ -187,6 +193,10 @@
       - PLAN_REQUIRED
       - NOT_FOUND
       - VALIDATION
+    x-cli:
+      name: update
+      positional:
+        - id
   delete:
     operationId: deleteUniverse
     summary: Delete a universe
@@ -231,3 +241,7 @@
       - FORBIDDEN
       - NOT_FOUND
       - REFERENCED_IN_USE
+    x-cli:
+      name: archive
+      positional:
+        - id

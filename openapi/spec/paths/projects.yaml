@@ -52,6 +52,8 @@
       - BAD_REQUEST
       - UNAUTHORIZED
       - FORBIDDEN
+    x-cli:
+      name: current
 /api/admin/projects/upsert:
   post:
     operationId: upsertProject
@@ -117,3 +119,5 @@
       - UNAUTHORIZED
       - FORBIDDEN
       - VALIDATION
+    x-cli:
+      name: upsert

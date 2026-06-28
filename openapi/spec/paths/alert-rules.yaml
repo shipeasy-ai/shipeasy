@@ -7,7 +7,7 @@
 
       **Use case:** Audit which metrics have alerting configured — for example to confirm an on-call threshold is set before a launch.
     tags:
-      - Alert Rules
+      - Alerts
     parameters:
       - $ref: ../components/parameters.yaml#/ProjectId
     responses:
@@ -46,6 +46,8 @@
       - BAD_REQUEST
       - UNAUTHORIZED
       - FORBIDDEN
+    x-cli:
+      name: list
   post:
     operationId: createAlertRule
     summary: Create an alert rule
@@ -59,7 +61,7 @@
       - **Threshold alert** — warn when an error/latency metric crosses a value over a rolling window.
       - **Routed alert** — set `notify` to page a specific Slack channel or on-call email instead of the project default.
     tags:
-      - Alert Rules
+      - Alerts
     parameters:
       - $ref: ../components/parameters.yaml#/ProjectId
     requestBody:
@@ -120,6 +122,8 @@
       - ALREADY_EXISTS
       - REFERENCED_NOT_FOUND
       - VALIDATION
+    x-cli:
+      name: create
 /api/admin/alert-rules/{id}:
   patch:
     operationId: updateAlertRule
@@ -134,7 +138,7 @@
       - **Tune sensitivity** — change `threshold`/`comparator`/`windowHours` as the metric's baseline shifts.
       - **Pause without losing config** — `{ "enabled": false }` instead of deleting the rule.
     tags:
-      - Alert Rules
+      - Alerts
     parameters:
       - $ref: ../components/parameters.yaml#/ProjectId
       - name: id
@@ -192,6 +196,10 @@
       - FORBIDDEN
       - NOT_FOUND
       - VALIDATION
+    x-cli:
+      name: update
+      positional:
+        - id
   delete:
     operationId: deleteAlertRule
     summary: Delete an alert rule
@@ -200,7 +208,7 @@
 
       **Use case:** Remove an alert rule that is no longer needed, or as the first half of repointing a rule at a different metric.
     tags:
-      - Alert Rules
+      - Alerts
     parameters:
       - $ref: ../components/parameters.yaml#/ProjectId
       - name: id
@@ -235,3 +243,7 @@
       - UNAUTHORIZED
       - FORBIDDEN
       - NOT_FOUND
+    x-cli:
+      name: archive
+      positional:
+        - id

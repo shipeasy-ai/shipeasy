@@ -81,6 +81,8 @@
       - BAD_REQUEST
       - UNAUTHORIZED
       - FORBIDDEN
+    x-cli:
+      name: list
 /api/admin/feedback/{handle}:
   get:
     operationId: getOpsItem
@@ -131,6 +133,10 @@
       - UNAUTHORIZED
       - FORBIDDEN
       - NOT_FOUND
+    x-cli:
+      name: get
+      positional:
+        - handle
   patch:
     operationId: updateOpsItem
     summary: Update a queue item
@@ -184,6 +190,10 @@
       - FORBIDDEN
       - NOT_FOUND
       - VALIDATION
+    x-cli:
+      name: update
+      positional:
+        - handle
 /api/admin/bugs:
   post:
     operationId: createBug
@@ -234,6 +244,8 @@
       - FORBIDDEN
       - ALREADY_EXISTS
       - VALIDATION
+    x-cli:
+      name: create-bug
 /api/admin/feature-requests:
   post:
     operationId: createFeatureRequest
@@ -284,6 +296,8 @@
       - FORBIDDEN
       - ALREADY_EXISTS
       - VALIDATION
+    x-cli:
+      name: create-feature-request
 /api/admin/feedback/{handle}/link-pr:
   post:
     operationId: linkPrToOpsItem
@@ -338,6 +352,10 @@
       - FORBIDDEN
       - NOT_FOUND
       - VALIDATION
+    x-cli:
+      name: link-pr
+      positional:
+        - handle
 /api/admin/notifications:
   post:
     operationId: notifyOps
@@ -387,6 +405,8 @@
       - UNAUTHORIZED
       - FORBIDDEN
       - VALIDATION
+    x-cli:
+      name: notify
 /api/admin/slack/channels:
   get:
     operationId: listSlackChannels
@@ -396,7 +416,7 @@
 
       **Use case:** Populate a channel picker, or validate an alert rule's `--slack-channel` before saving.
     tags:
-      - Ops
+      - Alerts
     parameters:
       - $ref: ../components/parameters.yaml#/ProjectId
     responses:
@@ -429,3 +449,5 @@
       - BAD_REQUEST
       - UNAUTHORIZED
       - FORBIDDEN
+    x-cli:
+      name: channels

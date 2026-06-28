@@ -65,6 +65,8 @@
       - BAD_REQUEST
       - UNAUTHORIZED
       - FORBIDDEN
+    x-cli:
+      name: list
   post:
     operationId: createExperiment
     summary: Create an experiment
@@ -178,6 +180,10 @@
       - GROUPS_WEIGHT_SUM
       - REFERENCED_NOT_FOUND
       - VALIDATION
+    x-cli:
+      name: create
+      positional:
+        - name
 /api/admin/experiments/{id}:
   get:
     operationId: getExperiment
@@ -248,6 +254,10 @@
       - UNAUTHORIZED
       - FORBIDDEN
       - NOT_FOUND
+    x-cli:
+      name: get
+      positional:
+        - id
   patch:
     operationId: updateExperiment
     summary: Update an experiment
@@ -336,6 +346,10 @@
       - GROUPS_WEIGHT_SUM
       - REFERENCED_NOT_FOUND
       - VALIDATION
+    x-cli:
+      name: update
+      positional:
+        - id
   delete:
     operationId: deleteExperiment
     summary: Delete an experiment
@@ -380,6 +394,10 @@
       - FORBIDDEN
       - NOT_FOUND
       - INVALID_TRANSITION
+    x-cli:
+      name: archive
+      positional:
+        - id
 /api/admin/experiments/{id}/status:
   post:
     operationId: setExperimentStatus
@@ -466,6 +484,22 @@
       - NOT_FOUND
       - INVALID_TRANSITION
       - VALIDATION
+    x-cli:
+      positional:
+        - id
+      commands:
+        - name: start
+          summary: Start an experiment (draft → running)
+          preset:
+            status: running
+        - name: stop
+          summary: Stop a running experiment
+          preset:
+            status: stopped
+        - name: restore
+          summary: Restore an archived experiment (→ draft)
+          preset:
+            status: draft
 /api/admin/experiments/{id}/metrics:
   post:
     operationId: setExperimentMetrics
@@ -544,6 +578,10 @@
       - EVENT_PENDING
       - REFERENCED_NOT_FOUND
       - VALIDATION
+    x-cli:
+      name: set-metrics
+      positional:
+        - id
 /api/admin/experiments/{id}/results:
   get:
     operationId: getExperimentResults
@@ -609,6 +647,10 @@
       - UNAUTHORIZED
       - FORBIDDEN
       - NOT_FOUND
+    x-cli:
+      name: results
+      positional:
+        - id
 /api/admin/experiments/{id}/timeseries:
   get:
     operationId: getExperimentTimeseries
@@ -679,6 +721,10 @@
       - UNAUTHORIZED
       - FORBIDDEN
       - NOT_FOUND
+    x-cli:
+      name: timeseries
+      positional:
+        - id
 /api/admin/experiments/{id}/reanalyze:
   post:
     operationId: reanalyzeExperiment
@@ -725,3 +771,7 @@
       - FORBIDDEN
       - NOT_FOUND
       - VALIDATION
+    x-cli:
+      name: reanalyze
+      positional:
+        - id

@@ -24,19 +24,8 @@ tags:
     summary: Feature delivery
     kind: nav
     description: Flags, kill switches, dynamic configs, experiments, and the universes they bucket in — the feature-delivery surface.
-  - name: Measurement
-    summary: Metrics & events
-    kind: nav
-    description: Event catalog, metric definitions, and the alert rules the analysis cron evaluates.
-  - name: Operations
-    summary: Ops queue & projects
-    kind: nav
-    description: The unified bug/feature/error/alert queue, notifications, project bootstrap, and targeting attributes.
-  - name: Localization
-    summary: String Manager (i18n)
-    kind: nav
-    description: Locale profiles, key push, and chunk publish — the worker-safe i18n REST surface.
-  - name: Gates
+  - name: Flags
+    parent: Release
     description: |-
       Feature gates: boolean flags evaluated at runtime against project rules + a percentage rollout.
 
@@ -51,8 +40,35 @@ tags:
       **Rollout basis points.** `rollout_pct` is in **basis points**, not percent. `0` = 0%, `100` = 1%, `5000` = 50%, `10000` = 100%. This allows sub-1% precision (e.g. `7` = 0.07%).
 
       **Lifecycle.** Create dark (`rollout_pct: 0`) → attach rules → ramp via PATCH → flip kill-switch via `disable`/`enable` → delete once retired. Deletion is blocked while a running experiment references the gate as a targeting gate.
+  - name: Killswitch
     parent: Release
+    x-cli:
+      aliases:
+        - ks
+    description: |-
+      Killswitches: per-env boolean overrides for kill-style operational toggles. Optimised for incident response — no rules, no rollout, just a flat boolean (plus optional per-key overrides) versioned per environment.
+
+      **Identity.** Each killswitch is keyed by `name` in `folder.name` form (e.g. `payments.checkout`). Immutable after create.
+
+      **Per-env values.** Every killswitch stores one version stream per env (`dev`, `stage`, `prod`). A `PATCH` with `value`/`switches` applies to **every** env in one shot (publishes a new version per env). To touch a single env, use `PUT /{id}/switch` and friends.
+
+      **Switches map.** Optional `switches: { key: bool }` overrides the flat `value` for specific named call sites — useful for region/feature-scoped kills.
+
+      **Versioning.** Each publish (create, update, set-switch, unset-switch) bumps the per-env `version` monotonically. SDKs deliver the latest published version.
+  - name: Configs
+    parent: Release
+    description: |-
+      Dynamic configs: JSON-Schema-validated structured values delivered to SDKs and editable per environment with a draft/publish workflow.
+
+      **Identity.** Each config is keyed by `name` in `folder.name` form (e.g. `pricing.tiers`). Immutable after create.
+
+      **Schema-first.** Every config carries a JSON Schema (draft 2020-12, top-level `type: 'object'`). Every published value is validated against it.
+
+      **Drafts → publish.** Per-env edits go through `PUT /{id}/drafts` (stages a value) then `POST /{id}/publish` (promotes to a new version). The flat `PATCH /{id}` republishes on **every** env in one shot — bypassing drafts.
+
+      **Versioning.** Each publish bumps the per-env `version` monotonically. SDKs deliver the latest published version for each env.
   - name: Experiments
+    parent: Release
     description: |-
       A/B/n experiments: randomised group assignment plus the analysis pipeline (t-test, sequential testing, SRM detection) on top of a universe.
 
@@ -67,32 +83,8 @@ tags:
       **Metrics.** Attach via `POST /{id}/metrics`. Each metric has a role: `goal` drives the decision, `guardrail` blocks ship on regression, `secondary` is informational.
 
       **Analysis.** Daily cron writes results to D1. Read via `GET /{id}/results` (latest per metric/group/day) or `GET /{id}/timeseries` (full history). `POST /{id}/reanalyze` requeues the analysis pass.
-    parent: Release
-  - name: Configs
-    description: |-
-      Dynamic configs: JSON-Schema-validated structured values delivered to SDKs and editable per environment with a draft/publish workflow.
-
-      **Identity.** Each config is keyed by `name` in `folder.name` form (e.g. `pricing.tiers`). Immutable after create.
-
-      **Schema-first.** Every config carries a JSON Schema (draft 2020-12, top-level `type: 'object'`). Every published value is validated against it.
-
-      **Drafts → publish.** Per-env edits go through `PUT /{id}/drafts` (stages a value) then `POST /{id}/publish` (promotes to a new version). The flat `PATCH /{id}` republishes on **every** env in one shot — bypassing drafts.
-
-      **Versioning.** Each publish bumps the per-env `version` monotonically. SDKs deliver the latest published version for each env.
-    parent: Release
-  - name: Killswitches
-    description: |-
-      Killswitches: per-env boolean overrides for kill-style operational toggles. Optimised for incident response — no rules, no rollout, just a flat boolean (plus optional per-key overrides) versioned per environment.
-
-      **Identity.** Each killswitch is keyed by `name` in `folder.name` form (e.g. `payments.checkout`). Immutable after create.
-
-      **Per-env values.** Every killswitch stores one version stream per env (`dev`, `stage`, `prod`). A `PATCH` with `value`/`switches` applies to **every** env in one shot (publishes a new version per env). To touch a single env, use `PUT /{id}/switch` and friends.
-
-      **Switches map.** Optional `switches: { key: bool }` overrides the flat `value` for specific named call sites — useful for region/feature-scoped kills.
-
-      **Versioning.** Each publish (create, update, set-switch, unset-switch) bumps the per-env `version` monotonically. SDKs deliver the latest published version.
-    parent: Release
   - name: Universes
+    parent: Experiments
     description: |-
       Universes: the shared bucketing space all experiments draw from.
 
@@ -103,14 +95,13 @@ tags:
       **Holdout.** `holdout_range` is an inclusive `[lo, hi]` bucket range (0–9999) reserved for measurement — callers hashed into the holdout are excluded from every experiment in the universe. Pro plan or higher.
 
       **Deletion.** Blocked while any non-archived experiment references the universe — archive those first.
-    parent: Release
   - name: Attributes
+    parent: Flags
     description: |-
       Targeting attributes: the auto-inferred schema of user-context keys the
       platform has observed in evaluation calls. Read-only — populated by the
       SDK hot path, surfaced here so you can see which keys (and value types)
       are available when writing gate/experiment targeting rules.
-    parent: Operations
   - name: Metrics
     description: |-
       Metrics: the event-backed queries that drive tracking dashboards and
@@ -126,8 +117,8 @@ tags:
 
       **Deletion.** Archive (soft-delete). Blocked while the metric is attached
       to a running experiment — stop those first.
-    parent: Measurement
   - name: Events
+    parent: Metrics
     description: |-
       Events: the catalog of event names (and their typed properties) that metric queries reference.
 
@@ -138,7 +129,6 @@ tags:
       **Properties.** Each event can declare typed properties (`name`, `type` of `string|number|boolean`, `required`). On update/approve the `properties` array replaces the full set — there is no merge.
 
       **Deletion.** Soft-delete (the user-facing verb is `archive`). Blocked while any metric still references the event — delete those metrics first.
-    parent: Measurement
   - name: Ops
     description: |-
       Operational queue: the unified feedback table of bug reports, feature
@@ -149,8 +139,11 @@ tags:
 
       **Handles.** A queue item is addressed by its per-project `number` (e.g. `7`)
       or its full id — the API resolves either.
-    parent: Operations
-  - name: Alert Rules
+  - name: Alerts
+    parent: Ops
+    x-cli:
+      aliases:
+        - ar
     description: |-
       Alert rules: the metric-threshold definitions the analysis cron evaluates each run.
 
@@ -159,7 +152,6 @@ tags:
       **Immutable metric.** The bound metric (and its aggregation) is fixed at create time — there is no update path for `metricId`. Tune `threshold`/`comparator`/`windowHours`/`severity`/`name`/`enabled` instead, or delete + recreate to repoint the rule at a different metric.
 
       **Delivery.** `notify` optionally targets a Slack channel and/or email for this rule; `null` falls back to the project's default notification settings. Slack targets require a connected Slack connector.
-    parent: Measurement
   - name: Projects
     description: |-
       Projects: the account-level container every other resource is scoped to.
@@ -167,7 +159,6 @@ tags:
       **Account-level, not bound-project-level.** Both operations resolve from the caller's credential rather than the `.shipeasy`-bound project — `current` reads the project the auth header maps to, and `upsert` find-or-creates under the session's owner. Neither touches the local `.shipeasy` binding; recording the result there is a consumer side-effect layered on top.
 
       **Idempotent upsert.** A project is keyed by `(owner_email, domain)`. Calling `upsert` again with the same domain returns the existing project with `created: false`, so it is safe to run on every install.
-    parent: Operations
   - name: i18n
     description: |-
       String Manager (i18n): the worker-safe REST surface — locale profiles, the
@@ -176,7 +167,15 @@ tags:
 
       The fs/AST parts (scan, validate, install-loader, codemod) are NOT part of
       this API — they stay in the fs-having CLI/MCP.
-    parent: Localization
+  - name: Profiles
+    parent: i18n
+    description: Locale profiles (e.g. `en:prod`) — create, list, and publish a profile's chunks to the CDN.
+  - name: Keys
+    parent: i18n
+    description: Translation keys — the insert-only push, single-key overwrite, and key listing.
+  - name: Drafts
+    parent: i18n
+    description: Machine-translation drafts awaiting review before publish.
 paths:
   /api/admin/gates:
     get:
@@ -187,7 +186,7 @@ paths:
 
         **Use case:** Snapshot every gate in the project — for example to render an admin overview or to drive a CI check that asserts no gate is left at 100% in staging.
       tags:
-        - Gates
+        - Flags
       parameters:
         - $ref: '#/components/parameters/ProjectId'
         - $ref: '#/components/parameters/PaginationLimit'
@@ -240,6 +239,8 @@ paths:
         - BAD_REQUEST
         - UNAUTHORIZED
         - FORBIDDEN
+      x-cli:
+        name: list
     post:
       operationId: createGate
       summary: Create a feature gate
@@ -258,7 +259,7 @@ paths:
         - **Dashboard metadata** — populate `title`, `description`, `folder`, `group`, `owner_email` so the admin UI is self-documenting from day one.
         - **Disabled on create** — pre-provision with `enabled: false` for a future launch; flip on with `POST /{id}/enable` at go-live.
       tags:
-        - Gates
+        - Flags
       parameters:
         - $ref: '#/components/parameters/ProjectId'
       requestBody:
@@ -359,6 +360,10 @@ paths:
         - FORBIDDEN
         - ALREADY_EXISTS
         - VALIDATION
+      x-cli:
+        name: create
+        positional:
+          - name
   /api/admin/gates/{id}:
     patch:
       operationId: updateGate
@@ -377,7 +382,7 @@ paths:
         - **Switch to gatekeeper stack** — send a non-null `stack`. To revert to flat eval, send `{ "stack": null }`.
         - **Update metadata** — any subset of `title`, `description`, `folder`, `group`, `owner_email`.
       tags:
-        - Gates
+        - Flags
       parameters:
         - $ref: '#/components/parameters/ProjectId'
         - name: id
@@ -471,6 +476,10 @@ paths:
         - FORBIDDEN
         - NOT_FOUND
         - VALIDATION
+      x-cli:
+        name: update
+        positional:
+          - id
     delete:
       operationId: deleteGate
       summary: Delete a feature gate
@@ -479,7 +488,7 @@ paths:
 
         **Use case:** Tear down a gate after a feature has fully shipped and the rollout flag is no longer needed.
       tags:
-        - Gates
+        - Flags
       parameters:
         - $ref: '#/components/parameters/ProjectId'
         - name: id
@@ -515,6 +524,10 @@ paths:
         - FORBIDDEN
         - NOT_FOUND
         - REFERENCED_IN_USE
+      x-cli:
+        name: archive
+        positional:
+          - id
   /api/admin/gates/{id}/enable:
     post:
       operationId: enableGate
@@ -524,7 +537,7 @@ paths:
 
         **Use case:** Re-enable a previously disabled gate without re-issuing a full update.
       tags:
-        - Gates
+        - Flags
       parameters:
         - $ref: '#/components/parameters/ProjectId'
         - name: id
@@ -561,6 +574,10 @@ paths:
         - FORBIDDEN
         - NOT_FOUND
         - VALIDATION
+      x-cli:
+        name: enable
+        positional:
+          - id
   /api/admin/gates/{id}/disable:
     post:
       operationId: disableGate
@@ -570,7 +587,7 @@ paths:
 
         **Use case:** Flip a gate off in production without redeploying — the canonical kill-switch flow.
       tags:
-        - Gates
+        - Flags
       parameters:
         - $ref: '#/components/parameters/ProjectId'
         - name: id
@@ -607,6 +624,10 @@ paths:
         - FORBIDDEN
         - NOT_FOUND
         - VALIDATION
+      x-cli:
+        name: disable
+        positional:
+          - id
   /api/admin/experiments:
     get:
       operationId: listExperiments
@@ -674,6 +695,8 @@ paths:
         - BAD_REQUEST
         - UNAUTHORIZED
         - FORBIDDEN
+      x-cli:
+        name: list
     post:
       operationId: createExperiment
       summary: Create an experiment
@@ -787,6 +810,10 @@ paths:
         - GROUPS_WEIGHT_SUM
         - REFERENCED_NOT_FOUND
         - VALIDATION
+      x-cli:
+        name: create
+        positional:
+          - name
   /api/admin/experiments/{id}:
     get:
       operationId: getExperiment
@@ -857,6 +884,10 @@ paths:
         - UNAUTHORIZED
         - FORBIDDEN
         - NOT_FOUND
+      x-cli:
+        name: get
+        positional:
+          - id
     patch:
       operationId: updateExperiment
       summary: Update an experiment
@@ -945,6 +976,10 @@ paths:
         - GROUPS_WEIGHT_SUM
         - REFERENCED_NOT_FOUND
         - VALIDATION
+      x-cli:
+        name: update
+        positional:
+          - id
     delete:
       operationId: deleteExperiment
       summary: Delete an experiment
@@ -989,6 +1024,10 @@ paths:
         - FORBIDDEN
         - NOT_FOUND
         - INVALID_TRANSITION
+      x-cli:
+        name: archive
+        positional:
+          - id
   /api/admin/experiments/{id}/status:
     post:
       operationId: setExperimentStatus
@@ -1075,6 +1114,22 @@ paths:
         - NOT_FOUND
         - INVALID_TRANSITION
         - VALIDATION
+      x-cli:
+        positional:
+          - id
+        commands:
+          - name: start
+            summary: Start an experiment (draft → running)
+            preset:
+              status: running
+          - name: stop
+            summary: Stop a running experiment
+            preset:
+              status: stopped
+          - name: restore
+            summary: Restore an archived experiment (→ draft)
+            preset:
+              status: draft
   /api/admin/experiments/{id}/metrics:
     post:
       operationId: setExperimentMetrics
@@ -1153,6 +1208,10 @@ paths:
         - EVENT_PENDING
         - REFERENCED_NOT_FOUND
         - VALIDATION
+      x-cli:
+        name: set-metrics
+        positional:
+          - id
   /api/admin/experiments/{id}/results:
     get:
       operationId: getExperimentResults
@@ -1218,6 +1277,10 @@ paths:
         - UNAUTHORIZED
         - FORBIDDEN
         - NOT_FOUND
+      x-cli:
+        name: results
+        positional:
+          - id
   /api/admin/experiments/{id}/timeseries:
     get:
       operationId: getExperimentTimeseries
@@ -1288,6 +1351,10 @@ paths:
         - UNAUTHORIZED
         - FORBIDDEN
         - NOT_FOUND
+      x-cli:
+        name: timeseries
+        positional:
+          - id
   /api/admin/experiments/{id}/reanalyze:
     post:
       operationId: reanalyzeExperiment
@@ -1334,6 +1401,10 @@ paths:
         - FORBIDDEN
         - NOT_FOUND
         - VALIDATION
+      x-cli:
+        name: reanalyze
+        positional:
+          - id
   /api/admin/configs:
     get:
       operationId: listConfigs
@@ -1405,6 +1476,8 @@ paths:
         - BAD_REQUEST
         - UNAUTHORIZED
         - FORBIDDEN
+      x-cli:
+        name: list
     post:
       operationId: createConfig
       summary: Create a dynamic config
@@ -1512,6 +1585,10 @@ paths:
         - FORBIDDEN
         - ALREADY_EXISTS
         - VALIDATION
+      x-cli:
+        name: create
+        positional:
+          - name
   /api/admin/configs/{id}:
     get:
       operationId: getConfig
@@ -1605,6 +1682,10 @@ paths:
         - UNAUTHORIZED
         - FORBIDDEN
         - NOT_FOUND
+      x-cli:
+        name: get
+        positional:
+          - id
     patch:
       operationId: updateConfig
       summary: Update a dynamic config
@@ -1683,6 +1764,10 @@ paths:
         - FORBIDDEN
         - NOT_FOUND
         - VALIDATION
+      x-cli:
+        name: update
+        positional:
+          - id
     delete:
       operationId: deleteConfig
       summary: Delete a dynamic config
@@ -1726,6 +1811,10 @@ paths:
         - UNAUTHORIZED
         - FORBIDDEN
         - NOT_FOUND
+      x-cli:
+        name: archive
+        positional:
+          - id
   /api/admin/configs/{id}/drafts:
     put:
       operationId: saveConfigDraft
@@ -1793,6 +1882,10 @@ paths:
         - FORBIDDEN
         - NOT_FOUND
         - VALIDATION
+      x-cli:
+        name: draft
+        positional:
+          - id
     delete:
       operationId: discardConfigDraft
       summary: Discard a draft
@@ -1848,6 +1941,10 @@ paths:
         - UNAUTHORIZED
         - FORBIDDEN
         - NOT_FOUND
+      x-cli:
+        name: discard-draft
+        positional:
+          - id
   /api/admin/configs/{id}/publish:
     post:
       operationId: publishConfigDraft
@@ -1915,6 +2012,10 @@ paths:
         - NOT_FOUND
         - INVALID_TRANSITION
         - VALIDATION
+      x-cli:
+        name: publish
+        positional:
+          - id
   /api/admin/configs/{id}/activity:
     get:
       operationId: listConfigActivity
@@ -1975,6 +2076,10 @@ paths:
         - UNAUTHORIZED
         - FORBIDDEN
         - NOT_FOUND
+      x-cli:
+        name: activity
+        positional:
+          - id
   /api/admin/killswitches:
     get:
       operationId: listKillswitches
@@ -1984,7 +2089,7 @@ paths:
 
         **Use case:** Snapshot every killswitch in the project — e.g. to render an incident-response runbook listing every kill and its current trip state.
       tags:
-        - Killswitches
+        - Killswitch
       parameters:
         - $ref: '#/components/parameters/ProjectId'
         - $ref: '#/components/parameters/PaginationLimit'
@@ -2034,6 +2139,8 @@ paths:
         - BAD_REQUEST
         - UNAUTHORIZED
         - FORBIDDEN
+      x-cli:
+        name: list
     post:
       operationId: createKillswitch
       summary: Create a killswitch
@@ -2048,7 +2155,7 @@ paths:
         - **Pre-tripped** — `{ "value": true }` to ship the killswitch already engaged.
         - **With switches** — seed `switches` to carve out per-region/per-tenant kills from day one.
       tags:
-        - Killswitches
+        - Killswitch
       parameters:
         - $ref: '#/components/parameters/ProjectId'
       requestBody:
@@ -2107,6 +2214,10 @@ paths:
         - FORBIDDEN
         - ALREADY_EXISTS
         - VALIDATION
+      x-cli:
+        name: create
+        positional:
+          - name
   /api/admin/killswitches/{id}:
     get:
       operationId: getKillswitch
@@ -2116,7 +2227,7 @@ paths:
 
         **Use case:** Fetch the current state of one killswitch — e.g. to verify a trip propagated before declaring an incident mitigated.
       tags:
-        - Killswitches
+        - Killswitch
       parameters:
         - $ref: '#/components/parameters/ProjectId'
         - name: id
@@ -2169,6 +2280,10 @@ paths:
         - UNAUTHORIZED
         - FORBIDDEN
         - NOT_FOUND
+      x-cli:
+        name: get
+        positional:
+          - id
     patch:
       operationId: updateKillswitch
       summary: Update a killswitch
@@ -2184,7 +2299,7 @@ paths:
         - **Replace switches** — send the full new map; per-key edits use `PUT /{id}/switch`.
         - **Update description** — metadata-only patches don't bump versions.
       tags:
-        - Killswitches
+        - Killswitch
       parameters:
         - $ref: '#/components/parameters/ProjectId'
         - name: id
@@ -2249,6 +2364,10 @@ paths:
         - FORBIDDEN
         - NOT_FOUND
         - VALIDATION
+      x-cli:
+        name: update
+        positional:
+          - id
     delete:
       operationId: deleteKillswitch
       summary: Delete a killswitch
@@ -2257,7 +2376,7 @@ paths:
 
         **Use case:** Tear down a killswitch after the feature it protected has been removed.
       tags:
-        - Killswitches
+        - Killswitch
       parameters:
         - $ref: '#/components/parameters/ProjectId'
         - name: id
@@ -2292,6 +2411,10 @@ paths:
         - UNAUTHORIZED
         - FORBIDDEN
         - NOT_FOUND
+      x-cli:
+        name: archive
+        positional:
+          - id
   /api/admin/killswitches/{id}/switch:
     put:
       operationId: setKillswitchSwitch
@@ -2306,7 +2429,7 @@ paths:
         - **Trip a region** — `{ "env": "prod", "switchKey": "eu_region", "value": true }`.
         - **Untrip without removing** — same payload with `value: false`. To remove the entry entirely use `DELETE /{id}/switch`.
       tags:
-        - Killswitches
+        - Killswitch
       parameters:
         - $ref: '#/components/parameters/ProjectId'
         - name: id
@@ -2366,6 +2489,10 @@ paths:
         - FORBIDDEN
         - NOT_FOUND
         - VALIDATION
+      x-cli:
+        name: set
+        positional:
+          - id
     delete:
       operationId: unsetKillswitchSwitch
       summary: Remove one switch entry
@@ -2376,7 +2503,7 @@ paths:
 
         **Use case:** Clean up a per-region override after the incident is resolved so the flat `value` governs again.
       tags:
-        - Killswitches
+        - Killswitch
       parameters:
         - $ref: '#/components/parameters/ProjectId'
         - name: id
@@ -2427,6 +2554,10 @@ paths:
         - UNAUTHORIZED
         - FORBIDDEN
         - NOT_FOUND
+      x-cli:
+        name: unset
+        positional:
+          - id
   /api/admin/universes:
     get:
       operationId: listUniverses
@@ -2474,6 +2605,8 @@ paths:
         - BAD_REQUEST
         - UNAUTHORIZED
         - FORBIDDEN
+      x-cli:
+        name: list
     post:
       operationId: createUniverse
       summary: Create a universe
@@ -2546,6 +2679,10 @@ paths:
         - PLAN_REQUIRED
         - ALREADY_EXISTS
         - VALIDATION
+      x-cli:
+        name: create
+        positional:
+          - name
   /api/admin/universes/{id}:
     patch:
       operationId: updateUniverse
@@ -2616,6 +2753,10 @@ paths:
         - PLAN_REQUIRED
         - NOT_FOUND
         - VALIDATION
+      x-cli:
+        name: update
+        positional:
+          - id
     delete:
       operationId: deleteUniverse
       summary: Delete a universe
@@ -2660,6 +2801,10 @@ paths:
         - FORBIDDEN
         - NOT_FOUND
         - REFERENCED_IN_USE
+      x-cli:
+        name: archive
+        positional:
+          - id
   /api/admin/attributes:
     get:
       operationId: listAttributes
@@ -2702,6 +2847,8 @@ paths:
         - BAD_REQUEST
         - UNAUTHORIZED
         - FORBIDDEN
+      x-cli:
+        name: list
   /api/admin/metrics:
     get:
       operationId: listMetrics
@@ -2746,6 +2893,8 @@ paths:
         - BAD_REQUEST
         - UNAUTHORIZED
         - FORBIDDEN
+      x-cli:
+        name: list
     post:
       operationId: createMetric
       summary: Create a metric
@@ -2830,6 +2979,10 @@ paths:
         - EVENT_PENDING
         - REFERENCED_NOT_FOUND
         - VALIDATION
+      x-cli:
+        name: create
+        positional:
+          - name
   /api/admin/metrics/{id}:
     get:
       operationId: getMetric
@@ -2882,6 +3035,10 @@ paths:
         - UNAUTHORIZED
         - FORBIDDEN
         - NOT_FOUND
+      x-cli:
+        name: show
+        positional:
+          - id
     delete:
       operationId: deleteMetric
       summary: Archive a metric
@@ -2926,6 +3083,10 @@ paths:
         - FORBIDDEN
         - NOT_FOUND
         - REFERENCED_IN_USE
+      x-cli:
+        name: archive
+        positional:
+          - id
   /api/admin/events:
     get:
       operationId: listEvents
@@ -2979,6 +3140,8 @@ paths:
         - BAD_REQUEST
         - UNAUTHORIZED
         - FORBIDDEN
+      x-cli:
+        name: list
     post:
       operationId: createEvent
       summary: Register an event
@@ -3045,6 +3208,10 @@ paths:
         - FORBIDDEN
         - ALREADY_EXISTS
         - VALIDATION
+      x-cli:
+        name: create
+        positional:
+          - name
   /api/admin/events/{id}:
     get:
       operationId: getEvent
@@ -3099,6 +3266,10 @@ paths:
         - UNAUTHORIZED
         - FORBIDDEN
         - NOT_FOUND
+      x-cli:
+        name: get
+        positional:
+          - id
     patch:
       operationId: updateEvent
       summary: Update an event
@@ -3165,6 +3336,10 @@ paths:
         - FORBIDDEN
         - NOT_FOUND
         - VALIDATION
+      x-cli:
+        name: update
+        positional:
+          - id
     delete:
       operationId: deleteEvent
       summary: Archive an event
@@ -3209,6 +3384,10 @@ paths:
         - FORBIDDEN
         - NOT_FOUND
         - REFERENCED_IN_USE
+      x-cli:
+        name: archive
+        positional:
+          - id
   /api/admin/events/{id}/approve:
     post:
       operationId: approveEvent
@@ -3276,6 +3455,10 @@ paths:
         - FORBIDDEN
         - NOT_FOUND
         - VALIDATION
+      x-cli:
+        name: approve
+        positional:
+          - id
   /api/admin/feedback:
     get:
       operationId: listOpsItems
@@ -3359,6 +3542,8 @@ paths:
         - BAD_REQUEST
         - UNAUTHORIZED
         - FORBIDDEN
+      x-cli:
+        name: list
   /api/admin/feedback/{handle}:
     get:
       operationId: getOpsItem
@@ -3409,6 +3594,10 @@ paths:
         - UNAUTHORIZED
         - FORBIDDEN
         - NOT_FOUND
+      x-cli:
+        name: get
+        positional:
+          - handle
     patch:
       operationId: updateOpsItem
       summary: Update a queue item
@@ -3462,6 +3651,10 @@ paths:
         - FORBIDDEN
         - NOT_FOUND
         - VALIDATION
+      x-cli:
+        name: update
+        positional:
+          - handle
   /api/admin/bugs:
     post:
       operationId: createBug
@@ -3512,6 +3705,8 @@ paths:
         - FORBIDDEN
         - ALREADY_EXISTS
         - VALIDATION
+      x-cli:
+        name: create-bug
   /api/admin/feature-requests:
     post:
       operationId: createFeatureRequest
@@ -3562,6 +3757,8 @@ paths:
         - FORBIDDEN
         - ALREADY_EXISTS
         - VALIDATION
+      x-cli:
+        name: create-feature-request
   /api/admin/feedback/{handle}/link-pr:
     post:
       operationId: linkPrToOpsItem
@@ -3616,6 +3813,10 @@ paths:
         - FORBIDDEN
         - NOT_FOUND
         - VALIDATION
+      x-cli:
+        name: link-pr
+        positional:
+          - handle
   /api/admin/notifications:
     post:
       operationId: notifyOps
@@ -3665,6 +3866,8 @@ paths:
         - UNAUTHORIZED
         - FORBIDDEN
         - VALIDATION
+      x-cli:
+        name: notify
   /api/admin/slack/channels:
     get:
       operationId: listSlackChannels
@@ -3674,7 +3877,7 @@ paths:
 
         **Use case:** Populate a channel picker, or validate an alert rule's `--slack-channel` before saving.
       tags:
-        - Ops
+        - Alerts
       parameters:
         - $ref: '#/components/parameters/ProjectId'
       responses:
@@ -3707,6 +3910,8 @@ paths:
         - BAD_REQUEST
         - UNAUTHORIZED
         - FORBIDDEN
+      x-cli:
+        name: channels
   /api/admin/alert-rules:
     get:
       operationId: listAlertRules
@@ -3716,7 +3921,7 @@ paths:
 
         **Use case:** Audit which metrics have alerting configured — for example to confirm an on-call threshold is set before a launch.
       tags:
-        - Alert Rules
+        - Alerts
       parameters:
         - $ref: '#/components/parameters/ProjectId'
       responses:
@@ -3755,6 +3960,8 @@ paths:
         - BAD_REQUEST
         - UNAUTHORIZED
         - FORBIDDEN
+      x-cli:
+        name: list
     post:
       operationId: createAlertRule
       summary: Create an alert rule
@@ -3768,7 +3975,7 @@ paths:
         - **Threshold alert** — warn when an error/latency metric crosses a value over a rolling window.
         - **Routed alert** — set `notify` to page a specific Slack channel or on-call email instead of the project default.
       tags:
-        - Alert Rules
+        - Alerts
       parameters:
         - $ref: '#/components/parameters/ProjectId'
       requestBody:
@@ -3829,6 +4036,8 @@ paths:
         - ALREADY_EXISTS
         - REFERENCED_NOT_FOUND
         - VALIDATION
+      x-cli:
+        name: create
   /api/admin/alert-rules/{id}:
     patch:
       operationId: updateAlertRule
@@ -3843,7 +4052,7 @@ paths:
         - **Tune sensitivity** — change `threshold`/`comparator`/`windowHours` as the metric's baseline shifts.
         - **Pause without losing config** — `{ "enabled": false }` instead of deleting the rule.
       tags:
-        - Alert Rules
+        - Alerts
       parameters:
         - $ref: '#/components/parameters/ProjectId'
         - name: id
@@ -3901,6 +4110,10 @@ paths:
         - FORBIDDEN
         - NOT_FOUND
         - VALIDATION
+      x-cli:
+        name: update
+        positional:
+          - id
     delete:
       operationId: deleteAlertRule
       summary: Delete an alert rule
@@ -3909,7 +4122,7 @@ paths:
 
         **Use case:** Remove an alert rule that is no longer needed, or as the first half of repointing a rule at a different metric.
       tags:
-        - Alert Rules
+        - Alerts
       parameters:
         - $ref: '#/components/parameters/ProjectId'
         - name: id
@@ -3944,6 +4157,10 @@ paths:
         - UNAUTHORIZED
         - FORBIDDEN
         - NOT_FOUND
+      x-cli:
+        name: archive
+        positional:
+          - id
   /api/admin/projects/current:
     get:
       operationId: getCurrentProject
@@ -3998,6 +4215,8 @@ paths:
         - BAD_REQUEST
         - UNAUTHORIZED
         - FORBIDDEN
+      x-cli:
+        name: current
   /api/admin/projects/upsert:
     post:
       operationId: upsertProject
@@ -4063,6 +4282,8 @@ paths:
         - UNAUTHORIZED
         - FORBIDDEN
         - VALIDATION
+      x-cli:
+        name: upsert
   /api/admin/i18n/profiles:
     get:
       operationId: listI18nProfiles
@@ -4072,7 +4293,7 @@ paths:
 
         **Use case:** Discover which locale profiles exist before pushing keys or publishing a chunk.
       tags:
-        - i18n
+        - Profiles
       parameters:
         - $ref: '#/components/parameters/ProjectId'
       responses:
@@ -4104,6 +4325,8 @@ paths:
         - BAD_REQUEST
         - UNAUTHORIZED
         - FORBIDDEN
+      x-cli:
+        name: list
     post:
       operationId: createI18nProfile
       summary: Create an i18n profile
@@ -4112,7 +4335,7 @@ paths:
 
         **Use case:** Stand up a new locale before seeding its keys.
       tags:
-        - i18n
+        - Profiles
       parameters:
         - $ref: '#/components/parameters/ProjectId'
       requestBody:
@@ -4154,6 +4377,8 @@ paths:
         - FORBIDDEN
         - ALREADY_EXISTS
         - VALIDATION
+      x-cli:
+        name: create
   /api/admin/i18n/keys:
     get:
       operationId: listI18nKeys
@@ -4163,7 +4388,7 @@ paths:
 
         **Use case:** Read the current keys (and values) for a profile — e.g. to diff before a push.
       tags:
-        - i18n
+        - Keys
       parameters:
         - $ref: '#/components/parameters/ProjectId'
         - name: profile_id
@@ -4214,6 +4439,8 @@ paths:
         - BAD_REQUEST
         - UNAUTHORIZED
         - FORBIDDEN
+      x-cli:
+        name: list
     post:
       operationId: pushI18nKeys
       summary: Push new i18n keys (insert-only)
@@ -4222,7 +4449,7 @@ paths:
 
         **Use case:** Seed newly-extracted keys without clobbering translations already in the profile.
       tags:
-        - i18n
+        - Keys
       parameters:
         - $ref: '#/components/parameters/ProjectId'
       requestBody:
@@ -4267,6 +4494,8 @@ paths:
         - FORBIDDEN
         - ALREADY_EXISTS
         - VALIDATION
+      x-cli:
+        name: push
   /api/admin/i18n/keys/{id}:
     put:
       operationId: updateI18nKey
@@ -4276,7 +4505,7 @@ paths:
 
         **Use case:** Correct or re-translate a single string in place.
       tags:
-        - i18n
+        - Keys
       parameters:
         - $ref: '#/components/parameters/ProjectId'
         - name: id
@@ -4320,6 +4549,10 @@ paths:
         - FORBIDDEN
         - NOT_FOUND
         - VALIDATION
+      x-cli:
+        name: update
+        positional:
+          - id
   /api/admin/i18n/drafts:
     get:
       operationId: listI18nDrafts
@@ -4329,7 +4562,7 @@ paths:
 
         **Use case:** Review machine-translation drafts before publishing them to a locale.
       tags:
-        - i18n
+        - Drafts
       parameters:
         - $ref: '#/components/parameters/ProjectId'
       responses:
@@ -4357,6 +4590,8 @@ paths:
         - BAD_REQUEST
         - UNAUTHORIZED
         - FORBIDDEN
+      x-cli:
+        name: list
   /api/admin/i18n/profiles/{profileId}/publish:
     post:
       operationId: publishI18nProfile
@@ -4366,7 +4601,7 @@ paths:
 
         **Use case:** Ship the latest translations live after pushing/updating keys.
       tags:
-        - i18n
+        - Profiles
       parameters:
         - $ref: '#/components/parameters/ProjectId'
         - name: profileId
@@ -4410,6 +4645,10 @@ paths:
         - FORBIDDEN
         - NOT_FOUND
         - VALIDATION
+      x-cli:
+        name: publish
+        positional:
+          - profileId
 components:
   securitySchemes:
     bearerSdkKey:

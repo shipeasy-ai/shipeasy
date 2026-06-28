@@ -42,6 +42,8 @@
       - BAD_REQUEST
       - UNAUTHORIZED
       - FORBIDDEN
+    x-cli:
+      name: list
   post:
     operationId: createMetric
     summary: Create a metric
@@ -126,6 +128,10 @@
       - EVENT_PENDING
       - REFERENCED_NOT_FOUND
       - VALIDATION
+    x-cli:
+      name: create
+      positional:
+        - name
 /api/admin/metrics/{id}:
   get:
     operationId: getMetric
@@ -178,6 +184,10 @@
       - UNAUTHORIZED
       - FORBIDDEN
       - NOT_FOUND
+    x-cli:
+      name: show
+      positional:
+        - id
   delete:
     operationId: deleteMetric
     summary: Archive a metric
@@ -222,3 +232,7 @@
       - FORBIDDEN
       - NOT_FOUND
       - REFERENCED_IN_USE
+    x-cli:
+      name: archive
+      positional:
+        - id
