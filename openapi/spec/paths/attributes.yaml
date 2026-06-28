@@ -1,0 +1,42 @@
+/api/admin/attributes:
+  get:
+    operationId: listAttributes
+    summary: List targeting attributes
+    description: |-
+      Returns every auto-inferred targeting attribute in the project — the `name` and (when known) the value `type` — for building gate/experiment targeting rules.
+
+      **Use case:** Discover which user-context keys are available before authoring a targeting rule, instead of guessing attribute names.
+    tags:
+      - Attributes
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+    responses:
+      "200":
+        description: List targeting attributes
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/attributes.yaml#/ListAttributesResponse
+            example:
+              - name: plan
+                type: string
+              - name: country
+                type: string
+              - name: seats
+                type: number
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN

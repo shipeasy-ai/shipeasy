@@ -1,0 +1,1021 @@
+ListMetricsResponse:
+  type: array
+  items:
+    type: object
+    properties:
+      id:
+        type: string
+        description: Stable opaque metric id.
+      name:
+        type: string
+        description: Metric key.
+      folder:
+        anyOf:
+          - type: string
+          - type: "null"
+        description: Folder grouping the metric, or `null`.
+      eventName:
+        type: string
+        description: Source event name (camelCase in response).
+      aggregation:
+        type: string
+        description: Legacy aggregation enum derived from the IR (`count_users`, `sum`, `ratio`, …).
+      valuePath:
+        anyOf:
+          - type: string
+          - type: "null"
+        description: Numeric value label for sum/avg metrics, or `null`.
+      query:
+        description: Rendered DSL text form of the query, or `null` if it could not be rendered.
+        anyOf:
+          - type: string
+          - type: "null"
+      queryIr:
+        description: Typed query IR stored for the metric.
+        type: object
+        properties:
+          agg:
+            oneOf:
+              - type: object
+                properties:
+                  kind:
+                    type: string
+                    const: count_users
+                required:
+                  - kind
+                additionalProperties: false
+              - type: object
+                properties:
+                  kind:
+                    type: string
+                    const: count_events
+                required:
+                  - kind
+                additionalProperties: false
+              - type: object
+                properties:
+                  kind:
+                    type: string
+                    const: sum
+                required:
+                  - kind
+                additionalProperties: false
+              - type: object
+                properties:
+                  kind:
+                    type: string
+                    const: avg
+                required:
+                  - kind
+                additionalProperties: false
+              - type: object
+                properties:
+                  kind:
+                    type: string
+                    const: min
+                required:
+                  - kind
+                additionalProperties: false
+              - type: object
+                properties:
+                  kind:
+                    type: string
+                    const: max
+                required:
+                  - kind
+                additionalProperties: false
+              - type: object
+                properties:
+                  kind:
+                    type: string
+                    const: unique
+                required:
+                  - kind
+                additionalProperties: false
+              - type: object
+                properties:
+                  kind:
+                    type: string
+                    const: quantile
+                  p:
+                    anyOf:
+                      - type: number
+                        const: 0.5
+                      - type: number
+                        const: 0.75
+                      - type: number
+                        const: 0.9
+                      - type: number
+                        const: 0.95
+                      - type: number
+                        const: 0.99
+                      - type: number
+                        const: 0.999
+                    description: Quantile fraction (0.5 = p50 … 0.999 = p999).
+                required:
+                  - kind
+                  - p
+                additionalProperties: false
+              - type: object
+                properties:
+                  kind:
+                    type: string
+                    const: retention_Nd
+                  n:
+                    type: integer
+                    minimum: 1
+                    maximum: 90
+                    description: Retention window in days (1–90).
+                required:
+                  - kind
+                  - n
+                additionalProperties: false
+              - type: object
+                properties:
+                  kind:
+                    type: string
+                    const: ratio
+                  numerator:
+                    type: object
+                    properties:
+                      agg:
+                        type: string
+                        enum:
+                          - count_users
+                          - count_events
+                        description: Counting mode for this ratio arm.
+                      metric:
+                        type: string
+                        minLength: 1
+                        maxLength: 128
+                        description: Source event name for this ratio arm.
+                      filters:
+                        description: Optional label filters.
+                        maxItems: 16
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            label:
+                              type: string
+                              pattern: ^[a-z_][a-z0-9_]{0,63}$
+                              description: Event property / label identifier.
+                            op:
+                              type: string
+                              enum:
+                                - =
+                                - "!="
+                                - =~
+                                - "!~"
+                              description: Match operator (`=~`/`!~` are regex).
+                            value:
+                              type: string
+                              maxLength: 512
+                              description: Quoted filter value (coerced for numeric labels).
+                          required:
+                            - label
+                            - op
+                            - value
+                          additionalProperties: false
+                          description: One label filter on the source event.
+                    required:
+                      - agg
+                      - metric
+                    additionalProperties: false
+                    description: Numerator or denominator arm of a `ratio` aggregation.
+                  denominator:
+                    type: object
+                    properties:
+                      agg:
+                        type: string
+                        enum:
+                          - count_users
+                          - count_events
+                        description: Counting mode for this ratio arm.
+                      metric:
+                        type: string
+                        minLength: 1
+                        maxLength: 128
+                        description: Source event name for this ratio arm.
+                      filters:
+                        description: Optional label filters.
+                        maxItems: 16
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            label:
+                              type: string
+                              pattern: ^[a-z_][a-z0-9_]{0,63}$
+                              description: Event property / label identifier.
+                            op:
+                              type: string
+                              enum:
+                                - =
+                                - "!="
+                                - =~
+                                - "!~"
+                              description: Match operator (`=~`/`!~` are regex).
+                            value:
+                              type: string
+                              maxLength: 512
+                              description: Quoted filter value (coerced for numeric labels).
+                          required:
+                            - label
+                            - op
+                            - value
+                          additionalProperties: false
+                          description: One label filter on the source event.
+                    required:
+                      - agg
+                      - metric
+                    additionalProperties: false
+                    description: Numerator or denominator arm of a `ratio` aggregation.
+                required:
+                  - kind
+                  - numerator
+                  - denominator
+                additionalProperties: false
+            description: Aggregation function applied to the source event.
+          metric:
+            type: string
+            minLength: 1
+            maxLength: 128
+            description: Source event name (must equal `event_name`).
+          valueLabel:
+            description: Numeric property summed/averaged for `sum`/`avg`/quantile aggregations.
+            type: string
+            minLength: 1
+            maxLength: 128
+          filters:
+            default: []
+            description: Label filters on the event.
+            maxItems: 16
+            type: array
+            items:
+              type: object
+              properties:
+                label:
+                  type: string
+                  pattern: ^[a-z_][a-z0-9_]{0,63}$
+                  description: Event property / label identifier.
+                op:
+                  type: string
+                  enum:
+                    - =
+                    - "!="
+                    - =~
+                    - "!~"
+                  description: Match operator (`=~`/`!~` are regex).
+                value:
+                  type: string
+                  maxLength: 512
+                  description: Quoted filter value (coerced for numeric labels).
+              required:
+                - label
+                - op
+                - value
+              additionalProperties: false
+              description: One label filter on the source event.
+          groupBy:
+            type: object
+            properties:
+              op:
+                type: string
+                enum:
+                  - by
+                  - without
+                description: "`by` keeps the listed labels; `without` drops them."
+              labels:
+                maxItems: 5
+                type: array
+                items:
+                  type: string
+                  pattern: ^[a-z_][a-z0-9_]{0,63}$
+                  description: Event property / label identifier.
+                description: Labels to group by (max 5).
+            required:
+              - op
+              - labels
+            additionalProperties: false
+            description: Optional group-by clause (ignored for experiment analysis).
+        required:
+          - agg
+          - metric
+          - filters
+        additionalProperties: false
+      direction:
+        type: string
+        enum:
+          - higher_better
+          - lower_better
+          - neutral
+        description: Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).
+      winsorizePct:
+        description: Winsorise percentile applied to the metric.
+        type: number
+      minDetectableEffect:
+        description: Configured MDE, or `null`.
+        anyOf:
+          - type: number
+          - type: "null"
+      createdAt:
+        description: ISO-8601 creation timestamp.
+        type: string
+      updatedAt:
+        description: ISO-8601 last-update timestamp.
+        type: string
+    required:
+      - id
+      - name
+      - folder
+      - eventName
+      - aggregation
+      - valuePath
+    additionalProperties: {}
+    description: A metric definition.
+  description: Every metric in the project (the list endpoint is not paginated).
+GetMetricResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Stable opaque metric id.
+    name:
+      type: string
+      description: Metric key.
+    folder:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Folder grouping the metric, or `null`.
+    eventName:
+      type: string
+      description: Source event name (camelCase in response).
+    aggregation:
+      type: string
+      description: Legacy aggregation enum derived from the IR (`count_users`, `sum`, `ratio`, …).
+    valuePath:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Numeric value label for sum/avg metrics, or `null`.
+    query:
+      description: Rendered DSL text form of the query, or `null` if it could not be rendered.
+      anyOf:
+        - type: string
+        - type: "null"
+    queryIr:
+      description: Typed query IR stored for the metric.
+      type: object
+      properties:
+        agg:
+          oneOf:
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  const: count_users
+              required:
+                - kind
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  const: count_events
+              required:
+                - kind
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  const: sum
+              required:
+                - kind
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  const: avg
+              required:
+                - kind
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  const: min
+              required:
+                - kind
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  const: max
+              required:
+                - kind
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  const: unique
+              required:
+                - kind
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  const: quantile
+                p:
+                  anyOf:
+                    - type: number
+                      const: 0.5
+                    - type: number
+                      const: 0.75
+                    - type: number
+                      const: 0.9
+                    - type: number
+                      const: 0.95
+                    - type: number
+                      const: 0.99
+                    - type: number
+                      const: 0.999
+                  description: Quantile fraction (0.5 = p50 … 0.999 = p999).
+              required:
+                - kind
+                - p
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  const: retention_Nd
+                n:
+                  type: integer
+                  minimum: 1
+                  maximum: 90
+                  description: Retention window in days (1–90).
+              required:
+                - kind
+                - n
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  const: ratio
+                numerator:
+                  type: object
+                  properties:
+                    agg:
+                      type: string
+                      enum:
+                        - count_users
+                        - count_events
+                      description: Counting mode for this ratio arm.
+                    metric:
+                      type: string
+                      minLength: 1
+                      maxLength: 128
+                      description: Source event name for this ratio arm.
+                    filters:
+                      description: Optional label filters.
+                      maxItems: 16
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          label:
+                            type: string
+                            pattern: ^[a-z_][a-z0-9_]{0,63}$
+                            description: Event property / label identifier.
+                          op:
+                            type: string
+                            enum:
+                              - =
+                              - "!="
+                              - =~
+                              - "!~"
+                            description: Match operator (`=~`/`!~` are regex).
+                          value:
+                            type: string
+                            maxLength: 512
+                            description: Quoted filter value (coerced for numeric labels).
+                        required:
+                          - label
+                          - op
+                          - value
+                        additionalProperties: false
+                        description: One label filter on the source event.
+                  required:
+                    - agg
+                    - metric
+                  additionalProperties: false
+                  description: Numerator or denominator arm of a `ratio` aggregation.
+                denominator:
+                  type: object
+                  properties:
+                    agg:
+                      type: string
+                      enum:
+                        - count_users
+                        - count_events
+                      description: Counting mode for this ratio arm.
+                    metric:
+                      type: string
+                      minLength: 1
+                      maxLength: 128
+                      description: Source event name for this ratio arm.
+                    filters:
+                      description: Optional label filters.
+                      maxItems: 16
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          label:
+                            type: string
+                            pattern: ^[a-z_][a-z0-9_]{0,63}$
+                            description: Event property / label identifier.
+                          op:
+                            type: string
+                            enum:
+                              - =
+                              - "!="
+                              - =~
+                              - "!~"
+                            description: Match operator (`=~`/`!~` are regex).
+                          value:
+                            type: string
+                            maxLength: 512
+                            description: Quoted filter value (coerced for numeric labels).
+                        required:
+                          - label
+                          - op
+                          - value
+                        additionalProperties: false
+                        description: One label filter on the source event.
+                  required:
+                    - agg
+                    - metric
+                  additionalProperties: false
+                  description: Numerator or denominator arm of a `ratio` aggregation.
+              required:
+                - kind
+                - numerator
+                - denominator
+              additionalProperties: false
+          description: Aggregation function applied to the source event.
+        metric:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: Source event name (must equal `event_name`).
+        valueLabel:
+          description: Numeric property summed/averaged for `sum`/`avg`/quantile aggregations.
+          type: string
+          minLength: 1
+          maxLength: 128
+        filters:
+          default: []
+          description: Label filters on the event.
+          maxItems: 16
+          type: array
+          items:
+            type: object
+            properties:
+              label:
+                type: string
+                pattern: ^[a-z_][a-z0-9_]{0,63}$
+                description: Event property / label identifier.
+              op:
+                type: string
+                enum:
+                  - =
+                  - "!="
+                  - =~
+                  - "!~"
+                description: Match operator (`=~`/`!~` are regex).
+              value:
+                type: string
+                maxLength: 512
+                description: Quoted filter value (coerced for numeric labels).
+            required:
+              - label
+              - op
+              - value
+            additionalProperties: false
+            description: One label filter on the source event.
+        groupBy:
+          type: object
+          properties:
+            op:
+              type: string
+              enum:
+                - by
+                - without
+              description: "`by` keeps the listed labels; `without` drops them."
+            labels:
+              maxItems: 5
+              type: array
+              items:
+                type: string
+                pattern: ^[a-z_][a-z0-9_]{0,63}$
+                description: Event property / label identifier.
+              description: Labels to group by (max 5).
+          required:
+            - op
+            - labels
+          additionalProperties: false
+          description: Optional group-by clause (ignored for experiment analysis).
+      required:
+        - agg
+        - metric
+        - filters
+      additionalProperties: false
+    direction:
+      type: string
+      enum:
+        - higher_better
+        - lower_better
+        - neutral
+      description: Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).
+    winsorizePct:
+      description: Winsorise percentile applied to the metric.
+      type: number
+    minDetectableEffect:
+      description: Configured MDE, or `null`.
+      anyOf:
+        - type: number
+        - type: "null"
+    createdAt:
+      description: ISO-8601 creation timestamp.
+      type: string
+    updatedAt:
+      description: ISO-8601 last-update timestamp.
+      type: string
+  required:
+    - id
+    - name
+    - folder
+    - eventName
+    - aggregation
+    - valuePath
+  additionalProperties: {}
+  description: A metric definition.
+CreateMetricRequest:
+  type: object
+  properties:
+    name:
+      type: string
+      maxLength: 128
+      pattern: ^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$
+      description: Stable metric key. Single segment or `folder.name`; lowercase letters, digits, `_`/`-`; max 128 chars.
+    folder:
+      description: "Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK."
+      anyOf:
+        - type: string
+          maxLength: 256
+          pattern: ^[a-zA-Z0-9_-]+$
+        - type: "null"
+    event_name:
+      type: string
+      minLength: 1
+      description: Source event the query reads from.
+    query:
+      description: Metric query DSL string, e.g. `sum(purchase, amount)`. Provide this OR `query_ir`.
+      type: string
+      minLength: 1
+      maxLength: 4096
+    query_ir:
+      description: Typed query IR — the structured alternative to `query`. Provide this OR `query`.
+      type: object
+      properties:
+        agg:
+          oneOf:
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  const: count_users
+              required:
+                - kind
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  const: count_events
+              required:
+                - kind
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  const: sum
+              required:
+                - kind
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  const: avg
+              required:
+                - kind
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  const: min
+              required:
+                - kind
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  const: max
+              required:
+                - kind
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  const: unique
+              required:
+                - kind
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  const: quantile
+                p:
+                  anyOf:
+                    - type: number
+                      const: 0.5
+                    - type: number
+                      const: 0.75
+                    - type: number
+                      const: 0.9
+                    - type: number
+                      const: 0.95
+                    - type: number
+                      const: 0.99
+                    - type: number
+                      const: 0.999
+                  description: Quantile fraction (0.5 = p50 … 0.999 = p999).
+              required:
+                - kind
+                - p
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  const: retention_Nd
+                n:
+                  type: integer
+                  minimum: 1
+                  maximum: 90
+                  description: Retention window in days (1–90).
+              required:
+                - kind
+                - n
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  const: ratio
+                numerator:
+                  type: object
+                  properties:
+                    agg:
+                      type: string
+                      enum:
+                        - count_users
+                        - count_events
+                      description: Counting mode for this ratio arm.
+                    metric:
+                      type: string
+                      minLength: 1
+                      maxLength: 128
+                      description: Source event name for this ratio arm.
+                    filters:
+                      description: Optional label filters.
+                      maxItems: 16
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          label:
+                            type: string
+                            pattern: ^[a-z_][a-z0-9_]{0,63}$
+                            description: Event property / label identifier.
+                          op:
+                            type: string
+                            enum:
+                              - =
+                              - "!="
+                              - =~
+                              - "!~"
+                            description: Match operator (`=~`/`!~` are regex).
+                          value:
+                            type: string
+                            maxLength: 512
+                            description: Quoted filter value (coerced for numeric labels).
+                        required:
+                          - label
+                          - op
+                          - value
+                        additionalProperties: false
+                        description: One label filter on the source event.
+                  required:
+                    - agg
+                    - metric
+                  additionalProperties: false
+                  description: Numerator or denominator arm of a `ratio` aggregation.
+                denominator:
+                  type: object
+                  properties:
+                    agg:
+                      type: string
+                      enum:
+                        - count_users
+                        - count_events
+                      description: Counting mode for this ratio arm.
+                    metric:
+                      type: string
+                      minLength: 1
+                      maxLength: 128
+                      description: Source event name for this ratio arm.
+                    filters:
+                      description: Optional label filters.
+                      maxItems: 16
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          label:
+                            type: string
+                            pattern: ^[a-z_][a-z0-9_]{0,63}$
+                            description: Event property / label identifier.
+                          op:
+                            type: string
+                            enum:
+                              - =
+                              - "!="
+                              - =~
+                              - "!~"
+                            description: Match operator (`=~`/`!~` are regex).
+                          value:
+                            type: string
+                            maxLength: 512
+                            description: Quoted filter value (coerced for numeric labels).
+                        required:
+                          - label
+                          - op
+                          - value
+                        additionalProperties: false
+                        description: One label filter on the source event.
+                  required:
+                    - agg
+                    - metric
+                  additionalProperties: false
+                  description: Numerator or denominator arm of a `ratio` aggregation.
+              required:
+                - kind
+                - numerator
+                - denominator
+              additionalProperties: false
+          description: Aggregation function applied to the source event.
+        metric:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: Source event name (must equal `event_name`).
+        valueLabel:
+          description: Numeric property summed/averaged for `sum`/`avg`/quantile aggregations.
+          type: string
+          minLength: 1
+          maxLength: 128
+        filters:
+          default: []
+          description: Label filters on the event.
+          maxItems: 16
+          type: array
+          items:
+            type: object
+            properties:
+              label:
+                type: string
+                pattern: ^[a-z_][a-z0-9_]{0,63}$
+                description: Event property / label identifier.
+              op:
+                type: string
+                enum:
+                  - =
+                  - "!="
+                  - =~
+                  - "!~"
+                description: Match operator (`=~`/`!~` are regex).
+              value:
+                type: string
+                maxLength: 512
+                description: Quoted filter value (coerced for numeric labels).
+            required:
+              - label
+              - op
+              - value
+            additionalProperties: false
+            description: One label filter on the source event.
+        groupBy:
+          type: object
+          properties:
+            op:
+              type: string
+              enum:
+                - by
+                - without
+              description: "`by` keeps the listed labels; `without` drops them."
+            labels:
+              maxItems: 5
+              type: array
+              items:
+                type: string
+                pattern: ^[a-z_][a-z0-9_]{0,63}$
+                description: Event property / label identifier.
+              description: Labels to group by (max 5).
+          required:
+            - op
+            - labels
+          additionalProperties: false
+          description: Optional group-by clause (ignored for experiment analysis).
+      required:
+        - agg
+        - metric
+        - filters
+      additionalProperties: false
+    winsorize_pct:
+      default: 99
+      description: Winsorise percentile (1–99) to clamp outliers. Defaults to 99.
+      type: integer
+      minimum: 1
+      maximum: 99
+    min_detectable_effect:
+      default: null
+      description: Minimum detectable effect (relative, 0–1) for power planning. `null` to omit.
+      anyOf:
+        - type: number
+        - type: "null"
+    direction:
+      default: higher_better
+      type: string
+      enum:
+        - higher_better
+        - lower_better
+        - neutral
+      description: Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).
+  required:
+    - name
+    - event_name
+    - winsorize_pct
+    - min_detectable_effect
+    - direction
+  additionalProperties: false
+  description: Body for `POST /api/admin/metrics`. Requires `name`, `event_name`, and exactly one of `query` / `query_ir`.
+CreateMetricResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Newly assigned metric id.
+    name:
+      type: string
+      description: Metric name that was created.
+  required:
+    - id
+    - name
+  additionalProperties: false
+  description: Result of a successful metric create.
+DeleteMetricResponse:
+  type: object
+  properties:
+    ok:
+      type: boolean
+      const: true
+  required:
+    - ok
+  additionalProperties: false
+  description: Soft-delete (archive) acknowledgement.

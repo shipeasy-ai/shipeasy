@@ -1,0 +1,48 @@
+ErrorCode:
+  type: string
+  description: Stable, machine-readable error code. Mirrors the `ErrorCode` catalogue in `@shipeasy/core`. Each operation lists the subset it can return under `x-error-codes`.
+  enum:
+    - BAD_REQUEST
+    - UNAUTHORIZED
+    - FORBIDDEN
+    - PLAN_REQUIRED
+    - NOT_FOUND
+    - ALREADY_EXISTS
+    - INVALID_TRANSITION
+    - IMMUTABLE_FIELD
+    - REFERENCED_IN_USE
+    - VALIDATION
+    - REFERENCED_NOT_FOUND
+    - GROUPS_WEIGHT_SUM
+    - EVENT_PENDING
+    - INTERNAL
+  x-enum-descriptions:
+    BAD_REQUEST: Malformed request (bad JSON, missing project scope).
+    UNAUTHORIZED: Missing or invalid admin SDK key.
+    FORBIDDEN: Key is valid but not allowed to act on this project.
+    PLAN_REQUIRED: The requested feature requires a higher plan tier (e.g. sequential testing, custom alpha, holdout, group count).
+    NOT_FOUND: The resource does not exist or is not visible to the caller.
+    ALREADY_EXISTS: A resource with this name already exists in the project.
+    INVALID_TRANSITION: The requested lifecycle transition is not allowed from the current state.
+    IMMUTABLE_FIELD: A field that is immutable in the current state was modified (e.g. editing allocation while running).
+    REFERENCED_IN_USE: The resource cannot be archived/deleted while another resource still references it.
+    VALIDATION: The request body failed structural (schema) validation.
+    REFERENCED_NOT_FOUND: A referenced entity (universe, metric, gate, event) does not exist.
+    GROUPS_WEIGHT_SUM: Experiment group weights must sum to 10000 (basis points).
+    EVENT_PENDING: The referenced event is still pending review and cannot back a metric yet.
+    INTERNAL: Unexpected server error.
+Error:
+  type: object
+  description: Uniform error envelope returned by every admin endpoint on a non-2xx status. `error` is the human-readable message; `code` is the stable machine code (present whenever the failure maps to a catalogued `ErrorCode`); `detail` carries extra context (validation paths, conflicting field).
+  required:
+    - error
+  additionalProperties: false
+  properties:
+    error:
+      type: string
+      description: Human-readable error message.
+    code:
+      $ref: ./errors.yaml#/ErrorCode
+    detail:
+      type: string
+      description: Extra context (validation details, conflicting field, referenced row).

@@ -1,0 +1,16 @@
+ListAttributesResponse:
+  type: array
+  items:
+    type: object
+    properties:
+      name:
+        type: string
+        description: Attribute key as seen in evaluation context (e.g. `plan`, `country`).
+      type:
+        description: Inferred value type (`string`, `number`, `boolean`, …) when known.
+        type: string
+    required:
+      - name
+    additionalProperties: {}
+    description: One auto-inferred targeting attribute.
+  description: Every auto-inferred targeting attribute in the project.

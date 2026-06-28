@@ -1,0 +1,452 @@
+/api/admin/killswitches:
+  get:
+    operationId: listKillswitches
+    summary: List killswitches
+    description: |-
+      Returns a single page of killswitches ordered by `updated_at desc, id desc`. Each row includes the latest published `value`/`switches`/`version` per env.
+
+      **Use case:** Snapshot every killswitch in the project — e.g. to render an incident-response runbook listing every kill and its current trip state.
+    tags:
+      - Killswitches
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - $ref: ../components/parameters.yaml#/PaginationLimit
+      - $ref: ../components/parameters.yaml#/PaginationCursor
+    responses:
+      "200":
+        description: List killswitches
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/killswitches.yaml#/ListKillswitchesResponse
+            example:
+              data:
+                - id: ksw_01j7w9d8h2k4m6n8p0q2r4s6t8
+                  name: payments.checkout
+                  description: Master kill for the checkout flow. Trip to fall back to the legacy provider.
+                  updatedAt: 2026-05-09T18:22:11.000Z
+                  envs:
+                    dev:
+                      value: false
+                      version: 3
+                      publishedAt: 2026-05-09T18:22:11.000Z
+                    stage:
+                      value: false
+                      version: 3
+                      publishedAt: 2026-05-09T18:22:11.000Z
+                    prod:
+                      value: false
+                      switches:
+                        eu_region: true
+                      version: 5
+                      publishedAt: 2026-05-09T18:22:11.000Z
+              next_cursor: null
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+  post:
+    operationId: createKillswitch
+    summary: Create a killswitch
+    description: |-
+      Creates a new killswitch with `value` (default `false`) applied to **every** env at version 1.
+
+      Returns `409` if `name` already exists in the project.
+
+      **Use cases**
+
+      - **Untripped create** — `{ "name": "payments.checkout" }`. Provision the kill ahead of an incident.
+      - **Pre-tripped** — `{ "value": true }` to ship the killswitch already engaged.
+      - **With switches** — seed `switches` to carve out per-region/per-tenant kills from day one.
+    tags:
+      - Killswitches
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/killswitches.yaml#/CreateKillswitchRequest
+          examples:
+            minimal:
+              summary: Minimal — name only, untripped
+              description: "Smallest valid body. Creates a killswitch with `value: false` on every env."
+              value:
+                name: payments.checkout
+            preTripped:
+              summary: Pre-tripped on create
+              description: "Ship the killswitch already tripped (`value: true`) — useful when provisioning a kill ahead of a deploy you want to ship with the feature off."
+              value:
+                name: payments.checkout
+                description: Master kill for the new checkout flow.
+                value: true
+            withSwitches:
+              summary: With per-region switches
+              description: Seed a `switches` map so specific named call sites can be tripped independently of the flat `value`.
+              value:
+                name: payments.checkout
+                value: false
+                switches:
+                  eu_region: true
+                  apac_region: false
+    responses:
+      "201":
+        description: Create a killswitch
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/killswitches.yaml#/CreateKillswitchResponse
+            example:
+              id: ksw_01j7w9d8h2k4m6n8p0q2r4s6t8
+              name: payments.checkout
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - ALREADY_EXISTS
+      - VALIDATION
+/api/admin/killswitches/{id}:
+  get:
+    operationId: getKillswitch
+    summary: Get one killswitch
+    description: |-
+      Returns the killswitch metadata plus the latest published `value`/`switches`/`version` per env.
+
+      **Use case:** Fetch the current state of one killswitch — e.g. to verify a trip propagated before declaring an incident mitigated.
+    tags:
+      - Killswitches
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
+        schema:
+          type: string
+    responses:
+      "200":
+        description: Get one killswitch
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/killswitches.yaml#/GetKillswitchResponse
+            example:
+              id: ksw_01j7w9d8h2k4m6n8p0q2r4s6t8
+              name: payments.checkout
+              description: Master kill for the checkout flow. Trip to fall back to the legacy provider.
+              updatedAt: 2026-05-09T18:22:11.000Z
+              envs:
+                dev:
+                  value: false
+                  version: 3
+                  publishedAt: 2026-05-09T18:22:11.000Z
+                stage:
+                  value: false
+                  version: 3
+                  publishedAt: 2026-05-09T18:22:11.000Z
+                prod:
+                  value: false
+                  switches:
+                    eu_region: true
+                  version: 5
+                  publishedAt: 2026-05-09T18:22:11.000Z
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+  patch:
+    operationId: updateKillswitch
+    summary: Update a killswitch
+    description: |-
+      Partial update applied to **every** env. Setting `value`/`switches` publishes a new version per env. Description-only patches don't bump versions.
+
+      To change a single switch on a single env, use `PUT /{id}/switch` instead.
+
+      **Use cases**
+
+      - **Trip everywhere** — `{ "value": true }`. Kills the feature across dev/stage/prod in one call.
+      - **Untrip everywhere** — `{ "value": false }`.
+      - **Replace switches** — send the full new map; per-key edits use `PUT /{id}/switch`.
+      - **Update description** — metadata-only patches don't bump versions.
+    tags:
+      - Killswitches
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/killswitches.yaml#/UpdateKillswitchRequest
+          examples:
+            trip:
+              summary: Trip the killswitch on every env
+              description: "Sets `value: true` on dev/stage/prod, bumping each env's version by one."
+              value:
+                value: true
+            untrip:
+              summary: Untrip on every env
+              description: "Sets `value: false` on every env."
+              value:
+                value: false
+            replaceSwitches:
+              summary: Replace switches map
+              description: Replaces the per-key overrides wholesale on every env. Pass `{}` to clear.
+              value:
+                switches:
+                  eu_region: true
+                  apac_region: true
+            updateDescription:
+              summary: Description-only update
+              description: Doesn't bump versions or trigger a republish — only metadata changes.
+              value:
+                description: "Master kill — owner: payments-platform"
+    responses:
+      "200":
+        description: Update a killswitch
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/killswitches.yaml#/UpdateKillswitchResponse
+            example:
+              id: ksw_01j7w9d8h2k4m6n8p0q2r4s6t8
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+  delete:
+    operationId: deleteKillswitch
+    summary: Delete a killswitch
+    description: |-
+      Soft-deletes the killswitch and rebuilds the project's flags KV blob so SDKs stop seeing it.
+
+      **Use case:** Tear down a killswitch after the feature it protected has been removed.
+    tags:
+      - Killswitches
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
+        schema:
+          type: string
+    responses:
+      "200":
+        description: Delete a killswitch
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/killswitches.yaml#/DeleteKillswitchResponse
+            example:
+              ok: true
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+/api/admin/killswitches/{id}/switch:
+  put:
+    operationId: setKillswitchSwitch
+    summary: Set one switch entry
+    description: |-
+      Sets or updates a single `switchKey` on a single `env`. Publishes one new version on that env only — other envs untouched.
+
+      Use this for surgical per-env, per-key flips during incident response (e.g. trip `eu_region` on prod without touching the flat `value` or other envs).
+
+      **Use cases**
+
+      - **Trip a region** — `{ "env": "prod", "switchKey": "eu_region", "value": true }`.
+      - **Untrip without removing** — same payload with `value: false`. To remove the entry entirely use `DELETE /{id}/switch`.
+    tags:
+      - Killswitches
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/killswitches.yaml#/SetKillswitchSwitchRequest
+          examples:
+            tripRegion:
+              summary: Trip eu_region on prod
+              description: Sets `switches.eu_region = true` on prod only. Other envs and the flat `value` are unchanged.
+              value:
+                env: prod
+                switchKey: eu_region
+                value: true
+            untripRegion:
+              summary: Untrip eu_region on prod
+              description: Flip the same entry back off without removing it from the map.
+              value:
+                env: prod
+                switchKey: eu_region
+                value: false
+    responses:
+      "200":
+        description: Set one switch entry
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/killswitches.yaml#/SetKillswitchSwitchResponse
+            example:
+              id: ksw_01j7w9d8h2k4m6n8p0q2r4s6t8
+              env: prod
+              switchKey: eu_region
+              value: true
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+  delete:
+    operationId: unsetKillswitchSwitch
+    summary: Remove one switch entry
+    description: |-
+      Removes a single `switchKey` from the `switches` map on a single `env`. Publishes a new version on that env.
+
+      Returns `{ removed: false }` if the entry didn't exist (idempotent no-op).
+
+      **Use case:** Clean up a per-region override after the incident is resolved so the flat `value` governs again.
+    tags:
+      - Killswitches
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/killswitches.yaml#/UnsetKillswitchSwitchRequest
+          examples:
+            removeRegion:
+              summary: Remove eu_region from prod
+              description: Drops the `eu_region` override on prod so the flat `value` applies again.
+              value:
+                env: prod
+                switchKey: eu_region
+    responses:
+      "200":
+        description: Remove one switch entry
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/killswitches.yaml#/UnsetKillswitchSwitchResponse
+            example:
+              id: ksw_01j7w9d8h2k4m6n8p0q2r4s6t8
+              env: prod
+              switchKey: eu_region
+              removed: true
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND

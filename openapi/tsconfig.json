@@ -11,8 +11,7 @@
     "isolatedModules": true,
     "allowJs": true,
     "declaration": true,
-    "noEmit": false,
-    "incremental": false,
+    "noEmit": true,
     "rootDir": "src",
     "outDir": "dist"
   },

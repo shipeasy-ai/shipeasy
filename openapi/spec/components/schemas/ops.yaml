@@ -1,0 +1,348 @@
+ListOpsItemsResponse:
+  type: array
+  items:
+    type: object
+    properties:
+      id:
+        type: string
+        description: Stable opaque item id.
+      number:
+        anyOf:
+          - type: number
+          - type: "null"
+        description: Per-project item number (the `#7` handle), or `null` if unnumbered.
+      type:
+        type: string
+        enum:
+          - bug
+          - feature_request
+          - error
+          - alert
+        description: Queue item type. `bug` and `feature_request` are user-fileable; `error` and `alert` tickets are auto-filed by the platform.
+      title:
+        type: string
+        description: One-line item title.
+      status:
+        type: string
+        enum:
+          - open
+          - triaged
+          - in_progress
+          - ready_for_qa
+          - resolved
+          - wont_fix
+        description: Lifecycle status of a queue item.
+      priority:
+        anyOf:
+          - type: string
+            enum:
+              - nice_to_have
+              - medium
+              - high
+              - critical
+            description: Triage priority of a queue item.
+          - type: "null"
+        description: Triage priority, or `null` if not yet set.
+      sourceRef:
+        description: Source reference for auto-filed tickets (e.g. an error fingerprint).
+        anyOf:
+          - type: string
+          - type: "null"
+      createdAt:
+        type: string
+        description: ISO-8601 creation timestamp.
+    required:
+      - id
+      - number
+      - type
+      - title
+      - status
+      - priority
+      - createdAt
+    additionalProperties: {}
+    description: One queue item — any type.
+  description: A page of queue items, newest first.
+GetOpsItemResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Stable opaque item id.
+    number:
+      anyOf:
+        - type: number
+        - type: "null"
+      description: Per-project item number (the `#7` handle), or `null` if unnumbered.
+    type:
+      type: string
+      enum:
+        - bug
+        - feature_request
+        - error
+        - alert
+      description: Queue item type. `bug` and `feature_request` are user-fileable; `error` and `alert` tickets are auto-filed by the platform.
+    title:
+      type: string
+      description: One-line item title.
+    status:
+      type: string
+      enum:
+        - open
+        - triaged
+        - in_progress
+        - ready_for_qa
+        - resolved
+        - wont_fix
+      description: Lifecycle status of a queue item.
+    priority:
+      anyOf:
+        - type: string
+          enum:
+            - nice_to_have
+            - medium
+            - high
+            - critical
+          description: Triage priority of a queue item.
+        - type: "null"
+      description: Triage priority, or `null` if not yet set.
+    sourceRef:
+      description: Source reference for auto-filed tickets (e.g. an error fingerprint).
+      anyOf:
+        - type: string
+        - type: "null"
+    createdAt:
+      type: string
+      description: ISO-8601 creation timestamp.
+  required:
+    - id
+    - number
+    - type
+    - title
+    - status
+    - priority
+    - createdAt
+  additionalProperties: {}
+  description: One queue item — any type.
+CreateBugRequest:
+  type: object
+  properties:
+    title:
+      type: string
+      minLength: 1
+      maxLength: 200
+      description: One-line title of the bug or feature request.
+    body:
+      description: Detailed description / steps to reproduce.
+      type: string
+    priority:
+      description: Initial triage priority.
+      type: string
+      enum:
+        - nice_to_have
+        - medium
+        - high
+        - critical
+    stepsToReproduce:
+      description: Reproduction steps (bugs).
+      type: string
+    pageUrl:
+      description: URL of the page the item relates to.
+      type: string
+  required:
+    - title
+  additionalProperties: false
+  description: Body for `POST /api/admin/bugs`.
+CreateBugResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Newly created item id.
+    number:
+      description: Per-project item number assigned to the new item.
+      anyOf:
+        - type: number
+        - type: "null"
+  required:
+    - id
+  additionalProperties: false
+  description: Response for the create endpoints.
+CreateFeatureRequestRequest:
+  type: object
+  properties:
+    title:
+      type: string
+      minLength: 1
+      maxLength: 200
+      description: One-line title of the bug or feature request.
+    body:
+      description: Detailed description / steps to reproduce.
+      type: string
+    priority:
+      description: Initial triage priority.
+      type: string
+      enum:
+        - nice_to_have
+        - medium
+        - high
+        - critical
+    stepsToReproduce:
+      description: Reproduction steps (bugs).
+      type: string
+    pageUrl:
+      description: URL of the page the item relates to.
+      type: string
+  required:
+    - title
+  additionalProperties: false
+  description: Body for `POST /api/admin/feature-requests`.
+CreateFeatureRequestResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Newly created item id.
+    number:
+      description: Per-project item number assigned to the new item.
+      anyOf:
+        - type: number
+        - type: "null"
+  required:
+    - id
+  additionalProperties: false
+  description: Response for the create endpoints.
+UpdateOpsItemRequest:
+  type: object
+  properties:
+    status:
+      description: New lifecycle status.
+      type: string
+      enum:
+        - open
+        - triaged
+        - in_progress
+        - ready_for_qa
+        - resolved
+        - wont_fix
+    priority:
+      description: New triage priority.
+      type: string
+      enum:
+        - nice_to_have
+        - medium
+        - high
+        - critical
+  additionalProperties: false
+  description: Body for `PATCH /api/admin/feedback/{handle}`. Pass at least one of `status` / `priority`.
+UpdateOpsItemResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Item id that was updated.
+  required:
+    - id
+  additionalProperties: false
+  description: Response for the update / link-pr endpoints.
+LinkPrToOpsItemRequest:
+  type: object
+  properties:
+    prNumber:
+      anyOf:
+        - type: integer
+          exclusiveMinimum: 0
+          maximum: 9007199254740991
+        - type: "null"
+      description: PR number to record on the item. `null` unlinks the PR.
+    prUrl:
+      description: Explicit PR URL. Required for error/alert tickets (no GitHub issue to derive the URL from).
+      type: string
+      format: uri
+  required:
+    - prNumber
+  additionalProperties: false
+  description: Body for `POST /api/admin/feedback/{handle}/link-pr`.
+LinkPrToOpsItemResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Item id that was updated.
+  required:
+    - id
+  additionalProperties: false
+  description: Response for the update / link-pr endpoints.
+NotifyOpsRequest:
+  type: object
+  properties:
+    title:
+      type: string
+      minLength: 1
+      maxLength: 200
+      description: One-line headline of what's blocked.
+    summary:
+      type: string
+      minLength: 1
+      maxLength: 280
+      description: "One sentence: why it can't be fixed in code."
+    steps:
+      description: Ordered steps the human should take to unblock.
+      type: array
+      items:
+        type: string
+    href:
+      description: Dashboard-relative deep link to the related item.
+      type: string
+    dedupeKey:
+      description: Stable per-escalation key (e.g. `feedback:7`) so re-runs dedupe to one row.
+      type: string
+  required:
+    - title
+    - summary
+  additionalProperties: false
+  description: Body for `POST /api/admin/notifications`.
+NotifyOpsResponse:
+  type: object
+  properties:
+    dedupeKey:
+      type: string
+      description: The dedupe key the escalation was recorded under.
+    dispatched:
+      type: boolean
+      description: "`true` if a new escalation was dispatched; `false` on an idempotent repeat."
+  required:
+    - dedupeKey
+    - dispatched
+  additionalProperties: false
+  description: Response for `POST /api/admin/notifications`.
+ListSlackChannelsResponse:
+  type: object
+  properties:
+    connected:
+      type: boolean
+      description: Whether a Slack connector is connected and authenticated.
+    channels:
+      type: array
+      items:
+        type: object
+        properties:
+          id:
+            type: string
+            description: Slack channel id.
+          name:
+            type: string
+            description: Slack channel name (without the leading `#`).
+          isPrivate:
+            description: Whether the channel is private.
+            type: boolean
+        required:
+          - id
+          - name
+        additionalProperties: false
+        description: One Slack channel the project can post to.
+      description: The project's Slack channels (empty when no Slack is connected).
+  required:
+    - connected
+    - channels
+  additionalProperties: false
+  description: Response for `GET /api/admin/slack/channels`.

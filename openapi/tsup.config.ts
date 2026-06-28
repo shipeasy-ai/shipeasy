@@ -1,25 +1,14 @@
 import { defineConfig } from "tsup";
 
+// Three published entries mirror the `exports` map: the root barrel, the
+// generated client (`./client`), and the generated zod (`./schemas`). The
+// generated fetch client is bundled, so `zod` is the only runtime dependency.
 export default defineConfig({
-  // Schemas live here too (src/schemas/*) and are exposed at the
-  // `@shipeasy/openapi/schemas/*` subpath — zod-only, no transport/client code,
-  // so the server (@shipeasy/core) can re-export them without pulling in the
-  // HTTP client. The package has no `@shipeasy/*` deps, so nothing to inline.
-  entry: [
-    "src/index.ts",
-    "src/transport.ts",
-    "src/node-context.ts",
-    "src/resources/*.ts",
-    "src/schemas/*.ts",
-    "!src/schemas/*.test.ts",
-    "src/operations/*.ts",
-    "!src/operations/*.test.ts",
-  ],
+  entry: ["src/index.ts", "src/client.ts", "src/schemas.ts"],
   format: ["esm"],
   dts: true,
   clean: true,
-  outDir: "dist",
+  sourcemap: true,
   target: "es2022",
-  sourcemap: false,
-  splitting: false,
+  external: ["zod"],
 });

@@ -1,0 +1,233 @@
+/api/admin/universes:
+  get:
+    operationId: listUniverses
+    summary: List universes
+    description: |-
+      Returns a single page of universes ordered by `created_at desc, id desc`. The universes table has no `updated_at`, so this list is keyed on creation time.
+
+      **Use case:** Snapshot every universe in the project — for example to audit which `unit_type` and `holdout_range` are in use before launching a new experiment.
+    tags:
+      - Universes
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - $ref: ../components/parameters.yaml#/PaginationLimit
+      - $ref: ../components/parameters.yaml#/PaginationCursor
+    responses:
+      "200":
+        description: List universes
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/universes.yaml#/ListUniversesResponse
+            example:
+              data:
+                - id: uni_01j7w8a1b2c3d4e5f6g7h8i9j0
+                  name: primary_users
+                  unitType: user_id
+                  holdoutRange:
+                    - 9500
+                    - 9999
+                  createdAt: 2026-04-12T10:14:08.000Z
+              next_cursor: null
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+  post:
+    operationId: createUniverse
+    summary: Create a universe
+    description: |-
+      Creates a new universe. Only `name` is required — `unit_type` defaults to `user_id` and `holdout_range` defaults to `null` (no holdout).
+
+      Returns `409` if `name` already exists in the project. Returns `403` if you supply `holdout_range` on a plan below Pro.
+
+      **Use cases**
+
+      - **Default universe** — `{ "name": "primary_users" }`. Per-user randomisation, no holdout.
+      - **Reserved holdout** — supply `holdout_range` to carve out a measurement slice excluded from all experiments.
+      - **Account-level** — `unit_type: 'account_id'` so multi-seat accounts see one consistent variant.
+    tags:
+      - Universes
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/universes.yaml#/CreateUniverseRequest
+          examples:
+            minimal:
+              summary: Minimal — name only
+              description: Smallest valid body. Creates a `user_id`-keyed universe with no holdout.
+              value:
+                name: primary_users
+            holdout:
+              summary: Holdout — reserve 5% for measurement
+              description: Reserves buckets 9500–9999 (5% of callers) as the holdout. Pro plan or higher.
+              value:
+                name: primary_users
+                holdout_range:
+                  - 9500
+                  - 9999
+            accountLevel:
+              summary: Account-level randomisation
+              description: "Bucket whole accounts together via `unit_type: 'account_id'`."
+              value:
+                name: saas_accounts
+                unit_type: account_id
+    responses:
+      "201":
+        description: Create a universe
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/universes.yaml#/CreateUniverseResponse
+            example:
+              id: uni_01j7w8a1b2c3d4e5f6g7h8i9j0
+              name: primary_users
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - PLAN_REQUIRED
+      - ALREADY_EXISTS
+      - VALIDATION
+/api/admin/universes/{id}:
+  patch:
+    operationId: updateUniverse
+    summary: Update a universe
+    description: |-
+      Partial update. Only `holdout_range` is mutable — `name` and `unit_type` are immutable after create.
+
+      Pass `"holdout_range": null` to remove an existing holdout.
+
+      **Use cases**
+
+      - **Adjust holdout** — change the reserved measurement slice without recreating experiments.
+      - **Remove holdout** — `{ "holdout_range": null }`.
+    tags:
+      - Universes
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque universe id (`uni_…`) or the universe's `name`.
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/universes.yaml#/UpdateUniverseRequest
+          examples:
+            setHoldout:
+              summary: Set holdout — reserve 5%
+              description: Reserve buckets 9500–9999 as the holdout. Pro plan or higher.
+              value:
+                holdout_range:
+                  - 9500
+                  - 9999
+            removeHoldout:
+              summary: Remove holdout
+              description: Disable the holdout entirely.
+              value:
+                holdout_range: null
+    responses:
+      "200":
+        description: Update a universe
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/universes.yaml#/UpdateUniverseResponse
+            example:
+              id: uni_01j7w8a1b2c3d4e5f6g7h8i9j0
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - PLAN_REQUIRED
+      - NOT_FOUND
+      - VALIDATION
+  delete:
+    operationId: deleteUniverse
+    summary: Delete a universe
+    description: |-
+      Soft-deletes the universe. Returns `409` if any non-archived experiment still references it — archive those experiments first.
+
+      **Use case:** Tear down a universe after every experiment that used it has been archived.
+    tags:
+      - Universes
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque universe id (`uni_…`) or the universe's `name`.
+        schema:
+          type: string
+    responses:
+      "200":
+        description: Delete a universe
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/universes.yaml#/DeleteUniverseResponse
+            example:
+              ok: true
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - REFERENCED_IN_USE

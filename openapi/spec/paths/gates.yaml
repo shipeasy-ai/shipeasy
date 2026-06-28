@@ -1,0 +1,429 @@
+/api/admin/gates:
+  get:
+    operationId: listGates
+    summary: List feature gates
+    description: |-
+      Returns a single page of gates ordered by `updated_at desc, id desc`. Use the `cursor` query parameter to paginate.
+
+      **Use case:** Snapshot every gate in the project — for example to render an admin overview or to drive a CI check that asserts no gate is left at 100% in staging.
+    tags:
+      - Gates
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - $ref: ../components/parameters.yaml#/PaginationLimit
+      - $ref: ../components/parameters.yaml#/PaginationCursor
+    responses:
+      "200":
+        description: List feature gates
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/gates.yaml#/ListGatesResponse
+            example:
+              data:
+                - id: gat_01j7w7m9q4hxbf6npe6s9zr3vc
+                  name: checkout_v2
+                  enabled: 1
+                  rolloutPct: 5000
+                  rules:
+                    - attr: country
+                      op: in
+                      value:
+                        - US
+                        - CA
+                        - GB
+                    - attr: plan
+                      op: neq
+                      value: free
+                  salt: 9c1f4f1f2c0c4a5fa1c2b6d3e7c8e3a1
+                  title: Checkout v2
+                  description: New checkout flow. Pro users in US/CA/GB only.
+                  folder: checkout
+                  groupName: growth
+                  ownerEmail: ana@example.com
+                  stack: null
+                  updatedAt: 2026-05-09T16:01:22.000Z
+              next_cursor: null
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+  post:
+    operationId: createGate
+    summary: Create a feature gate
+    description: |-
+      Creates a new gate. Default `enabled: true` at the supplied `rollout_pct` (`0` = fully dark).
+
+      Only `name` is required. Request fields use snake_case (`owner_email`); the GET response returns camelCase (`ownerEmail`, `groupName`).
+
+      Returns `409` if `name` already exists in the project (case-sensitive).
+
+      **Use cases**
+
+      - **Dark create + ramp later** — `{ "name": "checkout_v2" }` at 0% rollout. Ramp via PATCH after deploy validation.
+      - **Targeted rollout** — supply `rules` to gate the caller (e.g. only `plan = pro` users) plus a `rollout_pct` to bucket within that audience.
+      - **Gatekeeper stack** — supply `stack` instead of `rules`/`rollout_pct` for `internal ∪ beta ∪ public` fall-through. Stack entries evaluated top-to-bottom; first match wins.
+      - **Dashboard metadata** — populate `title`, `description`, `folder`, `group`, `owner_email` so the admin UI is self-documenting from day one.
+      - **Disabled on create** — pre-provision with `enabled: false` for a future launch; flip on with `POST /{id}/enable` at go-live.
+    tags:
+      - Gates
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/gates.yaml#/CreateGateRequest
+          examples:
+            minimal:
+              summary: Minimal — dark gate, name only
+              description: "Smallest valid body. The gate is created `enabled: true` at `rollout_pct: 0`, with no rules. Ramp it later via PATCH."
+              value:
+                name: checkout_v2
+            targeted:
+              summary: Targeted rollout — rules + percentage
+              description: "Gate Pro users in US/CA/GB, then hash 10% of that audience into the on-bucket (`rollout_pct: 1000` = 10.00%). Adds dashboard metadata so the gate is self-documenting."
+              value:
+                name: checkout_v2
+                rollout_pct: 1000
+                rules:
+                  - attr: country
+                    op: in
+                    value:
+                      - US
+                      - CA
+                      - GB
+                  - attr: plan
+                    op: neq
+                    value: free
+                title: Checkout v2
+                description: New checkout flow. Pro users in US/CA/GB only.
+                folder: checkout
+                group: growth
+                owner_email: ana@example.com
+            gatekeeperStack:
+              summary: Gatekeeper stack — internal ∪ beta ∪ public
+              description: "Three-layer fall-through: employees always on, opted-in beta accounts always on, then 25% of everyone else. First match wins; evaluation stops as soon as one entry returns `true`."
+              value:
+                name: checkout_v2
+                title: Checkout v2
+                owner_email: ana@example.com
+                stack:
+                  - id: 01HKJ0EMP
+                    type: condition
+                    name: Employees
+                    pass: any
+                    rules:
+                      - attr: email
+                        op: regex
+                        value: "@acme\\.com$"
+                  - id: 01HKJ0BETA
+                    type: condition
+                    name: Beta opt-in
+                    pass: all
+                    rules:
+                      - attr: beta_opt_in
+                        op: eq
+                        value: true
+                  - id: 01HKJ0PUB
+                    type: rollout
+                    name: Public
+                    rolloutPct: 2500
+                    bucketBy: userID
+                    locked: true
+            disabledOnCreate:
+              summary: Disabled on create — provision then enable later
+              description: "Create with `enabled: false` so the gate evaluates to `false` for every caller until a follow-up `POST /{id}/enable`. Useful when provisioning ahead of a launch."
+              value:
+                name: checkout_v2
+                enabled: false
+                rollout_pct: 0
+    responses:
+      "201":
+        description: Create a feature gate
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/gates.yaml#/CreateGateResponse
+            example:
+              id: gat_01j7w7m9q4hxbf6npe6s9zr3vc
+              name: checkout_v2
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - ALREADY_EXISTS
+      - VALIDATION
+/api/admin/gates/{id}:
+  patch:
+    operationId: updateGate
+    summary: Update a feature gate
+    description: |-
+      Partial update — only supplied fields change. Array fields (`rules`, `stack`) **replace** wholesale; there is no merge or append.
+
+      `name` and the gate id are immutable. The response carries only `{ id }` — re-fetch via `GET /api/admin/gates` for the new row.
+
+      **Use cases**
+
+      - **Ramp rollout** — `{ "rollout_pct": 5000 }` for 50%. Basis points (0–10000); `100` = 1%.
+      - **Kill switch** — `{ "enabled": false }`. Forces evaluation to `false` for every caller regardless of rules/rollout. Re-enable with `POST /{id}/enable` or `{ "enabled": true }`.
+      - **Modify a rule's `in` set** — send the full new `rules` array. To add `'GB'` to `['US','CA']`: `{ "rules": [{ "attr": "country", "op": "in", "value": ["US","CA","GB"] }] }`. No per-rule patch endpoint.
+      - **Add targeting from scratch** — `{ "rules": [{ "attr": "email", "op": "regex", "value": "@acme\\.com$" }] }`.
+      - **Switch to gatekeeper stack** — send a non-null `stack`. To revert to flat eval, send `{ "stack": null }`.
+      - **Update metadata** — any subset of `title`, `description`, `folder`, `group`, `owner_email`.
+    tags:
+      - Gates
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque gate id (`gat_…`) or the gate's `name`.
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/gates.yaml#/UpdateGateRequest
+          examples:
+            rampRollout:
+              summary: Ramp rollout — 0 → 50%
+              description: Single-field patch. `5000` basis points = 50%.
+              value:
+                rollout_pct: 5000
+            killSwitch:
+              summary: Kill switch — disable the gate
+              description: Forces evaluation to `false` for every caller, regardless of rules or rollout. Same effect as `POST /{id}/disable` but composable with other patches.
+              value:
+                enabled: false
+            extendInRule:
+              summary: Add a value to an `in` rule
+              description: Array fields replace wholesale — there is no per-rule patch. To add `'AU'` to a country whitelist that previously held `['US','CA','GB']`, send the full new `rules` array. Same pattern applies to `not_in`.
+              value:
+                rules:
+                  - attr: country
+                    op: in
+                    value:
+                      - US
+                      - CA
+                      - GB
+                      - AU
+                  - attr: plan
+                    op: neq
+                    value: free
+            replaceStack:
+              summary: Replace gatekeeper stack
+              description: 'Stack is replace-wholesale. Send the full new ordered list. Pass `"stack": null` to revert the gate to flat `rules` + `rollout_pct` evaluation.'
+              value:
+                stack:
+                  - id: 01HKJ0EMP
+                    type: condition
+                    name: Employees
+                    pass: any
+                    rules:
+                      - attr: email
+                        op: regex
+                        value: "@acme\\.com$"
+                  - id: 01HKJ0PUB
+                    type: rollout
+                    name: Public
+                    rolloutPct: 5000
+                    locked: true
+            updateMetadata:
+              summary: Update dashboard metadata
+              description: Any subset of `title`, `description`, `folder`, `group`, `owner_email`. Snake-case in the request; the GET response returns camelCase (`groupName`, `ownerEmail`).
+              value:
+                title: Checkout v2 (50%)
+                description: Bumped to 50% after passing canary. Added AU.
+                folder: checkout
+                owner_email: ana@example.com
+    responses:
+      "200":
+        description: Update a feature gate
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/gates.yaml#/UpdateGateResponse
+            example:
+              id: gat_01j7w7m9q4hxbf6npe6s9zr3vc
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+  delete:
+    operationId: deleteGate
+    summary: Delete a feature gate
+    description: |-
+      Soft-deletes the gate. Returns 409 if the gate is still referenced by a running experiment as a targeting gate — stop the experiment first.
+
+      **Use case:** Tear down a gate after a feature has fully shipped and the rollout flag is no longer needed.
+    tags:
+      - Gates
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque gate id (`gat_…`) or the gate's `name`.
+        schema:
+          type: string
+    responses:
+      "200":
+        description: Delete a feature gate
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/gates.yaml#/DeleteGateResponse
+            example:
+              ok: true
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - REFERENCED_IN_USE
+/api/admin/gates/{id}/enable:
+  post:
+    operationId: enableGate
+    summary: Enable a gate
+    description: |-
+      Sets `enabled: true`. The current `rollout_pct` is preserved.
+
+      **Use case:** Re-enable a previously disabled gate without re-issuing a full update.
+    tags:
+      - Gates
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque gate id (`gat_…`) or the gate's `name`.
+        schema:
+          type: string
+    responses:
+      "201":
+        description: Enable a gate
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/gates.yaml#/EnableGateResponse
+            example:
+              id: gat_01j7w7m9q4hxbf6npe6s9zr3vc
+              enabled: true
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+/api/admin/gates/{id}/disable:
+  post:
+    operationId: disableGate
+    summary: Disable a gate
+    description: |-
+      Sets `enabled: false` so the gate evaluates to `false` for every caller, regardless of `rollout_pct` or `rules`. Use as a quick kill switch.
+
+      **Use case:** Flip a gate off in production without redeploying — the canonical kill-switch flow.
+    tags:
+      - Gates
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque gate id (`gat_…`) or the gate's `name`.
+        schema:
+          type: string
+    responses:
+      "201":
+        description: Disable a gate
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/gates.yaml#/DisableGateResponse
+            example:
+              id: gat_01j7w7m9q4hxbf6npe6s9zr3vc
+              enabled: false
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION

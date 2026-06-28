@@ -1,0 +1,420 @@
+ListConfigsResponse:
+  type: object
+  properties:
+    data:
+      type: array
+      items:
+        type: object
+        properties:
+          id:
+            type: string
+            description: Stable opaque config id (`cfg_…`).
+          name:
+            type: string
+            maxLength: 128
+            description: Stable config key in `folder.name` form (two lowercase segments separated by a dot, e.g. `pricing.tiers`). Used by SDKs as `Shipeasy.getConfig('<name>')`. Immutable after create.
+          description:
+            anyOf:
+              - type: string
+              - type: "null"
+          schema:
+            type: object
+            additionalProperties: {}
+            description: JSON Schema (draft 2020-12) describing the shape of the config value. Top-level `type` must be `'object'`; every published value is validated against this schema.
+          updatedAt:
+            type: string
+            description: ISO-8601 timestamp of last mutation.
+          envs:
+            type: object
+            additionalProperties:
+              type: object
+              properties:
+                version:
+                  type: integer
+                  minimum: -9007199254740991
+                  maximum: 9007199254740991
+                  description: Monotonically increasing version per env.
+                publishedAt:
+                  type: string
+                  description: ISO-8601 publish timestamp.
+                publishedBy:
+                  type: string
+                  description: Email/id of the actor who published this version.
+              required:
+                - version
+                - publishedAt
+                - publishedBy
+              additionalProperties: false
+            required:
+              - dev
+              - staging
+              - prod
+            description: Per-env latest published version metadata.
+          drafts:
+            type: object
+            additionalProperties:
+              type: object
+              properties:
+                updatedAt:
+                  type: string
+                  description: ISO-8601 last-edit timestamp on the draft.
+                authorEmail:
+                  type: string
+                  description: Email/id of the actor who last edited the draft.
+                baseVersion:
+                  type: integer
+                  minimum: -9007199254740991
+                  maximum: 9007199254740991
+                  description: Published version the draft was forked from.
+              required:
+                - updatedAt
+                - authorEmail
+                - baseVersion
+              additionalProperties: false
+            required:
+              - dev
+              - staging
+              - prod
+            description: Per-env active drafts (if any).
+          values:
+            description: Per-env latest published values (only returned by `GET /{id}`, not list).
+            type: object
+            additionalProperties: {}
+            required:
+              - dev
+              - staging
+              - prod
+          draftValues:
+            description: Per-env draft values (only returned by `GET /{id}`).
+            type: object
+            additionalProperties: {}
+            required:
+              - dev
+              - staging
+              - prod
+        required:
+          - id
+          - name
+          - description
+          - schema
+          - updatedAt
+          - envs
+          - drafts
+        additionalProperties: false
+    next_cursor:
+      anyOf:
+        - type: string
+        - type: "null"
+  required:
+    - data
+    - next_cursor
+  additionalProperties: false
+GetConfigResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Stable opaque config id (`cfg_…`).
+    name:
+      type: string
+      maxLength: 128
+      description: Stable config key in `folder.name` form (two lowercase segments separated by a dot, e.g. `pricing.tiers`). Used by SDKs as `Shipeasy.getConfig('<name>')`. Immutable after create.
+    description:
+      anyOf:
+        - type: string
+        - type: "null"
+    schema:
+      type: object
+      additionalProperties: {}
+      description: JSON Schema (draft 2020-12) describing the shape of the config value. Top-level `type` must be `'object'`; every published value is validated against this schema.
+    updatedAt:
+      type: string
+      description: ISO-8601 timestamp of last mutation.
+    envs:
+      type: object
+      additionalProperties:
+        type: object
+        properties:
+          version:
+            type: integer
+            minimum: -9007199254740991
+            maximum: 9007199254740991
+            description: Monotonically increasing version per env.
+          publishedAt:
+            type: string
+            description: ISO-8601 publish timestamp.
+          publishedBy:
+            type: string
+            description: Email/id of the actor who published this version.
+        required:
+          - version
+          - publishedAt
+          - publishedBy
+        additionalProperties: false
+      required:
+        - dev
+        - staging
+        - prod
+      description: Per-env latest published version metadata.
+    drafts:
+      type: object
+      additionalProperties:
+        type: object
+        properties:
+          updatedAt:
+            type: string
+            description: ISO-8601 last-edit timestamp on the draft.
+          authorEmail:
+            type: string
+            description: Email/id of the actor who last edited the draft.
+          baseVersion:
+            type: integer
+            minimum: -9007199254740991
+            maximum: 9007199254740991
+            description: Published version the draft was forked from.
+        required:
+          - updatedAt
+          - authorEmail
+          - baseVersion
+        additionalProperties: false
+      required:
+        - dev
+        - staging
+        - prod
+      description: Per-env active drafts (if any).
+    values:
+      description: Per-env latest published values (only returned by `GET /{id}`, not list).
+      type: object
+      additionalProperties: {}
+      required:
+        - dev
+        - staging
+        - prod
+    draftValues:
+      description: Per-env draft values (only returned by `GET /{id}`).
+      type: object
+      additionalProperties: {}
+      required:
+        - dev
+        - staging
+        - prod
+  required:
+    - id
+    - name
+    - description
+    - schema
+    - updatedAt
+    - envs
+    - drafts
+  additionalProperties: false
+CreateConfigRequest:
+  type: object
+  properties:
+    name:
+      type: string
+      maxLength: 128
+      description: Stable config key in `folder.name` form (two lowercase segments separated by a dot, e.g. `pricing.tiers`). Used by SDKs as `Shipeasy.getConfig('<name>')`. Immutable after create.
+    description:
+      description: Optional free-form description shown in the dashboard. Max 512 chars.
+      type: string
+      maxLength: 512
+    folder:
+      description: "Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK."
+      anyOf:
+        - type: string
+          maxLength: 256
+          pattern: ^[a-zA-Z0-9_-]+$
+        - type: "null"
+    schema:
+      type: object
+      additionalProperties: {}
+      description: JSON Schema (draft 2020-12) describing the shape of the config value. Top-level `type` must be `'object'`; every published value is validated against this schema.
+    value:
+      description: "Initial config value. Either a single JSON object applied to every env, or a `{ env: value }` map seeding per-env values. Must match `schema`. Defaults to `{}` on every env when omitted."
+  required:
+    - name
+    - schema
+  additionalProperties: false
+  description: Body for `POST /api/admin/configs`. `name` + `schema` required.
+CreateConfigResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Newly assigned config id.
+    name:
+      type: string
+      maxLength: 128
+      description: Stable config key in `folder.name` form (two lowercase segments separated by a dot, e.g. `pricing.tiers`). Used by SDKs as `Shipeasy.getConfig('<name>')`. Immutable after create.
+  required:
+    - id
+    - name
+  additionalProperties: false
+UpdateConfigRequest:
+  type: object
+  properties:
+    schema:
+      description: Replacement schema. When supplied, the new schema is validated against every published value before it lands.
+      type: object
+      additionalProperties: {}
+    value:
+      description: Flat value applied to **every** env. Publishes a new version per env. To target one env, use `PUT /{id}/drafts` then `POST /{id}/publish`.
+    folder:
+      description: "Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK."
+      anyOf:
+        - type: string
+          maxLength: 256
+          pattern: ^[a-zA-Z0-9_-]+$
+        - type: "null"
+  additionalProperties: false
+  description: Body for `PATCH /api/admin/configs/{id}`. Partial — only supplied fields change. `value` republishes on every env.
+UpdateConfigResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Config id that was updated.
+  required:
+    - id
+  additionalProperties: false
+DeleteConfigResponse:
+  type: object
+  properties:
+    ok:
+      type: boolean
+      const: true
+  required:
+    - ok
+  additionalProperties: false
+SaveConfigDraftRequest:
+  type: object
+  properties:
+    env:
+      type: string
+      enum:
+        - dev
+        - staging
+        - prod
+      description: Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).
+    value:
+      description: Draft value to stage on `env`. Validated against the config's current schema.
+  required:
+    - env
+    - value
+  additionalProperties: false
+  description: Body for `PUT /api/admin/configs/{id}/drafts`. Stages a value for a single env without publishing.
+SaveConfigDraftResponse:
+  type: object
+  properties:
+    id:
+      type: string
+    env:
+      type: string
+      enum:
+        - dev
+        - staging
+        - prod
+      description: Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).
+    baseVersion:
+      type: integer
+      minimum: -9007199254740991
+      maximum: 9007199254740991
+      description: Published version the draft is based on.
+    updatedAt:
+      type: string
+  required:
+    - id
+    - env
+    - baseVersion
+    - updatedAt
+  additionalProperties: false
+DiscardConfigDraftRequest:
+  type: object
+  properties:
+    env:
+      type: string
+      enum:
+        - dev
+        - staging
+        - prod
+      description: Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).
+  required:
+    - env
+  additionalProperties: false
+  description: Body for `POST /api/admin/configs/{id}/publish` and `DELETE /api/admin/configs/{id}/drafts`. Names the target env.
+DiscardConfigDraftResponse:
+  type: object
+  properties:
+    ok:
+      type: boolean
+      const: true
+  required:
+    - ok
+  additionalProperties: false
+PublishConfigDraftRequest:
+  type: object
+  properties:
+    env:
+      type: string
+      enum:
+        - dev
+        - staging
+        - prod
+      description: Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).
+  required:
+    - env
+  additionalProperties: false
+  description: Body for `POST /api/admin/configs/{id}/publish` and `DELETE /api/admin/configs/{id}/drafts`. Names the target env.
+PublishConfigDraftResponse:
+  type: object
+  properties:
+    id:
+      type: string
+    env:
+      type: string
+      enum:
+        - dev
+        - staging
+        - prod
+      description: Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).
+    version:
+      type: integer
+      minimum: -9007199254740991
+      maximum: 9007199254740991
+      description: Newly published version on `env`.
+  required:
+    - id
+    - env
+    - version
+  additionalProperties: false
+ListConfigActivityResponse:
+  type: array
+  items:
+    type: object
+    properties:
+      id:
+        type: string
+      action:
+        type: string
+        description: Audit action (e.g. `config.create`, `config.publish`).
+      actorEmail:
+        type: string
+      actorType:
+        type: string
+        enum:
+          - user
+          - cli
+          - system
+      payload: {}
+      createdAt:
+        type: string
+        description: ISO-8601 timestamp.
+    required:
+      - id
+      - action
+      - actorEmail
+      - actorType
+      - payload
+      - createdAt
+    additionalProperties: false
+  description: Recent audit rows for one config, newest first.

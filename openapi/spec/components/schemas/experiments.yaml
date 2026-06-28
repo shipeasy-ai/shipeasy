@@ -1,0 +1,1019 @@
+ListExperimentsResponse:
+  type: object
+  properties:
+    data:
+      type: array
+      items:
+        type: object
+        properties:
+          id:
+            type: string
+            description: Stable opaque experiment id (`exp_…`).
+          name:
+            type: string
+            maxLength: 128
+            pattern: ^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$
+            description: Stable experiment key. Single segment or `folder.name` (a-z, 0-9, `_`/`-`; max 128 chars). Used by SDKs as `Shipeasy.getExperiment(user, '<name>')`. Immutable after create.
+          description:
+            anyOf:
+              - type: string
+              - type: "null"
+          hypothesis:
+            anyOf:
+              - type: string
+              - type: "null"
+          tag:
+            anyOf:
+              - type: string
+              - type: "null"
+          ownerEmail:
+            anyOf:
+              - type: string
+              - type: "null"
+          audience:
+            anyOf:
+              - type: string
+              - type: "null"
+          bucketBy:
+            anyOf:
+              - type: string
+                minLength: 1
+                maxLength: 128
+                pattern: ^[a-zA-Z_][a-zA-Z0-9_]*$
+                description: User-attribute name used as the bucketing key — e.g. `user_id` (default), `session_id`, `device_id`, or a custom attribute like `company_id` to keep a whole org on one variant. Defaults to `user_id` when omitted.
+              - type: "null"
+          folder:
+            anyOf:
+              - type: string
+              - type: "null"
+          status:
+            type: string
+            enum:
+              - draft
+              - running
+              - stopped
+              - archived
+          universe:
+            type: string
+            description: Universe name this experiment draws from.
+          targetingGate:
+            anyOf:
+              - type: string
+              - type: "null"
+          allocationPct:
+            type: integer
+            minimum: -9007199254740991
+            maximum: 9007199254740991
+            description: Allocation in basis points (0–10000).
+          salt:
+            type: string
+          params:
+            type: object
+            additionalProperties:
+              type: string
+              enum:
+                - string
+                - bool
+                - number
+          groups:
+            type: array
+            items:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 64
+                  description: Group label (e.g. `control`, `treatment_a`). Max 64 chars.
+                weight:
+                  type: integer
+                  minimum: 0
+                  maximum: 10000
+                  description: Allocation weight in basis points (0–10000). The sum across all groups must equal exactly **10000** (100%).
+                params:
+                  default: {}
+                  description: Per-group parameter values delivered to the SDK when a caller is hashed into this group. Keys must match the experiment's `params` schema.
+                  type: object
+                  additionalProperties: {}
+              required:
+                - name
+                - weight
+                - params
+              additionalProperties: false
+              description: One variant in the experiment. Weights across all groups must sum to 10000.
+          significanceThreshold:
+            type: number
+          minRuntimeDays:
+            type: integer
+            minimum: -9007199254740991
+            maximum: 9007199254740991
+          minSampleSize:
+            type: integer
+            minimum: -9007199254740991
+            maximum: 9007199254740991
+          sequentialTesting:
+            type: boolean
+          startedAt:
+            anyOf:
+              - type: string
+              - type: "null"
+            description: ISO-8601 timestamp the experiment last transitioned to `running`, or `null`.
+          stoppedAt:
+            anyOf:
+              - type: string
+              - type: "null"
+          updatedAt:
+            type: string
+        required:
+          - id
+          - name
+          - description
+          - hypothesis
+          - tag
+          - ownerEmail
+          - audience
+          - bucketBy
+          - folder
+          - status
+          - universe
+          - targetingGate
+          - allocationPct
+          - salt
+          - params
+          - groups
+          - significanceThreshold
+          - minRuntimeDays
+          - minSampleSize
+          - sequentialTesting
+          - startedAt
+          - updatedAt
+        additionalProperties: false
+    next_cursor:
+      anyOf:
+        - type: string
+        - type: "null"
+  required:
+    - data
+    - next_cursor
+  additionalProperties: false
+GetExperimentResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Stable opaque experiment id (`exp_…`).
+    name:
+      type: string
+      maxLength: 128
+      pattern: ^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$
+      description: Stable experiment key. Single segment or `folder.name` (a-z, 0-9, `_`/`-`; max 128 chars). Used by SDKs as `Shipeasy.getExperiment(user, '<name>')`. Immutable after create.
+    description:
+      anyOf:
+        - type: string
+        - type: "null"
+    hypothesis:
+      anyOf:
+        - type: string
+        - type: "null"
+    tag:
+      anyOf:
+        - type: string
+        - type: "null"
+    ownerEmail:
+      anyOf:
+        - type: string
+        - type: "null"
+    audience:
+      anyOf:
+        - type: string
+        - type: "null"
+    bucketBy:
+      anyOf:
+        - type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[a-zA-Z_][a-zA-Z0-9_]*$
+          description: User-attribute name used as the bucketing key — e.g. `user_id` (default), `session_id`, `device_id`, or a custom attribute like `company_id` to keep a whole org on one variant. Defaults to `user_id` when omitted.
+        - type: "null"
+    folder:
+      anyOf:
+        - type: string
+        - type: "null"
+    status:
+      type: string
+      enum:
+        - draft
+        - running
+        - stopped
+        - archived
+    universe:
+      type: string
+      description: Universe name this experiment draws from.
+    targetingGate:
+      anyOf:
+        - type: string
+        - type: "null"
+    allocationPct:
+      type: integer
+      minimum: -9007199254740991
+      maximum: 9007199254740991
+      description: Allocation in basis points (0–10000).
+    salt:
+      type: string
+    params:
+      type: object
+      additionalProperties:
+        type: string
+        enum:
+          - string
+          - bool
+          - number
+    groups:
+      type: array
+      items:
+        type: object
+        properties:
+          name:
+            type: string
+            minLength: 1
+            maxLength: 64
+            description: Group label (e.g. `control`, `treatment_a`). Max 64 chars.
+          weight:
+            type: integer
+            minimum: 0
+            maximum: 10000
+            description: Allocation weight in basis points (0–10000). The sum across all groups must equal exactly **10000** (100%).
+          params:
+            default: {}
+            description: Per-group parameter values delivered to the SDK when a caller is hashed into this group. Keys must match the experiment's `params` schema.
+            type: object
+            additionalProperties: {}
+        required:
+          - name
+          - weight
+          - params
+        additionalProperties: false
+        description: One variant in the experiment. Weights across all groups must sum to 10000.
+    significanceThreshold:
+      type: number
+    minRuntimeDays:
+      type: integer
+      minimum: -9007199254740991
+      maximum: 9007199254740991
+    minSampleSize:
+      type: integer
+      minimum: -9007199254740991
+      maximum: 9007199254740991
+    sequentialTesting:
+      type: boolean
+    startedAt:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: ISO-8601 timestamp the experiment last transitioned to `running`, or `null`.
+    stoppedAt:
+      anyOf:
+        - type: string
+        - type: "null"
+    updatedAt:
+      type: string
+  required:
+    - id
+    - name
+    - description
+    - hypothesis
+    - tag
+    - ownerEmail
+    - audience
+    - bucketBy
+    - folder
+    - status
+    - universe
+    - targetingGate
+    - allocationPct
+    - salt
+    - params
+    - groups
+    - significanceThreshold
+    - minRuntimeDays
+    - minSampleSize
+    - sequentialTesting
+    - startedAt
+    - updatedAt
+  additionalProperties: false
+CreateExperimentRequest:
+  type: object
+  properties:
+    name:
+      type: string
+      maxLength: 128
+      pattern: ^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$
+      description: Stable experiment key. Single segment or `folder.name` (a-z, 0-9, `_`/`-`; max 128 chars). Used by SDKs as `Shipeasy.getExperiment(user, '<name>')`. Immutable after create.
+    description:
+      default: null
+      description: Free-form description. Max 2000 chars, markdown rendered in the dashboard.
+      anyOf:
+        - type: string
+          maxLength: 2000
+        - type: "null"
+    hypothesis:
+      default: null
+      description: Hypothesis statement shown in the editor. Display-only.
+      anyOf:
+        - type: string
+          maxLength: 4000
+        - type: "null"
+    tag:
+      default: null
+      description: Short tag chip rendered next to the name. Display-only.
+      anyOf:
+        - type: string
+          maxLength: 64
+        - type: "null"
+    owner_email:
+      default: null
+      description: Owner email. Display-only.
+      anyOf:
+        - type: string
+          maxLength: 254
+        - type: "null"
+    audience:
+      default: null
+      description: Audience label shown in the editor. Display-only.
+      anyOf:
+        - type: string
+          maxLength: 256
+        - type: "null"
+    bucket_by:
+      default: null
+      anyOf:
+        - type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[a-zA-Z_][a-zA-Z0-9_]*$
+          description: User-attribute name used as the bucketing key — e.g. `user_id` (default), `session_id`, `device_id`, or a custom attribute like `company_id` to keep a whole org on one variant. Defaults to `user_id` when omitted.
+        - type: "null"
+    folder:
+      description: "Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK."
+      anyOf:
+        - type: string
+          maxLength: 256
+          pattern: ^[a-zA-Z0-9_-]+$
+        - type: "null"
+    universe:
+      type: string
+      minLength: 1
+      description: Name of an existing universe in the project. Returns `422` if the universe doesn't exist.
+    targeting_gate:
+      default: null
+      description: Optional gate name. Only callers that pass the gate are enrolled in the experiment.
+      anyOf:
+        - type: string
+        - type: "null"
+    allocation_pct:
+      default: 0
+      description: Share of the (gated) audience allocated to the experiment, in basis points (0–10000 = 0%–100%). `0` = unallocated. Use `allocation_percent` (0–100) below to think in percent. Immutable while the experiment is running.
+      type: integer
+      minimum: 0
+      maximum: 10000
+    allocation_percent:
+      description: Allocation as a **percentage** (0–100, fractional ok). Friendlier alias for `allocation_pct`; converted to basis points server-side (e.g. `50` = 5000 bp). If both are set, `allocation_percent` wins.
+      type: number
+      minimum: 0
+      maximum: 100
+    salt:
+      description: Hash salt for bucketing. Auto-generated if omitted. Immutable while running.
+      type: string
+      minLength: 1
+      maxLength: 64
+    params:
+      default: {}
+      type: object
+      additionalProperties:
+        type: string
+        enum:
+          - string
+          - bool
+          - number
+      description: "Map of param-name → scalar type. Defines the shape of `groups[].params`. Example: `{ headline: 'string', show_cta: 'bool' }`."
+    groups:
+      minItems: 2
+      type: array
+      items:
+        type: object
+        properties:
+          name:
+            type: string
+            minLength: 1
+            maxLength: 64
+            description: Group label (e.g. `control`, `treatment_a`). Max 64 chars.
+          weight:
+            type: integer
+            minimum: 0
+            maximum: 10000
+            description: Allocation weight in basis points (0–10000). The sum across all groups must equal exactly **10000** (100%).
+          params:
+            default: {}
+            description: Per-group parameter values delivered to the SDK when a caller is hashed into this group. Keys must match the experiment's `params` schema.
+            type: object
+            additionalProperties: {}
+        required:
+          - name
+          - weight
+          - params
+        additionalProperties: false
+        description: One variant in the experiment. Weights across all groups must sum to 10000.
+      description: Two or more variants. Weights must sum to exactly 10000 (100%). Immutable while running.
+    significance_threshold:
+      default: 0.05
+      description: p-value cutoff used by the analysis pass. Defaults to `0.05`. Values other than 0.05 require Pro plan or higher.
+      type: number
+      minimum: 0.0001
+      maximum: 0.5
+    min_runtime_days:
+      default: 0
+      description: Minimum days the experiment must run before results are considered conclusive.
+      type: integer
+      minimum: 0
+      maximum: 365
+    min_sample_size:
+      default: 100
+      description: Minimum exposures per group before results are considered conclusive.
+      type: integer
+      minimum: 1
+      maximum: 9007199254740991
+    sequential_testing:
+      default: false
+      description: Enable sequential testing (always-valid p-values). Requires Premium plan or higher.
+      type: boolean
+    goal_metric:
+      description: Single goal metric defined inline — either a DSL `query` or an `event` (+`aggregation`/`value`) the server compiles. Attaching one is required before the experiment can be started. The underlying event is auto-created if missing.
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 128
+          pattern: ^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$
+        query:
+          description: Metric DSL string, e.g. `count_users(checkout_completed)`. Provide this OR `event`.
+          type: string
+          minLength: 1
+          maxLength: 4096
+        event:
+          description: Event name to build the metric from server-side (friendlier alternative to `query`). Auto-created if missing.
+          type: string
+          minLength: 1
+          maxLength: 256
+        aggregation:
+          description: Reducer for the `event` form. Defaults to `count_users`.
+          type: string
+          enum:
+            - count_users
+            - count_events
+            - retention_7d
+            - retention_30d
+            - sum
+            - avg
+        value:
+          description: Numeric event property for `sum`/`avg` aggregations (with `event`).
+          type: string
+          minLength: 1
+          maxLength: 256
+      additionalProperties: false
+    guardrail_metrics:
+      default: []
+      description: Up to 10 guardrail metrics defined inline. Each is upserted (event + metric) and attached with role=guardrail.
+      maxItems: 10
+      type: array
+      items:
+        type: object
+        properties:
+          name:
+            type: string
+            maxLength: 128
+            pattern: ^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$
+          query:
+            description: Metric DSL string, e.g. `count_users(checkout_completed)`. Provide this OR `event`.
+            type: string
+            minLength: 1
+            maxLength: 4096
+          event:
+            description: Event name to build the metric from server-side (friendlier alternative to `query`). Auto-created if missing.
+            type: string
+            minLength: 1
+            maxLength: 256
+          aggregation:
+            description: Reducer for the `event` form. Defaults to `count_users`.
+            type: string
+            enum:
+              - count_users
+              - count_events
+              - retention_7d
+              - retention_30d
+              - sum
+              - avg
+          value:
+            description: Numeric event property for `sum`/`avg` aggregations (with `event`).
+            type: string
+            minLength: 1
+            maxLength: 256
+        additionalProperties: false
+        description: "Inline metric: either a DSL `query`, or an `event` (+ `aggregation`/`value`) the server compiles into one."
+  required:
+    - name
+    - description
+    - hypothesis
+    - tag
+    - owner_email
+    - audience
+    - bucket_by
+    - universe
+    - targeting_gate
+    - allocation_pct
+    - params
+    - groups
+    - significance_threshold
+    - min_runtime_days
+    - min_sample_size
+    - sequential_testing
+    - guardrail_metrics
+  additionalProperties: false
+  description: Body for `POST /api/admin/experiments`. `name`, `universe`, and `groups` (≥2, weights sum to 10000) required.
+CreateExperimentResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Newly assigned experiment id.
+    name:
+      type: string
+      maxLength: 128
+      pattern: ^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$
+      description: Stable experiment key. Single segment or `folder.name` (a-z, 0-9, `_`/`-`; max 128 chars). Used by SDKs as `Shipeasy.getExperiment(user, '<name>')`. Immutable after create.
+  required:
+    - id
+    - name
+  additionalProperties: false
+UpdateExperimentRequest:
+  type: object
+  properties:
+    name:
+      type: string
+      maxLength: 128
+      pattern: ^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$
+      description: Stable experiment key. Single segment or `folder.name` (a-z, 0-9, `_`/`-`; max 128 chars). Used by SDKs as `Shipeasy.getExperiment(user, '<name>')`. Immutable after create.
+    description:
+      anyOf:
+        - type: string
+          maxLength: 2000
+        - type: "null"
+    hypothesis:
+      anyOf:
+        - type: string
+          maxLength: 4000
+        - type: "null"
+    tag:
+      anyOf:
+        - type: string
+          maxLength: 64
+        - type: "null"
+    owner_email:
+      anyOf:
+        - type: string
+          maxLength: 254
+        - type: "null"
+    audience:
+      anyOf:
+        - type: string
+          maxLength: 256
+        - type: "null"
+    bucket_by:
+      anyOf:
+        - type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[a-zA-Z_][a-zA-Z0-9_]*$
+          description: User-attribute name used as the bucketing key — e.g. `user_id` (default), `session_id`, `device_id`, or a custom attribute like `company_id` to keep a whole org on one variant. Defaults to `user_id` when omitted.
+        - type: "null"
+    folder:
+      description: "Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK."
+      anyOf:
+        - type: string
+          maxLength: 256
+          pattern: ^[a-zA-Z0-9_-]+$
+        - type: "null"
+    targeting_gate:
+      anyOf:
+        - type: string
+        - type: "null"
+    allocation_pct:
+      description: Basis-points allocation (0–10000). Use `allocation_percent` (0–100) for percent. Immutable while the experiment is running.
+      type: integer
+      minimum: 0
+      maximum: 10000
+    allocation_percent:
+      description: Allocation as a **percentage** (0–100). Friendlier alias for `allocation_pct`; converted to basis points server-side. Wins over `allocation_pct` if both are supplied. Immutable while running.
+      type: number
+      minimum: 0
+      maximum: 100
+    salt:
+      description: Hash salt. Immutable while running.
+      type: string
+      minLength: 1
+      maxLength: 64
+    universe:
+      description: New universe name. Immutable while running. Returns `422` if the universe doesn't exist.
+      type: string
+    params:
+      type: object
+      additionalProperties:
+        type: string
+        enum:
+          - string
+          - bool
+          - number
+      description: "Map of param-name → scalar type. Defines the shape of `groups[].params`. Example: `{ headline: 'string', show_cta: 'bool' }`."
+    groups:
+      description: Replacement groups. Weights must sum to 10000. Immutable while running.
+      minItems: 2
+      type: array
+      items:
+        type: object
+        properties:
+          name:
+            type: string
+            minLength: 1
+            maxLength: 64
+            description: Group label (e.g. `control`, `treatment_a`). Max 64 chars.
+          weight:
+            type: integer
+            minimum: 0
+            maximum: 10000
+            description: Allocation weight in basis points (0–10000). The sum across all groups must equal exactly **10000** (100%).
+          params:
+            default: {}
+            description: Per-group parameter values delivered to the SDK when a caller is hashed into this group. Keys must match the experiment's `params` schema.
+            type: object
+            additionalProperties: {}
+        required:
+          - name
+          - weight
+          - params
+        additionalProperties: false
+        description: One variant in the experiment. Weights across all groups must sum to 10000.
+    significance_threshold:
+      type: number
+      minimum: 0.0001
+      maximum: 0.5
+    min_runtime_days:
+      type: integer
+      minimum: 0
+      maximum: 365
+    min_sample_size:
+      type: integer
+      minimum: 1
+      maximum: 9007199254740991
+    sequential_testing:
+      type: boolean
+    goal_metric:
+      description: Replaces the goal metric — DSL `query` or `event` (+`aggregation`/`value`) the server compiles (event auto-upserted).
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 128
+          pattern: ^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$
+        query:
+          description: Metric DSL string, e.g. `count_users(checkout_completed)`. Provide this OR `event`.
+          type: string
+          minLength: 1
+          maxLength: 4096
+        event:
+          description: Event name to build the metric from server-side (friendlier alternative to `query`). Auto-created if missing.
+          type: string
+          minLength: 1
+          maxLength: 256
+        aggregation:
+          description: Reducer for the `event` form. Defaults to `count_users`.
+          type: string
+          enum:
+            - count_users
+            - count_events
+            - retention_7d
+            - retention_30d
+            - sum
+            - avg
+        value:
+          description: Numeric event property for `sum`/`avg` aggregations (with `event`).
+          type: string
+          minLength: 1
+          maxLength: 256
+      additionalProperties: false
+    guardrail_metrics:
+      description: Replaces the guardrail set wholesale (event auto-upserted per entry).
+      maxItems: 10
+      type: array
+      items:
+        type: object
+        properties:
+          name:
+            type: string
+            maxLength: 128
+            pattern: ^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$
+          query:
+            description: Metric DSL string, e.g. `count_users(checkout_completed)`. Provide this OR `event`.
+            type: string
+            minLength: 1
+            maxLength: 4096
+          event:
+            description: Event name to build the metric from server-side (friendlier alternative to `query`). Auto-created if missing.
+            type: string
+            minLength: 1
+            maxLength: 256
+          aggregation:
+            description: Reducer for the `event` form. Defaults to `count_users`.
+            type: string
+            enum:
+              - count_users
+              - count_events
+              - retention_7d
+              - retention_30d
+              - sum
+              - avg
+          value:
+            description: Numeric event property for `sum`/`avg` aggregations (with `event`).
+            type: string
+            minLength: 1
+            maxLength: 256
+        additionalProperties: false
+        description: "Inline metric: either a DSL `query`, or an `event` (+ `aggregation`/`value`) the server compiles into one."
+  additionalProperties: false
+  description: Body for `PATCH /api/admin/experiments/{id}`. Partial — only supplied fields change. `allocation_pct`, `groups`, `salt`, `universe`, `params` are immutable while the experiment is running (stop first).
+UpdateExperimentResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Experiment id that was updated.
+  required:
+    - id
+  additionalProperties: false
+DeleteExperimentResponse:
+  type: object
+  properties:
+    ok:
+      type: boolean
+      const: true
+  required:
+    - ok
+  additionalProperties: false
+SetExperimentStatusRequest:
+  type: object
+  properties:
+    status:
+      type: string
+      enum:
+        - draft
+        - running
+        - stopped
+        - archived
+      description: "Target status. Allowed transitions: `draft → running`, `running → stopped`, `stopped → archived`, `draft → archived`, and `archived → draft` (restore — only if the experiment never started). Restarting an archived experiment directly is not allowed; restore it to draft first, then start."
+  required:
+    - status
+  additionalProperties: false
+  description: Body for `POST /api/admin/experiments/{id}/status`.
+SetExperimentStatusResponse:
+  type: object
+  properties:
+    id:
+      type: string
+    status:
+      type: string
+      enum:
+        - draft
+        - running
+        - stopped
+        - archived
+  required:
+    - id
+    - status
+  additionalProperties: false
+SetExperimentMetricsRequest:
+  type: object
+  properties:
+    metrics:
+      type: array
+      items:
+        type: object
+        properties:
+          metric_id:
+            type: string
+            description: Existing metric id in the project.
+          role:
+            type: string
+            enum:
+              - goal
+              - guardrail
+              - secondary
+            description: Metric role. `goal` drives the decision, `guardrail` blocks ship if degraded, `secondary` is informational.
+        required:
+          - metric_id
+          - role
+        additionalProperties: false
+      description: Replacement metrics list — replaces the current attachments wholesale.
+  required:
+    - metrics
+  additionalProperties: false
+  description: Body for `POST /api/admin/experiments/{id}/metrics`. Replaces the experiment's metric attachments wholesale. Returns `422` if any `metric_id` is unknown.
+SetExperimentMetricsResponse:
+  type: object
+  properties:
+    id:
+      type: string
+    metrics:
+      type: array
+      items:
+        type: object
+        properties:
+          metric_id:
+            type: string
+          role:
+            type: string
+            enum:
+              - goal
+              - guardrail
+              - secondary
+        required:
+          - metric_id
+          - role
+        additionalProperties: false
+  required:
+    - id
+    - metrics
+  additionalProperties: false
+GetExperimentResultsResponse:
+  type: object
+  properties:
+    experiment:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          maxLength: 128
+          pattern: ^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$
+          description: Stable experiment key. Single segment or `folder.name` (a-z, 0-9, `_`/`-`; max 128 chars). Used by SDKs as `Shipeasy.getExperiment(user, '<name>')`. Immutable after create.
+        status:
+          type: string
+          enum:
+            - draft
+            - running
+            - stopped
+            - archived
+      required:
+        - id
+        - name
+        - status
+      additionalProperties: false
+    results:
+      type: array
+      items:
+        type: object
+        properties:
+          metric:
+            type: string
+          group_name:
+            type: string
+          ds:
+            type: string
+            description: Date slice (`YYYY-MM-DD`).
+          n:
+            anyOf:
+              - type: number
+              - type: "null"
+          mean:
+            anyOf:
+              - type: number
+              - type: "null"
+          delta_pct:
+            anyOf:
+              - type: number
+              - type: "null"
+          p_value:
+            anyOf:
+              - type: number
+              - type: "null"
+          srm_detected:
+            anyOf:
+              - type: number
+              - type: "null"
+            description: "`1` if sample-ratio mismatch detected, else `0`."
+        required:
+          - metric
+          - group_name
+          - ds
+          - n
+          - mean
+          - delta_pct
+          - p_value
+          - srm_detected
+        additionalProperties: false
+    verdict:
+      type: string
+      enum:
+        - ship
+        - hold
+        - wait
+        - invalid
+        - draft
+      description: "Server-computed decision from the goal metric + guardrails + SRM vs. the significance threshold and min runtime: `ship` (goal significant + guardrails pass), `hold` (a guardrail regressed), `wait` (inconclusive / under-powered), `invalid` (sample-ratio mismatch), `draft` (never started)."
+  required:
+    - experiment
+    - results
+    - verdict
+  additionalProperties: false
+GetExperimentTimeseriesResponse:
+  type: object
+  properties:
+    experiment:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          maxLength: 128
+          pattern: ^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$
+          description: Stable experiment key. Single segment or `folder.name` (a-z, 0-9, `_`/`-`; max 128 chars). Used by SDKs as `Shipeasy.getExperiment(user, '<name>')`. Immutable after create.
+        status:
+          type: string
+          enum:
+            - draft
+            - running
+            - stopped
+            - archived
+      required:
+        - id
+        - name
+        - status
+      additionalProperties: false
+    series:
+      type: array
+      items:
+        type: object
+        properties:
+          metric:
+            type: string
+          group_name:
+            type: string
+          ds:
+            type: string
+            description: Date slice (`YYYY-MM-DD`).
+          n:
+            anyOf:
+              - type: number
+              - type: "null"
+          mean:
+            anyOf:
+              - type: number
+              - type: "null"
+          delta_pct:
+            anyOf:
+              - type: number
+              - type: "null"
+          p_value:
+            anyOf:
+              - type: number
+              - type: "null"
+          srm_detected:
+            anyOf:
+              - type: number
+              - type: "null"
+            description: "`1` if sample-ratio mismatch detected, else `0`."
+        required:
+          - metric
+          - group_name
+          - ds
+          - n
+          - mean
+          - delta_pct
+          - p_value
+          - srm_detected
+        additionalProperties: false
+  required:
+    - experiment
+    - series
+  additionalProperties: false
+ReanalyzeExperimentResponse:
+  type: object
+  properties:
+    id:
+      type: string
+    queued:
+      type: boolean
+      const: true
+  required:
+    - id
+    - queued
+  additionalProperties: false

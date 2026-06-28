@@ -1,0 +1,347 @@
+/api/admin/i18n/profiles:
+  get:
+    operationId: listI18nProfiles
+    summary: List i18n profiles
+    description: |-
+      Returns every locale profile in the project (e.g. `en:prod`, `fr:prod`).
+
+      **Use case:** Discover which locale profiles exist before pushing keys or publishing a chunk.
+    tags:
+      - i18n
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+    responses:
+      "200":
+        description: List i18n profiles
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/i18n.yaml#/ListI18nProfilesResponse
+            example:
+              - id: i18n_01j7w8a1b2c3
+                name: en:prod
+                locales:
+                  - en
+                default_locale: en
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+  post:
+    operationId: createI18nProfile
+    summary: Create an i18n profile
+    description: |-
+      Create a locale profile. `name` is the stable handle (e.g. `fr:prod`).
+
+      **Use case:** Stand up a new locale before seeding its keys.
+    tags:
+      - i18n
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/i18n.yaml#/CreateI18nProfileRequest
+          example:
+            name: fr:prod
+            locales:
+              - fr
+            default_locale: fr
+    responses:
+      "201":
+        description: Create an i18n profile
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/i18n.yaml#/CreateI18nProfileResponse
+            example:
+              id: i18n_01j7w8a1b2c4
+              name: fr:prod
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - ALREADY_EXISTS
+      - VALIDATION
+/api/admin/i18n/keys:
+  get:
+    operationId: listI18nKeys
+    summary: List i18n keys
+    description: |-
+      List keys for a profile, optionally filtered to a name `prefix`.
+
+      **Use case:** Read the current keys (and values) for a profile — e.g. to diff before a push.
+    tags:
+      - i18n
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: profile_id
+        in: query
+        required: false
+        description: Profile id to list keys for.
+        schema:
+          type: string
+      - name: prefix
+        in: query
+        required: false
+        description: Only keys whose name starts with this.
+        schema:
+          type: string
+      - name: limit
+        in: query
+        required: false
+        description: Max keys to return (1–500).
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 500
+    responses:
+      "200":
+        description: List i18n keys
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/i18n.yaml#/ListI18nKeysResponse
+            example:
+              keys:
+                - id: key_01j7
+                  key: checkout.cta
+                  value: Buy now
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+  post:
+    operationId: pushI18nKeys
+    summary: Push new i18n keys (insert-only)
+    description: |-
+      Add NEW keys to a profile. Insert-only — existing keys are left untouched (overwrite one with `updateI18nKey`).
+
+      **Use case:** Seed newly-extracted keys without clobbering translations already in the profile.
+    tags:
+      - i18n
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/i18n.yaml#/PushI18nKeysRequest
+          example:
+            profile_id: i18n_01j7w8a1b2c3
+            keys:
+              - key: checkout.cta
+                value: Buy now
+    responses:
+      "201":
+        description: Push new i18n keys (insert-only)
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/i18n.yaml#/PushI18nKeysResponse
+            example:
+              added:
+                - checkout.cta
+              skipped: []
+              pushed_count: 1
+              skipped_count: 0
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - ALREADY_EXISTS
+      - VALIDATION
+/api/admin/i18n/keys/{id}:
+  put:
+    operationId: updateI18nKey
+    summary: Update one i18n key
+    description: |-
+      Overwrite a single existing key's value — the only overwrite path.
+
+      **Use case:** Correct or re-translate a single string in place.
+    tags:
+      - i18n
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: The key's id.
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/i18n.yaml#/UpdateI18nKeyRequest
+          example:
+            value: Buy it now
+    responses:
+      "200":
+        description: Update one i18n key
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/i18n.yaml#/UpdateI18nKeyResponse
+            example:
+              id: key_01j7
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+/api/admin/i18n/drafts:
+  get:
+    operationId: listI18nDrafts
+    summary: List translation drafts
+    description: |-
+      List staged translation drafts awaiting review/publish.
+
+      **Use case:** Review machine-translation drafts before publishing them to a locale.
+    tags:
+      - i18n
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+    responses:
+      "200":
+        description: List translation drafts
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/i18n.yaml#/ListI18nDraftsResponse
+            example:
+              - id: draft_01j7
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+/api/admin/i18n/profiles/{profileId}/publish:
+  post:
+    operationId: publishI18nProfile
+    summary: Publish a profile chunk
+    description: |-
+      Publish a profile's chunk to the CDN (rebuild KV manifest + purge). Defaults to the `default` chunk.
+
+      **Use case:** Ship the latest translations live after pushing/updating keys.
+    tags:
+      - i18n
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: profileId
+        in: path
+        required: true
+        description: The profile id to publish.
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/i18n.yaml#/PublishI18nProfileRequest
+          example:
+            chunk: default
+    responses:
+      "201":
+        description: Publish a profile chunk
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/i18n.yaml#/PublishI18nProfileResponse
+            example:
+              ok: true
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION

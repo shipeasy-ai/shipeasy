@@ -1,0 +1,119 @@
+/api/admin/projects/current:
+  get:
+    operationId: getCurrentProject
+    summary: Show the current project
+    description: |-
+      Returns the project the caller's auth header resolves to — plan, status, billing, and which modules are enabled. The server reads the project from the credential, so there is no id parameter. Powers `whoami`.
+
+      **Use case:** Resolve who you are — the project, plan, and enabled modules tied to the current credential — without passing an id. Backs a registry-driven `whoami`.
+    tags:
+      - Projects
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+    responses:
+      "200":
+        description: Show the current project
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/projects.yaml#/GetCurrentProjectResponse
+            example:
+              id: f81d4fae-7dec-11d0-a765-00a0c91e6bf6
+              name: Acme
+              domain: acme.com
+              ownerEmail: owner@acme.com
+              plan: paid
+              status: active
+              subscriptionStatus: active
+              billingInterval: monthly
+              currentPeriodEnd: 2026-07-12T00:00:00.000Z
+              trialEndsAt: null
+              cancelAtPeriodEnd: 0
+              moduleTranslations: true
+              moduleConfigs: true
+              moduleGates: true
+              moduleExperiments: true
+              moduleFeedback: true
+              createdAt: 2026-04-12T10:14:08.000Z
+              updatedAt: 2026-06-12T08:01:55.000Z
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+/api/admin/projects/upsert:
+  post:
+    operationId: upsertProject
+    summary: Find-or-create a project by domain
+    description: |-
+      Find-or-creates a project keyed by `(owner_email, domain)` under the session's owner, and returns it. Idempotent: a second call with the same domain returns the existing project with `created: false`.
+
+      Only `domain` is required — `name` defaults to the domain on first create. Recording the result in a local `.shipeasy` binding is a consumer side-effect; this endpoint never performs it.
+
+      **Use cases**
+
+      - **Install flow** — provision a per-app project without a trip to the dashboard. Run it on every install; the idempotent key means a re-run returns the existing project rather than duplicating it.
+      - **Name explicitly** — pass `name` to label the project distinctly from its `domain`.
+    tags:
+      - Projects
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/projects.yaml#/UpsertProjectRequest
+          examples:
+            minimal:
+              summary: Minimal — domain only
+              description: Smallest valid body. Names the project after the domain on first create.
+              value:
+                domain: acme.com
+            named:
+              summary: Named project
+              description: Supply a human-readable `name` distinct from the domain.
+              value:
+                domain: shouks.app
+                name: Shouks
+    responses:
+      "201":
+        description: Find-or-create a project by domain
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/projects.yaml#/UpsertProjectResponse
+            example:
+              id: f81d4fae-7dec-11d0-a765-00a0c91e6bf6
+              name: Acme
+              domain: acme.com
+              owner_email: owner@acme.com
+              created: true
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - VALIDATION

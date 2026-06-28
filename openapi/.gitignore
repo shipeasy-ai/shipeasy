@@ -2,3 +2,5 @@ node_modules/
 dist/
 .turbo/
 *.tsbuildinfo
+
+# Committed on purpose (do NOT ignore): openapi.yaml, spec/, src/generated/

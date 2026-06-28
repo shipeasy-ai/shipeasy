@@ -1,0 +1,306 @@
+ListKillswitchesResponse:
+  type: object
+  properties:
+    data:
+      type: array
+      items:
+        type: object
+        properties:
+          id:
+            type: string
+            description: Stable opaque killswitch id.
+          name:
+            type: string
+            maxLength: 128
+            description: Stable config key in `folder.name` form (two lowercase segments separated by a dot, e.g. `pricing.tiers`). Used by SDKs as `Shipeasy.getConfig('<name>')`. Immutable after create.
+          description:
+            anyOf:
+              - type: string
+              - type: "null"
+            description: Free-form description or `null`.
+          updatedAt:
+            type: string
+            description: ISO-8601 timestamp of last mutation.
+          envs:
+            type: object
+            additionalProperties:
+              type: object
+              properties:
+                value:
+                  type: boolean
+                  description: Flat boolean published for this env.
+                switches:
+                  type: object
+                  additionalProperties:
+                    type: boolean
+                version:
+                  type: integer
+                  minimum: -9007199254740991
+                  maximum: 9007199254740991
+                  description: Monotonically increasing version per env.
+                publishedAt:
+                  type: string
+                  description: ISO-8601 publish timestamp for this version.
+              required:
+                - value
+                - version
+                - publishedAt
+              additionalProperties: false
+            required:
+              - dev
+              - staging
+              - prod
+            description: Per-env latest value, switches, version, and publish timestamp.
+        required:
+          - id
+          - name
+          - description
+          - updatedAt
+          - envs
+        additionalProperties: false
+    next_cursor:
+      anyOf:
+        - type: string
+        - type: "null"
+  required:
+    - data
+    - next_cursor
+  additionalProperties: false
+GetKillswitchResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Stable opaque killswitch id.
+    name:
+      type: string
+      maxLength: 128
+      description: Stable config key in `folder.name` form (two lowercase segments separated by a dot, e.g. `pricing.tiers`). Used by SDKs as `Shipeasy.getConfig('<name>')`. Immutable after create.
+    description:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Free-form description or `null`.
+    updatedAt:
+      type: string
+      description: ISO-8601 timestamp of last mutation.
+    envs:
+      type: object
+      additionalProperties:
+        type: object
+        properties:
+          value:
+            type: boolean
+            description: Flat boolean published for this env.
+          switches:
+            type: object
+            additionalProperties:
+              type: boolean
+          version:
+            type: integer
+            minimum: -9007199254740991
+            maximum: 9007199254740991
+            description: Monotonically increasing version per env.
+          publishedAt:
+            type: string
+            description: ISO-8601 publish timestamp for this version.
+        required:
+          - value
+          - version
+          - publishedAt
+        additionalProperties: false
+      required:
+        - dev
+        - staging
+        - prod
+      description: Per-env latest value, switches, version, and publish timestamp.
+  required:
+    - id
+    - name
+    - description
+    - updatedAt
+    - envs
+  additionalProperties: false
+CreateKillswitchRequest:
+  type: object
+  properties:
+    name:
+      type: string
+      maxLength: 128
+      description: Stable killswitch key in `folder.name` form (two lowercase segments separated by a dot — e.g. `payments.checkout`). Immutable after create.
+    description:
+      description: Optional free-form description shown in the dashboard. Max 512 chars.
+      type: string
+      maxLength: 512
+    folder:
+      description: "Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK."
+      anyOf:
+        - type: string
+          maxLength: 256
+          pattern: ^[a-zA-Z0-9_-]+$
+        - type: "null"
+    value:
+      description: Default value applied to every env at creation. Defaults to `false`. Use `true` to ship the killswitch pre-tripped.
+      type: boolean
+    switches:
+      description: Initial per-switch overrides applied to every env. Empty/omitted leaves the killswitch with only the flat `value`.
+      type: object
+      additionalProperties:
+        type: boolean
+  required:
+    - name
+  additionalProperties: false
+  description: Body for `POST /api/admin/killswitches`. Only `name` is required.
+CreateKillswitchResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Newly assigned killswitch id.
+    name:
+      type: string
+      maxLength: 128
+      description: Stable config key in `folder.name` form (two lowercase segments separated by a dot, e.g. `pricing.tiers`). Used by SDKs as `Shipeasy.getConfig('<name>')`. Immutable after create.
+  required:
+    - id
+    - name
+  additionalProperties: false
+UpdateKillswitchRequest:
+  type: object
+  properties:
+    description:
+      description: New description, or `null` to clear it. Max 512 chars.
+      anyOf:
+        - type: string
+          maxLength: 512
+        - type: "null"
+    folder:
+      description: "Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK."
+      anyOf:
+        - type: string
+          maxLength: 256
+          pattern: ^[a-zA-Z0-9_-]+$
+        - type: "null"
+    value:
+      description: Flat value applied to every env. Publishes a new version per env when set. Omit to leave values unchanged.
+      type: boolean
+    switches:
+      description: Replace the switches map wholesale on every env. To edit a single entry on a single env use `PUT /{id}/switch` instead.
+      type: object
+      additionalProperties:
+        type: boolean
+  additionalProperties: false
+  description: Body for `PATCH /api/admin/killswitches/{id}`. Partial — only supplied fields change. `switches` replaces wholesale (no merge).
+UpdateKillswitchResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Killswitch id that was updated.
+  required:
+    - id
+  additionalProperties: false
+DeleteKillswitchResponse:
+  type: object
+  properties:
+    ok:
+      type: boolean
+      const: true
+  required:
+    - ok
+  additionalProperties: false
+SetKillswitchSwitchRequest:
+  type: object
+  properties:
+    env:
+      type: string
+      enum:
+        - dev
+        - staging
+        - prod
+      description: Target environment (`dev`/`stage`/`prod`).
+    switchKey:
+      type: string
+      maxLength: 64
+      pattern: ^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$
+      description: Switch key to set.
+    value:
+      type: boolean
+      description: New boolean value for this `switchKey` on this `env`.
+  required:
+    - env
+    - switchKey
+    - value
+  additionalProperties: false
+  description: Body for `PUT /api/admin/killswitches/{id}/switch`. Sets or updates one switch entry on one env.
+SetKillswitchSwitchResponse:
+  type: object
+  properties:
+    id:
+      type: string
+    env:
+      type: string
+      enum:
+        - dev
+        - staging
+        - prod
+      description: Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).
+    switchKey:
+      type: string
+      maxLength: 64
+      pattern: ^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$
+      description: Single-segment switch key (lowercase letters, digits, `_`/`-`; no dots). Used as the nested switch entry inside a killswitch's `switches` map.
+    value:
+      type: boolean
+  required:
+    - id
+    - env
+    - switchKey
+    - value
+  additionalProperties: false
+UnsetKillswitchSwitchRequest:
+  type: object
+  properties:
+    env:
+      type: string
+      enum:
+        - dev
+        - staging
+        - prod
+      description: Target environment.
+    switchKey:
+      type: string
+      maxLength: 64
+      pattern: ^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$
+      description: Switch key to remove.
+  required:
+    - env
+    - switchKey
+  additionalProperties: false
+  description: Body for `DELETE /api/admin/killswitches/{id}/switch`. Removes one switch entry from one env.
+UnsetKillswitchSwitchResponse:
+  type: object
+  properties:
+    id:
+      type: string
+    env:
+      type: string
+      enum:
+        - dev
+        - staging
+        - prod
+      description: Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).
+    switchKey:
+      type: string
+      maxLength: 64
+      pattern: ^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$
+      description: Single-segment switch key (lowercase letters, digits, `_`/`-`; no dots). Used as the nested switch entry inside a killswitch's `switches` map.
+    removed:
+      type: boolean
+      description: "`true` if the entry existed and was removed, `false` if no-op."
+  required:
+    - id
+    - env
+    - switchKey
+    - removed
+  additionalProperties: false

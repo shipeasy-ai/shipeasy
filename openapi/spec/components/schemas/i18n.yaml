@@ -1,0 +1,298 @@
+ListI18nProfilesResponse:
+  type: array
+  items:
+    type: object
+    properties:
+      id:
+        type: string
+        description: Stable opaque profile id.
+      name:
+        type: string
+        description: Profile handle, e.g. `en:prod` or `fr:prod`.
+      isDefault:
+        description: "`1` for the project's single default profile (always seeded as `en:prod`), else `0`."
+        type: number
+      createdAt:
+        description: ISO-8601 timestamp of creation.
+        type: string
+      deletedAt:
+        description: ISO-8601 soft-delete timestamp, or `null` if live.
+        anyOf:
+          - type: string
+          - type: "null"
+    required:
+      - id
+      - name
+    additionalProperties: false
+    description: One i18n locale profile.
+CreateI18nProfileRequest:
+  type: object
+  properties:
+    name:
+      type: string
+      description: Profile handle to create, e.g. `en:prod` or `fr:prod`.
+    locales:
+      description: Locales this profile carries, e.g. `["fr", "fr-CA"]`. Defaults to `["en"]`.
+      type: array
+      items:
+        type: string
+    default_locale:
+      description: Default locale for the profile. Defaults to the first entry of `locales`.
+      type: string
+  required:
+    - name
+  additionalProperties: false
+  description: Body for `POST /api/admin/i18n/profiles`. Only `name` is required.
+CreateI18nProfileResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Newly assigned profile id.
+    name:
+      type: string
+      description: Profile handle that was created.
+  required:
+    - id
+    - name
+  additionalProperties: false
+  description: Created profile id + name.
+ListI18nKeysResponse:
+  type: object
+  properties:
+    keys:
+      type: array
+      items:
+        type: object
+        properties:
+          id:
+            type: string
+            description: Stable opaque key id.
+          key:
+            type: string
+            description: Dotted key path, e.g. `home.cta`.
+          value:
+            type: string
+            description: Current translated value for the key.
+          description:
+            description: Optional human note stored with the key.
+            anyOf:
+              - type: string
+              - type: "null"
+          variables:
+            description: "`{{var}}` placeholder names in the value, or `null` when there are none."
+            anyOf:
+              - type: array
+                items:
+                  type: string
+              - type: "null"
+          profileId:
+            description: Owning profile id.
+            type: string
+          chunkId:
+            description: Owning chunk (authoring grouping) id.
+            type: string
+          updatedAt:
+            description: ISO-8601 timestamp of the last edit.
+            type: string
+          updatedBy:
+            description: Actor email that last edited the key.
+            type: string
+        required:
+          - id
+          - key
+          - value
+        additionalProperties: {}
+        description: One i18n key row.
+      description: The page of matching keys.
+    total:
+      type: number
+      description: Total matching keys across all pages (ignores `limit`/`offset`).
+  required:
+    - keys
+    - total
+  additionalProperties: false
+  description: A page of i18n keys plus the total count. (The client also tolerates a bare array.)
+PushI18nKeysRequest:
+  type: object
+  properties:
+    profile_id:
+      type: string
+      description: Target profile id to add keys to.
+    chunk:
+      description: Logical grouping the new keys are filed under. Defaults to `default`.
+      type: string
+    keys:
+      type: array
+      items:
+        type: object
+        properties:
+          key:
+            type: string
+            description: Dotted key path, e.g. `home.cta`.
+          value:
+            type: string
+            description: Translated value for the key.
+        required:
+          - key
+          - value
+        additionalProperties: false
+      description: Keys to add. Insert-only — existing keys are reported back as `skipped`.
+  required:
+    - profile_id
+    - keys
+  additionalProperties: false
+  description: "Body for `POST /api/admin/i18n/keys`. Insert-only: keys that already exist are never overwritten — use `PUT /keys/{id}` to change a value."
+PushI18nKeysResponse:
+  type: object
+  properties:
+    added:
+      type: array
+      items:
+        type: string
+      description: Key names that were newly inserted.
+    skipped:
+      type: array
+      items:
+        type: string
+      description: Key names that already existed and were left untouched.
+    pushed_count:
+      type: number
+      description: Number of keys inserted (== `added.length`).
+    skipped_count:
+      type: number
+      description: Number of keys skipped (== `skipped.length`).
+    chunk:
+      description: The chunk the keys were filed under.
+      type: string
+  required:
+    - added
+    - skipped
+    - pushed_count
+    - skipped_count
+  additionalProperties: false
+  description: Result of an insert-only key push.
+UpdateI18nKeyRequest:
+  type: object
+  properties:
+    value:
+      type: string
+      description: New value for the key (the only overwrite path).
+    description:
+      description: Optional human note to store with the key.
+      type: string
+  required:
+    - value
+  additionalProperties: false
+  description: Body for `PUT /api/admin/i18n/keys/{id}`. Updates one existing key's value.
+UpdateI18nKeyResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Id of the key that was updated.
+  required:
+    - id
+  additionalProperties: false
+  description: Updated key id.
+ListI18nDraftsResponse:
+  type: array
+  items:
+    type: object
+    properties:
+      id:
+        type: string
+        description: Stable opaque draft id.
+      name:
+        description: Draft name, e.g. the target locale being staged.
+        type: string
+      profileId:
+        description: Profile the draft targets.
+        type: string
+      sourceProfileId:
+        description: Profile the draft was seeded from, or `null`.
+        anyOf:
+          - type: string
+          - type: "null"
+      status:
+        description: Lifecycle state of the draft.
+        type: string
+        enum:
+          - open
+          - merged
+          - abandoned
+      createdBy:
+        description: Actor email that created the draft.
+        type: string
+      createdAt:
+        description: ISO-8601 timestamp of creation.
+        type: string
+      publishedAt:
+        description: ISO-8601 merge/publish timestamp, or `null`.
+        anyOf:
+          - type: string
+          - type: "null"
+    required:
+      - id
+    additionalProperties: {}
+    description: One staged translation draft.
+PublishI18nProfileRequest:
+  type: object
+  properties:
+    chunk:
+      description: Optional chunk label to stamp on the audit log. Publishing is profile-wide regardless — the whole profile is snapshotted into one KV blob.
+      type: string
+  additionalProperties: false
+  description: Body for `POST /api/admin/i18n/profiles/{profileId}/publish`. The `chunk` is an audit label only.
+PublishI18nProfileResponse:
+  type: object
+  properties:
+    ok:
+      type: boolean
+      const: true
+      description: Always `true` on success.
+    profile_id:
+      type: string
+      description: Profile that was published.
+    chunk:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Audit chunk label, or `null` when none was given.
+    published_at:
+      type: string
+      description: ISO-8601 timestamp of the publish.
+    version:
+      type: string
+      description: New KV snapshot version that was shipped.
+    key_count:
+      type: number
+      description: Number of keys in the published snapshot.
+    changed:
+      type: boolean
+      description: Whether the snapshot's contents actually changed since the last publish.
+    purged:
+      type: string
+      enum:
+        - purged
+        - skipped
+        - failed
+      description: "CDN purge outcome: `purged` ok, `skipped` (no creds), or `failed` (edge still stale)."
+    kv_verified:
+      type: boolean
+      description: Whether a KV read-back confirmed the new version persisted.
+    warning:
+      description: Human-readable caveat when the publish landed but is not fully live.
+      type: string
+  required:
+    - ok
+    - profile_id
+    - chunk
+    - published_at
+    - version
+    - key_count
+    - changed
+    - purged
+    - kv_verified
+  additionalProperties: false
+  description: Result of a profile-wide publish.

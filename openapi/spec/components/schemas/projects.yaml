@@ -1,0 +1,148 @@
+GetCurrentProjectResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Stable opaque project id.
+    name:
+      type: string
+      description: Project name.
+    domain:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Project domain, or `null` if unset.
+    ownerEmail:
+      type: string
+      description: Email of the account that owns the project.
+    plan:
+      type: string
+      enum:
+        - free
+        - paid
+      description: Billing plan tier.
+    status:
+      type: string
+      enum:
+        - active
+        - inactive
+      description: Project lifecycle status.
+    subscriptionStatus:
+      type: string
+      description: Stripe subscription status (`none`, `active`, `trialing`, `past_due`, …).
+    billingInterval:
+      type: string
+      enum:
+        - monthly
+        - annual
+      description: Billing cadence.
+    currentPeriodEnd:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: ISO-8601 end of the current billing period, or `null`.
+    trialEndsAt:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: ISO-8601 trial end, or `null` if not trialing.
+    cancelAtPeriodEnd:
+      type: number
+      description: "`1` if the subscription is set to cancel at period end, else `0`."
+    moduleTranslations:
+      anyOf:
+        - type: boolean
+        - type: number
+      description: Whether the i18n/translations module is enabled.
+    moduleConfigs:
+      anyOf:
+        - type: boolean
+        - type: number
+      description: Whether the dynamic-configs module is enabled.
+    moduleGates:
+      anyOf:
+        - type: boolean
+        - type: number
+      description: Whether the feature-gates module is enabled.
+    moduleExperiments:
+      anyOf:
+        - type: boolean
+        - type: number
+      description: Whether the experiments module is enabled.
+    moduleFeedback:
+      anyOf:
+        - type: boolean
+        - type: number
+      description: Whether the feedback/ops module is enabled.
+    createdAt:
+      type: string
+      description: ISO-8601 timestamp of project creation.
+    updatedAt:
+      type: string
+      description: ISO-8601 timestamp of last update.
+  required:
+    - id
+    - name
+    - domain
+    - ownerEmail
+    - plan
+    - status
+    - subscriptionStatus
+    - billingInterval
+    - currentPeriodEnd
+    - trialEndsAt
+    - cancelAtPeriodEnd
+    - moduleTranslations
+    - moduleConfigs
+    - moduleGates
+    - moduleExperiments
+    - moduleFeedback
+    - createdAt
+    - updatedAt
+  additionalProperties: {}
+  description: The project the caller's auth header resolves to. The shape is open — additional project fields may be present.
+UpsertProjectRequest:
+  type: object
+  properties:
+    domain:
+      type: string
+      minLength: 1
+      maxLength: 2048
+      description: Hostname-like project identifier (e.g. `acme.com`). Use `*` to allow any origin. The project is keyed by `(owner_email, domain)`, so a second call with the same domain returns the existing project.
+    name:
+      description: Human-readable project name. Defaults to the domain on first create.
+      type: string
+      minLength: 1
+      maxLength: 100
+  required:
+    - domain
+  additionalProperties: false
+  description: Body for `POST /api/admin/projects/upsert`. Only `domain` is required; the owner is resolved from the caller's session.
+UpsertProjectResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Stable opaque project id.
+    name:
+      type: string
+      description: Project name (the supplied `name`, or the domain on first create).
+    domain:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Project domain, or `null` if unset.
+    owner_email:
+      type: string
+      description: Email of the account that owns the project.
+    created:
+      type: boolean
+      description: "`true` if this call created the project, `false` if it returned an existing one."
+  required:
+    - id
+    - name
+    - domain
+    - owner_email
+    - created
+  additionalProperties: false
+  description: Result of `POST /api/admin/projects/upsert`.

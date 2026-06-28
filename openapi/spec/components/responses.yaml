@@ -1,0 +1,107 @@
+BadRequest:
+  description: The request was malformed (bad JSON or missing project scope).
+  content:
+    application/json:
+      schema:
+        $ref: ./errors.yaml#/Error
+      examples:
+        BAD_REQUEST:
+          summary: Malformed request
+          value:
+            error: Malformed request (bad JSON, missing project scope).
+            code: BAD_REQUEST
+Unauthorized:
+  description: Missing or invalid admin SDK key.
+  content:
+    application/json:
+      schema:
+        $ref: ./errors.yaml#/Error
+      examples:
+        UNAUTHORIZED:
+          summary: No / invalid key
+          value:
+            error: Missing or invalid admin SDK key.
+            code: UNAUTHORIZED
+Forbidden:
+  description: The key is valid but not allowed to perform this action.
+  content:
+    application/json:
+      schema:
+        $ref: ./errors.yaml#/Error
+      examples:
+        FORBIDDEN:
+          summary: Not an admin of this project
+          value:
+            error: Key is valid but not allowed to act on this project.
+            code: FORBIDDEN
+        PLAN_REQUIRED:
+          summary: Feature gated behind a higher plan
+          value:
+            error: The requested feature requires a higher plan tier (e.g. sequential testing, custom alpha, holdout, group count).
+            code: PLAN_REQUIRED
+NotFound:
+  description: The resource does not exist or is not visible to the caller.
+  content:
+    application/json:
+      schema:
+        $ref: ./errors.yaml#/Error
+      examples:
+        NOT_FOUND:
+          summary: Unknown id or name
+          value:
+            error: The resource does not exist or is not visible to the caller.
+            code: NOT_FOUND
+Conflict:
+  description: The mutation conflicts with current state.
+  content:
+    application/json:
+      schema:
+        $ref: ./errors.yaml#/Error
+      examples:
+        ALREADY_EXISTS:
+          summary: Duplicate name
+          value:
+            error: A resource with this name already exists in the project.
+            code: ALREADY_EXISTS
+        REFERENCED_IN_USE:
+          summary: Still referenced by another resource
+          value:
+            error: The resource cannot be archived/deleted while another resource still references it.
+            code: REFERENCED_IN_USE
+        INVALID_TRANSITION:
+          summary: Illegal lifecycle transition
+          value:
+            error: The requested lifecycle transition is not allowed from the current state.
+            code: INVALID_TRANSITION
+        IMMUTABLE_FIELD:
+          summary: Edited an immutable field while running
+          value:
+            error: A field that is immutable in the current state was modified (e.g. editing allocation while running).
+            code: IMMUTABLE_FIELD
+UnprocessableEntity:
+  description: The request body failed validation.
+  content:
+    application/json:
+      schema:
+        $ref: ./errors.yaml#/Error
+      examples:
+        VALIDATION:
+          summary: Schema validation failed
+          value:
+            error: The request body failed structural (schema) validation.
+            code: VALIDATION
+        REFERENCED_NOT_FOUND:
+          summary: Referenced entity missing
+          value:
+            error: A referenced entity (universe, metric, gate, event) does not exist.
+            code: REFERENCED_NOT_FOUND
+        GROUPS_WEIGHT_SUM:
+          summary: Group weights must sum to 10000
+          value:
+            error: Experiment group weights must sum to 10000 (basis points).
+            code: GROUPS_WEIGHT_SUM
+        EVENT_PENDING:
+          summary: Event still pending review
+          value:
+            error: The referenced event is still pending review and cannot back a metric yet.
+            code: EVENT_PENDING

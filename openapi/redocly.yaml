@@ -1,0 +1,17 @@
+# Lint + bundle config for the hand-authored spec.
+# `pnpm lint:spec` runs `recommended` over spec/openapi.yaml; `pnpm bundle`
+# flattens the multi-file tree into the committed openapi.json the codegen reads.
+extends:
+  - recommended
+rules:
+  # We document errors per-operation but don't require an `operationId`-level
+  # security override note, and some list endpoints intentionally share 4xx
+  # responses by $ref — keep these as warnings, not hard errors.
+  no-unused-components: warn
+  operation-4xx-response: warn
+  # `oneOf`/discriminated request bodies legitimately list `required` props that
+  # live on sibling variants; this rule misfires on that pattern.
+  no-required-schema-properties-undefined: off
+  # Examples are validated against schemas (good), but our rich use-case
+  # examples occasionally omit optional-but-documented fields.
+  no-invalid-media-type-examples: warn
