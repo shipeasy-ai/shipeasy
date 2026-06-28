@@ -7,6 +7,7 @@ import { clearCredentials, loadCredentials } from "./auth/storage";
 import { getApiClient, ApiError } from "./api/client";
 import { registerGeneratedCommands } from "./generated/commands.gen";
 import { genCtx } from "./commands/_gen-runtime";
+import { customCommands } from "./commands/custom";
 import { keysCommand } from "./commands/keys";
 import { i18nCommand } from "./commands/i18n";
 import { codemodCommand } from "./commands/codemod";
@@ -272,6 +273,11 @@ export function buildProgram(): Command {
   // synthetic-verbs from x-cli, flags from the request bodies, each command
   // calling a generated sdk fn. Regenerate with `pnpm gen:cli`.
   registerGeneratedCommands(program, genCtx);
+
+  // ── Custom (non-spec) operations — the shared sugar registry ──────────────
+  // metrics grammar + docs list/get/skill. Same registry the MCP server will
+  // project, so the surfaces stay in sync (@shipeasy/openapi/custom).
+  customCommands(program);
 
   // ── Custom commands (fs/AST + auth + install — not API endpoints) ─────────
   setupCommand(program);

@@ -115,7 +115,7 @@ export function codemodCommand(parent: Command): void {
   ]);
 }
 
-function resolveTargets(explicit: string | undefined, configSrcDir: string): string[] {
+export function resolveTargets(explicit: string | undefined, configSrcDir: string): string[] {
   const cwd = process.cwd();
   if (explicit) return [resolve(explicit)];
   // If the configured srcDir exists, honor it (single target).

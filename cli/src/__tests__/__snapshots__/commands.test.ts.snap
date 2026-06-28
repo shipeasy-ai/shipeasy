@@ -3,6 +3,10 @@
 exports[`command tree > matches the registered command surface (snapshot) 1`] = `
 [
   "bind",
+  "docs",
+  "docs get",
+  "docs list",
+  "docs skill",
   "i18n",
   "i18n codemod",
   "i18n codemod i18n",
@@ -36,6 +40,7 @@ exports[`command tree > matches the registered command surface (snapshot) 1`] = 
   "metrics events get",
   "metrics events list",
   "metrics events update",
+  "metrics grammar",
   "metrics list",
   "metrics show",
   "ops",

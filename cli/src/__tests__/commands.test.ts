@@ -54,6 +54,7 @@ describe("command tree", () => {
       "metrics",
       "ops",
       "i18n",
+      "docs",
     ]) {
       expect(top).toContain(name);
     }
@@ -76,6 +77,7 @@ describe("command tree", () => {
         "metrics",
         "ops",
         "i18n",
+        "docs",
       ].sort(),
     );
     // Spot-check the commands that live nested inside a module (not top-level):
@@ -96,7 +98,6 @@ describe("command tree", () => {
       "codemod",
       "modules",
       "scan",
-      "docs",
     ]) {
       expect(top).not.toContain(gone);
     }

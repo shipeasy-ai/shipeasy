@@ -26,6 +26,10 @@
       "types": "./dist/schemas.d.ts",
       "default": "./dist/schemas.js"
     },
+    "./custom": {
+      "types": "./dist/custom.d.ts",
+      "default": "./dist/custom.js"
+    },
     "./openapi.yaml": "./openapi.yaml"
   },
   "files": [
