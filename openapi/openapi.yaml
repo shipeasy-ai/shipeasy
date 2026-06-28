@@ -131,9 +131,10 @@ tags:
       **Deletion.** Soft-delete (the user-facing verb is `archive`). Blocked while any metric still references the event — delete those metrics first.
   - name: Ops
     description: |-
-      Operational queue: the unified feedback table of bug reports, feature
-      requests, and auto-filed error/alert tickets. List/get/update are unified
-      over `/feedback`; bug vs. feature creates are per-type. Also exposes the
+      Operational queue: the unified table of bug reports, feature requests, and
+      auto-filed error/alert tickets, all over `/api/admin/ops`. One `create`
+      endpoint files either user type (`type: bug | feature_request`); list, get,
+      update, and link-pr are unified across every type. Also exposes the
       `notify` escalation bell and the read-only Slack-channels list used to
       resolve alert-rule notification targets.
 
@@ -3459,12 +3460,12 @@ paths:
         name: approve
         positional:
           - id
-  /api/admin/feedback:
+  /api/admin/ops:
     get:
       operationId: listOpsItems
       summary: List the operational queue
       description: |-
-        Returns the unified feedback queue (bugs, feature requests, errors, alerts), newest first. Filter by `type` and/or `status`, and cap with `limit`.
+        Returns the unified ops queue (bugs, feature requests, errors, alerts), newest first. Filter by `type` and/or `status`, and cap with `limit`.
 
         **Use case:** Pull the open queue to triage — e.g. every `bug` still `open` — before working items down one by one.
       tags:
@@ -3544,7 +3545,85 @@ paths:
         - FORBIDDEN
       x-cli:
         name: list
-  /api/admin/feedback/{handle}:
+    post:
+      operationId: createOpsItem
+      summary: File a queue item
+      description: |-
+        Files one queue item — a bug report or a feature request — and fires the project's connectors (GitHub issue / Slack). `type` selects which; only the two user-fileable types are accepted (`error`/`alert` tickets are auto-filed by the platform). Returns the new id and per-project number.
+
+        **Use cases**
+
+        - **File a bug** — `{ "type": "bug", "title": "Checkout 500s on Safari", "stepsToReproduce": "…" }`.
+        - **File a feature request** — `{ "type": "feature_request", "title": "Dark mode", "priority": "nice_to_have" }`.
+      tags:
+        - Ops
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOpsItemRequest'
+            examples:
+              bug:
+                summary: File a bug report
+                value:
+                  type: bug
+                  title: Checkout button misaligned on mobile
+                  body: On iOS Safari the primary CTA overlaps the price.
+                  priority: high
+              featureRequest:
+                summary: File a feature request
+                value:
+                  type: feature_request
+                  title: Dark mode for the dashboard
+                  body: Add a theme toggle that persists per user.
+                  priority: nice_to_have
+      responses:
+        '201':
+          description: File a queue item
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateOpsItemResponse'
+              example:
+                id: fb_01j7w8a1b2c3d4e5f6g7h8i9j0
+                number: 7
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - ALREADY_EXISTS
+        - VALIDATION
+      x-cli:
+        name: create
+        positional:
+          - title
+        commands:
+          - name: create
+            summary: File a queue item (bug or feature request) — pass --type.
+          - name: bug
+            summary: File a bug report.
+            preset:
+              type: bug
+          - name: feature
+            summary: File a feature request.
+            preset:
+              type: feature_request
+  /api/admin/ops/{handle}:
     get:
       operationId: getOpsItem
       summary: Get one queue item
@@ -3559,7 +3638,7 @@ paths:
         - name: handle
           in: path
           required: true
-          description: Per-project item number (e.g. `7`) or the full feedback id.
+          description: Per-project item number (e.g. `7`) or the full ops item id.
           schema:
             type: string
       responses:
@@ -3612,7 +3691,7 @@ paths:
         - name: handle
           in: path
           required: true
-          description: Per-project item number (e.g. `7`) or the full feedback id.
+          description: Per-project item number (e.g. `7`) or the full ops item id.
           schema:
             type: string
       requestBody:
@@ -3655,111 +3734,7 @@ paths:
         name: update
         positional:
           - handle
-  /api/admin/bugs:
-    post:
-      operationId: createBug
-      summary: File a bug report
-      description: |-
-        Files a bug into the queue and fires the project's connectors (GitHub issue / Slack). Returns the new id and per-project number.
-
-        **Use case:** Report a defect programmatically so it lands in the same queue the dashboard shows.
-      tags:
-        - Ops
-      parameters:
-        - $ref: '#/components/parameters/ProjectId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateBugRequest'
-            example:
-              title: Checkout button misaligned on mobile
-              body: On iOS Safari the primary CTA overlaps the price.
-              priority: high
-      responses:
-        '201':
-          description: File a bug report
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CreateBugResponse'
-              example:
-                id: fb_01j7w8a1b2c3d4e5f6g7h8i9j0
-                number: 7
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '422':
-          $ref: '#/components/responses/UnprocessableEntity'
-      x-error-codes:
-        - BAD_REQUEST
-        - UNAUTHORIZED
-        - FORBIDDEN
-        - ALREADY_EXISTS
-        - VALIDATION
-      x-cli:
-        name: create-bug
-  /api/admin/feature-requests:
-    post:
-      operationId: createFeatureRequest
-      summary: File a feature request
-      description: |-
-        Files a feature request into the queue and fires the project's connectors. Returns the new id and per-project number.
-
-        **Use case:** Capture a feature ask from an integration or a user-facing widget.
-      tags:
-        - Ops
-      parameters:
-        - $ref: '#/components/parameters/ProjectId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateFeatureRequestRequest'
-            example:
-              title: Dark mode for the dashboard
-              body: Add a theme toggle that persists per user.
-              priority: nice_to_have
-      responses:
-        '201':
-          description: File a feature request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CreateFeatureRequestResponse'
-              example:
-                id: fb_01j7w8a1b2c3d4e5f6g7h8i9k1
-                number: 8
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '422':
-          $ref: '#/components/responses/UnprocessableEntity'
-      x-error-codes:
-        - BAD_REQUEST
-        - UNAUTHORIZED
-        - FORBIDDEN
-        - ALREADY_EXISTS
-        - VALIDATION
-      x-cli:
-        name: create-feature-request
-  /api/admin/feedback/{handle}/link-pr:
+  /api/admin/ops/{handle}/link-pr:
     post:
       operationId: linkPrToOpsItem
       summary: Link a fixing PR
@@ -3774,7 +3749,7 @@ paths:
         - name: handle
           in: path
           required: true
-          description: Per-project item number (e.g. `7`) or the full feedback id.
+          description: Per-project item number (e.g. `7`) or the full ops item id.
           schema:
             type: string
       requestBody:
@@ -8968,6 +8943,57 @@ components:
         additionalProperties: {}
         description: One queue item — any type.
       description: A page of queue items, newest first.
+    CreateOpsItemRequest:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+            - bug
+            - feature_request
+          description: Item type to file. Only the two user-fileable types are accepted here — `error` and `alert` tickets are auto-filed by the platform and cannot be created over the API.
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: One-line title of the bug or feature request.
+        body:
+          description: Detailed description / steps to reproduce.
+          type: string
+        priority:
+          description: Initial triage priority.
+          type: string
+          enum:
+            - nice_to_have
+            - medium
+            - high
+            - critical
+        stepsToReproduce:
+          description: Reproduction steps (bugs).
+          type: string
+        pageUrl:
+          description: URL of the page the item relates to.
+          type: string
+      required:
+        - type
+        - title
+      additionalProperties: false
+      description: Body for `POST /api/admin/ops`. Files one queue item; `type` selects bug vs. feature request.
+    CreateOpsItemResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Newly created item id.
+        number:
+          description: Per-project item number assigned to the new item.
+          anyOf:
+            - type: number
+            - type: 'null'
+      required:
+        - id
+      additionalProperties: false
+      description: Response for `POST /api/admin/ops`.
     GetOpsItemResponse:
       type: object
       properties:
@@ -9051,7 +9077,7 @@ components:
             - high
             - critical
       additionalProperties: false
-      description: Body for `PATCH /api/admin/feedback/{handle}`. Pass at least one of `status` / `priority`.
+      description: Body for `PATCH /api/admin/ops/{handle}`. Pass at least one of `status` / `priority`.
     UpdateOpsItemResponse:
       type: object
       properties:
@@ -9062,94 +9088,6 @@ components:
         - id
       additionalProperties: false
       description: Response for the update / link-pr endpoints.
-    CreateBugRequest:
-      type: object
-      properties:
-        title:
-          type: string
-          minLength: 1
-          maxLength: 200
-          description: One-line title of the bug or feature request.
-        body:
-          description: Detailed description / steps to reproduce.
-          type: string
-        priority:
-          description: Initial triage priority.
-          type: string
-          enum:
-            - nice_to_have
-            - medium
-            - high
-            - critical
-        stepsToReproduce:
-          description: Reproduction steps (bugs).
-          type: string
-        pageUrl:
-          description: URL of the page the item relates to.
-          type: string
-      required:
-        - title
-      additionalProperties: false
-      description: Body for `POST /api/admin/bugs`.
-    CreateBugResponse:
-      type: object
-      properties:
-        id:
-          type: string
-          description: Newly created item id.
-        number:
-          description: Per-project item number assigned to the new item.
-          anyOf:
-            - type: number
-            - type: 'null'
-      required:
-        - id
-      additionalProperties: false
-      description: Response for the create endpoints.
-    CreateFeatureRequestRequest:
-      type: object
-      properties:
-        title:
-          type: string
-          minLength: 1
-          maxLength: 200
-          description: One-line title of the bug or feature request.
-        body:
-          description: Detailed description / steps to reproduce.
-          type: string
-        priority:
-          description: Initial triage priority.
-          type: string
-          enum:
-            - nice_to_have
-            - medium
-            - high
-            - critical
-        stepsToReproduce:
-          description: Reproduction steps (bugs).
-          type: string
-        pageUrl:
-          description: URL of the page the item relates to.
-          type: string
-      required:
-        - title
-      additionalProperties: false
-      description: Body for `POST /api/admin/feature-requests`.
-    CreateFeatureRequestResponse:
-      type: object
-      properties:
-        id:
-          type: string
-          description: Newly created item id.
-        number:
-          description: Per-project item number assigned to the new item.
-          anyOf:
-            - type: number
-            - type: 'null'
-      required:
-        - id
-      additionalProperties: false
-      description: Response for the create endpoints.
     LinkPrToOpsItemRequest:
       type: object
       properties:
@@ -9167,7 +9105,7 @@ components:
       required:
         - prNumber
       additionalProperties: false
-      description: Body for `POST /api/admin/feedback/{handle}/link-pr`.
+      description: Body for `POST /api/admin/ops/{handle}/link-pr`.
     LinkPrToOpsItemResponse:
       type: object
       properties:

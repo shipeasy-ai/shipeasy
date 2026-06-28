@@ -2612,6 +2612,50 @@ export type ListOpsItemsResponse = Array<{
 }>;
 
 /**
+ * Body for `POST /api/admin/ops`. Files one queue item; `type` selects bug vs. feature request.
+ */
+export type CreateOpsItemRequest = {
+    /**
+     * Item type to file. Only the two user-fileable types are accepted here — `error` and `alert` tickets are auto-filed by the platform and cannot be created over the API.
+     */
+    type: 'bug' | 'feature_request';
+    /**
+     * One-line title of the bug or feature request.
+     */
+    title: string;
+    /**
+     * Detailed description / steps to reproduce.
+     */
+    body?: string;
+    /**
+     * Initial triage priority.
+     */
+    priority?: 'nice_to_have' | 'medium' | 'high' | 'critical';
+    /**
+     * Reproduction steps (bugs).
+     */
+    stepsToReproduce?: string;
+    /**
+     * URL of the page the item relates to.
+     */
+    pageUrl?: string;
+};
+
+/**
+ * Response for `POST /api/admin/ops`.
+ */
+export type CreateOpsItemResponse = {
+    /**
+     * Newly created item id.
+     */
+    id: string;
+    /**
+     * Per-project item number assigned to the new item.
+     */
+    number?: number | null;
+};
+
+/**
  * One queue item — any type.
  */
 export type GetOpsItemResponse = {
@@ -2651,7 +2695,7 @@ export type GetOpsItemResponse = {
 };
 
 /**
- * Body for `PATCH /api/admin/feedback/{handle}`. Pass at least one of `status` / `priority`.
+ * Body for `PATCH /api/admin/ops/{handle}`. Pass at least one of `status` / `priority`.
  */
 export type UpdateOpsItemRequest = {
     /**
@@ -2675,87 +2719,7 @@ export type UpdateOpsItemResponse = {
 };
 
 /**
- * Body for `POST /api/admin/bugs`.
- */
-export type CreateBugRequest = {
-    /**
-     * One-line title of the bug or feature request.
-     */
-    title: string;
-    /**
-     * Detailed description / steps to reproduce.
-     */
-    body?: string;
-    /**
-     * Initial triage priority.
-     */
-    priority?: 'nice_to_have' | 'medium' | 'high' | 'critical';
-    /**
-     * Reproduction steps (bugs).
-     */
-    stepsToReproduce?: string;
-    /**
-     * URL of the page the item relates to.
-     */
-    pageUrl?: string;
-};
-
-/**
- * Response for the create endpoints.
- */
-export type CreateBugResponse = {
-    /**
-     * Newly created item id.
-     */
-    id: string;
-    /**
-     * Per-project item number assigned to the new item.
-     */
-    number?: number | null;
-};
-
-/**
- * Body for `POST /api/admin/feature-requests`.
- */
-export type CreateFeatureRequestRequest = {
-    /**
-     * One-line title of the bug or feature request.
-     */
-    title: string;
-    /**
-     * Detailed description / steps to reproduce.
-     */
-    body?: string;
-    /**
-     * Initial triage priority.
-     */
-    priority?: 'nice_to_have' | 'medium' | 'high' | 'critical';
-    /**
-     * Reproduction steps (bugs).
-     */
-    stepsToReproduce?: string;
-    /**
-     * URL of the page the item relates to.
-     */
-    pageUrl?: string;
-};
-
-/**
- * Response for the create endpoints.
- */
-export type CreateFeatureRequestResponse = {
-    /**
-     * Newly created item id.
-     */
-    id: string;
-    /**
-     * Per-project item number assigned to the new item.
-     */
-    number?: number | null;
-};
-
-/**
- * Body for `POST /api/admin/feedback/{handle}/link-pr`.
+ * Body for `POST /api/admin/ops/{handle}/link-pr`.
  */
 export type LinkPrToOpsItemRequest = {
     /**
@@ -6063,7 +6027,7 @@ export type ListOpsItemsData = {
          */
         limit?: number;
     };
-    url: '/api/admin/feedback';
+    url: '/api/admin/ops';
 };
 
 export type ListOpsItemsErrors = {
@@ -6104,6 +6068,57 @@ export type ListOpsItemsResponses = {
 
 export type ListOpsItemsResponse2 = ListOpsItemsResponses[keyof ListOpsItemsResponses];
 
+export type CreateOpsItemData = {
+    body: CreateOpsItemRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/admin/ops';
+};
+
+export type CreateOpsItemErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type CreateOpsItemError = CreateOpsItemErrors[keyof CreateOpsItemErrors];
+
+export type CreateOpsItemResponses = {
+    /**
+     * File a queue item
+     */
+    201: CreateOpsItemResponse;
+};
+
+export type CreateOpsItemResponse2 = CreateOpsItemResponses[keyof CreateOpsItemResponses];
+
 export type GetOpsItemData = {
     body?: never;
     headers?: {
@@ -6114,12 +6129,12 @@ export type GetOpsItemData = {
     };
     path: {
         /**
-         * Per-project item number (e.g. `7`) or the full feedback id.
+         * Per-project item number (e.g. `7`) or the full ops item id.
          */
         handle: string;
     };
     query?: never;
-    url: '/api/admin/feedback/{handle}';
+    url: '/api/admin/ops/{handle}';
 };
 
 export type GetOpsItemErrors = {
@@ -6170,12 +6185,12 @@ export type UpdateOpsItemData = {
     };
     path: {
         /**
-         * Per-project item number (e.g. `7`) or the full feedback id.
+         * Per-project item number (e.g. `7`) or the full ops item id.
          */
         handle: string;
     };
     query?: never;
-    url: '/api/admin/feedback/{handle}';
+    url: '/api/admin/ops/{handle}';
 };
 
 export type UpdateOpsItemErrors = {
@@ -6216,108 +6231,6 @@ export type UpdateOpsItemResponses = {
 
 export type UpdateOpsItemResponse2 = UpdateOpsItemResponses[keyof UpdateOpsItemResponses];
 
-export type CreateBugData = {
-    body: CreateBugRequest;
-    headers?: {
-        /**
-         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
-         */
-        'X-Project-Id'?: string;
-    };
-    path?: never;
-    query?: never;
-    url: '/api/admin/bugs';
-};
-
-export type CreateBugErrors = {
-    /**
-     * The request was malformed (bad JSON or missing project scope).
-     */
-    400: Error;
-    /**
-     * Missing or invalid admin SDK key.
-     */
-    401: Error;
-    /**
-     * The key is valid but not allowed to perform this action.
-     */
-    403: Error;
-    /**
-     * The resource does not exist or is not visible to the caller.
-     */
-    404: Error;
-    /**
-     * The mutation conflicts with current state.
-     */
-    409: Error;
-    /**
-     * The request body failed validation.
-     */
-    422: Error;
-};
-
-export type CreateBugError = CreateBugErrors[keyof CreateBugErrors];
-
-export type CreateBugResponses = {
-    /**
-     * File a bug report
-     */
-    201: CreateBugResponse;
-};
-
-export type CreateBugResponse2 = CreateBugResponses[keyof CreateBugResponses];
-
-export type CreateFeatureRequestData = {
-    body: CreateFeatureRequestRequest;
-    headers?: {
-        /**
-         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
-         */
-        'X-Project-Id'?: string;
-    };
-    path?: never;
-    query?: never;
-    url: '/api/admin/feature-requests';
-};
-
-export type CreateFeatureRequestErrors = {
-    /**
-     * The request was malformed (bad JSON or missing project scope).
-     */
-    400: Error;
-    /**
-     * Missing or invalid admin SDK key.
-     */
-    401: Error;
-    /**
-     * The key is valid but not allowed to perform this action.
-     */
-    403: Error;
-    /**
-     * The resource does not exist or is not visible to the caller.
-     */
-    404: Error;
-    /**
-     * The mutation conflicts with current state.
-     */
-    409: Error;
-    /**
-     * The request body failed validation.
-     */
-    422: Error;
-};
-
-export type CreateFeatureRequestError = CreateFeatureRequestErrors[keyof CreateFeatureRequestErrors];
-
-export type CreateFeatureRequestResponses = {
-    /**
-     * File a feature request
-     */
-    201: CreateFeatureRequestResponse;
-};
-
-export type CreateFeatureRequestResponse2 = CreateFeatureRequestResponses[keyof CreateFeatureRequestResponses];
-
 export type LinkPrToOpsItemData = {
     body: LinkPrToOpsItemRequest;
     headers?: {
@@ -6328,12 +6241,12 @@ export type LinkPrToOpsItemData = {
     };
     path: {
         /**
-         * Per-project item number (e.g. `7`) or the full feedback id.
+         * Per-project item number (e.g. `7`) or the full ops item id.
          */
         handle: string;
     };
     query?: never;
-    url: '/api/admin/feedback/{handle}/link-pr';
+    url: '/api/admin/ops/{handle}/link-pr';
 };
 
 export type LinkPrToOpsItemErrors = {

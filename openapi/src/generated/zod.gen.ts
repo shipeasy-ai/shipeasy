@@ -1465,6 +1465,31 @@ export const zListOpsItemsResponse = z.array(z.object({
 }));
 
 /**
+ * Body for `POST /api/admin/ops`. Files one queue item; `type` selects bug vs. feature request.
+ */
+export const zCreateOpsItemRequest = z.object({
+    type: z.enum(['bug', 'feature_request']),
+    title: z.string().min(1).max(200),
+    body: z.string().optional(),
+    priority: z.enum([
+        'nice_to_have',
+        'medium',
+        'high',
+        'critical'
+    ]).optional(),
+    stepsToReproduce: z.string().optional(),
+    pageUrl: z.string().optional()
+});
+
+/**
+ * Response for `POST /api/admin/ops`.
+ */
+export const zCreateOpsItemResponse = z.object({
+    id: z.string(),
+    number: z.number().nullish()
+});
+
+/**
  * One queue item — any type.
  */
 export const zGetOpsItemResponse = z.object({
@@ -1496,7 +1521,7 @@ export const zGetOpsItemResponse = z.object({
 });
 
 /**
- * Body for `PATCH /api/admin/feedback/{handle}`. Pass at least one of `status` / `priority`.
+ * Body for `PATCH /api/admin/ops/{handle}`. Pass at least one of `status` / `priority`.
  */
 export const zUpdateOpsItemRequest = z.object({
     status: z.enum([
@@ -1523,55 +1548,7 @@ export const zUpdateOpsItemResponse = z.object({
 });
 
 /**
- * Body for `POST /api/admin/bugs`.
- */
-export const zCreateBugRequest = z.object({
-    title: z.string().min(1).max(200),
-    body: z.string().optional(),
-    priority: z.enum([
-        'nice_to_have',
-        'medium',
-        'high',
-        'critical'
-    ]).optional(),
-    stepsToReproduce: z.string().optional(),
-    pageUrl: z.string().optional()
-});
-
-/**
- * Response for the create endpoints.
- */
-export const zCreateBugResponse = z.object({
-    id: z.string(),
-    number: z.number().nullish()
-});
-
-/**
- * Body for `POST /api/admin/feature-requests`.
- */
-export const zCreateFeatureRequestRequest = z.object({
-    title: z.string().min(1).max(200),
-    body: z.string().optional(),
-    priority: z.enum([
-        'nice_to_have',
-        'medium',
-        'high',
-        'critical'
-    ]).optional(),
-    stepsToReproduce: z.string().optional(),
-    pageUrl: z.string().optional()
-});
-
-/**
- * Response for the create endpoints.
- */
-export const zCreateFeatureRequestResponse = z.object({
-    id: z.string(),
-    number: z.number().nullish()
-});
-
-/**
- * Body for `POST /api/admin/feedback/{handle}/link-pr`.
+ * Body for `POST /api/admin/ops/{handle}/link-pr`.
  */
 export const zLinkPrToOpsItemRequest = z.object({
     prNumber: z.int().gt(0).lte(9007199254740991).nullable(),
@@ -2568,6 +2545,17 @@ export const zListOpsItemsQuery = z.object({
  */
 export const zListOpsItemsResponse2 = zListOpsItemsResponse;
 
+export const zCreateOpsItemBody = zCreateOpsItemRequest;
+
+export const zCreateOpsItemHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+/**
+ * File a queue item
+ */
+export const zCreateOpsItemResponse2 = zCreateOpsItemResponse;
+
 export const zGetOpsItemHeaders = z.object({
     'X-Project-Id': z.string().optional()
 });
@@ -2595,28 +2583,6 @@ export const zUpdateOpsItemPath = z.object({
  * Update a queue item
  */
 export const zUpdateOpsItemResponse2 = zUpdateOpsItemResponse;
-
-export const zCreateBugBody = zCreateBugRequest;
-
-export const zCreateBugHeaders = z.object({
-    'X-Project-Id': z.string().optional()
-});
-
-/**
- * File a bug report
- */
-export const zCreateBugResponse2 = zCreateBugResponse;
-
-export const zCreateFeatureRequestBody = zCreateFeatureRequestRequest;
-
-export const zCreateFeatureRequestHeaders = z.object({
-    'X-Project-Id': z.string().optional()
-});
-
-/**
- * File a feature request
- */
-export const zCreateFeatureRequestResponse2 = zCreateFeatureRequestResponse;
 
 export const zLinkPrToOpsItemBody = zLinkPrToOpsItemRequest;
 

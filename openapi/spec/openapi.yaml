@@ -131,9 +131,10 @@ tags:
       **Deletion.** Soft-delete (the user-facing verb is `archive`). Blocked while any metric still references the event — delete those metrics first.
   - name: Ops
     description: |-
-      Operational queue: the unified feedback table of bug reports, feature
-      requests, and auto-filed error/alert tickets. List/get/update are unified
-      over `/feedback`; bug vs. feature creates are per-type. Also exposes the
+      Operational queue: the unified table of bug reports, feature requests, and
+      auto-filed error/alert tickets, all over `/api/admin/ops`. One `create`
+      endpoint files either user type (`type: bug | feature_request`); list, get,
+      update, and link-pr are unified across every type. Also exposes the
       `notify` escalation bell and the read-only Slack-channels list used to
       resolve alert-rule notification targets.
 
@@ -231,16 +232,12 @@ paths:
     $ref: ./paths/events.yaml#/~1api~1admin~1events~1{id}
   /api/admin/events/{id}/approve:
     $ref: ./paths/events.yaml#/~1api~1admin~1events~1{id}~1approve
-  /api/admin/feedback:
-    $ref: ./paths/ops.yaml#/~1api~1admin~1feedback
-  /api/admin/feedback/{handle}:
-    $ref: ./paths/ops.yaml#/~1api~1admin~1feedback~1{handle}
-  /api/admin/bugs:
-    $ref: ./paths/ops.yaml#/~1api~1admin~1bugs
-  /api/admin/feature-requests:
-    $ref: ./paths/ops.yaml#/~1api~1admin~1feature-requests
-  /api/admin/feedback/{handle}/link-pr:
-    $ref: ./paths/ops.yaml#/~1api~1admin~1feedback~1{handle}~1link-pr
+  /api/admin/ops:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1ops
+  /api/admin/ops/{handle}:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}
+  /api/admin/ops/{handle}/link-pr:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1link-pr
   /api/admin/notifications:
     $ref: ./paths/ops.yaml#/~1api~1admin~1notifications
   /api/admin/slack/channels:

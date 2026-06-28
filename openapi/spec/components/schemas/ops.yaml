@@ -123,9 +123,15 @@ GetOpsItemResponse:
     - createdAt
   additionalProperties: {}
   description: One queue item — any type.
-CreateBugRequest:
+CreateOpsItemRequest:
   type: object
   properties:
+    type:
+      type: string
+      enum:
+        - bug
+        - feature_request
+      description: "Item type to file. Only the two user-fileable types are accepted here — `error` and `alert` tickets are auto-filed by the platform and cannot be created over the API."
     title:
       type: string
       minLength: 1
@@ -149,10 +155,11 @@ CreateBugRequest:
       description: URL of the page the item relates to.
       type: string
   required:
+    - type
     - title
   additionalProperties: false
-  description: Body for `POST /api/admin/bugs`.
-CreateBugResponse:
+  description: "Body for `POST /api/admin/ops`. Files one queue item; `type` selects bug vs. feature request."
+CreateOpsItemResponse:
   type: object
   properties:
     id:
@@ -166,51 +173,7 @@ CreateBugResponse:
   required:
     - id
   additionalProperties: false
-  description: Response for the create endpoints.
-CreateFeatureRequestRequest:
-  type: object
-  properties:
-    title:
-      type: string
-      minLength: 1
-      maxLength: 200
-      description: One-line title of the bug or feature request.
-    body:
-      description: Detailed description / steps to reproduce.
-      type: string
-    priority:
-      description: Initial triage priority.
-      type: string
-      enum:
-        - nice_to_have
-        - medium
-        - high
-        - critical
-    stepsToReproduce:
-      description: Reproduction steps (bugs).
-      type: string
-    pageUrl:
-      description: URL of the page the item relates to.
-      type: string
-  required:
-    - title
-  additionalProperties: false
-  description: Body for `POST /api/admin/feature-requests`.
-CreateFeatureRequestResponse:
-  type: object
-  properties:
-    id:
-      type: string
-      description: Newly created item id.
-    number:
-      description: Per-project item number assigned to the new item.
-      anyOf:
-        - type: number
-        - type: "null"
-  required:
-    - id
-  additionalProperties: false
-  description: Response for the create endpoints.
+  description: Response for `POST /api/admin/ops`.
 UpdateOpsItemRequest:
   type: object
   properties:
@@ -233,7 +196,7 @@ UpdateOpsItemRequest:
         - high
         - critical
   additionalProperties: false
-  description: Body for `PATCH /api/admin/feedback/{handle}`. Pass at least one of `status` / `priority`.
+  description: Body for `PATCH /api/admin/ops/{handle}`. Pass at least one of `status` / `priority`.
 UpdateOpsItemResponse:
   type: object
   properties:
@@ -261,7 +224,7 @@ LinkPrToOpsItemRequest:
   required:
     - prNumber
   additionalProperties: false
-  description: Body for `POST /api/admin/feedback/{handle}/link-pr`.
+  description: Body for `POST /api/admin/ops/{handle}/link-pr`.
 LinkPrToOpsItemResponse:
   type: object
   properties:
