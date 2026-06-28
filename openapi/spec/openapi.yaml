@@ -177,6 +177,23 @@ tags:
   - name: Drafts
     parent: i18n
     description: Machine-translation drafts awaiting review before publish.
+  - name: Errors
+    description: |-
+      Tracked production errors: the deduplicated, fingerprinted error stream the
+      SDK + framework error sinks feed. Read-only list/get plus a status update
+      (`open`/`resolved`/`ignored`), an auto-file-to-GitHub-issue action, and a
+      time-series rollup. Errors are ingestion-only — there is no create route.
+  - name: Connectors
+    description: |-
+      Outbound integrations: the per-project destinations feedback + trigger
+      events are dispatched to (GitHub, Google Sheets, Slack, and the
+      Claude/Cursor/Copilot/Jules autopilot triggers). CRUD plus a manual
+      `fire` (trigger-only) and a `test` payload.
+  - name: API Keys
+    description: |-
+      Admin + SDK key management: mint, list, and revoke the `sdk_*` keys that
+      authenticate every other endpoint. The plaintext key is returned exactly
+      once, on create. Revoke is the rotation verb.
 paths:
   /api/admin/gates:
     $ref: ./paths/gates.yaml#/~1api~1admin~1gates
@@ -260,6 +277,28 @@ paths:
     $ref: ./paths/i18n.yaml#/~1api~1admin~1i18n~1drafts
   /api/admin/i18n/profiles/{profileId}/publish:
     $ref: ./paths/i18n.yaml#/~1api~1admin~1i18n~1profiles~1{profileId}~1publish
+  /api/admin/errors:
+    $ref: ./paths/errors.yaml#/~1api~1admin~1errors
+  /api/admin/errors/{id}:
+    $ref: ./paths/errors.yaml#/~1api~1admin~1errors~1{id}
+  /api/admin/errors/{id}/file:
+    $ref: ./paths/errors.yaml#/~1api~1admin~1errors~1{id}~1file
+  /api/admin/errors/{id}/series:
+    $ref: ./paths/errors.yaml#/~1api~1admin~1errors~1{id}~1series
+  /api/admin/connectors:
+    $ref: ./paths/connectors.yaml#/~1api~1admin~1connectors
+  /api/admin/connectors/{id}:
+    $ref: ./paths/connectors.yaml#/~1api~1admin~1connectors~1{id}
+  /api/admin/connectors/{id}/fire:
+    $ref: ./paths/connectors.yaml#/~1api~1admin~1connectors~1{id}~1fire
+  /api/admin/connectors/{id}/test:
+    $ref: ./paths/connectors.yaml#/~1api~1admin~1connectors~1{id}~1test
+  /api/admin/keys:
+    $ref: ./paths/keys.yaml#/~1api~1admin~1keys
+  /api/admin/keys/{id}/revoke:
+    $ref: ./paths/keys.yaml#/~1api~1admin~1keys~1{id}~1revoke
+  /api/admin/search:
+    $ref: ./paths/search.yaml#/~1api~1admin~1search
 components:
   securitySchemes:
     bearerSdkKey:

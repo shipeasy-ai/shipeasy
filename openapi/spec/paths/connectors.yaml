@@ -1,0 +1,452 @@
+/api/admin/connectors:
+  get:
+    operationId: listConnectors
+    summary: List connectors
+    description: |-
+      Returns every connector in the project as a bare array (no pagination envelope).
+
+      The encrypted credentials backing each connector are never serialised — only the connector's non-secret `config`, `accountLabel`, and last-attempt health (`lastError`, `lastAttemptAt`, `lastSuccessAt`) are returned.
+
+      **Use case:** Render the integrations/triggers settings page, or drive a CI check that asserts every `github` connector is `enabled` and last dispatched without error.
+    tags:
+      - Connectors
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+    responses:
+      "200":
+        description: List connectors
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/connectors.yaml#/ListConnectorsResponse
+            example:
+              - id: 9b0e7c2a-1f3d-4a8e-bf21-0c6a2e5d7f10
+                projectId: prj_01j7w7m9q4hxbf6npe6s9zr3vc
+                provider: github
+                name: Bugs → acme/app issues
+                enabled: true
+                events:
+                  - bug.created
+                config:
+                  owner: acme
+                  repo: app
+                accountLabel: acme/app
+                lastError: null
+                lastAttemptAt: 2026-06-27T18:04:11.000Z
+                lastSuccessAt: 2026-06-27T18:04:11.000Z
+                createdAt: 2026-06-01T09:12:00.000Z
+                updatedAt: 2026-06-27T18:04:11.000Z
+              - id: 2d44f0aa-9c81-4e6b-8a17-7b3e0f9c1a22
+                projectId: prj_01j7w7m9q4hxbf6npe6s9zr3vc
+                provider: claude_trigger
+                name: Nightly ops sweep
+                enabled: true
+                events: []
+                config:
+                  routineId: rtn_8fk20
+                accountLabel: rtn_8fk20
+                lastError: null
+                lastAttemptAt: null
+                lastSuccessAt: null
+                createdAt: 2026-06-20T22:00:00.000Z
+                updatedAt: 2026-06-20T22:00:00.000Z
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - UNAUTHORIZED
+      - FORBIDDEN
+    x-cli:
+      name: list
+  post:
+    operationId: createConnector
+    summary: Create a connector
+    description: |-
+      Creates a connector. The request body is discriminated on `provider`.
+
+      - **OAuth/app providers** (`google_sheets`, `github`, `slack`) — supply `{ provider, name, events }`. The connector is created `enabled: false` with empty `config` and no credentials; the provider's OAuth flow then attaches credentials and enables it.
+      - **Trigger providers** (`claude_trigger`, `cursor_trigger`, `copilot_trigger`, `jules_trigger`) — supply `config` plus the provider's credential field(s) and the connector is fireable immediately. Trigger creates are **idempotent** by their natural key (`config.routineId` / `config.repoUrl` / `config.owner`+`config.repo` / `config.source`): re-creating updates the existing row rather than duplicating it.
+
+      **Use cases**
+
+      - **File bugs as GitHub Issues** — `{ "provider": "github", "name": "Bugs → acme/app", "events": ["bug.created"] }`, then finish the GitHub App install.
+      - **Nightly ops sweep** — register a `claude_trigger` with its `routineId` and (optionally) a fire `token`; subscribe `events` later to auto-fire on new bugs.
+      - **Cold cloud-agent run** — register a `cursor_trigger`/`jules_trigger` with the repo coordinates plus both keys, or a `copilot_trigger` with the repo + user PAT.
+    tags:
+      - Connectors
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/connectors.yaml#/CreateConnectorRequest
+          examples:
+            githubStub:
+              summary: GitHub — OAuth/app stub
+              description: "Creates a disabled `github` connector subscribed to `bug.created`. Finish the GitHub App install to attach credentials and enable it."
+              value:
+                provider: github
+                name: Bugs → acme/app issues
+                events:
+                  - bug.created
+            claudeTrigger:
+              summary: Claude trigger — tokened
+              description: "Registers a Claude Code routine trigger with its fire token. Idempotent by `config.routineId`. `events` left empty so it does not auto-fire paid runs yet."
+              value:
+                provider: claude_trigger
+                name: Nightly ops sweep
+                config:
+                  routineId: rtn_8fk20
+                  fireText: Burn down the open bug + feature-request queue.
+                token: rtk_live_3f9a…
+            cursorTrigger:
+              summary: Cursor trigger — cold cloud agent
+              description: "Both keys required up front: the Cursor `apiKey` launches the run, the `opsKey` is injected as SHIPEASY_CLI_TOKEN. Idempotent by `config.repoUrl`."
+              value:
+                provider: cursor_trigger
+                name: Cursor ops agent
+                config:
+                  repoUrl: https://github.com/acme/app
+                  projectId: prj_01j7w7m9q4hxbf6npe6s9zr3vc
+                apiKey: cur_live_…
+                opsKey: ops_…
+    responses:
+      "201":
+        description: Create a connector
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/connectors.yaml#/CreateConnectorResponse
+            example:
+              id: 9b0e7c2a-1f3d-4a8e-bf21-0c6a2e5d7f10
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - VALIDATION
+    x-cli:
+      name: create
+/api/admin/connectors/{id}:
+  get:
+    operationId: getConnector
+    summary: Get a connector
+    description: |-
+      Returns a single connector by id. The encrypted credentials are never serialised.
+
+      **Use case:** Inspect one connector's health — its `enabled` state, subscribed `events`, and last-attempt outcome (`lastError`/`lastSuccessAt`).
+    tags:
+      - Connectors
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque connector id.
+        schema:
+          type: string
+    responses:
+      "200":
+        description: Get a connector
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/connectors.yaml#/GetConnectorResponse
+            example:
+              id: 9b0e7c2a-1f3d-4a8e-bf21-0c6a2e5d7f10
+              projectId: prj_01j7w7m9q4hxbf6npe6s9zr3vc
+              provider: github
+              name: Bugs → acme/app issues
+              enabled: true
+              events:
+                - bug.created
+              config:
+                owner: acme
+                repo: app
+              accountLabel: acme/app
+              lastError: null
+              lastAttemptAt: 2026-06-27T18:04:11.000Z
+              lastSuccessAt: 2026-06-27T18:04:11.000Z
+              createdAt: 2026-06-01T09:12:00.000Z
+              updatedAt: 2026-06-27T18:04:11.000Z
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: get
+      positional:
+        - id
+  patch:
+    operationId: updateConnector
+    summary: Update a connector
+    description: |-
+      Partial update — only supplied fields change. `events` and `config` **replace** wholesale; there is no merge or append. Secrets cannot be set through this endpoint (credential rotation goes through the provider-specific re-register flow).
+
+      The response carries only `{ id }` — re-fetch via `GET /api/admin/connectors/{id}` for the new row.
+
+      **Use cases**
+
+      - **Pause a connector** — `{ "enabled": false }`. Stops all dispatch / auto-fire without deleting it.
+      - **Change subscribed events** — send the full new `events` array. An empty array unsubscribes the connector from every event.
+      - **Rename** — `{ "name": "Bugs → acme/app issues" }`.
+      - **Retarget** — send a new `config` (e.g. a different Sheets `sheetTitle`); it replaces the stored config wholesale.
+    tags:
+      - Connectors
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque connector id.
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/connectors.yaml#/UpdateConnectorRequest
+          examples:
+            pause:
+              summary: Pause — disable the connector
+              description: 'Stops all dispatch / auto-fire. Re-enable with `{ "enabled": true }`.'
+              value:
+                enabled: false
+            resubscribe:
+              summary: Replace subscribed events
+              description: "Array fields replace wholesale. Send the full new list; an empty array unsubscribes from everything."
+              value:
+                events:
+                  - bug.created
+                  - feature_request.created
+            retarget:
+              summary: Retarget config
+              description: Replaces the stored non-secret config wholesale.
+              value:
+                config:
+                  spreadsheetId: 1AbC…
+                  sheetTitle: Bugs Q3
+    responses:
+      "200":
+        description: Update a connector
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/connectors.yaml#/UpdateConnectorResponse
+            example:
+              id: 9b0e7c2a-1f3d-4a8e-bf21-0c6a2e5d7f10
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: update
+      positional:
+        - id
+  delete:
+    operationId: deleteConnector
+    summary: Delete a connector
+    description: |-
+      Permanently removes the connector and its stored credentials.
+
+      **Use case:** Disconnect an integration for good — e.g. tear down a `github` connector after migrating bug routing elsewhere.
+    tags:
+      - Connectors
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque connector id.
+        schema:
+          type: string
+    responses:
+      "200":
+        description: Delete a connector
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/connectors.yaml#/DeleteConnectorResponse
+            example:
+              ok: true
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: archive
+      positional:
+        - id
+/api/admin/connectors/{id}/fire:
+  post:
+    operationId: fireConnector
+    summary: Fire a trigger connector
+    description: |-
+      Manually kicks a trigger connector's run — Claude (kicks its preconfigured routine) or Cursor / Copilot / Jules (launches a cold cloud-agent run). Firing is event-less: it kicks the run with an optional caller-supplied prompt override rather than dispatching a single lifecycle payload.
+
+      Only trigger providers can be fired, and only once authenticated (a tokenless trigger cannot fire). The attempt's outcome is recorded on the connector's `lastAttemptAt` / `lastError` / `lastSuccessAt`.
+
+      **Use case:** Kick a one-off ops sweep on demand from the dashboard's "Fire now" button, optionally overriding the routine's default prompt.
+    tags:
+      - Connectors
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque connector id.
+        schema:
+          type: string
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/connectors.yaml#/FireConnectorRequest
+          examples:
+            default:
+              summary: Fire with the provider default prompt
+              description: Empty body — kicks the run with the provider's own default (Claude → configured `fireText`, others → built cold-start prompt).
+              value: {}
+            override:
+              summary: Fire with a prompt override
+              value:
+                text: Triage only the P0 bugs reported in the last 24h.
+    responses:
+      "200":
+        description: Fire a trigger connector
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/connectors.yaml#/FireConnectorResponse
+            example:
+              ok: true
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: fire
+      positional:
+        - id
+/api/admin/connectors/{id}/test:
+  post:
+    operationId: testConnector
+    summary: Test a connector
+    description: |-
+      Dispatches a single synthetic `bug.created` payload to the connector's destination so you can verify the integration end-to-end. Unlike `fire`, this runs the real dispatch path (posts a Slack message / appends a Sheets row / files a GitHub Issue) with throwaway test content. The attempt's outcome is recorded on the connector's `lastAttemptAt` / `lastError` / `lastSuccessAt`.
+
+      When the provider produces a linkable artifact (e.g. a GitHub Issue), its URL is returned as `issueUrl`; otherwise `issueUrl` is `null`.
+
+      **Use case:** Click "Send test" after wiring up a connector to confirm credentials and config are correct before relying on it for real events.
+    tags:
+      - Connectors
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque connector id.
+        schema:
+          type: string
+    responses:
+      "200":
+        description: Test a connector
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/connectors.yaml#/TestConnectorResponse
+            example:
+              ok: true
+              issueUrl: https://github.com/acme/app/issues/4217
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: test
+      positional:
+        - id

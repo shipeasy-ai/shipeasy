@@ -1,0 +1,46 @@
+SearchResponse:
+  type: object
+  description: Flat, ranked-by-type list of search hits the command palette groups for display. Capped per resource family so one noisy type can't crowd out the rest.
+  properties:
+    hits:
+      type: array
+      items:
+        $ref: "#/SearchHit"
+  required:
+    - hits
+  additionalProperties: false
+SearchHit:
+  type: object
+  description: A single universal-search hit. Field names are camelCase; `title` is `null` when the resource has no human title/display name (members fall back to a role label).
+  properties:
+    type:
+      type: string
+      enum:
+        - member
+        - gate
+        - experiment
+        - config
+        - killswitch
+        - metric
+      description: Resource family — drives the result group + icon in the palette. (`member` hits are surfaced first.)
+    id:
+      type: string
+      description: "Stable identifier used to deep-link into the row's detail pane. For `member` hits this is the teammate's email; for everything else it is the resource id."
+    name:
+      type: string
+      description: The matched handle — the resource's immutable `name`, or the member's display name (falling back to email).
+    title:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: "Human title/display name when present, else `null`. For `member` hits this carries the email (or the `Owner`/`Member` role when no profile name is set)."
+    href:
+      type: string
+      description: Project-relative href that opens the row (e.g. `/gates?open=<id>`).
+  required:
+    - type
+    - id
+    - name
+    - title
+    - href
+  additionalProperties: false

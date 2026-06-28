@@ -3373,6 +3373,712 @@ export type PublishI18nProfileResponse = {
 };
 
 /**
+ * A tracked production error — one row per distinct issue, keyed by `fingerprint`. Rows are never created by hand: an ingestion path (worker log drain / the `see()` SDK reporter) folds each occurrence into the matching row, bumping `count` and `lastSeenAt`. The admin surface only lists them, reads one, and flips `status`.
+ *
+ * Field names are camelCase (the D1 row projected through Drizzle). Many columns are nullable because the reporting source may not supply them.
+ */
+export type ErrorRecord = {
+    /**
+     * Stable opaque error id.
+     */
+    id: string;
+    /**
+     * Project this issue belongs to.
+     */
+    projectId: string;
+    /**
+     * Stable dedupe key (hash of `errorType` + normalized `message` + consequence). Unique per project — every occurrence with the same fingerprint folds into this one row.
+     */
+    fingerprint: string;
+    /**
+     * Fingerprint of the issue this one descends from — set when `see()` reported the same error (re-throw) or its `{ cause }` (wrap) at an inner boundary first. Points at another error's `fingerprint` in the same project (soft reference, no FK). `null` for a root issue.
+     */
+    causedByFingerprint?: string | null;
+    /**
+     * Error message text.
+     */
+    message: string;
+    /**
+     * Error class/name, e.g. `TypeError`. `null` when the source didn't supply one.
+     */
+    errorType?: string | null;
+    /**
+     * Stack trace of the latest occurrence, or `null` if none was captured.
+     */
+    stack?: string | null;
+    /**
+     * Where it surfaced — Worker name (`shipeasy`, `shipeasy-worker`) or `sdk-client` / `sdk-server`. `null` if unknown.
+     */
+    source?: string | null;
+    /**
+     * Latest occurrence's raw URL (with ids intact), or `null`.
+     */
+    url?: string | null;
+    /**
+     * Distinct, id-normalized route templates this issue has surfaced on, as a JSON-encoded string array (e.g. `["https://app/dashboard/#/gates"]`). UUIDs / numeric ids / opaque tokens are collapsed to `#` so the same route under different ids counts once. `null` if none recorded.
+     */
+    seenUrls?: string | null;
+    /**
+     * Consequence subject — `<errorType> causes the <subject> to <outcome>`. `null` if no consequence was reported.
+     */
+    subject?: string | null;
+    /**
+     * Consequence outcome — see `subject`. `null` if no consequence was reported.
+     */
+    outcome?: string | null;
+    /**
+     * Which SDK side reported it — `client` or `server`. `null` if unknown.
+     */
+    side?: string | null;
+    /**
+     * Published env the reporting SDK ran against (e.g. `dev`, `staging`, `prod`). `null` if unknown.
+     */
+    env?: string | null;
+    /**
+     * `see()` error kind. `null` when the source didn't classify the occurrence.
+     */
+    kind?: 'caught' | 'uncaught' | 'unhandled_rejection' | 'network' | 'violation' | null;
+    /**
+     * Latest occurrence's sanitized extras, JSON-encoded. `null` if none.
+     */
+    lastExtrasJson?: string | null;
+    /**
+     * `@shipeasy/sdk` version of the latest occurrence, or `null`.
+     */
+    sdkVersion?: string | null;
+    /**
+     * Number of folded occurrences for this fingerprint.
+     */
+    count: number;
+    /**
+     * Triage state. `open` is the default; a `resolved` error reopens automatically (ingestion-side) if it recurs; `ignored` is sticky until flipped back here.
+     */
+    status: 'open' | 'resolved' | 'ignored';
+    /**
+     * ISO-8601 timestamp of the first folded occurrence.
+     */
+    firstSeenAt: string;
+    /**
+     * ISO-8601 timestamp of the most recent folded occurrence. Rows are ordered by this, descending.
+     */
+    lastSeenAt: string;
+    /**
+     * ISO-8601 timestamp the row was created.
+     */
+    createdAt: string;
+    /**
+     * ISO-8601 timestamp of the last mutation (e.g. a status flip).
+     */
+    updatedAt: string;
+};
+
+/**
+ * A bare JSON array of tracked errors, ordered by `lastSeenAt` descending. There is no pagination envelope — `limit` caps the page size.
+ */
+export type ListErrorsResponse = Array<ErrorRecord>;
+
+/**
+ * Body for `PATCH /api/admin/errors/{id}`. The only mutable field is `status` (open ⇄ resolved ⇄ ignored).
+ */
+export type UpdateErrorStatusRequest = {
+    /**
+     * New triage state. `resolved` reopens automatically on recurrence; `ignored` is sticky.
+     */
+    status: 'open' | 'resolved' | 'ignored';
+};
+
+/**
+ * The feedback ticket that tracks this error. Idempotent — if an open `error` ticket already tracks this fingerprint (hand- or auto-filed), the existing one is returned instead of creating a duplicate.
+ */
+export type FileErrorTicketResponse = {
+    /**
+     * Feedback ticket id.
+     */
+    id: string;
+    /**
+     * Human-facing per-project ticket number.
+     */
+    number: number;
+};
+
+/**
+ * Time window for the occurrence series. Bounds are epoch **seconds** (Analytics Engine stores the occurrence timestamp in seconds). `to` must be strictly greater than `from`.
+ */
+export type ErrorSeriesRequest = {
+    /**
+     * Window start, epoch seconds (inclusive).
+     */
+    from: number;
+    /**
+     * Window end, epoch seconds (exclusive). Must be greater than `from`.
+     */
+    to: number;
+    /**
+     * Bucket width in seconds (60s–86400s/1d). Defaults to `3600` (hourly). Each returned point is floor-aligned to this width.
+     */
+    bucket?: number;
+};
+
+/**
+ * Bucketed occurrence counts for one tracked error (by its fingerprint), plus the Analytics Engine SQL that produced them.
+ */
+export type ErrorSeriesResponse = {
+    /**
+     * The Analytics Engine SQL executed to produce `rows` (echoed for transparency / debugging).
+     */
+    sql: string;
+    /**
+     * Bucketed occurrence series, ordered by `t` ascending.
+     */
+    rows: Array<{
+        /**
+         * Bucket start, epoch seconds, floor-aligned to `bucket`.
+         */
+        t: number;
+        /**
+         * Occurrence count in the bucket (sample-interval weighted).
+         */
+        v: number;
+        [key: string]: unknown;
+    }>;
+};
+
+/**
+ * Connector destination. OAuth/app providers (`google_sheets`, `github`, `slack`) dispatch the event payload to an external destination. Trigger providers (`claude_trigger`, `cursor_trigger`, `copilot_trigger`, `jules_trigger`) instead kick a coding-agent run that burns down the operational queue.
+ */
+export type ConnectorProvider = 'google_sheets' | 'github' | 'slack' | 'claude_trigger' | 'cursor_trigger' | 'copilot_trigger' | 'jules_trigger';
+
+/**
+ * Lifecycle event a connector subscribes to. `bug.created` fires when a new bug report lands in the feedback inbox; `feature_request.created` fires for a new feature request. A connector dispatches (posts to Slack / appends a Sheets row / files a GitHub Issue) — or, for trigger connectors, auto-fires a coding-agent run — once per subscribed event.
+ */
+export type ConnectorEvent = 'bug.created' | 'feature_request.created';
+
+/**
+ * A connector row. The encrypted credentials cipher backing the connector is intentionally never serialised.
+ */
+export type ConnectorRecord = {
+    /**
+     * Stable opaque connector id (a UUID).
+     */
+    id: string;
+    /**
+     * Id of the project the connector belongs to.
+     */
+    projectId: string;
+    provider: ConnectorProvider;
+    /**
+     * Human-readable connector label shown in the dashboard.
+     */
+    name: string;
+    /**
+     * Whether the connector is active. OAuth providers are created `false` and flip to `true` only after the OAuth/config flow completes; trigger providers default to `true` on create. A disabled connector never dispatches and never auto-fires.
+     */
+    enabled: boolean;
+    /**
+     * Events this connector is subscribed to. Empty array = no auto-dispatch / no auto-fire (the connector can still be fired/tested manually).
+     */
+    events: Array<ConnectorEvent>;
+    /**
+     * Provider-specific, non-secret configuration (e.g. a Google Sheets `spreadsheetId`/`sheetTitle`, a Slack channel ref, or a trigger's repo coordinates + routine id). Secrets are never stored here — they live in an encrypted credentials cipher that is never returned by the API.
+     */
+    config: {
+        [key: string]: unknown;
+    };
+    /**
+     * Display label for the connected account / target (e.g. the OAuth account email, or a trigger's idempotency key such as its repo url or routine id). `null` until the connector is authenticated/configured.
+     */
+    accountLabel: string | null;
+    /**
+     * Error message from the most recent failed dispatch/fire attempt, or `null` if the last attempt succeeded (or none has run).
+     */
+    lastError: string | null;
+    /**
+     * ISO-8601 timestamp of the most recent dispatch/fire attempt, or `null` if none has run.
+     */
+    lastAttemptAt: string | null;
+    /**
+     * ISO-8601 timestamp of the most recent successful dispatch/fire, or `null` if none has succeeded. Preserved across later failures.
+     */
+    lastSuccessAt: string | null;
+    /**
+     * ISO-8601 timestamp of creation.
+     */
+    createdAt: string;
+    /**
+     * ISO-8601 timestamp of last mutation.
+     */
+    updatedAt: string;
+};
+
+/**
+ * Bare array of every connector in the project (no pagination envelope).
+ */
+export type ListConnectorsResponse = Array<ConnectorRecord>;
+
+/**
+ * Create an OAuth/app connector stub. The connector is created `enabled: false` with empty `config` and no credentials; the provider's OAuth flow then attaches credentials and enables it.
+ */
+export type CreateOAuthConnectorRequest = {
+    /**
+     * OAuth/app connector destination.
+     */
+    provider: 'google_sheets' | 'github' | 'slack';
+    /**
+     * Human-readable connector label.
+     */
+    name: string;
+    /**
+     * Events to subscribe to. At least one is required.
+     */
+    events: Array<ConnectorEvent>;
+};
+
+/**
+ * Non-secret config for a Claude trigger.
+ */
+export type ClaudeTriggerConfig = {
+    /**
+     * The Claude Code routine id this connector fires (the id recorded at setup). Idempotency key for the connector.
+     */
+    routineId: string;
+    /**
+     * Optional default prompt sent on a manual fire / when no event text applies.
+     */
+    fireText?: string;
+};
+
+/**
+ * Create a Claude Code routine trigger in one shot. Idempotent by `config.routineId` — re-creating with the same routine id updates the existing row.
+ */
+export type CreateClaudeTriggerRequest = {
+    /**
+     * Discriminator. Claude Code scheduled-routine trigger.
+     */
+    provider: 'claude_trigger';
+    /**
+     * Human-readable connector label.
+     */
+    name?: string;
+    /**
+     * Events that auto-fire the routine. Defaults to empty so the trigger does not auto-fire paid runs until events are subscribed.
+     */
+    events?: Array<ConnectorEvent>;
+    config: ClaudeTriggerConfig;
+    /**
+     * The routine's fire bearer token (secret). **Optional** — a tokenless trigger is recorded but not fireable until a token is added later. Encrypted into the credentials cipher; never persisted in `config` or returned.
+     */
+    token?: string;
+    /**
+     * Whether the trigger is active on create.
+     */
+    enabled?: boolean;
+};
+
+/**
+ * Non-secret config for a Cursor trigger.
+ */
+export type CursorTriggerConfig = {
+    /**
+     * Repo the cloud agent runs against, e.g. `https://github.com/owner/repo`. Idempotency key for the connector.
+     */
+    repoUrl: string;
+    /**
+     * Optional git ref the run starts from.
+     */
+    startingRef?: string;
+    /**
+     * Shipeasy project id the run targets.
+     */
+    projectId: string;
+};
+
+/**
+ * Create a Cursor cloud-agent trigger. Both keys are required up front (never tokenless). Idempotent by `config.repoUrl`.
+ */
+export type CreateCursorTriggerRequest = {
+    /**
+     * Discriminator. Cursor cloud-agent trigger.
+     */
+    provider: 'cursor_trigger';
+    /**
+     * Human-readable connector label.
+     */
+    name?: string;
+    /**
+     * Events that auto-fire a cold cloud-agent run. Defaults to empty.
+     */
+    events?: Array<ConnectorEvent>;
+    config: CursorTriggerConfig;
+    /**
+     * Cursor API key that launches the run (secret). Encrypted into the credentials cipher; never returned.
+     */
+    apiKey: string;
+    /**
+     * Restricted Shipeasy ops key, injected into the run as `SHIPEASY_CLI_TOKEN` via the launch envVars (secret). Encrypted; never returned.
+     */
+    opsKey: string;
+    /**
+     * Whether the trigger is active on create.
+     */
+    enabled?: boolean;
+};
+
+/**
+ * Non-secret config for a Copilot trigger.
+ */
+export type CopilotTriggerConfig = {
+    /**
+     * GitHub repo owner. Together with `repo` forms the connector's idempotency key (`owner/repo`).
+     */
+    owner: string;
+    /**
+     * GitHub repo name.
+     */
+    repo: string;
+    /**
+     * Optional base ref the agent branches from.
+     */
+    baseRef?: string;
+    /**
+     * Shipeasy project id the run targets.
+     */
+    projectId: string;
+};
+
+/**
+ * Create a GitHub Copilot coding-agent trigger. Idempotent by `config.owner/config.repo`.
+ */
+export type CreateCopilotTriggerRequest = {
+    /**
+     * Discriminator. GitHub Copilot coding-agent trigger.
+     */
+    provider: 'copilot_trigger';
+    /**
+     * Human-readable connector label.
+     */
+    name?: string;
+    /**
+     * Events that auto-fire a Copilot agent task. Defaults to empty.
+     */
+    events?: Array<ConnectorEvent>;
+    config: CopilotTriggerConfig;
+    /**
+     * Copilot-licensed user PAT (secret). The ops key lives in the repo's GitHub "Agents" secret store and is never sent through Shipeasy. Encrypted; never returned.
+     */
+    token: string;
+    /**
+     * Whether the trigger is active on create.
+     */
+    enabled?: boolean;
+};
+
+/**
+ * Non-secret config for a Jules trigger.
+ */
+export type JulesTriggerConfig = {
+    /**
+     * Jules source for the connected repo, e.g. `sources/github/owner/repo`. Idempotency key for the connector.
+     */
+    source: string;
+    /**
+     * Optional branch the session starts from.
+     */
+    startingBranch?: string;
+    /**
+     * Shipeasy project id the run targets.
+     */
+    projectId: string;
+};
+
+/**
+ * Create a Google Jules trigger. Both keys are required up front. Idempotent by `config.source`.
+ */
+export type CreateJulesTriggerRequest = {
+    /**
+     * Discriminator. Google Jules trigger.
+     */
+    provider: 'jules_trigger';
+    /**
+     * Human-readable connector label.
+     */
+    name?: string;
+    /**
+     * Events that auto-fire a Jules session. Defaults to empty.
+     */
+    events?: Array<ConnectorEvent>;
+    config: JulesTriggerConfig;
+    /**
+     * Jules API key that launches the session (secret). Encrypted into the credentials cipher; never returned.
+     */
+    apiKey: string;
+    /**
+     * Restricted Shipeasy ops key, embedded in the prompt (Jules exposes no env channel) (secret). Encrypted; never returned.
+     */
+    opsKey: string;
+    /**
+     * Whether the trigger is active on create.
+     */
+    enabled?: boolean;
+};
+
+/**
+ * Body for `POST /api/admin/connectors`, discriminated on `provider`. The OAuth providers (`google_sheets`/`github`/`slack`) create a disabled stub that is finished via the provider's OAuth flow. The trigger providers (`claude_trigger`/`cursor_trigger`/`copilot_trigger`/`jules_trigger`) arrive config + credentials together and are fireable immediately.
+ */
+export type CreateConnectorRequest = ({
+    provider: 'google_sheets' | 'github' | 'slack';
+} & CreateOAuthConnectorRequest) | ({
+    provider: 'claude_trigger';
+} & CreateClaudeTriggerRequest) | ({
+    provider: 'cursor_trigger';
+} & CreateCursorTriggerRequest) | ({
+    provider: 'copilot_trigger';
+} & CreateCopilotTriggerRequest) | ({
+    provider: 'jules_trigger';
+} & CreateJulesTriggerRequest);
+
+export type CreateConnectorResponse = {
+    /**
+     * Newly assigned connector id.
+     */
+    id: string;
+};
+
+export type DeleteConnectorResponse = {
+    ok: true;
+};
+
+/**
+ * Body for `PATCH /api/admin/connectors/{id}`. Partial — only supplied fields change. Array/object fields (`events`, `config`) replace, not merge.
+ */
+export type UpdateConnectorRequest = {
+    /**
+     * New connector label.
+     */
+    name?: string;
+    /**
+     * Toggle the connector on/off.
+     */
+    enabled?: boolean;
+    /**
+     * Replaces the subscribed-events list wholesale. An empty array unsubscribes the connector from every event (e.g. turning off a trigger's auto-fire).
+     */
+    events?: Array<ConnectorEvent>;
+    /**
+     * Replaces the non-secret config wholesale. Secrets are never set through this endpoint.
+     */
+    config?: {
+        [key: string]: unknown;
+    };
+};
+
+/**
+ * Update returns only the id — re-fetch via `GET /api/admin/connectors/{id}` for the full row.
+ */
+export type UpdateConnectorResponse = {
+    /**
+     * Connector id that was updated.
+     */
+    id: string;
+};
+
+/**
+ * Body for `POST /api/admin/connectors/{id}/fire`. Entirely optional — an empty body kicks the run with the provider default.
+ */
+export type FireConnectorRequest = {
+    /**
+     * Optional prompt override for the run. When omitted, each provider falls back to its own default (Claude → the configured `fireText`; the others → their built cold-start prompt).
+     */
+    text?: string;
+};
+
+/**
+ * Result of firing a trigger connector. `{ ok: true }` on success; `{ ok: false, error }` when the dispatch fails (the request still returns HTTP 200).
+ */
+export type FireConnectorResponse = {
+    /**
+     * `true` when the trigger run was successfully kicked off; `false` when the dispatch itself failed (still HTTP 200, with `error` set).
+     */
+    ok: boolean;
+    /**
+     * Failure reason. Present only when `ok` is `false` — the fire reached the handler but the underlying dispatch to the provider failed.
+     */
+    error?: string;
+};
+
+/**
+ * Result of testing a connector. `{ ok: true, issueUrl }` on success; `{ ok: false, issueUrl: null, error }` when the dispatch fails (the request still returns HTTP 200).
+ */
+export type TestConnectorResponse = {
+    /**
+     * `true` when the test dispatch reached the destination; `false` when the dispatch itself failed (still HTTP 200, with `error` set).
+     */
+    ok: boolean;
+    /**
+     * URL of the artifact the test produced (e.g. the GitHub Issue created by a `github` connector), or `null` when the provider produces no linkable artifact (or the dispatch failed).
+     */
+    issueUrl: string | null;
+    /**
+     * Failure reason. Present only when `ok` is `false` — the test reached the handler but the underlying dispatch to the provider failed.
+     */
+    error?: string;
+};
+
+/**
+ * A single API key as returned by the list endpoint. Response fields are snake_case. The raw token is never returned here — only its `last4` tail. `last4` and the typed `scopes` may be `null` for keys minted before those columns existed.
+ */
+export type KeyRecord = {
+    /**
+     * Stable opaque key id (UUID). Use it to revoke the key.
+     */
+    id: string;
+    /**
+     * Key kind. `server` (back-end, full SDK auth), `client` (public, browser-embeddable), `admin` (CLI/devtools auth token), `ops` (restricted unattended-trigger credential).
+     */
+    type: 'server' | 'client' | 'admin' | 'ops';
+    /**
+     * Environment the key is bound to. The worker derives the read env from the key, so this is the isolation boundary. `admin`/`ops` keys are env-agnostic and pinned to `prod`.
+     */
+    env: 'dev' | 'staging' | 'prod';
+    /**
+     * ISO-8601 timestamp the key was minted.
+     */
+    created_at: string;
+    /**
+     * ISO-8601 timestamp the key was revoked, or `null` while the key is active.
+     */
+    revoked_at: string | null;
+    /**
+     * ISO-8601 expiry, or `null` for a key that never expires. `admin` keys are fixed at 90 days; `ops` keys use a short sliding window.
+     */
+    expires_at: string | null;
+    /**
+     * Email of the human or actor that minted the key, or `null` when not attributable (e.g. CLI device-flow).
+     */
+    created_by_email: string | null;
+    /**
+     * Human label for the key. `null` for unnamed dashboard mints; programmatic mints auto-name themselves.
+     */
+    name: string | null;
+    /**
+     * Permission strings recorded on the key for audit/display, or `null` when none were set.
+     */
+    scopes: Array<string> | null;
+    /**
+     * Last 4 characters of the raw token, so the dashboard mask is matchable against the held key. `null` for keys minted before this column.
+     */
+    last4: string | null;
+};
+
+/**
+ * One page of API keys plus a keyset `next_cursor` (ordered `created_at desc, id desc`).
+ */
+export type ListKeysResponse = {
+    data: Array<KeyRecord>;
+    /**
+     * Opaque cursor for the next page, or `null` on the last page. Pass it back as the `cursor` query parameter.
+     */
+    next_cursor: string | null;
+};
+
+/**
+ * Body for `POST /api/admin/keys`. Only `type` is required.
+ *
+ * `env` is **required** for `server` and `client` keys (the key is bound to one environment — that binding is the read-env isolation boundary). For `admin` and `ops` keys `env` is ignored and the key is pinned to `prod`.
+ */
+export type CreateKeyRequest = {
+    /**
+     * Key kind to mint. `server` (back-end), `client` (public, browser), `admin` (CLI/devtools token), `ops` (restricted unattended-trigger credential). `admin`/`ops` keys don't count toward the plan key limit.
+     */
+    type: 'server' | 'client' | 'admin' | 'ops';
+    /**
+     * Optional human label. Programmatic (API) mints that omit it get an auto-generated descriptive name; dashboard mints may leave it blank.
+     */
+    name?: string;
+    /**
+     * Optional permission strings recorded on the key for audit/display.
+     */
+    scopes?: Array<'experiments:read' | 'gates:evaluate' | 'events:write' | 'configs:write' | 'experiments:write'>;
+    /**
+     * Days until the key expires (1–3650), or `null`/omitted for a key that never expires. Ignored for `admin` keys (fixed 90-day expiry) and `ops` keys (short sliding window).
+     */
+    expiresInDays?: number | null;
+    /**
+     * Environment to bind the key to. Required for `server`/`client` keys; ignored for `admin`/`ops` (pinned to `prod`).
+     */
+    env?: 'dev' | 'staging' | 'prod';
+};
+
+/**
+ * The minted key. The plaintext `key` is returned **once**, here — it is stored hashed and can never be retrieved again.
+ */
+export type CreateKeyResponse = {
+    /**
+     * Stable opaque key id (UUID). Use it to revoke the key.
+     */
+    id: string;
+    /**
+     * The kind of key that was minted.
+     */
+    type: 'server' | 'client' | 'admin' | 'ops';
+    /**
+     * Environment the key is bound to (`prod` for `admin`/`ops`).
+     */
+    env: 'dev' | 'staging' | 'prod';
+    /**
+     * The plaintext API token (e.g. `sdk_server_…`). Returned once — store it now; it cannot be recovered.
+     */
+    key: string;
+    /**
+     * ISO-8601 expiry, or `null` if the key never expires.
+     */
+    expires_at: string | null;
+};
+
+/**
+ * Confirms the key is revoked. Idempotent — revoking an already-revoked key returns the same shape.
+ */
+export type RevokeKeyResponse = {
+    /**
+     * Id of the key that was revoked.
+     */
+    id: string;
+    revoked: true;
+};
+
+/**
+ * A single universal-search hit. Field names are camelCase; `title` is `null` when the resource has no human title/display name (members fall back to a role label).
+ */
+export type SearchHit = {
+    /**
+     * Resource family — drives the result group + icon in the palette. (`member` hits are surfaced first.)
+     */
+    type: 'member' | 'gate' | 'experiment' | 'config' | 'killswitch' | 'metric';
+    /**
+     * Stable identifier used to deep-link into the row's detail pane. For `member` hits this is the teammate's email; for everything else it is the resource id.
+     */
+    id: string;
+    /**
+     * The matched handle — the resource's immutable `name`, or the member's display name (falling back to email).
+     */
+    name: string;
+    /**
+     * Human title/display name when present, else `null`. For `member` hits this carries the email (or the `Owner`/`Member` role when no profile name is set).
+     */
+    title: string | null;
+    /**
+     * Project-relative href that opens the row (e.g. `/gates?open=<id>`).
+     */
+    href: string;
+};
+
+/**
+ * Flat, ranked-by-type list of search hits the command palette groups for display. Capped per resource family so one noisy type can't crowd out the rest.
+ */
+export type SearchResponse = {
+    hits: Array<SearchHit>;
+};
+
+/**
  * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
  */
 export type ProjectId = string;
@@ -7084,3 +7790,896 @@ export type PublishI18nProfileResponses = {
 };
 
 export type PublishI18nProfileResponse2 = PublishI18nProfileResponses[keyof PublishI18nProfileResponses];
+
+export type ListErrorsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Filter by triage state. `all` (the default) returns every status.
+         */
+        status?: 'open' | 'resolved' | 'ignored' | 'all';
+        /**
+         * Case-insensitive substring match against `message`, `errorType`, and `subject`.
+         */
+        q?: string;
+        /**
+         * Maximum number of rows to return (1–500). Defaults to 200.
+         */
+        limit?: number;
+    };
+    url: '/api/admin/errors';
+};
+
+export type ListErrorsErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type ListErrorsError = ListErrorsErrors[keyof ListErrorsErrors];
+
+export type ListErrorsResponses = {
+    /**
+     * List tracked errors
+     */
+    200: ListErrorsResponse;
+};
+
+export type ListErrorsResponse2 = ListErrorsResponses[keyof ListErrorsResponses];
+
+export type GetErrorData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Stable opaque error id (`err_…`).
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/errors/{id}';
+};
+
+export type GetErrorErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type GetErrorError = GetErrorErrors[keyof GetErrorErrors];
+
+export type GetErrorResponses = {
+    /**
+     * Get a tracked error
+     */
+    200: ErrorRecord;
+};
+
+export type GetErrorResponse = GetErrorResponses[keyof GetErrorResponses];
+
+export type UpdateErrorStatusData = {
+    body: UpdateErrorStatusRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Stable opaque error id (`err_…`).
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/errors/{id}';
+};
+
+export type UpdateErrorStatusErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type UpdateErrorStatusError = UpdateErrorStatusErrors[keyof UpdateErrorStatusErrors];
+
+export type UpdateErrorStatusResponses = {
+    /**
+     * Update a tracked error's status
+     */
+    200: ErrorRecord;
+};
+
+export type UpdateErrorStatusResponse = UpdateErrorStatusResponses[keyof UpdateErrorStatusResponses];
+
+export type FileErrorTicketData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Stable opaque error id (`err_…`).
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/errors/{id}/file';
+};
+
+export type FileErrorTicketErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type FileErrorTicketError = FileErrorTicketErrors[keyof FileErrorTicketErrors];
+
+export type FileErrorTicketResponses = {
+    /**
+     * File a feedback ticket for an error
+     */
+    201: FileErrorTicketResponse;
+};
+
+export type FileErrorTicketResponse2 = FileErrorTicketResponses[keyof FileErrorTicketResponses];
+
+export type GetErrorSeriesData = {
+    body: ErrorSeriesRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Stable opaque error id (`err_…`).
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/errors/{id}/series';
+};
+
+export type GetErrorSeriesErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type GetErrorSeriesError = GetErrorSeriesErrors[keyof GetErrorSeriesErrors];
+
+export type GetErrorSeriesResponses = {
+    /**
+     * Get an error's occurrence series
+     */
+    200: ErrorSeriesResponse;
+};
+
+export type GetErrorSeriesResponse = GetErrorSeriesResponses[keyof GetErrorSeriesResponses];
+
+export type ListConnectorsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/admin/connectors';
+};
+
+export type ListConnectorsErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type ListConnectorsError = ListConnectorsErrors[keyof ListConnectorsErrors];
+
+export type ListConnectorsResponses = {
+    /**
+     * List connectors
+     */
+    200: ListConnectorsResponse;
+};
+
+export type ListConnectorsResponse2 = ListConnectorsResponses[keyof ListConnectorsResponses];
+
+export type CreateConnectorData = {
+    body: CreateConnectorRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/admin/connectors';
+};
+
+export type CreateConnectorErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type CreateConnectorError = CreateConnectorErrors[keyof CreateConnectorErrors];
+
+export type CreateConnectorResponses = {
+    /**
+     * Create a connector
+     */
+    201: CreateConnectorResponse;
+};
+
+export type CreateConnectorResponse2 = CreateConnectorResponses[keyof CreateConnectorResponses];
+
+export type DeleteConnectorData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Stable opaque connector id.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/connectors/{id}';
+};
+
+export type DeleteConnectorErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type DeleteConnectorError = DeleteConnectorErrors[keyof DeleteConnectorErrors];
+
+export type DeleteConnectorResponses = {
+    /**
+     * Delete a connector
+     */
+    200: DeleteConnectorResponse;
+};
+
+export type DeleteConnectorResponse2 = DeleteConnectorResponses[keyof DeleteConnectorResponses];
+
+export type GetConnectorData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Stable opaque connector id.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/connectors/{id}';
+};
+
+export type GetConnectorErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type GetConnectorError = GetConnectorErrors[keyof GetConnectorErrors];
+
+export type GetConnectorResponses = {
+    /**
+     * Get a connector
+     */
+    200: ConnectorRecord;
+};
+
+export type GetConnectorResponse = GetConnectorResponses[keyof GetConnectorResponses];
+
+export type UpdateConnectorData = {
+    body: UpdateConnectorRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Stable opaque connector id.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/connectors/{id}';
+};
+
+export type UpdateConnectorErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type UpdateConnectorError = UpdateConnectorErrors[keyof UpdateConnectorErrors];
+
+export type UpdateConnectorResponses = {
+    /**
+     * Update a connector
+     */
+    200: UpdateConnectorResponse;
+};
+
+export type UpdateConnectorResponse2 = UpdateConnectorResponses[keyof UpdateConnectorResponses];
+
+export type FireConnectorData = {
+    body?: FireConnectorRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Stable opaque connector id.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/connectors/{id}/fire';
+};
+
+export type FireConnectorErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type FireConnectorError = FireConnectorErrors[keyof FireConnectorErrors];
+
+export type FireConnectorResponses = {
+    /**
+     * Fire a trigger connector
+     */
+    200: FireConnectorResponse;
+};
+
+export type FireConnectorResponse2 = FireConnectorResponses[keyof FireConnectorResponses];
+
+export type TestConnectorData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Stable opaque connector id.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/connectors/{id}/test';
+};
+
+export type TestConnectorErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type TestConnectorError = TestConnectorErrors[keyof TestConnectorErrors];
+
+export type TestConnectorResponses = {
+    /**
+     * Test a connector
+     */
+    200: TestConnectorResponse;
+};
+
+export type TestConnectorResponse2 = TestConnectorResponses[keyof TestConnectorResponses];
+
+export type ListKeysData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Page size (1–500). Defaults to 100.
+         */
+        limit?: number;
+        /**
+         * Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page.
+         */
+        cursor?: string;
+    };
+    url: '/api/admin/keys';
+};
+
+export type ListKeysErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type ListKeysError = ListKeysErrors[keyof ListKeysErrors];
+
+export type ListKeysResponses = {
+    /**
+     * List API keys
+     */
+    200: ListKeysResponse;
+};
+
+export type ListKeysResponse2 = ListKeysResponses[keyof ListKeysResponses];
+
+export type CreateKeyData = {
+    body: CreateKeyRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/admin/keys';
+};
+
+export type CreateKeyErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type CreateKeyError = CreateKeyErrors[keyof CreateKeyErrors];
+
+export type CreateKeyResponses = {
+    /**
+     * Create an API key
+     */
+    201: CreateKeyResponse;
+};
+
+export type CreateKeyResponse2 = CreateKeyResponses[keyof CreateKeyResponses];
+
+export type RevokeKeyData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Stable opaque key id (UUID) returned by `create` / `list`.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/keys/{id}/revoke';
+};
+
+export type RevokeKeyErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type RevokeKeyError = RevokeKeyErrors[keyof RevokeKeyErrors];
+
+export type RevokeKeyResponses = {
+    /**
+     * Revoke an API key
+     */
+    200: RevokeKeyResponse;
+};
+
+export type RevokeKeyResponse2 = RevokeKeyResponses[keyof RevokeKeyResponses];
+
+export type SearchResourcesData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Search query. Matched as a case-insensitive substring against each resource's `name` and title/display name. Trimmed; empty returns no hits.
+         */
+        q?: string;
+    };
+    url: '/api/admin/search';
+};
+
+export type SearchResourcesErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type SearchResourcesError = SearchResourcesErrors[keyof SearchResourcesErrors];
+
+export type SearchResourcesResponses = {
+    /**
+     * Search project resources
+     */
+    200: SearchResponse;
+};
+
+export type SearchResourcesResponse = SearchResourcesResponses[keyof SearchResourcesResponses];

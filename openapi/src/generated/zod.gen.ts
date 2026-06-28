@@ -1868,6 +1868,408 @@ export const zPublishI18nProfileResponse = z.object({
 });
 
 /**
+ * A tracked production error — one row per distinct issue, keyed by `fingerprint`. Rows are never created by hand: an ingestion path (worker log drain / the `see()` SDK reporter) folds each occurrence into the matching row, bumping `count` and `lastSeenAt`. The admin surface only lists them, reads one, and flips `status`.
+ *
+ * Field names are camelCase (the D1 row projected through Drizzle). Many columns are nullable because the reporting source may not supply them.
+ */
+export const zErrorRecord = z.object({
+    id: z.string(),
+    projectId: z.string(),
+    fingerprint: z.string(),
+    causedByFingerprint: z.string().nullish(),
+    message: z.string(),
+    errorType: z.string().nullish(),
+    stack: z.string().nullish(),
+    source: z.string().nullish(),
+    url: z.string().nullish(),
+    seenUrls: z.string().nullish(),
+    subject: z.string().nullish(),
+    outcome: z.string().nullish(),
+    side: z.string().nullish(),
+    env: z.string().nullish(),
+    kind: z.enum([
+        'caught',
+        'uncaught',
+        'unhandled_rejection',
+        'network',
+        'violation'
+    ]).nullish(),
+    lastExtrasJson: z.string().nullish(),
+    sdkVersion: z.string().nullish(),
+    count: z.int().gte(1),
+    status: z.enum([
+        'open',
+        'resolved',
+        'ignored'
+    ]),
+    firstSeenAt: z.string(),
+    lastSeenAt: z.string(),
+    createdAt: z.string(),
+    updatedAt: z.string()
+});
+
+/**
+ * A bare JSON array of tracked errors, ordered by `lastSeenAt` descending. There is no pagination envelope — `limit` caps the page size.
+ */
+export const zListErrorsResponse = z.array(zErrorRecord);
+
+/**
+ * Body for `PATCH /api/admin/errors/{id}`. The only mutable field is `status` (open ⇄ resolved ⇄ ignored).
+ */
+export const zUpdateErrorStatusRequest = z.object({
+    status: z.enum([
+        'open',
+        'resolved',
+        'ignored'
+    ])
+});
+
+/**
+ * The feedback ticket that tracks this error. Idempotent — if an open `error` ticket already tracks this fingerprint (hand- or auto-filed), the existing one is returned instead of creating a duplicate.
+ */
+export const zFileErrorTicketResponse = z.object({
+    id: z.string(),
+    number: z.int()
+});
+
+/**
+ * Time window for the occurrence series. Bounds are epoch **seconds** (Analytics Engine stores the occurrence timestamp in seconds). `to` must be strictly greater than `from`.
+ */
+export const zErrorSeriesRequest = z.object({
+    from: z.int().gte(0),
+    to: z.int().gte(0),
+    bucket: z.int().gte(60).lte(86400).optional().default(3600)
+});
+
+/**
+ * Bucketed occurrence counts for one tracked error (by its fingerprint), plus the Analytics Engine SQL that produced them.
+ */
+export const zErrorSeriesResponse = z.object({
+    sql: z.string(),
+    rows: z.array(z.object({
+        t: z.int(),
+        v: z.number()
+    }))
+});
+
+/**
+ * Connector destination. OAuth/app providers (`google_sheets`, `github`, `slack`) dispatch the event payload to an external destination. Trigger providers (`claude_trigger`, `cursor_trigger`, `copilot_trigger`, `jules_trigger`) instead kick a coding-agent run that burns down the operational queue.
+ */
+export const zConnectorProvider = z.enum([
+    'google_sheets',
+    'github',
+    'slack',
+    'claude_trigger',
+    'cursor_trigger',
+    'copilot_trigger',
+    'jules_trigger'
+]);
+
+/**
+ * Lifecycle event a connector subscribes to. `bug.created` fires when a new bug report lands in the feedback inbox; `feature_request.created` fires for a new feature request. A connector dispatches (posts to Slack / appends a Sheets row / files a GitHub Issue) — or, for trigger connectors, auto-fires a coding-agent run — once per subscribed event.
+ */
+export const zConnectorEvent = z.enum(['bug.created', 'feature_request.created']);
+
+/**
+ * A connector row. The encrypted credentials cipher backing the connector is intentionally never serialised.
+ */
+export const zConnectorRecord = z.object({
+    id: z.string(),
+    projectId: z.string(),
+    provider: zConnectorProvider,
+    name: z.string().max(80),
+    enabled: z.boolean(),
+    events: z.array(zConnectorEvent),
+    config: z.record(z.string(), z.unknown()),
+    accountLabel: z.string().nullable(),
+    lastError: z.string().nullable(),
+    lastAttemptAt: z.string().nullable(),
+    lastSuccessAt: z.string().nullable(),
+    createdAt: z.string(),
+    updatedAt: z.string()
+});
+
+/**
+ * Bare array of every connector in the project (no pagination envelope).
+ */
+export const zListConnectorsResponse = z.array(zConnectorRecord);
+
+/**
+ * Create an OAuth/app connector stub. The connector is created `enabled: false` with empty `config` and no credentials; the provider's OAuth flow then attaches credentials and enables it.
+ */
+export const zCreateOAuthConnectorRequest = z.object({
+    provider: z.enum([
+        'google_sheets',
+        'github',
+        'slack'
+    ]),
+    name: z.string().min(1).max(80),
+    events: z.array(zConnectorEvent).min(1)
+});
+
+/**
+ * Non-secret config for a Claude trigger.
+ */
+export const zClaudeTriggerConfig = z.object({
+    routineId: z.string().min(1),
+    fireText: z.string().min(1).optional()
+});
+
+/**
+ * Create a Claude Code routine trigger in one shot. Idempotent by `config.routineId` — re-creating with the same routine id updates the existing row.
+ */
+export const zCreateClaudeTriggerRequest = z.object({
+    provider: z.literal('claude_trigger'),
+    name: z.string().min(1).max(80).optional().default('Claude trigger'),
+    events: z.array(zConnectorEvent).optional().default([]),
+    config: zClaudeTriggerConfig,
+    token: z.string().min(1).optional(),
+    enabled: z.boolean().optional().default(true)
+});
+
+/**
+ * Non-secret config for a Cursor trigger.
+ */
+export const zCursorTriggerConfig = z.object({
+    repoUrl: z.url(),
+    startingRef: z.string().min(1).optional(),
+    projectId: z.string().min(1)
+});
+
+/**
+ * Create a Cursor cloud-agent trigger. Both keys are required up front (never tokenless). Idempotent by `config.repoUrl`.
+ */
+export const zCreateCursorTriggerRequest = z.object({
+    provider: z.literal('cursor_trigger'),
+    name: z.string().min(1).max(80).optional().default('Cursor trigger'),
+    events: z.array(zConnectorEvent).optional().default([]),
+    config: zCursorTriggerConfig,
+    apiKey: z.string().min(1),
+    opsKey: z.string().min(1),
+    enabled: z.boolean().optional().default(true)
+});
+
+/**
+ * Non-secret config for a Copilot trigger.
+ */
+export const zCopilotTriggerConfig = z.object({
+    owner: z.string().min(1),
+    repo: z.string().min(1),
+    baseRef: z.string().min(1).optional(),
+    projectId: z.string().min(1)
+});
+
+/**
+ * Create a GitHub Copilot coding-agent trigger. Idempotent by `config.owner/config.repo`.
+ */
+export const zCreateCopilotTriggerRequest = z.object({
+    provider: z.literal('copilot_trigger'),
+    name: z.string().min(1).max(80).optional().default('Copilot trigger'),
+    events: z.array(zConnectorEvent).optional().default([]),
+    config: zCopilotTriggerConfig,
+    token: z.string().min(1),
+    enabled: z.boolean().optional().default(true)
+});
+
+/**
+ * Non-secret config for a Jules trigger.
+ */
+export const zJulesTriggerConfig = z.object({
+    source: z.string().min(1),
+    startingBranch: z.string().min(1).optional(),
+    projectId: z.string().min(1)
+});
+
+/**
+ * Create a Google Jules trigger. Both keys are required up front. Idempotent by `config.source`.
+ */
+export const zCreateJulesTriggerRequest = z.object({
+    provider: z.literal('jules_trigger'),
+    name: z.string().min(1).max(80).optional().default('Jules trigger'),
+    events: z.array(zConnectorEvent).optional().default([]),
+    config: zJulesTriggerConfig,
+    apiKey: z.string().min(1),
+    opsKey: z.string().min(1),
+    enabled: z.boolean().optional().default(true)
+});
+
+/**
+ * Body for `POST /api/admin/connectors`, discriminated on `provider`. The OAuth providers (`google_sheets`/`github`/`slack`) create a disabled stub that is finished via the provider's OAuth flow. The trigger providers (`claude_trigger`/`cursor_trigger`/`copilot_trigger`/`jules_trigger`) arrive config + credentials together and are fireable immediately.
+ */
+export const zCreateConnectorRequest = z.discriminatedUnion('provider', [
+    zCreateOAuthConnectorRequest.extend({ provider: z.literal('google_sheets') }),
+    zCreateOAuthConnectorRequest.extend({ provider: z.literal('github') }),
+    zCreateOAuthConnectorRequest.extend({ provider: z.literal('slack') }),
+    zCreateClaudeTriggerRequest,
+    zCreateCursorTriggerRequest,
+    zCreateCopilotTriggerRequest,
+    zCreateJulesTriggerRequest
+]);
+
+export const zCreateConnectorResponse = z.object({
+    id: z.string()
+});
+
+export const zDeleteConnectorResponse = z.object({
+    ok: z.literal(true)
+});
+
+/**
+ * Body for `PATCH /api/admin/connectors/{id}`. Partial — only supplied fields change. Array/object fields (`events`, `config`) replace, not merge.
+ */
+export const zUpdateConnectorRequest = z.object({
+    name: z.string().min(1).max(80).optional(),
+    enabled: z.boolean().optional(),
+    events: z.array(zConnectorEvent).optional(),
+    config: z.record(z.string(), z.unknown()).optional()
+});
+
+/**
+ * Update returns only the id — re-fetch via `GET /api/admin/connectors/{id}` for the full row.
+ */
+export const zUpdateConnectorResponse = z.object({
+    id: z.string()
+});
+
+/**
+ * Body for `POST /api/admin/connectors/{id}/fire`. Entirely optional — an empty body kicks the run with the provider default.
+ */
+export const zFireConnectorRequest = z.object({
+    text: z.string().optional()
+});
+
+/**
+ * Result of firing a trigger connector. `{ ok: true }` on success; `{ ok: false, error }` when the dispatch fails (the request still returns HTTP 200).
+ */
+export const zFireConnectorResponse = z.object({
+    ok: z.boolean(),
+    error: z.string().optional()
+});
+
+/**
+ * Result of testing a connector. `{ ok: true, issueUrl }` on success; `{ ok: false, issueUrl: null, error }` when the dispatch fails (the request still returns HTTP 200).
+ */
+export const zTestConnectorResponse = z.object({
+    ok: z.boolean(),
+    issueUrl: z.string().nullable(),
+    error: z.string().optional()
+});
+
+/**
+ * A single API key as returned by the list endpoint. Response fields are snake_case. The raw token is never returned here — only its `last4` tail. `last4` and the typed `scopes` may be `null` for keys minted before those columns existed.
+ */
+export const zKeyRecord = z.object({
+    id: z.string(),
+    type: z.enum([
+        'server',
+        'client',
+        'admin',
+        'ops'
+    ]),
+    env: z.enum([
+        'dev',
+        'staging',
+        'prod'
+    ]),
+    created_at: z.string(),
+    revoked_at: z.string().nullable(),
+    expires_at: z.string().nullable(),
+    created_by_email: z.string().nullable(),
+    name: z.string().nullable(),
+    scopes: z.array(z.string()).nullable(),
+    last4: z.string().nullable()
+});
+
+/**
+ * One page of API keys plus a keyset `next_cursor` (ordered `created_at desc, id desc`).
+ */
+export const zListKeysResponse = z.object({
+    data: z.array(zKeyRecord),
+    next_cursor: z.string().nullable()
+});
+
+/**
+ * Body for `POST /api/admin/keys`. Only `type` is required.
+ *
+ * `env` is **required** for `server` and `client` keys (the key is bound to one environment — that binding is the read-env isolation boundary). For `admin` and `ops` keys `env` is ignored and the key is pinned to `prod`.
+ */
+export const zCreateKeyRequest = z.object({
+    type: z.enum([
+        'server',
+        'client',
+        'admin',
+        'ops'
+    ]),
+    name: z.string().min(1).max(80).optional(),
+    scopes: z.array(z.enum([
+        'experiments:read',
+        'gates:evaluate',
+        'events:write',
+        'configs:write',
+        'experiments:write'
+    ])).optional(),
+    expiresInDays: z.int().gte(1).lte(3650).nullish(),
+    env: z.enum([
+        'dev',
+        'staging',
+        'prod'
+    ]).optional()
+});
+
+/**
+ * The minted key. The plaintext `key` is returned **once**, here — it is stored hashed and can never be retrieved again.
+ */
+export const zCreateKeyResponse = z.object({
+    id: z.string(),
+    type: z.enum([
+        'server',
+        'client',
+        'admin',
+        'ops'
+    ]),
+    env: z.enum([
+        'dev',
+        'staging',
+        'prod'
+    ]),
+    key: z.string(),
+    expires_at: z.string().nullable()
+});
+
+/**
+ * Confirms the key is revoked. Idempotent — revoking an already-revoked key returns the same shape.
+ */
+export const zRevokeKeyResponse = z.object({
+    id: z.string(),
+    revoked: z.literal(true)
+});
+
+/**
+ * A single universal-search hit. Field names are camelCase; `title` is `null` when the resource has no human title/display name (members fall back to a role label).
+ */
+export const zSearchHit = z.object({
+    type: z.enum([
+        'member',
+        'gate',
+        'experiment',
+        'config',
+        'killswitch',
+        'metric'
+    ]),
+    id: z.string(),
+    name: z.string(),
+    title: z.string().nullable(),
+    href: z.string()
+});
+
+/**
+ * Flat, ranked-by-type list of search hits the command palette groups for display. Capped per resource family so one noisy type can't crowd out the rest.
+ */
+export const zSearchResponse = z.object({
+    hits: z.array(zSearchHit)
+});
+
+/**
  * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
  */
 export const zProjectId = z.string();
@@ -2771,3 +3173,219 @@ export const zPublishI18nProfilePath = z.object({
  * Publish a profile chunk
  */
 export const zPublishI18nProfileResponse2 = zPublishI18nProfileResponse;
+
+export const zListErrorsHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zListErrorsQuery = z.object({
+    status: z.enum([
+        'open',
+        'resolved',
+        'ignored',
+        'all'
+    ]).optional().default('all'),
+    q: z.string().max(200).optional(),
+    limit: z.int().gte(1).lte(500).optional().default(200)
+});
+
+/**
+ * List tracked errors
+ */
+export const zListErrorsResponse2 = zListErrorsResponse;
+
+export const zGetErrorHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zGetErrorPath = z.object({
+    id: z.string()
+});
+
+/**
+ * Get a tracked error
+ */
+export const zGetErrorResponse = zErrorRecord;
+
+export const zUpdateErrorStatusBody = zUpdateErrorStatusRequest;
+
+export const zUpdateErrorStatusHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zUpdateErrorStatusPath = z.object({
+    id: z.string()
+});
+
+/**
+ * Update a tracked error's status
+ */
+export const zUpdateErrorStatusResponse = zErrorRecord;
+
+export const zFileErrorTicketHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zFileErrorTicketPath = z.object({
+    id: z.string()
+});
+
+/**
+ * File a feedback ticket for an error
+ */
+export const zFileErrorTicketResponse2 = zFileErrorTicketResponse;
+
+export const zGetErrorSeriesBody = zErrorSeriesRequest;
+
+export const zGetErrorSeriesHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zGetErrorSeriesPath = z.object({
+    id: z.string()
+});
+
+/**
+ * Get an error's occurrence series
+ */
+export const zGetErrorSeriesResponse = zErrorSeriesResponse;
+
+export const zListConnectorsHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+/**
+ * List connectors
+ */
+export const zListConnectorsResponse2 = zListConnectorsResponse;
+
+export const zCreateConnectorBody = zCreateConnectorRequest;
+
+export const zCreateConnectorHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+/**
+ * Create a connector
+ */
+export const zCreateConnectorResponse2 = zCreateConnectorResponse;
+
+export const zDeleteConnectorHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zDeleteConnectorPath = z.object({
+    id: z.string()
+});
+
+/**
+ * Delete a connector
+ */
+export const zDeleteConnectorResponse2 = zDeleteConnectorResponse;
+
+export const zGetConnectorHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zGetConnectorPath = z.object({
+    id: z.string()
+});
+
+/**
+ * Get a connector
+ */
+export const zGetConnectorResponse = zConnectorRecord;
+
+export const zUpdateConnectorBody = zUpdateConnectorRequest;
+
+export const zUpdateConnectorHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zUpdateConnectorPath = z.object({
+    id: z.string()
+});
+
+/**
+ * Update a connector
+ */
+export const zUpdateConnectorResponse2 = zUpdateConnectorResponse;
+
+export const zFireConnectorBody = zFireConnectorRequest;
+
+export const zFireConnectorHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zFireConnectorPath = z.object({
+    id: z.string()
+});
+
+/**
+ * Fire a trigger connector
+ */
+export const zFireConnectorResponse2 = zFireConnectorResponse;
+
+export const zTestConnectorHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zTestConnectorPath = z.object({
+    id: z.string()
+});
+
+/**
+ * Test a connector
+ */
+export const zTestConnectorResponse2 = zTestConnectorResponse;
+
+export const zListKeysHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zListKeysQuery = z.object({
+    limit: z.int().gte(1).lte(500).optional().default(100),
+    cursor: z.string().optional()
+});
+
+/**
+ * List API keys
+ */
+export const zListKeysResponse2 = zListKeysResponse;
+
+export const zCreateKeyBody = zCreateKeyRequest;
+
+export const zCreateKeyHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+/**
+ * Create an API key
+ */
+export const zCreateKeyResponse2 = zCreateKeyResponse;
+
+export const zRevokeKeyHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zRevokeKeyPath = z.object({
+    id: z.string()
+});
+
+/**
+ * Revoke an API key
+ */
+export const zRevokeKeyResponse2 = zRevokeKeyResponse;
+
+export const zSearchResourcesHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zSearchResourcesQuery = z.object({
+    q: z.string().optional()
+});
+
+/**
+ * Search project resources
+ */
+export const zSearchResourcesResponse = zSearchResponse;

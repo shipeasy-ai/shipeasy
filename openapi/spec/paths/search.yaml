@@ -1,0 +1,62 @@
+/api/admin/search:
+  get:
+    operationId: searchResources
+    summary: Search project resources
+    description: |-
+      Universal substring search across the project's primary resources — feature gates, experiments, dynamic configs, killswitches, metrics, and team members. Matches the trimmed `q` against each resource's immutable `name` and its human title/display name (members match on display name or email), newest-first, capped per resource family so one noisy type can't crowd out the rest.
+
+      Returns a flat, ranked-by-type list of hits (members first); an empty or whitespace-only `q` returns no hits. Each hit carries a project-relative `href` that deep-links to the row.
+
+      **Use case:** Back a command-palette / quick-switcher in the dashboard, or look up the id of a resource by a fragment of its name before driving another API call.
+    tags:
+      - Projects
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: q
+        in: query
+        required: false
+        description: Search query. Matched as a case-insensitive substring against each resource's `name` and title/display name. Trimmed; empty returns no hits.
+        schema:
+          type: string
+    responses:
+      "200":
+        description: Search project resources
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/search.yaml#/SearchResponse
+            example:
+              hits:
+                - type: member
+                  id: ana@example.com
+                  name: Ana Ng
+                  title: ana@example.com
+                  href: /team
+                - type: gate
+                  id: gat_01j7w7m9q4hxbf6npe6s9zr3vc
+                  name: checkout_v2
+                  title: Checkout v2
+                  href: /gates?open=gat_01j7w7m9q4hxbf6npe6s9zr3vc
+                - type: experiment
+                  id: exp_01j7w7m9q4hxbf6npe6s9zr3vd
+                  name: checkout_button_color
+                  title: Checkout button colour test
+                  href: /experiments?open=exp_01j7w7m9q4hxbf6npe6s9zr3vd
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+    x-cli:
+      name: search

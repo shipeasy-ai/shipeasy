@@ -1,0 +1,457 @@
+ConnectorEvent:
+  type: string
+  enum:
+    - bug.created
+    - feature_request.created
+  description: "Lifecycle event a connector subscribes to. `bug.created` fires when a new bug report lands in the feedback inbox; `feature_request.created` fires for a new feature request. A connector dispatches (posts to Slack / appends a Sheets row / files a GitHub Issue) — or, for trigger connectors, auto-fires a coding-agent run — once per subscribed event."
+ConnectorProvider:
+  type: string
+  enum:
+    - google_sheets
+    - github
+    - slack
+    - claude_trigger
+    - cursor_trigger
+    - copilot_trigger
+    - jules_trigger
+  description: "Connector destination. OAuth/app providers (`google_sheets`, `github`, `slack`) dispatch the event payload to an external destination. Trigger providers (`claude_trigger`, `cursor_trigger`, `copilot_trigger`, `jules_trigger`) instead kick a coding-agent run that burns down the operational queue."
+ConnectorRecord:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Stable opaque connector id (a UUID).
+    projectId:
+      type: string
+      description: Id of the project the connector belongs to.
+    provider:
+      $ref: "#/ConnectorProvider"
+    name:
+      type: string
+      maxLength: 80
+      description: Human-readable connector label shown in the dashboard.
+    enabled:
+      type: boolean
+      description: Whether the connector is active. OAuth providers are created `false` and flip to `true` only after the OAuth/config flow completes; trigger providers default to `true` on create. A disabled connector never dispatches and never auto-fires.
+    events:
+      type: array
+      items:
+        $ref: "#/ConnectorEvent"
+      description: Events this connector is subscribed to. Empty array = no auto-dispatch / no auto-fire (the connector can still be fired/tested manually).
+    config:
+      type: object
+      additionalProperties: true
+      description: "Provider-specific, non-secret configuration (e.g. a Google Sheets `spreadsheetId`/`sheetTitle`, a Slack channel ref, or a trigger's repo coordinates + routine id). Secrets are never stored here — they live in an encrypted credentials cipher that is never returned by the API."
+    accountLabel:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: "Display label for the connected account / target (e.g. the OAuth account email, or a trigger's idempotency key such as its repo url or routine id). `null` until the connector is authenticated/configured."
+    lastError:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Error message from the most recent failed dispatch/fire attempt, or `null` if the last attempt succeeded (or none has run).
+    lastAttemptAt:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: ISO-8601 timestamp of the most recent dispatch/fire attempt, or `null` if none has run.
+    lastSuccessAt:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: ISO-8601 timestamp of the most recent successful dispatch/fire, or `null` if none has succeeded. Preserved across later failures.
+    createdAt:
+      type: string
+      description: ISO-8601 timestamp of creation.
+    updatedAt:
+      type: string
+      description: ISO-8601 timestamp of last mutation.
+  required:
+    - id
+    - projectId
+    - provider
+    - name
+    - enabled
+    - events
+    - config
+    - accountLabel
+    - lastError
+    - lastAttemptAt
+    - lastSuccessAt
+    - createdAt
+    - updatedAt
+  additionalProperties: false
+  description: "A connector row. The encrypted credentials cipher backing the connector is intentionally never serialised."
+ListConnectorsResponse:
+  type: array
+  items:
+    $ref: "#/ConnectorRecord"
+  description: Bare array of every connector in the project (no pagination envelope).
+GetConnectorResponse:
+  $ref: "#/ConnectorRecord"
+CreateConnectorRequest:
+  oneOf:
+    - $ref: "#/CreateOAuthConnectorRequest"
+    - $ref: "#/CreateClaudeTriggerRequest"
+    - $ref: "#/CreateCursorTriggerRequest"
+    - $ref: "#/CreateCopilotTriggerRequest"
+    - $ref: "#/CreateJulesTriggerRequest"
+  discriminator:
+    propertyName: provider
+    mapping:
+      google_sheets: "#/CreateOAuthConnectorRequest"
+      github: "#/CreateOAuthConnectorRequest"
+      slack: "#/CreateOAuthConnectorRequest"
+      claude_trigger: "#/CreateClaudeTriggerRequest"
+      cursor_trigger: "#/CreateCursorTriggerRequest"
+      copilot_trigger: "#/CreateCopilotTriggerRequest"
+      jules_trigger: "#/CreateJulesTriggerRequest"
+  description: "Body for `POST /api/admin/connectors`, discriminated on `provider`. The OAuth providers (`google_sheets`/`github`/`slack`) create a disabled stub that is finished via the provider's OAuth flow. The trigger providers (`claude_trigger`/`cursor_trigger`/`copilot_trigger`/`jules_trigger`) arrive config + credentials together and are fireable immediately."
+CreateOAuthConnectorRequest:
+  type: object
+  properties:
+    provider:
+      type: string
+      enum:
+        - google_sheets
+        - github
+        - slack
+      description: OAuth/app connector destination.
+    name:
+      type: string
+      minLength: 1
+      maxLength: 80
+      description: Human-readable connector label.
+    events:
+      type: array
+      minItems: 1
+      items:
+        $ref: "#/ConnectorEvent"
+      description: Events to subscribe to. At least one is required.
+  required:
+    - provider
+    - name
+    - events
+  additionalProperties: false
+  description: "Create an OAuth/app connector stub. The connector is created `enabled: false` with empty `config` and no credentials; the provider's OAuth flow then attaches credentials and enables it."
+CreateClaudeTriggerRequest:
+  type: object
+  properties:
+    provider:
+      type: string
+      const: claude_trigger
+      description: Discriminator. Claude Code scheduled-routine trigger.
+    name:
+      type: string
+      minLength: 1
+      maxLength: 80
+      default: Claude trigger
+      description: Human-readable connector label.
+    events:
+      type: array
+      default: []
+      items:
+        $ref: "#/ConnectorEvent"
+      description: Events that auto-fire the routine. Defaults to empty so the trigger does not auto-fire paid runs until events are subscribed.
+    config:
+      $ref: "#/ClaudeTriggerConfig"
+    token:
+      type: string
+      minLength: 1
+      description: "The routine's fire bearer token (secret). **Optional** — a tokenless trigger is recorded but not fireable until a token is added later. Encrypted into the credentials cipher; never persisted in `config` or returned."
+    enabled:
+      type: boolean
+      default: true
+      description: Whether the trigger is active on create.
+  required:
+    - provider
+    - config
+  additionalProperties: false
+  description: "Create a Claude Code routine trigger in one shot. Idempotent by `config.routineId` — re-creating with the same routine id updates the existing row."
+CreateCursorTriggerRequest:
+  type: object
+  properties:
+    provider:
+      type: string
+      const: cursor_trigger
+      description: Discriminator. Cursor cloud-agent trigger.
+    name:
+      type: string
+      minLength: 1
+      maxLength: 80
+      default: Cursor trigger
+      description: Human-readable connector label.
+    events:
+      type: array
+      default: []
+      items:
+        $ref: "#/ConnectorEvent"
+      description: Events that auto-fire a cold cloud-agent run. Defaults to empty.
+    config:
+      $ref: "#/CursorTriggerConfig"
+    apiKey:
+      type: string
+      minLength: 1
+      description: Cursor API key that launches the run (secret). Encrypted into the credentials cipher; never returned.
+    opsKey:
+      type: string
+      minLength: 1
+      description: Restricted Shipeasy ops key, injected into the run as `SHIPEASY_CLI_TOKEN` via the launch envVars (secret). Encrypted; never returned.
+    enabled:
+      type: boolean
+      default: true
+      description: Whether the trigger is active on create.
+  required:
+    - provider
+    - config
+    - apiKey
+    - opsKey
+  additionalProperties: false
+  description: "Create a Cursor cloud-agent trigger. Both keys are required up front (never tokenless). Idempotent by `config.repoUrl`."
+CreateCopilotTriggerRequest:
+  type: object
+  properties:
+    provider:
+      type: string
+      const: copilot_trigger
+      description: Discriminator. GitHub Copilot coding-agent trigger.
+    name:
+      type: string
+      minLength: 1
+      maxLength: 80
+      default: Copilot trigger
+      description: Human-readable connector label.
+    events:
+      type: array
+      default: []
+      items:
+        $ref: "#/ConnectorEvent"
+      description: Events that auto-fire a Copilot agent task. Defaults to empty.
+    config:
+      $ref: "#/CopilotTriggerConfig"
+    token:
+      type: string
+      minLength: 1
+      description: "Copilot-licensed user PAT (secret). The ops key lives in the repo's GitHub \"Agents\" secret store and is never sent through Shipeasy. Encrypted; never returned."
+    enabled:
+      type: boolean
+      default: true
+      description: Whether the trigger is active on create.
+  required:
+    - provider
+    - config
+    - token
+  additionalProperties: false
+  description: "Create a GitHub Copilot coding-agent trigger. Idempotent by `config.owner/config.repo`."
+CreateJulesTriggerRequest:
+  type: object
+  properties:
+    provider:
+      type: string
+      const: jules_trigger
+      description: Discriminator. Google Jules trigger.
+    name:
+      type: string
+      minLength: 1
+      maxLength: 80
+      default: Jules trigger
+      description: Human-readable connector label.
+    events:
+      type: array
+      default: []
+      items:
+        $ref: "#/ConnectorEvent"
+      description: Events that auto-fire a Jules session. Defaults to empty.
+    config:
+      $ref: "#/JulesTriggerConfig"
+    apiKey:
+      type: string
+      minLength: 1
+      description: Jules API key that launches the session (secret). Encrypted into the credentials cipher; never returned.
+    opsKey:
+      type: string
+      minLength: 1
+      description: Restricted Shipeasy ops key, embedded in the prompt (Jules exposes no env channel) (secret). Encrypted; never returned.
+    enabled:
+      type: boolean
+      default: true
+      description: Whether the trigger is active on create.
+  required:
+    - provider
+    - config
+    - apiKey
+    - opsKey
+  additionalProperties: false
+  description: "Create a Google Jules trigger. Both keys are required up front. Idempotent by `config.source`."
+ClaudeTriggerConfig:
+  type: object
+  properties:
+    routineId:
+      type: string
+      minLength: 1
+      description: The Claude Code routine id this connector fires (the id recorded at setup). Idempotency key for the connector.
+    fireText:
+      type: string
+      minLength: 1
+      description: Optional default prompt sent on a manual fire / when no event text applies.
+  required:
+    - routineId
+  additionalProperties: false
+  description: Non-secret config for a Claude trigger.
+CursorTriggerConfig:
+  type: object
+  properties:
+    repoUrl:
+      type: string
+      format: uri
+      description: Repo the cloud agent runs against, e.g. `https://github.com/owner/repo`. Idempotency key for the connector.
+    startingRef:
+      type: string
+      minLength: 1
+      description: Optional git ref the run starts from.
+    projectId:
+      type: string
+      minLength: 1
+      description: Shipeasy project id the run targets.
+  required:
+    - repoUrl
+    - projectId
+  additionalProperties: false
+  description: Non-secret config for a Cursor trigger.
+CopilotTriggerConfig:
+  type: object
+  properties:
+    owner:
+      type: string
+      minLength: 1
+      description: GitHub repo owner. Together with `repo` forms the connector's idempotency key (`owner/repo`).
+    repo:
+      type: string
+      minLength: 1
+      description: GitHub repo name.
+    baseRef:
+      type: string
+      minLength: 1
+      description: Optional base ref the agent branches from.
+    projectId:
+      type: string
+      minLength: 1
+      description: Shipeasy project id the run targets.
+  required:
+    - owner
+    - repo
+    - projectId
+  additionalProperties: false
+  description: Non-secret config for a Copilot trigger.
+JulesTriggerConfig:
+  type: object
+  properties:
+    source:
+      type: string
+      minLength: 1
+      description: Jules source for the connected repo, e.g. `sources/github/owner/repo`. Idempotency key for the connector.
+    startingBranch:
+      type: string
+      minLength: 1
+      description: Optional branch the session starts from.
+    projectId:
+      type: string
+      minLength: 1
+      description: Shipeasy project id the run targets.
+  required:
+    - source
+    - projectId
+  additionalProperties: false
+  description: Non-secret config for a Jules trigger.
+CreateConnectorResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Newly assigned connector id.
+  required:
+    - id
+  additionalProperties: false
+UpdateConnectorRequest:
+  type: object
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 80
+      description: New connector label.
+    enabled:
+      type: boolean
+      description: Toggle the connector on/off.
+    events:
+      type: array
+      items:
+        $ref: "#/ConnectorEvent"
+      description: "Replaces the subscribed-events list wholesale. An empty array unsubscribes the connector from every event (e.g. turning off a trigger's auto-fire)."
+    config:
+      type: object
+      additionalProperties: true
+      description: "Replaces the non-secret config wholesale. Secrets are never set through this endpoint."
+  additionalProperties: false
+  description: "Body for `PATCH /api/admin/connectors/{id}`. Partial — only supplied fields change. Array/object fields (`events`, `config`) replace, not merge."
+UpdateConnectorResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Connector id that was updated.
+  required:
+    - id
+  additionalProperties: false
+  description: Update returns only the id — re-fetch via `GET /api/admin/connectors/{id}` for the full row.
+DeleteConnectorResponse:
+  type: object
+  properties:
+    ok:
+      type: boolean
+      const: true
+  required:
+    - ok
+  additionalProperties: false
+FireConnectorRequest:
+  type: object
+  properties:
+    text:
+      type: string
+      description: "Optional prompt override for the run. When omitted, each provider falls back to its own default (Claude → the configured `fireText`; the others → their built cold-start prompt)."
+  additionalProperties: false
+  description: "Body for `POST /api/admin/connectors/{id}/fire`. Entirely optional — an empty body kicks the run with the provider default."
+FireConnectorResponse:
+  type: object
+  properties:
+    ok:
+      type: boolean
+      description: "`true` when the trigger run was successfully kicked off; `false` when the dispatch itself failed (still HTTP 200, with `error` set)."
+    error:
+      type: string
+      description: "Failure reason. Present only when `ok` is `false` — the fire reached the handler but the underlying dispatch to the provider failed."
+  required:
+    - ok
+  additionalProperties: false
+  description: "Result of firing a trigger connector. `{ ok: true }` on success; `{ ok: false, error }` when the dispatch fails (the request still returns HTTP 200)."
+TestConnectorResponse:
+  type: object
+  properties:
+    ok:
+      type: boolean
+      description: "`true` when the test dispatch reached the destination; `false` when the dispatch itself failed (still HTTP 200, with `error` set)."
+    issueUrl:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: "URL of the artifact the test produced (e.g. the GitHub Issue created by a `github` connector), or `null` when the provider produces no linkable artifact (or the dispatch failed)."
+    error:
+      type: string
+      description: "Failure reason. Present only when `ok` is `false` — the test reached the handler but the underlying dispatch to the provider failed."
+  required:
+    - ok
+    - issueUrl
+  additionalProperties: false
+  description: "Result of testing a connector. `{ ok: true, issueUrl }` on success; `{ ok: false, issueUrl: null, error }` when the dispatch fails (the request still returns HTTP 200)."

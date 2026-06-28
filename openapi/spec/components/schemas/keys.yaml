@@ -1,0 +1,185 @@
+ListKeysResponse:
+  type: object
+  properties:
+    data:
+      type: array
+      items:
+        $ref: "#/KeyRecord"
+    next_cursor:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Opaque cursor for the next page, or `null` on the last page. Pass it back as the `cursor` query parameter.
+  required:
+    - data
+    - next_cursor
+  additionalProperties: false
+  description: One page of API keys plus a keyset `next_cursor` (ordered `created_at desc, id desc`).
+KeyRecord:
+  type: object
+  description: A single API key as returned by the list endpoint. Response fields are snake_case. The raw token is never returned here — only its `last4` tail. `last4` and the typed `scopes` may be `null` for keys minted before those columns existed.
+  properties:
+    id:
+      type: string
+      description: Stable opaque key id (UUID). Use it to revoke the key.
+    type:
+      type: string
+      enum:
+        - server
+        - client
+        - admin
+        - ops
+      description: "Key kind. `server` (back-end, full SDK auth), `client` (public, browser-embeddable), `admin` (CLI/devtools auth token), `ops` (restricted unattended-trigger credential)."
+    env:
+      type: string
+      enum:
+        - dev
+        - staging
+        - prod
+      description: Environment the key is bound to. The worker derives the read env from the key, so this is the isolation boundary. `admin`/`ops` keys are env-agnostic and pinned to `prod`.
+    created_at:
+      type: string
+      description: ISO-8601 timestamp the key was minted.
+    revoked_at:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: ISO-8601 timestamp the key was revoked, or `null` while the key is active.
+    expires_at:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: ISO-8601 expiry, or `null` for a key that never expires. `admin` keys are fixed at 90 days; `ops` keys use a short sliding window.
+    created_by_email:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Email of the human or actor that minted the key, or `null` when not attributable (e.g. CLI device-flow).
+    name:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Human label for the key. `null` for unnamed dashboard mints; programmatic mints auto-name themselves.
+    scopes:
+      anyOf:
+        - type: array
+          items:
+            type: string
+        - type: "null"
+      description: Permission strings recorded on the key for audit/display, or `null` when none were set.
+    last4:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Last 4 characters of the raw token, so the dashboard mask is matchable against the held key. `null` for keys minted before this column.
+  required:
+    - id
+    - type
+    - env
+    - created_at
+    - revoked_at
+    - expires_at
+    - created_by_email
+    - name
+    - scopes
+    - last4
+  additionalProperties: false
+CreateKeyRequest:
+  type: object
+  description: |-
+    Body for `POST /api/admin/keys`. Only `type` is required.
+
+    `env` is **required** for `server` and `client` keys (the key is bound to one environment — that binding is the read-env isolation boundary). For `admin` and `ops` keys `env` is ignored and the key is pinned to `prod`.
+  properties:
+    type:
+      type: string
+      enum:
+        - server
+        - client
+        - admin
+        - ops
+      description: "Key kind to mint. `server` (back-end), `client` (public, browser), `admin` (CLI/devtools token), `ops` (restricted unattended-trigger credential). `admin`/`ops` keys don't count toward the plan key limit."
+    name:
+      type: string
+      minLength: 1
+      maxLength: 80
+      description: Optional human label. Programmatic (API) mints that omit it get an auto-generated descriptive name; dashboard mints may leave it blank.
+    scopes:
+      type: array
+      items:
+        type: string
+        enum:
+          - experiments:read
+          - gates:evaluate
+          - events:write
+          - configs:write
+          - experiments:write
+      description: Optional permission strings recorded on the key for audit/display.
+    expiresInDays:
+      anyOf:
+        - type: integer
+          minimum: 1
+          maximum: 3650
+        - type: "null"
+      description: "Days until the key expires (1–3650), or `null`/omitted for a key that never expires. Ignored for `admin` keys (fixed 90-day expiry) and `ops` keys (short sliding window)."
+    env:
+      type: string
+      enum:
+        - dev
+        - staging
+        - prod
+      description: Environment to bind the key to. Required for `server`/`client` keys; ignored for `admin`/`ops` (pinned to `prod`).
+  required:
+    - type
+  additionalProperties: false
+CreateKeyResponse:
+  type: object
+  description: The minted key. The plaintext `key` is returned **once**, here — it is stored hashed and can never be retrieved again.
+  properties:
+    id:
+      type: string
+      description: Stable opaque key id (UUID). Use it to revoke the key.
+    type:
+      type: string
+      enum:
+        - server
+        - client
+        - admin
+        - ops
+      description: The kind of key that was minted.
+    env:
+      type: string
+      enum:
+        - dev
+        - staging
+        - prod
+      description: Environment the key is bound to (`prod` for `admin`/`ops`).
+    key:
+      type: string
+      description: The plaintext API token (e.g. `sdk_server_…`). Returned once — store it now; it cannot be recovered.
+    expires_at:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: ISO-8601 expiry, or `null` if the key never expires.
+  required:
+    - id
+    - type
+    - env
+    - key
+    - expires_at
+  additionalProperties: false
+RevokeKeyResponse:
+  type: object
+  description: Confirms the key is revoked. Idempotent — revoking an already-revoked key returns the same shape.
+  properties:
+    id:
+      type: string
+      description: Id of the key that was revoked.
+    revoked:
+      type: boolean
+      const: true
+  required:
+    - id
+    - revoked
+  additionalProperties: false

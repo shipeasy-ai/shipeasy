@@ -1,0 +1,84 @@
+# Admin API contract tests.
+#
+# Boots the real apps/ui Next.js server (from the monorepo) against a local
+# miniflare D1/KV and fuzzes the admin API with Schemathesis using the OpenAPI
+# spec from THIS repo (the version under review). This is the cross-repo
+# counterpart of `pnpm --filter @shipeasy/ui test:contract`, which developers
+# run locally.
+#
+# ── Required secret ──────────────────────────────────────────────────────────
+#   MONOREPO_TOKEN  A GitHub PAT (or fine-grained token) with `contents:read`
+#                   on the app monorepo (vshaveyko/shipeasy2), used to check it
+#                   out here so we can boot apps/ui. Without it the checkout
+#                   step fails. All other credentials (AUTH_SECRET etc.) are
+#                   non-secret test values baked into the harness.
+name: Contract Tests
+
+on:
+  push:
+    paths: ["openapi/**"]
+  pull_request:
+    paths: ["openapi/**"]
+  workflow_dispatch:
+
+env:
+  # Monorepo that hosts apps/ui + the contract harness.
+  APP_REPO: vshaveyko/shipeasy2
+  APP_REF: main
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout openapi repo (spec under test)
+        uses: actions/checkout@v6
+        with:
+          path: spec-repo
+
+      - name: Checkout app monorepo (apps/ui + harness)
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ env.APP_REPO }}
+          ref: ${{ env.APP_REF }}
+          token: ${{ secrets.MONOREPO_TOKEN }}
+          submodules: true
+          path: app
+
+      - uses: pnpm/action-setup@v6
+        with: { version: 10 }
+      - uses: actions/setup-node@v6
+        with: { node-version: 22, cache: pnpm, cache-dependency-path: app/pnpm-lock.yaml }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+
+      - name: Install + bundle the spec under test
+        working-directory: spec-repo
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter @shipeasy/openapi bundle
+          test -f openapi/openapi.yaml
+
+      - name: Install monorepo deps
+        working-directory: app
+        run: pnpm install --frozen-lockfile
+
+      - name: Run contract fuzz
+        working-directory: app
+        env:
+          # Point the harness at THIS repo's freshly-bundled spec, not the
+          # (possibly older) submodule pin inside the monorepo.
+          CONTRACT_SPEC: ${{ github.workspace }}/spec-repo/openapi/openapi.yaml
+          CONTRACT_MAX_EXAMPLES: "25"
+          # Deterministic auth secret — must match bootstrap.mjs's default so the
+          # minted session cookie verifies. Non-secret (test-only).
+          AUTH_SECRET: e2e-test-secret-not-for-production-use-only
+        run: bash apps/ui/contract-tests/run.sh
+
+      - name: Upload JUnit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-report
+          path: app/apps/ui/contract-tests/report/
+          if-no-files-found: ignore

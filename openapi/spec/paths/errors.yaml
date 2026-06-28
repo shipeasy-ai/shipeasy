@@ -1,0 +1,382 @@
+/api/admin/errors:
+  get:
+    operationId: listErrors
+    summary: List tracked errors
+    description: |-
+      Returns a single page of tracked production errors as a **bare JSON array** (no pagination envelope), ordered by `lastSeenAt desc`. Filter with `status`, free-text-search with `q`, and cap the page with `limit`.
+
+      Tracked errors are never filed by hand — an ingestion path (worker log drain / the `see()` SDK reporter) folds each occurrence into a row keyed by `fingerprint`, bumping `count` and `lastSeenAt`. This surface only reads them and (via PATCH) flips their `status`.
+
+      **Use case:** Snapshot the project's open issues for a triage dashboard, or drive a CI gate that fails the build when any `open` error of `kind: uncaught` exists in `prod`.
+    tags:
+      - Errors
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: status
+        in: query
+        required: false
+        description: Filter by triage state. `all` (the default) returns every status.
+        schema:
+          type: string
+          enum:
+            - open
+            - resolved
+            - ignored
+            - all
+          default: all
+      - name: q
+        in: query
+        required: false
+        description: Case-insensitive substring match against `message`, `errorType`, and `subject`.
+        schema:
+          type: string
+          maxLength: 200
+      - name: limit
+        in: query
+        required: false
+        description: Maximum number of rows to return (1–500). Defaults to 200.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 500
+          default: 200
+    responses:
+      "200":
+        description: List tracked errors
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/errors-api.yaml#/ListErrorsResponse
+            example:
+              - id: err_01j7w7m9q4hxbf6npe6s9zr3vc
+                projectId: e976b15e-2f0d-4c6e-9b1a-3a7c1f2d8e90
+                fingerprint: 9c1f4f1f2c0c4a5fa1c2b6d3e7c8e3a1
+                causedByFingerprint: null
+                message: Cannot read properties of undefined (reading 'id')
+                errorType: TypeError
+                stack: |-
+                  TypeError: Cannot read properties of undefined (reading 'id')
+                      at GateEditor (/app/gates/[id]/page.tsx:42:18)
+                source: shipeasy
+                url: https://app.example.com/dashboard/gat_01j7/edit
+                seenUrls: '["https://app.example.com/dashboard/#/edit"]'
+                subject: gate editor
+                outcome: crash on load
+                side: client
+                env: prod
+                kind: uncaught
+                lastExtrasJson: '{"gateId":"gat_01j7"}'
+                sdkVersion: 6.0.0
+                count: 137
+                status: open
+                firstSeenAt: 2026-06-20T08:11:02.000Z
+                lastSeenAt: 2026-06-28T14:55:31.000Z
+                createdAt: 2026-06-20T08:11:02.000Z
+                updatedAt: 2026-06-28T14:55:31.000Z
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+    x-cli:
+      name: list
+/api/admin/errors/{id}:
+  get:
+    operationId: getError
+    summary: Get a tracked error
+    description: |-
+      Returns a single tracked error by its id, including the latest occurrence's stack, extras, and consequence. Returns `404` if no such error exists in the project.
+
+      **Use case:** Drill into one issue — fetch its full stack and `seenUrls` to investigate, or to render the detail panel behind a row in the errors list.
+    tags:
+      - Errors
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque error id (`err_…`).
+        schema:
+          type: string
+    responses:
+      "200":
+        description: Get a tracked error
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/errors-api.yaml#/ErrorRecord
+            example:
+              id: err_01j7w7m9q4hxbf6npe6s9zr3vc
+              projectId: e976b15e-2f0d-4c6e-9b1a-3a7c1f2d8e90
+              fingerprint: 9c1f4f1f2c0c4a5fa1c2b6d3e7c8e3a1
+              causedByFingerprint: null
+              message: Cannot read properties of undefined (reading 'id')
+              errorType: TypeError
+              stack: |-
+                TypeError: Cannot read properties of undefined (reading 'id')
+                    at GateEditor (/app/gates/[id]/page.tsx:42:18)
+              source: shipeasy
+              url: https://app.example.com/dashboard/gat_01j7/edit
+              seenUrls: '["https://app.example.com/dashboard/#/edit"]'
+              subject: gate editor
+              outcome: crash on load
+              side: client
+              env: prod
+              kind: uncaught
+              lastExtrasJson: '{"gateId":"gat_01j7"}'
+              sdkVersion: 6.0.0
+              count: 137
+              status: open
+              firstSeenAt: 2026-06-20T08:11:02.000Z
+              lastSeenAt: 2026-06-28T14:55:31.000Z
+              createdAt: 2026-06-20T08:11:02.000Z
+              updatedAt: 2026-06-28T14:55:31.000Z
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: get
+      positional:
+        - id
+  patch:
+    operationId: updateErrorStatus
+    summary: Update a tracked error's status
+    description: |-
+      Flips the triage state of one error — the only mutation this surface allows. Valid transitions are between `open`, `resolved`, and `ignored`; the body must carry exactly `{ "status": … }`.
+
+      A `resolved` error reopens automatically (ingestion-side) if it recurs; `ignored` is sticky until flipped back here. Returns the updated row.
+
+      **Use cases**
+
+      - **Triage** — `{ "status": "ignored" }` to suppress a known-benign issue from the open list.
+      - **Close out** — `{ "status": "resolved" }` once the fix lands; it reopens on its own if the error recurs.
+    tags:
+      - Errors
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque error id (`err_…`).
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/errors-api.yaml#/UpdateErrorStatusRequest
+          examples:
+            resolve:
+              summary: Mark resolved
+              description: Close the error once the fix is deployed. It reopens automatically if it recurs.
+              value:
+                status: resolved
+            ignore:
+              summary: Ignore a benign issue
+              description: Suppress a known-benign error from the open list. Sticky until flipped back.
+              value:
+                status: ignored
+    responses:
+      "200":
+        description: Update a tracked error's status
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/errors-api.yaml#/ErrorRecord
+            example:
+              id: err_01j7w7m9q4hxbf6npe6s9zr3vc
+              projectId: e976b15e-2f0d-4c6e-9b1a-3a7c1f2d8e90
+              fingerprint: 9c1f4f1f2c0c4a5fa1c2b6d3e7c8e3a1
+              causedByFingerprint: null
+              message: Cannot read properties of undefined (reading 'id')
+              errorType: TypeError
+              stack: null
+              source: shipeasy
+              url: https://app.example.com/dashboard/gat_01j7/edit
+              seenUrls: null
+              subject: gate editor
+              outcome: crash on load
+              side: client
+              env: prod
+              kind: uncaught
+              lastExtrasJson: null
+              sdkVersion: 6.0.0
+              count: 137
+              status: resolved
+              firstSeenAt: 2026-06-20T08:11:02.000Z
+              lastSeenAt: 2026-06-28T14:55:31.000Z
+              createdAt: 2026-06-20T08:11:02.000Z
+              updatedAt: 2026-06-28T15:02:10.000Z
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: update
+      positional:
+        - id
+/api/admin/errors/{id}/file:
+  post:
+    operationId: fileErrorTicket
+    summary: File a feedback ticket for an error
+    description: |-
+      Files a feedback ticket (`type: "error"`) for a tracked production error — the "File an issue" action on the errors dashboard. The ticket carries the error's fingerprint as its `sourceRef` so it dedupes against, and joins back to, the tracked error. Takes no body.
+
+      Idempotent: if an open `error` ticket already tracks this fingerprint (hand- or auto-filed), that existing ticket is returned instead of creating a duplicate. Returns `404` if the error does not exist.
+
+      **Use case:** Promote a noisy tracked error into an actionable ticket in the ops queue (the same item the worker auto-files once an error crosses its occurrence threshold), so it can be triaged, assigned, and burned down via `/shipeasy:ops:work`.
+    tags:
+      - Errors
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque error id (`err_…`).
+        schema:
+          type: string
+    responses:
+      "201":
+        description: File a feedback ticket for an error
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/errors-api.yaml#/FileErrorTicketResponse
+            example:
+              id: 3f2a9b1c-7d4e-4a8f-9c2b-1e5d6f7a8b90
+              number: 42
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: file
+      positional:
+        - id
+/api/admin/errors/{id}/series:
+  post:
+    operationId: getErrorSeries
+    summary: Get an error's occurrence series
+    description: |-
+      Returns a bucketed occurrence timeseries for one tracked error (by its fingerprint), read from the `shipeasy_errors` Analytics Engine dataset (near-real-time; ingest lag is seconds). The window bounds are epoch **seconds**; `to` must be strictly greater than `from`. The response echoes the SQL that produced the rows.
+
+      **Use case:** Render the trend sparkline / occurrence chart on the error detail panel, or pull the raw bucketed counts to alert when an issue's rate spikes.
+    tags:
+      - Errors
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque error id (`err_…`).
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/errors-api.yaml#/ErrorSeriesRequest
+          examples:
+            lastDayHourly:
+              summary: Last 24h, hourly buckets
+              description: Hourly occurrence counts over a one-day window (bounds in epoch seconds).
+              value:
+                from: 1751000400
+                to: 1751086800
+                bucket: 3600
+    responses:
+      "200":
+        description: Get an error's occurrence series
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/errors-api.yaml#/ErrorSeriesResponse
+            example:
+              sql: |-
+                SELECT intDiv(toUInt32(double2), 3600) * 3600 AS t,
+                  sum(double1 * _sample_interval) AS v
+                FROM shipeasy_errors
+                WHERE index1 = 'e976b15e-2f0d-4c6e-9b1a-3a7c1f2d8e90'
+                  AND blob1 = '9c1f4f1f2c0c4a5fa1c2b6d3e7c8e3a1'
+                  AND double2 >= 1751000400 AND double2 < 1751086800
+                GROUP BY t
+                ORDER BY t
+              rows:
+                - t: 1751000400
+                  v: 12
+                - t: 1751004000
+                  v: 31
+                - t: 1751007600
+                  v: 27
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: series
+      positional:
+        - id

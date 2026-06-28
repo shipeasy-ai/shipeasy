@@ -1,0 +1,181 @@
+/api/admin/keys:
+  get:
+    operationId: listKeys
+    summary: List API keys
+    description: |-
+      Returns a single page of the project's API keys ordered by `created_at desc, id desc`, in the standard `{ data, next_cursor }` envelope. Use the `cursor` query parameter to paginate.
+
+      Response fields are **snake_case** (`created_at`, `revoked_at`, `created_by_email`, `last4`). The raw token is never returned — only its `last4` tail, so a held key can be matched against the masked row. Revoked keys are included (with a non-null `revoked_at`).
+
+      **Use case:** Audit which keys exist for a project — surface stale or never-expiring keys, or drive a CI check that asserts no `client` key is still active in `prod` after a rotation.
+    tags:
+      - API Keys
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - $ref: ../components/parameters.yaml#/PaginationLimit
+      - $ref: ../components/parameters.yaml#/PaginationCursor
+    responses:
+      "200":
+        description: List API keys
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/keys.yaml#/ListKeysResponse
+            example:
+              data:
+                - id: 3f2a9b1c-7d4e-4a8f-9c2b-1e5d6f7a8b90
+                  type: server
+                  env: prod
+                  created_at: 2026-05-09T16:01:22.000Z
+                  revoked_at: null
+                  expires_at: null
+                  created_by_email: ana@example.com
+                  name: production back-end
+                  scopes:
+                    - gates:evaluate
+                    - events:write
+                  last4: a1b2
+              next_cursor: null
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - UNAUTHORIZED
+      - FORBIDDEN
+    x-cli:
+      name: list
+  post:
+    operationId: createKey
+    summary: Create an API key
+    description: |-
+      Mints a new API key and returns the plaintext token **once** — it is stored hashed and can never be retrieved again, so capture it on creation.
+
+      Only `type` is required. `env` is **required** for `server` and `client` keys (the key is bound to one environment, which is the read-env isolation boundary); for `admin` and `ops` keys `env` is ignored and the key is pinned to `prod`. Expiry is fixed for some types: `admin` keys always get a 90-day expiry and `ops` keys a short sliding window, regardless of `expiresInDays`. Only `server`/`client` keys count toward the plan key limit.
+
+      **Use cases**
+
+      - **Back-end key** — `{ "type": "server", "env": "prod" }` for the production server SDK.
+      - **Public browser key** — `{ "type": "client", "env": "prod", "name": "marketing site" }` to embed in the browser SDK.
+      - **Scoped, expiring key** — `{ "type": "server", "env": "staging", "scopes": ["gates:evaluate"], "expiresInDays": 30 }` for a time-boxed integration.
+    tags:
+      - API Keys
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/keys.yaml#/CreateKeyRequest
+          examples:
+            serverKey:
+              summary: Server key — bound to an environment
+              description: "A back-end SDK key. `env` is required for `server`/`client` keys."
+              value:
+                type: server
+                env: prod
+                name: production back-end
+            scopedExpiring:
+              summary: Scoped, expiring server key
+              description: A time-boxed key limited to gate evaluation, expiring in 30 days.
+              value:
+                type: server
+                env: staging
+                scopes:
+                  - gates:evaluate
+                expiresInDays: 30
+            opsKey:
+              summary: Ops key — restricted, env-agnostic
+              description: "The unattended-trigger credential. `env` is ignored (pinned to `prod`); expiry is a short sliding window."
+              value:
+                type: ops
+    responses:
+      "201":
+        description: Create an API key
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/keys.yaml#/CreateKeyResponse
+            example:
+              id: 3f2a9b1c-7d4e-4a8f-9c2b-1e5d6f7a8b90
+              type: server
+              env: prod
+              key: sdk_server_9c1f4f1f2c0c4a5fa1c2b6d3e7c8e3a1
+              expires_at: null
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - VALIDATION
+    x-cli:
+      name: create
+/api/admin/keys/{id}/revoke:
+  post:
+    operationId: revokeKey
+    summary: Revoke an API key
+    description: |-
+      Revokes a key by id — stamps its `revoked_at` and deletes the hot-path KV entry so the token stops authenticating immediately. Takes no body.
+
+      Idempotent: revoking an already-revoked key is a no-op and returns the same `{ id, revoked: true }`. Returns `404` if no such key exists in the project.
+
+      **Use case:** Rotate a leaked or stale credential — mint the replacement, then revoke the old key.
+    tags:
+      - API Keys
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque key id (UUID) returned by `create` / `list`.
+        schema:
+          type: string
+    responses:
+      "200":
+        description: Revoke an API key
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/keys.yaml#/RevokeKeyResponse
+            example:
+              id: 3f2a9b1c-7d4e-4a8f-9c2b-1e5d6f7a8b90
+              revoked: true
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: revoke
+      positional:
+        - id
