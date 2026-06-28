@@ -7,7 +7,7 @@ import { type GenCtx, defineGroup, num, bool, str, json, clean } from "../comman
 
 export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   const g_metrics = defineGroup(program, "metrics", { summary: "Metrics: the event-backed queries that drive tracking dashboards and experiment success / guardrail measurement.", help: "Metrics: the event-backed queries that drive tracking dashboards and\nexperiment success / guardrail measurement.\n\n**Definition.** Each metric pins one source event (`event_name`), one\naggregation, and (for `sum`/`avg`/quantile) a numeric value label. The\nquery is expressed as the DSL string (`query`, e.g. `sum(purchase, amount)`)\nor its typed IR (`query_ir`) — supply exactly one.\n\n**Identity.** Keyed by a stable `name` (single segment or `folder.name`).\nResolve endpoints accept the `id` or the `name`.\n\n**Deletion.** Archive (soft-delete). Blocked while the metric is attached\nto a running experiment — stop those first.", aliases: [] });
-  const g_ops = defineGroup(program, "ops", { summary: "Operational queue: the unified feedback table of bug reports, feature requests, and auto-filed error/alert tickets.", help: "Operational queue: the unified feedback table of bug reports, feature\nrequests, and auto-filed error/alert tickets. List/get/update are unified\nover `/feedback`; bug vs. feature creates are per-type. Also exposes the\n`notify` escalation bell and the read-only Slack-channels list used to\nresolve alert-rule notification targets.\n\n**Handles.** A queue item is addressed by its per-project `number` (e.g. `7`)\nor its full id — the API resolves either.", aliases: [] });
+  const g_ops = defineGroup(program, "ops", { summary: "Operational queue: the unified table of bug reports, feature requests, and auto-filed error/alert tickets, all over `/api/admin/ops`.", help: "Operational queue: the unified table of bug reports, feature requests, and\nauto-filed error/alert tickets, all over `/api/admin/ops`. One `create`\nendpoint files either user type (`type: bug | feature_request`); list, get,\nupdate, and link-pr are unified across every type. Also exposes the\n`notify` escalation bell and the read-only Slack-channels list used to\nresolve alert-rule notification targets.\n\n**Handles.** A queue item is addressed by its per-project `number` (e.g. `7`)\nor its full id — the API resolves either.", aliases: [] });
   const g_projects = defineGroup(program, "projects", { summary: "Projects: the account-level container every other resource is scoped to.", help: "Projects: the account-level container every other resource is scoped to.\n\n**Account-level, not bound-project-level.** Both operations resolve from the caller's credential rather than the `.shipeasy`-bound project — `current` reads the project the auth header maps to, and `upsert` find-or-creates under the session's owner. Neither touches the local `.shipeasy` binding; recording the result there is a consumer side-effect layered on top.\n\n**Idempotent upsert.** A project is keyed by `(owner_email, domain)`. Calling `upsert` again with the same domain returns the existing project with `created: false`, so it is safe to run on every install.", aliases: [] });
   const g_metrics_events = defineGroup(g_metrics, "events", { summary: "Events: the catalog of event names (and their typed properties) that metric queries reference.", help: "Events: the catalog of event names (and their typed properties) that metric queries reference.\n\n**Auto-discovery.** The SDK's `/collect` ingest path records any unknown event name it receives as a `pending` row (`pending: 1`) so you can review it. Metrics defined on a pending event fail until it is approved.\n\n**Approval.** `POST /{id}/approve` promotes a pending event to usable (`pending: 0`), optionally declaring its folder/description/properties in the same call. Registering a brand-new event via `POST` that matches a pending name approves it instead of failing with a conflict.\n\n**Properties.** Each event can declare typed properties (`name`, `type` of `string|number|boolean`, `required`). On update/approve the `properties` array replaces the full set — there is no merge.\n\n**Deletion.** Soft-delete (the user-facing verb is `archive`). Blocked while any metric still references the event — delete those metrics first.", aliases: [] });
   const g_ops_alerts = defineGroup(g_ops, "alerts", { summary: "Alert rules: the metric-threshold definitions the analysis cron evaluates each run.", help: "Alert rules: the metric-threshold definitions the analysis cron evaluates each run.\n\n**What fires.** Each rule binds a `metricId`, a `comparator` (`gt`/`gte`/`lt`/`lte`), and a `threshold`. On every cron pass the cron aggregates the metric over the trailing `windowHours` and raises an alert at `severity` when `value comparator threshold` holds.\n\n**Immutable metric.** The bound metric (and its aggregation) is fixed at create time — there is no update path for `metricId`. Tune `threshold`/`comparator`/`windowHours`/`severity`/`name`/`enabled` instead, or delete + recreate to repoint the rule at a different metric.\n\n**Delivery.** `notify` optionally targets a Slack channel and/or email for this rule; `null` falls back to the project's default notification settings. Slack targets require a connected Slack connector.", aliases: ["ar"] });
@@ -61,44 +61,55 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .action(async (opts) => {
       await ctx.run({ mutates: false, invoke: (client) => api.listOpsItems({ client, query: clean({ type: json(opts.type), status: json(opts.status), limit: num(opts.limit) }), body: json(opts.data) as never }) });
     });
+  g_ops.command("create")
+    .description("File a queue item (bug or feature request) — pass --type.")
+    .argument("<title>", "One-line title of the bug or feature request.")
+    .option("--type <value>", "Item type to file. Only the two user-fileable types are accepted here — `error` and `alert` tickets are auto-filed by the platform and cannot be created over the API.")
+    .option("--body <value>", "Detailed description / steps to reproduce.")
+    .option("--priority <value>", "Initial triage priority.")
+    .option("--steps-to-reproduce <value>", "Reproduction steps (bugs).")
+    .option("--page-url <value>", "URL of the page the item relates to.")
+    .action(async (title, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, type: str(opts.type), body: str(opts.body), priority: str(opts.priority), stepsToReproduce: str(opts.stepsToReproduce), pageUrl: str(opts.pageUrl) }) }) });
+    });
+  g_ops.command("bug")
+    .description("File a bug report.")
+    .argument("<title>", "One-line title of the bug or feature request.")
+    .option("--body <value>", "Detailed description / steps to reproduce.")
+    .option("--priority <value>", "Initial triage priority.")
+    .option("--steps-to-reproduce <value>", "Reproduction steps (bugs).")
+    .option("--page-url <value>", "URL of the page the item relates to.")
+    .action(async (title, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, body: str(opts.body), priority: str(opts.priority), stepsToReproduce: str(opts.stepsToReproduce), pageUrl: str(opts.pageUrl), type: "bug" }) }) });
+    });
+  g_ops.command("feature")
+    .description("File a feature request.")
+    .argument("<title>", "One-line title of the bug or feature request.")
+    .option("--body <value>", "Detailed description / steps to reproduce.")
+    .option("--priority <value>", "Initial triage priority.")
+    .option("--steps-to-reproduce <value>", "Reproduction steps (bugs).")
+    .option("--page-url <value>", "URL of the page the item relates to.")
+    .action(async (title, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, body: str(opts.body), priority: str(opts.priority), stepsToReproduce: str(opts.stepsToReproduce), pageUrl: str(opts.pageUrl), type: "feature_request" }) }) });
+    });
   g_ops.command("get")
     .description("Get one queue item")
-    .argument("<handle>", "Per-project item number (e.g. `7`) or the full feedback id.")
+    .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id.")
     .option("--data <value>", "Request body as a JSON object.")
     .action(async (handle, opts) => {
       await ctx.run({ mutates: false, invoke: (client) => api.getOpsItem({ client, path: { handle: handle }, body: json(opts.data) as never }) });
     });
   g_ops.command("update")
     .description("Update a queue item")
-    .argument("<handle>", "Per-project item number (e.g. `7`) or the full feedback id.")
+    .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id.")
     .option("--status <value>", "New lifecycle status.")
     .option("--priority <value>", "New triage priority.")
     .action(async (handle, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.updateOpsItem({ client, path: { handle: handle }, body: clean({ status: str(opts.status), priority: str(opts.priority) }) }) });
     });
-  g_ops.command("create-bug")
-    .description("File a bug report")
-    .option("--title <value>", "One-line title of the bug or feature request.")
-    .option("--body <value>", "Detailed description / steps to reproduce.")
-    .option("--priority <value>", "Initial triage priority.")
-    .option("--steps-to-reproduce <value>", "Reproduction steps (bugs).")
-    .option("--page-url <value>", "URL of the page the item relates to.")
-    .action(async (opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createBug({ client, body: clean({ title: str(opts.title), body: str(opts.body), priority: str(opts.priority), stepsToReproduce: str(opts.stepsToReproduce), pageUrl: str(opts.pageUrl) }) }) });
-    });
-  g_ops.command("create-feature-request")
-    .description("File a feature request")
-    .option("--title <value>", "One-line title of the bug or feature request.")
-    .option("--body <value>", "Detailed description / steps to reproduce.")
-    .option("--priority <value>", "Initial triage priority.")
-    .option("--steps-to-reproduce <value>", "Reproduction steps (bugs).")
-    .option("--page-url <value>", "URL of the page the item relates to.")
-    .action(async (opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createFeatureRequest({ client, body: clean({ title: str(opts.title), body: str(opts.body), priority: str(opts.priority), stepsToReproduce: str(opts.stepsToReproduce), pageUrl: str(opts.pageUrl) }) }) });
-    });
   g_ops.command("link-pr")
     .description("Link a fixing PR")
-    .argument("<handle>", "Per-project item number (e.g. `7`) or the full feedback id.")
+    .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id.")
     .option("--pr-number <value>", "PR number to record on the item. `null` unlinks the PR.")
     .option("--pr-url <value>", "Explicit PR URL. Required for error/alert tickets (no GitHub issue to derive the URL from).")
     .action(async (handle, opts) => {

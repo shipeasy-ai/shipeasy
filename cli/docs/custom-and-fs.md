@@ -25,8 +25,11 @@ registry** so the CLI and the (future) MCP server project the *same* ops:
 - To add a shared sugar command, add a `CustomOp` to `@shipeasy/openapi/custom`
   — both surfaces pick it up.
 
-Not here: the `ops bug/feature` alias subtree is **CLI-only commander sugar**
-(maps to the generated `ops` commands); it's a follow-up, not a shared op.
+Note: `ops create` / `ops bug` / `ops feature` are **all generated** from one
+spec endpoint (`POST /api/admin/ops`, `createOpsItem`) via `x-cli.commands` with
+per-type `preset` bodies — `bug`/`feature` bake `type`, `create` takes `--type`.
+They are not custom ops; the unification lives in the spec, so the MCP server
+projects the same `ops_create`/`ops_bug`/`ops_feature` tools.
 
 Test: `src/__tests__/custom-ops.test.ts`.
 
