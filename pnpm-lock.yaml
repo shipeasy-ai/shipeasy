@@ -85,7 +85,7 @@ importers:
         specifier: ^1.29.0
         version: 1.29.0(zod@4.4.3)
       '@shipeasy/openapi':
-        specifier: workspace:^1.6.0
+        specifier: workspace:^2.0.0
         version: link:../openapi
       package-manager-detector:
         specifier: ^1.6.0
@@ -106,6 +106,9 @@ importers:
       vitest:
         specifier: ^2.1.9
         version: 2.1.9(@types/node@20.19.43)
+      yaml:
+        specifier: ^2.5.0
+        version: 2.9.0
 
   openapi:
     dependencies:

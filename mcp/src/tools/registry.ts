@@ -1,47 +1,27 @@
+import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import {
-  ALL_OPERATIONS,
-  operationsToMcpTools,
-  operationsToDispatch,
-  opId,
-  opMcpName,
-  type Operation,
-} from "@shipeasy/openapi";
+  GENERATED_TOOLS,
+  GENERATED_DISPATCH,
+  GENERATED_MUTATES,
+} from "../generated/tools.gen.js";
+import { CUSTOM_TOOLS, CUSTOM_DISPATCH } from "./custom.js";
 
 /**
- * The full registry-driven MCP surface (doc 21 §A2/§A3). One shared
- * `Operation[]` drives the CLI subcommands, these MCP tools, and the docs, so
- * the facade→wire mapping lives once. Every module is here — gates, kill
- * switches, configs, universes, experiments, metrics, events, ops (queue +
- * alert rules), `projects current`, attributes, SDK-docs, and the read-only
- * i18n list ops.
+ * The full registry-driven MCP surface, projected from the spec — the MCP twin
+ * of the CLI's generated command tree. Two layers:
  *
- * Two registry ops are deliberately EXCLUDED on MCP because the consumer layers
- * something the worker-safe op can't:
- *   - `projects.upsert` — MCP keeps a hand-written `projects_upsert` that writes
- *     `.shipeasy` (an fs bind) after the shared upsert call.
- *   - the i18n WRITE ops (`profiles create` / `push` / `update` / `publish`) —
- *     MCP keeps its richer fs-flavoured i18n tools (codemod-review push, etc.)
- *     over the same shared `client.i18n` resource. The READ ops
- *     (`i18n profiles list`, `i18n drafts list`) ARE registry-driven so they can
- *     replace the deleted generic-read `profiles`/`drafts` kinds.
+ *   1. **Generated tools** (`GENERATED_*`) — every admin-API endpoint with an
+ *      `x-cli` annotation, named `<tag-chain>_<verb>` (e.g. `release_flags_create`,
+ *      `ops_create`/`ops_bug`/`ops_feature`). These require auth; mutating ones
+ *      (`GENERATED_MUTATES`) additionally require a `.shipeasy` binding.
+ *   2. **Custom tools** (`CUSTOM_*`) — the shared non-endpoint sugar
+ *      (`metrics_grammar`, `docs_*`). Auth-free (pure / outbound fetch).
+ *
+ * Hand-written tools that can't be projected from the spec — auth, `detect_project`,
+ * `projects_upsert` (fs bind), and the fs/AST i18n tools — live in src/tools/ and
+ * are merged into the catalog by src/tools/schema.ts.
  */
-const EXCLUDED_ON_MCP = new Set<string>([
-  "projects.upsert",
-  "i18n.profiles.create",
-  "i18n.push",
-  "i18n.update",
-  "i18n.publish",
-]);
+export { GENERATED_DISPATCH, GENERATED_MUTATES, CUSTOM_DISPATCH };
 
-export const REGISTRY_OPS: Operation[] = ALL_OPERATIONS.filter((op) => !EXCLUDED_ON_MCP.has(opId(op)));
-
-/** MCP `tools/list` entries for the registry-driven tools. */
-export const REGISTRY_TOOLS = operationsToMcpTools(REGISTRY_OPS);
-
-/** MCP `tools/call` dispatch map: tool name → (client, args) → result. */
-export const REGISTRY_DISPATCH = operationsToDispatch(REGISTRY_OPS);
-
-/** tool name → Operation, so the server can read `mutates` to gate the binding check. */
-export const REGISTRY_OPS_BY_TOOL: Map<string, Operation> = new Map(
-  REGISTRY_OPS.map((op) => [opMcpName(op), op]),
-);
+/** The generated API tools + the shared custom (non-spec) tools. */
+export const REGISTRY_TOOLS: Tool[] = [...GENERATED_TOOLS, ...CUSTOM_TOOLS];

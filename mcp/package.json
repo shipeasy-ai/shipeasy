@@ -63,6 +63,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx src/index.ts",
+    "gen:tools": "node scripts/gen-tools.mjs",
     "type-check": "tsc --noEmit",
     "docs": "tsx scripts/gen-mcp-docs.ts",
     "registry:gen": "tsx scripts/gen-server-json.ts",
@@ -71,7 +72,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@shipeasy/openapi": "workspace:^1.6.0",
+    "@shipeasy/openapi": "workspace:^2.0.0",
     "package-manager-detector": "^1.6.0",
     "typescript": "^5.7.4",
     "zod": "^4.0.0"
@@ -79,7 +80,8 @@
   "devDependencies": {
     "@types/node": "^20.19.39",
     "tsx": "^4.19.0",
-    "vitest": "^2.1.9"
+    "vitest": "^2.1.9",
+    "yaml": "^2.5.0"
   },
   "engines": {
     "node": ">=20"

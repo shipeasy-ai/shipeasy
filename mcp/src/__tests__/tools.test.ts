@@ -65,29 +65,28 @@ function parseResult(result: ToolResult) {
   return JSON.parse(result.content[0].text);
 }
 
-// Faithful experiments-transport mock. `resolve(name)` first GETs
-// `/experiments/<name>` — which 404s for a name in the real API (getExperiment
-// matches on id only) — then falls back to the paginated `listAll` to find it
-// by name. This mock reproduces that: name lookups 404, the list returns the
-// `{ data, next_cursor }` page shape, and get-by-id / results / status POST
-// return their fixtures.
-function expFetch(opts: {
-  detail: Record<string, unknown>;
-  list?: Record<string, unknown>[];
-  results?: unknown[];
-  status?: Record<string, unknown>;
-}) {
-  const { detail, list = [detail], results = [], status } = opts;
-  const id = detail.id as string;
-  const j = (body: unknown, ok = true, st = 200) =>
-    Promise.resolve({ ok, status: st, json: () => Promise.resolve(body) });
-  return vi.fn().mockImplementation((url: string) => {
-    if (url.includes(`/experiments/${id}/status`)) return j(status ?? detail);
-    if (url.includes("/results")) return j(results);
-    if (new RegExp(`/experiments/${id}($|\\?)`).test(url)) return j(detail); // get by id
-    if (/\/experiments\/[^/?]+$/.test(url)) return j({ error: "not found" }, false, 404); // by name → 404
-    return j({ data: list, next_cursor: null }); // listAll fallback
+// Capturing fetch for the generated (hey-api) client. hey-api builds a `Request`
+// and reads a real `Response` (headers.get / .json()), so unlike `mockFetch`
+// above we hand back an actual Response and record the parsed request body so a
+// test can assert the wire shape the generated dispatch produced.
+function captureFetch(responder: (req: Request) => unknown = () => ({})) {
+  const calls: { url: string; method: string; body: unknown }[] = [];
+  const fn = vi.fn(async (input: Request | string, init?: RequestInit) => {
+    const req = input instanceof Request ? input : new Request(input, init);
+    let body: unknown;
+    try {
+      const text = await req.clone().text();
+      body = text ? JSON.parse(text) : undefined;
+    } catch {
+      body = undefined;
+    }
+    calls.push({ url: req.url, method: req.method, body });
+    return new Response(JSON.stringify(responder(req) ?? {}), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
   });
+  return { fn, calls };
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────
@@ -102,137 +101,119 @@ function write(dir: string, file: string, content: string) {
   fs.writeFileSync(full, content, "utf8");
 }
 
-// ── exp tools ───────────────────────────────────────────────────────────────
+// ── generated catalog ────────────────────────────────────────────────────────
 
-// Gate / kill switch / config / universe tools are now generated from the
-// shared operation registry (@shipeasy/openapi). The facade→wire mapping is
-// unit-tested there; here we assert the registry tools are exposed and the
-// dispatch resolves a gate-create through the typed admin client.
-// Gate / kill switch / config / universe / experiment tools are now generated
-// from the shared operation registry (@shipeasy/openapi). The facade→wire
-// mapping (incl. the experiment goal-metric DSL, guardrails, and verdict) is
-// unit-tested there; here we assert the catalog exposes them and the dispatch
-// resolves through the typed admin client.
-describe("registry-driven release tools", () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  it("exposes the renamed release_* tools in the catalog (incl. experiments)", async () => {
+// The whole CRUD/read surface is now projected from the spec (tags + x-cli) by
+// scripts/gen-tools.mjs — the MCP twin of the CLI's generated command tree. The
+// per-operation facade logic (goal-metric DSL, metric resolve-by-name, Slack
+// channel resolution) moved server-side; the tool layer is a thin pass-through.
+// Here we assert the catalog shape and that the dispatch hits the right endpoint
+// with the right wire body.
+describe("generated tool catalog", () => {
+  it("exposes the spec-mirrored tool names (clean-break renames + new endpoints)", async () => {
     const { TOOLS } = await import("../tools/schema.js");
     const names = TOOLS.map((t) => t.name);
+    // generated CRUD/read
     expect(names).toContain("release_flags_create");
     expect(names).toContain("release_killswitch_set");
     expect(names).toContain("release_configs_publish");
     expect(names).toContain("release_experiments_universes_create");
     expect(names).toContain("release_experiments_create");
-    expect(names).toContain("release_experiments_status");
-    // old exp_* names are gone (alert rules excepted — ops module)
-    expect(names).not.toContain("exp_create_gate");
-    expect(names).not.toContain("exp_create_experiment");
-  });
-
-  it("dispatches release_flags_create through the admin client", async () => {
-    vi.stubGlobal("fetch", mockFetch({ "/api/admin/gates": { id: "gate-1", name: "my_gate" } }));
-    const { REGISTRY_DISPATCH } = await import("../tools/registry.js");
-    const { getAdminClient } = await import("../util/api-client.js");
-    const handle = await getAdminClient();
-    const data = await REGISTRY_DISPATCH.release_flags_create(handle!.client, {
-      name: "my_gate",
-      rollout: 50,
-    });
-    expect((data as { name: string }).name).toBe("my_gate");
-  });
-
-  it("dispatches release_experiments_create with an inline goal metric", async () => {
-    const fetchMock = mockFetch({ "/api/admin/experiments": { id: "exp-1", name: "my_exp" } });
-    vi.stubGlobal("fetch", fetchMock);
-    const { REGISTRY_DISPATCH } = await import("../tools/registry.js");
-    const { getAdminClient } = await import("../util/api-client.js");
-    const handle = await getAdminClient();
-    await REGISTRY_DISPATCH.release_experiments_create(handle!.client, {
-      name: "my_exp",
-      universe: "u-1",
-      successEvent: "checkout_completed",
-    });
-    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
-    expect(body.goal_metric).toEqual({ query: "count_users(checkout_completed)" });
-  });
-});
-
-// ── full-surface registry tools (metrics / events / ops / docs / generic-read removal) ──
-
-describe("full-surface registry catalog", () => {
-  it("exposes the new module tools and drops the retired hand-written ones", async () => {
-    const { TOOLS } = await import("../tools/schema.js");
-    const names = TOOLS.map((t) => t.name);
-    // new modules
     expect(names).toContain("metrics_create");
-    expect(names).toContain("events_list");
-    expect(names).toContain("ops_create");
     expect(names).toContain("ops_alerts_create");
     expect(names).toContain("ops_notify");
     expect(names).toContain("projects_current");
-    expect(names).toContain("attributes_list");
+    // clean-break renames (tag tree is the source of truth)
+    expect(names).toContain("metrics_events_create"); // was events_create
+    expect(names).toContain("release_flags_attributes_list"); // was attributes_list
+    expect(names).toContain("ops_link_pr"); // was ops_link-pr
+    // unified ops create + the per-type x-cli helpers over one endpoint
+    expect(names).toContain("ops_create");
+    expect(names).toContain("ops_bug");
+    expect(names).toContain("ops_feature");
+    // new spec endpoints the old MCP never exposed
+    expect(names).toContain("release_experiments_results");
+    expect(names).toContain("release_killswitch_get");
+    expect(names).toContain("release_configs_activity");
+    // custom (non-spec) sugar
+    expect(names).toContain("metrics_grammar");
     expect(names).toContain("docs_get");
-    // retired tools are gone
+    // dropped / retired surface
     for (const gone of [
+      "release_flags_rollout", // no rollout endpoint — use release_flags_update
+      "events_create", // → metrics_events_create
+      "attributes_list", // → release_flags_attributes_list
+      "release_experiments_status", // → release_experiments_results
       "list_resources",
       "get_resource",
-      "get_sdk_snippet",
-      "exp_create_alert_rule",
       "file_bug",
       "file_feature",
     ]) {
       expect(names).not.toContain(gone);
     }
   });
-});
 
-describe("ops_alerts_create (registry)", () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  it("resolves the metric by name + maps the Slack channel into the rule", async () => {
-    const fetchMock = mockFetch({
-      "/api/admin/metrics": [{ id: "met-1", name: "checkout_error_rate" }],
-      "/api/admin/slack/channels": { connected: true, channels: [{ id: "C1", name: "incidents" }] },
-      "/api/admin/alert-rules": { id: "ar-1" },
-    });
-    vi.stubGlobal("fetch", fetchMock);
-    const { REGISTRY_DISPATCH } = await import("../tools/registry.js");
-    const { getAdminClient } = await import("../util/api-client.js");
-    const handle = await getAdminClient();
-    const data = await REGISTRY_DISPATCH.ops_alerts_create(handle!.client, {
-      name: "Checkout errors",
-      metric: "checkout_error_rate",
-      comparator: "gt",
-      threshold: 0,
-      slackChannel: "#incidents",
-    });
-    expect((data as { id: string }).id).toBe("ar-1");
-    const postCall = fetchMock.mock.calls.find(
-      (c) =>
-        String(c[0]).includes("/api/admin/alert-rules") &&
-        (c[1] as RequestInit | undefined)?.method === "POST",
-    );
-    const body = JSON.parse((postCall![1] as RequestInit).body as string);
-    expect(body.metricId).toBe("met-1");
-    expect(body.notify.slackChannel).toEqual({ id: "C1", name: "incidents" });
+  it("hands the hand-written projects_upsert (fs bind) priority over the generated one", async () => {
+    const { GENERATED_DISPATCH } = await import("../tools/registry.js");
+    // The generated upsertProject is excluded (OVERRIDDEN) so the static
+    // .shipeasy-binding tool is the only projects_upsert in the catalog.
+    expect(GENERATED_DISPATCH.projects_upsert).toBeUndefined();
+    expect(GENERATED_DISPATCH.projects_current).toBeTypeOf("function");
   });
 });
 
-describe("ops_create (registry)", () => {
+// ── generated dispatch (thin pass-through to the hey-api client) ─────────────
+
+describe("generated dispatch", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("files a bug through the bug endpoint", async () => {
-    const fetchMock = mockFetch({ "/api/admin/bugs": { id: "fb-1", number: 7 } });
-    vi.stubGlobal("fetch", fetchMock);
-    const { REGISTRY_DISPATCH } = await import("../tools/registry.js");
-    const { getAdminClient } = await import("../util/api-client.js");
-    const handle = await getAdminClient();
-    const data = await REGISTRY_DISPATCH.ops_create(handle!.client, {
+  it("dispatches release_flags_create to POST /api/admin/gates with the body", async () => {
+    const { fn, calls } = captureFetch(() => ({ id: "gate-1", name: "my_gate" }));
+    vi.stubGlobal("fetch", fn);
+    const { GENERATED_DISPATCH } = await import("../tools/registry.js");
+    const { getGeneratedClient } = await import("../tools/_gen-runtime.js");
+    const handle = await getGeneratedClient();
+    const data = await GENERATED_DISPATCH.release_flags_create(handle!.client, { name: "my_gate" });
+    expect((data as { name: string }).name).toBe("my_gate");
+    const post = calls.find((c) => c.url.includes("/api/admin/gates") && c.method === "POST");
+    expect((post!.body as { name: string }).name).toBe("my_gate");
+  });
+
+  it("dispatches ops_create to POST /api/admin/ops carrying the type", async () => {
+    const { fn, calls } = captureFetch(() => ({ id: "fb-1", number: 7 }));
+    vi.stubGlobal("fetch", fn);
+    const { GENERATED_DISPATCH } = await import("../tools/registry.js");
+    const { getGeneratedClient } = await import("../tools/_gen-runtime.js");
+    const handle = await getGeneratedClient();
+    const data = await GENERATED_DISPATCH.ops_create(handle!.client, {
       type: "bug",
       title: "Checkout 500s on Safari",
     });
     expect((data as { number: number }).number).toBe(7);
+    const post = calls.find((c) => c.url.includes("/api/admin/ops") && c.method === "POST");
+    expect((post!.body as { type: string; title: string }).type).toBe("bug");
+    expect((post!.body as { title: string }).title).toBe("Checkout 500s on Safari");
+  });
+
+  it("ops_bug presets type=bug from the x-cli command (no type arg needed)", async () => {
+    const { fn, calls } = captureFetch(() => ({ id: "fb-2", number: 8 }));
+    vi.stubGlobal("fetch", fn);
+    const { GENERATED_DISPATCH } = await import("../tools/registry.js");
+    const { getGeneratedClient } = await import("../tools/_gen-runtime.js");
+    const handle = await getGeneratedClient();
+    await GENERATED_DISPATCH.ops_bug(handle!.client, { title: "Bug via the bug helper" });
+    const post = calls.find((c) => c.url.includes("/api/admin/ops") && c.method === "POST");
+    expect((post!.body as { type: string }).type).toBe("bug");
+  });
+});
+
+// ── custom (non-spec) tools ──────────────────────────────────────────────────
+
+describe("custom tools", () => {
+  it("metrics_grammar runs without a client and returns the grammar", async () => {
+    const { CUSTOM_DISPATCH } = await import("../tools/registry.js");
+    const result = await CUSTOM_DISPATCH.metrics_grammar({});
+    expect(JSON.stringify(result).length).toBeGreaterThan(0);
   });
 });
 

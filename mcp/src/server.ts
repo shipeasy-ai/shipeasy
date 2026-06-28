@@ -23,8 +23,9 @@ import { handleScanCode } from "./tools/i18n/scan.js";
 import { handlePublishProfile } from "./tools/i18n/publish.js";
 import { handleDiscoverSite } from "./tools/i18n/discover.js";
 import { handleCodemodPreview, handleCodemodApply } from "./tools/i18n/codemod.js";
-import { REGISTRY_DISPATCH, REGISTRY_OPS_BY_TOOL } from "./tools/registry.js";
-import { getAdminClient, notAuthenticated, notBound, ok, apiErr } from "./util/api-client.js";
+import { GENERATED_DISPATCH, GENERATED_MUTATES, CUSTOM_DISPATCH } from "./tools/registry.js";
+import { getGeneratedClient } from "./tools/_gen-runtime.js";
+import { notAuthenticated, notBound, ok, apiErr } from "./util/api-client.js";
 
 const SERVER_NAME = "shipeasy";
 const SERVER_VERSION = "0.1.0";
@@ -55,18 +56,29 @@ export async function startStdioServer(): Promise<void> {
       };
     }
 
-    // Registry-driven tools — gates, kill switches, configs, universes,
+    // Generated API tools — gates, kill switches, configs, universes,
     // experiments, metrics, events, ops (queue + alert rules), `projects
-    // current`, attributes, SDK-docs, and the read-only i18n list ops. One
-    // generic branch replaces dozens of hand-written ones. The op's `mutates`
-    // flag drives the binding guard — read ops (list/get/docs) run unbound.
-    const regOp = REGISTRY_OPS_BY_TOOL.get(toolName);
-    if (regOp) {
-      const handle = await getAdminClient();
+    // current`, attributes. Projected from the spec; one generic branch covers
+    // them all. The generated `mutates` flag drives the binding guard — read
+    // ops (list/get) run unbound; writes require a `.shipeasy` binding.
+    const genDispatch = GENERATED_DISPATCH[toolName];
+    if (genDispatch) {
+      const handle = await getGeneratedClient();
       if (!handle) return notAuthenticated();
-      if (regOp.mutates && !handle.bound) return notBound(handle);
+      if (GENERATED_MUTATES[toolName] && !handle.bound) return notBound(handle);
       try {
-        return ok(await REGISTRY_DISPATCH[toolName](handle.client, params.arguments ?? {}));
+        return ok(await genDispatch(handle.client, params.arguments ?? {}));
+      } catch (e) {
+        return apiErr(e);
+      }
+    }
+
+    // Custom (non-endpoint) tools — `metrics_grammar`, `docs_*`. Auth-free
+    // (pure / outbound fetch over GitHub Pages); no client, no binding.
+    const customDispatch = CUSTOM_DISPATCH[toolName];
+    if (customDispatch) {
+      try {
+        return ok(await customDispatch(params.arguments ?? {}));
       } catch (e) {
         return apiErr(e);
       }

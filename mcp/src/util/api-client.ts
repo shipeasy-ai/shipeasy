@@ -1,9 +1,4 @@
-import {
-  ApiError,
-  createAdminClient,
-  createHttpTransport,
-  type AdminClient,
-} from "@shipeasy/openapi";
+import { ApiError } from "../tools/_gen-runtime.js";
 import { readConfig, type ShipeasyConfig } from "../auth/config.js";
 import { getBoundProjectIdSync } from "./project-config.js";
 
@@ -109,33 +104,4 @@ export function apiErr(err: unknown) {
 
 export function ok(data: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
-}
-
-export interface AdminClientHandle {
-  client: AdminClient;
-  cfg: ShipeasyConfig;
-  projectId: string;
-  bound: boolean;
-}
-
-/**
- * Returns the shared typed admin client (gates / experiments / configs / …).
- * New MCP handlers should prefer this over getApiClient() so the API surface
- * stays in sync with @shipeasy/cli.
- */
-export async function getAdminClient(): Promise<AdminClientHandle | null> {
-  const cfg = await readConfig();
-  if (!cfg) return null;
-  const bound = getBoundProjectIdSync(process.cwd());
-  const projectId = bound ?? cfg.project_id;
-  const transport = createHttpTransport({
-    baseUrl: cfg.app_base_url,
-    getAuth: () => ({ token: cfg.cli_token, projectId }),
-  });
-  return {
-    client: createAdminClient(transport),
-    cfg,
-    projectId,
-    bound: !!bound,
-  };
 }

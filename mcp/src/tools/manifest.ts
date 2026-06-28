@@ -21,12 +21,13 @@ export const ALL_TOOLS: Tool[] = TOOLS;
  * `list_resources`/`get_resource` → the typed `*_list`/`*_get` tools;
  * `get_sdk_snippet` → `docs_*`.
  */
+// Prefix policy over the generated tools. `metrics_` also covers the renamed
+// `metrics_events_*`; `release_` also covers `release_flags_attributes_list`
+// (both were top-level `events_*` / `attributes_*` before the spec-first cutover).
 const ASSISTANT_PREFIXES = [
   "release_",
   "metrics_",
-  "events_",
   "ops_",
-  "attributes_",
   "docs_",
 ];
 
