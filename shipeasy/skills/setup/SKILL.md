@@ -129,10 +129,10 @@ docs_get { "sdk": "<lang>", "path": "installation" }      # MCP
 ```
 
 Optionally install that SDK's own skill so future tasks have version-correct
-syntax + snippets on hand: `docs_skill { sdk: "<lang>" }`, or
-`shipeasy docs skill --sdk <lang> --install` to write it to `.claude/skills/`
-(read by Claude Code & OpenCode; for another agent add `--dir <its skills dir>`).
-Use `docs_list { sdk }` to see every page/snippet available for a language.
+syntax + snippets on hand: `shipeasy docs skill --sdk <lang> --install` delegates
+to the `skills` CLI, which auto-detects the coding agents on the machine and lets
+the user pick which to install into (`--agent <name>` to target one without the
+picker). Use `docs_list { sdk }` to see every page/snippet available for a language.
 
 Then:
 
