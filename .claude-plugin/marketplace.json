@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "shipeasy",
-  "description": "Shipeasy plugin for Claude Code — feature flags, A/B experiments, event metrics, translations, in-app bug reports. One install, one MCP registration, all features nested under /shipeasy:<area>:<verb>.",
+  "description": "Shipeasy plugin for Claude Code — feature flags, A/B experiments, event metrics, translations, in-app bug reports. One install, one MCP registration. All CRUD runs through the shipeasy MCP server or CLI; slash commands are reserved for multi-step workflows (setup, the installs, experiments/metrics create, i18n codemods, ops work + trigger).",
   "owner": {
     "name": "Shipeasy",
     "url": "https://shipeasy.ai"
@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "shipeasy",
-      "description": "End-to-end Shipeasy plugin: base SDK install + auth + bind, plus experiments, metrics, gates, configs, kill switches, alert rules, translations, and feedback. Three install sections — /shipeasy:ops:install, /shipeasy:flags:install (gates+configs+ks+experiments+events+alert rules), /shipeasy:i18n:install. Slash commands live at /shipeasy:setup, /shipeasy:experiments:{create,list,start,status,update,stop,archive}, /shipeasy:metrics:{create,list,show,grammar}, /shipeasy:flags:{install,create,list,update}, /shipeasy:configs:{create,list,update}, /shipeasy:ks:{create,list,toggle_switch}, /shipeasy:alerts:{create,list,update}, /shipeasy:i18n:{install,extract,migrate,validate,update,profiles,translate}, /shipeasy:ops:{install,list,report,work,create_trigger}. Deletions are UI-only — no delete commands ship. Registers the shipeasy MCP server. Replaces the deprecated base/experiments-metrics/configs-gates/polylang/bugs plugins.",
+      "description": "End-to-end Shipeasy plugin: base SDK install + auth + bind, plus experiments, metrics, gates, configs, kill switches, alert rules, translations, and feedback. All day-to-day CRUD (create/list/update/archive of gates, configs, kill switches, experiments, metrics, alert rules, ops items, i18n keys) runs through the registered shipeasy MCP server or the shipeasy CLI — there are no per-verb slash commands. Slash commands are reserved for multi-step agent workflows: /shipeasy:setup; the three installs /shipeasy:flags:install (gates+configs+ks+experiments+events+alert rules), /shipeasy:ops:install (feedback+errors+alerts) and /shipeasy:i18n:install (translations); the analyze-and-instrument flows /shipeasy:experiments:create and /shipeasy:metrics:create; the i18n codemods /shipeasy:i18n:{extract,migrate,translate}; and the ops loop /shipeasy:ops:work plus its scheduler /shipeasy:ops:create_trigger. Deletions are UI-only. Registers the shipeasy MCP server. Replaces the deprecated base/experiments-metrics/configs-gates/polylang/bugs plugins.",
       "source": "./shipeasy",
       "category": "feature"
     }

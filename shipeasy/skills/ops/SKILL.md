@@ -13,12 +13,12 @@ devtools `<script>` tag), plus auto-filed **production-error** and **alert**
 tickets. The CLI mirrors the same admin API, so items can be filed, listed,
 triaged, and worked from a terminal or a CI script.
 
-> **On Claude Code** each verb below is also a slash command
-> (`/shipeasy:ops:install`, `/shipeasy:ops:report`, `/shipeasy:ops:list`,
-> `/shipeasy:ops:work`, `/shipeasy:ops:create_trigger`). On every other host
-> those same flows arrive as the mirrored `ops-*` skills (`ops-work`,
-> `ops-list`, `ops-report`, `ops-install`, `ops-create_trigger`) and the
-> `shipeasy` MCP tools — same behaviour, reached by phrasing or `@shipeasy`.
+> **Filing and listing have no slash command** — use the `shipeasy` MCP tools
+> (`ops_create`, `ops_list`, `ops_get`, `ops_update`) when the server is
+> registered, or the `shipeasy ops` CLI as the fallback. The slash commands are
+> the multi-step workflows only: `/shipeasy:ops:install` (enable + verify + wire),
+> `/shipeasy:ops:work` (burn down the queue), and `/shipeasy:ops:create_trigger`
+> (schedule the loop). This is the same on every host.
 
 ## First fix: update before you debug
 
@@ -50,7 +50,10 @@ collection).
 The toggle is per-project: same `.shipeasy` binding the rest of the CLI
 uses. Devtools picks it up on the next load — no rebuild required.
 
-## Filing from the CLI
+## Filing — MCP tool or CLI
+
+Prefer the `ops_create` MCP tool when the server is registered; otherwise the
+`shipeasy ops` CLI:
 
 ```bash
 shipeasy ops bug create "Checkout button is unresponsive on mobile" \
@@ -61,9 +64,9 @@ shipeasy ops feature create "Bulk-archive in dashboard" \
   --description "Lets ops clear stale gates without opening each row."
 ```
 
-Slash equivalent: `/shipeasy:ops:report [--type bug|feature] "<title>"`.
+## Listing & triage — MCP tool or CLI
 
-## Listing & triage
+Use the `ops_list` / `ops_get` / `ops_update` MCP tools, or the CLI:
 
 ```bash
 shipeasy ops bug list
@@ -74,7 +77,6 @@ shipeasy ops feature list
 ```
 
 `list` returns the most-recent rows; pipe through `--json` for scripts.
-Slash equivalent for listing: `/shipeasy:ops:list [--type bug|feature]`.
 
 **Deletion is UI-only.** Spam/duplicate removal is a human call made in
 the dashboard — the plugin ships no delete command, and the loops never
@@ -94,8 +96,7 @@ after verification in the dashboard. Do **not** skip straight to
 /shipeasy:ops:work [--type bug|feature|error|alert|all] [--priority high|critical] [--limit N] [--dry-run]
 ```
 
-The unified work loop (it replaces the old `bugs:fix` and
-`feats:implement`). Pulls the operational queue for the bound project —
+The unified work loop. Pulls the operational queue for the bound project —
 bugs, feature requests, tracked production errors, and active alerts —
 walks them in priority/severity/age order, and resolves each one as its
 own atomic diff: bugs fix-first → `ready_for_qa`/`resolved`, features
@@ -126,6 +127,18 @@ There is no public SDK surface for bugs/features yet — the devtools
 overlay is the only customer-facing producer, and the CLI/admin API are
 the consumer surface. Skip ahead to the `experiments` or `flags` skill
 if you need a programmatic read path.
+
+The one SDK call site that feeds this queue is **`see()` error reporting** —
+auto-filed production-error tickets come from `see()` instrumentation in the
+app. When `/shipeasy:ops:work` fixes an error item and needs to add or adjust a
+`see()` call site, **pull the `see()` error-reporting form for this project's
+language from the `docs` MCP.** Detect the language from `.shipeasy` or the
+subproject's manifest (`package.json`, `pyproject.toml`, `Gemfile`, `go.mod`,
+`pom.xml`, `build.gradle*`, `composer.json`, `Package.swift`), then fetch the
+snippet: `docs_get { sdk: <lang>, path: <errors-page> }` (run
+`docs_list { sdk: <lang> }` to find the errors/feedback page handle; CLI
+`shipeasy docs get --sdk <lang> <errors-page>`). See the `see` skill for the
+grammar.
 
 ## When to use this skill
 

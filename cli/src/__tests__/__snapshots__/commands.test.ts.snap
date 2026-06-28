@@ -3,6 +3,7 @@
 exports[`command tree > matches the registered command surface (snapshot) 1`] = `
 [
   "bind",
+  "detect",
   "docs",
   "docs get",
   "docs list",

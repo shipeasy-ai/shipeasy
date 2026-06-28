@@ -10,8 +10,8 @@ source, run Anthropic translation over the draft key-by-key, then publish to
 the CDN. This is the only path that exposes the platform's machine-translation
 engine — no CLI verb covers it, so it runs through the i18n MCP tools.
 
-Prereq: `.shipeasy` bound; `translations` module enabled
-(`/shipeasy:i18n:install`); a populated source profile (default `en:prod`);
+Prereq: `.shipeasy` bound; the `shipeasy` MCP server available (this workflow
+runs through the `i18n_*` tools); a populated source profile (default `en:prod`);
 an Anthropic API key in the operator's environment (`ANTHROPIC_API_KEY`) —
 the key is read locally and **never sent to Shipeasy**.
 
@@ -77,7 +77,8 @@ source profile (default `en:prod`).
 
 - Translation drafts are **insert-only** at the key level — re-running won't
   clobber human edits made in the dashboard. To change a single translated
-  value, use `/shipeasy:i18n:update <key> <value> --profile <target>`.
+  value, use the `i18n_create_key` MCP tool with the overwrite flag, or
+  `shipeasy i18n update <key> <value> --profile <target>`.
 - Cost + latency scale with key count × locales; `max_parallel` trades speed
   for rate-limit headroom.
 - No deletion here — removing a locale/profile is a dashboard action.

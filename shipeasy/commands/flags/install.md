@@ -17,11 +17,9 @@ turns on every "decide-at-runtime" feature module in one pass:
 - **alert rules** — metric-threshold rules the cron evaluates to raise alerts
   (built on top of `events` + `metrics`; no separate module toggle)
 
-There is no longer a per-feature install for each of these — this command
-replaces the old `/shipeasy:configs:install`, `/shipeasy:ks:install`,
-`/shipeasy:experiments:install`, and `/shipeasy:metrics:install`. The other
-two install sections are `/shipeasy:ops:install` (feedback + production
-errors) and `/shipeasy:i18n:install` (translations).
+There is no per-feature install for each of these — this one command turns on
+the whole platform. The other two install sections are `/shipeasy:ops:install`
+(feedback + production errors) and `/shipeasy:i18n:install` (translations).
 
 Prereq: `/shipeasy:setup` already ran and `.shipeasy` exists at the repo root.
 
@@ -79,12 +77,14 @@ Steps:
    ```
    ✅ flags platform install complete
    Modules: gates ✓  configs ✓  events ✓  experiments ✓   (kill switches need no module)
-   Next:
-     /shipeasy:flags:create <name> [percent]            # boolean feature gate
-     /shipeasy:configs:create <name> [json-default]     # typed dynamic config
-     /shipeasy:ks:create <folder.name>                  # standalone kill switch
+   Next — create resources via the shipeasy MCP server (or the CLI):
+     release_flags_create       { "name": "<name>", "rollout_percent": <n> }   # gate
+     release_configs_create     { "name": "<name>", ... }                      # dynamic config
+     release_killswitch_create  { "name": "<folder.name>" }                    # kill switch
+     ops_alerts_create          { "name": "<name>", "metric": "<m>", ... }     # alert rule
+   Workflows (slash commands):
      /shipeasy:experiments:create <name>                # design + draft an A/B test
-     /shipeasy:metrics:create <name> --event <e> --query '<dsl>'
-     /shipeasy:alerts:create <name> --metric <m> --comparator gt --threshold <n>
-   Or use the `flags`, `experiments`, or `metrics` skills.
+     /shipeasy:metrics:create <name>                    # analyze + instrument + create a metric
+   Or just ask — the `flags`, `experiments`, `metrics`, and `alerts` skills
+   carry the guidance and always delegate to the MCP server or CLI.
    ```

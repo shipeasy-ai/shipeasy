@@ -7,28 +7,27 @@ Shipeasy ships two things to a coding agent:
    - **8 area skills** (`flags`, `experiments`, `metrics`, `i18n`, `ops`,
      `alerts`, `see`, `setup`) — the umbrella guides, one per subsystem. These
      cover *every* feature (e.g. `flags` covers configs + kill switches, `ops`
-     covers the bug/feature/error inbox), driving the same MCP tools.
-   - **A per-command mirror** under `skills/.curated/` — one skill per
-     `/shipeasy:<area>:<verb>` slash command (e.g. `ops-work`, `alerts-create`,
-     `ks-toggle_switch`), the 1:1 portable equivalent of Claude Code's slash
-     commands. These are **symlinks** to the same command files Claude Code uses
-     — one source of truth, no duplication (see
-     [`scripts/sync-skill-mirror.mjs`](./scripts/sync-skill-mirror.mjs)).
+     covers the bug/feature/error inbox). They **always delegate all CRUD to the
+     `shipeasy` MCP server or the `shipeasy` CLI**.
+   - **A small set of workflow slash commands** — 11 multi-step flows
+     (`/shipeasy:setup`, `/shipeasy:flags:install`, `/shipeasy:ops:install`,
+     `/shipeasy:ops:work`, `/shipeasy:ops:create_trigger`,
+     `/shipeasy:i18n:{install,extract,migrate,translate}`,
+     `/shipeasy:experiments:create`, `/shipeasy:metrics:create`). These are
+     **Claude-Code-only**; other hosts reach the same behaviour through the area
+     skills + the `shipeasy` MCP tools / CLI.
 2. **The `shipeasy` MCP server** — `npx -y @shipeasy/mcp@latest`, the tool
    surface that actually creates gates, drafts experiments, pushes i18n keys,
    files feedback, etc.
 
-**How each consumer sees those two skill layers:**
+**How each consumer sees the skills:**
 
-- **Claude Code** reads the command files directly as `/shipeasy:<area>:<verb>`
-  **slash commands**, and its plugin loader ignores the dot-prefixed
-  `skills/.curated/` mirror — so the slash commands never double-register, and
-  CC just gets the 8 area skills + the slash commands.
-- **The `skills` CLI** (every other host) installs the **8 area skills by
-  default** from the bare repo URL. To also pull the per-command mirror (the
-  portable slash-command equivalents), add **`--full-depth`** — see Tier 2. No
-  host has a slash-command primitive, so there the mirror delivers those flows
-  as ordinary phrasing/`@shipeasy`-triggered skills.
+- **Claude Code** reads the workflow command files directly as
+  `/shipeasy:<area>:<verb>` **slash commands**, on top of the 8 area skills.
+- **The `skills` CLI** (every other host) installs the **8 area skills** from
+  the bare repo URL. There is no slash-command primitive on those hosts; the
+  area skills drive the same workflows through ordinary
+  phrasing/`@shipeasy`-triggered invocation, delegating CRUD to the MCP / CLI.
 
 Both artifacts live **once** in this repo under [`shipeasy/`](./shipeasy) and
 are *referenced* by every host's manifest — nothing is duplicated per agent.
@@ -104,14 +103,13 @@ For every other agent: install the skills, then run onboarding — the `setup`
 skill registers the MCP server for you.
 
 ```bash
-# full surface (8 area skills + the per-command slash-command mirror):
-npx skills add https://github.com/shipeasy-ai/shipeasy --full-depth -a <agent>
+# the 8 area skills (they cover every feature via the MCP tools / CLI):
+npx skills add https://github.com/shipeasy-ai/shipeasy -a <agent>
 # then, in the agent:  "set up shipeasy in this repo"
 ```
 
-(Drop `--full-depth` to install just the 8 area skills — they already cover
-every feature via the MCP tools. Add it to also get the 1:1 per-command skills,
-the portable equivalents of Claude Code's `/shipeasy:<area>:<verb>` commands.)
+The 8 area skills are the whole surface — they cover every feature and delegate
+all CRUD to the `shipeasy` MCP server or CLI.
 
 The `skills` CLI copies **skill text only** — it does not register MCP servers.
 But you no longer have to hand-edit MCP config: the `setup` skill detects that
@@ -132,19 +130,11 @@ files and writes them into the target agent's skills directory. Point it at the
 `.claude-plugin/marketplace.json` and follows its `source: ./shipeasy`:
 
 ```bash
-npx skills add https://github.com/shipeasy-ai/shipeasy --full-depth -a <agent>
+npx skills add https://github.com/shipeasy-ai/shipeasy -a <agent>
 ```
 
-Discovery depth:
-
-- **bare URL, no flag** → the 8 area skills (`skills/<name>/SKILL.md`). The
-  CLI's manifest-mode scan only walks depth-1, so it stops there.
-- **`--full-depth`** → also the per-command mirror under `skills/.curated/`
-  (the 1:1 slash-command equivalents). **Recommended** — this is the full
-  surface.
-- The `…/tree/main/shipeasy` subpath form also pulls the full set (it re-roots
-  inside the plugin and scans the `.curated/` container directly), if you'd
-  rather not pass `--full-depth`.
+The CLI's manifest-mode scan walks depth-1 and installs the 8 area skills
+(`skills/<name>/SKILL.md`) — the whole surface.
 
 Add `-g` to install into the user-global skills dir instead of the project.
 `<agent>` values: `opencode`, `cursor`, `windsurf`, `cline`, `gemini-cli`,
@@ -241,9 +231,9 @@ commands. To wire Shipeasy into your app:
 | Capability | Claude Code | Codex | Copilot CLI | Tier-2 (OpenCode, Cursor, …) |
 | --- | :---: | :---: | :---: | :---: |
 | 8 area skills (cover every feature) | ✅ | ✅ | ✅ | ✅ |
-| Per-command (slash) surface | ✅ slash cmds | @shipeasy + skills | @shipeasy + skills | ✅ via `--full-depth` |
+| CRUD (via `shipeasy` MCP / CLI) | ✅ | ✅ | ✅ | ✅ |
 | `shipeasy` MCP server | ✅ | ✅ | ✅ | ✅ |
-| `/shipeasy:*` slash commands | ✅ | — | — | — |
+| Workflow slash commands (`/shipeasy:*`) | ✅ | — (skills + MCP/CLI) | — (skills + MCP/CLI) | — (skills + MCP/CLI) |
 | One-command install | ✅ | ✅ | ✅ | skills CLI; MCP self-registers on setup |
 
 Slash commands are the only Claude-Code-exclusive surface; everything that

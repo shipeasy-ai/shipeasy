@@ -47,6 +47,21 @@ Before creating, decide:
 5. **Success metric.** Pre-register one (see the `metrics` skill). Adding
    metrics post-hoc inflates false-positive rate.
 
+## How to act: MCP server or CLI (plus one workflow command)
+
+Lifecycle CRUD — list / start / stop / status / update / archive, and universe
+management — has **no per-verb slash command**. Drive it through:
+
+1. **MCP tools** (`release_experiments_*`, `release_experiments_universes_*`)
+   when the `shipeasy` MCP server is registered.
+2. **The `shipeasy` CLI** (`shipeasy release experiments …`) as the fallback.
+
+The one exception is `/shipeasy:experiments:create` — a multi-step workflow that
+analyzes the project, proposes variation points + a success metric, instruments
+events, and *then* drafts the experiment. Reach for it (or just follow the
+"Designing" + "Creating" sections below) when starting from a vague ask; use the
+MCP/CLI directly when the design is already pinned down.
+
 ## Creating
 
 ```
@@ -68,7 +83,7 @@ This creates a **draft**. Start it:
 mcp tool: release_experiments_start { "name": "checkout_button_v2" }
 ```
 
-CLI equivalents:
+CLI equivalents (the fallback when MCP isn't registered):
 
 ```bash
 shipeasy release experiments list
@@ -78,21 +93,22 @@ shipeasy release experiments stop <name>
 shipeasy release experiments status <name>
 ```
 
-Slash equivalents:
-
-```
-/shipeasy:experiments:create <name>
-/shipeasy:experiments:start <name>
-/shipeasy:experiments:status <name>
-/shipeasy:experiments:stop <name>
-```
-
 For the metric query DSL itself, see the `metrics` skill or run
 `shipeasy metrics grammar`.
 
 ## Reading from the SDK
 
+**Pull the call site for this project's SDK language from the `docs` MCP.**
+Detect the language from `.shipeasy` or the subproject's manifest
+(`package.json`, `pyproject.toml`, `Gemfile`, `go.mod`, `pom.xml`,
+`build.gradle*`, `composer.json`, `Package.swift`), then fetch the snippet:
+`docs_get { sdk: <lang>, path: "experiments", name: "checkout_button_v2" }`
+(run `docs_list { sdk: <lang> }` to find the handle; CLI
+`shipeasy docs get --sdk <lang> experiments --name checkout_button_v2`). The
+example below shows the shape — use the docs snippet for the exact call.
+
 ```ts
+// Example shape — fetch the exact call for this project's language via docs_get
 import { experiments } from "@shipeasy/sdk/server";
 const { group, params } = await experiments.assign("checkout_button_v2", {
   user_id,

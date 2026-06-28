@@ -11,10 +11,10 @@ command does **not** know yet which event or metric to use — your job is
 to look at the codebase, propose options, confirm with `AskUserQuestion`,
 then provision everything.
 
-Prereqs: `.shipeasy` bound, `experiments` + `events` modules enabled
-(run `/shipeasy:flags:install` if not — it turns on gates, configs,
-events, and experiments together). Experiment `<name>` taken from
-`$ARGUMENTS`; if blank, ask.
+Prereqs: `.shipeasy` bound, and the `shipeasy` MCP server available — this
+workflow instruments events and drafts the experiment through it
+(`events_create`, `release_experiments_create`); the `shipeasy` CLI is the
+fallback. Experiment `<name>` taken from `$ARGUMENTS`; if blank, ask.
 
 ## Phase 1 — locate variation points in the user's code
 
@@ -71,12 +71,25 @@ Q: Which metric should decide this experiment?
 
 ## Phase 3 — provision (in order, halt on first failure)
 
+**Pull the SDK call sites below (`events.track`, `experiments.assign`) for this
+project's language from the `docs` MCP.** Before editing 3a/3d, detect the
+language from `.shipeasy` or the subproject's manifest (`package.json`,
+`pyproject.toml`, `Gemfile`, `go.mod`, `pom.xml`, `build.gradle*`,
+`composer.json`, `Package.swift`), then fetch the snippets:
+`docs_get { sdk: <lang>, path: "metrics" }` for the track call and
+`docs_get { sdk: <lang>, path: "experiments", name: "<name>" }` for assignment
+(run `docs_list { sdk: <lang> }` to find the handle; CLI
+`shipeasy docs get --sdk <lang> <path>`). The examples below show the shape —
+use the docs snippets for the exact calls.
+
 For the chosen metric:
 
 **3a.** If the event isn't emitted yet, instrument it. Edit the call
-site (one Edit per file). Single import:
+site (one Edit per file). Single import — the example below shows the shape,
+pull this project's language with `docs_get` as above:
 
 ```ts
+// Example shape — fetch the exact call for this project's language via docs_get
 import { events } from "@shipeasy/sdk/client"; // or "@shipeasy/sdk/server"
 events.track("<event>", { /* labels referenced by the metric query */ });
 ```
@@ -109,10 +122,12 @@ mcp tool: release_experiments_create {
 }
 ```
 
-**3d.** Edit the variation point so the runtime branches on
-`experiments.assign(...)`:
+**3d.** Edit the variation point so the runtime branches on the assignment call
+(the example below shows the shape — pull this project's language with
+`docs_get { sdk: <lang>, path: "experiments" }` as noted at the top of Phase 3):
 
 ```ts
+// Example shape — fetch the exact call for this project's language via docs_get
 import { experiments } from "@shipeasy/sdk/server"; // or "@shipeasy/sdk/client"
 const { group } = await experiments.assign("<name>", { user_id });
 if (group === "treatment") {
@@ -141,9 +156,10 @@ Tell the user:
    Event:         <event_name> (new | reused)
    Metric:        <metric_name> = <DSL>
    Groups:        control 50 / treatment 50
-Next:
-   /shipeasy:experiments:start <name>      # begin assigning traffic
-   /shipeasy:experiments:status <name>     # check enrolment + significance later
+Next (via the shipeasy MCP server or CLI):
+   release_experiments_start  { "name": "<name>" }   # begin assigning traffic
+   release_experiments_status { "name": "<name>" }   # enrolment + significance
+   # CLI fallback: shipeasy release experiments start|status <name>
 ```
 
 Do **not** start the experiment automatically — the user reviews the

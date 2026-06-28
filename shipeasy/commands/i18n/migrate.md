@@ -7,6 +7,15 @@ user-invocable: true
 
 Migrate the project's existing i18n library to `@shipeasy/sdk` i18n.
 
+> **This codemod rewrites JavaScript/TypeScript sources** (the supported
+> sources below — react-i18next, react-intl, lingui, next-intl, raw-i18next —
+> are all JS/TS libraries, and it rewrites their call sites to the `i18n.t(...)`
+> form). For a repo in another language, pull that language's i18n usage from
+> the `docs` MCP: `docs_get { sdk: <lang>, path: "i18n" }` (run
+> `docs_list { sdk: <lang> }` to find the handle; CLI
+> `shipeasy docs get --sdk <lang> i18n`) and apply it directly. Detect the
+> language from `.shipeasy` or the subproject's manifest.
+
 Supported migration sources (`$ARGUMENTS`):
 
 - `react-i18next`

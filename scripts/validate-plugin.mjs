@@ -15,12 +15,11 @@
 
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
-import { spawnSync } from "node:child_process";
 
 const ROOT = process.cwd();
-// The area skills — the natural-language umbrella, loaded by every host. The
-// per-command mirror (skills/.curated/<ns>-<verb>/) is validated separately by
-// sync-skill-mirror.mjs --check (run at the end).
+// The area skills — the natural-language umbrella, loaded by every host. They
+// are the cross-host surface; all CRUD is delegated to the `shipeasy` MCP server
+// or the `shipeasy` CLI, and the few remaining slash commands are workflows.
 const EXPECTED_SKILLS = ["alerts", "experiments", "flags", "i18n", "metrics", "ops", "see", "setup"];
 
 const HOSTS = {
@@ -162,18 +161,6 @@ for (const k of keys) {
     process.exit(2);
   }
   validateHost(k);
-}
-
-// Cross-host: the per-command skill mirror (skills/.curated/) must be in sync
-// with the slash commands. Run once regardless of which host(s) we validated.
-console.log("\n[mirror] per-command skill mirror");
-const mirror = spawnSync(process.execPath, [join(ROOT, "scripts/sync-skill-mirror.mjs"), "--check"], {
-  encoding: "utf8",
-});
-process.stdout.write((mirror.stdout || "").replace(/^/gm, "  "));
-if (mirror.status !== 0) {
-  process.stderr.write((mirror.stderr || "").replace(/^/gm, "  "));
-  failures++;
 }
 
 console.log("");

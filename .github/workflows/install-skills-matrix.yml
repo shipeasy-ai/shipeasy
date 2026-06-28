@@ -2,7 +2,7 @@ name: install · Tier-2 agents (skills)
 
 # Smoke-tests that the full Shipeasy skill set installs into every Tier-2 agent
 # (the ones without a bundled-plugin system) via the vercel-labs/skills CLI:
-# the 7 area skills (skills/) plus the per-command mirror (skills/.curated/).
+# the 8 area skills (skills/). All CRUD is delegated to the shipeasy MCP server or CLI.
 # Together with install-{claude,codex,copilot}.yml this covers every platform in
 # INSTALL.md. Auth-free and deterministic — installs from this checkout and
 # asserts the installed SKILL.md count matches the source tree.
@@ -12,7 +12,6 @@ on:
     paths:
       - "shipeasy/skills/**"
       - "shipeasy/commands/**"
-      - "scripts/sync-skill-mirror.mjs"
       - ".github/workflows/install-skills-matrix.yml"
   pull_request:
   workflow_dispatch:
@@ -47,7 +46,7 @@ jobs:
       - name: Install all skills via the skills CLI (auth-free)
         run: |
           set -euo pipefail
-          # Expected = area skills + the .curated per-command mirror, from source.
+          # Expected = the area skills, from source.
           expected="$(find "$GITHUB_WORKSPACE/shipeasy/skills" -name SKILL.md | wc -l | tr -d ' ')"
           work="$(mktemp -d)"
           cd "$work"

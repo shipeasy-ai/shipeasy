@@ -233,8 +233,9 @@ Flip to `in_progress` when you start an item.
    and flip the ticket (`shipeasy ops.update <#number|id> --status resolved`,
    or `ready_for_qa` in PR mode). If it's an ops acknowledgement (bad
    threshold, expected spike), say so and flip the ticket to `resolved` with a
-   one-line note in your summary. Rule *definitions* can be tuned via
-   `/shipeasy:alerts:update` by a human — the ops key cannot edit them, so when
+   one-line note in your summary. Rule *definitions* can be tuned via the
+   `ops_alerts_update` MCP tool / `shipeasy alert-rules update` by a human — the
+   ops key cannot edit them, so when
    the right fix IS a rule change, **raise a notification** spelling out the new
    threshold/comparator/window (see
    [Escalate](#escalate-raise-a-bell-notification-when-the-fix-isnt-in-code)).
@@ -260,12 +261,16 @@ and i18n publishing — always reach them through the CLI / the matching skill,
 never a raw HTTP call:
 
 - **Create** gates, dynamic configs, experiments, kill switches, events,
-  metrics, and alert rules — via `shipeasy release flags create` / `configs create` /
-  `experiments create` / `killswitches create` / `metrics create` /
-  `alert-rules create`, or the `/shipeasy:flags:*`, `/shipeasy:experiments:create`,
-  `/shipeasy:metrics:create`, `/shipeasy:alerts:create` skills. Typical uses:
-  wrap a risky fix in a fresh gate, add the event + metric a fix needs for
-  verification, add an alert rule that would have caught the regression.
+  metrics, and alert rules — through the `shipeasy` MCP tools
+  (`release_flags_create`, `release_configs_create`, `release_experiments_create`,
+  `release_killswitch_create`, `events_create`, `metrics_create`,
+  `ops_alerts_create`) or the equivalent CLI (`shipeasy release flags create`,
+  `… configs create`, `… experiments create`, `… killswitch create`,
+  `shipeasy metrics create`, `shipeasy alert-rules create`). The
+  `/shipeasy:experiments:create` and `/shipeasy:metrics:create` workflow
+  commands are also available. Typical uses: wrap a risky fix in a fresh gate,
+  add the event + metric a fix needs for verification, add an alert rule that
+  would have caught the regression.
 - **Push + publish i18n keys** — `shipeasy i18n push` (insert-only) +
   `shipeasy i18n publish` (or the `i18n` skill) — so a fix that adds
   user-visible copy can ship its keys.
@@ -434,9 +439,10 @@ push straight to the default branch.
 - **One item at a time.** Loop, never parallelise.
 - **One PR per item in `--pr` mode.** Never bundle two items into one PR.
 - **Never delete anything.** Resolving / fixing-in-code are the terminal
-  states. Deletion of a feedback record is a human call made in the UI — see
-  `/shipeasy:ops:list`. (This plugin no longer ships any delete command for
-  any resource, and the ops key cannot delete or archive server-side.)
+  states. Deletion of a feedback record is a human call made in the UI — list
+  the queue with the `ops_list` MCP tool / `shipeasy ops` CLI. (This plugin
+  ships no delete command for any resource, and the ops key cannot delete or
+  archive server-side.)
 - **Never flip `wont_fix` without asking** — product decision.
 - **Recordings need human acknowledgement** — don't claim a bug fixed if you
   skipped its recording.

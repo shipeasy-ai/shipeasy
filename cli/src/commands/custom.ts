@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { customOperations, CustomOpError, type CustomOp } from "@shipeasy/openapi/custom";
 import { defineGroup, num, bool, str } from "./_gen-runtime";
 import { printJson } from "../util/output";
@@ -27,8 +27,24 @@ function coerce(op: CustomOp, positionals: string[], opts: Record<string, unknow
 }
 const camel = (s: string) => s.replace(/[-_]([a-z0-9])/g, (_, c) => c.toUpperCase());
 
-async function installSkill(content: string, sdk: string): Promise<string> {
-  const dir = join(homedir(), ".claude", "skills", `shipeasy-${sdk}`);
+/**
+ * Write the fetched SDK skill to a skills dir. Skill discovery is per-agent —
+ * Claude Code reads `.claude/skills/` (project) and `~/.claude/skills/`
+ * (global); OpenCode auto-discovers `.claude/skills/`. Other agents (Codex,
+ * Cursor, …) keep skills elsewhere, so `--dir` targets that agent's skills dir
+ * explicitly. Default is project `.claude/skills/`; `--global` writes home.
+ */
+function installSkill(
+  content: string,
+  sdk: string,
+  opts: { dir?: unknown; global?: unknown },
+): string {
+  const base = opts.dir
+    ? resolve(String(opts.dir))
+    : opts.global
+      ? join(homedir(), ".claude", "skills")
+      : join(process.cwd(), ".claude", "skills");
+  const dir = join(base, `shipeasy-${sdk}`);
   mkdirSync(dir, { recursive: true });
   const path = join(dir, "SKILL.md");
   writeFileSync(path, content, "utf8");
@@ -46,7 +62,15 @@ export function customCommands(program: Command): void {
     const positionals = op.params.filter((p) => p.positional);
     for (const p of positionals) cmd.argument(`<${p.name}>`, p.description ?? "");
     for (const p of op.params.filter((p) => !p.positional)) {
-      cmd.option(`--${p.name.replace(/_/g, "-")} <value>`, p.description ?? "");
+      const flag = `--${p.name.replace(/_/g, "-")}`;
+      // Booleans are presence flags (`--install`); everything else takes a value.
+      cmd.option(p.type === "boolean" ? flag : `${flag} <value>`, p.description ?? "");
+    }
+    // `docs skill --install` is host-aware: --dir targets a specific agent's
+    // skills dir, --global writes to ~/.claude/skills (default is project).
+    if (op.name === "skill") {
+      cmd.option("--dir <path>", "Skills dir to install into (for non-Claude agents)");
+      cmd.option("--global", "Install into ~/.claude/skills instead of ./.claude/skills");
     }
 
     cmd.action(async (...argv: unknown[]) => {
@@ -58,8 +82,13 @@ export function customCommands(program: Command): void {
         // `docs skill --install` writes the fetched skill locally (fs side-effect).
         if (op.name === "skill" && (opts.install === true || String(opts.install) === "true")) {
           const r = result as { content: string; sdk: string };
-          const path = await installSkill(r.content, r.sdk);
+          const path = installSkill(r.content, r.sdk, { dir: opts.dir, global: opts.global });
           console.log(`Installed skill → ${path}`);
+          if (!opts.dir) {
+            console.log(
+              "Read by Claude Code & OpenCode. For Codex/other agents, re-run with --dir <that agent's skills dir>.",
+            );
+          }
           return;
         }
         printJson(result);

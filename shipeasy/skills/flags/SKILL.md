@@ -33,6 +33,21 @@ Only treat it as a real bug if it still fails on the latest CLI **and** plugin.
 kill switches, experiments, and events) or
 `shipeasy modules enable gates && shipeasy modules enable configs`.
 
+## How to act: always the MCP server or the CLI
+
+There are **no per-verb slash commands** for gates, configs, or kill switches.
+Every create / list / update / archive / toggle goes through one of two
+surfaces, preferred in this order:
+
+1. **MCP tools** (`release_flags_*`, `release_configs_*`, `release_killswitch_*`)
+   when the `shipeasy` MCP server is registered — they validate input shapes and
+   return typed errors.
+2. **The `shipeasy` CLI** (`shipeasy release flags|configs|killswitch …`) as the
+   fallback when MCP isn't available (e.g. a skills-CLI install on a host that
+   hasn't registered the server yet).
+
+Deletion is **UI-only** — there is no delete tool or command; archive instead.
+
 ## Creating
 
 Prefer MCP tools — they validate input shapes and return typed errors:
@@ -57,39 +72,41 @@ mcp tool: release_configs_create {
 }
 ```
 
-CLI equivalents:
+CLI equivalents (the fallback when MCP isn't registered):
 
 ```bash
 shipeasy release flags create --help
 shipeasy release flags list
 shipeasy release flags update <name>      # adjust rollout / targeting
 shipeasy release flags archive <name>     # disable a gate without deleting
-```
 
-Slash equivalents:
-
-```
-/shipeasy:flags:create <name> [percent]
-/shipeasy:configs:create <name>
-/shipeasy:ks:create <name>
+shipeasy release configs create|list|update|archive --help
+shipeasy release killswitch create|list|set|unset|update|archive --help
 ```
 
 ## Reading from the SDK
 
-Server (one configure call already done in `layout.tsx`):
+**Pull the call site for this project's SDK language from the `docs` MCP.**
+Detect the language from `.shipeasy` or the subproject's manifest
+(`package.json`, `pyproject.toml`, `Gemfile`, `go.mod`, `pom.xml`,
+`build.gradle*`, `composer.json`, `Package.swift`), then fetch the snippet:
+`docs_get { sdk: <lang>, path: "release/flags", name: "checkout_v2" }` for gates
+and `docs_get { sdk: <lang>, path: "release/configs", name: "search_ranking" }`
+for configs (run `docs_list { sdk: <lang> }` to find the handle; CLI
+`shipeasy docs get --sdk <lang> release/flags --name checkout_v2`). The example
+below shows the shape — use the docs snippet for the exact call.
 
 ```ts
+// Example shape — fetch the exact call for this project's language via docs_get
+// Server (one configure call already done in `layout.tsx`):
 import { gates, configs } from "@shipeasy/sdk/server";
 const isOn = await gates.check("checkout_v2", { country: req.country });
 const ranking = await configs.get("search_ranking", { country: req.country });
-```
 
-Client:
-
-```ts
+// Client:
 import { gates, configs } from "@shipeasy/sdk/client";
-const isOn = gates.check("checkout_v2");
-const ranking = configs.get("search_ranking");
+const isOnClient = gates.check("checkout_v2");
+const rankingClient = configs.get("search_ranking");
 ```
 
 ## Rollout playbook

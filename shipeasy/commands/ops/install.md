@@ -7,8 +7,7 @@ user-invocable: true
 Per-project install for the **ops module** — the in-app feedback overlay
 (bug reports + feature requests), auto-collected production errors, `see()`
 error reporting, and metric-threshold alerts. One of the three install
-sections (`ops` / `flags` / `i18n`); it replaces the old per-feature
-`/shipeasy:bugs:install`.
+sections (`ops` / `flags` / `i18n`).
 
 This command is a **thin, language-agnostic wrapper**. It does not embed
 any single SDK's snippets — it detects the project's language(s), pulls the
@@ -187,7 +186,7 @@ claude plugin marketplace add shipeasy-ai/shipeasy
 claude plugin install shipeasy@shipeasy
 
 # Any other agent (Cursor, Windsurf, Gemini, OpenCode, Continue, …)
-npx skills add https://github.com/shipeasy-ai/shipeasy --full-depth -a <agent>
+npx skills add https://github.com/shipeasy-ai/shipeasy -a <agent>
 ```
 
 ---
@@ -228,10 +227,9 @@ Wired:    devtools overlay (?se=1 on any browser surface) <enabled | declined | 
           see() error reporting per the project's language docs
 Skills:   ops + see — live via the installed plugin (no hand-written copies)
 Rule:     CLAUDE.md — handled exceptions must use see()
-Next:     /shipeasy:ops:report bug "<title>"  — file a single bug/feature
-          /shipeasy:ops:list --type error     — list bugs/features/errors/alerts
-          /shipeasy:ops:work                  — burn down bugs+features+errors+alerts
-          shipeasy ops.errors list            — triage tracked production errors
+Next:     ops_create  { "type": "bug", "title": "<title>" }   — file one (or `shipeasy ops bug create`)
+          ops_list    { "type": "error" }                     — list bugs/features/errors/alerts
+          /shipeasy:ops:work                                   — burn down bugs+features+errors+alerts
           or have end users submit via the in-page Report panel.
 ```
 
@@ -271,8 +269,8 @@ Act on whatever the user selects (do nothing for unchecked options):
   trim. For each confirmed rule, build the whole chain:
   1. ensure the backing **event** is emitted from the code (instrument it
      where it isn't already);
-  2. create the **metric** over that event (`shipeasy metrics create …`, see
-     `/shipeasy:metrics:grammar` for the DSL);
-  3. create the **alert rule** (`shipeasy alerts create …` /
-     `/shipeasy:alerts:create`).
-  Confirm each rule lands with `shipeasy alerts list`.
+  2. create the **metric** over that event (`metrics_create` MCP tool /
+     `shipeasy metrics create …`; `metrics_grammar` for the DSL);
+  3. create the **alert rule** (`ops_alerts_create` MCP tool /
+     `shipeasy alert-rules create …`).
+  Confirm each rule lands with `ops_alerts_list` / `shipeasy alert-rules list`.

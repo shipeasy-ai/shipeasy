@@ -9,18 +9,18 @@ user-invocable: true
 An **alert rule** is a metric-threshold definition. The analysis cron evaluates
 it on a schedule: when `agg(metric)` over the trailing window satisfies
 `value <comparator> threshold`, it raises an alert at the rule's severity. The
-raised alerts then surface in the operational inbox (see the `ops` skill —
-`/shipeasy:ops:list --type alert`).
+raised alerts then surface in the operational inbox (see the `ops` skill — list
+them with the `ops_list` MCP tool / `shipeasy ops` CLI, `--type alert`).
 
 Alert *rules* are **writable** here. The *raised alerts* themselves are
 read-only and belong to `ops`. Alert rules ride the flags platform install
 (`/shipeasy:flags:install`) and sit on top of the `events` + `metrics` you
 already defined.
 
-> **On Claude Code** the verbs below are slash commands
-> (`/shipeasy:alerts:create`, `:list`, `:update`). On every other host they
-> arrive as the mirrored `alerts-*` skills (installed with the `--full-depth`
-> skills-CLI flag — see the `setup` skill) and the `shipeasy` MCP tools.
+> **There are no `alerts` slash commands.** Create / list / update alert rules
+> through the `shipeasy` MCP tools (`ops_alerts_create`, `ops_alerts_list`,
+> `ops_alerts_update`) when the server is registered, or the `shipeasy alert-rules`
+> CLI as the fallback. This is the same on every host.
 
 ## First fix: update before you debug
 
@@ -79,7 +79,7 @@ or `shipeasy alert-rules list [--json]`. Fields: `id`, `name`, `metricId`,
 `metricName`, `comparator`, `threshold`, `windowHours`, `severity`, `enabled`,
 `createdAt`, `updatedAt`. The `id` (unique id-prefix, or unique `name`) is what
 update takes. These are rule *definitions* — for alerts they have *raised*, use
-the `ops` skill (`/shipeasy:ops:list --type alert`).
+the `ops` skill (`ops_list` MCP tool / `shipeasy ops` CLI, `--type alert`).
 
 ## Update
 

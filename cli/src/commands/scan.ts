@@ -335,8 +335,15 @@ function detectNonJs(
   if (fs.existsSync(path.join(root, "pom.xml"))) {
     return { language: "java", package_manager: "maven", frameworks: [] };
   }
+  // Kotlin DSL (`build.gradle.kts`) → Kotlin SDK; plain Groovy `build.gradle` → Java.
+  if (fs.existsSync(path.join(root, "build.gradle.kts"))) {
+    return { language: "kotlin", package_manager: "gradle", frameworks: [] };
+  }
   if (fs.existsSync(path.join(root, "build.gradle"))) {
     return { language: "java", package_manager: "gradle", frameworks: [] };
+  }
+  if (fs.existsSync(path.join(root, "Package.swift"))) {
+    return { language: "swift", package_manager: "swiftpm", frameworks: [] };
   }
   return null;
 }
@@ -404,5 +411,259 @@ export async function detectProject(
   }
 
   return { status: "ok", projects: results };
+}
+
+// ── recursive monorepo discovery + per-folder recommendations ──────────────
+// This is the engine behind `shipeasy detect`: walk the tree, find every
+// install target, and emit a per-folder recommendation the setup skill can act
+// on without re-deriving the install command / secret store / docs handle.
+
+const TARGET_MANIFESTS = [
+  "package.json",
+  "pyproject.toml",
+  "setup.py",
+  "requirements.txt",
+  "Gemfile",
+  "go.mod",
+  "pom.xml",
+  "build.gradle",
+  "build.gradle.kts",
+  "composer.json",
+  "Package.swift",
+];
+const PRUNE_DIRS = new Set([
+  "node_modules",
+  "vendor",
+  "dist",
+  "build",
+  ".next",
+  ".git",
+  ".turbo",
+  ".venv",
+  "venv",
+  "__pycache__",
+  "target",
+  ".gradle",
+]);
+
+/** Walk `root` (default cwd), returning every directory that holds a known
+ *  project manifest. Prunes vendor/build dirs; bounded by `maxDepth`. */
+export function discoverTargets(root: string, maxDepth = 4): string[] {
+  const found = new Set<string>();
+  const walk = (dir: string, depth: number): void => {
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    if (entries.some((e) => e.isFile() && TARGET_MANIFESTS.includes(e.name))) found.add(dir);
+    if (depth >= maxDepth) return;
+    for (const e of entries) {
+      if (!e.isDirectory() || e.name.startsWith(".") || PRUNE_DIRS.has(e.name)) continue;
+      walk(path.join(dir, e.name), depth + 1);
+    }
+  };
+  walk(resolveRoot(root), 0);
+  return [...found].sort();
+}
+
+/** `docs` MCP `sdk` value per detected language (drives `shipeasy docs get`). */
+const SDK_FOR_LANGUAGE: Record<string, string> = {
+  typescript: "typescript",
+  javascript: "typescript",
+  python: "python",
+  ruby: "ruby",
+  go: "go",
+  php: "php",
+  java: "java",
+  kotlin: "kotlin",
+  swift: "swift",
+};
+
+const BROWSER_FRAMEWORKS = new Set([
+  "nextjs",
+  "react",
+  "vue",
+  "nuxt",
+  "svelte",
+  "sveltekit",
+  "angular",
+  "remix",
+]);
+
+function installHint(language: string, pm: string, frameworks: string[]): string {
+  switch (language) {
+    case "typescript":
+    case "javascript": {
+      const mgr = pm && pm !== "unknown" ? pm : "npm";
+      const verb = mgr === "npm" ? "install" : "add"; // npm uses `install`, pnpm/yarn/bun use `add`
+      const react = frameworks.includes("react") || frameworks.includes("nextjs");
+      return `${mgr} ${verb} @shipeasy/sdk${react ? " @shipeasy/react" : ""}`;
+    }
+    case "python":
+      return "pip install shipeasy (or add `shipeasy` to pyproject/requirements)";
+    case "ruby":
+      return 'add `gem "shipeasy-sdk"` then `bundle install`';
+    case "go":
+      return "go get github.com/shipeasy-ai/sdk-go";
+    case "php":
+      return "composer require shipeasy/shipeasy";
+    case "java":
+      return "add dependency `ai.shipeasy:shipeasy:<latest>` (Maven/Gradle)";
+    case "kotlin":
+      return 'implementation("ai.shipeasy:shipeasy-kotlin:<latest>")';
+    case "swift":
+      return "add SwiftPM package github.com/shipeasy-ai/sdk-swift";
+    default:
+      return "unsupported language — no Shipeasy SDK";
+  }
+}
+
+function secretStoreHint(language: string, frameworks: string[], root: string): string {
+  if (fs.existsSync(path.join(root, "wrangler.toml")) || fs.existsSync(path.join(root, "wrangler.jsonc")))
+    return "wrangler secret put SHIPEASY_SERVER_KEY";
+  if (frameworks.includes("rails") || language === "ruby")
+    return "rails credentials:edit → shipeasy_server_key (or .env if using dotenv)";
+  if (frameworks.includes("django")) return ".env via django-environ (or process env)";
+  if (language === "java" || language === "kotlin")
+    return "application.properties → ${SHIPEASY_SERVER_KEY} + process env";
+  if (language === "php") return ".env (Laravel) or process env";
+  if (language === "typescript" || language === "javascript") return "<dir>/.env.local (gitignored)";
+  return "process env / .env (gitignored)";
+}
+
+export interface SkillRecommendation {
+  /** `docs` MCP sdk value — `shipeasy docs get --sdk <sdk> installation`. */
+  sdk: string | null;
+  /** Whole-tree action: skip the workspace root, install, or already done. */
+  action: "install" | "set_key" | "skip_workspace_root" | "skip_unsupported" | "already_onboarded";
+  reason: string;
+  install: string | null;
+  keys: Array<"server" | "client">;
+  secret_store: string | null;
+  /** How to pull the version-correct install + wiring docs for this folder. */
+  docs: string | null;
+  /** Feature installs/skills that apply once the SDK is wired. */
+  next_skills: string[];
+}
+
+export interface TargetRecommendation extends ProjectInfo {
+  recommendation: SkillRecommendation;
+}
+
+function isWorkspaceRoot(root: string): boolean {
+  if (fs.existsSync(path.join(root, "pnpm-workspace.yaml"))) return true;
+  const raw = safeReadFile(path.join(root, "package.json"), root);
+  if (!raw) return false;
+  try {
+    const pkg = JSON.parse(raw) as { workspaces?: unknown; dependencies?: object };
+    const hasWorkspaces = Array.isArray(pkg.workspaces) || typeof pkg.workspaces === "object";
+    const noAppDeps = !pkg.dependencies || Object.keys(pkg.dependencies).length === 0;
+    return hasWorkspaces && noAppDeps;
+  } catch {
+    return false;
+  }
+}
+
+function recommend(info: ProjectInfo, hasNestedTargets: boolean): SkillRecommendation {
+  const sdk = SDK_FOR_LANGUAGE[info.language] ?? null;
+  const featureSkills = [
+    "/shipeasy:flags:install",
+    "/shipeasy:ops:install",
+    "/shipeasy:i18n:install",
+  ];
+
+  if (!sdk) {
+    return {
+      sdk: null,
+      action: "skip_unsupported",
+      reason: `No Shipeasy SDK for language "${info.language}".`,
+      install: null,
+      keys: [],
+      secret_store: null,
+      docs: null,
+      next_skills: [],
+    };
+  }
+
+  // A JS workspace root that only declares workspaces (no app deps) and has real
+  // targets beneath it: don't install the SDK here — bind .shipeasy and move on.
+  if (
+    hasNestedTargets &&
+    (info.language === "typescript" || info.language === "javascript") &&
+    !info.shipeasy.experimentation_sdk.installed &&
+    isWorkspaceRoot(info.path)
+  ) {
+    return {
+      sdk,
+      action: "skip_workspace_root",
+      reason: "Workspace root (declares workspaces, no app deps) — install in the subprojects instead.",
+      install: null,
+      keys: [],
+      secret_store: null,
+      docs: null,
+      next_skills: [],
+    };
+  }
+
+  const needsClient = info.frameworks.some((f) => BROWSER_FRAMEWORKS.has(f));
+  const keys: Array<"server" | "client"> = needsClient ? ["server", "client"] : ["server"];
+  const docs = `shipeasy docs get --sdk ${sdk} installation`;
+
+  if (info.shipeasy.experimentation_sdk.installed) {
+    const configured = info.shipeasy.experimentation_sdk.configured;
+    return {
+      sdk,
+      action: configured ? "already_onboarded" : "set_key",
+      reason: configured
+        ? "SDK installed and SHIPEASY_SERVER_KEY present — already onboarded."
+        : "SDK installed but no SHIPEASY_SERVER_KEY detected — mint a key and persist it.",
+      install: null,
+      keys: configured ? [] : keys,
+      secret_store: configured ? null : secretStoreHint(info.language, info.frameworks, info.path),
+      docs,
+      next_skills: featureSkills,
+    };
+  }
+
+  return {
+    sdk,
+    action: "install",
+    reason: "No Shipeasy SDK installed — install it, mint keys, wire the entry point.",
+    install: installHint(info.language, info.package_manager, info.frameworks),
+    keys,
+    secret_store: secretStoreHint(info.language, info.frameworks, info.path),
+    docs,
+    next_skills: featureSkills,
+  };
+}
+
+export interface DetectTargetsResult {
+  status: "ok";
+  root: string;
+  targets: TargetRecommendation[];
+}
+
+/** Recursive, recommendation-emitting detection — the `shipeasy detect` engine.
+ *  Walks the tree under each given path (or the cwd) and unions the targets. */
+export async function detectTargets(inputPaths?: string[]): Promise<DetectTargetsResult> {
+  const roots =
+    inputPaths && inputPaths.length > 0 ? inputPaths.map(resolveRoot) : [resolveRoot()];
+  const dirSet = new Set<string>();
+  for (const r of roots) for (const d of discoverTargets(r)) dirSet.add(d);
+  const dirs = [...dirSet].sort();
+  const root = roots[0]!;
+
+  const targets: TargetRecommendation[] = [];
+  for (const dir of dirs) {
+    const info = await inspectOne(dir);
+    const { allDeps: _drop, ...rest } = info;
+    const project: ProjectInfo = { path: dir, ...rest };
+    const hasNested = dirs.some((d) => d !== dir && d.startsWith(dir + path.sep));
+    targets.push({ ...project, recommendation: recommend(project, hasNested) });
+  }
+
+  return { status: "ok", root, targets };
 }
 

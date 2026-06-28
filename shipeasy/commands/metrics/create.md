@@ -9,10 +9,10 @@ Create a new metric. Follow the `metrics` skill.
 
 Prereqs:
 
-- `base@shipeasy` installed, `.shipeasy` bound.
-- `events` module enabled (and `experiments` if the metric will be a
-  success criterion). If unsure, run `/shipeasy:flags:install` first —
-  it enables events + experiments (plus gates + configs).
+- `.shipeasy` bound.
+- The `shipeasy` MCP server is available — this workflow creates the metric
+  (and instruments any backing event) through it (`metrics_create`,
+  `events_create`); the `shipeasy` CLI is the fallback.
 
 Workflow:
 
@@ -24,9 +24,18 @@ Workflow:
    `p50/p75/p90/p95/p99/p999`, `retention_<N>d`. Match ops: `=`, `!=`,
    `=~`, `!~`.
 3. If the event is not yet emitted in app code, instrument it first.
-   Labels referenced by the query must exist on the event payload:
+   Labels referenced by the query must exist on the event payload.
+
+   **Pull the `events.track` call for this project's SDK language from the
+   `docs` MCP.** Detect the language from `.shipeasy` or the subproject's manifest
+   (`package.json`, `pyproject.toml`, `Gemfile`, `go.mod`, `pom.xml`,
+   `build.gradle*`, `composer.json`, `Package.swift`), then fetch the snippet:
+   `docs_get { sdk: <lang>, path: "metrics" }` (run `docs_list { sdk: <lang> }` to
+   find the handle; CLI `shipeasy docs get --sdk <lang> metrics`). The example
+   below shows the shape — use the docs snippet for the exact call.
 
    ```ts
+   // Example shape — fetch the exact call for this project's language via docs_get
    import { events } from "@shipeasy/sdk/client"; // or "@shipeasy/sdk/server"
    events.track("checkout_completed", { amount, country });
    ```

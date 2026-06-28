@@ -15,7 +15,6 @@ on:
       - "shipeasy/.mcp.json"
       - ".agents/plugins/**"
       - "scripts/validate-plugin.mjs"
-      - "scripts/sync-skill-mirror.mjs"
       - ".github/workflows/install-codex.yml"
   pull_request:
   workflow_dispatch:
@@ -46,7 +45,7 @@ jobs:
       - name: Install all skills via the skills CLI (auth-free)
         run: |
           set -euo pipefail
-          # Expected = area skills + the .curated per-command mirror, from source.
+          # Expected = the area skills, from source.
           expected="$(find "$GITHUB_WORKSPACE/shipeasy/skills" -name SKILL.md | wc -l | tr -d ' ')"
           work="$(mktemp -d)"
           cd "$work"

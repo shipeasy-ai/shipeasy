@@ -29,8 +29,8 @@ MCP config snippet.
 ### Tier 2 — skills + MCP (OpenCode, Cursor, Windsurf, Cline, Gemini, Continue, …)
 
 ```bash
-# 1. skills — area skills by default; add --full-depth for the per-command (slash) mirror too
-npx skills add https://github.com/shipeasy-ai/shipeasy --full-depth -a <agent>
+# 1. skills — installs the 8 area skills
+npx skills add https://github.com/shipeasy-ai/shipeasy -a <agent>
 
 # 2. MCP — add the shipeasy server to that agent's MCP config (see INSTALL.md for the exact file)
 #    most agents use the standard mcpServers shape:
@@ -47,12 +47,14 @@ opt-in is controlled by enabling/disabling modules on the project
 (`shipeasy modules enable <name>`), not by installing additional plugins.
 
 **What ports where.** The eight area skills and the `shipeasy` MCP server port
-to *every* agent. The `/shipeasy:<area>:<verb>` **slash commands are Claude
-Code-only** — no other host has a plugin slash-command primitive, so on Codex,
-Copilot, OpenCode, etc. you reach the same flows by letting a skill auto-trigger
-on phrasing (or, on Codex/Copilot, invoking `@shipeasy`). Skills and MCP are
-*referenced, never copied*: each host's manifest points its `skills`/`mcpServers`
-fields at the same `shipeasy/skills/` and an MCP file.
+to *every* agent — and the skills always delegate CRUD to the `shipeasy` MCP
+tools or the `shipeasy` CLI. The 11 surviving `/shipeasy:<area>:<workflow>`
+**slash commands are Claude Code-only** — no other host has a plugin
+slash-command primitive, so on Codex, Copilot, OpenCode, etc. you reach the same
+flows by letting a skill auto-trigger on phrasing (or, on Codex/Copilot,
+invoking `@shipeasy`). Skills and MCP are *referenced, never copied*: each host's
+manifest points its `skills`/`mcpServers` fields at the same `shipeasy/skills/`
+and an MCP file.
 
 ## Layout
 
@@ -71,16 +73,14 @@ marketplace/
     ├── .plugin/plugin.json             # Copilot manifest → SAME ./skills/ + ./.mcp.copilot.json
     ├── .mcp.json                        # MCP registration (mcpServers wrapper; Claude + Codex)
     ├── .mcp.copilot.json               # MCP registration with type:"local" (Copilot requires it)
-    ├── commands/                        # nested slash commands — Claude Code only
+    ├── commands/                        # 11 multi-step workflow slash commands — Claude Code only
     │   ├── setup.md                     #   /shipeasy:setup
-    │   ├── flags/{install,create,list,update}.md      # install folds the whole platform
-    │   ├── experiments/{create,list,start,status,update,stop,archive}.md
-    │   ├── metrics/{create,list,show,grammar}.md
-    │   ├── configs/{create,list,update}.md
-    │   ├── ks/{create,list,toggle_switch}.md
-    │   ├── i18n/{install,extract,migrate,validate,update,profiles,translate}.md
-    │   └── ops/{install,list,report,work,create_trigger}.md
-    └── skills/                          # 8 area skills + .curated/ per-command mirror
+    │   ├── flags/install.md             #   /shipeasy:flags:install
+    │   ├── experiments/create.md        #   /shipeasy:experiments:create
+    │   ├── metrics/create.md            #   /shipeasy:metrics:create
+    │   ├── i18n/{install,extract,migrate,translate}.md
+    │   └── ops/{install,work,create_trigger}.md
+    └── skills/                          # 8 area skills
         ├── setup/SKILL.md
         ├── experiments/SKILL.md
         ├── metrics/SKILL.md
@@ -103,17 +103,15 @@ lands. Each per-plugin job:
 1. **Validates wiring deterministically** — `node scripts/validate-plugin.mjs <host>`
    parses that host's marketplace + plugin manifests, asserts the marketplace
    `source` resolves to `./shipeasy`, that all eight area skills are present with
-   a valid `name`/`description`, that the per-command `.curated` mirror is in
-   sync with the slash commands (`sync-skill-mirror.mjs --check`), and that the
-   MCP file registers `shipeasy` (Copilot additionally requires
-   `type: "local"`). No network, no auth — this is the gate that catches a bad
-   manifest path or schema.
+   a valid `name`/`description`, and that the MCP file registers `shipeasy`
+   (Copilot additionally requires `type: "local"`). No network, no auth — this is
+   the gate that catches a bad manifest path or schema.
 2. **Installs the host CLI** (`@anthropic-ai/claude-code`, `@openai/codex`,
    `@github/copilot`) and prints its version.
 3. **Installs the full skill set** from the checkout via the
    [`skills`](https://github.com/vercel-labs/skills) CLI (`-a claude-code` /
    `codex` / `github-copilot`) and asserts the installed `SKILL.md` count
-   matches the source tree (area skills + `.curated` mirror).
+   matches the source tree (the 8 area skills).
 4. **Attempts the native plugin install** as a non-blocking probe. This step is
    best-effort because headless native install isn't available everywhere yet:
    Claude Code has no headless `plugin install` ([claude-code#12840](https://github.com/anthropics/claude-code/issues/12840)),
@@ -125,29 +123,26 @@ Run the validator locally with `node scripts/validate-plugin.mjs all`.
 
 Subdirectory commands surface as `/shipeasy:<dir>:<file>`, so for
 example `commands/metrics/create.md` becomes `/shipeasy:metrics:create`.
-Command namespaces are `flags`, `configs`, `ks`, `experiments`,
-`metrics`, `ops`, `i18n`.
+Slash commands cover the 11 multi-step **workflows** (the full list is in the
+command reference below); namespaces are `flags`, `experiments`, `metrics`,
+`ops`, `i18n`, plus the top-level `setup`.
 
-Two cross-cutting rules shape the command set:
+Two cross-cutting rules shape the surface:
 
-- **Three install sections only.** `/shipeasy:flags:install` (gates +
-  configs + kill switches + experiments + events), `/shipeasy:ops:install`
-  (feedback + production errors + alerts), `/shipeasy:i18n:install`
-  (translations). The per-feature `configs:install`, `ks:install`,
-  `experiments:install`, `metrics:install`, and `bugs:install` are gone as
-  real commands.
-- **No delete commands.** Deletions happen in the dashboard UI. The plugin
-  ships no functional `:delete` verb for any resource, and the work loops
-  never delete a record.
-- **Deprecated names still resolve.** Every removed/renamed command
-  (`*:install`, `*:delete`, `ks:update`, `bugs:{install,list,report,fix}`,
-  `feats:implement`) is kept as a one-line **redirect stub** — invoking it
-  tells you to update the CLI/plugin and points at the replacement
-  (e.g. `bugs:fix` → `ops:work`, `ks:update` → `ks:toggle_switch`,
-  any `*:delete` → the dashboard). This is the "update-first" recovery path:
-  when a command behaves oddly, `npm i -g @shipeasy/cli@latest` +
-  `/plugin marketplace update shipeasy` → `/plugin install shipeasy@shipeasy`
-  before deeper debugging.
+- **Slash commands are workflows; CRUD is MCP/CLI.** The 11 slash commands are
+  multi-step orchestrations. Day-to-day create / list / update / archive of a
+  gate, config, kill switch, experiment, metric, alert rule, ops item, or i18n
+  key runs through the generated `shipeasy` MCP tools (e.g.
+  `release_flags_create`, `release_configs_*`, `release_killswitch_*`,
+  `release_experiments_*`, `metrics_*`, `events_*`, `ops_*`, `ops_alerts_*`,
+  `i18n_*`) or the `shipeasy` CLI (`shipeasy release flags|configs|killswitch|
+  experiments …`, `shipeasy metrics …`, `shipeasy ops …`, `shipeasy alert-rules
+  …`, `shipeasy i18n …`).
+- **Three install sections.** `/shipeasy:flags:install` (gates + configs + kill
+  switches + experiments + events), `/shipeasy:ops:install` (feedback +
+  production errors + alerts), `/shipeasy:i18n:install` (translations).
+- **Deletes happen in the dashboard UI.** Resources are removed from the
+  dashboard.
 
 ## After install
 
@@ -166,10 +161,12 @@ Plugin install registers slash commands + skills with Claude Code. It does
 Each install command toggles the corresponding per-project modules and
 verifies the wiring.
 
-The `ops` namespace also owns the operational inbox — `/shipeasy:ops:list`
-(bugs / features / errors / alerts, `--type` filter), `/shipeasy:ops:report`
-(file a bug or feature), and `/shipeasy:ops:work` (one loop that burns down
-bugs + feature requests + production errors + alerts, one atomic diff each).
+The `ops` namespace also owns the operational inbox. Reading and filing items
+runs through the MCP/CLI surface — `ops_list` (bugs / features / errors / alerts,
+`--type` filter) or `shipeasy ops list`, and `ops_create` / `shipeasy ops report`
+to file a bug or feature. The looping orchestrator stays a slash command:
+`/shipeasy:ops:work` (one loop that burns down bugs + feature requests +
+production errors + alerts, one atomic diff each).
 And `/shipeasy:ops:create_trigger` — for `--provider claude` (the default) a
 scheduled Claude Code routine (via `/schedule`, runs in Anthropic's cloud, no
 GitHub Actions) that pulls active bugs + feature requests and fixes them,
@@ -186,8 +183,7 @@ relevant feature module is enabled.
 
 ### 1. `/shipeasy:ops:work` — burn down the whole operational inbox, one-by-one
 
-The unified work loop (it replaces the old `bugs:fix` and
-`feats:implement`). Picks up every actionable item across **four sources** —
+The unified work loop. Picks up every actionable item across **four sources** —
 bug reports, feature requests, tracked production errors, and active alerts
 — and resolves each as its own atomic diff. `--type bug|feature|error|alert|all`
 scopes it; the default `all` runs bugs → features → errors → alerts.
@@ -248,7 +244,7 @@ Prereqs:
 
 ### 3. Feature requests fold into `/shipeasy:ops:work`
 
-There's no separate `feats:implement` command anymore — feature requests
+There's no separate feature-request command — feature requests
 are one of the four sources `/shipeasy:ops:work` handles (run it with
 `--type feature` to scope to just features). The feature path is
 **design-first**: the loop pauses with `AskUserQuestion` to agree the
@@ -280,11 +276,12 @@ End-to-end experiment design. Given just an experiment name, the command:
    - `release_experiments_create` (MCP) with default `control 50 /
      treatment 50` groups and the picked metric as `success_metric`;
    - edits the variation point to branch on `experiments.assign(...)`.
-4. **Verifies** with `shipeasy metrics list` + `shipeasy experiments
+4. **Verifies** with `shipeasy metrics list` + `shipeasy release experiments
    status <name>` (expected: `draft`) + typecheck/build of touched
    files.
-5. **Stops at the draft state.** You decide when to call
-   `/shipeasy:experiments:start <name>`.
+5. **Stops at the draft state.** You decide when to start it — via the
+   `release_experiments_start` MCP tool or `shipeasy release experiments start
+   <name>`.
 
 Prereqs:
 
@@ -293,8 +290,10 @@ Prereqs:
 
 ## Full command reference
 
-Every slash command shipped by the plugin. All are under the `/shipeasy:`
-namespace.
+The plugin ships exactly **11 slash commands**, all multi-step workflows under
+the `/shipeasy:` namespace. Everything else — all CRUD — is done via the
+generated `shipeasy` MCP tools or the `shipeasy` CLI (see "Everything else: MCP
++ CLI" below).
 
 | Command | Argument(s) | What it does |
 | --- | --- | --- |
@@ -305,39 +304,38 @@ namespace.
 | `/shipeasy:i18n:install` | — | Enable the `translations` module, create the `en:prod` profile, inject the loader script if `getBootstrapHtml()` isn't rendered, smoke-test a key push+publish. |
 | **Experiments** | | |
 | `/shipeasy:experiments:create` | `<name>` | Full design flow: analyse the project for variation points + success metric candidates, ask via `AskUserQuestion`, instrument any new event, create the metric, draft the experiment, edit the variant branch. Stops in `draft` state. |
-| `/shipeasy:experiments:list` | `[--status draft\|running\|stopped\|archived] [--universe <n>] [--name-contains <s>]` | Filtered tabular list. Pulls `shipeasy release experiments list --json`, applies filters client-side. |
-| `/shipeasy:experiments:start` | `<name>` | Move a draft experiment to running — begins assigning traffic. Immutable after this point. |
-| `/shipeasy:experiments:status` | `<name>` | Enrolment per group, current p-value, significance state, recommendation (`keep_running` / `ship_treatment` / `ship_control` / `inconclusive`). |
-| `/shipeasy:experiments:update` | `<name> [--allocation <pct>] [--groups <json>] [--params <json>] [--targeting-gate <name>] [--significance <p>] [--min-runtime-days <n>] [--min-sample-size <n>]` | Patch a draft (or running) experiment. On `running` only stats thresholds + targeting-gate are editable — the API refuses changes to `allocation`/`groups`/`params`/`universe`/`salt` (all assignment-hash inputs). |
-| `/shipeasy:experiments:stop` | `<name> [--winner treatment\|control\|null]` | Freeze assignment and record the winner. Refuses to relaunch under the same name (assignment hash changes — use `<old>_v2`). |
-| `/shipeasy:experiments:archive` | `<name>` | Hide a stopped experiment from default views; preserves results + assignment history. Refuses on draft/running. (Permanent deletion is UI-only.) |
 | **Metrics** | | |
-| `/shipeasy:metrics:create` | `<name> --event <event> --query '<dsl>'` | Create a metric. Same analyze-and-suggest path as the `metrics` skill — see `/shipeasy:metrics:grammar` for DSL. |
-| `/shipeasy:metrics:list` | `[--folder <f>] [--event <name>] [--agg <count\|sum\|avg\|...>] [--name-contains <s>]` | Tabular list of metrics; unfiltered call (`shipeasy metrics list`) skips the JSON post-filter step. |
-| `/shipeasy:metrics:show` | `<id>` | One metric, full detail. |
-| `/shipeasy:metrics:grammar` | — | Print the metric DSL grammar (aggregations, match ops, examples). |
-| **Flags / configs / kill switches** | | |
-| `/shipeasy:flags:create` | `<gate-name> [percent]` | Create a boolean feature gate. Defaults: `rollout: 0`, no targeting. SDK-side safe value via `gates.check(name, { default: false })`. |
-| `/shipeasy:flags:list` | `[--folder <f>] [--enabled true\|false] [--min-rollout <pct>] [--name-contains <s>]` | Filtered tabular list of gates. |
-| `/shipeasy:flags:update` | `<gate-name> [--rollout <pct>] [--rules <json>] [--enable\|--disable]` | Patch rollout, rules, or enabled state. Prefer `shipeasy release flags rollout`/`enable`/`disable` for single-field tweaks. |
-| `/shipeasy:configs:create` | `<config-name> [json-default]` | Create a dynamic config (typed JSON value). |
-| `/shipeasy:configs:list` | `[--folder <f>] [--name-contains <s>]` | Filtered tabular list of configs. |
-| `/shipeasy:configs:update` | `<config-name> <json-value>` | Flat update of the config value (all envs). For per-env staging use the `shipeasy release configs draft` / `publish` CLI flow. |
-| `/shipeasy:ks:create` | `<folder.name>` | Create a killswitch admin resource (boolean `value` + optional named `switches` overrides). Not SDK-readable; for runtime gating, use a gate. |
-| `/shipeasy:ks:list` | `[--folder <f>] [--value on\|off] [--name-contains <s>]` | Filtered tabular list. Filter applies to the prod-env value by default. |
-| `/shipeasy:ks:toggle_switch` | `<folder.name> <switch-key> [on\|off] [--env <env>]` | Set or unset one **named override** on a kill switch (the dashboard "switches" feature) — a custom-named key carrying its own boolean, typically the opposite of the flat default. Per key, per env. Replaces the old `ks:update`. |
+| `/shipeasy:metrics:create` | `<name> --event <event> --query '<dsl>'` | Create a metric end-to-end. Same analyze-and-suggest path as the `metrics` skill — see the `metrics_grammar` MCP tool / `shipeasy metrics grammar` for the DSL. |
 | **i18n** | | |
 | `/shipeasy:i18n:extract` | `[target-dir]` | Run the codemod to wrap hardcoded user-visible strings in `i18n.t(...)`, push the generated keys, publish the `default` chunk. Idempotent. |
 | `/shipeasy:i18n:migrate` | `<react-i18next\|react-intl\|lingui\|next-intl\|raw-i18next>` | Codemod call sites from another i18n library into `i18n.t(...)`, push existing translations, remove the old library. |
-| `/shipeasy:i18n:validate` | `[paths...] [--profile <name>]` | CI/pre-commit drift gate — confirm every `i18n.t("key")` reference in code exists server-side. Non-zero exit on missing keys. |
-| `/shipeasy:i18n:update` | `<key> <new-value> [--profile <name>] [--description <text>]` | Change one existing key's value, then publish. The only overwrite path — `extract`/push are insert-only. |
-| `/shipeasy:i18n:profiles` | `[list] \| [create <name> [--locales <csv>] [--from <source>]]` | List or create locale profiles (`en:prod`, `fr:prod`, …). Deletion is UI-only. |
 | `/shipeasy:i18n:translate` | `<target-profile> [--from <source>] [--glossary <t=v,...>]` | Stand up a new locale: seed the target profile from the source, machine-translate the draft (Anthropic, key by key), publish. Anthropic key read locally, never sent to Shipeasy. |
 | **Ops (feedback + errors + alerts)** | | |
-| `/shipeasy:ops:list` | `[--type bug\|feature\|error\|alert] [--status <s>] [--priority high\|critical\|medium\|low] [--name-contains <s>]` | Unified read view over the operational inbox. `--type` picks the source (default `bug`); errors and alerts are read-only. |
-| `/shipeasy:ops:report` | `[--type bug\|feature] "<title>"` | File a single bug report or feature request against the bound project. |
-| `/shipeasy:ops:work` | `[--type bug\|feature\|error\|alert\|all] [--status <s>] [--priority high\|critical] [--limit <N>] [--pr] [--dry-run]` | The unified work loop (replaces `bugs:fix` + `feats:implement`). Loops over bugs + feature requests + production errors + alerts, one atomic diff each: bugs fix-first, features design-first, errors/alerts diagnose-first. `--pr` commits each item, opens one PR, links it to every fixed bug, and adds `Closes #<issue>` for any item with a connected GitHub issue (the mode the trigger runs). `--dry-run` prints the combined queue. Requires CLI ≥ 1.8.0. |
+| `/shipeasy:ops:work` | `[--type bug\|feature\|error\|alert\|all] [--status <s>] [--priority high\|critical] [--limit <N>] [--pr] [--dry-run]` | The unified work loop. Loops over bugs + feature requests + production errors + alerts, one atomic diff each: bugs fix-first, features design-first, errors/alerts diagnose-first. `--pr` commits each item, opens one PR, links it to every fixed bug, and adds `Closes #<issue>` for any item with a connected GitHub issue (the mode the trigger runs). `--dry-run` prints the combined queue. Requires CLI ≥ 1.8.0. |
 | `/shipeasy:ops:create_trigger` | `[--provider claude\|codex\|…] [--frequency daily\|weekdays\|weekly\|6h] [--dry-run]` | Provision a recurring feedback trigger that runs `/shipeasy:ops:work --pr` on a schedule. Provider-pluggable; `claude` (default) backs it with a scheduled Claude Code routine (via `/schedule`, no GitHub Actions) and registers a Shipeasy connector. `codex` (confirmed) uses a GitHub Actions `schedule:` cron → Codex Cloud task; other providers per `TRIGGER-INSTALL.md`. |
+
+### Everything else: MCP + CLI
+
+All day-to-day CRUD — create / list / update / archive of gates, configs, kill
+switches, experiments, metrics, alert rules, ops items, and i18n keys — runs
+through the generated `shipeasy` MCP tools or the `shipeasy` CLI. A few
+representative examples:
+
+| Task | MCP tool | CLI |
+| --- | --- | --- |
+| Create a feature gate | `release_flags_create` | `shipeasy release flags create` |
+| List gates | `release_flags_list` | `shipeasy release flags list` |
+| Roll out / enable / disable a gate | `release_flags_rollout` / `_enable` / `_disable` | `shipeasy release flags rollout\|enable\|disable` |
+| Create / update a dynamic config | `release_configs_create` / `release_configs_update` | `shipeasy release configs create\|update` |
+| Toggle a kill-switch override | `release_killswitch_set` / `release_killswitch_unset` | `shipeasy release killswitch set\|unset` |
+| List / start / status / stop an experiment | `release_experiments_list` / `_start` / `_status` / `_stop` | `shipeasy release experiments list\|start\|status\|stop` |
+| List / show metrics, print the DSL | `metrics_list` / `metrics_show` / `metrics_grammar` | `shipeasy metrics list\|show\|grammar` |
+| Create / list / update an alert rule | `ops_alerts_create` / `ops_alerts_list` / `ops_alerts_update` | `shipeasy alert-rules create\|list\|update` |
+| List / file an ops item | `ops_list` / `ops_create` | `shipeasy ops list\|report` |
+| Create / list / validate i18n keys | `i18n_create_key` / `i18n_validate_keys` / `i18n_profiles_list` | `shipeasy i18n …` |
+
+**Deletes happen in the dashboard UI.** Archive a stopped experiment with
+`release_experiments_archive`, then remove records in the dashboard.
 
 ## Skill auto-triggers (no slash command needed)
 
@@ -366,7 +364,7 @@ matches against.
 | *"Wrap the homepage hero copy so we can translate it"* | `i18n` | Runs the `i18n.t(...)` wrap workflow, creates keys, pushes + publishes the chunk. |
 | *"Migrate this repo from react-i18next to Shipeasy"* | `i18n` | Runs `shipeasy codemod i18n --migrate react-i18next`, pushes existing translations, removes the old library. |
 | *"I got a customer bug report about the checkout button"* | `ops` | Files a single bug via `shipeasy ops bug create …`. |
-| *"Resolve every open bug we have"* | `ops` | Recommends `/shipeasy:ops:work` (the looping orchestrator over bugs + features + errors + alerts) — the umbrella skill points at the `ops-work` mirror skill / slash command that drives the multi-item loop. |
+| *"Resolve every open bug we have"* | `ops` | Recommends `/shipeasy:ops:work` (the looping orchestrator over bugs + features + errors + alerts) that drives the multi-item loop. |
 | *"Stop the checkout-v2 experiment and ship treatment"* | `experiments` | `release_experiments_stop { name, winner: "treatment" }`. |
 | *"How significant is the checkout experiment so far?"* | `experiments` | `release_experiments_status { name }`, surfaces enrolment per group + p-value + recommendation. |
 
@@ -383,43 +381,41 @@ The per-command `commands/<area>/<verb>.md` files are the authoritative
 behaviour spec — that file *is* the prompt Claude Code follows when the
 slash command runs. Open the matching file for the full, current step list
 rather than relying on a copy here. The table above is the quick index; the
-notes below cover only the cross-cutting structure and the surfaces that
-changed in 3.0.0.
+notes below cover the cross-cutting structure.
 
 ### The three install sections
 
-Installs no longer exist per feature. There are exactly three, and each is
-its own `commands/<area>/install.md`:
+There are three install commands, each its own `commands/<area>/install.md`:
 
 - **`/shipeasy:flags:install`** — enables `gates`, `configs`, `events`, and
   `experiments` in one pass and smoke-tests every read path. Kill switches
-  ride the same KV blob and need no module. This single command replaces the
-  old `configs:install`, `ks:install`, `experiments:install`, and
-  `metrics:install`.
+  ride the same KV blob and need no module.
 - **`/shipeasy:ops:install`** — enables `feedback`, turns on production-error
   collection (client `autoCollect` errors group) and alerts, verifies the
   devtools overlay (`?se=1`), and drops the `.claude/skills/shipeasy-bugs`
-  project pointer. Replaces the old `bugs:install`.
+  project pointer.
 - **`/shipeasy:i18n:install`** — enables `translations`, creates the `en:prod`
   profile, injects the loader script when `getBootstrapHtml()` isn't rendered,
   and round-trips a smoke key.
 
 ### The ops inbox
 
-`ops` owns every operational read/triage surface:
+`ops` owns every operational read/triage surface. Reading and filing run through
+the MCP/CLI surface; the looping orchestrator stays a slash command:
 
-- **`/shipeasy:ops:list [--type bug|feature|error|alert]`** — one read view
-  over four sources. `bug`/`feature` come from `shipeasy ops …`,
-  `error` from `shipeasy ops.errors`, `alert` from `shipeasy alerts`. Errors
-  and alerts are platform-produced and read-only.
-- **`/shipeasy:ops:report [--type bug|feature] "<title>"`** — file a single
-  bug or feature request. Errors/alerts can't be filed by hand.
+- **`ops_list` MCP tool / `shipeasy ops list [--type bug|feature|error|alert]`**
+  — one read view over four sources. `bug`/`feature` come from the feedback
+  table, `error` from tracked production errors, `alert` from active alerts.
+  Errors and alerts are platform-produced and read-only.
+- **`ops_create` MCP tool / `shipeasy ops report [--type bug|feature]
+  "<title>"`** — file a single bug or feature request. Errors/alerts can't be
+  filed by hand.
 - **`/shipeasy:ops:work [--type bug|feature|error|alert|all]`** — the unified
-  work loop. It replaces `bugs:fix` and `feats:implement`, and adds errors +
-  alerts as two more sources. One atomic diff per item; bugs fix-first,
+  work loop over bugs + feature requests + production errors + alerts (four
+  sources). One atomic diff per item; bugs fix-first,
   features design-first (with `AskUserQuestion`), errors/alerts
   diagnose-first. Read-only sources (errors/alerts) get a code fix, no status
-  write. Never `git commit`s; never deletes; stops on the first 401/403.
+  write. Leaves committing to the user; stops on the first 401/403.
   Requires CLI ≥ 1.8.0 (`shipeasy alerts` + `feedback bugs attachments`).
 - **`/shipeasy:ops:create_trigger`** (`--provider claude` default; `codex`
   confirmed) — `claude` is a scheduled Claude Code routine (via `/schedule`, no
@@ -427,7 +423,7 @@ its own `commands/<area>/install.md`:
   Shipeasy connector; `codex` is a GitHub Actions `schedule:` cron driving a
   Codex Cloud task (`TRIGGER-INSTALL.md`). Only `claude` registers a connector.
 
-### Kill switches: `toggle_switch` instead of `update`
+### Kill switches: named-override set/unset
 
 A kill switch delivers `{ value: <bool>, switches?: { <key>: <bool> } }`.
 The flat `value` is the default; `switches` is the dashboard "switches"
@@ -437,38 +433,17 @@ name yourself and the value is its own boolean (typically the *opposite* of
 free text — the *key* is the custom string. (Typed/string values are a
 dynamic-config feature, not a kill-switch one.)
 
-`/shipeasy:ks:toggle_switch <folder.name> <switch-key> [on|off] [--env <env>]`
-sets or unsets one named override on one env — `shipeasy release ks set` / `ks unset`
-under the hood (MCP `release_killswitch_set` / `release_killswitch_unset`).
-It replaces the old wholesale `ks:update`; definition-level edits (rename,
-description, flat-default flip) happen in the dashboard.
+Set or unset one named override on one env via the `release_killswitch_set` /
+`release_killswitch_unset` MCP tools (or `shipeasy release killswitch set` /
+`unset`). Definition-level edits (rename, description, flat-default flip) happen
+in the dashboard.
 
-### No delete commands
+### Deletes
 
-Deletions are UI-only across every resource — there is no `:delete` verb in
-the plugin, and the `ops:work` loop never deletes a record (terminal states
-are `resolved` / `ready_for_qa` / `shipped`, or a code fix for errors/alerts).
-To remove a gate, config, kill switch, experiment, metric, or feedback
-record, do it in the dashboard.
-
-## Migration from the old multi-plugin layout
-
-If a user previously installed any of:
-
-```
-base@shipeasy
-experiments-metrics@shipeasy
-configs-gates@shipeasy
-polylang@shipeasy
-bugs@shipeasy
-```
-
-they should uninstall all five and install `shipeasy@shipeasy` instead.
-The new plugin owns the same MCP server, the same skills (renamed:
-`setup`, `experiments`, `metrics`, `flags`, `i18n`, `ops`), and the same
-underlying CLI flows. Only the slash command names changed —
-`/shipeasy-setup` → `/shipeasy:setup`, `/shipeasy-flag` →
-`/shipeasy:flags:create`, etc.
+Deletes happen in the dashboard. The `ops:work` loop's terminal states are
+`resolved` / `ready_for_qa` / `shipped` (or a code fix for errors/alerts). To
+remove a gate, config, kill switch, experiment, metric, or feedback record, do
+it in the dashboard.
 
 ## Publishing to GitHub
 

@@ -30,23 +30,44 @@ Only treat it as a real bug if it still fails on the latest CLI **and** plugin.
 `/shipeasy:i18n:install` (or `shipeasy modules enable translations`,
 then create the `en:prod` profile).
 
-## Slash commands
+## How to act: MCP server / CLI for keys, workflow commands for codemods
+
+Key-level CRUD has **no per-verb slash command** — drive it through the MCP
+tools or the CLI:
+
+- Create / push keys → `i18n_create_key`, `i18n_push_keys` (or
+  `shipeasy i18n push`).
+- Change one existing key's value (the only overwrite path — extract/push are
+  insert-only) → `i18n_create_key` with the overwrite flag, or
+  `shipeasy i18n update <key> <value>`.
+- Validate that every `t("key")` in code exists server-side → `i18n_validate_keys`
+  (or `shipeasy i18n validate` — non-zero exit on drift, for CI/pre-commit).
+- Manage locale profiles → `i18n_profiles_list`, `i18n_create_profile` (or
+  `shipeasy i18n profiles …`).
+- Publish a chunk → `i18n_publish_profile` (or `shipeasy i18n publish`).
+
+The remaining slash commands are the multi-step codemod/translation workflows
+(AST scan + file edits + push + publish), which is more than a single tool call:
 
 - `/shipeasy:i18n:extract [dir]` — wrap hardcoded strings + push + publish.
 - `/shipeasy:i18n:migrate <lib>` — port another i18n library to Shipeasy.
-- `/shipeasy:i18n:validate [paths]` — CI/pre-commit gate: every `t("key")`
-  in code exists server-side (non-zero exit on drift).
-- `/shipeasy:i18n:update <key> <value>` — change one existing key's value
-  (the only overwrite path — extract/push are insert-only).
-- `/shipeasy:i18n:profiles [list|create <name>]` — manage locale profiles.
 - `/shipeasy:i18n:translate <target-profile>` — machine-translate the app
   into a new locale (Anthropic key read locally, never sent to Shipeasy).
 
 ## The pattern
 
-Every user-facing string becomes an `i18n.t()` call:
+Every user-facing string becomes an i18n translate call.
+
+**Pull the i18n call form for this project's SDK language from the `docs` MCP.**
+Detect the language from `.shipeasy` or the subproject's manifest
+(`package.json`, `pyproject.toml`, `Gemfile`, `go.mod`, `pom.xml`,
+`build.gradle*`, `composer.json`, `Package.swift`), then fetch the snippet:
+`docs_get { sdk: <lang>, path: "i18n" }` (run `docs_list { sdk: <lang> }` to find
+the handle; CLI `shipeasy docs get --sdk <lang> i18n`). The example below shows
+the shape — use the docs snippet for the exact call.
 
 ```tsx
+// Example shape — fetch the exact call for this project's language via docs_get
 import { i18n } from "@shipeasy/sdk/client";
 
 // Before:

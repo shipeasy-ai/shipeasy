@@ -9,6 +9,13 @@ You are running an automated i18n extraction. Do not pause to ask the user
 clarifying questions. Do not propose alternatives. Just run the steps below
 and report at the end.
 
+> **This codemod rewrites JavaScript/TypeScript sources** (it emits the
+> `i18n.t(...)` wrapping form against JS/TS/JSX files). For a repo in another
+> language, pull that language's i18n usage from the `docs` MCP:
+> `docs_get { sdk: <lang>, path: "i18n" }` (run `docs_list { sdk: <lang> }` to
+> find the handle; CLI `shipeasy docs get --sdk <lang> i18n`) and apply it
+> directly. Detect the language from `.shipeasy` or the subproject's manifest.
+
 ## Steps
 
 1. Apply the codemod against `$ARGUMENTS` (or auto-detected source dirs if

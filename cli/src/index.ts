@@ -13,6 +13,7 @@ import { i18nCommand } from "./commands/i18n";
 import { codemodCommand } from "./commands/codemod";
 import { mcpCommand } from "./commands/mcp";
 import { setupCommand } from "./commands/setup";
+import { detectCommand } from "./commands/detect";
 import { bindProject, readProjectConfig } from "./util/project-config";
 import { printJson } from "./util/output";
 import { reportCliError } from "./util/error-reporter";
@@ -281,6 +282,7 @@ export function buildProgram(): Command {
 
   // ── Custom commands (fs/AST + auth + install — not API endpoints) ─────────
   setupCommand(program);
+  detectCommand(program);
   mcpCommand(program);
 
   // i18n stays hand-written (fs scan/codemod/loader + the file-based push/

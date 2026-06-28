@@ -132,9 +132,18 @@ If the user picks option (3) — *new event* — propose the exact
 
 ### 3. Instrument (only if a new event was chosen)
 
-Edit one file. Single import:
+**Pull the `events.track` call site for this project's SDK language from the
+`docs` MCP.** Detect the language from `.shipeasy` or the subproject's manifest
+(`package.json`, `pyproject.toml`, `Gemfile`, `go.mod`, `pom.xml`,
+`build.gradle*`, `composer.json`, `Package.swift`), then fetch the snippet:
+`docs_get { sdk: <lang>, path: "metrics" }` (run `docs_list { sdk: <lang> }` to
+find the handle; CLI `shipeasy docs get --sdk <lang> metrics`). The example below
+shows the shape — use the docs snippet for the exact call.
+
+Edit one file:
 
 ```ts
+// Example shape — fetch the exact call for this project's language via docs_get
 import { events } from "@shipeasy/sdk/client"; // or "@shipeasy/sdk/server"
 events.track("<event>", { /* labels referenced by the query */ });
 ```
@@ -203,7 +212,11 @@ metrics over the wrong event are the most common avoidable mistake.
 4. **Verify:** `shipeasy metrics list` → the new row appears with the
    rendered query.
 
-## Other operations
+## Other operations — MCP server or CLI
+
+Listing, showing, and the DSL grammar have **no per-verb slash command** — use
+the MCP tools (`metrics_list`, `metrics_show`, `metrics_grammar`) when the
+`shipeasy` MCP server is registered, or the CLI as the fallback:
 
 ```bash
 shipeasy metrics list             # all metrics
@@ -211,18 +224,13 @@ shipeasy metrics show <id>        # one metric
 shipeasy metrics grammar          # DSL reference
 ```
 
-Deleting a metric is **UI-only** — remove it from the dashboard (the
-plugin ships no delete command). The dashboard refuses while the metric
-is referenced by a running experiment; stop the experiment first.
+Deleting a metric is **UI-only** — remove it from the dashboard (there is no
+delete tool or command). The dashboard refuses while the metric is referenced by
+a running experiment; stop the experiment first.
 
-Slash equivalents:
-
-```
-/shipeasy:metrics:create <name> --event <event> --query '<dsl>'
-/shipeasy:metrics:list
-/shipeasy:metrics:show <id>
-/shipeasy:metrics:grammar
-```
+The one workflow command is `/shipeasy:metrics:create` — the analyze → propose →
+instrument → create flow documented above. Plain creates can also go straight
+through the `metrics_create` MCP tool or `shipeasy metrics create`.
 
 ## Relationship to experiments
 
