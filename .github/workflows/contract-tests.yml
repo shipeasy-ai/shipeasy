@@ -20,6 +20,12 @@ on:
   pull_request:
     paths: ["openapi/**"]
   workflow_dispatch:
+  schedule:
+    # Every 2 days at 06:00 UTC — regression-checks the live admin API against
+    # the spec even when nobody touches openapi/**. Use "0 6 * * *" for daily.
+    # (Scheduled runs use this file on the default branch and check out main of
+    # both repos. GitHub disables the schedule after 60 days of repo inactivity.)
+    - cron: "0 6 */2 * *"
 
 env:
   # Monorepo that hosts apps/ui + the contract harness.

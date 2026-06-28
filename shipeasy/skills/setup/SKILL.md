@@ -433,6 +433,20 @@ README you pulled in step 4c** (it's version-matched). The canonical forms:
 reads (Swift). These read flags/experiments with the **server** key only — no
 browser key.
 
+**Framework generators — prefer them over hand-writing config.** When the target
+is a framework that ships a Shipeasy generator, run it instead of pasting the
+initializer; it puts everything in the conventional place and prints the keys
+next steps. Currently:
+
+- **Rails (Ruby, gem ≥ 2.2.0):** `bin/rails generate shipeasy:install` — writes
+  `config/initializers/shipeasy.rb`. Add `--i18n` to also set the public client
+  key and inject `<%= i18n_head_tags %>` into the app layout; `--no-poll` for a
+  serverless one-shot fetch. Do this in place of step 5d's manual initializer for
+  a Rails app.
+
+If the README you pulled in step 4c documents a generator for the detected
+framework, follow it; only hand-write the initializer when there's no generator.
+
 ---
 
 ## 6. Offer the devtools overlay (ask first)
