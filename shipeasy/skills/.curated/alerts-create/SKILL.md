@@ -1,1 +1,0 @@
-../../../commands/alerts/create.md

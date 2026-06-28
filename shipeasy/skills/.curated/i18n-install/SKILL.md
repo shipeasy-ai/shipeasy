@@ -1,1 +1,0 @@
-../../../commands/i18n/install.md

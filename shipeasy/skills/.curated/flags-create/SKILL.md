@@ -1,1 +1,0 @@
-../../../commands/flags/create.md

@@ -1,1 +1,0 @@
-../../../commands/i18n/update.md

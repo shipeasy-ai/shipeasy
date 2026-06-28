@@ -1,1 +1,0 @@
-../../../commands/metrics/list.md

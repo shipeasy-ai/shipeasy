@@ -1,1 +1,0 @@
-../../../commands/ops/install.md

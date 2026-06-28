@@ -443,6 +443,17 @@ next steps. Currently:
   key and inject `<%= i18n_head_tags %>` into the app layout; `--no-poll` for a
   serverless one-shot fetch. Do this in place of step 5d's manual initializer for
   a Rails app.
+- **Laravel (PHP, `shipeasy/shipeasy` ≥ 0.11.0):** the package auto-registers its
+  service provider, so just `php artisan shipeasy:install` — publishes
+  `config/shipeasy.php`, seeds the `.env` keys, and prints where to place the
+  `@shipeasyBootstrap` / `@shipeasyI18n` Blade directives in your layout `<head>`.
+  Set `SHIPEASY_SERVER_KEY` in `.env`; the provider configures the SDK from config
+  on boot (no manual `configure()` call).
+- **Django (Python, `shipeasy` ≥ 0.12.0):** add `"shipeasy.django"` to
+  `INSTALLED_APPS`, then `python manage.py shipeasy_install` — idempotently wires
+  `MIDDLEWARE` + a `SHIPEASY = {…}` settings block + the `.env` key. The
+  `shipeasy.django` AppConfig calls `configure()` from `settings.SHIPEASY` on
+  `ready()` (no manual configure in `apps.py`).
 
 If the README you pulled in step 4c documents a generator for the detected
 framework, follow it; only hand-write the initializer when there's no generator.

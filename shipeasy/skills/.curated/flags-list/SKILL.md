@@ -1,1 +1,0 @@
-../../../commands/flags/list.md

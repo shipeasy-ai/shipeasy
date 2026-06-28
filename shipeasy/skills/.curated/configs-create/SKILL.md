@@ -1,1 +1,0 @@
-../../../commands/configs/create.md

@@ -1,1 +1,0 @@
-../../../commands/ks/toggle_switch.md
