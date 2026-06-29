@@ -7,13 +7,18 @@
  * But the catalog deliberately carries only a short description + input schema.
  * For the full documentation — the human title, the complete (multi-paragraph)
  * description, and the per-operation error codes — we read `@shipeasy/openapi`'s
- * bundled `openapi.yaml` and match each registry-backed tool to its operation
- * (same name derivation as scripts/gen-tools.mjs). Hand-written tools (auth,
- * detect_project, projects_upsert, i18n fs/AST) have no spec op, so they fall
- * back to the catalog description and document no admin error envelope.
+ * bundled `openapi.yaml`.
  *
- *   pnpm --filter @shipeasy/mcp docs            # all tool groups
- *   pnpm --filter @shipeasy/mcp docs exp i18n   # only these prefixes
+ * Structure mirrors the CLI reference: tools are NESTED under their tag chain
+ * (Release ▸ Flags ▸ Attributes, Release ▸ Experiments ▸ Universes, Metrics ▸
+ * Events, Ops ▸ Alerts) and each parent level prints its own tag description —
+ * the same hierarchy the CLI projects into `release flags …` command groups.
+ * Hand-written tools (auth, detect_project, projects_upsert, i18n fs/AST, SDK
+ * docs) have no spec op; they nest under the matching tag (or a synthetic Auth /
+ * SDK docs group) and fall back to the catalog description.
+ *
+ *   pnpm --filter @shipeasy/mcp docs            # all groups
+ *   pnpm --filter @shipeasy/mcp docs release    # only this top-level group
  *
  * Two outputs, generated together:
  *   • ../docs/mcp-reference.md — this package's own reference (always written).
@@ -39,7 +44,7 @@ const APPS_DOCS_OUT = join(
   "content/docs/get-started/mcp-reference.mdx",
 );
 
-// ── spec → per-tool metadata (title, full description, error codes) ───────────
+// ── spec → tag tree + per-tool metadata ───────────────────────────────────────
 const require = createRequire(import.meta.url);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const spec: any = parseYaml(
@@ -48,8 +53,10 @@ const spec: any = parseYaml(
 
 const specSlug = (s: string) =>
   s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const firstLine = (s: string) => (s ? s.split("\n")[0].trim() : "");
+
 // i18n's API parts + projects_upsert have richer hand-written tools — gen-tools
-// skips/overrides them, so they have no generated tool and need no spec match.
+// skips/overrides them, so they carry no spec op and fall back to the catalog.
 const SKIP_TAGS = new Set(["i18n", "Profiles", "Keys", "Drafts"]);
 const OVERRIDDEN = new Set(["projects_upsert"]);
 const METHODS = ["get", "post", "put", "patch", "delete"];
@@ -62,19 +69,24 @@ const tagByName: Record<string, any> = Object.fromEntries(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (spec.tags ?? []).map((t: any) => [t.name, t]),
 );
-function tagChainSlugs(name: string): string[] {
-  const chain: string[] = [];
+type TagSeg = { slug: string; name: string; desc: string };
+function tagChain(name: string): TagSeg[] {
+  const chain: TagSeg[] = [];
   let t = tagByName[name];
   while (t) {
-    chain.unshift(specSlug(t.name));
+    chain.unshift({
+      slug: specSlug(t.name),
+      name: t.name,
+      desc: String(t.summary || t.description || "").trim(),
+    });
     t = t.parent ? tagByName[t.parent] : undefined;
   }
   return chain;
 }
 
-// Build the tool-name → operation map exactly the way gen-tools.mjs names tools:
-// tag-chain slugs + the x-cli verb, joined by `_`. Synthetic verbs (x-cli.commands)
-// each get their own tool with their own summary but share the operation body.
+// Per-tool spec metadata, named exactly the way gen-tools.mjs names tools:
+// tag-chain slugs + the x-cli verb, joined by `_`. Synthetic verbs
+// (x-cli.commands) each get their own tool with their own summary.
 for (const item of Object.values(spec.paths ?? {})) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pathItem = item as any;
@@ -83,7 +95,7 @@ for (const item of Object.values(spec.paths ?? {})) {
     if (!op || !op["x-cli"]) continue;
     const tag = op.tags?.[0];
     if (SKIP_TAGS.has(tag)) continue;
-    const segs = tagChainSlugs(tag);
+    const segs = tagChain(tag).map((s) => s.slug);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const verbs = op["x-cli"].commands ?? [{ name: op["x-cli"].name, summary: op.summary }];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -91,7 +103,7 @@ for (const item of Object.values(spec.paths ?? {})) {
       const name = [...segs, v.name].join("_").replace(/-/g, "_");
       if (OVERRIDDEN.has(name)) continue;
       specByTool.set(name, {
-        title: String(v.summary || op.summary || "").split("\n")[0].trim(),
+        title: firstLine(String(v.summary || op.summary || "")),
         description: String(op.description || op.summary || "").trim(),
         errorCodes: op["x-error-codes"] ?? [],
       });
@@ -104,72 +116,107 @@ for (const item of Object.values(spec.paths ?? {})) {
 const errorCode = spec.components?.schemas?.ErrorCode ?? {};
 const ERROR_MEANINGS: Record<string, string> = errorCode["x-enum-descriptions"] ?? {};
 const ALL_ERROR_CODES: string[] = errorCode.enum ?? Object.keys(ERROR_MEANINGS);
-// Codes every registry-backed tool can return (auth/shape failures) — surfaced
-// once in the global section instead of repeated on all ~80 tools. Computed as
-// the intersection of every matched op's error set.
+// Codes every registry-backed tool can return — surfaced once in the global
+// section instead of repeated on all ~80 tools (intersection of matched ops).
 const matchedErrorSets = [...specByTool.values()]
   .map((m) => m.errorCodes)
   .filter((c) => c.length);
 const COMMON_CODES = new Set<string>(
   matchedErrorSets.length
-    ? matchedErrorSets.reduce((acc, codes) =>
-        acc.filter((c) => codes.includes(c)),
-      )
+    ? matchedErrorSets.reduce((acc, codes) => acc.filter((c) => codes.includes(c)))
     : [],
 );
 
-/**
- * Group tools by name prefix. The catalog uses `exp_*`, `i18n_*`, `ops_*`
- * prefixes for the subsystem tools; everything else (auth, project binding,
- * resource lookups) is "shared". `order` fixes section ordering; `match`
- * decides membership, first match wins.
- */
-const GROUPS: { key: string; title: string; blurb: string; match: (n: string) => boolean }[] = [
-  {
-    key: "shared",
-    title: "Shared",
-    blurb:
-      "Project detection, binding, auth, the current project, and targeting attributes. Use these before any write tool — every write refuses to run until the cwd is bound to a project.",
-    // Auth/detect/bind + `projects_*` + `attributes_*` — everything not owned by
-    // a subsystem prefix below.
-    match: (n) => !/^(exp|release|i18n|ops|metrics|events|docs)_/.test(n),
-  },
-  {
-    key: "exp",
-    title: "Flags & experiments",
-    blurb:
-      "Create and manage gates, dynamic configs, kill switches, universes, and experiments — all generated from the shared operation registry (@shipeasy/openapi).",
-    match: (n) => n.startsWith("exp_") || n.startsWith("release_"),
-  },
-  {
-    key: "metrics",
-    title: "Metrics & events",
-    blurb:
-      "Define event-backed metrics (incl. the query-DSL grammar) and manage the event catalog. Registry-driven.",
-    match: (n) => n.startsWith("metrics_") || n.startsWith("events_"),
-  },
-  {
-    key: "i18n",
-    title: "Translations",
-    blurb:
-      "Locale profiles, key push, code scanning/codemods, machine translation, and publishing.",
-    match: (n) => n.startsWith("i18n_"),
-  },
-  {
-    key: "ops",
-    title: "Ops",
-    blurb:
-      "The unified operational queue (bugs, feature requests, error/alert tickets), alert rules, escalation notifications, and PR links. Registry-driven.",
-    match: (n) => n.startsWith("ops_"),
-  },
-  {
-    key: "docs",
-    title: "SDK docs",
-    blurb:
-      "Fetch SDK documentation — feature pages, nested snippets, and installable skills — from each SDK's published GitHub Pages docs.",
-    match: (n) => n.startsWith("docs_"),
-  },
-];
+// ── tag tree (the nesting skeleton, mirroring the CLI command tree) ───────────
+type TagNode = {
+  slug: string;
+  name: string;
+  desc: string;
+  children: Map<string, TagNode>;
+  tools: Tool[];
+};
+const newNode = (slug: string, name: string, desc = ""): TagNode => ({
+  slug,
+  name,
+  desc,
+  children: new Map(),
+  tools: [],
+});
+const roots = new Map<string, TagNode>();
+
+function ensurePath(path: TagSeg[]): TagNode {
+  let level = roots;
+  let node!: TagNode;
+  for (const seg of path) {
+    if (!level.has(seg.slug)) level.set(seg.slug, newNode(seg.slug, seg.name, seg.desc));
+    node = level.get(seg.slug)!;
+    if (!node.desc && seg.desc) node.desc = seg.desc;
+    level = node.children;
+  }
+  return node;
+}
+
+// Pre-create the full tag tree in spec order so top-level groups + their
+// descriptions are ordered by the spec, not by tool-placement order.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+for (const t of spec.tags ?? []) ensurePath(tagChain(t.name));
+
+// Synthetic top-level groups for hand-written tools that have no spec tag,
+// appended after the spec roots so they render last.
+roots.set(
+  "auth",
+  newNode(
+    "auth",
+    "Auth",
+    "Device-flow (PKCE) authentication shared with the CLI — authenticate once and every mutating tool can write. The token is stored in `~/.config/shipeasy/config.json`.",
+  ),
+);
+roots.set(
+  "docs",
+  newNode(
+    "docs",
+    "SDK docs",
+    "Fetch SDK documentation — feature pages, nested snippets, and installable skills — from each SDK's published GitHub Pages docs.",
+  ),
+);
+
+// Tools with no tag-prefix match are placed explicitly under an existing group.
+const EXPLICIT: Record<string, string[]> = { detect_project: ["projects"] };
+
+// Flatten the tree into joined-slug paths for longest-prefix tool placement.
+const tagPaths: { joined: string; path: string[] }[] = [];
+(function collect(level: Map<string, TagNode>, prefix: string[]) {
+  for (const [slug, node] of level) {
+    const path = [...prefix, slug];
+    tagPaths.push({ joined: path.join("_"), path });
+    collect(node.children, path);
+  }
+})(roots, []);
+tagPaths.sort((a, b) => b.joined.length - a.joined.length);
+
+function nodeByPath(path: string[]): TagNode {
+  let level = roots;
+  let node!: TagNode;
+  for (const slug of path) {
+    node = level.get(slug)!;
+    level = node.children;
+  }
+  return node;
+}
+
+const orphans: Tool[] = [];
+for (const tool of TOOLS) {
+  const ov = EXPLICIT[tool.name];
+  if (ov) {
+    nodeByPath(ov).tools.push(tool);
+    continue;
+  }
+  const tp = tagPaths.find(
+    (p) => tool.name === p.joined || tool.name.startsWith(p.joined + "_"),
+  );
+  if (tp) nodeByPath(tp.path).tools.push(tool);
+  else orphans.push(tool);
+}
 
 /**
  * Render target for one output file. `mdx` toggles MDX-only escaping (`{`/`<`)
@@ -218,8 +265,7 @@ type JsonSchema = {
 
 /**
  * Compact a JSON-Schema node into a single `type` token. Uses plain `|` for
- * unions — `codeCell` does the table-cell pipe escaping at render time, so
- * escaping here would double up to `\\|`.
+ * unions — `codeCell` does the table-cell pipe escaping at render time.
  */
 function typeOf(s: JsonSchema): string {
   if (s.enum) return s.enum.map((v) => JSON.stringify(v)).join(" | ");
@@ -248,8 +294,7 @@ function constraints(s: JsonSchema): string {
 
 /**
  * Flatten an object schema into table rows. Nested object properties are
- * rendered one level deep with dotted names (e.g. `params.gate_id`), which is
- * as deep as any tool in the catalog goes.
+ * rendered one level deep with dotted names (e.g. `params.gate_id`).
  */
 function rows(schema: JsonSchema, prefix = ""): string[] {
   const props = schema.properties ?? {};
@@ -260,9 +305,7 @@ function rows(schema: JsonSchema, prefix = ""): string[] {
     const req = required.has(name) ? "required" : "optional";
     const note = constraints(prop);
     const desc = (prop.description || "—") + (note ? ` _(${note})_` : "");
-    out.push(
-      `| ${codeCell(full)} | ${req} | ${codeCell(typeOf(prop))} | ${cell(desc)} |`,
-    );
+    out.push(`| ${codeCell(full)} | ${req} | ${codeCell(typeOf(prop))} | ${cell(desc)} |`);
     if (prop.type === "object" && prop.properties) out.push(...rows(prop, full));
   }
   return out;
@@ -271,39 +314,48 @@ function rows(schema: JsonSchema, prefix = ""): string[] {
 function paramsTable(schema: JsonSchema): string {
   const body = rows(schema);
   if (!body.length) return "_No parameters._";
-  return [
-    "| Parameter | | Type | Description |",
-    "| --- | --- | --- | --- |",
-    ...body,
-  ].join("\n");
+  return ["| Parameter | | Type | Description |", "| --- | --- | --- | --- |", ...body].join("\n");
 }
 
-function toolBlock(tool: Tool): string {
+const heading = (depth: number) => "#".repeat(Math.min(depth + 1, 6));
+
+/** One tool leaf, at the given depth. Parameters/Errors are bold labels (not
+ * headings) so deep nesting never blows past h6. */
+function toolBlock(tool: Tool, depth: number): string {
   const meta = specByTool.get(tool.name);
-  const out: string[] = ["### `" + tool.name + "`", ""];
+  const out: string[] = [`${heading(depth)} \`${tool.name}\``, ""];
 
-  // Title (the operation summary) as a bold lead — but only for spec-backed
-  // tools, where it's distinct from the body. Hand-written tools have no
-  // separate title, so we skip straight to their description.
   if (meta?.title) out.push(`**${prose(meta.title)}**`, "");
-
   const description = meta?.description || tool.description || "";
   if (description) out.push(prose(description), "");
 
-  out.push("#### Parameters", "", paramsTable(tool.inputSchema as JsonSchema), "");
+  out.push("_Parameters_", "", paramsTable(tool.inputSchema as JsonSchema), "");
 
-  // Per-tool errors: only the codes BEYOND the common set (which is documented
-  // once, globally). Hand-written tools have no spec op → no error section.
   if (meta) {
     const extra = meta.errorCodes.filter((c) => !COMMON_CODES.has(c));
     if (extra.length) {
-      out.push("#### Errors", "");
-      out.push("Beyond the [common errors](#errors), this tool can return:", "");
-      for (const c of extra) {
-        out.push(`- ${codeCell(c)} — ${cell(ERROR_MEANINGS[c] ?? "")}`.trimEnd());
-      }
+      out.push("_Errors_ — beyond the [common errors](#errors):", "");
+      for (const c of extra) out.push(`- ${codeCell(c)} — ${cell(ERROR_MEANINGS[c] ?? "")}`.trimEnd());
       out.push("");
     }
+  }
+  return out.join("\n");
+}
+
+/** True if the node or any descendant has tools (empty tag branches are dropped). */
+function hasTools(node: TagNode): boolean {
+  return node.tools.length > 0 || [...node.children.values()].some(hasTools);
+}
+
+/** Render a tag group and everything beneath it: its description, its own tool
+ * leaves (sorted), then its child groups — recursing to any depth. */
+function renderNode(node: TagNode, depth: number): string {
+  const out: string[] = [`${heading(depth)} ${node.name}`, ""];
+  if (node.desc) out.push(prose(node.desc), "");
+  for (const tool of [...node.tools].sort((a, b) => a.name.localeCompare(b.name)))
+    out.push(toolBlock(tool, depth + 1));
+  for (const child of node.children.values()) {
+    if (hasTools(child)) out.push(renderNode(child, depth + 1));
   }
   return out.join("\n");
 }
@@ -322,16 +374,14 @@ function errorsSection(): string {
     const common = ALL_ERROR_CODES.filter((c) => COMMON_CODES.has(c));
     out.push(
       prose(
-        `Every such tool can return these: ${common.map((c) => `\`${c}\``).join(", ")}. Each tool's own **Errors** section lists only the codes beyond this common set.`,
+        `Every such tool can return these: ${common.map((c) => `\`${c}\``).join(", ")}. Each tool's own **Errors** note lists only the codes beyond this common set.`,
       ),
       "",
     );
   }
   out.push("All error codes:", "");
   out.push("| Code | Meaning |", "| --- | --- |");
-  for (const c of ALL_ERROR_CODES) {
-    out.push(`| ${codeCell(c)} | ${cell(ERROR_MEANINGS[c] ?? "—")} |`);
-  }
+  for (const c of ALL_ERROR_CODES) out.push(`| ${codeCell(c)} | ${cell(ERROR_MEANINGS[c] ?? "—")} |`);
   out.push("");
   out.push(
     prose(
@@ -347,15 +397,17 @@ function header(mdx: boolean): string {
   if (mdx) {
     return `---
 title: MCP reference
-description: Auto-generated reference for the @shipeasy/mcp server — every tool, its title, full description, parameters, and error codes.
+description: Auto-generated reference for the @shipeasy/mcp server — every tool, nested under its group, with title, full description, parameters, and error codes.
 ---
 
 {/* DO NOT EDIT BY HAND. Generated by marketplace/mcp/scripts/gen-mcp-docs.ts. */}
 {/* Regenerate: pnpm --filter @shipeasy/mcp docs */}
 
 Every tool below is generated from the MCP server's own tool catalog (so it
-matches what the server advertises) and enriched from the OpenAPI spec with the
-operation title, full description, and the error codes it can return.
+matches what the server advertises), nested under its group the same way the
+[CLI reference](/get-started/cli-reference) nests commands, and enriched from
+the OpenAPI spec with each group's description plus every tool's title, full
+description, and error codes.
 
 New to the MCP server? Start with the [MCP guide](/get-started/mcp) for
 installation and connecting your agent — this page is the exhaustive
@@ -367,8 +419,9 @@ tool-by-tool reference.
 <!-- DO NOT EDIT BY HAND. Generated by scripts/gen-mcp-docs.ts (\`pnpm docs\`). -->
 
 Every tool below is generated from the MCP server's own tool catalog (\`TOOLS\`),
-so it matches what the server advertises, and enriched from the OpenAPI spec
-with the operation title, full description, and the error codes it can return.
+so it matches what the server advertises, nested under its group the same way
+the CLI reference nests commands, and enriched from the OpenAPI spec with each
+group's description plus every tool's title, full description, and error codes.
 
 New to the MCP server? Start with the [MCP guide](https://docs.shipeasy.ai/get-started/mcp)
 for installation and connecting your agent — this page is the exhaustive
@@ -378,10 +431,14 @@ tool-by-tool reference.
 
 function main() {
   const filter = process.argv.slice(2);
-  const groups = GROUPS.filter((g) => filter.length === 0 || filter.includes(g.key));
-  const count = groups.reduce((n, g) => n + TOOLS.filter((t) => g.match(t.name)).length, 0);
+  const groups = [...roots.values()].filter(
+    (n) => hasTools(n) && (filter.length === 0 || filter.includes(n.slug)),
+  );
+  if (orphans.length) {
+    console.warn(`WARNING: ${orphans.length} tool(s) not placed: ${orphans.map((t) => t.name).join(", ")}`);
+  }
   const matched = TOOLS.filter((t) => specByTool.has(t.name)).length;
-  const keys = groups.map((g) => g.key).join(", ");
+  const keys = groups.map((g) => g.slug).join(", ");
 
   const targets = [
     { out: LOCAL_OUT, mdx: false, requireRoot: false },
@@ -394,20 +451,11 @@ function main() {
       continue;
     }
     MDX = t.mdx;
-    const toolDocs = groups
-      .map((g) => {
-        const tools = TOOLS.filter((tool) => g.match(tool.name));
-        if (!tools.length) return "";
-        return [`## ${g.title}`, "", prose(g.blurb), "", ...tools.map(toolBlock)].join("\n");
-      })
-      .filter(Boolean)
-      .join("\n");
-    const body = [errorsSection(), toolDocs].join("\n");
-
+    const body = [errorsSection(), ...groups.map((g) => renderNode(g, 1))].join("\n");
     mkdirSync(dirname(t.out), { recursive: true });
     writeFileSync(t.out, `${header(t.mdx)}\n${body}`);
     console.log(
-      `Wrote ${t.out}\n  ${count} tool(s) (${matched} spec-enriched) across ${groups.length} group(s): ${keys}`,
+      `Wrote ${t.out}\n  ${TOOLS.length} tool(s) (${matched} spec-enriched) across ${groups.length} group(s): ${keys}`,
     );
   }
 }
