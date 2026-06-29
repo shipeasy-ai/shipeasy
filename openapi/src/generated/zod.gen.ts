@@ -734,24 +734,25 @@ export const zUpdateConfigResponse = z.object({
 });
 
 /**
+ * Target environment. One of the project's configured envs (`dev`, `staging`, `prod`).
+ */
+export const zEnv = z.enum([
+    'dev',
+    'staging',
+    'prod'
+]);
+
+/**
  * Body for `PUT /api/admin/configs/{id}/drafts`. Stages a value for a single env without publishing.
  */
 export const zSaveConfigDraftRequest = z.object({
-    env: z.enum([
-        'dev',
-        'staging',
-        'prod'
-    ]),
+    env: zEnv,
     value: z.unknown()
 });
 
 export const zSaveConfigDraftResponse = z.object({
     id: z.string(),
-    env: z.enum([
-        'dev',
-        'staging',
-        'prod'
-    ]),
+    env: zEnv,
     baseVersion: z.int().gte(-9007199254740991).lte(9007199254740991),
     updatedAt: z.string()
 });
@@ -760,11 +761,7 @@ export const zSaveConfigDraftResponse = z.object({
  * Body for `POST /api/admin/configs/{id}/publish` and `DELETE /api/admin/configs/{id}/drafts`. Names the target env.
  */
 export const zDiscardConfigDraftRequest = z.object({
-    env: z.enum([
-        'dev',
-        'staging',
-        'prod'
-    ])
+    env: zEnv
 });
 
 export const zDiscardConfigDraftResponse = z.object({
@@ -775,20 +772,12 @@ export const zDiscardConfigDraftResponse = z.object({
  * Body for `POST /api/admin/configs/{id}/publish` and `DELETE /api/admin/configs/{id}/drafts`. Names the target env.
  */
 export const zPublishConfigDraftRequest = z.object({
-    env: z.enum([
-        'dev',
-        'staging',
-        'prod'
-    ])
+    env: zEnv
 });
 
 export const zPublishConfigDraftResponse = z.object({
     id: z.string(),
-    env: z.enum([
-        'dev',
-        'staging',
-        'prod'
-    ]),
+    env: zEnv,
     version: z.int().gte(-9007199254740991).lte(9007199254740991)
 });
 
@@ -875,22 +864,14 @@ export const zUpdateKillswitchResponse = z.object({
  * Body for `PUT /api/admin/killswitches/{id}/switch`. Sets or updates one switch entry on one env.
  */
 export const zSetKillswitchSwitchRequest = z.object({
-    env: z.enum([
-        'dev',
-        'staging',
-        'prod'
-    ]),
+    env: zEnv,
     switchKey: z.string().max(64).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$/),
     value: z.boolean()
 });
 
 export const zSetKillswitchSwitchResponse = z.object({
     id: z.string(),
-    env: z.enum([
-        'dev',
-        'staging',
-        'prod'
-    ]),
+    env: zEnv,
     switchKey: z.string().max(64).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$/),
     value: z.boolean()
 });
@@ -899,21 +880,13 @@ export const zSetKillswitchSwitchResponse = z.object({
  * Body for `DELETE /api/admin/killswitches/{id}/switch`. Removes one switch entry from one env.
  */
 export const zUnsetKillswitchSwitchRequest = z.object({
-    env: z.enum([
-        'dev',
-        'staging',
-        'prod'
-    ]),
+    env: zEnv,
     switchKey: z.string().max(64).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$/)
 });
 
 export const zUnsetKillswitchSwitchResponse = z.object({
     id: z.string(),
-    env: z.enum([
-        'dev',
-        'staging',
-        'prod'
-    ]),
+    env: zEnv,
     switchKey: z.string().max(64).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$/),
     removed: z.boolean()
 });

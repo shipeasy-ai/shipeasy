@@ -290,12 +290,7 @@ SaveConfigDraftRequest:
   type: object
   properties:
     env:
-      type: string
-      enum:
-        - dev
-        - staging
-        - prod
-      description: Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).
+      $ref: ./common.yaml#/Env
     value:
       description: Draft value to stage on `env`. Validated against the config's current schema.
   required:
@@ -309,12 +304,7 @@ SaveConfigDraftResponse:
     id:
       type: string
     env:
-      type: string
-      enum:
-        - dev
-        - staging
-        - prod
-      description: Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).
+      $ref: ./common.yaml#/Env
     baseVersion:
       type: integer
       minimum: -9007199254740991
@@ -332,12 +322,7 @@ DiscardConfigDraftRequest:
   type: object
   properties:
     env:
-      type: string
-      enum:
-        - dev
-        - staging
-        - prod
-      description: Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).
+      $ref: ./common.yaml#/Env
   required:
     - env
   additionalProperties: false
@@ -355,12 +340,7 @@ PublishConfigDraftRequest:
   type: object
   properties:
     env:
-      type: string
-      enum:
-        - dev
-        - staging
-        - prod
-      description: Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).
+      $ref: ./common.yaml#/Env
   required:
     - env
   additionalProperties: false
@@ -371,12 +351,7 @@ PublishConfigDraftResponse:
     id:
       type: string
     env:
-      type: string
-      enum:
-        - dev
-        - staging
-        - prod
-      description: Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).
+      $ref: ./common.yaml#/Env
     version:
       type: integer
       minimum: -9007199254740991

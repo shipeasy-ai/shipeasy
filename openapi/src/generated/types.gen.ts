@@ -1342,13 +1342,15 @@ export type UpdateConfigResponse = {
 };
 
 /**
+ * Target environment. One of the project's configured envs (`dev`, `staging`, `prod`).
+ */
+export type Env = 'dev' | 'staging' | 'prod';
+
+/**
  * Body for `PUT /api/admin/configs/{id}/drafts`. Stages a value for a single env without publishing.
  */
 export type SaveConfigDraftRequest = {
-    /**
-     * Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).
-     */
-    env: 'dev' | 'staging' | 'prod';
+    env: Env;
     /**
      * Draft value to stage on `env`. Validated against the config's current schema.
      */
@@ -1357,10 +1359,7 @@ export type SaveConfigDraftRequest = {
 
 export type SaveConfigDraftResponse = {
     id: string;
-    /**
-     * Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).
-     */
-    env: 'dev' | 'staging' | 'prod';
+    env: Env;
     /**
      * Published version the draft is based on.
      */
@@ -1372,10 +1371,7 @@ export type SaveConfigDraftResponse = {
  * Body for `POST /api/admin/configs/{id}/publish` and `DELETE /api/admin/configs/{id}/drafts`. Names the target env.
  */
 export type DiscardConfigDraftRequest = {
-    /**
-     * Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).
-     */
-    env: 'dev' | 'staging' | 'prod';
+    env: Env;
 };
 
 export type DiscardConfigDraftResponse = {
@@ -1386,18 +1382,12 @@ export type DiscardConfigDraftResponse = {
  * Body for `POST /api/admin/configs/{id}/publish` and `DELETE /api/admin/configs/{id}/drafts`. Names the target env.
  */
 export type PublishConfigDraftRequest = {
-    /**
-     * Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).
-     */
-    env: 'dev' | 'staging' | 'prod';
+    env: Env;
 };
 
 export type PublishConfigDraftResponse = {
     id: string;
-    /**
-     * Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).
-     */
-    env: 'dev' | 'staging' | 'prod';
+    env: Env;
     /**
      * Newly published version on `env`.
      */
@@ -1585,10 +1575,7 @@ export type UpdateKillswitchResponse = {
  * Body for `PUT /api/admin/killswitches/{id}/switch`. Sets or updates one switch entry on one env.
  */
 export type SetKillswitchSwitchRequest = {
-    /**
-     * Target environment (`dev`/`stage`/`prod`).
-     */
-    env: 'dev' | 'staging' | 'prod';
+    env: Env;
     /**
      * Switch key to set.
      */
@@ -1601,10 +1588,7 @@ export type SetKillswitchSwitchRequest = {
 
 export type SetKillswitchSwitchResponse = {
     id: string;
-    /**
-     * Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).
-     */
-    env: 'dev' | 'staging' | 'prod';
+    env: Env;
     /**
      * Single-segment switch key (lowercase letters, digits, `_`/`-`; no dots). Used as the nested switch entry inside a killswitch's `switches` map.
      */
@@ -1616,10 +1600,7 @@ export type SetKillswitchSwitchResponse = {
  * Body for `DELETE /api/admin/killswitches/{id}/switch`. Removes one switch entry from one env.
  */
 export type UnsetKillswitchSwitchRequest = {
-    /**
-     * Target environment.
-     */
-    env: 'dev' | 'staging' | 'prod';
+    env: Env;
     /**
      * Switch key to remove.
      */
@@ -1628,10 +1609,7 @@ export type UnsetKillswitchSwitchRequest = {
 
 export type UnsetKillswitchSwitchResponse = {
     id: string;
-    /**
-     * Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).
-     */
-    env: 'dev' | 'staging' | 'prod';
+    env: Env;
     /**
      * Single-segment switch key (lowercase letters, digits, `_`/`-`; no dots). Used as the nested switch entry inside a killswitch's `switches` map.
      */

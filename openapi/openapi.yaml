@@ -8079,16 +8079,18 @@ components:
       required:
         - id
       additionalProperties: false
+    Env:
+      type: string
+      enum:
+        - dev
+        - staging
+        - prod
+      description: Target environment. One of the project's configured envs (`dev`, `staging`, `prod`).
     SaveConfigDraftRequest:
       type: object
       properties:
         env:
-          type: string
-          enum:
-            - dev
-            - staging
-            - prod
-          description: Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).
+          $ref: '#/components/schemas/Env'
         value:
           description: Draft value to stage on `env`. Validated against the config's current schema.
       required:
@@ -8102,12 +8104,7 @@ components:
         id:
           type: string
         env:
-          type: string
-          enum:
-            - dev
-            - staging
-            - prod
-          description: Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).
+          $ref: '#/components/schemas/Env'
         baseVersion:
           type: integer
           minimum: -9007199254740991
@@ -8125,12 +8122,7 @@ components:
       type: object
       properties:
         env:
-          type: string
-          enum:
-            - dev
-            - staging
-            - prod
-          description: Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).
+          $ref: '#/components/schemas/Env'
       required:
         - env
       additionalProperties: false
@@ -8148,12 +8140,7 @@ components:
       type: object
       properties:
         env:
-          type: string
-          enum:
-            - dev
-            - staging
-            - prod
-          description: Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).
+          $ref: '#/components/schemas/Env'
       required:
         - env
       additionalProperties: false
@@ -8164,12 +8151,7 @@ components:
         id:
           type: string
         env:
-          type: string
-          enum:
-            - dev
-            - staging
-            - prod
-          description: Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).
+          $ref: '#/components/schemas/Env'
         version:
           type: integer
           minimum: -9007199254740991
@@ -8426,12 +8408,7 @@ components:
       type: object
       properties:
         env:
-          type: string
-          enum:
-            - dev
-            - staging
-            - prod
-          description: Target environment (`dev`/`stage`/`prod`).
+          $ref: '#/components/schemas/Env'
         switchKey:
           type: string
           maxLength: 64
@@ -8452,12 +8429,7 @@ components:
         id:
           type: string
         env:
-          type: string
-          enum:
-            - dev
-            - staging
-            - prod
-          description: Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).
+          $ref: '#/components/schemas/Env'
         switchKey:
           type: string
           maxLength: 64
@@ -8475,12 +8447,7 @@ components:
       type: object
       properties:
         env:
-          type: string
-          enum:
-            - dev
-            - staging
-            - prod
-          description: Target environment.
+          $ref: '#/components/schemas/Env'
         switchKey:
           type: string
           maxLength: 64
@@ -8497,12 +8464,7 @@ components:
         id:
           type: string
         env:
-          type: string
-          enum:
-            - dev
-            - staging
-            - prod
-          description: Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).
+          $ref: '#/components/schemas/Env'
         switchKey:
           type: string
           maxLength: 64

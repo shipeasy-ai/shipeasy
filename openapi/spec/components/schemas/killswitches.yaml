@@ -213,12 +213,7 @@ SetKillswitchSwitchRequest:
   type: object
   properties:
     env:
-      type: string
-      enum:
-        - dev
-        - staging
-        - prod
-      description: Target environment (`dev`/`stage`/`prod`).
+      $ref: ./common.yaml#/Env
     switchKey:
       type: string
       maxLength: 64
@@ -239,12 +234,7 @@ SetKillswitchSwitchResponse:
     id:
       type: string
     env:
-      type: string
-      enum:
-        - dev
-        - staging
-        - prod
-      description: Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).
+      $ref: ./common.yaml#/Env
     switchKey:
       type: string
       maxLength: 64
@@ -262,12 +252,7 @@ UnsetKillswitchSwitchRequest:
   type: object
   properties:
     env:
-      type: string
-      enum:
-        - dev
-        - staging
-        - prod
-      description: Target environment.
+      $ref: ./common.yaml#/Env
     switchKey:
       type: string
       maxLength: 64
@@ -284,12 +269,7 @@ UnsetKillswitchSwitchResponse:
     id:
       type: string
     env:
-      type: string
-      enum:
-        - dev
-        - staging
-        - prod
-      description: Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).
+      $ref: ./common.yaml#/Env
     switchKey:
       type: string
       maxLength: 64
