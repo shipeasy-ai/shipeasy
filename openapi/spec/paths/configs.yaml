@@ -673,3 +673,72 @@
       name: activity
       positional:
         - id
+/api/admin/configs/{id}/schema:
+  patch:
+    operationId: updateConfigSchema
+    summary: Update a config schema
+    description: |-
+      Replaces a config's JSON Schema in place. Every existing published value is re-validated against the new schema before it lands; the update fails if any value no longer validates.
+
+      **Use case:** Evolve a config's shape (add/remove a field) without republishing values.
+    tags:
+      - Configs
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque config id (`cfg_…`) or the config's `name`.
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/configs.yaml#/UpdateConfigSchemaRequest
+          examples:
+            addField:
+              summary: Add a field to the schema
+              description: Replaces the schema; existing values must still validate or the update fails.
+              value:
+                schema:
+                  type: object
+                  properties:
+                    tiers:
+                      type: array
+                    trial_days:
+                      type: integer
+                  required:
+                    - tiers
+    responses:
+      "200":
+        description: Update a config schema
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/configs.yaml#/UpdateConfigSchemaResponse
+            example:
+              id: cfg_01j7wae5h6j7k8l9m0n1p2q3r4
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: update-schema
+      positional:
+        - id

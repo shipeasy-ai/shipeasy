@@ -210,6 +210,11 @@ export type Error = {
 };
 
 /**
+ * Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).
+ */
+export type Folder = string | null;
+
+/**
  * Body for `POST /api/admin/gates`. At minimum supply `name`; everything else has sensible defaults.
  */
 export type CreateGateRequest = {
@@ -391,10 +396,7 @@ export type CreateGateRequest = {
      * Long-form description / runbook. Markdown is rendered in the dashboard.
      */
     description?: string;
-    /**
-     * Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK.
-     */
-    folder?: string | null;
+    folder?: Folder;
     /**
      * Group label for dashboard organisation (e.g. team or product area).
      */
@@ -594,10 +596,7 @@ export type UpdateGateRequest = {
      * Long-form description / runbook. Markdown is rendered in the dashboard.
      */
     description?: string;
-    /**
-     * Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK.
-     */
-    folder?: string | null;
+    folder?: Folder;
     /**
      * Group label for dashboard organisation (e.g. team or product area).
      */
@@ -690,6 +689,34 @@ export type ListExperimentsResponse = {
 };
 
 /**
+ * Stable metric key. Single segment or `folder.name`; lowercase letters, digits, `_`/`-`; max 128 chars.
+ */
+export type MetricName = string;
+
+/**
+ * Inline metric — a DSL `query`, or an `event` (+ `aggregation`/`value`) the server compiles into one.
+ */
+export type ExperimentInlineMetric = {
+    name?: MetricName;
+    /**
+     * Metric DSL string. Provide this OR `event`.
+     */
+    query?: string;
+    /**
+     * Event name to build the metric from server-side. Auto-created if missing.
+     */
+    event?: string;
+    /**
+     * Reducer for the `event` form. Defaults to `count_users`.
+     */
+    aggregation?: 'count_users' | 'count_events' | 'retention_7d' | 'retention_30d' | 'sum' | 'avg';
+    /**
+     * Numeric event property for `sum`/`avg` (with `event`).
+     */
+    value?: string;
+};
+
+/**
  * Body for `POST /api/admin/experiments`. `name`, `universe`, and `groups` (≥2, weights sum to 10000) required.
  */
 export type CreateExperimentRequest = {
@@ -718,10 +745,7 @@ export type CreateExperimentRequest = {
      */
     audience?: string | null;
     bucket_by?: string | null;
-    /**
-     * Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK.
-     */
-    folder?: string | null;
+    folder?: Folder;
     /**
      * Name of an existing universe in the project. Returns `422` if the universe doesn't exist.
      */
@@ -786,47 +810,11 @@ export type CreateExperimentRequest = {
     /**
      * Single goal metric defined inline — either a DSL `query` or an `event` (+`aggregation`/`value`) the server compiles. Attaching one is required before the experiment can be started. The underlying event is auto-created if missing.
      */
-    goal_metric?: {
-        name?: string;
-        /**
-         * Metric DSL string, e.g. `count_users(checkout_completed)`. Provide this OR `event`.
-         */
-        query?: string;
-        /**
-         * Event name to build the metric from server-side (friendlier alternative to `query`). Auto-created if missing.
-         */
-        event?: string;
-        /**
-         * Reducer for the `event` form. Defaults to `count_users`.
-         */
-        aggregation?: 'count_users' | 'count_events' | 'retention_7d' | 'retention_30d' | 'sum' | 'avg';
-        /**
-         * Numeric event property for `sum`/`avg` aggregations (with `event`).
-         */
-        value?: string;
-    };
+    goal_metric?: ExperimentInlineMetric;
     /**
      * Up to 10 guardrail metrics defined inline. Each is upserted (event + metric) and attached with role=guardrail.
      */
-    guardrail_metrics?: Array<{
-        name?: string;
-        /**
-         * Metric DSL string, e.g. `count_users(checkout_completed)`. Provide this OR `event`.
-         */
-        query?: string;
-        /**
-         * Event name to build the metric from server-side (friendlier alternative to `query`). Auto-created if missing.
-         */
-        event?: string;
-        /**
-         * Reducer for the `event` form. Defaults to `count_users`.
-         */
-        aggregation?: 'count_users' | 'count_events' | 'retention_7d' | 'retention_30d' | 'sum' | 'avg';
-        /**
-         * Numeric event property for `sum`/`avg` aggregations (with `event`).
-         */
-        value?: string;
-    }>;
+    guardrail_metrics?: Array<ExperimentInlineMetric>;
 };
 
 export type CreateExperimentResponse = {
@@ -916,10 +904,7 @@ export type UpdateExperimentRequest = {
     owner_email?: string | null;
     audience?: string | null;
     bucket_by?: string | null;
-    /**
-     * Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK.
-     */
-    folder?: string | null;
+    folder?: Folder;
     targeting_gate?: string | null;
     /**
      * Basis-points allocation (0–10000). Use `allocation_percent` (0–100) for percent. Immutable while the experiment is running.
@@ -969,47 +954,11 @@ export type UpdateExperimentRequest = {
     /**
      * Replaces the goal metric — DSL `query` or `event` (+`aggregation`/`value`) the server compiles (event auto-upserted).
      */
-    goal_metric?: {
-        name?: string;
-        /**
-         * Metric DSL string, e.g. `count_users(checkout_completed)`. Provide this OR `event`.
-         */
-        query?: string;
-        /**
-         * Event name to build the metric from server-side (friendlier alternative to `query`). Auto-created if missing.
-         */
-        event?: string;
-        /**
-         * Reducer for the `event` form. Defaults to `count_users`.
-         */
-        aggregation?: 'count_users' | 'count_events' | 'retention_7d' | 'retention_30d' | 'sum' | 'avg';
-        /**
-         * Numeric event property for `sum`/`avg` aggregations (with `event`).
-         */
-        value?: string;
-    };
+    goal_metric?: ExperimentInlineMetric;
     /**
      * Replaces the guardrail set wholesale (event auto-upserted per entry).
      */
-    guardrail_metrics?: Array<{
-        name?: string;
-        /**
-         * Metric DSL string, e.g. `count_users(checkout_completed)`. Provide this OR `event`.
-         */
-        query?: string;
-        /**
-         * Event name to build the metric from server-side (friendlier alternative to `query`). Auto-created if missing.
-         */
-        event?: string;
-        /**
-         * Reducer for the `event` form. Defaults to `count_users`.
-         */
-        aggregation?: 'count_users' | 'count_events' | 'retention_7d' | 'retention_30d' | 'sum' | 'avg';
-        /**
-         * Numeric event property for `sum`/`avg` aggregations (with `event`).
-         */
-        value?: string;
-    }>;
+    guardrail_metrics?: Array<ExperimentInlineMetric>;
 };
 
 export type UpdateExperimentResponse = {
@@ -1200,21 +1149,20 @@ export type ListConfigsResponse = {
 };
 
 /**
+ * Stable config/killswitch key in `folder.name` form (two lowercase segments separated by a dot, e.g. `pricing.tiers`). Immutable after create.
+ */
+export type ConfigName = string;
+
+/**
  * Body for `POST /api/admin/configs`. `name` + `schema` required.
  */
 export type CreateConfigRequest = {
-    /**
-     * Stable config key in `folder.name` form (two lowercase segments separated by a dot, e.g. `pricing.tiers`). Used by SDKs as `Shipeasy.getConfig('<name>')`. Immutable after create.
-     */
-    name: string;
+    name: ConfigName;
     /**
      * Optional free-form description shown in the dashboard. Max 512 chars.
      */
     description?: string;
-    /**
-     * Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK.
-     */
-    folder?: string | null;
+    folder?: Folder;
     /**
      * JSON Schema (draft 2020-12) describing the shape of the config value. Top-level `type` must be `'object'`; every published value is validated against this schema.
      */
@@ -1328,10 +1276,7 @@ export type UpdateConfigRequest = {
      * Flat value applied to **every** env. Publishes a new version per env. To target one env, use `PUT /{id}/drafts` then `POST /{id}/publish`.
      */
     value?: unknown;
-    /**
-     * Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK.
-     */
-    folder?: string | null;
+    folder?: Folder;
 };
 
 export type UpdateConfigResponse = {
@@ -1412,6 +1357,25 @@ export type ListConfigActivityResponse = Array<{
     createdAt: string;
 }>;
 
+/**
+ * Body for `PATCH /api/admin/configs/{id}/schema`. Schema-only update — replaces the config's schema and re-validates existing values.
+ */
+export type UpdateConfigSchemaRequest = {
+    /**
+     * Replacement JSON Schema (draft 2020-12). Validated against every published value before it lands.
+     */
+    schema: {
+        [key: string]: unknown;
+    };
+};
+
+export type UpdateConfigSchemaResponse = {
+    /**
+     * Config id whose schema was updated.
+     */
+    id: string;
+};
+
 export type ListKillswitchesResponse = {
     data: Array<{
         /**
@@ -1460,18 +1424,12 @@ export type ListKillswitchesResponse = {
  * Body for `POST /api/admin/killswitches`. Only `name` is required.
  */
 export type CreateKillswitchRequest = {
-    /**
-     * Stable killswitch key in `folder.name` form (two lowercase segments separated by a dot — e.g. `payments.checkout`). Immutable after create.
-     */
-    name: string;
+    name: ConfigName;
     /**
      * Optional free-form description shown in the dashboard. Max 512 chars.
      */
     description?: string;
-    /**
-     * Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK.
-     */
-    folder?: string | null;
+    folder?: Folder;
     /**
      * Default value applied to every env at creation. Defaults to `false`. Use `true` to ship the killswitch pre-tripped.
      */
@@ -1548,10 +1506,7 @@ export type UpdateKillswitchRequest = {
      * New description, or `null` to clear it. Max 512 chars.
      */
     description?: string | null;
-    /**
-     * Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK.
-     */
-    folder?: string | null;
+    folder?: Folder;
     /**
      * Flat value applied to every env. Publishes a new version per env when set. Omit to leave values unchanged.
      */
@@ -1620,6 +1575,43 @@ export type UnsetKillswitchSwitchResponse = {
     removed: boolean;
 };
 
+/**
+ * Body for `PUT /api/admin/killswitches/{id}/value`. Sets the flat `value` on one env without touching `switches` or other envs.
+ */
+export type SetKillswitchValueRequest = {
+    env: Env;
+    /**
+     * Flat boolean to publish on `env`. Publishes a new version on that env only.
+     */
+    value: boolean;
+};
+
+/**
+ * Runtime killswitch payload returned to SDKs.
+ */
+export type KillswitchValue = {
+    /**
+     * Default boolean delivered when no `switches` entry matches.
+     */
+    value: boolean;
+    /**
+     * Per-switch overrides; a matching key takes precedence over `value`.
+     */
+    switches?: {
+        [key: string]: boolean;
+    };
+};
+
+export type SetKillswitchValueResponse = {
+    id: string;
+    env: Env;
+    /**
+     * Newly published version on `env`.
+     */
+    version: number;
+    published: KillswitchValue;
+};
+
 export type ListUniversesResponse = {
     data: Array<{
         /**
@@ -1657,10 +1649,7 @@ export type CreateUniverseRequest = {
      * Stable universe key. Single segment or `folder.name`. Lowercase letters, digits, `_` or `-`; max 128 chars. Immutable after create.
      */
     name: string;
-    /**
-     * Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK.
-     */
-    folder?: string | null;
+    folder?: Folder;
     /**
      * Unit of randomisation. Typically `user_id`. Use `account_id` to keep whole accounts in the same group across an experiment.
      */
@@ -1693,10 +1682,7 @@ export type DeleteUniverseResponse = {
  * Body for `PATCH /api/admin/universes/{id}`. Only `holdout_range` is mutable — name and unit_type are immutable after create.
  */
 export type UpdateUniverseRequest = {
-    /**
-     * Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK.
-     */
-    folder?: string | null;
+    folder?: Folder;
     /**
      * Inclusive `[lo, hi]` bucket range (0–9999) reserved as the **holdout** — callers hashed into this slice are excluded from every experiment in the universe. `null` disables the holdout. Pro plan or higher required.
      */
@@ -1922,14 +1908,8 @@ export type ListMetricsResponse = Array<{
  * Body for `POST /api/admin/metrics`. Requires `name`, `event_name`, and exactly one of `query` / `query_ir`.
  */
 export type CreateMetricRequest = {
-    /**
-     * Stable metric key. Single segment or `folder.name`; lowercase letters, digits, `_`/`-`; max 128 chars.
-     */
-    name: string;
-    /**
-     * Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK.
-     */
-    folder?: string | null;
+    name: MetricName;
+    folder?: Folder;
     /**
      * Source event the query reads from.
      */
@@ -2357,10 +2337,7 @@ export type CreateEventRequest = {
      * Event name. Starts with a letter, digit, or `_`; letters, digits, `_`, `-`, `.`; max 128 chars. Immutable after create — this is the handle metric queries reference.
      */
     name: string;
-    /**
-     * Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK.
-     */
-    folder?: string | null;
+    folder?: Folder;
     /**
      * Optional human-readable description of the event.
      */
@@ -2464,10 +2441,7 @@ export type DeleteEventResponse = {
  * Body for `PATCH /api/admin/events/{id}` and `POST /api/admin/events/{id}/approve`. All fields optional; `name` is immutable after create.
  */
 export type UpdateEventRequest = {
-    /**
-     * Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK.
-     */
-    folder?: string | null;
+    folder?: Folder;
     /**
      * New description for the event.
      */
@@ -2509,10 +2483,7 @@ export type UpdateEventResponse = {
  * Body for `PATCH /api/admin/events/{id}` and `POST /api/admin/events/{id}/approve`. All fields optional; `name` is immutable after create.
  */
 export type ApproveEventRequest = {
-    /**
-     * Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK.
-     */
-    folder?: string | null;
+    folder?: Folder;
     /**
      * New description for the event.
      */
@@ -2787,6 +2758,17 @@ export type ListSlackChannelsResponse = {
     }>;
 };
 
+/**
+ * Delivery target for a notification; `null` = use the project default.
+ */
+export type NotificationTarget = {
+    slackChannel?: {
+        id: string;
+        name: string;
+    } | null;
+    email?: string | null;
+} | null;
+
 export type ListAlertRulesResponse = Array<{
     /**
      * Stable opaque alert-rule id.
@@ -2824,28 +2806,7 @@ export type ListAlertRulesResponse = Array<{
      * Whether the rule is evaluated by the cron.
      */
     enabled: boolean;
-    /**
-     * Delivery target for this rule's alert; `null` = use the project default.
-     */
-    notify: {
-        /**
-         * Slack channel to post this rule's alert to. Requires a Slack connector.
-         */
-        slackChannel?: {
-            /**
-             * Slack channel id (e.g. C0123ABCD).
-             */
-            id: string;
-            /**
-             * Slack channel name (without the leading #).
-             */
-            name: string;
-        } | null;
-        /**
-         * Email address to notify for this rule (overrides the default recipient).
-         */
-        email?: string | null;
-    } | null;
+    notify: NotificationTarget;
     /**
      * ISO-8601 timestamp of creation.
      */
@@ -2885,28 +2846,7 @@ export type CreateAlertRuleRequest = {
      * Whether the rule is evaluated by the cron.
      */
     enabled?: boolean;
-    /**
-     * Where to deliver this rule's alert (Slack channel and/or email target).
-     */
-    notify?: {
-        /**
-         * Slack channel to post this rule's alert to. Requires a Slack connector.
-         */
-        slackChannel?: {
-            /**
-             * Slack channel id (e.g. C0123ABCD).
-             */
-            id: string;
-            /**
-             * Slack channel name (without the leading #).
-             */
-            name: string;
-        } | null;
-        /**
-         * Email address to notify for this rule (overrides the default recipient).
-         */
-        email?: string | null;
-    } | null;
+    notify?: NotificationTarget;
 };
 
 export type CreateAlertRuleResponse = {
@@ -2927,25 +2867,7 @@ export type UpdateAlertRuleRequest = {
     windowHours?: number;
     severity?: 'danger' | 'warn' | 'info';
     enabled?: boolean;
-    notify?: {
-        /**
-         * Slack channel to post this rule's alert to. Requires a Slack connector.
-         */
-        slackChannel?: {
-            /**
-             * Slack channel id (e.g. C0123ABCD).
-             */
-            id: string;
-            /**
-             * Slack channel name (without the leading #).
-             */
-            name: string;
-        } | null;
-        /**
-         * Email address to notify for this rule (overrides the default recipient).
-         */
-        email?: string | null;
-    } | null;
+    notify?: NotificationTarget;
 };
 
 export type UpdateAlertRuleResponse = {
@@ -5554,6 +5476,62 @@ export type ListConfigActivityResponses = {
 
 export type ListConfigActivityResponse2 = ListConfigActivityResponses[keyof ListConfigActivityResponses];
 
+export type UpdateConfigSchemaData = {
+    body: UpdateConfigSchemaRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Stable opaque config id (`cfg_…`) or the config's `name`.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/configs/{id}/schema';
+};
+
+export type UpdateConfigSchemaErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type UpdateConfigSchemaError = UpdateConfigSchemaErrors[keyof UpdateConfigSchemaErrors];
+
+export type UpdateConfigSchemaResponses = {
+    /**
+     * Update a config schema
+     */
+    200: UpdateConfigSchemaResponse;
+};
+
+export type UpdateConfigSchemaResponse2 = UpdateConfigSchemaResponses[keyof UpdateConfigSchemaResponses];
+
 export type ListKillswitchesData = {
     body?: never;
     headers?: {
@@ -5944,6 +5922,62 @@ export type SetKillswitchSwitchResponses = {
 };
 
 export type SetKillswitchSwitchResponse2 = SetKillswitchSwitchResponses[keyof SetKillswitchSwitchResponses];
+
+export type SetKillswitchValueData = {
+    body: SetKillswitchValueRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/killswitches/{id}/value';
+};
+
+export type SetKillswitchValueErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type SetKillswitchValueError = SetKillswitchValueErrors[keyof SetKillswitchValueErrors];
+
+export type SetKillswitchValueResponses = {
+    /**
+     * Set the flat value on one env
+     */
+    200: SetKillswitchValueResponse;
+};
+
+export type SetKillswitchValueResponse2 = SetKillswitchValueResponses[keyof SetKillswitchValueResponses];
 
 export type ListUniversesData = {
     body?: never;

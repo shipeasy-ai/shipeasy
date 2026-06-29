@@ -30,18 +30,21 @@
       "types": "./dist/custom.d.ts",
       "default": "./dist/custom.js"
     },
-    "./openapi.yaml": "./openapi.yaml"
+    "./openapi.yaml": "./openapi.yaml",
+    "./openapi.json": "./openapi.json"
   },
   "files": [
     "dist/",
     "openapi.yaml",
+    "openapi.json",
     "spec/"
   ],
   "scripts": {
     "lint:spec": "redocly lint spec/openapi.yaml",
-    "bundle": "redocly bundle spec/openapi.yaml -o openapi.yaml",
+    "bundle": "redocly bundle spec/openapi.yaml -o openapi.yaml && redocly bundle spec/openapi.yaml -o openapi.json",
     "gen:sdk": "openapi-ts",
     "gen": "pnpm bundle && pnpm gen:sdk",
+    "prebuild": "pnpm gen",
     "build": "tsup",
     "type-check": "tsc --noEmit",
     "test": "vitest run",

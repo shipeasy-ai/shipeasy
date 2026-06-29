@@ -227,12 +227,16 @@ paths:
     $ref: ./paths/configs.yaml#/~1api~1admin~1configs~1{id}~1publish
   /api/admin/configs/{id}/activity:
     $ref: ./paths/configs.yaml#/~1api~1admin~1configs~1{id}~1activity
+  /api/admin/configs/{id}/schema:
+    $ref: ./paths/configs.yaml#/~1api~1admin~1configs~1{id}~1schema
   /api/admin/killswitches:
     $ref: ./paths/killswitches.yaml#/~1api~1admin~1killswitches
   /api/admin/killswitches/{id}:
     $ref: ./paths/killswitches.yaml#/~1api~1admin~1killswitches~1{id}
   /api/admin/killswitches/{id}/switch:
     $ref: ./paths/killswitches.yaml#/~1api~1admin~1killswitches~1{id}~1switch
+  /api/admin/killswitches/{id}/value:
+    $ref: ./paths/killswitches.yaml#/~1api~1admin~1killswitches~1{id}~1value
   /api/admin/universes:
     $ref: ./paths/universes.yaml#/~1api~1admin~1universes
   /api/admin/universes/{id}:

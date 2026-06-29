@@ -211,20 +211,13 @@ CreateConfigRequest:
   type: object
   properties:
     name:
-      type: string
-      maxLength: 128
-      description: Stable config key in `folder.name` form (two lowercase segments separated by a dot, e.g. `pricing.tiers`). Used by SDKs as `Shipeasy.getConfig('<name>')`. Immutable after create.
+      $ref: ./common.yaml#/ConfigName
     description:
       description: Optional free-form description shown in the dashboard. Max 512 chars.
       type: string
       maxLength: 512
     folder:
-      description: "Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK."
-      anyOf:
-        - type: string
-          maxLength: 256
-          pattern: ^[a-zA-Z0-9_-]+$
-        - type: "null"
+      $ref: ./common.yaml#/Folder
     schema:
       type: object
       additionalProperties: {}
@@ -260,12 +253,7 @@ UpdateConfigRequest:
     value:
       description: Flat value applied to **every** env. Publishes a new version per env. To target one env, use `PUT /{id}/drafts` then `POST /{id}/publish`.
     folder:
-      description: "Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK."
-      anyOf:
-        - type: string
-          maxLength: 256
-          pattern: ^[a-zA-Z0-9_-]+$
-        - type: "null"
+      $ref: ./common.yaml#/Folder
   additionalProperties: false
   description: Body for `PATCH /api/admin/configs/{id}`. Partial — only supplied fields change. `value` republishes on every env.
 UpdateConfigResponse:
@@ -274,6 +262,26 @@ UpdateConfigResponse:
     id:
       type: string
       description: Config id that was updated.
+  required:
+    - id
+  additionalProperties: false
+UpdateConfigSchemaRequest:
+  type: object
+  properties:
+    schema:
+      description: Replacement JSON Schema (draft 2020-12). Validated against every published value before it lands.
+      type: object
+      additionalProperties: {}
+  required:
+    - schema
+  additionalProperties: false
+  description: Body for `PATCH /api/admin/configs/{id}/schema`. Schema-only update — replaces the config's schema and re-validates existing values.
+UpdateConfigSchemaResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Config id whose schema was updated.
   required:
     - id
   additionalProperties: false

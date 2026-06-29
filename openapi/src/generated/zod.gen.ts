@@ -128,6 +128,11 @@ export const zError = z.object({
 });
 
 /**
+ * Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).
+ */
+export const zFolder = z.string().max(256).regex(/^[a-zA-Z0-9_-]+$/).nullable();
+
+/**
  * Body for `POST /api/admin/gates`. At minimum supply `name`; everything else has sensible defaults.
  */
 export const zCreateGateRequest = z.object({
@@ -214,7 +219,7 @@ export const zCreateGateRequest = z.object({
         })])).nullish(),
     title: z.string().max(140).optional(),
     description: z.string().max(2000).optional(),
-    folder: z.string().max(256).regex(/^[a-zA-Z0-9_-]+$/).nullish(),
+    folder: zFolder.optional(),
     group: z.string().max(64).optional(),
     owner_email: z.string().max(190).optional()
 });
@@ -313,7 +318,7 @@ export const zUpdateGateRequest = z.object({
         })])).nullish(),
     title: z.string().max(140).optional(),
     description: z.string().max(2000).optional(),
-    folder: z.string().max(256).regex(/^[a-zA-Z0-9_-]+$/).nullish(),
+    folder: zFolder.optional(),
     group: z.string().max(64).optional(),
     owner_email: z.string().max(190).optional()
 });
@@ -378,6 +383,29 @@ export const zListExperimentsResponse = z.object({
 });
 
 /**
+ * Stable metric key. Single segment or `folder.name`; lowercase letters, digits, `_`/`-`; max 128 chars.
+ */
+export const zMetricName = z.string().max(128).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$/);
+
+/**
+ * Inline metric — a DSL `query`, or an `event` (+ `aggregation`/`value`) the server compiles into one.
+ */
+export const zExperimentInlineMetric = z.object({
+    name: zMetricName.optional(),
+    query: z.string().min(1).max(4096).optional(),
+    event: z.string().min(1).max(256).optional(),
+    aggregation: z.enum([
+        'count_users',
+        'count_events',
+        'retention_7d',
+        'retention_30d',
+        'sum',
+        'avg'
+    ]).optional(),
+    value: z.string().min(1).max(256).optional()
+});
+
+/**
  * Body for `POST /api/admin/experiments`. `name`, `universe`, and `groups` (≥2, weights sum to 10000) required.
  */
 export const zCreateExperimentRequest = z.object({
@@ -388,7 +416,7 @@ export const zCreateExperimentRequest = z.object({
     owner_email: z.string().max(254).nullish().default(null),
     audience: z.string().max(256).nullish().default(null),
     bucket_by: z.string().min(1).max(128).regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/).nullish().default(null),
-    folder: z.string().max(256).regex(/^[a-zA-Z0-9_-]+$/).nullish(),
+    folder: zFolder.optional(),
     universe: z.string().min(1),
     targeting_gate: z.string().nullish().default(null),
     allocation_pct: z.int().gte(0).lte(10000).optional().default(0),
@@ -408,34 +436,8 @@ export const zCreateExperimentRequest = z.object({
     min_runtime_days: z.int().gte(0).lte(365).optional().default(0),
     min_sample_size: z.int().gte(1).lte(9007199254740991).optional().default(100),
     sequential_testing: z.boolean().optional().default(false),
-    goal_metric: z.object({
-        name: z.string().max(128).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$/).optional(),
-        query: z.string().min(1).max(4096).optional(),
-        event: z.string().min(1).max(256).optional(),
-        aggregation: z.enum([
-            'count_users',
-            'count_events',
-            'retention_7d',
-            'retention_30d',
-            'sum',
-            'avg'
-        ]).optional(),
-        value: z.string().min(1).max(256).optional()
-    }).optional(),
-    guardrail_metrics: z.array(z.object({
-        name: z.string().max(128).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$/).optional(),
-        query: z.string().min(1).max(4096).optional(),
-        event: z.string().min(1).max(256).optional(),
-        aggregation: z.enum([
-            'count_users',
-            'count_events',
-            'retention_7d',
-            'retention_30d',
-            'sum',
-            'avg'
-        ]).optional(),
-        value: z.string().min(1).max(256).optional()
-    })).max(10).optional().default([])
+    goal_metric: zExperimentInlineMetric.optional(),
+    guardrail_metrics: z.array(zExperimentInlineMetric).max(10).optional().default([])
 });
 
 export const zCreateExperimentResponse = z.object({
@@ -497,7 +499,7 @@ export const zUpdateExperimentRequest = z.object({
     owner_email: z.string().max(254).nullish(),
     audience: z.string().max(256).nullish(),
     bucket_by: z.string().min(1).max(128).regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/).nullish(),
-    folder: z.string().max(256).regex(/^[a-zA-Z0-9_-]+$/).nullish(),
+    folder: zFolder.optional(),
     targeting_gate: z.string().nullish(),
     allocation_pct: z.int().gte(0).lte(10000).optional(),
     allocation_percent: z.number().gte(0).lte(100).optional(),
@@ -517,34 +519,8 @@ export const zUpdateExperimentRequest = z.object({
     min_runtime_days: z.int().gte(0).lte(365).optional(),
     min_sample_size: z.int().gte(1).lte(9007199254740991).optional(),
     sequential_testing: z.boolean().optional(),
-    goal_metric: z.object({
-        name: z.string().max(128).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$/).optional(),
-        query: z.string().min(1).max(4096).optional(),
-        event: z.string().min(1).max(256).optional(),
-        aggregation: z.enum([
-            'count_users',
-            'count_events',
-            'retention_7d',
-            'retention_30d',
-            'sum',
-            'avg'
-        ]).optional(),
-        value: z.string().min(1).max(256).optional()
-    }).optional(),
-    guardrail_metrics: z.array(z.object({
-        name: z.string().max(128).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$/).optional(),
-        query: z.string().min(1).max(4096).optional(),
-        event: z.string().min(1).max(256).optional(),
-        aggregation: z.enum([
-            'count_users',
-            'count_events',
-            'retention_7d',
-            'retention_30d',
-            'sum',
-            'avg'
-        ]).optional(),
-        value: z.string().min(1).max(256).optional()
-    })).max(10).optional()
+    goal_metric: zExperimentInlineMetric.optional(),
+    guardrail_metrics: z.array(zExperimentInlineMetric).max(10).optional()
 });
 
 export const zUpdateExperimentResponse = z.object({
@@ -681,12 +657,17 @@ export const zListConfigsResponse = z.object({
 });
 
 /**
+ * Stable config/killswitch key in `folder.name` form (two lowercase segments separated by a dot, e.g. `pricing.tiers`). Immutable after create.
+ */
+export const zConfigName = z.string().max(128).regex(/^(?:_default|[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$/);
+
+/**
  * Body for `POST /api/admin/configs`. `name` + `schema` required.
  */
 export const zCreateConfigRequest = z.object({
-    name: z.string().max(128),
+    name: zConfigName,
     description: z.string().max(512).optional(),
-    folder: z.string().max(256).regex(/^[a-zA-Z0-9_-]+$/).nullish(),
+    folder: zFolder.optional(),
     schema: z.record(z.string(), z.unknown()),
     value: z.unknown().optional()
 });
@@ -726,7 +707,7 @@ export const zDeleteConfigResponse = z.object({
 export const zUpdateConfigRequest = z.object({
     schema: z.record(z.string(), z.unknown()).optional(),
     value: z.unknown().optional(),
-    folder: z.string().max(256).regex(/^[a-zA-Z0-9_-]+$/).nullish()
+    folder: zFolder.optional()
 });
 
 export const zUpdateConfigResponse = z.object({
@@ -797,6 +778,17 @@ export const zListConfigActivityResponse = z.array(z.object({
     createdAt: z.string()
 }));
 
+/**
+ * Body for `PATCH /api/admin/configs/{id}/schema`. Schema-only update — replaces the config's schema and re-validates existing values.
+ */
+export const zUpdateConfigSchemaRequest = z.object({
+    schema: z.record(z.string(), z.unknown())
+});
+
+export const zUpdateConfigSchemaResponse = z.object({
+    id: z.string()
+});
+
 export const zListKillswitchesResponse = z.object({
     data: z.array(z.object({
         id: z.string(),
@@ -817,9 +809,9 @@ export const zListKillswitchesResponse = z.object({
  * Body for `POST /api/admin/killswitches`. Only `name` is required.
  */
 export const zCreateKillswitchRequest = z.object({
-    name: z.string().max(128),
+    name: zConfigName,
     description: z.string().max(512).optional(),
-    folder: z.string().max(256).regex(/^[a-zA-Z0-9_-]+$/).nullish(),
+    folder: zFolder.optional(),
     value: z.boolean().optional(),
     switches: z.record(z.string(), z.boolean()).optional()
 });
@@ -851,7 +843,7 @@ export const zDeleteKillswitchResponse = z.object({
  */
 export const zUpdateKillswitchRequest = z.object({
     description: z.string().max(512).nullish(),
-    folder: z.string().max(256).regex(/^[a-zA-Z0-9_-]+$/).nullish(),
+    folder: zFolder.optional(),
     value: z.boolean().optional(),
     switches: z.record(z.string(), z.boolean()).optional()
 });
@@ -891,6 +883,29 @@ export const zUnsetKillswitchSwitchResponse = z.object({
     removed: z.boolean()
 });
 
+/**
+ * Body for `PUT /api/admin/killswitches/{id}/value`. Sets the flat `value` on one env without touching `switches` or other envs.
+ */
+export const zSetKillswitchValueRequest = z.object({
+    env: zEnv,
+    value: z.boolean()
+});
+
+/**
+ * Runtime killswitch payload returned to SDKs.
+ */
+export const zKillswitchValue = z.object({
+    value: z.boolean(),
+    switches: z.record(z.string(), z.boolean()).optional()
+});
+
+export const zSetKillswitchValueResponse = z.object({
+    id: z.string(),
+    env: zEnv,
+    version: z.int().gte(-9007199254740991).lte(9007199254740991),
+    published: zKillswitchValue
+});
+
 export const zListUniversesResponse = z.object({
     data: z.array(z.object({
         id: z.string(),
@@ -907,7 +922,7 @@ export const zListUniversesResponse = z.object({
  */
 export const zCreateUniverseRequest = z.object({
     name: z.string().max(128).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$/),
-    folder: z.string().max(256).regex(/^[a-zA-Z0-9_-]+$/).nullish(),
+    folder: zFolder.optional(),
     unit_type: z.string().optional().default('user_id'),
     holdout_range: z.tuple([z.int().gte(0).lte(9999), z.int().gte(0).lte(9999)]).nullish().default(null)
 });
@@ -925,7 +940,7 @@ export const zDeleteUniverseResponse = z.object({
  * Body for `PATCH /api/admin/universes/{id}`. Only `holdout_range` is mutable — name and unit_type are immutable after create.
  */
 export const zUpdateUniverseRequest = z.object({
-    folder: z.string().max(256).regex(/^[a-zA-Z0-9_-]+$/).nullish(),
+    folder: zFolder.optional(),
     holdout_range: z.tuple([z.int().gte(0).lte(9999), z.int().gte(0).lte(9999)]).nullish()
 });
 
@@ -1054,8 +1069,8 @@ export const zListMetricsResponse = z.array(z.object({
  * Body for `POST /api/admin/metrics`. Requires `name`, `event_name`, and exactly one of `query` / `query_ir`.
  */
 export const zCreateMetricRequest = z.object({
-    name: z.string().max(128).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$/),
-    folder: z.string().max(256).regex(/^[a-zA-Z0-9_-]+$/).nullish(),
+    name: zMetricName,
+    folder: zFolder.optional(),
     event_name: z.string().min(1),
     query: z.string().min(1).max(4096).optional(),
     query_ir: z.object({
@@ -1305,7 +1320,7 @@ export const zListEventsResponse = z.array(z.object({
  */
 export const zCreateEventRequest = z.object({
     name: z.string().regex(/^[a-zA-Z0-9_][a-zA-Z0-9_\-.]{0,127}$/),
-    folder: z.string().max(256).regex(/^[a-zA-Z0-9_-]+$/).nullish(),
+    folder: zFolder.optional(),
     description: z.string().optional(),
     properties: z.array(z.object({
         name: z.string().min(1).max(64),
@@ -1360,7 +1375,7 @@ export const zDeleteEventResponse = z.object({
  * Body for `PATCH /api/admin/events/{id}` and `POST /api/admin/events/{id}/approve`. All fields optional; `name` is immutable after create.
  */
 export const zUpdateEventRequest = z.object({
-    folder: z.string().max(256).regex(/^[a-zA-Z0-9_-]+$/).nullish(),
+    folder: zFolder.optional(),
     description: z.string().optional(),
     properties: z.array(z.object({
         name: z.string().min(1).max(64),
@@ -1385,7 +1400,7 @@ export const zUpdateEventResponse = z.object({
  * Body for `PATCH /api/admin/events/{id}` and `POST /api/admin/events/{id}/approve`. All fields optional; `name` is immutable after create.
  */
 export const zApproveEventRequest = z.object({
-    folder: z.string().max(256).regex(/^[a-zA-Z0-9_-]+$/).nullish(),
+    folder: zFolder.optional(),
     description: z.string().optional(),
     properties: z.array(z.object({
         name: z.string().min(1).max(64),
@@ -1566,6 +1581,17 @@ export const zListSlackChannelsResponse = z.object({
     }))
 });
 
+/**
+ * Delivery target for a notification; `null` = use the project default.
+ */
+export const zNotificationTarget = z.object({
+    slackChannel: z.object({
+        id: z.string().min(1),
+        name: z.string().min(1)
+    }).nullish(),
+    email: z.email().nullish()
+}).nullable();
+
 export const zListAlertRulesResponse = z.array(z.object({
     id: z.string(),
     name: z.string(),
@@ -1585,13 +1611,7 @@ export const zListAlertRulesResponse = z.array(z.object({
         'info'
     ]),
     enabled: z.boolean(),
-    notify: z.object({
-        slackChannel: z.object({
-            id: z.string().min(1),
-            name: z.string().min(1)
-        }).nullish(),
-        email: z.email().regex(/^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$/).nullish()
-    }).nullable(),
+    notify: zNotificationTarget,
     createdAt: z.string(),
     updatedAt: z.string()
 }));
@@ -1613,13 +1633,7 @@ export const zCreateAlertRuleRequest = z.object({
         'info'
     ]).optional().default('warn'),
     enabled: z.boolean().optional().default(true),
-    notify: z.object({
-        slackChannel: z.object({
-            id: z.string().min(1),
-            name: z.string().min(1)
-        }).nullish(),
-        email: z.email().regex(/^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$/).nullish()
-    }).nullish()
+    notify: zNotificationTarget.optional()
 });
 
 export const zCreateAlertRuleResponse = z.object({
@@ -1646,13 +1660,7 @@ export const zUpdateAlertRuleRequest = z.object({
         'info'
     ]).optional(),
     enabled: z.boolean().optional(),
-    notify: z.object({
-        slackChannel: z.object({
-            id: z.string().min(1),
-            name: z.string().min(1)
-        }).nullish(),
-        email: z.email().regex(/^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$/).nullish()
-    }).nullish()
+    notify: zNotificationTarget.optional()
 });
 
 export const zUpdateAlertRuleResponse = z.object({
@@ -2635,6 +2643,21 @@ export const zListConfigActivityQuery = z.object({
  */
 export const zListConfigActivityResponse2 = zListConfigActivityResponse;
 
+export const zUpdateConfigSchemaBody = zUpdateConfigSchemaRequest;
+
+export const zUpdateConfigSchemaHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zUpdateConfigSchemaPath = z.object({
+    id: z.string()
+});
+
+/**
+ * Update a config schema
+ */
+export const zUpdateConfigSchemaResponse2 = zUpdateConfigSchemaResponse;
+
 export const zListKillswitchesHeaders = z.object({
     'X-Project-Id': z.string().optional()
 });
@@ -2730,6 +2753,21 @@ export const zSetKillswitchSwitchPath = z.object({
  * Set one switch entry
  */
 export const zSetKillswitchSwitchResponse2 = zSetKillswitchSwitchResponse;
+
+export const zSetKillswitchValueBody = zSetKillswitchValueRequest;
+
+export const zSetKillswitchValueHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zSetKillswitchValuePath = z.object({
+    id: z.string()
+});
+
+/**
+ * Set the flat value on one env
+ */
+export const zSetKillswitchValueResponse2 = zSetKillswitchValueResponse;
 
 export const zListUniversesHeaders = z.object({
     'X-Project-Id': z.string().optional()

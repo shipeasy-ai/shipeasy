@@ -352,12 +352,7 @@ CreateExperimentRequest:
           description: User-attribute name used as the bucketing key — e.g. `user_id` (default), `session_id`, `device_id`, or a custom attribute like `company_id` to keep a whole org on one variant. Defaults to `user_id` when omitted.
         - type: "null"
     folder:
-      description: "Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK."
-      anyOf:
-        - type: string
-          maxLength: 256
-          pattern: ^[a-zA-Z0-9_-]+$
-        - type: "null"
+      $ref: ./common.yaml#/Folder
     universe:
       type: string
       minLength: 1
@@ -445,77 +440,14 @@ CreateExperimentRequest:
       type: boolean
     goal_metric:
       description: Single goal metric defined inline — either a DSL `query` or an `event` (+`aggregation`/`value`) the server compiles. Attaching one is required before the experiment can be started. The underlying event is auto-created if missing.
-      type: object
-      properties:
-        name:
-          type: string
-          maxLength: 128
-          pattern: ^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$
-        query:
-          description: Metric DSL string, e.g. `count_users(checkout_completed)`. Provide this OR `event`.
-          type: string
-          minLength: 1
-          maxLength: 4096
-        event:
-          description: Event name to build the metric from server-side (friendlier alternative to `query`). Auto-created if missing.
-          type: string
-          minLength: 1
-          maxLength: 256
-        aggregation:
-          description: Reducer for the `event` form. Defaults to `count_users`.
-          type: string
-          enum:
-            - count_users
-            - count_events
-            - retention_7d
-            - retention_30d
-            - sum
-            - avg
-        value:
-          description: Numeric event property for `sum`/`avg` aggregations (with `event`).
-          type: string
-          minLength: 1
-          maxLength: 256
-      additionalProperties: false
+      $ref: ./common.yaml#/ExperimentInlineMetric
     guardrail_metrics:
       default: []
       description: Up to 10 guardrail metrics defined inline. Each is upserted (event + metric) and attached with role=guardrail.
       maxItems: 10
       type: array
       items:
-        type: object
-        properties:
-          name:
-            type: string
-            maxLength: 128
-            pattern: ^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$
-          query:
-            description: Metric DSL string, e.g. `count_users(checkout_completed)`. Provide this OR `event`.
-            type: string
-            minLength: 1
-            maxLength: 4096
-          event:
-            description: Event name to build the metric from server-side (friendlier alternative to `query`). Auto-created if missing.
-            type: string
-            minLength: 1
-            maxLength: 256
-          aggregation:
-            description: Reducer for the `event` form. Defaults to `count_users`.
-            type: string
-            enum:
-              - count_users
-              - count_events
-              - retention_7d
-              - retention_30d
-              - sum
-              - avg
-          value:
-            description: Numeric event property for `sum`/`avg` aggregations (with `event`).
-            type: string
-            minLength: 1
-            maxLength: 256
-        additionalProperties: false
-        description: "Inline metric: either a DSL `query`, or an `event` (+ `aggregation`/`value`) the server compiles into one."
+        $ref: ./common.yaml#/ExperimentInlineMetric
   required:
     - name
     - universe
@@ -579,12 +511,7 @@ UpdateExperimentRequest:
           description: User-attribute name used as the bucketing key — e.g. `user_id` (default), `session_id`, `device_id`, or a custom attribute like `company_id` to keep a whole org on one variant. Defaults to `user_id` when omitted.
         - type: "null"
     folder:
-      description: "Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK."
-      anyOf:
-        - type: string
-          maxLength: 256
-          pattern: ^[a-zA-Z0-9_-]+$
-        - type: "null"
+      $ref: ./common.yaml#/Folder
     targeting_gate:
       anyOf:
         - type: string
@@ -659,76 +586,13 @@ UpdateExperimentRequest:
       type: boolean
     goal_metric:
       description: Replaces the goal metric — DSL `query` or `event` (+`aggregation`/`value`) the server compiles (event auto-upserted).
-      type: object
-      properties:
-        name:
-          type: string
-          maxLength: 128
-          pattern: ^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$
-        query:
-          description: Metric DSL string, e.g. `count_users(checkout_completed)`. Provide this OR `event`.
-          type: string
-          minLength: 1
-          maxLength: 4096
-        event:
-          description: Event name to build the metric from server-side (friendlier alternative to `query`). Auto-created if missing.
-          type: string
-          minLength: 1
-          maxLength: 256
-        aggregation:
-          description: Reducer for the `event` form. Defaults to `count_users`.
-          type: string
-          enum:
-            - count_users
-            - count_events
-            - retention_7d
-            - retention_30d
-            - sum
-            - avg
-        value:
-          description: Numeric event property for `sum`/`avg` aggregations (with `event`).
-          type: string
-          minLength: 1
-          maxLength: 256
-      additionalProperties: false
+      $ref: ./common.yaml#/ExperimentInlineMetric
     guardrail_metrics:
       description: Replaces the guardrail set wholesale (event auto-upserted per entry).
       maxItems: 10
       type: array
       items:
-        type: object
-        properties:
-          name:
-            type: string
-            maxLength: 128
-            pattern: ^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$
-          query:
-            description: Metric DSL string, e.g. `count_users(checkout_completed)`. Provide this OR `event`.
-            type: string
-            minLength: 1
-            maxLength: 4096
-          event:
-            description: Event name to build the metric from server-side (friendlier alternative to `query`). Auto-created if missing.
-            type: string
-            minLength: 1
-            maxLength: 256
-          aggregation:
-            description: Reducer for the `event` form. Defaults to `count_users`.
-            type: string
-            enum:
-              - count_users
-              - count_events
-              - retention_7d
-              - retention_30d
-              - sum
-              - avg
-          value:
-            description: Numeric event property for `sum`/`avg` aggregations (with `event`).
-            type: string
-            minLength: 1
-            maxLength: 256
-        additionalProperties: false
-        description: "Inline metric: either a DSL `query`, or an `event` (+ `aggregation`/`value`) the server compiles into one."
+        $ref: ./common.yaml#/ExperimentInlineMetric
   additionalProperties: false
   description: Body for `PATCH /api/admin/experiments/{id}`. Partial — only supplied fields change. `allocation_pct`, `groups`, `salt`, `universe`, `params` are immutable while the experiment is running (stop first).
 UpdateExperimentResponse:

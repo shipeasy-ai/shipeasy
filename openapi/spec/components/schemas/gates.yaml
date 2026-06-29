@@ -557,12 +557,7 @@ CreateGateRequest:
       type: string
       maxLength: 2000
     folder:
-      description: "Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK."
-      anyOf:
-        - type: string
-          maxLength: 256
-          pattern: ^[a-zA-Z0-9_-]+$
-        - type: "null"
+      $ref: ./common.yaml#/Folder
     group:
       description: Group label for dashboard organisation (e.g. team or product area).
       type: string
@@ -841,12 +836,7 @@ UpdateGateRequest:
       type: string
       maxLength: 2000
     folder:
-      description: "Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK."
-      anyOf:
-        - type: string
-          maxLength: 256
-          pattern: ^[a-zA-Z0-9_-]+$
-        - type: "null"
+      $ref: ./common.yaml#/Folder
     group:
       description: Group label for dashboard organisation (e.g. team or product area).
       type: string

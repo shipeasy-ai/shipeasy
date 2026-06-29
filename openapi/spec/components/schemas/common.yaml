@@ -6,3 +6,82 @@ Env:
     - staging
     - prod
   description: Target environment. One of the project's configured envs (`dev`, `staging`, `prod`).
+Folder:
+  anyOf:
+    - type: string
+      maxLength: 256
+      pattern: ^[a-zA-Z0-9_-]+$
+    - type: "null"
+  description: Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).
+MetricName:
+  type: string
+  maxLength: 128
+  pattern: ^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$
+  description: Stable metric key. Single segment or `folder.name`; lowercase letters, digits, `_`/`-`; max 128 chars.
+ConfigName:
+  type: string
+  maxLength: 128
+  pattern: ^(?:_default|[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$
+  description: Stable config/killswitch key in `folder.name` form (two lowercase segments separated by a dot, e.g. `pricing.tiers`). Immutable after create.
+NotificationTarget:
+  anyOf:
+    - type: object
+      properties:
+        slackChannel:
+          anyOf:
+            - type: object
+              properties:
+                id: { type: string, minLength: 1 }
+                name: { type: string, minLength: 1 }
+              required: [id, name]
+              additionalProperties: false
+            - type: "null"
+        email:
+          anyOf:
+            - type: string
+              format: email
+            - type: "null"
+      additionalProperties: false
+    - type: "null"
+  description: Delivery target for a notification; `null` = use the project default.
+PageQuery:
+  type: object
+  properties:
+    limit:
+      type: integer
+      minimum: 1
+      maximum: 500
+      default: 100
+      description: Max rows to return (1–500, default 100).
+    cursor:
+      type: string
+      minLength: 1
+      description: Opaque keyset cursor from a previous page's `next_cursor`.
+  additionalProperties: false
+  description: Query params for any paginated list endpoint.
+KillswitchValue:
+  type: object
+  properties:
+    value:
+      type: boolean
+      description: Default boolean delivered when no `switches` entry matches.
+    switches:
+      type: object
+      additionalProperties: { type: boolean }
+      description: Per-switch overrides; a matching key takes precedence over `value`.
+  required: [value]
+  additionalProperties: false
+  description: Runtime killswitch payload returned to SDKs.
+ExperimentInlineMetric:
+  type: object
+  properties:
+    name: { $ref: "#/MetricName" }
+    query: { type: string, minLength: 1, maxLength: 4096, description: Metric DSL string. Provide this OR `event`. }
+    event: { type: string, minLength: 1, maxLength: 256, description: Event name to build the metric from server-side. Auto-created if missing. }
+    aggregation:
+      type: string
+      enum: [count_users, count_events, retention_7d, retention_30d, sum, avg]
+      description: Reducer for the `event` form. Defaults to `count_users`.
+    value: { type: string, minLength: 1, maxLength: 256, description: Numeric event property for `sum`/`avg` (with `event`). }
+  additionalProperties: false
+  description: Inline metric — a DSL `query`, or an `event` (+ `aggregation`/`value`) the server compiles into one.

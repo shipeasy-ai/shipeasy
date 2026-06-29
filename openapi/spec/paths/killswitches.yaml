@@ -476,3 +476,82 @@
       name: unset
       positional:
         - id
+/api/admin/killswitches/{id}/value:
+  put:
+    operationId: setKillswitchValue
+    summary: Set the flat value on one env
+    description: |-
+      Sets the flat `value` on a single `env`, publishing one new version on that env only. `switches` and other envs are untouched.
+
+      Use this to trip (or untrip) a killswitch on one environment without replacing its per-key overrides.
+
+      **Use cases**
+
+      - **Trip on prod** — `{ "env": "prod", "value": true }`.
+      - **Untrip on prod** — `{ "env": "prod", "value": false }`.
+    tags:
+      - Killswitch
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/killswitches.yaml#/SetKillswitchValueRequest
+          examples:
+            tripProd:
+              summary: Trip on prod
+              description: "Publishes `value: true` on prod only, bumping that env's version."
+              value:
+                env: prod
+                value: true
+            untripProd:
+              summary: Untrip on prod
+              description: "Publishes `value: false` on prod only."
+              value:
+                env: prod
+                value: false
+    responses:
+      "200":
+        description: Set the flat value on one env
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/killswitches.yaml#/SetKillswitchValueResponse
+            example:
+              id: ksw_01j7w9d8h2k4m6n8p0q2r4s6t8
+              env: prod
+              version: 6
+              published:
+                value: true
+                switches:
+                  eu_region: true
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: set-value
+      positional:
+        - id

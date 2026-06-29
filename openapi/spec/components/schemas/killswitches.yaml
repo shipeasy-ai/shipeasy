@@ -125,20 +125,13 @@ CreateKillswitchRequest:
   type: object
   properties:
     name:
-      type: string
-      maxLength: 128
-      description: Stable killswitch key in `folder.name` form (two lowercase segments separated by a dot — e.g. `payments.checkout`). Immutable after create.
+      $ref: ./common.yaml#/ConfigName
     description:
       description: Optional free-form description shown in the dashboard. Max 512 chars.
       type: string
       maxLength: 512
     folder:
-      description: "Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK."
-      anyOf:
-        - type: string
-          maxLength: 256
-          pattern: ^[a-zA-Z0-9_-]+$
-        - type: "null"
+      $ref: ./common.yaml#/Folder
     value:
       description: Default value applied to every env at creation. Defaults to `false`. Use `true` to ship the killswitch pre-tripped.
       type: boolean
@@ -175,12 +168,7 @@ UpdateKillswitchRequest:
           maxLength: 512
         - type: "null"
     folder:
-      description: "Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK."
-      anyOf:
-        - type: string
-          maxLength: 256
-          pattern: ^[a-zA-Z0-9_-]+$
-        - type: "null"
+      $ref: ./common.yaml#/Folder
     value:
       description: Flat value applied to every env. Publishes a new version per env when set. Omit to leave values unchanged.
       type: boolean
@@ -283,4 +271,37 @@ UnsetKillswitchSwitchResponse:
     - env
     - switchKey
     - removed
+  additionalProperties: false
+SetKillswitchValueRequest:
+  type: object
+  properties:
+    env:
+      $ref: ./common.yaml#/Env
+    value:
+      type: boolean
+      description: Flat boolean to publish on `env`. Publishes a new version on that env only.
+  required:
+    - env
+    - value
+  additionalProperties: false
+  description: Body for `PUT /api/admin/killswitches/{id}/value`. Sets the flat `value` on one env without touching `switches` or other envs.
+SetKillswitchValueResponse:
+  type: object
+  properties:
+    id:
+      type: string
+    env:
+      $ref: ./common.yaml#/Env
+    version:
+      type: integer
+      minimum: -9007199254740991
+      maximum: 9007199254740991
+      description: Newly published version on `env`.
+    published:
+      $ref: ./common.yaml#/KillswitchValue
+  required:
+    - id
+    - env
+    - version
+    - published
   additionalProperties: false

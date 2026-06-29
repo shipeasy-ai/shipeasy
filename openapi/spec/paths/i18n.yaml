@@ -315,9 +315,9 @@
 /api/admin/i18n/profiles/{profileId}/publish:
   post:
     operationId: publishI18nProfile
-    summary: Publish a profile chunk
+    summary: Publish a profile live
     description: |-
-      Publish a profile's chunk to the CDN (rebuild KV manifest + purge). Defaults to the `default` chunk.
+      Publish a profile to the CDN — rebuild its KV snapshot + purge the edge. Publishing is PROFILE-WIDE: the whole profile is snapshotted into one KV blob, so the optional `chunk` in the body is an audit label only (it does not scope what ships).
 
       **Use case:** Ship the latest translations live after pushing/updating keys.
     tags:
