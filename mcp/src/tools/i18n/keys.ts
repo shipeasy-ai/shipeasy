@@ -125,6 +125,36 @@ export async function handlePushKeys(input: {
   }
 }
 
+// One-shot "set a string and ship it". Upserts one key's value into a profile
+// and immediately publishes the whole profile (KV rebuild + CDN purge), so the
+// new value is live in a single call. Unlike i18n_create_key/i18n_push_keys
+// (insert-only — existing keys come back as `skipped`), this overwrites; and
+// unlike them, it auto-publishes. The server resolves the profile by name, or —
+// when `profile` is omitted — targets the project's default-marked profile, so
+// no client-side profile lookup is needed here.
+export async function handleSetLabel(input: {
+  key: string;
+  value: string;
+  profile?: string;
+  description?: string;
+}) {
+  const client = await getApiClient();
+  if (!client) return notAuthenticated();
+  if (!client.bound) return notBound(client);
+
+  try {
+    const result = await client.post("/api/admin/i18n/set", {
+      key: input.key,
+      value: input.value,
+      ...(input.profile !== undefined ? { profile: input.profile } : {}),
+      ...(input.description !== undefined ? { description: input.description } : {}),
+    });
+    return ok(result);
+  } catch (err) {
+    return apiErr(err);
+  }
+}
+
 export async function handleCreateKey(input: {
   profile: string;
   key: string;

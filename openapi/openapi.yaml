@@ -4395,6 +4395,12 @@ paths:
           description: Only keys whose name starts with this.
           schema:
             type: string
+        - name: q
+          in: query
+          required: false
+          description: Free-text search — matches keys whose name OR value contains this substring (case-insensitive). Use it to find the key behind a piece of on-screen copy.
+          schema:
+            type: string
         - name: limit
           in: query
           required: false
@@ -4641,6 +4647,67 @@ paths:
         name: publish
         positional:
           - profileId
+  /api/admin/i18n/set:
+    post:
+      operationId: setI18nLabel
+      summary: Set a key's value and publish it live
+      description: |-
+        Upsert a single key's value into a profile and immediately publish the whole profile (KV rebuild + CDN purge) so the new value is live in one call. The key is inserted when new and overwritten when it already exists. `profile` is a profile name — omit it to target the project's default-marked profile, or pass a name to target another locale.
+
+        **Use case:** Correct or replace one live string and ship it without a separate `push` + `publish`.
+      tags:
+        - Keys
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetI18nLabelRequest'
+            example:
+              key: home.cta
+              value: Get started
+      responses:
+        '200':
+          description: Set a key's value and publish it live
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SetI18nLabelResponse'
+              example:
+                ok: true
+                profile: en:prod
+                key: home.cta
+                value: Get started
+                version: '7'
+                key_count: 42
+                changed: true
+                purged: purged
+                kv_verified: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+        - VALIDATION
+      x-cli:
+        name: set
+        positional:
+          - key
+          - value
   /api/admin/errors:
     get:
       operationId: listErrors
@@ -10997,6 +11064,84 @@ components:
         - kv_verified
       additionalProperties: false
       description: Result of a profile-wide publish.
+    SetI18nLabelRequest:
+      type: object
+      properties:
+        key:
+          type: string
+          description: Dotted key path to set, e.g. `home.cta`.
+        value:
+          type: string
+          description: New value for the key. Inserted when the key is new, overwritten when it exists.
+        profile:
+          description: Profile name to target, e.g. `en:prod`. Omit to target the project's default-marked profile.
+          type: string
+        description:
+          description: Optional human note to store with the key.
+          type: string
+      required:
+        - key
+        - value
+      additionalProperties: false
+      description: Body for `POST /api/admin/i18n/set`. Upserts one key's value and publishes the profile live.
+    SetI18nLabelResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          const: true
+          description: Always `true` on success.
+        profile:
+          type: string
+          description: Name of the profile that was published.
+        profile_id:
+          type: string
+          description: Id of the profile that was published.
+        key:
+          type: string
+          description: The key that was set.
+        value:
+          type: string
+          description: The value that was stored.
+        published_at:
+          type: string
+          description: ISO-8601 timestamp of the publish.
+        version:
+          type: string
+          description: New KV snapshot version that was shipped.
+        key_count:
+          type: number
+          description: Number of keys in the published snapshot.
+        changed:
+          type: boolean
+          description: Whether the snapshot's contents actually changed since the last publish.
+        purged:
+          type: string
+          enum:
+            - purged
+            - skipped
+            - failed
+          description: 'CDN purge outcome: `purged` ok, `skipped` (no creds), or `failed` (edge still stale).'
+        kv_verified:
+          type: boolean
+          description: Whether a KV read-back confirmed the new version persisted.
+        warning:
+          description: Human-readable caveat when the publish landed but is not fully live.
+          type: string
+      required:
+        - ok
+        - profile
+        - profile_id
+        - key
+        - value
+        - published_at
+        - version
+        - key_count
+        - changed
+        - purged
+        - kv_verified
+      additionalProperties: false
+      description: Result of a one-shot set-and-publish.
     ErrorRecord:
       type: object
       description: |-

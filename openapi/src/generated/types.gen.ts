@@ -3373,6 +3373,82 @@ export type PublishI18nProfileResponse = {
 };
 
 /**
+ * Body for `POST /api/admin/i18n/set`. Upserts one key's value and publishes the profile live.
+ */
+export type SetI18nLabelRequest = {
+    /**
+     * Dotted key path to set, e.g. `home.cta`.
+     */
+    key: string;
+    /**
+     * New value for the key. Inserted when the key is new, overwritten when it exists.
+     */
+    value: string;
+    /**
+     * Profile name to target, e.g. `en:prod`. Omit to target the project's default-marked profile.
+     */
+    profile?: string;
+    /**
+     * Optional human note to store with the key.
+     */
+    description?: string;
+};
+
+/**
+ * Result of a one-shot set-and-publish.
+ */
+export type SetI18nLabelResponse = {
+    /**
+     * Always `true` on success.
+     */
+    ok: true;
+    /**
+     * Name of the profile that was published.
+     */
+    profile: string;
+    /**
+     * Id of the profile that was published.
+     */
+    profile_id: string;
+    /**
+     * The key that was set.
+     */
+    key: string;
+    /**
+     * The value that was stored.
+     */
+    value: string;
+    /**
+     * ISO-8601 timestamp of the publish.
+     */
+    published_at: string;
+    /**
+     * New KV snapshot version that was shipped.
+     */
+    version: string;
+    /**
+     * Number of keys in the published snapshot.
+     */
+    key_count: number;
+    /**
+     * Whether the snapshot's contents actually changed since the last publish.
+     */
+    changed: boolean;
+    /**
+     * CDN purge outcome: `purged` ok, `skipped` (no creds), or `failed` (edge still stale).
+     */
+    purged: 'purged' | 'skipped' | 'failed';
+    /**
+     * Whether a KV read-back confirmed the new version persisted.
+     */
+    kv_verified: boolean;
+    /**
+     * Human-readable caveat when the publish landed but is not fully live.
+     */
+    warning?: string;
+};
+
+/**
  * A tracked production error — one row per distinct issue, keyed by `fingerprint`. Rows are never created by hand: an ingestion path (worker log drain / the `see()` SDK reporter) folds each occurrence into the matching row, bumping `count` and `lastSeenAt`. The admin surface only lists them, reads one, and flips `status`.
  *
  * Field names are camelCase (the D1 row projected through Drizzle). Many columns are nullable because the reporting source may not supply them.
@@ -7532,6 +7608,10 @@ export type ListI18nKeysData = {
          */
         prefix?: string;
         /**
+         * Free-text search — matches keys whose name OR value contains this substring (case-insensitive). Use it to find the key behind a piece of on-screen copy.
+         */
+        q?: string;
+        /**
          * Max keys to return (1–500).
          */
         limit?: number;
@@ -7790,6 +7870,57 @@ export type PublishI18nProfileResponses = {
 };
 
 export type PublishI18nProfileResponse2 = PublishI18nProfileResponses[keyof PublishI18nProfileResponses];
+
+export type SetI18nLabelData = {
+    body: SetI18nLabelRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/admin/i18n/set';
+};
+
+export type SetI18nLabelErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type SetI18nLabelError = SetI18nLabelErrors[keyof SetI18nLabelErrors];
+
+export type SetI18nLabelResponses = {
+    /**
+     * Set a key's value and publish it live
+     */
+    200: SetI18nLabelResponse;
+};
+
+export type SetI18nLabelResponse2 = SetI18nLabelResponses[keyof SetI18nLabelResponses];
 
 export type ListErrorsData = {
     body?: never;

@@ -18,7 +18,7 @@ import { handleUpsertProject } from "./tools/projects/upsert.js";
 import { handleDetectProject } from "./tools/shared/detect-project.js";
 import { handleInstallLoader } from "./tools/i18n/loader.js";
 import { handleCreateProfile } from "./tools/i18n/profiles.js";
-import { handlePushKeys, handleCreateKey, handleValidateKeys } from "./tools/i18n/keys.js";
+import { handlePushKeys, handleCreateKey, handleSetLabel, handleValidateKeys } from "./tools/i18n/keys.js";
 import { handleScanCode } from "./tools/i18n/scan.js";
 import { handlePublishProfile } from "./tools/i18n/publish.js";
 import { handleDiscoverSite } from "./tools/i18n/discover.js";
@@ -108,6 +108,10 @@ export async function startStdioServer(): Promise<void> {
     if (toolName === "i18n_create_key") {
       const args = params.arguments ?? {};
       return handleCreateKey(args as Parameters<typeof handleCreateKey>[0]);
+    }
+    if (toolName === "i18n_set") {
+      const args = params.arguments ?? {};
+      return handleSetLabel(args as Parameters<typeof handleSetLabel>[0]);
     }
     if (toolName === "i18n_validate_keys") {
       const args = params.arguments ?? {};

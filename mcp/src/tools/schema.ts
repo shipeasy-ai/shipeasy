@@ -161,6 +161,24 @@ const STATIC_TOOLS: Tool[] = [
     },
   },
   {
+    name: "i18n_set",
+    description:
+      "Set one key's value AND publish it live in a single call. Inserts the key if new, OVERWRITES it if it exists (unlike i18n_create_key/i18n_push_keys, which are insert-only), then publishes the whole profile (KV rebuild + CDN purge). Omit `profile` to target the project's default profile, or pass a name (e.g. 'fr:prod') for another locale. Use this to correct/replace one live string without a separate push + publish.",
+    inputSchema: {
+      type: "object",
+      required: ["key", "value"],
+      properties: {
+        key: { type: "string", description: "Dotted key path, e.g. 'home.cta'." },
+        value: { type: "string", description: "New value (inserted if new, overwritten if it exists)." },
+        profile: {
+          type: "string",
+          description: "Profile name. Omit to target the project's default profile.",
+        },
+        description: { type: "string", description: "Optional note stored with the key." },
+      },
+    },
+  },
+  {
     name: "i18n_translate_draft",
     description:
       "Run Anthropic translation on a draft, key by key. Anthropic API key is read from the operator's env — never sent to shipeasy.",

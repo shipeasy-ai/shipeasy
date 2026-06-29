@@ -1868,6 +1868,38 @@ export const zPublishI18nProfileResponse = z.object({
 });
 
 /**
+ * Body for `POST /api/admin/i18n/set`. Upserts one key's value and publishes the profile live.
+ */
+export const zSetI18nLabelRequest = z.object({
+    key: z.string(),
+    value: z.string(),
+    profile: z.string().optional(),
+    description: z.string().optional()
+});
+
+/**
+ * Result of a one-shot set-and-publish.
+ */
+export const zSetI18nLabelResponse = z.object({
+    ok: z.literal(true),
+    profile: z.string(),
+    profile_id: z.string(),
+    key: z.string(),
+    value: z.string(),
+    published_at: z.string(),
+    version: z.string(),
+    key_count: z.number(),
+    changed: z.boolean(),
+    purged: z.enum([
+        'purged',
+        'skipped',
+        'failed'
+    ]),
+    kv_verified: z.boolean(),
+    warning: z.string().optional()
+});
+
+/**
  * A tracked production error — one row per distinct issue, keyed by `fingerprint`. Rows are never created by hand: an ingestion path (worker log drain / the `see()` SDK reporter) folds each occurrence into the matching row, bumping `count` and `lastSeenAt`. The admin surface only lists them, reads one, and flips `status`.
  *
  * Field names are camelCase (the D1 row projected through Drizzle). Many columns are nullable because the reporting source may not supply them.
@@ -3116,6 +3148,7 @@ export const zListI18nKeysHeaders = z.object({
 export const zListI18nKeysQuery = z.object({
     profile_id: z.string().optional(),
     prefix: z.string().optional(),
+    q: z.string().optional(),
     limit: z.int().gte(1).lte(500).optional()
 });
 
@@ -3173,6 +3206,17 @@ export const zPublishI18nProfilePath = z.object({
  * Publish a profile chunk
  */
 export const zPublishI18nProfileResponse2 = zPublishI18nProfileResponse;
+
+export const zSetI18nLabelBody = zSetI18nLabelRequest;
+
+export const zSetI18nLabelHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+/**
+ * Set a key's value and publish it live
+ */
+export const zSetI18nLabelResponse2 = zSetI18nLabelResponse;
 
 export const zListErrorsHeaders = z.object({
     'X-Project-Id': z.string().optional()

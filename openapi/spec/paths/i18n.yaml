@@ -117,6 +117,12 @@
         description: Only keys whose name starts with this.
         schema:
           type: string
+      - name: q
+        in: query
+        required: false
+        description: Free-text search — matches keys whose name OR value contains this substring (case-insensitive). Use it to find the key behind a piece of on-screen copy.
+        schema:
+          type: string
       - name: limit
         in: query
         required: false
@@ -363,3 +369,64 @@
       name: publish
       positional:
         - profileId
+/api/admin/i18n/set:
+  post:
+    operationId: setI18nLabel
+    summary: Set a key's value and publish it live
+    description: |-
+      Upsert a single key's value into a profile and immediately publish the whole profile (KV rebuild + CDN purge) so the new value is live in one call. The key is inserted when new and overwritten when it already exists. `profile` is a profile name — omit it to target the project's default-marked profile, or pass a name to target another locale.
+
+      **Use case:** Correct or replace one live string and ship it without a separate `push` + `publish`.
+    tags:
+      - Keys
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/i18n.yaml#/SetI18nLabelRequest
+          example:
+            key: home.cta
+            value: Get started
+    responses:
+      "200":
+        description: Set a key's value and publish it live
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/i18n.yaml#/SetI18nLabelResponse
+            example:
+              ok: true
+              profile: en:prod
+              key: home.cta
+              value: Get started
+              version: "7"
+              key_count: 42
+              changed: true
+              purged: purged
+              kv_verified: true
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: set
+      positional:
+        - key
+        - value
