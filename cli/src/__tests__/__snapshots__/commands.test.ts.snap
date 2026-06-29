@@ -112,6 +112,9 @@ exports[`command tree > matches the registered command surface (snapshot) 1`] = 
   "release killswitch unset",
   "release killswitch update",
   "setup",
+  "trigger",
+  "trigger create",
+  "trigger link",
   "whoami",
 ]
 `;

@@ -15,6 +15,7 @@ import { i18nWorkflowCommands } from "./commands/i18n-workflows";
 import { mcpCommand } from "./commands/mcp";
 import { setupCommand } from "./commands/setup";
 import { installCommand } from "./commands/install";
+import { triggerCommand } from "./commands/trigger";
 import { detectCommand } from "./commands/detect";
 import { bindProject, readProjectConfig } from "./util/project-config";
 import { printJson } from "./util/output";
@@ -288,6 +289,10 @@ export function buildProgram(): Command {
   // a module group via PATCH /api/admin/projects/:id (there is no `modules`
   // command); the install slash commands orchestrate this.
   installCommand(program);
+  // `trigger create/link` — the Shipeasy side of the recurring-trigger hybrid
+  // split (mint ops key + emit the RemoteTrigger body; the agent creates the
+  // routine via its in-process RemoteTrigger tool).
+  triggerCommand(program);
   detectCommand(program);
   mcpCommand(program);
 
