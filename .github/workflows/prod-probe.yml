@@ -58,13 +58,13 @@ jobs:
       # Run the CLI from this repo's workspace build (see header note).
       PROBE_CLI: "node cli/bin/shipeasy.js"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
+      # No `version:` here — pnpm/action-setup reads the pinned pnpm from the
+      # repo's package.json `packageManager` field (setting both errors out).
       - uses: pnpm/action-setup@v6
-        with:
-          version: 10
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm
