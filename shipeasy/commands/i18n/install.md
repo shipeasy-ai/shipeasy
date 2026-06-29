@@ -4,46 +4,53 @@ description: Enable the translations module, create the en:prod profile, and (if
 user-invocable: true
 ---
 
-Per-feature install for `i18n` (translations). Prereq: `/shipeasy:setup`
-already run and `.shipeasy` exists.
+Per-feature install for `i18n` (translations).
 
-Steps:
+**The module enable + profile creation is now a pure CLI command** — the logic
+lives in the binary (`shipeasy install i18n`), which enables the `translations`
+module, ensures the primary profile exists, and verifies the admin path. Run it
+with the **Bash tool**. The only thing the binary can't decide is whether your
+project needs the loader script (step 3) — that's the one judgment this command
+keeps.
 
-1. Confirm base is in place:
+> **First, update before you debug.** An `unknown command` here is almost
+> always version drift (`shipeasy install` needs `@shipeasy/cli` ≥ 2.2.0).
+> Update and retry once: `npm i -g @shipeasy/cli@latest`, and refresh the
+> plugin: `/plugin marketplace update shipeasy`.
+
+## Steps
+
+1. Confirm the base is in place. If this fails, stop and tell the user to run
+   `/shipeasy:setup` first:
 
    ```bash
    test -f .shipeasy && shipeasy whoami | grep -q "Bound dir" && echo OK
    ```
 
-   If the check fails, stop and tell the user to run `/shipeasy:setup` first.
-
-2. Enable the module:
-
-   ```bash
-   shipeasy modules enable translations
-   shipeasy modules list      # expect: translations ✓
-   ```
-
-3. Create the primary profile (the CLI does **not** auto-create):
+2. Run the installer (uses `en:prod` by default — it matches the default
+   bootstrap + server-SSR string fetch; anything else needs a manual override):
 
    ```bash
-   shipeasy i18n profiles list
-   shipeasy i18n profiles create en:prod --locales en   # only if missing
+   shipeasy install i18n
    ```
 
-   **Use `en:prod`.** It matches the default `getBootstrapHtml()` and
-   server-SSR string fetch — anything else needs a manual override.
+   This enables `translations`, creates the `en:prod` profile if missing, and
+   verifies the profiles endpoint. Relay its output; a non-zero exit means the
+   module didn't enable — surface the error.
 
-4. Loader script — only run this if the project does **not** render
-   `getBootstrapHtml()` (Pages Router, plain HTML, Vite, …). For canonical
-   Next.js App Router projects, skip it; the bootstrap already injects the
-   loader.
+3. **Loader script — only if the project does NOT render the default
+   bootstrap** (Pages Router, plain HTML, Vite, …). For canonical Next.js App
+   Router projects, skip it; the bootstrap already injects the loader. The CLI
+   auto-detects the framework and injects into the right file:
 
    ```bash
    shipeasy i18n install-loader --profile en:prod
    ```
 
-5. Smoke-test the wrap-and-push flow with a single key:
+   Use `--print` to see the tag without writing, or `--path <file>` to target a
+   specific entry file.
+
+4. Smoke-test the wrap-and-push flow with a single key (optional):
 
    ```bash
    echo '{"smoke.test":"Smoke test value"}' > /tmp/se-smoke.json
@@ -52,12 +59,7 @@ Steps:
    rm /tmp/se-smoke.json
    ```
 
-6. Print the hand-off:
+## Next
 
-   ```
-   ✅ i18n install complete
-   Module:    translations ✓
-   Profile:   en:prod (en)
-   Next:      Use the `i18n` skill or /shipeasy:i18n:extract
-              to wrap hardcoded copy and push keys.
-   ```
+Use `/shipeasy:i18n:extract` to wrap hardcoded copy and push keys, or the
+`i18n` skill for guided edits.

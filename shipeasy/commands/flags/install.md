@@ -4,87 +4,63 @@ description: One-shot install for the whole flags + experimentation platform —
 user-invocable: true
 ---
 
-Per-project install for the **flags platform** — the single command that
-turns on every "decide-at-runtime" feature module in one pass:
+Per-project install for the **flags platform** — gates, dynamic configs, kill
+switches, A/B experiments, and the event stream that powers metrics +
+experiment success criteria. There is no per-feature install; this one command
+turns on the whole platform.
 
-- **gates** — boolean feature gates (`gates.check`)
-- **configs** — typed JSON dynamic configs (`configs.get`)
-- **kill switches** — standalone admin on/off resources (ride the same KV
-  blob; no separate module toggle)
-- **experiments** — A/B assignment (`experiments.assign`)
-- **events** — the event stream that powers metrics + experiment success
-  criteria (`events.track`)
-- **alert rules** — metric-threshold rules the cron evaluates to raise alerts
-  (built on top of `events` + `metrics`; no separate module toggle)
+**This is now a pure CLI command** — the install logic lives in the binary
+(`shipeasy install flags`), which enables every module, ensures the admin read
+paths are reachable, and prints the hand-off. There is nothing to reason about;
+run it with the **Bash tool** and relay its output.
 
-There is no per-feature install for each of these — this one command turns on
-the whole platform. The other two install sections are `/shipeasy:ops:install`
-(feedback + production errors) and `/shipeasy:i18n:install` (translations).
+> **First, update before you debug.** An `unknown command` / `unknown option`
+> here is almost always version drift (`shipeasy install` needs
+> `@shipeasy/cli` ≥ 2.2.0). Update and retry once:
+> `npm i -g @shipeasy/cli@latest` (or `npx @shipeasy/cli@latest install flags`),
+> and refresh the plugin: `/plugin marketplace update shipeasy`.
 
-Prereq: `/shipeasy:setup` already ran and `.shipeasy` exists at the repo root.
+## Steps
 
-Steps:
-
-1. Confirm base is in place:
+1. Confirm the base onboarding is in place. If this fails, stop and tell the
+   user to run `/shipeasy:setup` first:
 
    ```bash
    test -f .shipeasy && shipeasy whoami | grep -q "Bound dir" && echo OK
    ```
 
-   If the check fails, stop and tell the user to run `/shipeasy:setup` first.
-
-2. Enable every platform module in one go:
+2. Run the installer and relay its output verbatim:
 
    ```bash
-   shipeasy modules enable gates
-   shipeasy modules enable configs
-   shipeasy modules enable events         # source data for metrics
-   shipeasy modules enable experiments    # A/B assignment + metric-gated tests
-   shipeasy modules list                  # expect: gates ✓ configs ✓ events ✓ experiments ✓
+   shipeasy install flags
    ```
 
-   Kill switches need no module — they ride in the same KV blob configs
-   publish through. Enabling `configs` above already covers that path.
+   It enables `gates`, `configs`, `events`, and `experiments` (kill switches
+   ride the same KV blob — no separate module), verifies each admin read path
+   is reachable (never `403`), and prints the enabled modules + next steps. A
+   non-zero exit means a module didn't enable — surface the error; don't claim
+   success.
 
-3. Smoke-test each read path from a server context (wiring check only — no
-   resources exist yet, every call returns its safe fallback):
+That's the whole install. The other two install sections are
+`/shipeasy:ops:install` (feedback + production errors) and
+`/shipeasy:i18n:install` (translations).
 
-   ```ts
-   import { gates, configs, experiments } from "@shipeasy/sdk/server";
+## After it succeeds
 
-   console.log(await gates.check("smoke-test"));               // false (no such gate)
-   console.log(await configs.get("smoke-config", "fallback")); // "fallback"
-   const { group } = await experiments.assign("smoke-test", { user_id: "anon" });
-   console.log({ group });                                     // default group; no experiment yet
-   ```
+Point the user at how to create resources — via the `shipeasy` MCP server, the
+CLI, or the higher-level skills (all delegate to the same surface):
 
-   `gates.check` / `configs.get` never throw on the read path — they return
-   the default/fallback when the resource is missing or KV is unreachable.
+```
+release_flags_create       { "name": "<name>", "rollout_percent": <n> }   # gate
+release_configs_create     { "name": "<name>", ... }                      # dynamic config
+release_killswitch_create  { "name": "<folder.name>" }                    # kill switch
+ops_alerts_create          { "name": "<name>", "metric": "<m>", ... }     # alert rule
+```
 
-4. Verify the admin paths the CLI uses are reachable (never `403`):
+Workflows (slash commands) that involve codebase analysis:
 
-   ```bash
-   shipeasy release flags list        # [] or rows
-   shipeasy release configs list      # [] or rows
-   shipeasy release ks list           # [] or rows
-   shipeasy release experiments list  # [] or rows
-   shipeasy metrics list      # [] or rows
-   shipeasy alert-rules list  # [] or rows
-   ```
+- `/shipeasy:experiments:create <name>` — design + draft an A/B test
+- `/shipeasy:metrics:create <name>` — analyze + instrument + create a metric
 
-5. Print the hand-off:
-
-   ```
-   ✅ flags platform install complete
-   Modules: gates ✓  configs ✓  events ✓  experiments ✓   (kill switches need no module)
-   Next — create resources via the shipeasy MCP server (or the CLI):
-     release_flags_create       { "name": "<name>", "rollout_percent": <n> }   # gate
-     release_configs_create     { "name": "<name>", ... }                      # dynamic config
-     release_killswitch_create  { "name": "<folder.name>" }                    # kill switch
-     ops_alerts_create          { "name": "<name>", "metric": "<m>", ... }     # alert rule
-   Workflows (slash commands):
-     /shipeasy:experiments:create <name>                # design + draft an A/B test
-     /shipeasy:metrics:create <name>                    # analyze + instrument + create a metric
-   Or just ask — the `flags`, `experiments`, `metrics`, and `alerts` skills
-   carry the guidance and always delegate to the MCP server or CLI.
-   ```
+Or just ask — the `flags`, `experiments`, `metrics`, and `alerts` skills carry
+the guidance and always delegate to the MCP server or CLI.
