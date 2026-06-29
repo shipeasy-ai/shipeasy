@@ -1,0 +1,55 @@
+<svg width="1200" height="380" viewBox="0 0 1200 380" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Shipeasy — ship experiments 10× faster, just by asking your AI agent">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="380" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0b0b0f"/>
+      <stop offset="55%" stop-color="#0a0a0b"/>
+      <stop offset="100%" stop-color="#120c1f"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="78%" cy="22%" r="62%" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#7c3aed" stop-opacity="0.55"/>
+      <stop offset="45%" stop-color="#7c3aed" stop-opacity="0.14"/>
+      <stop offset="100%" stop-color="#7c3aed" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow2" cx="6%" cy="92%" r="46%" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#a78bfa" stop-opacity="0.20"/>
+      <stop offset="100%" stop-color="#a78bfa" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#c4b5fd"/>
+      <stop offset="50%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#c4b5fd"/>
+    </linearGradient>
+    <linearGradient id="word" x1="0" y1="0" x2="520" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#d8ccff"/>
+    </linearGradient>
+  </defs>
+
+  <!-- backdrop -->
+  <rect width="1200" height="380" rx="24" fill="url(#bg)"/>
+  <rect width="1200" height="380" rx="24" fill="url(#glow)"/>
+  <rect width="1200" height="380" rx="24" fill="url(#glow2)"/>
+  <rect x="0.5" y="0.5" width="1199" height="379" rx="23.5" fill="none" stroke="#ffffff" stroke-opacity="0.06"/>
+
+  <!-- app mark -->
+  <g transform="translate(96 108)">
+    <rect width="164" height="164" rx="44" fill="url(#ring)"/>
+    <rect x="3" y="3" width="158" height="158" rx="41" fill="none" stroke="#c4b5fd" stroke-width="1.5" opacity="0.5"/>
+    <rect x="36" y="36" width="92" height="92" rx="20" fill="#0a0a0b"/>
+    <rect x="36" y="36" width="92" height="92" rx="20" fill="none" stroke="#a78bfa" stroke-width="1.5" opacity="0.45"/>
+  </g>
+
+  <!-- wordmark + tagline -->
+  <g font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+    <text x="320" y="150" font-size="84" font-weight="800" letter-spacing="-2.5" fill="url(#word)">Shipeasy</text>
+    <text x="324" y="206" font-size="30" font-weight="600" fill="#c4b5fd" letter-spacing="-0.4">Ship experiments 10× faster — just by asking your AI agent.</text>
+    <text x="324" y="244" font-size="19" font-weight="400" fill="#8b8b94" letter-spacing="-0.1">Feature flags · kill switches · dynamic configs · A/B tests · metrics · i18n — from one sentence.</text>
+
+    <!-- install chip -->
+    <g transform="translate(324 280)">
+      <rect width="556" height="56" rx="12" fill="#15131c" stroke="#a78bfa" stroke-opacity="0.35"/>
+      <circle cx="26" cy="28" r="5" fill="#a78bfa"/>
+      <text x="48" y="35" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="20" fill="#e6e1f5">claude plugin install shipeasy@shipeasy</text>
+    </g>
+  </g>
+</svg>
