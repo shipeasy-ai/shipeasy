@@ -6,12 +6,6 @@ import type { ResourceTemplate } from "@modelcontextprotocol/sdk/types.js";
  */
 export const RESOURCE_TEMPLATES: ResourceTemplate[] = [
   {
-    uriTemplate: "shipeasy://project",
-    name: "project",
-    description: "Cached detect_project + auth_check output for the current repo.",
-    mimeType: "application/json",
-  },
-  {
     uriTemplate: "shipeasy://experiments/{name}",
     name: "experiment",
     description: "Experiment config + latest stats JSON.",

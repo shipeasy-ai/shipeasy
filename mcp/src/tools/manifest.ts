@@ -13,8 +13,8 @@ export const ALL_TOOLS: Tool[] = TOOLS;
  * `events_*`, `ops_*` (the unified queue + `ops_alerts_*`), `attributes_*`, and
  * `docs_*` tool, plus `projects_current`.
  *
- * Excluded by policy: `i18n_*` (translation workflow), `detect_project`,
- * `projects_upsert`, and `auth_*` (install/identity surface).
+ * Excluded by policy: `i18n_*` (translation workflow), `projects_upsert`, and
+ * `auth_*` (install/identity surface).
  *
  * Renames folded in vs. the old hand-written list (doc 21 §A.D): `exp_*_alert_rule`
  * → `ops_alerts_*`; `file_bug`/`file_feature` → `ops_create`;

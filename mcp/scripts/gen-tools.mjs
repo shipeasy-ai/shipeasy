@@ -73,18 +73,15 @@ function tagChain(name) {
 }
 
 // ── collect operations ───────────────────────────────────────────────────────
-// i18n's API parts (profiles/keys/drafts) stay hand-written alongside the fs/AST
-// i18n tools, so skip them here — same as the CLI generator.
+// i18n's API parts (profiles/keys/drafts) are now PROJECTED from the spec like
+// every other resource — only the fs/AST i18n tools (scan/codemod/loader/…)
+// stay hand-written in the fs-having consumers, and those carry no spec op.
 //
 // API Keys / Connectors / Errors are documented in the spec (API reference +
 // contract tests) but NOT projected to the CLI/MCP surface — they carry `x-cli`
 // only for the doc pipeline. Same for `searchResources` (tagged Projects, so
 // skipped by id, not tag). Kept in sync with the CLI generator's skip lists.
 const SKIP_TAGS = new Set([
-  "i18n",
-  "Profiles",
-  "Keys",
-  "Drafts",
   "API Keys",
   "Connectors",
   "Errors",

@@ -15,14 +15,6 @@ import { PROMPTS, PROMPT_BODIES } from "./prompts/schema.js";
 import { RESOURCE_TEMPLATES } from "./resources/schema.js";
 import { handleAuthCheck, handleAuthLogout } from "./tools/shared/auth.js";
 import { handleUpsertProject } from "./tools/projects/upsert.js";
-import { handleDetectProject } from "./tools/shared/detect-project.js";
-import { handleInstallLoader } from "./tools/i18n/loader.js";
-import { handleCreateProfile } from "./tools/i18n/profiles.js";
-import { handlePushKeys, handleCreateKey, handleSetLabel, handleValidateKeys } from "./tools/i18n/keys.js";
-import { handleScanCode } from "./tools/i18n/scan.js";
-import { handlePublishProfile } from "./tools/i18n/publish.js";
-import { handleDiscoverSite } from "./tools/i18n/discover.js";
-import { handleCodemodPreview, handleCodemodApply } from "./tools/i18n/codemod.js";
 import { GENERATED_DISPATCH, GENERATED_MUTATES, CUSTOM_DISPATCH } from "./tools/registry.js";
 import { getGeneratedClient } from "./tools/_gen-runtime.js";
 import { notAuthenticated, notBound, ok, apiErr } from "./util/api-client.js";
@@ -86,66 +78,14 @@ export async function startStdioServer(): Promise<void> {
 
     // Real handlers for the auth-surface tools — everything else is still a stub
     // pointing at packages/mcp/README.md § "Tool catalog".
-    if (toolName === "detect_project") {
-      const args = params.arguments ?? {};
-      const input = (args.paths as string[] | undefined) ?? (args.path as string | undefined);
-      return handleDetectProject(input);
-    }
     if (toolName === "projects_upsert") {
       const args = params.arguments ?? {};
       return handleUpsertProject(args as Parameters<typeof handleUpsertProject>[0]);
     }
     if (toolName === "auth_check") return handleAuthCheck();
     if (toolName === "auth_logout") return handleAuthLogout();
-    if (toolName === "i18n_create_profile") {
-      const args = (params.arguments ?? {}) as { name: string };
-      return handleCreateProfile(args);
-    }
-    if (toolName === "i18n_push_keys") {
-      const args = params.arguments ?? {};
-      return handlePushKeys(args as Parameters<typeof handlePushKeys>[0]);
-    }
-    if (toolName === "i18n_create_key") {
-      const args = params.arguments ?? {};
-      return handleCreateKey(args as Parameters<typeof handleCreateKey>[0]);
-    }
-    if (toolName === "i18n_set") {
-      const args = params.arguments ?? {};
-      return handleSetLabel(args as Parameters<typeof handleSetLabel>[0]);
-    }
-    if (toolName === "i18n_validate_keys") {
-      const args = params.arguments ?? {};
-      return handleValidateKeys(args as Parameters<typeof handleValidateKeys>[0]);
-    }
-    if (toolName === "i18n_scan_code") {
-      const args = params.arguments ?? {};
-      return handleScanCode(args as Parameters<typeof handleScanCode>[0]);
-    }
-    if (toolName === "i18n_publish_profile") {
-      const args = params.arguments ?? {};
-      return handlePublishProfile(args as Parameters<typeof handlePublishProfile>[0]);
-    }
-    if (toolName === "i18n_install_loader") {
-      const args = (params.arguments ?? {}) as {
-        profile?: string;
-        framework?: string;
-        path?: string;
-      };
-      return handleInstallLoader(args);
-    }
-    if (toolName === "i18n_discover_site") {
-      const args = (params.arguments ?? {}) as { url: string };
-      return handleDiscoverSite(args);
-    }
-    if (toolName === "i18n_codemod_preview") {
-      const args = params.arguments ?? {};
-      return handleCodemodPreview(args as Parameters<typeof handleCodemodPreview>[0]);
-    }
-    if (toolName === "i18n_codemod_apply") {
-      const args = params.arguments ?? {};
-      return handleCodemodApply(args as Parameters<typeof handleCodemodApply>[0]);
-    }
-    // Everything else — every CRUD/read/docs surface incl. alert rules, the
+    // Everything else — every CRUD/read/docs surface incl. the i18n admin API
+    // (`i18n_profiles_*`/`i18n_keys_*`/`i18n_drafts_list`), alert rules, the
     // unified queue (`ops_create`/`ops_notify`), metrics, events — is handled by
     // the registry dispatch above.
     if (toolName === "auth_login") {

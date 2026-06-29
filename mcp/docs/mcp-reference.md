@@ -40,7 +40,7 @@ All error codes:
 | `EVENT_PENDING` | The referenced event is still pending review and cannot back a metric yet. |
 | `INTERNAL` | Unexpected server error. |
 
-Hand-written tools (`detect_project`, `projects_upsert`, the `i18n_*` scan/codemod/loader tools, and auth) operate on the local filesystem or the device-auth flow rather than the admin API, so they don't use this envelope.
+Hand-written tools (`projects_upsert` and auth) layer the `.shipeasy` bind or the device-auth flow on top of the admin API rather than being plain spec calls, so they don't use this envelope. All filesystem / AST tooling (project detection, i18n source scanners / codemods / loader install) now lives in the `shipeasy` CLI, not this MCP server.
 
 ## Release
 
@@ -105,10 +105,10 @@ _Parameters_
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
 | `name` | required | `string` | Stable gate key used by SDKs (`Shipeasy.checkGate(user, '<name>')`). Single segment or `folder.name`. Lowercase letters, digits, `_` or `-`; max 128 chars. Immutable after create — rename = delete + recreate. _(length 0–128; pattern `^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$`)_ |
-| `enabled` | required | `boolean` | Master switch. Defaults to `true`. Set `false` to create the gate disabled (evaluates to `false` regardless of rules/rollout); flip on via `POST /{id}/enable` or PATCH. _(default `true`)_ |
-| `rollout_pct` | required | `integer` | Initial rollout in **basis points** (0–10000 = 0%–100%) — `100` here means **1%**, not 100%. Use `rollout_percent` (0–100) below if you'd rather think in percent. Use `0` to create the gate dark and ramp via PATCH after deploy validation. _(default `0`; 0–10000)_ |
+| `enabled` | optional | `boolean` | Master switch. Defaults to `true`. Set `false` to create the gate disabled (evaluates to `false` regardless of rules/rollout); flip on via `POST /{id}/enable` or PATCH. _(default `true`)_ |
+| `rollout_pct` | optional | `integer` | Initial rollout in **basis points** (0–10000 = 0%–100%) — `100` here means **1%**, not 100%. Use `rollout_percent` (0–100) below if you'd rather think in percent. Use `0` to create the gate dark and ramp via PATCH after deploy validation. _(default `0`; 0–10000)_ |
 | `rollout_percent` | optional | `number` | Initial rollout as a **percentage** (0–100, fractional ok). Friendlier alias for `rollout_pct`; converted internally to basis points (e.g. `100` here = 10000 bp = 100%). If both `rollout_pct` and `rollout_percent` are set, `rollout_percent` wins. _(0–100)_ |
-| `rules` | required | `object[]` | Targeting predicates. AND-combined. If non-empty, the gate returns `true` only for callers that satisfy every rule **and** fall under `rollout_pct`. _(default `[]`)_ |
+| `rules` | optional | `object[]` | Targeting predicates. AND-combined. If non-empty, the gate returns `true` only for callers that satisfy every rule **and** fall under `rollout_pct`. _(default `[]`)_ |
 | `salt` | optional | `string` | Hash salt for percentage bucketing. Auto-generated if omitted. Provide explicitly to keep a gate's buckets stable across delete/recreate. **Immutable after create** — there is no PATCH for `salt` because changing it would re-bucket every caller. _(length 1–64)_ |
 | `stack` | optional | `any` | Optional gatekeeper stack. When provided, takes precedence over `rules` + `rollout_pct` at evaluation time. Omit (or pass `null`) for a flat gate. |
 | `title` | optional | `string` | Human-readable title shown in the dashboard. Free-form, no key format constraint. _(length 0–140)_ |
@@ -361,7 +361,7 @@ _Parameters_
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
 | `id` | required | `string` | Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`. |
-| `env` | required | `"dev" \| "staging" \| "prod"` | Target environment (`dev`/`stage`/`prod`). |
+| `env` | required | `"dev" \| "staging" \| "prod"` | Target environment. One of the project's configured envs (`dev`, `staging`, `prod`). |
 | `switchKey` | required | `string` | Switch key to set. _(length 0–64; pattern `^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$`)_ |
 | `value` | required | `boolean` | New boolean value for this `switchKey` on this `env`. |
 
@@ -386,7 +386,7 @@ _Parameters_
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
 | `id` | required | `string` | Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`. |
-| `env` | required | `"dev" \| "staging" \| "prod"` | Target environment. |
+| `env` | required | `"dev" \| "staging" \| "prod"` | Target environment. One of the project's configured envs (`dev`, `staging`, `prod`). |
 | `switchKey` | required | `string` | Switch key to remove. _(length 0–64; pattern `^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$`)_ |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -519,7 +519,7 @@ _Parameters_
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
 | `id` | required | `string` | Stable opaque config id (`cfg_…`) or the config's `name`. |
-| `env` | required | `"dev" \| "staging" \| "prod"` | Target environment. One of the project's configured envs (`dev`, `stage`, `prod`). |
+| `env` | required | `"dev" \| "staging" \| "prod"` | Target environment. One of the project's configured envs (`dev`, `staging`, `prod`). |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -541,7 +541,7 @@ _Parameters_
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
 | `id` | required | `string` | Stable opaque config id (`cfg_…`) or the config's `name`. |
-| `env` | required | `"dev" \| "staging" \| "prod"` | Target environment. One of the project's configured envs (`dev`, `stage`, `prod`). |
+| `env` | required | `"dev" \| "staging" \| "prod"` | Target environment. One of the project's configured envs (`dev`, `staging`, `prod`). |
 | `value` | required | `any` | Draft value to stage on `env`. Validated against the config's current schema. |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -603,7 +603,7 @@ _Parameters_
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
 | `id` | required | `string` | Stable opaque config id (`cfg_…`) or the config's `name`. |
-| `env` | required | `"dev" \| "staging" \| "prod"` | Target environment. One of the project's configured envs (`dev`, `stage`, `prod`). |
+| `env` | required | `"dev" \| "staging" \| "prod"` | Target environment. One of the project's configured envs (`dev`, `staging`, `prod`). |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -697,31 +697,31 @@ _Parameters_
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
 | `name` | required | `string` | Stable experiment key. Single segment or `folder.name` (a-z, 0-9, `_`/`-`; max 128 chars). Used by SDKs as `Shipeasy.getExperiment(user, '<name>')`. Immutable after create. _(length 0–128; pattern `^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$`)_ |
-| `description` | required | `any` | Free-form description. Max 2000 chars, markdown rendered in the dashboard. _(default `null`)_ |
-| `hypothesis` | required | `any` | Hypothesis statement shown in the editor. Display-only. _(default `null`)_ |
-| `tag` | required | `any` | Short tag chip rendered next to the name. Display-only. _(default `null`)_ |
-| `owner_email` | required | `any` | Owner email. Display-only. _(default `null`)_ |
-| `audience` | required | `any` | Audience label shown in the editor. Display-only. _(default `null`)_ |
-| `bucket_by` | required | `any` | — _(default `null`)_ |
+| `description` | optional | `any` | Free-form description. Max 2000 chars, markdown rendered in the dashboard. _(default `null`)_ |
+| `hypothesis` | optional | `any` | Hypothesis statement shown in the editor. Display-only. _(default `null`)_ |
+| `tag` | optional | `any` | Short tag chip rendered next to the name. Display-only. _(default `null`)_ |
+| `owner_email` | optional | `any` | Owner email. Display-only. _(default `null`)_ |
+| `audience` | optional | `any` | Audience label shown in the editor. Display-only. _(default `null`)_ |
+| `bucket_by` | optional | `any` | — _(default `null`)_ |
 | `folder` | optional | `any` | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
 | `universe` | required | `string` | Name of an existing universe in the project. Returns `422` if the universe doesn't exist. _(length 1–∞)_ |
-| `targeting_gate` | required | `any` | Optional gate name. Only callers that pass the gate are enrolled in the experiment. _(default `null`)_ |
-| `allocation_pct` | required | `integer` | Share of the (gated) audience allocated to the experiment, in basis points (0–10000 = 0%–100%). `0` = unallocated. Use `allocation_percent` (0–100) below to think in percent. Immutable while the experiment is running. _(default `0`; 0–10000)_ |
+| `targeting_gate` | optional | `any` | Optional gate name. Only callers that pass the gate are enrolled in the experiment. _(default `null`)_ |
+| `allocation_pct` | optional | `integer` | Share of the (gated) audience allocated to the experiment, in basis points (0–10000 = 0%–100%). `0` = unallocated. Use `allocation_percent` (0–100) below to think in percent. Immutable while the experiment is running. _(default `0`; 0–10000)_ |
 | `allocation_percent` | optional | `number` | Allocation as a **percentage** (0–100, fractional ok). Friendlier alias for `allocation_pct`; converted to basis points server-side (e.g. `50` = 5000 bp). If both are set, `allocation_percent` wins. _(0–100)_ |
 | `salt` | optional | `string` | Hash salt for bucketing. Auto-generated if omitted. Immutable while running. _(length 1–64)_ |
-| `params` | required | `object` | Map of param-name → scalar type. Defines the shape of `groups[].params`. Example: `{ headline: 'string', show_cta: 'bool' }`. _(default `{}`)_ |
+| `params` | optional | `object` | Map of param-name → scalar type. Defines the shape of `groups[].params`. Example: `{ headline: 'string', show_cta: 'bool' }`. _(default `{}`)_ |
 | `groups` | required | `object[]` | Two or more variants. Weights must sum to exactly 10000 (100%). Immutable while running. |
-| `significance_threshold` | required | `number` | p-value cutoff used by the analysis pass. Defaults to `0.05`. Values other than 0.05 require Pro plan or higher. _(default `0.05`; 0.0001–0.5)_ |
-| `min_runtime_days` | required | `integer` | Minimum days the experiment must run before results are considered conclusive. _(default `0`; 0–365)_ |
-| `min_sample_size` | required | `integer` | Minimum exposures per group before results are considered conclusive. _(default `100`; 1–9007199254740991)_ |
-| `sequential_testing` | required | `boolean` | Enable sequential testing (always-valid p-values). Requires Premium plan or higher. _(default `false`)_ |
+| `significance_threshold` | optional | `number` | p-value cutoff used by the analysis pass. Defaults to `0.05`. Values other than 0.05 require Pro plan or higher. _(default `0.05`; 0.0001–0.5)_ |
+| `min_runtime_days` | optional | `integer` | Minimum days the experiment must run before results are considered conclusive. _(default `0`; 0–365)_ |
+| `min_sample_size` | optional | `integer` | Minimum exposures per group before results are considered conclusive. _(default `100`; 1–9007199254740991)_ |
+| `sequential_testing` | optional | `boolean` | Enable sequential testing (always-valid p-values). Requires Premium plan or higher. _(default `false`)_ |
 | `goal_metric` | optional | `object` | Single goal metric defined inline — either a DSL `query` or an `event` (+`aggregation`/`value`) the server compiles. Attaching one is required before the experiment can be started. The underlying event is auto-created if missing. |
 | `goal_metric.name` | optional | `string` | — _(length 0–128; pattern `^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$`)_ |
 | `goal_metric.query` | optional | `string` | Metric DSL string, e.g. `count_users(checkout_completed)`. Provide this OR `event`. _(length 1–4096)_ |
 | `goal_metric.event` | optional | `string` | Event name to build the metric from server-side (friendlier alternative to `query`). Auto-created if missing. _(length 1–256)_ |
 | `goal_metric.aggregation` | optional | `"count_users" \| "count_events" \| "retention_7d" \| "retention_30d" \| "sum" \| "avg"` | Reducer for the `event` form. Defaults to `count_users`. |
 | `goal_metric.value` | optional | `string` | Numeric event property for `sum`/`avg` aggregations (with `event`). _(length 1–256)_ |
-| `guardrail_metrics` | required | `object[]` | Up to 10 guardrail metrics defined inline. Each is upserted (event + metric) and attached with role=guardrail. _(default `[]`)_ |
+| `guardrail_metrics` | optional | `object[]` | Up to 10 guardrail metrics defined inline. Each is upserted (event + metric) and attached with role=guardrail. _(default `[]`)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1066,8 +1066,8 @@ _Parameters_
 | --- | --- | --- | --- |
 | `name` | required | `string` | Stable universe key. Single segment or `folder.name`. Lowercase letters, digits, `_` or `-`; max 128 chars. Immutable after create. _(length 0–128; pattern `^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$`)_ |
 | `folder` | optional | `any` | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
-| `unit_type` | required | `string` | Unit of randomisation. Typically `user_id`. Use `account_id` to keep whole accounts in the same group across an experiment. _(default `"user_id"`)_ |
-| `holdout_range` | required | `any` | Inclusive `[lo, hi]` bucket range (0–9999) reserved as the **holdout** — callers hashed into this slice are excluded from every experiment in the universe. `null` disables the holdout. Pro plan or higher required. _(default `null`)_ |
+| `unit_type` | optional | `string` | Unit of randomisation. Typically `user_id`. Use `account_id` to keep whole accounts in the same group across an experiment. _(default `"user_id"`)_ |
+| `holdout_range` | optional | `any` | Inclusive `[lo, hi]` bucket range (0–9999) reserved as the **holdout** — callers hashed into this slice are excluded from every experiment in the universe. `null` disables the holdout. Pro plan or higher required. _(default `null`)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1188,13 +1188,13 @@ _Parameters_
 | `query_ir.agg` | required | `any` | Aggregation function applied to the source event. |
 | `query_ir.metric` | required | `string` | Source event name (must equal `event_name`). _(length 1–128)_ |
 | `query_ir.valueLabel` | optional | `string` | Numeric property summed/averaged for `sum`/`avg`/quantile aggregations. _(length 1–128)_ |
-| `query_ir.filters` | required | `object[]` | Label filters on the event. _(default `[]`)_ |
+| `query_ir.filters` | optional | `object[]` | Label filters on the event. _(default `[]`)_ |
 | `query_ir.groupBy` | optional | `object` | Optional group-by clause (ignored for experiment analysis). |
 | `query_ir.groupBy.op` | required | `"by" \| "without"` | `by` keeps the listed labels; `without` drops them. |
 | `query_ir.groupBy.labels` | required | `string[]` | Labels to group by (max 5). |
-| `winsorize_pct` | required | `integer` | Winsorise percentile (1–99) to clamp outliers. Defaults to 99. _(default `99`; 1–99)_ |
-| `min_detectable_effect` | required | `any` | Minimum detectable effect (relative, 0–1) for power planning. `null` to omit. _(default `null`)_ |
-| `direction` | required | `"higher_better" \| "lower_better" \| "neutral"` | Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail). _(default `"higher_better"`)_ |
+| `winsorize_pct` | optional | `integer` | Winsorise percentile (1–99) to clamp outliers. Defaults to 99. _(default `99`; 1–99)_ |
+| `min_detectable_effect` | optional | `any` | Minimum detectable effect (relative, 0–1) for power planning. `null` to omit. _(default `null`)_ |
+| `direction` | optional | `"higher_better" \| "lower_better" \| "neutral"` | Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail). _(default `"higher_better"`)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1326,7 +1326,7 @@ _Parameters_
 | `name` | required | `string` | Event name. Starts with a letter, digit, or `_`; letters, digits, `_`, `-`, `.`; max 128 chars. Immutable after create — this is the handle metric queries reference. _(pattern `^[a-zA-Z0-9_][a-zA-Z0-9_\-.]{0,127}$`)_ |
 | `folder` | optional | `any` | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
 | `description` | optional | `string` | Optional human-readable description of the event. |
-| `properties` | required | `object[]` | Typed properties declared on the event. Defaults to an empty list. _(default `[]`)_ |
+| `properties` | optional | `object[]` | Typed properties declared on the event. Defaults to an empty list. _(default `[]`)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1662,9 +1662,9 @@ _Parameters_
 | `metricId` | required | `string` | Id of the metric to evaluate. _(length 1–∞)_ |
 | `comparator` | required | `"gt" \| "gte" \| "lt" \| "lte"` | How the metric value is compared to the threshold (gt/gte/lt/lte). |
 | `threshold` | required | `number` | Threshold the metric value is compared against. |
-| `windowHours` | required | `integer` | Lookback window (hours) the metric is aggregated over. 1–720. _(default `24`; 1–720)_ |
-| `severity` | required | `"danger" \| "warn" \| "info"` | Severity of the raised alert. _(default `"warn"`)_ |
-| `enabled` | required | `boolean` | Whether the rule is evaluated by the cron. _(default `true`)_ |
+| `windowHours` | optional | `integer` | Lookback window (hours) the metric is aggregated over. 1–720. _(default `24`; 1–720)_ |
+| `severity` | optional | `"danger" \| "warn" \| "info"` | Severity of the raised alert. _(default `"warn"`)_ |
+| `enabled` | optional | `boolean` | Whether the rule is evaluated by the cron. _(default `true`)_ |
 | `notify` | optional | `any` | Where to deliver this rule's alert (Slack channel and/or email target). |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -1730,17 +1730,6 @@ Projects: the account-level container every other resource is scoped to.
 
 **Idempotent upsert.** A project is keyed by `(owner_email, domain)`. Calling `upsert` again with the same domain returns the existing project with `created: false`, so it is safe to run on every install.
 
-### `detect_project`
-
-Inspect the working directory and return language, framework, package manager, shipeasy SDK install state (experimentation + i18n), and loader-script presence.
-
-_Parameters_
-
-| Parameter | | Type | Description |
-| --- | --- | --- | --- |
-| `path` | optional | `string` | Single directory to analyze. Defaults to cwd. |
-| `paths` | optional | `string[]` | Multiple directories to analyze in one call. Takes precedence over path. |
-
 ### `projects_current`
 
 **Show the current project**
@@ -1770,6 +1759,22 @@ _Parameters_
 | `path` | optional | `string` | Directory to write .shipeasy in. Defaults to the MCP server's cwd. |
 | `bind` | optional | `boolean` | Write .shipeasy after upsert. Default true. Set false to skip binding. |
 
+### `whoami`
+
+**Show the current project**
+
+Returns the project the caller's auth header resolves to — plan, status, billing, and which modules are enabled. The server reads the project from the credential, so there is no id parameter. Powers `whoami`.
+
+**Use case:** Resolve who you are — the project, plan, and enabled modules tied to the current credential — without passing an id. Backs a registry-driven `whoami`.
+
+_Parameters_
+
+_No parameters._
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+
 ## i18n
 
 String Manager (i18n): the worker-safe REST surface — locale profiles, the
@@ -1779,153 +1784,106 @@ key/draft listings.
 The fs/AST parts (scan, validate, install-loader, codemod) are NOT part of
 this API — they stay in the fs-having CLI/MCP.
 
-### `i18n_codemod_apply`
+### Profiles
 
-Apply a previously-previewed codemod. Requires confirm: true — never writes without explicit consent from the caller.
+Locale profiles (e.g. `en:prod`) — create, list, and publish a profile's chunks to the CDN.
 
-_Parameters_
+#### `i18n_profiles_create`
 
-| Parameter | | Type | Description |
-| --- | --- | --- | --- |
-| `framework` | required | `string` | — |
-| `files` | required | `string[]` | — |
-| `strategy` | optional | `string` | — |
-| `key_prefix` | optional | `string` | — |
-| `confirm` | required | `boolean` | — |
-
-### `i18n_codemod_preview`
-
-Preview an AST transform that wraps translatable strings in <ShipeasyString> or shipeasy_t(). Returns a diff; writes nothing.
+Create an i18n profile. Create a locale profile. `name` is the stable handle (e.g. `fr:prod`).
 
 _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `framework` | required | `"nextjs" \| "react" \| "remix" \| "vue" \| "svelte" \| "angular" \| "rails" \| "django"` | — |
-| `files` | required | `string[]` | — |
-| `strategy` | optional | `string` | — |
-| `key_prefix` | optional | `string` | — |
+| `name` | required | `string` | Profile handle to create, e.g. `en:prod` or `fr:prod`. |
+| `locales` | optional | `string[]` | Locales this profile carries, e.g. `["fr", "fr-CA"]`. Defaults to `["en"]`. |
+| `default_locale` | optional | `string` | Default locale for the profile. Defaults to the first entry of `locales`. |
 
-### `i18n_create_key`
+#### `i18n_profiles_list`
 
-Add a single new key to a profile. Insert-only: if the key already exists it is left unchanged (never overwritten).
+List i18n profiles. Returns every locale profile in the project (e.g. `en:prod`, `fr:prod`).
+
+_Parameters_
+
+_No parameters._
+
+#### `i18n_profiles_publish`
+
+Publish a profile live. Publish a profile to the CDN — rebuild its KV snapshot + purge the edge. Publishing is PROFILE-WIDE: the whole profile is snapshotted into one KV blob, so the optional `chunk` in the body is an audit label only (it does not scope what ships).
 
 _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `profile` | required | `string` | — |
-| `key` | required | `string` | — |
-| `value` | required | `string` | — |
-| `description` | optional | `string` | — |
-| `chunk` | optional | `string` | — |
+| `profileId` | required | `string` | The profile id to publish. |
+| `chunk` | optional | `string` | Optional chunk label to stamp on the audit log. Publishing is profile-wide regardless — the whole profile is snapshotted into one KV blob. |
 
-### `i18n_create_profile`
+### Keys
 
-Create a new locale profile (e.g. 'fr:prod').
+Translation keys — the insert-only push, single-key overwrite, and key listing.
 
-_Parameters_
+#### `i18n_keys_list`
 
-| Parameter | | Type | Description |
-| --- | --- | --- | --- |
-| `name` | required | `string` | — |
-| `source_profile` | optional | `string` | — |
-
-### `i18n_discover_site`
-
-Fetch a URL, parse <link rel='i18n-config'> + /.well-known/i18n.json, return profiles + glossary + framework hints.
+List i18n keys. List keys for a profile, optionally filtered to a name `prefix`.
 
 _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `url` | required | `string` | — |
+| `profile_id` | optional | `string` | Profile id to list keys for. |
+| `prefix` | optional | `string` | Only keys whose name starts with this. |
+| `q` | optional | `string` | Free-text search — matches keys whose name OR value contains this substring (case-insensitive). Use it to find the key behind a piece of on-screen copy. |
+| `limit` | optional | `integer` | Max keys to return (1–500). _(1–500)_ |
 
-### `i18n_install_loader`
+#### `i18n_keys_push`
 
-Emit the correct <script src='…/sdk/i18n/loader.js' data-key=… data-profile=…> snippet for the detected framework's entry HTML / layout.
-
-_Parameters_
-
-| Parameter | | Type | Description |
-| --- | --- | --- | --- |
-| `profile` | required | `string` | — |
-| `framework` | optional | `string` | — |
-| `path` | optional | `string` | Project root directory (defaults to cwd) |
-
-### `i18n_publish_profile`
-
-Publish a chunk or whole profile: rebuild KV manifest + purge CDN.
+Push new i18n keys (insert-only). Add NEW keys to a profile. Insert-only — existing keys are left untouched (overwrite one with `updateI18nKey`).
 
 _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `profile` | required | `string` | — |
-| `chunk` | optional | `string` | Omit to publish the whole profile. |
+| `profile_id` | required | `string` | Target profile id to add keys to. |
+| `chunk` | optional | `string` | Logical grouping the new keys are filed under. Defaults to `default`. |
+| `keys` | required | `object[]` | Keys to add. Insert-only — existing keys are reported back as `skipped`. |
 
-### `i18n_push_keys`
+#### `i18n_keys_set`
 
-Add NEW keys to a profile chunk. Insert-only: existing keys are never overwritten — they come back under `skipped`, and only new keys are added. Pass 'source: codemod' to read from i18n-codemod-review.json, or 'file' for any {key: value} JSON file. To change an existing value, update one key at a time via the dashboard or `shipeasy i18n update`.
-
-_Parameters_
-
-| Parameter | | Type | Description |
-| --- | --- | --- | --- |
-| `profile` | required | `string` | — |
-| `chunk` | optional | `string` | Chunk name (default: 'default') |
-| `file` | optional | `string` | Path to local JSON file of {key: value} pairs. |
-| `source` | optional | `"codemod"` | Read keys from i18n-codemod-review.json |
-| `path` | optional | `string` | Project root when source=codemod (defaults to cwd) |
-
-### `i18n_scan_code`
-
-AST-walk the repo and return candidate translatable strings (JSX text, string literals, template strings). Local-only — no network.
+Set a key's value and publish it live. Upsert a single key's value into a profile and immediately publish the whole profile (KV rebuild + CDN purge) so the new value is live in one call. The key is inserted when new and overwritten when it already exists. `profile` is a profile name — omit it to target the project'…
 
 _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `paths` | optional | `string[]` | — |
-| `framework` | optional | `string` | — |
+| `key` | required | `string` | Dotted key path to set, e.g. `home.cta`. |
+| `value` | required | `string` | New value for the key. Inserted when the key is new, overwritten when it exists. |
+| `profile` | optional | `string` | Profile name to target, e.g. `en:prod`. Omit to target the project's default-marked profile. |
+| `description` | optional | `string` | Optional human note to store with the key. |
 
-### `i18n_set`
+#### `i18n_keys_update`
 
-Set one key's value AND publish it live in a single call. Inserts the key if new, OVERWRITES it if it exists (unlike i18n_create_key/i18n_push_keys, which are insert-only), then publishes the whole profile (KV rebuild + CDN purge). Omit `profile` to target the project's default profile, or pass a name (e.g. 'fr:prod') for another locale. Use this to correct/replace one live string without a separate push + publish.
-
-_Parameters_
-
-| Parameter | | Type | Description |
-| --- | --- | --- | --- |
-| `key` | required | `string` | Dotted key path, e.g. 'home.cta'. |
-| `value` | required | `string` | New value (inserted if new, overwritten if it exists). |
-| `profile` | optional | `string` | Profile name. Omit to target the project's default profile. |
-| `description` | optional | `string` | Optional note stored with the key. |
-
-### `i18n_translate_draft`
-
-Run Anthropic translation on a draft, key by key. Anthropic API key is read from the operator's env — never sent to shipeasy.
+Update one i18n key. Overwrite a single existing key's value — the only overwrite path.
 
 _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `draft_id` | required | `string` | — |
-| `source_profile` | required | `string` | — |
-| `target_profile` | required | `string` | — |
-| `glossary` | optional | `array` | — |
-| `anthropic_api_key_env` | optional | `string` | Env var name to read key from. Default ANTHROPIC_API_KEY. |
-| `max_parallel` | optional | `number` | — |
+| `id` | required | `string` | The key's id. |
+| `value` | required | `string` | New value for the key (the only overwrite path). |
+| `description` | optional | `string` | Optional human note to store with the key. |
 
-### `i18n_validate_keys`
+### Drafts
 
-Pre-commit check — scan code for referenced keys, confirm each exists server-side. Exits non-zero on drift.
+Machine-translation drafts awaiting review before publish.
+
+#### `i18n_drafts_list`
+
+List translation drafts. List staged translation drafts awaiting review/publish.
 
 _Parameters_
 
-| Parameter | | Type | Description |
-| --- | --- | --- | --- |
-| `paths` | optional | `string[]` | — |
+_No parameters._
 
 ## Auth
 

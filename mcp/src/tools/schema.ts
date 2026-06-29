@@ -6,15 +6,27 @@ import { REGISTRY_TOOLS } from "./registry.js";
  *
  * Full plan + input/output shapes: packages/mcp/README.md § "Tool catalog".
  *
- * `STATIC_TOOLS` are the hand-written tools that CANNOT be registry ops: auth,
- * `detect_project` (arbitrary repo scan), `projects_upsert` (layers a
- * `.shipeasy` fs bind), and the fs/AST i18n tools (scan/codemod/loader/discover
- * + the codemod-review push/key write tools). Everything else — gates, kill
- * switches, configs, universes, experiments, metrics, events, ops (queue +
- * alert rules), `projects current`, attributes, SDK-docs, and the read-only
- * i18n list ops — is generated from the shared operation registry
- * (`REGISTRY_TOOLS`, see ./registry.ts). The exported `TOOLS` is the full
- * catalog (static + registry-generated).
+ * `STATIC_TOOLS` are the only hand-written tools left — the ones that CANNOT be
+ * registry ops:
+ *   - auth (`auth_check` / `auth_login` / `auth_logout`) — local CLI-token state
+ *     + the device-auth flow.
+ *   - `projects_upsert` — find-or-create over the API AND layers the `.shipeasy`
+ *     fs bind every other write tool depends on.
+ *
+ * Everything else — gates, kill switches, configs, universes, experiments,
+ * metrics, events, ops (queue + alert rules), `projects current`, attributes,
+ * SDK-docs, AND the whole i18n admin surface (`i18n_profiles_*`, `i18n_keys_*`,
+ * `i18n_drafts_list`) — is generated from the shared operation registry
+ * (`REGISTRY_TOOLS`, see ./registry.ts). The exported `TOOLS` is the full catalog
+ * (static + registry-generated).
+ *
+ * All filesystem / AST tools have moved to the `shipeasy` CLI and are no longer
+ * exposed over MCP: `detect_project`, the i18n source scanners / codemods
+ * (`i18n_scan_code`, `i18n_codemod_preview`/`apply`, `i18n_validate_keys`,
+ * `i18n_install_loader`, `i18n_discover_site`), the file-only bulk push
+ * (`i18n_push_keys`), and the local-Anthropic translator (`i18n_translate_draft`).
+ * The MCP server only makes admin-API calls now (plus the auth + `.shipeasy`
+ * bind primitives).
  *
  * Retired here (now registry-driven): `list_resources`/`get_resource` (typed
  * `*_list`/`*_get` tools), `get_sdk_snippet` (→ `docs_*`), `exp_*_alert_rule`
@@ -22,26 +34,7 @@ import { REGISTRY_TOOLS } from "./registry.js";
  * (→ `ops_create --type`).
  */
 const STATIC_TOOLS: Tool[] = [
-  // ────────────────────────────── shared ──────────────────────────────
-  {
-    name: "detect_project",
-    description:
-      "Inspect the working directory and return language, framework, package manager, shipeasy SDK install state (experimentation + i18n), and loader-script presence.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        path: {
-          type: "string",
-          description: "Single directory to analyze. Defaults to cwd.",
-        },
-        paths: {
-          type: "array",
-          items: { type: "string" },
-          description: "Multiple directories to analyze in one call. Takes precedence over path.",
-        },
-      },
-    },
-  },
+  // ────────────────────────────── bind / auth ──────────────────────────────
   {
     name: "projects_upsert",
     description:
@@ -88,192 +81,12 @@ const STATIC_TOOLS: Tool[] = [
     description: "Delete ~/.config/shipeasy/config.json. No network call.",
     inputSchema: { type: "object", properties: {} },
   },
-
-  // ────────────────────────────── i18n (fs / AST) ──────────────────────────────
-  {
-    name: "i18n_scan_code",
-    description:
-      "AST-walk the repo and return candidate translatable strings (JSX text, string literals, template strings). Local-only — no network.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        paths: { type: "array", items: { type: "string" } },
-        framework: { type: "string" },
-      },
-    },
-  },
-  {
-    name: "i18n_discover_site",
-    description:
-      "Fetch a URL, parse <link rel='i18n-config'> + /.well-known/i18n.json, return profiles + glossary + framework hints.",
-    inputSchema: {
-      type: "object",
-      required: ["url"],
-      properties: { url: { type: "string" } },
-    },
-  },
-  {
-    name: "i18n_create_profile",
-    description: "Create a new locale profile (e.g. 'fr:prod').",
-    inputSchema: {
-      type: "object",
-      required: ["name"],
-      properties: {
-        name: { type: "string" },
-        source_profile: { type: "string" },
-      },
-    },
-  },
-  {
-    name: "i18n_push_keys",
-    description:
-      "Add NEW keys to a profile chunk. Insert-only: existing keys are never overwritten — they come back under `skipped`, and only new keys are added. Pass 'source: codemod' to read from i18n-codemod-review.json, or 'file' for any {key: value} JSON file. To change an existing value, update one key at a time via the dashboard or `shipeasy i18n update`.",
-    inputSchema: {
-      type: "object",
-      required: ["profile"],
-      properties: {
-        profile: { type: "string" },
-        chunk: { type: "string", description: "Chunk name (default: 'default')" },
-        file: { type: "string", description: "Path to local JSON file of {key: value} pairs." },
-        source: {
-          type: "string",
-          enum: ["codemod"],
-          description: "Read keys from i18n-codemod-review.json",
-        },
-        path: { type: "string", description: "Project root when source=codemod (defaults to cwd)" },
-      },
-    },
-  },
-  {
-    name: "i18n_create_key",
-    description:
-      "Add a single new key to a profile. Insert-only: if the key already exists it is left unchanged (never overwritten).",
-    inputSchema: {
-      type: "object",
-      required: ["profile", "key", "value"],
-      properties: {
-        profile: { type: "string" },
-        key: { type: "string" },
-        value: { type: "string" },
-        description: { type: "string" },
-        chunk: { type: "string" },
-      },
-    },
-  },
-  {
-    name: "i18n_set",
-    description:
-      "Set one key's value AND publish it live in a single call. Inserts the key if new, OVERWRITES it if it exists (unlike i18n_create_key/i18n_push_keys, which are insert-only), then publishes the whole profile (KV rebuild + CDN purge). Omit `profile` to target the project's default profile, or pass a name (e.g. 'fr:prod') for another locale. Use this to correct/replace one live string without a separate push + publish.",
-    inputSchema: {
-      type: "object",
-      required: ["key", "value"],
-      properties: {
-        key: { type: "string", description: "Dotted key path, e.g. 'home.cta'." },
-        value: { type: "string", description: "New value (inserted if new, overwritten if it exists)." },
-        profile: {
-          type: "string",
-          description: "Profile name. Omit to target the project's default profile.",
-        },
-        description: { type: "string", description: "Optional note stored with the key." },
-      },
-    },
-  },
-  {
-    name: "i18n_translate_draft",
-    description:
-      "Run Anthropic translation on a draft, key by key. Anthropic API key is read from the operator's env — never sent to shipeasy.",
-    inputSchema: {
-      type: "object",
-      required: ["draft_id", "source_profile", "target_profile"],
-      properties: {
-        draft_id: { type: "string" },
-        source_profile: { type: "string" },
-        target_profile: { type: "string" },
-        glossary: { type: "array" },
-        anthropic_api_key_env: {
-          type: "string",
-          description: "Env var name to read key from. Default ANTHROPIC_API_KEY.",
-        },
-        max_parallel: { type: "number" },
-      },
-    },
-  },
-  {
-    name: "i18n_publish_profile",
-    description: "Publish a chunk or whole profile: rebuild KV manifest + purge CDN.",
-    inputSchema: {
-      type: "object",
-      required: ["profile"],
-      properties: {
-        profile: { type: "string" },
-        chunk: { type: "string", description: "Omit to publish the whole profile." },
-      },
-    },
-  },
-  {
-    name: "i18n_codemod_preview",
-    description:
-      "Preview an AST transform that wraps translatable strings in <ShipeasyString> or shipeasy_t(). Returns a diff; writes nothing.",
-    inputSchema: {
-      type: "object",
-      required: ["framework", "files"],
-      properties: {
-        framework: {
-          type: "string",
-          enum: ["nextjs", "react", "remix", "vue", "svelte", "angular", "rails", "django"],
-        },
-        files: { type: "array", items: { type: "string" } },
-        strategy: { type: "string" },
-        key_prefix: { type: "string" },
-      },
-    },
-  },
-  {
-    name: "i18n_codemod_apply",
-    description:
-      "Apply a previously-previewed codemod. Requires confirm: true — never writes without explicit consent from the caller.",
-    inputSchema: {
-      type: "object",
-      required: ["framework", "files", "confirm"],
-      properties: {
-        framework: { type: "string" },
-        files: { type: "array", items: { type: "string" } },
-        strategy: { type: "string" },
-        key_prefix: { type: "string" },
-        confirm: { type: "boolean" },
-      },
-    },
-  },
-  {
-    name: "i18n_validate_keys",
-    description:
-      "Pre-commit check — scan code for referenced keys, confirm each exists server-side. Exits non-zero on drift.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        paths: { type: "array", items: { type: "string" } },
-      },
-    },
-  },
-  {
-    name: "i18n_install_loader",
-    description:
-      "Emit the correct <script src='…/sdk/i18n/loader.js' data-key=… data-profile=…> snippet for the detected framework's entry HTML / layout.",
-    inputSchema: {
-      type: "object",
-      required: ["profile"],
-      properties: {
-        profile: { type: "string" },
-        framework: { type: "string" },
-        path: { type: "string", description: "Project root directory (defaults to cwd)" },
-      },
-    },
-  },
 ];
 
 /**
- * Full tool catalog = the hand-written fs/auth tools + every registry-generated
- * tool. The registry now owns the whole CRUD + read + docs surface; only the
- * fs/AST/auth/bind tools above stay hand-written.
+ * Full tool catalog = the hand-written auth/bind tools + every registry-generated
+ * tool. The registry owns the whole CRUD + read + docs surface (incl. the i18n
+ * admin API); only the auth + `.shipeasy` bind tools above stay hand-written. All
+ * fs/AST tooling now lives in the `shipeasy` CLI.
  */
 export const TOOLS: Tool[] = [...STATIC_TOOLS, ...REGISTRY_TOOLS];

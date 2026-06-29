@@ -1,7 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
+import { describe, it, expect, vi, afterEach } from "vitest";
 
 // ── Mock auth/config ────────────────────────────────────────────────────────
 
@@ -87,18 +84,6 @@ function captureFetch(responder: (req: Request) => unknown = () => ({})) {
     });
   });
   return { fn, calls };
-}
-
-// ── helpers ─────────────────────────────────────────────────────────────────
-
-function makeTmp(): string {
-  return fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "shipeasy-tools-test-")));
-}
-
-function write(dir: string, file: string, content: string) {
-  const full = path.join(dir, file);
-  fs.mkdirSync(path.dirname(full), { recursive: true });
-  fs.writeFileSync(full, content, "utf8");
 }
 
 // ── generated catalog ────────────────────────────────────────────────────────
@@ -217,174 +202,40 @@ describe("custom tools", () => {
   });
 });
 
-// ── i18n profiles ───────────────────────────────────────────────────────────
+// ── i18n (now spec-generated, no longer hand-written) ─────────────────────────
 
-describe("handleCreateProfile", () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  it("creates a profile", async () => {
-    vi.stubGlobal(
-      "fetch",
-      mockFetch({ "/api/admin/i18n/profiles": { id: "p-2", name: "fr:prod" } }),
-    );
-    const { handleCreateProfile } = await import("../tools/i18n/profiles.js");
-    const result = await handleCreateProfile({ name: "fr:prod" });
-    const data = parseResult(result);
-    expect(data.name).toBe("fr:prod");
-  });
-});
-
-// ── i18n keys ───────────────────────────────────────────────────────────────
-
-describe("handleCreateKey", () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  it("creates a key in a profile", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockImplementation((url: string) => {
-        if (url.includes("/api/admin/i18n/profiles")) {
-          return Promise.resolve({
-            ok: true,
-            status: 200,
-            json: () => Promise.resolve([{ id: "p-1", name: "en:prod" }]),
-          });
-        }
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          json: () => Promise.resolve({ pushed_count: 1, skipped_count: 0, failed_keys: [] }),
-        });
-      }),
-    );
-    const { handleCreateKey } = await import("../tools/i18n/keys.js");
-    const result = await handleCreateKey({
-      profile: "en:prod",
-      key: "hello",
-      value: "Hello World",
-    });
-    const data = parseResult(result);
-    expect(data.pushed_count).toBe(1);
-  });
-});
-
-// ── scan_code ────────────────────────────────────────────────────────────────
-
-describe("handleScanCode", () => {
-  let tmpDir: string;
-  beforeEach(() => {
-    tmpDir = makeTmp();
-    write(
-      tmpDir,
-      "App.tsx",
-      `
-export function App() {
-  return (
-    <div>
-      <h1>Welcome to ShipEasy</h1>
-      <button>Get Started</button>
-    </div>
-  );
-}
-`,
-    );
-  });
-  afterEach(() => {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  });
-
-  it("finds JSX text candidates", async () => {
-    const { handleScanCode } = await import("../tools/i18n/scan.js");
-    const result = await handleScanCode({ paths: [tmpDir] });
-    const data = parseResult(result);
-    expect(data.total_candidates).toBeGreaterThan(0);
-    expect(data.candidates.some((c: { text: string }) => c.text.includes("Welcome"))).toBe(true);
-  });
-});
-
-// ── codemod ──────────────────────────────────────────────────────────────────
-
-describe("handleCodemodPreview", () => {
-  let tmpDir: string;
-  beforeEach(() => {
-    tmpDir = makeTmp();
-    write(
-      tmpDir,
-      "Button.tsx",
-      `
-export function Button() {
-  return <button title="Click me">Submit Form</button>;
-}
-`,
-    );
-  });
-  afterEach(() => {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  });
-
-  it("returns a diff without writing files", async () => {
-    const { handleCodemodPreview } = await import("../tools/i18n/codemod.js");
-    const result = await handleCodemodPreview({ framework: "react", files: [tmpDir] });
-    const data = parseResult(result);
-    expect(data.files_changed).toBe(1);
-    expect(data.total_strings).toBeGreaterThan(0);
-    expect(data.diffs[0].diff).toContain("---");
-    // File should NOT be modified
-    const fileContent = fs.readFileSync(path.join(tmpDir, "Button.tsx"), "utf8");
-    expect(fileContent).toContain("Submit Form"); // original still there
-  });
-});
-
-describe("handleCodemodApply", () => {
-  let tmpDir: string;
-  beforeEach(() => {
-    tmpDir = makeTmp();
-    write(
-      tmpDir,
-      "Label.tsx",
-      `
-export function Label() {
-  return <label aria-label="First name">First name</label>;
-}
-`,
-    );
-  });
-  afterEach(() => {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  });
-
-  it("requires confirm: true", async () => {
-    const { handleCodemodApply } = await import("../tools/i18n/codemod.js");
-    const result = await handleCodemodApply({
-      framework: "react",
-      files: [tmpDir],
-      confirm: false,
-    });
-    expect((result as ToolResult).isError).toBe(true);
-    expect(result.content[0].text).toContain("confirm");
-  });
-
-  it("writes files and creates review JSON", async () => {
-    const origCwd = process.cwd();
-    process.chdir(tmpDir);
-    try {
-      const { handleCodemodApply } = await import("../tools/i18n/codemod.js");
-      const result = await handleCodemodApply({
-        framework: "react",
-        files: [tmpDir],
-        confirm: true,
-      });
-      const data = parseResult(result);
-      expect(data.files_changed).toBe(1);
-      expect(data.review_file).toBe("i18n-codemod-review.json");
-
-      // Review file should exist with key->value mapping
-      const reviewPath = path.join(tmpDir, "i18n-codemod-review.json");
-      expect(fs.existsSync(reviewPath)).toBe(true);
-      const review = JSON.parse(fs.readFileSync(reviewPath, "utf8")) as Record<string, string>;
-      expect(Object.keys(review).length).toBeGreaterThan(0);
-    } finally {
-      process.chdir(origCwd);
+describe("generated i18n tools", () => {
+  it("projects the i18n admin surface from the spec (tag chain + x-cli verb)", async () => {
+    const { TOOLS } = await import("../tools/schema.js");
+    const names = TOOLS.map((t) => t.name);
+    for (const n of [
+      "i18n_profiles_list",
+      "i18n_profiles_create",
+      "i18n_profiles_publish",
+      "i18n_keys_list",
+      "i18n_keys_push",
+      "i18n_keys_update",
+      "i18n_keys_set",
+      "i18n_drafts_list",
+    ]) {
+      expect(names).toContain(n);
+    }
+    // The old hand-written names are gone (clean-break rename).
+    for (const gone of ["i18n_create_profile", "i18n_create_key", "i18n_set", "i18n_publish_profile"]) {
+      expect(names).not.toContain(gone);
     }
   });
+
+  it("dispatches i18n_keys_set to POST /api/admin/i18n/set with the body", async () => {
+    const { fn, calls } = captureFetch(() => ({ ok: true, profile: "en:prod", key: "home.cta" }));
+    vi.stubGlobal("fetch", fn);
+    const { GENERATED_DISPATCH } = await import("../tools/registry.js");
+    const { getGeneratedClient } = await import("../tools/_gen-runtime.js");
+    const handle = await getGeneratedClient();
+    await GENERATED_DISPATCH.i18n_keys_set(handle!.client, { key: "home.cta", value: "Get started" });
+    const post = calls.find((c) => c.url.includes("/api/admin/i18n/set") && c.method === "POST");
+    expect((post!.body as { key: string }).key).toBe("home.cta");
+    vi.unstubAllGlobals();
+  });
 });
+

@@ -153,53 +153,24 @@ Tool-level auth policy:
 
 | Category                                        | Requires session | Notes                                                  |
 | ----------------------------------------------- | ---------------- | ------------------------------------------------------ |
-| `detect_*`                                      | No               | Pure filesystem inspection, no network.                |
 | `auth_*`                                        | — / triggers it  |                                                        |
 | `list_*`, `get_*`                               | Yes              | Read-only GETs against `apps/ui` admin Route Handlers. |
 | `create_*`, `update_*`, `delete_*`, `publish_*` | Yes              | Mutations — the CLI enforces `checkLimit` server-side. |
-| `i18n_scan_code`, `i18n_codemod_*`              | No               | Local-only AST tools.                                  |
+
+> **Filesystem / AST tools live in the `shipeasy` CLI, not this server.** Project
+> detection and the i18n source scanners / codemods / loader-install / file-based
+> push / local-Anthropic translation were removed from MCP — the server only makes
+> admin-API calls now (plus the auth + `.shipeasy` bind primitives). The
+> authoritative, generated tool reference is [`docs/mcp-reference.md`](docs/mcp-reference.md);
+> the catalog below is design-era narrative and has drifted.
 
 ---
 
 ## Tool catalog
 
-Tools are namespaced by subsystem: `exp_*` (experimentation), `i18n_*` (string manager), unprefixed (shared: auth, project detection, resource listing, SDK snippets).
+Tools are namespaced by subsystem: `exp_*` (experimentation), `i18n_*` (string manager), unprefixed (shared: auth, resource listing, SDK snippets). Project detection has moved to the `shipeasy` CLI.
 
 ### Shared tools
-
-#### `detect_project`
-
-Inspects the working directory and returns the language, framework, package manager, installed shipeasy packages, and i18n presence signals.
-
-**Input** (all optional):
-
-```json
-{ "path": "string (defaults to cwd; sandboxed via realpath to refuse escapes)" }
-```
-
-**Output**:
-
-```json
-{
-  "language":       "typescript | javascript | python | ruby | go | java | php | swift | kotlin | unknown",
-  "frameworks":     ["nextjs","react","tailwind", ...],
-  "package_manager":"npm | pnpm | yarn | bun | pip | poetry | bundler | go | maven | gradle | composer | swiftpm",
-  "entry_points":   ["src/app/layout.tsx", "src/main.tsx"],
-  "test_files":     ["src/app/page.test.tsx"],
-
-  "shipeasy": {
-    "experimentation_sdk": { "installed": true, "version": "^1.3.0", "configured": true, "subentry": "shipeasy/react" },
-    "i18n_sdk":            { "installed": true, "version": "^1.1.0", "configured": true, "profile": "en:prod" },
-    "loader_script_tag":   { "present": true, "data_key": "sdk_client_…", "data_profile": "en:prod" },
-    "env_keys_detected":   ["SHIPEASY_SERVER_KEY","NEXT_PUBLIC_SHIPEASY_CLIENT_KEY"],
-    "template_warning":    "Installed SDK version 0.9.x is incompatible with MCP templates >=1.0.0."
-  }
-}
-```
-
-**Security**: `realpath` sandbox (see [10-mcp-server.md § detect_project](../../experiment-platform/10-mcp-server.md)). All reads go through `safeRead()` which refuses symlinks pointing outside the requested root.
-
----
 
 #### `auth_check`
 
@@ -363,58 +334,20 @@ All mutations shell out to `@shipeasy/cli` via `execFile` (never `exec` with she
 
 ### String manager tools (`i18n_*`)
 
-Absorbs the `packages/mcp-server/src/tools/i18n/` sketch from [string-manager-platform/plan.md](../../string-manager-platform/plan.md).
+The i18n **admin API** surface is projected from the spec (tag chain `i18n ▸ Profiles | Keys | Drafts` + `x-cli` verb), exactly like every other resource. The exact, authoritative list is the generated [`docs/mcp-reference.md`](docs/mcp-reference.md); the current tools are:
 
-| Tool                    | What it does                                                                                                                             | Backed by                                    |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| `i18n_scan_code`        | Walk the repo AST, return candidate JSX text / string literals / template strings that look translatable                                 | Local (jscodeshift / ast-grep / Python ast)  |
-| `i18n_discover_site`    | Fetch a URL, parse `<link rel="i18n-config">` + `/.well-known/i18n.json`, return profiles + glossary                                     | `fetch`                                      |
-| `i18n_list_profiles`    | List profiles, chunks, coverage                                                                                                          | `GET /api/admin/i18n/profiles`               |
-| `i18n_create_profile`   | Create a new locale profile, e.g. `fr:prod`                                                                                              | `shipeasy i18n profiles create`              |
-| `i18n_create_chunk`     | Create a chunk inside a profile                                                                                                          | `shipeasy i18n chunks create`                |
-| `i18n_create_key`       | Create/update a single label key                                                                                                         | `shipeasy i18n keys set`                     |
-| `i18n_push_keys`        | Bulk upload a JSON file of keys to a chunk                                                                                               | `shipeasy i18n push`                         |
-| `i18n_pull_keys`        | Download published strings to local disk                                                                                                 | `shipeasy i18n pull`                         |
-| `i18n_create_draft`     | Clone a source profile into a draft (optionally pre-translated)                                                                          | `shipeasy i18n drafts create`                |
-| `i18n_translate_draft`  | Run Anthropic translation on a draft (operator's API key, zero shipeasy-side AI)                                                         | `shipeasy i18n translate`                    |
-| `i18n_update_draft_key` | Edit a single key in a draft                                                                                                             | `PATCH /api/admin/i18n/drafts/:id/keys/:key` |
-| `i18n_publish_profile`  | Publish a chunk or whole profile — rebuilds KV manifest, purges CDN                                                                      | `shipeasy i18n publish`                      |
-| `i18n_usage_summary`    | Monthly loader request count + per-chunk breakdown                                                                                       | `GET /api/admin/i18n/usage`                  |
-| `i18n_codemod_preview`  | AST-transform framework code (Next.js / React / Vue / Rails / Django) to wrap strings in `ShipeasyString`, return a diff without writing | Local codemods                               |
-| `i18n_codemod_apply`    | Same as preview, but writes the diff (requires `confirm: true`)                                                                          | Local codemods                               |
-| `i18n_validate_keys`    | Pre-commit check: every code-side key exists server-side                                                                                 | `shipeasy i18n validate`                     |
-| `i18n_install_loader`   | Emit the `<script src="https://api.shipeasy.ai/sdk/i18n/loader.js" data-key=…>` tag for the detected framework                           | Local                                        |
+| Tool                   | What it does                                                                 | Endpoint                                          |
+| ---------------------- | --------------------------------------------------------------------------- | ------------------------------------------------- |
+| `i18n_profiles_list`   | List locale profiles                                                         | `GET /api/admin/i18n/profiles`                    |
+| `i18n_profiles_create` | Create a locale profile (e.g. `fr:prod`)                                     | `POST /api/admin/i18n/profiles`                   |
+| `i18n_profiles_publish`| Publish a profile live (profile-wide KV rebuild + CDN purge)                 | `POST /api/admin/i18n/profiles/{profileId}/publish` |
+| `i18n_keys_list`       | List keys for a profile (filter by prefix / free-text)                       | `GET /api/admin/i18n/keys`                        |
+| `i18n_keys_push`       | Push new keys (insert-only — existing keys are skipped)                      | `POST /api/admin/i18n/keys`                       |
+| `i18n_keys_update`     | Overwrite one existing key's value (by key id)                              | `PUT /api/admin/i18n/keys/{id}`                   |
+| `i18n_keys_set`        | Set one key by **profile name** (omit → default) and publish it live        | `POST /api/admin/i18n/set`                        |
+| `i18n_drafts_list`     | List staged machine-translation drafts                                      | `GET /api/admin/i18n/drafts`                      |
 
-**Representative input — `i18n_translate_draft`:**
-
-```json
-{
-  "draft_id": "draft_…",
-  "source_profile": "en:prod",
-  "target_profile": "fr:prod",
-  "glossary": [
-    { "term": "ShipEasy", "policy": "keep" },
-    { "term": "Patient", "policy": "translate_as", "fr": "Patient" }
-  ],
-  "anthropic_api_key_env": "ANTHROPIC_API_KEY",
-  "max_parallel": 4
-}
-```
-
-Calls Anthropic **from the user's machine** (never from shipeasy servers). Writes progress via MCP `notifications/progress`. Returns `{ draft_id, translated_key_count, failed_key_count, review_url }`.
-
-**Representative input — `i18n_codemod_preview`:**
-
-```json
-{
-  "framework": "nextjs",
-  "files": ["src/app/dashboard/page.tsx"],
-  "strategy": "jsx_text_literals",
-  "key_prefix": "dashboard."
-}
-```
-
-Output is a diff list; the AI shows it to the user and then calls `i18n_codemod_apply` with `confirm: true` only once the user approves.
+The **filesystem / AST** i18n tooling — source scanning, codemods, loader install, key validation, site discovery, local-Anthropic draft translation, and file-based bulk push — is **not** part of the MCP surface; it lives in the `shipeasy` CLI (the fs-having consumer). It never hit the admin API, so it carries no spec op.
 
 ---
 
@@ -428,10 +361,9 @@ MCP prompts expose named, parameterized playbooks the AI can `get_prompt()` to l
 | `create_experiment`     | Propose → create → inject code → start → monitor                          |
 | `analyze_experiment`    | Pull results, compute lift + significance, emit ship/hold/wait verdict    |
 | `cleanup_winner`        | Remove losing branches + dead gate code after shipping                    |
-| `setup_i18n`            | Install SDK + loader script, create `en:prod`, run codemod, validate      |
-| `translate_site`        | Given a URL, discover, add target locale, translate, review, publish      |
-| `i18n_health`           | Report missing keys, unused keys, drift between profiles                  |
 | `rotate_sdk_keys`       | Revoke + re-issue client/server keys and update env vars                  |
+
+(The i18n playbooks `setup_i18n` / `translate_site` / `i18n_health` were removed — they orchestrated the fs/AST tools that now live in the `shipeasy` CLI.)
 
 Each prompt's body is a short markdown playbook embedded in the server bundle. The assistant fetches it once per conversation with `get_prompt({ name })` and follows the steps.
 

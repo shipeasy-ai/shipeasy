@@ -17,9 +17,10 @@ import { CUSTOM_TOOLS, CUSTOM_DISPATCH } from "./custom.js";
  *   2. **Custom tools** (`CUSTOM_*`) — the shared non-endpoint sugar
  *      (`metrics_grammar`, `docs_*`). Auth-free (pure / outbound fetch).
  *
- * Hand-written tools that can't be projected from the spec — auth, `detect_project`,
- * `projects_upsert` (fs bind), and the fs/AST i18n tools — live in src/tools/ and
- * are merged into the catalog by src/tools/schema.ts.
+ * Hand-written tools that can't be projected from the spec — auth,
+ * `projects_upsert` (fs bind), and the pure-API i18n write tools — live in
+ * src/tools/ and are merged into the catalog by src/tools/schema.ts. (All
+ * fs/AST tooling now lives in the `shipeasy` CLI, not here.)
  */
 export { GENERATED_DISPATCH, GENERATED_MUTATES, CUSTOM_DISPATCH };
 

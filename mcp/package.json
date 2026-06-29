@@ -53,6 +53,10 @@
     "./tools-manifest": {
       "types": "./dist/tools/manifest.d.ts",
       "default": "./dist/tools/manifest.js"
+    },
+    "./registry": {
+      "types": "./dist/tools/registry.d.ts",
+      "default": "./dist/tools/registry.js"
     }
   },
   "files": [
@@ -61,6 +65,7 @@
     "src/prompts/*.md"
   ],
   "scripts": {
+    "prebuild": "pnpm gen:tools",
     "build": "tsc -p tsconfig.json",
     "dev": "tsx src/index.ts",
     "gen:tools": "node scripts/gen-tools.mjs",

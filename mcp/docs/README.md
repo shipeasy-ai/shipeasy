@@ -8,9 +8,12 @@ How the tool surface is built: nearly the whole CRUD/read/docs surface is
 **generated from `@shipeasy/openapi`'s bundled spec** — `scripts/gen-tools.mjs`
 reads `openapi.yaml` and emits `src/generated/tools.gen.ts` (tool name ← the
 tag `parent` chain + the `x-cli` verb; input schema ← path/query params + body
-properties). Only auth, `detect_project`, `projects_upsert` (which layers the
-`.shipeasy` fs bind), and the fs/AST i18n tools stay hand-written in `src/tools/`
-and are merged in `src/tools/schema.ts`.
+properties). Only auth, `projects_upsert` (which layers the `.shipeasy` fs bind),
+and the pure-API i18n write tools (`i18n_create_profile` / `i18n_create_key` /
+`i18n_set` / `i18n_publish_profile`) stay hand-written in `src/tools/` and are
+merged in `src/tools/schema.ts`. All filesystem / AST tooling (project detection,
+i18n source scanners / codemods / loader install) lives in the `shipeasy` CLI, not
+this server.
 
 ```
 @shipeasy/openapi (spec)

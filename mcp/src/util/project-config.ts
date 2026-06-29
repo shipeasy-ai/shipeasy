@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 
 const FILENAME = ".shipeasy";
 
@@ -12,9 +12,6 @@ export interface ProjectConfig {
    */
   project_id?: string;
   project_name?: string;
-  i18n?: {
-    client_key?: string;
-  };
 }
 
 function configPath(dir: string): string {
@@ -51,20 +48,6 @@ export function getBoundProjectIdSync(dir: string): string | undefined {
   } catch {
     return undefined;
   }
-}
-
-export async function saveI18nClientKey(dir: string, key: string): Promise<void> {
-  const target = findProjectConfigDir(dir) ?? dir;
-  const cfg = await readProjectConfig(target);
-  await writeFile(
-    configPath(target),
-    JSON.stringify({ ...cfg, i18n: { ...cfg.i18n, client_key: key } }, null, 2) + "\n",
-    "utf8",
-  );
-}
-
-export async function getI18nClientKey(dir: string): Promise<string | undefined> {
-  return (await readProjectConfig(dir)).i18n?.client_key;
 }
 
 export function bindProjectSync(
