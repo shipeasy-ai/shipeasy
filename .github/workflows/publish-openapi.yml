@@ -1,0 +1,61 @@
+# Publish @shipeasy/openapi to npm whenever openapi/ changes on main.
+# Gated on the full Admin-API contract suite (contract-tests.yml) passing first
+# — a new version never ships without a green contract run.
+# Idempotent: the publish step no-ops unless openapi/package.json carries a
+# version not yet on npm — so doc-only / non-release pushes don't republish.
+# Bump openapi/package.json's version to cut a release.
+name: Publish openapi
+on:
+  push:
+    branches: [main]
+    paths:
+      - "openapi/**"
+  workflow_dispatch: {}
+concurrency:
+  group: publish-openapi
+  cancel-in-progress: false
+
+jobs:
+  # Gate: must pass before we publish (don't ship without a full contract pass).
+  contract-tests:
+    uses: ./.github/workflows/contract-tests.yml
+    secrets: inherit
+
+  publish:
+    needs: contract-tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: openapi
+    permissions:
+      contents: read
+      id-token: write # OIDC provenance + Trusted Publishing
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          registry-url: "https://registry.npmjs.org"
+      - run: npm install -g npm@latest # Trusted Publishing needs npm >= 11.5.1
+      - name: "Inline workspace deps → semver"
+        run: node ../scripts/inline-workspace-deps.mjs
+      - name: Install + build from the repo root workspace
+        working-directory: .
+        run: |
+          pnpm install --no-frozen-lockfile
+          pnpm run build
+      - name: Strip _authToken (force OIDC)
+        run: |
+          for f in "$NPM_CONFIG_USERCONFIG" "$HOME/.npmrc"; do
+            [ -f "$f" ] && sed -i.bak '/^\/\/registry\.npmjs\.org\/:_authToken=/d' "$f" || true
+          done
+      - name: Publish (OIDC, idempotent)
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          V=$(node -p "require('./package.json').version")
+          npm view "$NAME@$V" version >/dev/null 2>&1 \
+            && echo "$NAME@$V already published — skipping" \
+            || npm publish --access public --provenance

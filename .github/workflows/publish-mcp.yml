@@ -1,0 +1,132 @@
+# Publish @shipeasy/mcp to npm whenever mcp/ changes on main, then re-list it on
+# the MCP registry (ai.shipeasy/mcp).
+# Gated on the full Admin-API contract suite (contract-tests.yml) passing first.
+# Idempotent: publishes only when mcp/package.json's version isn't on npm yet.
+# Dependency order: mcp depends on @shipeasy/openapi — we wait until the pinned
+# range is resolvable on npm before publishing, so a simultaneous openapi+mcp
+# bump can't ship an mcp that points at an unpublished openapi.
+name: Publish mcp
+on:
+  push:
+    branches: [main]
+    paths:
+      - "mcp/**"
+  workflow_dispatch: {}
+concurrency:
+  group: publish-mcp
+  cancel-in-progress: false
+
+jobs:
+  # Gate: must pass before we publish (don't ship without a full contract pass).
+  contract-tests:
+    uses: ./.github/workflows/contract-tests.yml
+    secrets: inherit
+
+  publish:
+    needs: contract-tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mcp
+    permissions:
+      contents: read
+      id-token: write # OIDC provenance + Trusted Publishing
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          registry-url: "https://registry.npmjs.org"
+      - run: npm install -g npm@latest # Trusted Publishing needs npm >= 11.5.1
+      - name: "Inline workspace deps → semver"
+        run: node ../scripts/inline-workspace-deps.mjs
+      - name: Wait for the @shipeasy/openapi dependency on npm (publish order)
+        run: |
+          RANGE=$(node -p "require('./package.json').dependencies['@shipeasy/openapi'] || ''")
+          [ -z "$RANGE" ] && { echo "no @shipeasy/openapi dep — nothing to wait for"; exit 0; }
+          for i in $(seq 1 30); do
+            if npm view "@shipeasy/openapi@$RANGE" version >/dev/null 2>&1; then
+              echo "@shipeasy/openapi@$RANGE resolvable on npm"; exit 0
+            fi
+            echo "waiting for @shipeasy/openapi@$RANGE on npm ($i/30)…"; sleep 10
+          done
+          echo "::error::@shipeasy/openapi@$RANGE never appeared on npm — publish openapi first" >&2
+          exit 1
+      - name: Install + build from the repo root workspace
+        working-directory: .
+        run: |
+          pnpm install --no-frozen-lockfile
+          pnpm run build
+      - name: Strip _authToken (force OIDC)
+        run: |
+          for f in "$NPM_CONFIG_USERCONFIG" "$HOME/.npmrc"; do
+            [ -f "$f" ] && sed -i.bak '/^\/\/registry\.npmjs\.org\/:_authToken=/d' "$f" || true
+          done
+      - name: Publish (OIDC, idempotent)
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          V=$(node -p "require('./package.json').version")
+          npm view "$NAME@$V" version >/dev/null 2>&1 \
+            && echo "$NAME@$V already published — skipping" \
+            || npm publish --access public --provenance
+
+  # Re-list the MCP server on the official registry as ai.shipeasy/mcp after a
+  # publish. Ownership is verified by reading `mcpName` from the *published* npm
+  # package, so this runs after `publish`. ai.shipeasy is a domain namespace →
+  # DNS auth via the Ed25519 key in MCP_PRIVATE_KEY (GitHub OIDC only grants
+  # io.github.* namespaces and can't publish this name).
+  registry-listing:
+    needs: publish
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mcp
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Wait until the new version is visible on npm
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          VER=$(node -p "require('./package.json').version")
+          for i in $(seq 1 30); do
+            if npm view "$NAME@$VER" version >/dev/null 2>&1; then
+              echo "$NAME@$VER is live on npm"; exit 0
+            fi
+            echo "waiting for $NAME@$VER on npm ($i/30)…"; sleep 10
+          done
+          echo "::error::$NAME@$VER never appeared on npm; the registry ownership check would fail" >&2
+          exit 1
+
+      - name: Skip if this version is already in the registry
+        id: gate
+        run: |
+          VER=$(node -p "require('./package.json').version")
+          PUBLISHED=$(curl -s "https://registry.modelcontextprotocol.io/v0.1/servers?search=ai.shipeasy/mcp" \
+            | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const j=JSON.parse(s||'{}');const hit=(j.servers||[]).some(x=>{const v=(x.server||x);return v.name==='ai.shipeasy/mcp'&&v.version===process.argv[1]});console.log(hit?'yes':'no')})" "$VER")
+          echo "already=$PUBLISHED" >> "$GITHUB_OUTPUT"
+          [ "$PUBLISHED" = "yes" ] && echo "ai.shipeasy/mcp@$VER already listed — skipping registry publish." || true
+
+      - name: Regenerate server.json from package.json
+        if: steps.gate.outputs.already != 'yes'
+        run: npx -y tsx scripts/gen-server-json.ts
+
+      - name: Install mcp-publisher
+        if: steps.gate.outputs.already != 'yes'
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+
+      - name: Authenticate to the MCP Registry (DNS namespace ai.shipeasy)
+        if: steps.gate.outputs.already != 'yes'
+        run: ./mcp-publisher login dns --domain shipeasy.ai --private-key "${{ secrets.MCP_PRIVATE_KEY }}"
+
+      - name: Publish to the MCP Registry
+        if: steps.gate.outputs.already != 'yes'
+        run: ./mcp-publisher publish

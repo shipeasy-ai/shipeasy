@@ -15,8 +15,9 @@
 name: Contract Tests
 
 on:
-  push:
-    paths: ["openapi/**"]
+  # Reusable gate: the publish-* workflows call this and only publish on success
+  # (don't ship a new version without a full contract pass).
+  workflow_call: {}
   pull_request:
     paths: ["openapi/**"]
   workflow_dispatch:
