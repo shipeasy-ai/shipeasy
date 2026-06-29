@@ -48,6 +48,7 @@ describe("command tree", () => {
       "whoami",
       "bind",
       "setup",
+      "install",
       "detect",
       "projects",
       "mcp",
@@ -72,6 +73,7 @@ describe("command tree", () => {
         "whoami",
         "bind",
         "setup",
+        "install",
         "detect",
         "projects",
         "mcp",
@@ -120,6 +122,19 @@ describe("command tree", () => {
       for (const sub of cmd.commands) check(sub, `${prefix} ${sub.name()}`.trim());
     };
     check(program, "");
+  });
+
+  it("`install` takes a <module> arg and documents flags/i18n/ops", () => {
+    const install = program.commands.find((c) => c.name() === "install");
+    expect(install, "install command registered").toBeDefined();
+    // Required positional <module> (angle brackets), not a subcommand tree —
+    // the installer dispatches on the arg, mirroring the slash-command names.
+    expect(install!.usage()).toContain("<module>");
+    expect(install!.commands.map((c) => c.name())).toEqual([]);
+    const desc = install!.description();
+    for (const mod of ["flags", "i18n", "ops"]) {
+      expect(desc, `description names ${mod}`).toContain(mod);
+    }
   });
 });
 

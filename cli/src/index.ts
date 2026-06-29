@@ -11,8 +11,10 @@ import { customCommands } from "./commands/custom";
 import { keysCommand } from "./commands/keys";
 import { i18nCommand } from "./commands/i18n";
 import { codemodCommand } from "./commands/codemod";
+import { i18nWorkflowCommands } from "./commands/i18n-workflows";
 import { mcpCommand } from "./commands/mcp";
 import { setupCommand } from "./commands/setup";
+import { installCommand } from "./commands/install";
 import { detectCommand } from "./commands/detect";
 import { bindProject, readProjectConfig } from "./util/project-config";
 import { printJson } from "./util/output";
@@ -282,6 +284,10 @@ export function buildProgram(): Command {
 
   // ── Custom commands (fs/AST + auth + install — not API endpoints) ─────────
   setupCommand(program);
+  // `install <module>` — the platform installer (flags | i18n | ops). Enables
+  // a module group via PATCH /api/admin/projects/:id (there is no `modules`
+  // command); the install slash commands orchestrate this.
+  installCommand(program);
   detectCommand(program);
   mcpCommand(program);
 
@@ -290,6 +296,9 @@ export function buildProgram(): Command {
   const i18n = i18nCommand(program); // -> i18n …
   keysCommand(i18n); // -> i18n keys (SDK admin keys)
   codemodCommand(i18n); // -> i18n codemod
+  // High-level orchestrators (codemod → push → publish in one verb): `extract`
+  // + `migrate`. The i18n:extract / i18n:migrate skills wrap these thinly.
+  i18nWorkflowCommands(i18n); // -> i18n extract / i18n migrate
   withTreeHelp(i18n);
 
   applyExitOverride(program);

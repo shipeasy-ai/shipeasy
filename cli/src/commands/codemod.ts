@@ -27,6 +27,55 @@ interface CodemodOptions {
   migrate?: string;
 }
 
+/**
+ * Run the i18n source codemod over one or more target dirs and return the
+ * total files scanned. Shared by the `i18n codemod i18n` subcommand and the
+ * higher-level `i18n extract` / `i18n migrate` orchestrators so they all drive
+ * the exact same JS/TS AST rewrite. Throws on a missing target so callers can
+ * surface the per-language gap.
+ */
+export async function runI18nCodemod(opts: CodemodOptions & { target?: string }): Promise<number> {
+  const codemodsDir = resolveCodemodsDir();
+  const configMod = (await import(
+    pathToFileURL(resolve(codemodsDir, "lib/config-schema.mjs")).href
+  )) as { loadConfig: (p: string | null) => unknown };
+  const runnerMod = (await import(pathToFileURL(resolve(codemodsDir, "runner.mjs")).href)) as {
+    run: (
+      config: unknown,
+      options: {
+        dryRun?: boolean;
+        verbose?: boolean;
+        target?: string;
+        type?: string | null;
+        migrate?: string | null;
+      },
+    ) => Promise<{ filesScanned: number }>;
+  };
+
+  const config = configMod.loadConfig(opts.config ?? null);
+  const targets = resolveTargets(opts.target, (config as { srcDir?: string }).srcDir ?? "src");
+  if (targets.length === 0) {
+    throw new Error(
+      "no target directory found. Pass an explicit path (e.g. `app`) or create a " +
+        "`.i18n-codemod.json` with `srcDir` pointing at your source root.",
+    );
+  }
+
+  let totalScanned = 0;
+  for (const t of targets) {
+    if (targets.length > 1) console.log(`\n  → scanning ${t}`);
+    const result = await runnerMod.run(config, {
+      dryRun: opts.dryRun,
+      verbose: opts.verbose,
+      type: opts.type ?? null,
+      migrate: opts.migrate ?? null,
+      target: t,
+    });
+    totalScanned += result.filesScanned;
+  }
+  return totalScanned;
+}
+
 export function codemodCommand(parent: Command): void {
   const cmd = parent
     .command("codemod")
@@ -51,55 +100,7 @@ export function codemodCommand(parent: Command): void {
     )
     .action(async (target: string | undefined, opts: CodemodOptions) => {
       try {
-        const codemodsDir = resolveCodemodsDir();
-        const configMod = (await import(
-          pathToFileURL(resolve(codemodsDir, "lib/config-schema.mjs")).href
-        )) as { loadConfig: (p: string | null) => unknown };
-        const runnerMod = (await import(
-          pathToFileURL(resolve(codemodsDir, "runner.mjs")).href
-        )) as {
-          run: (
-            config: unknown,
-            options: {
-              dryRun?: boolean;
-              verbose?: boolean;
-              target?: string;
-              type?: string | null;
-              migrate?: string | null;
-            },
-          ) => Promise<{ filesScanned: number }>;
-        };
-
-        const config = configMod.loadConfig(opts.config ?? null);
-        // Resolve targets. Order of precedence:
-        //   1. explicit `target` arg → that single dir
-        //   2. config's srcDir (default "src") if it exists → that single dir
-        //   3. fallback auto-detect: scan each of app/, components/, lib/,
-        //      pages/, src/ that exists. This makes the codemod work on
-        //      modern Next.js App Router projects without `src/` and on
-        //      typical mixed layouts without requiring a config file.
-        const targets = resolveTargets(target, (config as { srcDir?: string }).srcDir ?? "src");
-        if (targets.length === 0) {
-          console.error(
-            "\n  Error: no target directory found. Pass an explicit path " +
-              "(e.g. `shipeasy i18n codemod i18n app`) or create a `.i18n-codemod.json` " +
-              "with `srcDir` pointing at your source root.\n",
-          );
-          process.exit(1);
-        }
-
-        let totalScanned = 0;
-        for (const t of targets) {
-          if (targets.length > 1) console.log(`\n  → scanning ${t}`);
-          const result = await runnerMod.run(config, {
-            dryRun: opts.dryRun,
-            verbose: opts.verbose,
-            type: opts.type ?? null,
-            migrate: opts.migrate ?? null,
-            target: t,
-          });
-          totalScanned += result.filesScanned;
-        }
+        const totalScanned = await runI18nCodemod({ ...opts, target });
         if (totalScanned === 0) process.exit(1);
       } catch (err) {
         console.error(`\n  Error: ${err instanceof Error ? err.message : String(err)}\n`);
