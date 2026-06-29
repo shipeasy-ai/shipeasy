@@ -1,5 +1,8 @@
 # Shipeasy — multi-agent marketplace
 
+[![Contract Tests](https://github.com/shipeasy-ai/shipeasy/actions/workflows/contract-tests.yml/badge.svg)](https://github.com/shipeasy-ai/shipeasy/actions/workflows/contract-tests.yml)
+[![prod-probe](https://github.com/shipeasy-ai/shipeasy/actions/workflows/prod-probe.yml/badge.svg)](https://github.com/shipeasy-ai/shipeasy/actions/workflows/prod-probe.yml)
+
 This directory is the source-of-truth for the Shipeasy plugin marketplace.
 **One plugin tree, many hosts** — the same `shipeasy/skills/` directory and
 the same `shipeasy` MCP server feed every coding agent below. Each host gets
