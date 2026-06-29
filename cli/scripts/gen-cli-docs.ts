@@ -96,9 +96,18 @@ function optsTable(opts: readonly Option[]): string {
   return ["| Option | | Description |", "| --- | --- | --- |", ...rows].join("\n");
 }
 
-/** A leaf command (has an action / no subcommands) → one doc block. */
-function leafBlock(cmd: Command): string {
-  const out: string[] = ["### `" + path(cmd) + "`", ""];
+/**
+ * Render one command and everything beneath it, recursing to ANY depth so deep
+ * trees (`shipeasy release flags create`, `… killswitch switches set`, …) are
+ * fully documented — not truncated at the first subgroup. Heading level tracks
+ * tree depth (top-level commands at `##`, capped at `######`), and every node —
+ * leaf or group — emits its full description, authored details, usage, args,
+ * options, examples, and return shape so no help text is dropped.
+ */
+function renderCmd(cmd: Command, depth: number): string {
+  const hashes = "#".repeat(Math.min(depth + 1, 6));
+  const out: string[] = [`${hashes} \`${path(cmd)}\``, ""];
+
   if (cmd.description()) out.push(prose(cmd.description()), "");
 
   // Extra author prose (markdown, may link to deeper docs). Rendered raw — it's
@@ -123,20 +132,8 @@ function leafBlock(cmd: Command): string {
     out.push(`Returns${output.note ? ` (${output.note})` : ""}:`, "");
     out.push("```json", JSON.stringify(output.json, null, 2), "```", "");
   }
-  return out.join("\n");
-}
 
-/** Render a top-level command group and everything under it. */
-function renderGroup(group: Command): string {
-  const out: string[] = [`## ${group.name()}`, ""];
-  if (group.description()) out.push(prose(group.description()), "");
-  const subs = group.commands;
-  if (!subs.length) {
-    // group is itself a leaf (e.g. `login`)
-    out.push(leafBlock(group));
-  } else {
-    for (const sub of subs) out.push(leafBlock(sub));
-  }
+  for (const sub of cmd.commands) out.push(renderCmd(sub, depth + 1));
   return out.join("\n");
 }
 
@@ -192,7 +189,7 @@ function main() {
       continue;
     }
     MDX = t.mdx;
-    const body = groups.map(renderGroup).join("\n");
+    const body = groups.map((g) => renderCmd(g, 1)).join("\n");
     mkdirSync(dirname(t.out), { recursive: true });
     writeFileSync(t.out, `${header(t.mdx)}\n${body}`);
     console.log(`Wrote ${t.out}\n  ${groups.length} command group(s): ${names}`);
