@@ -57,56 +57,6 @@ Examples:
 shipeasy logout
 ```
 
-## `shipeasy whoami`
-
-Show current authentication state and active project metadata
-
-```bash
-shipeasy whoami [options]
-```
-
-| Option | | Description |
-| --- | --- | --- |
-| `--json` | optional | Output as JSON |
-
-Examples:
-
-```bash
-shipeasy whoami
-
-# machine-readable session + project
-shipeasy whoami --json
-```
-
-Returns (with --json):
-
-```json
-{
-  "logged_in": true,
-  "session": {
-    "project_id": "proj_abc123",
-    "user_email": "you@example.com",
-    "worker_url": "https://api.shipeasy.ai",
-    "app_url": "https://shipeasy.ai",
-    "saved_at": "2026-06-14T17:00:00.000Z"
-  },
-  "bound_dir": {
-    "project_id": "proj_abc123",
-    "project_name": "acme"
-  },
-  "active_project_id": "proj_abc123",
-  "project": {
-    "id": "proj_abc123",
-    "name": "acme",
-    "domain": "acme.com",
-    "ownerEmail": "you@example.com",
-    "plan": "paid",
-    "status": "active"
-  },
-  "project_error": null
-}
-```
-
 ## `shipeasy bind`
 
 Bind the current directory to a Shipeasy project (writes .shipeasy)
@@ -705,7 +655,7 @@ shipeasy release configs draft [options] <id>
 
 | Option | | Description |
 | --- | --- | --- |
-| `--env <value>` | optional | Target environment. One of the project's configured envs (`dev`, `stage`, `prod`). |
+| `--env <value>` | optional | Target environment. One of the project's configured envs (`dev`, `staging`, `prod`). |
 | `--value <value>` | optional | Draft value to stage on `env`. Validated against the config's current schema. |
 
 #### `shipeasy release configs discard-draft`
@@ -722,7 +672,7 @@ shipeasy release configs discard-draft [options] <id>
 
 | Option | | Description |
 | --- | --- | --- |
-| `--env <value>` | optional | Target environment. One of the project's configured envs (`dev`, `stage`, `prod`). |
+| `--env <value>` | optional | Target environment. One of the project's configured envs (`dev`, `staging`, `prod`). |
 
 #### `shipeasy release configs publish`
 
@@ -738,7 +688,7 @@ shipeasy release configs publish [options] <id>
 
 | Option | | Description |
 | --- | --- | --- |
-| `--env <value>` | optional | Target environment. One of the project's configured envs (`dev`, `stage`, `prod`). |
+| `--env <value>` | optional | Target environment. One of the project's configured envs (`dev`, `staging`, `prod`). |
 
 #### `shipeasy release configs activity`
 
@@ -1303,7 +1253,7 @@ shipeasy release killswitch set [options] <id>
 
 | Option | | Description |
 | --- | --- | --- |
-| `--env <value>` | optional | Target environment (`dev`/`stage`/`prod`). |
+| `--env <value>` | optional | Target environment. One of the project's configured envs (`dev`, `staging`, `prod`). |
 | `--switch-key <value>` | optional | Switch key to set. |
 | `--value <value>` | optional | New boolean value for this `switchKey` on this `env`. |
 
@@ -1321,8 +1271,20 @@ shipeasy release killswitch unset [options] <id>
 
 | Option | | Description |
 | --- | --- | --- |
-| `--env <value>` | optional | Target environment. |
+| `--env <value>` | optional | Target environment. One of the project's configured envs (`dev`, `staging`, `prod`). |
 | `--switch-key <value>` | optional | Switch key to remove. |
+
+## `shipeasy whoami`
+
+Show the current project
+
+```bash
+shipeasy whoami [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
 
 ## `shipeasy docs`
 
@@ -1459,6 +1421,78 @@ shipeasy install i18n --profile en:staging
 
 # Enable the feedback / ops queue
 shipeasy install ops
+```
+
+## `shipeasy trigger`
+
+Provision a recurring ops:work trigger (Shipeasy side of the hybrid split)
+
+```bash
+shipeasy trigger [options] [command]
+```
+
+### `shipeasy trigger create`
+
+Mint the ops key + emit the RemoteTrigger create body for the agent to run
+
+Does the Shipeasy-side prep for a recurring trigger and emits the exact RemoteTrigger create body. It mints a restricted `ops` key (embedded in the routine prompt — the only hands-off channel, since routine env vars are UI-only), resolves the repo (origin remote) and cron (--frequency), and writes the body to a 0600 temp file (the key is never printed). It does NOT create the routine — the agent does, via the in-process RemoteTrigger tool, because the routines API token is not exposed to a standalone CLI.
+
+```bash
+shipeasy trigger create [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--frequency <v>` | optional | Schedule: 4h \| 6h \| daily \| weekdays \| weekly \| <raw 5-field cron> (default: `"4h"`) |
+| `--repo <url>` | optional | GitHub repo the routine checks out (default: origin remote) |
+| `--model <id>` | optional | Model for the cloud session (default: `"claude-sonnet-4-6"`) |
+| `--name <name>` | optional | Routine name (default: `"Shipeasy ops:work"`) |
+| `--dry-run` | optional | Don't mint the ops key or write files — just print the plan |
+| `--json` | optional | Print the RemoteTrigger create body as JSON to stdout (contains the key) |
+| `--project <id>` | optional | Project ID override |
+
+Examples:
+
+```bash
+# Every 4h against the origin repo
+shipeasy trigger create
+
+# Daily, explicit repo
+shipeasy trigger create --frequency daily --repo https://github.com/acme/web
+
+# Preview without minting
+shipeasy trigger create --dry-run
+
+# Emit body as JSON (for scripting)
+shipeasy trigger create --json
+```
+
+### `shipeasy trigger link`
+
+Register a created routine as a Shipeasy connector (idempotent by routine id)
+
+```bash
+shipeasy trigger link [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--routine-id <id>` | required | The trig_… id RemoteTrigger create returned |
+| `--name <name>` | optional | Connector name (default: `"Claude trigger"`) |
+| `--token <token>` | optional | Routine fire token (optional — enables 'Fire now' + auto-fire) |
+| `--events <list>` | optional | Comma-separated auto-fire events (e.g. bug.created,feature_request.created) |
+| `--fire-text <text>` | optional | Default prompt sent when fired on demand |
+| `--json` | optional | Output as JSON |
+| `--project <id>` | optional | Project ID override |
+
+Examples:
+
+```bash
+# Tokenless (registered, not yet fireable)
+shipeasy trigger link --routine-id trig_abc123
+
+# With fire token + auto-fire on new bugs
+shipeasy trigger link --routine-id trig_abc123 --token … --events bug.created,feature_request.created
 ```
 
 ## `shipeasy detect`

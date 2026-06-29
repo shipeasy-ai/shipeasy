@@ -14,8 +14,8 @@
  * (Release ▸ Flags ▸ Attributes, Release ▸ Experiments ▸ Universes, Metrics ▸
  * Events, Ops ▸ Alerts) and each parent level prints its own tag description —
  * the same hierarchy the CLI projects into `release flags …` command groups.
- * The remaining hand-written tools (auth, detect_project, projects_upsert, the
- * i18n fs/AST tools) have no spec/custom op; they nest under the matching tag
+ * The remaining hand-written tools (auth, projects_upsert, and the pure-API
+ * i18n write tools) have no spec/custom op; they nest under the matching tag
  * (or a synthetic Auth group) and fall back to the catalog description.
  *
  *   pnpm --filter @shipeasy/mcp docs            # all groups
@@ -104,11 +104,16 @@ for (const item of Object.values(spec.paths ?? {})) {
     for (const v of verbs) {
       const name = [...segs, v.name].join("_").replace(/-/g, "_");
       if (OVERRIDDEN.has(name)) continue;
-      specByTool.set(name, {
+      const meta: SpecMeta = {
         title: firstLine(String(v.summary || op.summary || "")),
         description: String(op.description || op.summary || "").trim(),
         errorCodes: op["x-error-codes"] ?? [],
-      });
+      };
+      specByTool.set(name, meta);
+      // A top-level alias tool (e.g. `whoami` for getCurrentProject) shares the
+      // same metadata — register it so the alias renders fully enriched too.
+      const alias = op["x-cli"].commands ? undefined : op["x-cli"].topLevelAlias;
+      if (alias) specByTool.set(String(alias), meta);
     }
   }
 }
@@ -197,7 +202,9 @@ roots.set(
 );
 
 // Tools with no tag-prefix match are placed explicitly under an existing group.
-const EXPLICIT: Record<string, string[]> = { detect_project: ["projects"] };
+// `whoami` is the flat top-level alias of getCurrentProject — nest it with the
+// other Projects tools.
+const EXPLICIT: Record<string, string[]> = { whoami: ["projects"] };
 
 // Flatten the tree into joined-slug paths for longest-prefix tool placement.
 const tagPaths: { joined: string; path: string[] }[] = [];
@@ -401,7 +408,7 @@ function errorsSection(): string {
   out.push("");
   out.push(
     prose(
-      "Hand-written tools (`detect_project`, `projects_upsert`, the `i18n_*` scan/codemod/loader tools, and auth) operate on the local filesystem or the device-auth flow rather than the admin API, so they don't use this envelope.",
+      "Hand-written tools (`projects_upsert` and auth) layer the `.shipeasy` bind or the device-auth flow on top of the admin API rather than being plain spec calls, so they don't use this envelope. All filesystem / AST tooling (project detection, i18n source scanners / codemods / loader install) now lives in the `shipeasy` CLI, not this MCP server.",
     ),
     "",
   );

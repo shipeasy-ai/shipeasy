@@ -131,6 +131,12 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .action(async (opts) => {
       await ctx.run({ mutates: false, invoke: (client) => api.getCurrentProject({ client, body: json(opts.data) as never }) });
     });
+  program.command("whoami")
+    .description("Show the current project")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.getCurrentProject({ client, body: json(opts.data) as never }) });
+    });
   g_projects.command("upsert")
     .description("Find-or-create a project by domain")
     .option("--domain <value>", "Hostname-like project identifier (e.g. `acme.com`). Use `*` to allow any origin. The project is keyed by `(owner_email, domain)`, so a second call with the same domain returns the existing project.")
@@ -275,7 +281,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   g_release_configs.command("draft")
     .description("Save a draft value")
     .argument("<id>", "Stable opaque config id (`cfg_…`) or the config's `name`.")
-    .option("--env <value>", "Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).")
+    .option("--env <value>", "Target environment. One of the project's configured envs (`dev`, `staging`, `prod`).")
     .option("--value <value>", "Draft value to stage on `env`. Validated against the config's current schema.")
     .action(async (id, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.saveConfigDraft({ client, path: { id: id }, body: clean({ env: str(opts.env), value: str(opts.value) }) }) });
@@ -283,14 +289,14 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   g_release_configs.command("discard-draft")
     .description("Discard a draft")
     .argument("<id>", "Stable opaque config id (`cfg_…`) or the config's `name`.")
-    .option("--env <value>", "Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).")
+    .option("--env <value>", "Target environment. One of the project's configured envs (`dev`, `staging`, `prod`).")
     .action(async (id, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.discardConfigDraft({ client, path: { id: id }, body: clean({ env: str(opts.env) }) }) });
     });
   g_release_configs.command("publish")
     .description("Publish a draft")
     .argument("<id>", "Stable opaque config id (`cfg_…`) or the config's `name`.")
-    .option("--env <value>", "Target environment. One of the project's configured envs (`dev`, `stage`, `prod`).")
+    .option("--env <value>", "Target environment. One of the project's configured envs (`dev`, `staging`, `prod`).")
     .action(async (id, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.publishConfigDraft({ client, path: { id: id }, body: clean({ env: str(opts.env) }) }) });
     });
@@ -531,7 +537,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   g_release_killswitch.command("set")
     .description("Set one switch entry")
     .argument("<id>", "Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.")
-    .option("--env <value>", "Target environment (`dev`/`stage`/`prod`).")
+    .option("--env <value>", "Target environment. One of the project's configured envs (`dev`, `staging`, `prod`).")
     .option("--switch-key <value>", "Switch key to set.")
     .option("--value <value>", "New boolean value for this `switchKey` on this `env`.")
     .action(async (id, opts) => {
@@ -540,7 +546,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   g_release_killswitch.command("unset")
     .description("Remove one switch entry")
     .argument("<id>", "Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.")
-    .option("--env <value>", "Target environment.")
+    .option("--env <value>", "Target environment. One of the project's configured envs (`dev`, `staging`, `prod`).")
     .option("--switch-key <value>", "Switch key to remove.")
     .action(async (id, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.unsetKillswitchSwitch({ client, path: { id: id }, body: clean({ env: str(opts.env), switchKey: str(opts.switchKey) }) }) });

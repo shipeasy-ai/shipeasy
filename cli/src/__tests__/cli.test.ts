@@ -40,17 +40,12 @@ describe("shipeasy CLI", () => {
     await expect(run(["node", "shipeasy", "logout"])).resolves.toBeUndefined();
   });
 
-  it("whoami shows not-logged-in message when no credentials", async () => {
-    vi.resetModules();
-    vi.doMock("../auth/storage", () => NULL_STORAGE);
-    const { run } = await import("../index");
-    await run(["node", "shipeasy", "whoami"]);
-    expect(logSpy).toHaveBeenCalledWith("Not logged in. Run: shipeasy login");
-  });
-
   // Auth-requiring commands must fail closed (never silently no-op) when there
-  // is no session. Each should surface an error and request exit(1).
+  // is no session. Each should surface an error and request exit(1). `whoami`
+  // is now the registry-generated alias of `projects current` (it resolves the
+  // project from the auth header), so it fails closed like the rest.
   it.each([
+    ["whoami"],
     ["release", "flags", "list"],
     ["release", "experiments", "list"],
     ["release", "configs", "list"],

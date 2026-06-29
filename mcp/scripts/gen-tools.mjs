@@ -75,7 +75,21 @@ function tagChain(name) {
 // ── collect operations ───────────────────────────────────────────────────────
 // i18n's API parts (profiles/keys/drafts) stay hand-written alongside the fs/AST
 // i18n tools, so skip them here — same as the CLI generator.
-const SKIP_TAGS = new Set(["i18n", "Profiles", "Keys", "Drafts"]);
+//
+// API Keys / Connectors / Errors are documented in the spec (API reference +
+// contract tests) but NOT projected to the CLI/MCP surface — they carry `x-cli`
+// only for the doc pipeline. Same for `searchResources` (tagged Projects, so
+// skipped by id, not tag). Kept in sync with the CLI generator's skip lists.
+const SKIP_TAGS = new Set([
+  "i18n",
+  "Profiles",
+  "Keys",
+  "Drafts",
+  "API Keys",
+  "Connectors",
+  "Errors",
+]);
+const SKIP_OPS = new Set(["searchResources"]);
 // Tools that have a richer hand-written version in src/tools/ which the
 // generated one must NOT shadow. `projects_upsert` layers a `.shipeasy` fs bind
 // on top of the shared upsert call, so MCP keeps the hand-written tool.
@@ -89,6 +103,7 @@ for (const [, item] of Object.entries(spec.paths)) {
   for (const method of METHODS) {
     const op = pathItem[method];
     if (!op || !op["x-cli"]) continue;
+    if (SKIP_OPS.has(op.operationId)) continue;
     const xcli = op["x-cli"];
     const tag = op.tags?.[0];
     if (SKIP_TAGS.has(tag)) continue;
@@ -157,13 +172,21 @@ for (const [, item] of Object.entries(spec.paths)) {
       }
       const call = `api.${op.operationId}({ ${callParts.join(", ")} }).then(unwrap)`;
 
-      tools.push({
+      const tool = {
         name,
         mutates,
         description: toolDesc(v.summary, op),
         inputSchema: { type: "object", properties, required },
         call,
-      });
+      };
+      tools.push(tool);
+
+      // Optional top-level alias (e.g. `whoami` for `getCurrentProject`): an
+      // extra tool with the same schema/dispatch under a flat name. Single-verb
+      // ops only — synthetic-verb ops never carry one.
+      if (xcli.topLevelAlias && !xcli.commands && !OVERRIDDEN.has(xcli.topLevelAlias)) {
+        tools.push({ ...tool, name: xcli.topLevelAlias });
+      }
     }
   }
 }

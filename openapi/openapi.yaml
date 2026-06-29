@@ -4209,6 +4209,7 @@ paths:
         - FORBIDDEN
       x-cli:
         name: current
+        topLevelAlias: whoami
   /api/admin/projects/upsert:
     post:
       operationId: upsertProject

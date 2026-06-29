@@ -70,7 +70,21 @@ const sentence = (s) => {
 // i18n is the fs/AST-heavy module — its API parts (profiles/keys/drafts) stay
 // hand-written in src/commands/i18n.ts alongside scan/codemod/loader, so skip
 // them here to avoid clobbering the custom command tree.
-const SKIP_TAGS = new Set(["i18n", "Profiles", "Keys", "Drafts"]);
+//
+// API Keys / Connectors / Errors are documented in the spec (for the published
+// API reference + contract tests) but are NOT projected to the CLI/MCP surface
+// — they carry `x-cli` only for the doc pipeline. Same for the `searchResources`
+// op (tagged Projects, so skipped by id, not tag).
+const SKIP_TAGS = new Set([
+  "i18n",
+  "Profiles",
+  "Keys",
+  "Drafts",
+  "API Keys",
+  "Connectors",
+  "Errors",
+]);
+const SKIP_OPS = new Set(["searchResources"]);
 
 const METHODS = ["get", "post", "put", "patch", "delete"];
 const groups = new Map(); // pathKey "release/flags" → { segs, tag, commands: [] }
@@ -87,6 +101,7 @@ for (const [path, item] of Object.entries(spec.paths)) {
   for (const method of METHODS) {
     const op = pathItem[method];
     if (!op || !op["x-cli"]) continue;
+    if (SKIP_OPS.has(op.operationId)) continue;
     const xcli = op["x-cli"];
     const tag = op.tags?.[0];
     if (SKIP_TAGS.has(tag)) continue;
@@ -119,6 +134,9 @@ for (const [path, item] of Object.entries(spec.paths)) {
         queryParams,
         bodyProps,
         preset: v.preset ?? {},
+        // Optional top-level alias (e.g. `whoami` for `projects current`). Only
+        // for single-verb ops — synthetic-verb ops never carry one.
+        topLevelAlias: xcli.commands ? undefined : xcli.topLevelAlias,
       });
     }
   }
@@ -136,7 +154,9 @@ lines.push("");
 lines.push("export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {");
 
 // group declarations (parents before children)
-const groupVar = (segs) => "g_" + segs.join("_");
+// Sanitise to a valid JS identifier — slugs can contain `-` (e.g. `api-keys`),
+// which is legal in a command name but not in the `const g_…` variable name.
+const groupVar = (segs) => "g_" + segs.join("_").replace(/[^a-zA-Z0-9_]/g, "_");
 const sortedGroups = [...groups.values()].sort((a, b) => a.segs.length - b.segs.length || groupKey(a.segs).localeCompare(groupKey(b.segs)));
 const declared = new Set();
 for (const grp of sortedGroups) {
@@ -215,13 +235,19 @@ for (const grp of sortedGroups) {
     }
     const call = `api.${cmd.operationId}({ client${callParts.length ? ", " + callParts.join(", ") : ""} })`;
 
-    lines.push(`  ${gv}.command(${q(cmd.verb)})`);
-    if (cmd.summary) lines.push(`    .description(${q(cmd.summary)})`);
-    for (const p of posInfo) lines.push(`    .argument(${q("<" + p.name + ">")}, ${q(p.desc)})`);
-    for (const o of opts) lines.push(`    .option(${q("--" + o.flag + " <value>")}, ${q(o.desc)})`);
-    lines.push(`    .action(async (${actionArgs}) => {`);
-    lines.push(`      await ctx.run({ mutates: ${mutates}, invoke: (client) => ${call} });`);
-    lines.push(`    });`);
+    // Emit one `.command()` on the given parent. Called for the normal command
+    // under its group, and again on `program` for an optional top-level alias.
+    const emit = (parentVar, name) => {
+      lines.push(`  ${parentVar}.command(${q(name)})`);
+      if (cmd.summary) lines.push(`    .description(${q(cmd.summary)})`);
+      for (const p of posInfo) lines.push(`    .argument(${q("<" + p.name + ">")}, ${q(p.desc)})`);
+      for (const o of opts) lines.push(`    .option(${q("--" + o.flag + " <value>")}, ${q(o.desc)})`);
+      lines.push(`    .action(async (${actionArgs}) => {`);
+      lines.push(`      await ctx.run({ mutates: ${mutates}, invoke: (client) => ${call} });`);
+      lines.push(`    });`);
+    };
+    emit(gv, cmd.verb);
+    if (cmd.topLevelAlias) emit("program", cmd.topLevelAlias);
   }
 }
 
