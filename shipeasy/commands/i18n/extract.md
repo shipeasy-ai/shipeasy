@@ -6,41 +6,32 @@ user-invocable: true
 ---
 
 You are running an automated i18n extraction. Do not pause to ask the user
-clarifying questions. Do not propose alternatives. Just run the steps below
-and report at the end.
+clarifying questions. Do not propose alternatives. Run the command and report.
 
-> **This codemod rewrites JavaScript/TypeScript sources** (it emits the
-> `i18n.t(...)` wrapping form against JS/TS/JSX files). For a repo in another
-> language, pull that language's i18n usage from the `docs` MCP:
-> `docs_get { sdk: <lang>, path: "i18n" }` (run `docs_list { sdk: <lang> }` to
-> find the handle; CLI `shipeasy docs get --sdk <lang> i18n`) and apply it
-> directly. Detect the language from `.shipeasy` or the subproject's manifest.
+**The whole pipeline is now one CLI verb.** `shipeasy i18n extract` runs the
+AST codemod (wrap strings with `i18n.t()` + write a flat keys file), then
+pushes the keys (insert-only) and publishes them — what this skill used to do
+in three steps. Run it with the **Bash tool**.
 
 ## Steps
 
-1. Apply the codemod against `$ARGUMENTS` (or auto-detected source dirs if
-   empty — the CLI handles detection):
+1. Run the orchestrator (auto-detects source dirs when `$ARGUMENTS` is empty):
 
    ```bash
-   shipeasy codemod i18n $ARGUMENTS
+   shipeasy i18n extract $ARGUMENTS
    ```
 
-   The CLI auto-detects targets when no argument is given (it walks `app/`,
-   `src/`, `components/`, `lib/`, `pages/` if they exist). It writes:
-   - rewritten source files (`i18n.t("<key>", "<fallback>", …)` calls + the
-     `import { i18n } from "@shipeasy/sdk/client"` line),
-   - a flat `src/i18n/en.json` (or `i18n/en.json` if no `src/`) with the
-     extracted key/value pairs (merge mode — safe to re-run).
+   - JS/TS projects: codemod → push → publish, all in one call.
+   - **Non-JS/TS projects** (exit code 2): there is no codemod yet. The command
+     prints the per-language docs pointer. Follow it — pull
+     `shipeasy docs get --sdk <lang> i18n`, apply the wrapping by hand, then
+     `shipeasy i18n push <file> --profile en:prod`. Detect the language from
+     `.shipeasy` or the subproject's manifest.
 
-2. Locate the generated keys file and push + publish:
+   Useful flags: `--dry-run` (preview, no writes/push), `--no-publish` (push
+   but hold the CDN publish), `--profile <name>` (default `en:prod`).
 
-   ```bash
-   FILE=$(test -f src/i18n/en.json && echo src/i18n/en.json || echo i18n/en.json)
-   shipeasy i18n push "$FILE" --profile en:prod --chunk default
-   shipeasy i18n publish --profile en:prod --chunk default
-   ```
-
-3. Show the user the change footprint and tell them to review:
+2. Show the user the change footprint:
 
    ```bash
    git diff --stat
@@ -48,17 +39,16 @@ and report at the end.
 
 ## Rules
 
-- **Do not ask the user** which directories to scan or whether to apply.
-  The codemod is idempotent and reversible via `git`. Just run it.
-- **Do not run with `--dry-run`** unless the user explicitly typed `dry-run`
-  in their slash-command arguments.
+- **Do not ask** which directories to scan — the codemod auto-detects and is
+  idempotent + reversible via `git`.
+- **Do not run `--dry-run`** unless the user explicitly typed `dry-run` in the
+  slash-command arguments.
 - **Do not commit.** Stop after `git diff --stat`.
-- If the codemod errors, show the error and stop — don't try to "self-heal"
-  by switching directories or editing the config.
+- If the command errors (exit 1), show the error and stop — don't "self-heal".
+  Exit code 2 is the non-JS/TS path above, not an error.
 
 ## Final report (one short paragraph)
 
-- files scanned / files modified / total keys pushed,
-- the keys file path,
+- files modified / keys pushed (from the command output),
 - one-line `git diff --stat` summary,
-- the next command the user might want: `npm run build` (or `pnpm build`).
+- next command the user might want: `npm run build` (or `pnpm build`).

@@ -7,45 +7,37 @@ user-invocable: true
 
 Migrate the project's existing i18n library to `@shipeasy/sdk` i18n.
 
-> **This codemod rewrites JavaScript/TypeScript sources** (the supported
-> sources below — react-i18next, react-intl, lingui, next-intl, raw-i18next —
-> are all JS/TS libraries, and it rewrites their call sites to the `i18n.t(...)`
-> form). For a repo in another language, pull that language's i18n usage from
-> the `docs` MCP: `docs_get { sdk: <lang>, path: "i18n" }` (run
-> `docs_list { sdk: <lang> }` to find the handle; CLI
-> `shipeasy docs get --sdk <lang> i18n`) and apply it directly. Detect the
-> language from `.shipeasy` or the subproject's manifest.
+**The migration is now one CLI verb.** `shipeasy i18n migrate <library>` runs
+the codemod that rewrites call sites (`t("…")`, `<Trans>`, `<FormattedMessage>`,
+etc.) to `i18n.t(…)`, then pushes any existing translation file and publishes.
+Run it with the **Bash tool**.
 
-Supported migration sources (`$ARGUMENTS`):
+Supported sources (`$ARGUMENTS`): `react-i18next`, `react-intl`, `lingui`,
+`next-intl`, `raw-i18next`.
 
-- `react-i18next`
-- `react-intl`
-- `lingui`
-- `next-intl`
-- `raw-i18next`
+## Steps
 
-Steps:
+1. Confirm `$ARGUMENTS` matches a supported source. If not, ask the user.
 
-1. Confirm `$ARGUMENTS` matches one of the supported sources. If not, ask the user.
-2. Preview:
+2. Preview, then apply:
+
    ```bash
-   shipeasy codemod i18n --migrate $ARGUMENTS --dry-run --verbose
+   shipeasy i18n migrate $ARGUMENTS --dry-run    # preview the rewrite
+   shipeasy i18n migrate $ARGUMENTS              # apply + push + publish
    ```
-3. Apply:
+
+   - JS/TS projects: codemod → push → publish in one call. The command prints
+     the `pnpm remove <library>` line to run next.
+   - **Non-JS/TS projects** (exit code 2): no codemod — follow the printed docs
+     pointer (`shipeasy docs get --sdk <lang> i18n`) and apply by hand.
+
+3. Remove the old library (the command tells you which), then show the full diff
+   and run typecheck + build:
+
    ```bash
-   shipeasy codemod i18n --migrate $ARGUMENTS
+   pnpm remove i18next react-i18next   # or the matching package set
+   git diff
    ```
-4. The codemod rewrites call sites (`t("…")`, `<Trans>`, `<FormattedMessage>`,
-   etc.) to `i18n.t(…)`. Existing translation files (`en.json`, etc.) are
-   preserved — push them with:
-   ```bash
-   shipeasy i18n push en.json --profile en:prod
-   ```
-5. Remove the old library:
-   ```bash
-   pnpm remove i18next react-i18next   # or matching package set
-   ```
-6. Show the user the full diff before they commit. Run typecheck + build.
 
 Do not delete the old translation JSON files until the user confirms keys are
-visible in the Shipeasy dashboard.
+visible in the Shipeasy dashboard. Do not commit — stop after the diff.
