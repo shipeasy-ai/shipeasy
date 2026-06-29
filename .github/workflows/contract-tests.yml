@@ -70,6 +70,14 @@ jobs:
         working-directory: app
         run: pnpm install --frozen-lockfile
 
+      # apps/ui resolves `@shipeasy/openapi/schemas/*` (via @shipeasy/core) and
+      # `@shipeasy/devtools` from their built `dist/` (exports map points at
+      # dist), so `next dev` 500s with "Module not found" until they're built.
+      # Build the app's whole workspace-dep closure (src-only deps are no-ops).
+      - name: Build the app's workspace deps (dist-exported packages)
+        working-directory: app
+        run: pnpm --filter "@shipeasy/ui^..." build
+
       - name: Run contract fuzz
         working-directory: app
         env:
