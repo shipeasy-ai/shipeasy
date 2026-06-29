@@ -41,16 +41,27 @@ If the check fails, stop and tell the user to run `/shipeasy:setup` first.
 
 ---
 
-## 2. Enable the feedback module
+## 2. Provision the ops module (pure CLI)
+
+The module enable + verification is now a single binary command — run it with
+the **Bash tool** and relay its output:
 
 ```bash
-shipeasy modules enable feedback
-shipeasy modules list      # expect: feedback ✓
+shipeasy install ops
 ```
 
-The toggle is per-project (same `.shipeasy` binding). It turns on the
-feedback queue (bugs + feature requests) and auto-filed production-error /
-alert tickets. No rebuild needed — devtools picks it up on next load.
+It enables `feedback` (+ `events` for error collection) and verifies the
+queue + errors admin paths are reachable (never `403`). A non-zero exit means
+the module didn't enable — surface the error before continuing. No rebuild
+needed; devtools picks it up on next load.
+
+> `shipeasy install ops` needs `@shipeasy/cli` ≥ 2.2.0. On `unknown command`,
+> update once (`npm i -g @shipeasy/cli@latest`) and retry — the inline
+> `shipeasy modules enable feedback` it replaced was removed from the CLI.
+
+Everything below is the part the binary can't own: **wiring the SDK into your
+code**, which is language- and framework-specific. That's why this stays a
+skill rather than collapsing fully into the CLI.
 
 ---
 
@@ -154,7 +165,10 @@ shipeasy ops.errors list        # [] until the first error lands; never 403
 
 ---
 
-## 6. Smoke-test the CLI mirror
+## 6. Smoke-test the CLI mirror (already covered by step 2)
+
+`shipeasy install ops` (step 2) already verified the queue + errors paths are
+reachable. If you want to eyeball the rows after wiring:
 
 ```bash
 shipeasy ops bug list           # returns [] or rows, never 403
@@ -162,7 +176,7 @@ shipeasy ops feature list
 shipeasy ops.errors list              # read-only tracked errors
 ```
 
-A `403` here means the module didn't enable — re-run step 2.
+A `403` here means the module didn't enable — re-run `shipeasy install ops`.
 
 ---
 
