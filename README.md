@@ -1,5 +1,8 @@
 <div align="center">
 
+[![Contract Tests](https://github.com/shipeasy-ai/shipeasy/actions/workflows/contract-tests.yml/badge.svg)](https://github.com/shipeasy-ai/shipeasy/actions/workflows/contract-tests.yml)
+[![prod-probe](https://github.com/shipeasy-ai/shipeasy/actions/workflows/prod-probe.yml/badge.svg)](https://github.com/shipeasy-ai/shipeasy/actions/workflows/prod-probe.yml)
+
 <img src="./assets/hero.svg" alt="Shipeasy — ship experiments 10× faster, just by asking your AI agent" width="100%" />
 
 <br/>
@@ -8,8 +11,6 @@
 
 [![Website](https://img.shields.io/badge/shipeasy.ai-7c3aed?style=flat-square&logo=safari&logoColor=white)](https://shipeasy.ai)
 [![Docs](https://img.shields.io/badge/docs-a78bfa?style=flat-square&logo=readthedocs&logoColor=white)](https://docs.shipeasy.ai)
-[![Contract Tests](https://github.com/shipeasy-ai/shipeasy/actions/workflows/contract-tests.yml/badge.svg)](https://github.com/shipeasy-ai/shipeasy/actions/workflows/contract-tests.yml)
-[![prod-probe](https://github.com/shipeasy-ai/shipeasy/actions/workflows/prod-probe.yml/badge.svg)](https://github.com/shipeasy-ai/shipeasy/actions/workflows/prod-probe.yml)
 
 [**Get started →**](#install-in-12-seconds) &nbsp;·&nbsp; [Website](https://shipeasy.ai) &nbsp;·&nbsp; [Docs](https://docs.shipeasy.ai) &nbsp;·&nbsp; [Command reference](./docs/reference.md)
 
