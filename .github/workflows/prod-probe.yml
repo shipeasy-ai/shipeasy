@@ -1,0 +1,92 @@
+name: prod-probe
+
+# Scheduled production eval probe. Composes existing `shipeasy` CLI commands
+# (flags list, experiments status → server-side SRM) with the public
+# /sdk/evaluate endpoint to verify that gates/experiments still bucket correctly
+# in prod. A drift finding fails the job; GitHub notifies the actor/watchers on a
+# failed scheduled run. See .github/scripts/prod-probe.mjs for the checks.
+#
+# The CLI now lives in THIS repo (the `cli` workspace) and is generated from the
+# `@shipeasy/openapi` operation registry, so the probe runs the locally-built
+# binary (`node cli/bin/shipeasy.js`) rather than `npx @shipeasy/cli@latest` —
+# that keeps the probe's command tree in lockstep with the CLI in the same
+# commit (the npm `@latest` tag can lag the unpublished workspace version).
+#
+# Required repo config:
+#   secrets.SHIPEASY_CLI_TOKEN   — admin/CLI token for the prod project
+#   secrets.SHIPEASY_CLIENT_KEY  — prod CLIENT key (enables the rollout leg)
+#   vars.SHIPEASY_PROJECT_ID     — prod project id
+#   vars.SHIPEASY_EDGE_URL       — edge origin, e.g. https://cdn.shipeasy.ai
+#   vars.SHIPEASY_PROBE_MEMBER_EMAIL — known @team/@owner member (template-gate leg)
+
+on:
+  schedule:
+    - cron: "30 6 * * *" # daily, after the analysis run
+  workflow_dispatch:
+    inputs:
+      cohort:
+        description: "Synthetic cohort size for the rollout-distribution leg"
+        default: "500"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prod-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    env:
+      SHIPEASY_CLI_TOKEN: ${{ secrets.SHIPEASY_CLI_TOKEN }}
+      SHIPEASY_PROJECT_ID: ${{ vars.SHIPEASY_PROJECT_ID }}
+      SHIPEASY_EDGE_URL: ${{ vars.SHIPEASY_EDGE_URL }}
+      SHIPEASY_APP_URL: ${{ vars.SHIPEASY_APP_URL }}
+      SHIPEASY_CLIENT_KEY: ${{ secrets.SHIPEASY_CLIENT_KEY }}
+      SHIPEASY_PROBE_MEMBER_EMAIL: ${{ vars.SHIPEASY_PROBE_MEMBER_EMAIL }}
+      SHIPEASY_PROBE_EXPERIMENT: ${{ vars.SHIPEASY_PROBE_EXPERIMENT }}
+      SHIPEASY_PROBE_METRIC_EVENT: ${{ vars.SHIPEASY_PROBE_METRIC_EVENT }}
+      SHIPEASY_PROBE_IDENTIFY_EXPERIMENT: ${{ vars.SHIPEASY_PROBE_IDENTIFY_EXPERIMENT }}
+      SHIPEASY_PROBE_ENRICHMENT: ${{ vars.SHIPEASY_PROBE_ENRICHMENT }}
+      SHIPEASY_PROBE_MUTATE: ${{ vars.SHIPEASY_PROBE_MUTATE }}
+      SHIPEASY_PROBE_MAX_MS: ${{ vars.SHIPEASY_PROBE_MAX_MS }}
+      SHIPEASY_SERVER_KEY: ${{ secrets.SHIPEASY_SERVER_KEY }}
+      SHIPEASY_CLIENT_KEY_DEV: ${{ secrets.SHIPEASY_CLIENT_KEY_DEV }}
+      SHIPEASY_PROBE_ALERTS: ${{ vars.SHIPEASY_PROBE_ALERTS }}
+      PROBE_COHORT: ${{ github.event.inputs.cohort || '500' }}
+      # Run the CLI from this repo's workspace build (see header note).
+      PROBE_CLI: "node cli/bin/shipeasy.js"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      # cli/dist requires @shipeasy/openapi at runtime (it imports
+      # `@shipeasy/openapi/client`, whose export map points at dist/), so build
+      # the spec package before the CLI itself.
+      - name: Build the CLI
+        run: |
+          pnpm --filter @shipeasy/openapi build
+          pnpm --filter @shipeasy/cli build
+
+      # Mutating legs (killswitch-propagation, experiment reanalyze) require a
+      # bound project — the generated commands resolve scope from `.shipeasy`,
+      # not from SHIPEASY_PROJECT_ID alone. `bind` writes it from the env
+      # session. Read-only legs already work off the env credentials.
+      - name: Bind the prod project
+        run: node cli/bin/shipeasy.js bind
+
+      - name: Run prod probe
+        run: node .github/scripts/prod-probe.mjs
