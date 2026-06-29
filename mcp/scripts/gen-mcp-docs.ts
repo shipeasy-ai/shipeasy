@@ -7,15 +7,16 @@
  * But the catalog deliberately carries only a short description + input schema.
  * For the full documentation — the human title, the complete (multi-paragraph)
  * description, and the per-operation error codes — we read `@shipeasy/openapi`'s
- * bundled `openapi.yaml`.
+ * bundled `openapi.yaml`, plus the shared custom-op registry
+ * (`@shipeasy/openapi/custom`) for the non-spec ops (`docs_*`, `metrics_grammar`).
  *
  * Structure mirrors the CLI reference: tools are NESTED under their tag chain
  * (Release ▸ Flags ▸ Attributes, Release ▸ Experiments ▸ Universes, Metrics ▸
  * Events, Ops ▸ Alerts) and each parent level prints its own tag description —
  * the same hierarchy the CLI projects into `release flags …` command groups.
- * Hand-written tools (auth, detect_project, projects_upsert, i18n fs/AST, SDK
- * docs) have no spec op; they nest under the matching tag (or a synthetic Auth /
- * SDK docs group) and fall back to the catalog description.
+ * The remaining hand-written tools (auth, detect_project, projects_upsert, the
+ * i18n fs/AST tools) have no spec/custom op; they nest under the matching tag
+ * (or a synthetic Auth group) and fall back to the catalog description.
  *
  *   pnpm --filter @shipeasy/mcp docs            # all groups
  *   pnpm --filter @shipeasy/mcp docs release    # only this top-level group
@@ -32,6 +33,7 @@ import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { parse as parseYaml } from "yaml";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { customOperations } from "@shipeasy/openapi/custom";
 import { TOOLS } from "../src/tools/schema";
 
 // HERE === marketplace/mcp/scripts. The monorepo root is three levels up
@@ -109,6 +111,20 @@ for (const item of Object.values(spec.paths ?? {})) {
       });
     }
   }
+}
+
+// Custom (non-spec) ops — `docs_*`, `metrics_grammar` — carry their own
+// title/description in the shared `@shipeasy/openapi/custom` registry. They're
+// auth-free outbound/pure ops, so they have no admin error envelope
+// (`errorCodes: []`). Spec ops win if a name somehow collides.
+for (const op of customOperations) {
+  const name = [...op.group, op.name].join("_").replace(/-/g, "_");
+  if (specByTool.has(name)) continue;
+  specByTool.set(name, {
+    title: firstLine(op.summary),
+    description: String(op.description || op.summary || "").trim(),
+    errorCodes: [],
+  });
 }
 
 // The ErrorCode catalogue (code → meaning) — the single source for every error
@@ -455,7 +471,7 @@ function main() {
     mkdirSync(dirname(t.out), { recursive: true });
     writeFileSync(t.out, `${header(t.mdx)}\n${body}`);
     console.log(
-      `Wrote ${t.out}\n  ${TOOLS.length} tool(s) (${matched} spec-enriched) across ${groups.length} group(s): ${keys}`,
+      `Wrote ${t.out}\n  ${TOOLS.length} tool(s) (${matched} enriched) across ${groups.length} group(s): ${keys}`,
     );
   }
 }

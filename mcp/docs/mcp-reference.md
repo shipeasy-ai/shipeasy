@@ -1206,7 +1206,9 @@ _Errors_ — beyond the [common errors](#errors):
 
 ### `metrics_grammar`
 
-Print the metric query DSL grammar. Print the grammar + examples for the metric query DSL used by `metrics create`.
+**Print the metric query DSL grammar**
+
+Print the grammar + examples for the metric query DSL used by `metrics create`.
 
 _Parameters_
 
@@ -1959,7 +1961,9 @@ Fetch SDK documentation — feature pages, nested snippets, and installable skil
 
 ### `docs_get`
 
-Fetch one SDK doc page or snippet. Fetch one feature page (`flags`, `experiments`, …) or nested snippet (`release/experiments`, …), substituting declared {{placeholders}} from caller args.
+**Fetch one SDK doc page or snippet**
+
+Fetch one feature page (`flags`, `experiments`, …) or nested snippet (`release/experiments`, …), substituting declared {{placeholders}} from caller args.
 
 _Parameters_
 
@@ -1972,7 +1976,9 @@ _Parameters_
 
 ### `docs_list`
 
-List an SDK's documentation tree. Fetch an SDK's `/docs/manifest.json` and return the doc tree — feature pages, nested snippet groups, and whether an installable skill exists.
+**List an SDK's documentation tree**
+
+Fetch an SDK's `/docs/manifest.json` and return the doc tree — feature pages, nested snippet groups, and whether an installable skill exists.
 
 _Parameters_
 
@@ -1982,7 +1988,9 @@ _Parameters_
 
 ### `docs_skill`
 
-Fetch an SDK's installable LLM skill. Fetch the SDK's `skill/SKILL.md` (frontmatter intact) so an agent can install it verbatim. The CLI `--install` writes it locally (a consumer fs side-effect).
+**Fetch an SDK's installable LLM skill**
+
+Fetch the SDK's `skill/SKILL.md` (frontmatter intact) so an agent can install it verbatim. The CLI `--install` writes it locally (a consumer fs side-effect).
 
 _Parameters_
 
