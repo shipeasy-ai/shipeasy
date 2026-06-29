@@ -46,6 +46,41 @@ tools or the CLI:
   `shipeasy i18n profiles …`).
 - Publish a chunk → `i18n_publish_profile` (or `shipeasy i18n publish`).
 
+### One-shot "change a string and ship it"
+
+To change one string's value AND make it live in a single step, use the
+**set-and-publish** admin endpoint:
+
+```
+POST /api/admin/i18n/set
+{ "key": "home.cta", "value": "Get started" }                       # → default profile, published live
+{ "key": "home.cta", "value": "Commencer", "profile": "fr:prod" }   # → a named profile
+```
+
+- `profile` is optional — omit it to target the project's **default** profile
+  (the one seeded as `en:prod`); pass a name to target another locale.
+- It inserts the key if it's new and overwrites it if it exists (no "key not
+  found"), then publishes the whole profile (KV rebuild + CDN purge) and returns
+  the truthful publish result (`version`, `key_count`, `changed`, `purged`,
+  `kv_verified`, plus a `warning` when it landed but isn't fully live).
+- Prefer this over `push` (insert-only, never overwrites) + a separate
+  `publish` when you just want to correct/replace one live string.
+
+Note: any single-key edit (`shipeasy i18n update`, the devtools overlay, or this
+`set` endpoint) **already rebuilds KV + purges the CDN** — a separate `publish`
+is only needed after an insert-only `push`, or to re-ship after a failed purge.
+
+### Find a key by its value
+
+The keys listing searches **both key name and value** via `q`:
+
+```
+GET /api/admin/i18n/keys?q=Get%20started               # any profile
+GET /api/admin/i18n/keys?profile_id=<id>&q=Commencer   # one profile
+```
+
+Use it to locate the key behind a piece of on-screen copy before changing it.
+
 The remaining slash commands are the multi-step codemod/translation workflows
 (AST scan + file edits + push + publish), which is more than a single tool call:
 
