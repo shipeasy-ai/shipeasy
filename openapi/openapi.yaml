@@ -6023,7 +6023,6 @@ components:
                           required:
                             - id
                             - type
-                            - rules
                           additionalProperties: false
                           description: Rule-based sub-gate. When the rules match and the caller falls in the per-condition rollout bucket, evaluation short-circuits and the gate returns `true`; otherwise it falls through to the next entry.
                         - type: object
@@ -6345,7 +6344,6 @@ components:
                     required:
                       - id
                       - type
-                      - rules
                     additionalProperties: false
                     description: Rule-based sub-gate. When the rules match and the caller falls in the per-condition rollout bucket, evaluation short-circuits and the gate returns `true`; otherwise it falls through to the next entry.
                   - type: object
@@ -6443,9 +6441,6 @@ components:
           maxLength: 190
       required:
         - name
-        - enabled
-        - rollout_pct
-        - rules
       additionalProperties: false
       description: Body for `POST /api/admin/gates`. At minimum supply `name`; everything else has sensible defaults.
     CreateGateResponse:
@@ -6642,7 +6637,6 @@ components:
                     required:
                       - id
                       - type
-                      - rules
                     additionalProperties: false
                     description: Rule-based sub-gate. When the rules match and the caller falls in the per-condition rollout bucket, evaluation short-circuits and the gate returns `true`; otherwise it falls through to the next entry.
                   - type: object
@@ -6872,7 +6866,6 @@ components:
                   required:
                     - name
                     - weight
-                    - params
                   additionalProperties: false
                   description: One variant in the experiment. Weights across all groups must sum to 10000.
               significanceThreshold:
@@ -7049,7 +7042,6 @@ components:
             required:
               - name
               - weight
-              - params
             additionalProperties: false
             description: One variant in the experiment. Weights across all groups must sum to 10000.
           description: Two or more variants. Weights must sum to exactly 10000 (100%). Immutable while running.
@@ -7150,22 +7142,8 @@ components:
             description: 'Inline metric: either a DSL `query`, or an `event` (+ `aggregation`/`value`) the server compiles into one.'
       required:
         - name
-        - description
-        - hypothesis
-        - tag
-        - owner_email
-        - audience
-        - bucket_by
         - universe
-        - targeting_gate
-        - allocation_pct
-        - params
         - groups
-        - significance_threshold
-        - min_runtime_days
-        - min_sample_size
-        - sequential_testing
-        - guardrail_metrics
       additionalProperties: false
       description: Body for `POST /api/admin/experiments`. `name`, `universe`, and `groups` (≥2, weights sum to 10000) required.
     CreateExperimentResponse:
@@ -7278,7 +7256,6 @@ components:
             required:
               - name
               - weight
-              - params
             additionalProperties: false
             description: One variant in the experiment. Weights across all groups must sum to 10000.
         significanceThreshold:
@@ -7441,7 +7418,6 @@ components:
             required:
               - name
               - weight
-              - params
             additionalProperties: false
             description: One variant in the experiment. Weights across all groups must sum to 10000.
         significance_threshold:
@@ -8558,8 +8534,6 @@ components:
           description: Inclusive `[lo, hi]` bucket range (0–9999) reserved as the **holdout** — callers hashed into this slice are excluded from every experiment in the universe. `null` disables the holdout. Pro plan or higher required.
       required:
         - name
-        - unit_type
-        - holdout_range
       additionalProperties: false
       description: Body for `POST /api/admin/universes`. Only `name` is required.
     CreateUniverseResponse:
@@ -8938,7 +8912,6 @@ components:
             required:
               - agg
               - metric
-              - filters
             additionalProperties: false
           direction:
             type: string
@@ -9267,7 +9240,6 @@ components:
           required:
             - agg
             - metric
-            - filters
           additionalProperties: false
         winsorize_pct:
           default: 99
@@ -9292,9 +9264,6 @@ components:
       required:
         - name
         - event_name
-        - winsorize_pct
-        - min_detectable_effect
-        - direction
       additionalProperties: false
       description: Body for `POST /api/admin/metrics`. Requires `name`, `event_name`, and exactly one of `query` / `query_ir`.
     CreateMetricResponse:
@@ -9613,7 +9582,6 @@ components:
           required:
             - agg
             - metric
-            - filters
           additionalProperties: false
         direction:
           type: string
@@ -9709,8 +9677,6 @@ components:
               required:
                 - name
                 - type
-                - required
-                - description
               additionalProperties: false
               description: One typed property declared on a catalogued event.
             description: Typed properties declared on the event.
@@ -9779,13 +9745,10 @@ components:
             required:
               - name
               - type
-              - required
-              - description
             additionalProperties: false
             description: One typed property declared on a catalogued event.
       required:
         - name
-        - properties
       additionalProperties: false
       description: Body for `POST /api/admin/events`. Only `name` is required.
     CreateEventResponse:
@@ -9854,8 +9817,6 @@ components:
             required:
               - name
               - type
-              - required
-              - description
             additionalProperties: false
             description: One typed property declared on a catalogued event.
           description: Typed properties declared on the event.
@@ -9928,8 +9889,6 @@ components:
             required:
               - name
               - type
-              - required
-              - description
             additionalProperties: false
             description: One typed property declared on a catalogued event.
       additionalProperties: false
@@ -9986,8 +9945,6 @@ components:
             required:
               - name
               - type
-              - required
-              - description
             additionalProperties: false
             description: One typed property declared on a catalogued event.
       additionalProperties: false
@@ -10489,9 +10446,6 @@ components:
         - metricId
         - comparator
         - threshold
-        - windowHours
-        - severity
-        - enabled
       additionalProperties: false
     CreateAlertRuleResponse:
       type: object

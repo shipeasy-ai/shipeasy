@@ -75,7 +75,7 @@ export type ListGatesResponse = {
             /**
              * Predicates evaluated under `pass`. Empty array = match nothing.
              */
-            rules: Array<{
+            rules?: Array<{
                 /**
                  * Attribute key on the evaluation context (e.g. `country`, `plan`, `email`). Matched case-sensitively against `Shipeasy.checkGate(user, name)` input.
                  */
@@ -220,11 +220,11 @@ export type CreateGateRequest = {
     /**
      * Master switch. Defaults to `true`. Set `false` to create the gate disabled (evaluates to `false` regardless of rules/rollout); flip on via `POST /{id}/enable` or PATCH.
      */
-    enabled: boolean;
+    enabled?: boolean;
     /**
      * Initial rollout in **basis points** (0–10000 = 0%–100%) — `100` here means **1%**, not 100%. Use `rollout_percent` (0–100) below if you'd rather think in percent. Use `0` to create the gate dark and ramp via PATCH after deploy validation.
      */
-    rollout_pct: number;
+    rollout_pct?: number;
     /**
      * Initial rollout as a **percentage** (0–100, fractional ok). Friendlier alias for `rollout_pct`; converted internally to basis points (e.g. `100` here = 10000 bp = 100%). If both `rollout_pct` and `rollout_percent` are set, `rollout_percent` wins.
      */
@@ -232,7 +232,7 @@ export type CreateGateRequest = {
     /**
      * Targeting predicates. AND-combined. If non-empty, the gate returns `true` only for callers that satisfy every rule **and** fall under `rollout_pct`.
      */
-    rules: Array<{
+    rules?: Array<{
         /**
          * Attribute key on the evaluation context (e.g. `country`, `plan`, `email`). Matched case-sensitively against `Shipeasy.checkGate(user, name)` input.
          */
@@ -277,7 +277,7 @@ export type CreateGateRequest = {
         /**
          * Predicates evaluated under `pass`. Empty array = match nothing.
          */
-        rules: Array<{
+        rules?: Array<{
             /**
              * Attribute key on the evaluation context (e.g. `country`, `plan`, `email`). Matched case-sensitively against `Shipeasy.checkGate(user, name)` input.
              */
@@ -480,7 +480,7 @@ export type UpdateGateRequest = {
         /**
          * Predicates evaluated under `pass`. Empty array = match nothing.
          */
-        rules: Array<{
+        rules?: Array<{
             /**
              * Attribute key on the evaluation context (e.g. `country`, `plan`, `email`). Matched case-sensitively against `Shipeasy.checkGate(user, name)` input.
              */
@@ -671,7 +671,7 @@ export type ListExperimentsResponse = {
             /**
              * Per-group parameter values delivered to the SDK when a caller is hashed into this group. Keys must match the experiment's `params` schema.
              */
-            params: {
+            params?: {
                 [key: string]: unknown;
             };
         }>;
@@ -700,24 +700,24 @@ export type CreateExperimentRequest = {
     /**
      * Free-form description. Max 2000 chars, markdown rendered in the dashboard.
      */
-    description: string | null;
+    description?: string | null;
     /**
      * Hypothesis statement shown in the editor. Display-only.
      */
-    hypothesis: string | null;
+    hypothesis?: string | null;
     /**
      * Short tag chip rendered next to the name. Display-only.
      */
-    tag: string | null;
+    tag?: string | null;
     /**
      * Owner email. Display-only.
      */
-    owner_email: string | null;
+    owner_email?: string | null;
     /**
      * Audience label shown in the editor. Display-only.
      */
-    audience: string | null;
-    bucket_by: string | null;
+    audience?: string | null;
+    bucket_by?: string | null;
     /**
      * Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK.
      */
@@ -729,11 +729,11 @@ export type CreateExperimentRequest = {
     /**
      * Optional gate name. Only callers that pass the gate are enrolled in the experiment.
      */
-    targeting_gate: string | null;
+    targeting_gate?: string | null;
     /**
      * Share of the (gated) audience allocated to the experiment, in basis points (0–10000 = 0%–100%). `0` = unallocated. Use `allocation_percent` (0–100) below to think in percent. Immutable while the experiment is running.
      */
-    allocation_pct: number;
+    allocation_pct?: number;
     /**
      * Allocation as a **percentage** (0–100, fractional ok). Friendlier alias for `allocation_pct`; converted to basis points server-side (e.g. `50` = 5000 bp). If both are set, `allocation_percent` wins.
      */
@@ -745,7 +745,7 @@ export type CreateExperimentRequest = {
     /**
      * Map of param-name → scalar type. Defines the shape of `groups[].params`. Example: `{ headline: 'string', show_cta: 'bool' }`.
      */
-    params: {
+    params?: {
         [key: string]: 'string' | 'bool' | 'number';
     };
     /**
@@ -763,26 +763,26 @@ export type CreateExperimentRequest = {
         /**
          * Per-group parameter values delivered to the SDK when a caller is hashed into this group. Keys must match the experiment's `params` schema.
          */
-        params: {
+        params?: {
             [key: string]: unknown;
         };
     }>;
     /**
      * p-value cutoff used by the analysis pass. Defaults to `0.05`. Values other than 0.05 require Pro plan or higher.
      */
-    significance_threshold: number;
+    significance_threshold?: number;
     /**
      * Minimum days the experiment must run before results are considered conclusive.
      */
-    min_runtime_days: number;
+    min_runtime_days?: number;
     /**
      * Minimum exposures per group before results are considered conclusive.
      */
-    min_sample_size: number;
+    min_sample_size?: number;
     /**
      * Enable sequential testing (always-valid p-values). Requires Premium plan or higher.
      */
-    sequential_testing: boolean;
+    sequential_testing?: boolean;
     /**
      * Single goal metric defined inline — either a DSL `query` or an `event` (+`aggregation`/`value`) the server compiles. Attaching one is required before the experiment can be started. The underlying event is auto-created if missing.
      */
@@ -808,7 +808,7 @@ export type CreateExperimentRequest = {
     /**
      * Up to 10 guardrail metrics defined inline. Each is upserted (event + metric) and attached with role=guardrail.
      */
-    guardrail_metrics: Array<{
+    guardrail_metrics?: Array<{
         name?: string;
         /**
          * Metric DSL string, e.g. `count_users(checkout_completed)`. Provide this OR `event`.
@@ -882,7 +882,7 @@ export type GetExperimentResponse = {
         /**
          * Per-group parameter values delivered to the SDK when a caller is hashed into this group. Keys must match the experiment's `params` schema.
          */
-        params: {
+        params?: {
             [key: string]: unknown;
         };
     }>;
@@ -958,7 +958,7 @@ export type UpdateExperimentRequest = {
         /**
          * Per-group parameter values delivered to the SDK when a caller is hashed into this group. Keys must match the experiment's `params` schema.
          */
-        params: {
+        params?: {
             [key: string]: unknown;
         };
     }>;
@@ -1664,11 +1664,11 @@ export type CreateUniverseRequest = {
     /**
      * Unit of randomisation. Typically `user_id`. Use `account_id` to keep whole accounts in the same group across an experiment.
      */
-    unit_type: string;
+    unit_type?: string;
     /**
      * Inclusive `[lo, hi]` bucket range (0–9999) reserved as the **holdout** — callers hashed into this slice are excluded from every experiment in the universe. `null` disables the holdout. Pro plan or higher required.
      */
-    holdout_range: [
+    holdout_range?: [
         number,
         number
     ] | null;
@@ -1867,7 +1867,7 @@ export type ListMetricsResponse = Array<{
         /**
          * Label filters on the event.
          */
-        filters: Array<{
+        filters?: Array<{
             /**
              * Event property / label identifier.
              */
@@ -2045,7 +2045,7 @@ export type CreateMetricRequest = {
         /**
          * Label filters on the event.
          */
-        filters: Array<{
+        filters?: Array<{
             /**
              * Event property / label identifier.
              */
@@ -2076,15 +2076,15 @@ export type CreateMetricRequest = {
     /**
      * Winsorise percentile (1–99) to clamp outliers. Defaults to 99.
      */
-    winsorize_pct: number;
+    winsorize_pct?: number;
     /**
      * Minimum detectable effect (relative, 0–1) for power planning. `null` to omit.
      */
-    min_detectable_effect: number | null;
+    min_detectable_effect?: number | null;
     /**
      * Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).
      */
-    direction: 'higher_better' | 'lower_better' | 'neutral';
+    direction?: 'higher_better' | 'lower_better' | 'neutral';
 };
 
 /**
@@ -2240,7 +2240,7 @@ export type GetMetricResponse = {
         /**
          * Label filters on the event.
          */
-        filters: Array<{
+        filters?: Array<{
             /**
              * Event property / label identifier.
              */
@@ -2333,11 +2333,11 @@ export type ListEventsResponse = Array<{
         /**
          * Whether the property must be present on every emitted event.
          */
-        required: boolean;
+        required?: boolean;
         /**
          * Human-readable description of the property.
          */
-        description: string;
+        description?: string;
     }>;
     /**
      * `1` if this is an auto-discovered name awaiting approval (metrics on it fail until approved), `0` if approved/usable.
@@ -2368,7 +2368,7 @@ export type CreateEventRequest = {
     /**
      * Typed properties declared on the event. Defaults to an empty list.
      */
-    properties: Array<{
+    properties?: Array<{
         /**
          * Property key, e.g. `amount` or `plan`.
          */
@@ -2380,11 +2380,11 @@ export type CreateEventRequest = {
         /**
          * Whether the property must be present on every emitted event.
          */
-        required: boolean;
+        required?: boolean;
         /**
          * Human-readable description of the property.
          */
-        description: string;
+        description?: string;
     }>;
 };
 
@@ -2437,11 +2437,11 @@ export type GetEventResponse = {
         /**
          * Whether the property must be present on every emitted event.
          */
-        required: boolean;
+        required?: boolean;
         /**
          * Human-readable description of the property.
          */
-        description: string;
+        description?: string;
     }>;
     /**
      * `1` if this is an auto-discovered name awaiting approval (metrics on it fail until approved), `0` if approved/usable.
@@ -2487,11 +2487,11 @@ export type UpdateEventRequest = {
         /**
          * Whether the property must be present on every emitted event.
          */
-        required: boolean;
+        required?: boolean;
         /**
          * Human-readable description of the property.
          */
-        description: string;
+        description?: string;
     }>;
 };
 
@@ -2532,11 +2532,11 @@ export type ApproveEventRequest = {
         /**
          * Whether the property must be present on every emitted event.
          */
-        required: boolean;
+        required?: boolean;
         /**
          * Human-readable description of the property.
          */
-        description: string;
+        description?: string;
     }>;
 };
 
@@ -2876,15 +2876,15 @@ export type CreateAlertRuleRequest = {
     /**
      * Lookback window (hours) the metric is aggregated over. 1–720.
      */
-    windowHours: number;
+    windowHours?: number;
     /**
      * Severity of the raised alert.
      */
-    severity: 'danger' | 'warn' | 'info';
+    severity?: 'danger' | 'warn' | 'info';
     /**
      * Whether the rule is evaluated by the cron.
      */
-    enabled: boolean;
+    enabled?: boolean;
     /**
      * Where to deliver this rule's alert (Slack channel and/or email target).
      */

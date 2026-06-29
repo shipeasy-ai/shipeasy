@@ -66,7 +66,7 @@ export const zListGatesResponse = z.object({
                         'exp_in'
                     ]),
                     value: z.unknown()
-                })).default([]),
+                })).optional().default([]),
                 rolloutPct: z.int().gte(0).lte(10000).optional(),
                 bucketBy: z.string().optional(),
                 salt: z.string().optional(),
@@ -132,8 +132,8 @@ export const zError = z.object({
  */
 export const zCreateGateRequest = z.object({
     name: z.string().max(128).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$/),
-    enabled: z.boolean().default(true),
-    rollout_pct: z.int().gte(0).lte(10000).default(0),
+    enabled: z.boolean().optional().default(true),
+    rollout_pct: z.int().gte(0).lte(10000).optional().default(0),
     rollout_percent: z.number().gte(0).lte(100).optional(),
     rules: z.array(z.object({
         attr: z.string().min(1),
@@ -156,7 +156,7 @@ export const zCreateGateRequest = z.object({
             'exp_in'
         ]),
         value: z.unknown()
-    })).default([]),
+    })).optional().default([]),
     salt: z.string().min(1).max(64).optional(),
     stack: z.array(z.union([z.object({
             id: z.string().min(1),
@@ -185,7 +185,7 @@ export const zCreateGateRequest = z.object({
                     'exp_in'
                 ]),
                 value: z.unknown()
-            })).default([]),
+            })).optional().default([]),
             rolloutPct: z.int().gte(0).lte(10000).optional(),
             bucketBy: z.string().optional(),
             salt: z.string().optional(),
@@ -284,7 +284,7 @@ export const zUpdateGateRequest = z.object({
                     'exp_in'
                 ]),
                 value: z.unknown()
-            })).default([]),
+            })).optional().default([]),
             rolloutPct: z.int().gte(0).lte(10000).optional(),
             bucketBy: z.string().optional(),
             salt: z.string().optional(),
@@ -364,7 +364,7 @@ export const zListExperimentsResponse = z.object({
         groups: z.array(z.object({
             name: z.string().min(1).max(64),
             weight: z.int().gte(0).lte(10000),
-            params: z.record(z.string(), z.unknown()).default({})
+            params: z.record(z.string(), z.unknown()).optional().default({})
         })),
         significanceThreshold: z.number(),
         minRuntimeDays: z.int().gte(-9007199254740991).lte(9007199254740991),
@@ -382,32 +382,32 @@ export const zListExperimentsResponse = z.object({
  */
 export const zCreateExperimentRequest = z.object({
     name: z.string().max(128).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$/),
-    description: z.string().max(2000).nullable().default(null),
-    hypothesis: z.string().max(4000).nullable().default(null),
-    tag: z.string().max(64).nullable().default(null),
-    owner_email: z.string().max(254).nullable().default(null),
-    audience: z.string().max(256).nullable().default(null),
-    bucket_by: z.string().min(1).max(128).regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/).nullable().default(null),
+    description: z.string().max(2000).nullish().default(null),
+    hypothesis: z.string().max(4000).nullish().default(null),
+    tag: z.string().max(64).nullish().default(null),
+    owner_email: z.string().max(254).nullish().default(null),
+    audience: z.string().max(256).nullish().default(null),
+    bucket_by: z.string().min(1).max(128).regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/).nullish().default(null),
     folder: z.string().max(256).regex(/^[a-zA-Z0-9_-]+$/).nullish(),
     universe: z.string().min(1),
-    targeting_gate: z.string().nullable().default(null),
-    allocation_pct: z.int().gte(0).lte(10000).default(0),
+    targeting_gate: z.string().nullish().default(null),
+    allocation_pct: z.int().gte(0).lte(10000).optional().default(0),
     allocation_percent: z.number().gte(0).lte(100).optional(),
     salt: z.string().min(1).max(64).optional(),
     params: z.record(z.string(), z.enum([
         'string',
         'bool',
         'number'
-    ])).default({}),
+    ])).optional().default({}),
     groups: z.array(z.object({
         name: z.string().min(1).max(64),
         weight: z.int().gte(0).lte(10000),
-        params: z.record(z.string(), z.unknown()).default({})
+        params: z.record(z.string(), z.unknown()).optional().default({})
     })).min(2),
-    significance_threshold: z.number().gte(0.0001).lte(0.5).default(0.05),
-    min_runtime_days: z.int().gte(0).lte(365).default(0),
-    min_sample_size: z.int().gte(1).lte(9007199254740991).default(100),
-    sequential_testing: z.boolean().default(false),
+    significance_threshold: z.number().gte(0.0001).lte(0.5).optional().default(0.05),
+    min_runtime_days: z.int().gte(0).lte(365).optional().default(0),
+    min_sample_size: z.int().gte(1).lte(9007199254740991).optional().default(100),
+    sequential_testing: z.boolean().optional().default(false),
     goal_metric: z.object({
         name: z.string().max(128).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$/).optional(),
         query: z.string().min(1).max(4096).optional(),
@@ -435,7 +435,7 @@ export const zCreateExperimentRequest = z.object({
             'avg'
         ]).optional(),
         value: z.string().min(1).max(256).optional()
-    })).max(10).default([])
+    })).max(10).optional().default([])
 });
 
 export const zCreateExperimentResponse = z.object({
@@ -471,7 +471,7 @@ export const zGetExperimentResponse = z.object({
     groups: z.array(z.object({
         name: z.string().min(1).max(64),
         weight: z.int().gte(0).lte(10000),
-        params: z.record(z.string(), z.unknown()).default({})
+        params: z.record(z.string(), z.unknown()).optional().default({})
     })),
     significanceThreshold: z.number(),
     minRuntimeDays: z.int().gte(-9007199254740991).lte(9007199254740991),
@@ -511,7 +511,7 @@ export const zUpdateExperimentRequest = z.object({
     groups: z.array(z.object({
         name: z.string().min(1).max(64),
         weight: z.int().gte(0).lte(10000),
-        params: z.record(z.string(), z.unknown()).default({})
+        params: z.record(z.string(), z.unknown()).optional().default({})
     })).min(2).optional(),
     significance_threshold: z.number().gte(0.0001).lte(0.5).optional(),
     min_runtime_days: z.int().gte(0).lte(365).optional(),
@@ -908,8 +908,8 @@ export const zListUniversesResponse = z.object({
 export const zCreateUniverseRequest = z.object({
     name: z.string().max(128).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$/),
     folder: z.string().max(256).regex(/^[a-zA-Z0-9_-]+$/).nullish(),
-    unit_type: z.string().default('user_id'),
-    holdout_range: z.tuple([z.int().gte(0).lte(9999), z.int().gte(0).lte(9999)]).nullable().default(null)
+    unit_type: z.string().optional().default('user_id'),
+    holdout_range: z.tuple([z.int().gte(0).lte(9999), z.int().gte(0).lte(9999)]).nullish().default(null)
 });
 
 export const zCreateUniverseResponse = z.object({
@@ -1033,7 +1033,7 @@ export const zListMetricsResponse = z.array(z.object({
                 '!~'
             ]),
             value: z.string().max(512)
-        })).max(16).default([]),
+        })).max(16).optional().default([]),
         groupBy: z.object({
             op: z.enum(['by', 'without']),
             labels: z.array(z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/)).max(5)
@@ -1139,19 +1139,19 @@ export const zCreateMetricRequest = z.object({
                 '!~'
             ]),
             value: z.string().max(512)
-        })).max(16).default([]),
+        })).max(16).optional().default([]),
         groupBy: z.object({
             op: z.enum(['by', 'without']),
             labels: z.array(z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/)).max(5)
         }).optional()
     }).optional(),
-    winsorize_pct: z.int().gte(1).lte(99).default(99),
-    min_detectable_effect: z.number().nullable().default(null),
+    winsorize_pct: z.int().gte(1).lte(99).optional().default(99),
+    min_detectable_effect: z.number().nullish().default(null),
     direction: z.enum([
         'higher_better',
         'lower_better',
         'neutral'
-    ]).default('higher_better')
+    ]).optional().default('higher_better')
 });
 
 /**
@@ -1254,7 +1254,7 @@ export const zGetMetricResponse = z.object({
                 '!~'
             ]),
             value: z.string().max(512)
-        })).max(16).default([]),
+        })).max(16).optional().default([]),
         groupBy: z.object({
             op: z.enum(['by', 'without']),
             labels: z.array(z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/)).max(5)
@@ -1293,8 +1293,8 @@ export const zListEventsResponse = z.array(z.object({
             'number',
             'boolean'
         ]),
-        required: z.boolean().default(false),
-        description: z.string().default('')
+        required: z.boolean().optional().default(false),
+        description: z.string().optional().default('')
     })),
     pending: z.int().gte(-9007199254740991).lte(9007199254740991),
     createdAt: z.string()
@@ -1314,9 +1314,9 @@ export const zCreateEventRequest = z.object({
             'number',
             'boolean'
         ]),
-        required: z.boolean().default(false),
-        description: z.string().default('')
-    })).default([])
+        required: z.boolean().optional().default(false),
+        description: z.string().optional().default('')
+    })).optional().default([])
 });
 
 /**
@@ -1342,8 +1342,8 @@ export const zGetEventResponse = z.object({
             'number',
             'boolean'
         ]),
-        required: z.boolean().default(false),
-        description: z.string().default('')
+        required: z.boolean().optional().default(false),
+        description: z.string().optional().default('')
     })),
     pending: z.int().gte(-9007199254740991).lte(9007199254740991),
     createdAt: z.string()
@@ -1369,8 +1369,8 @@ export const zUpdateEventRequest = z.object({
             'number',
             'boolean'
         ]),
-        required: z.boolean().default(false),
-        description: z.string().default('')
+        required: z.boolean().optional().default(false),
+        description: z.string().optional().default('')
     })).optional()
 });
 
@@ -1394,8 +1394,8 @@ export const zApproveEventRequest = z.object({
             'number',
             'boolean'
         ]),
-        required: z.boolean().default(false),
-        description: z.string().default('')
+        required: z.boolean().optional().default(false),
+        description: z.string().optional().default('')
     })).optional()
 });
 
@@ -1606,13 +1606,13 @@ export const zCreateAlertRuleRequest = z.object({
         'lte'
     ]),
     threshold: z.number(),
-    windowHours: z.int().gte(1).lte(720).default(24),
+    windowHours: z.int().gte(1).lte(720).optional().default(24),
     severity: z.enum([
         'danger',
         'warn',
         'info'
-    ]).default('warn'),
-    enabled: z.boolean().default(true),
+    ]).optional().default('warn'),
+    enabled: z.boolean().optional().default(true),
     notify: z.object({
         slackChannel: z.object({
             id: z.string().min(1),

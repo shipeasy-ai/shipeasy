@@ -203,7 +203,6 @@ ListGatesResponse:
                       required:
                         - id
                         - type
-                        - rules
                       additionalProperties: false
                       description: Rule-based sub-gate. When the rules match and the caller falls in the per-condition rollout bucket, evaluation short-circuits and the gate returns `true`; otherwise it falls through to the next entry.
                     - type: object
@@ -477,7 +476,6 @@ CreateGateRequest:
                 required:
                   - id
                   - type
-                  - rules
                 additionalProperties: false
                 description: Rule-based sub-gate. When the rules match and the caller falls in the per-condition rollout bucket, evaluation short-circuits and the gate returns `true`; otherwise it falls through to the next entry.
               - type: object
@@ -575,9 +573,6 @@ CreateGateRequest:
       maxLength: 190
   required:
     - name
-    - enabled
-    - rollout_pct
-    - rules
   additionalProperties: false
   description: Body for `POST /api/admin/gates`. At minimum supply `name`; everything else has sensible defaults.
 CreateGateResponse:
@@ -765,7 +760,6 @@ UpdateGateRequest:
                 required:
                   - id
                   - type
-                  - rules
                 additionalProperties: false
                 description: Rule-based sub-gate. When the rules match and the caller falls in the per-condition rollout bucket, evaluation short-circuits and the gate returns `true`; otherwise it falls through to the next entry.
               - type: object

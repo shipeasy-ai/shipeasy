@@ -98,7 +98,6 @@ ListExperimentsResponse:
               required:
                 - name
                 - weight
-                - params
               additionalProperties: false
               description: One variant in the experiment. Weights across all groups must sum to 10000.
           significanceThreshold:
@@ -251,7 +250,6 @@ GetExperimentResponse:
         required:
           - name
           - weight
-          - params
         additionalProperties: false
         description: One variant in the experiment. Weights across all groups must sum to 10000.
     significanceThreshold:
@@ -420,7 +418,6 @@ CreateExperimentRequest:
         required:
           - name
           - weight
-          - params
         additionalProperties: false
         description: One variant in the experiment. Weights across all groups must sum to 10000.
       description: Two or more variants. Weights must sum to exactly 10000 (100%). Immutable while running.
@@ -521,22 +518,8 @@ CreateExperimentRequest:
         description: "Inline metric: either a DSL `query`, or an `event` (+ `aggregation`/`value`) the server compiles into one."
   required:
     - name
-    - description
-    - hypothesis
-    - tag
-    - owner_email
-    - audience
-    - bucket_by
     - universe
-    - targeting_gate
-    - allocation_pct
-    - params
     - groups
-    - significance_threshold
-    - min_runtime_days
-    - min_sample_size
-    - sequential_testing
-    - guardrail_metrics
   additionalProperties: false
   description: Body for `POST /api/admin/experiments`. `name`, `universe`, and `groups` (≥2, weights sum to 10000) required.
 CreateExperimentResponse:
@@ -658,7 +641,6 @@ UpdateExperimentRequest:
         required:
           - name
           - weight
-          - params
         additionalProperties: false
         description: One variant in the experiment. Weights across all groups must sum to 10000.
     significance_threshold:

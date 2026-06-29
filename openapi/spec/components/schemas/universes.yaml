@@ -77,8 +77,6 @@ CreateUniverseRequest:
       description: Inclusive `[lo, hi]` bucket range (0–9999) reserved as the **holdout** — callers hashed into this slice are excluded from every experiment in the universe. `null` disables the holdout. Pro plan or higher required.
   required:
     - name
-    - unit_type
-    - holdout_range
   additionalProperties: false
   description: Body for `POST /api/admin/universes`. Only `name` is required.
 CreateUniverseResponse:

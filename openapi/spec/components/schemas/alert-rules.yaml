@@ -174,9 +174,6 @@ CreateAlertRuleRequest:
     - metricId
     - comparator
     - threshold
-    - windowHours
-    - severity
-    - enabled
   additionalProperties: false
 CreateAlertRuleResponse:
   type: object

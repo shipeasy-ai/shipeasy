@@ -302,7 +302,6 @@ ListMetricsResponse:
         required:
           - agg
           - metric
-          - filters
         additionalProperties: false
       direction:
         type: string
@@ -637,7 +636,6 @@ GetMetricResponse:
       required:
         - agg
         - metric
-        - filters
       additionalProperties: false
     direction:
       type: string
@@ -965,7 +963,6 @@ CreateMetricRequest:
       required:
         - agg
         - metric
-        - filters
       additionalProperties: false
     winsorize_pct:
       default: 99
@@ -990,9 +987,6 @@ CreateMetricRequest:
   required:
     - name
     - event_name
-    - winsorize_pct
-    - min_detectable_effect
-    - direction
   additionalProperties: false
   description: Body for `POST /api/admin/metrics`. Requires `name`, `event_name`, and exactly one of `query` / `query_ir`.
 CreateMetricResponse:

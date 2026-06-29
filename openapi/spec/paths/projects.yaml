@@ -54,6 +54,10 @@
       - FORBIDDEN
     x-cli:
       name: current
+      # Also surface this op as a top-level `whoami` command (CLI) / `whoami`
+      # tool (MCP) — the canonical identity lookup. The CLI/MCP generators emit
+      # an extra top-level entry that dispatches to the same operation.
+      topLevelAlias: whoami
 /api/admin/projects/upsert:
   post:
     operationId: upsertProject

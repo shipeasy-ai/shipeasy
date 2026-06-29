@@ -52,8 +52,6 @@ ListEventsResponse:
           required:
             - name
             - type
-            - required
-            - description
           additionalProperties: false
           description: One typed property declared on a catalogued event.
         description: Typed properties declared on the event.
@@ -127,8 +125,6 @@ GetEventResponse:
         required:
           - name
           - type
-          - required
-          - description
         additionalProperties: false
         description: One typed property declared on a catalogued event.
       description: Typed properties declared on the event.
@@ -196,13 +192,10 @@ CreateEventRequest:
         required:
           - name
           - type
-          - required
-          - description
         additionalProperties: false
         description: One typed property declared on a catalogued event.
   required:
     - name
-    - properties
   additionalProperties: false
   description: Body for `POST /api/admin/events`. Only `name` is required.
 CreateEventResponse:
@@ -261,8 +254,6 @@ UpdateEventRequest:
         required:
           - name
           - type
-          - required
-          - description
         additionalProperties: false
         description: One typed property declared on a catalogued event.
   additionalProperties: false
@@ -319,8 +310,6 @@ ApproveEventRequest:
         required:
           - name
           - type
-          - required
-          - description
         additionalProperties: false
         description: One typed property declared on a catalogued event.
   additionalProperties: false
