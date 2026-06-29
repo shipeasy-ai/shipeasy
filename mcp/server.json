@@ -7,13 +7,13 @@
     "source": "github"
   },
   "websiteUrl": "https://docs.shipeasy.ai/get-started/mcp?utm_source=mcp-registry&utm_medium=referral&utm_campaign=mcp-server-listing",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "packages": [
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@shipeasy/mcp",
-      "version": "2.0.0",
+      "version": "2.1.0",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
