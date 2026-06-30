@@ -4231,9 +4231,9 @@ export type CreateKeyRequest = {
      */
     expiresInDays?: number | null;
     /**
-     * Environment to bind the key to. Required for `server`/`client` keys; ignored for `admin`/`ops` (pinned to `prod`).
+     * Environment to bind the key to. Always required. For `server`/`client` keys it is the isolation boundary the worker reads from; `admin`/`ops` keys are env-agnostic and pinned to `prod` by the handler regardless of the value sent.
      */
-    env?: 'dev' | 'staging' | 'prod';
+    env: 'dev' | 'staging' | 'prod';
 };
 
 /**

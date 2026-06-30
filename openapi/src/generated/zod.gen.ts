@@ -2396,7 +2396,7 @@ export const zCreateKeyRequest = z.object({
         'dev',
         'staging',
         'prod'
-    ]).optional()
+    ])
 });
 
 /**
