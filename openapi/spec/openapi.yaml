@@ -279,6 +279,8 @@ paths:
     $ref: ./paths/i18n.yaml#/~1api~1admin~1i18n~1keys~1{id}
   /api/admin/i18n/drafts:
     $ref: ./paths/i18n.yaml#/~1api~1admin~1i18n~1drafts
+  /api/admin/i18n/drafts/{draftId}:
+    $ref: ./paths/i18n.yaml#/~1api~1admin~1i18n~1drafts~1{draftId}
   /api/admin/i18n/profiles/{profileId}/publish:
     $ref: ./paths/i18n.yaml#/~1api~1admin~1i18n~1profiles~1{profileId}~1publish
   /api/admin/i18n/set:

@@ -1824,6 +1824,44 @@ export const zListI18nDraftsResponse = z.array(z.object({
 }));
 
 /**
+ * Body for `POST /api/admin/i18n/drafts`. Stages a new translation draft against a target profile, optionally seeding from a source profile.
+ */
+export const zCreateI18nDraftRequest = z.object({
+    name: z.string().min(1).max(64),
+    profile_id: z.uuid(),
+    source_profile_id: z.uuid().optional()
+});
+
+/**
+ * One staged translation draft.
+ */
+export const zI18nDraft = z.object({
+    id: z.string(),
+    name: z.string().optional(),
+    profileId: z.string().optional(),
+    sourceProfileId: z.string().nullish(),
+    status: z.enum([
+        'open',
+        'merged',
+        'abandoned'
+    ]).optional(),
+    createdBy: z.string().optional(),
+    createdAt: z.string().optional(),
+    publishedAt: z.string().nullish()
+});
+
+/**
+ * Body for `PATCH /api/admin/i18n/drafts/{draftId}`. Transitions the draft's lifecycle state.
+ */
+export const zUpdateI18nDraftRequest = z.object({
+    status: z.enum([
+        'open',
+        'merged',
+        'abandoned'
+    ]).optional()
+});
+
+/**
  * Body for `POST /api/admin/i18n/profiles/{profileId}/publish`. The `chunk` is an audit label only.
  */
 export const zPublishI18nProfileRequest = z.object({
@@ -3200,6 +3238,32 @@ export const zListI18nDraftsHeaders = z.object({
  * List translation drafts
  */
 export const zListI18nDraftsResponse2 = zListI18nDraftsResponse;
+
+export const zCreateI18nDraftBody = zCreateI18nDraftRequest;
+
+export const zCreateI18nDraftHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+/**
+ * Create a translation draft
+ */
+export const zCreateI18nDraftResponse = zI18nDraft;
+
+export const zUpdateI18nDraftBody = zUpdateI18nDraftRequest;
+
+export const zUpdateI18nDraftHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zUpdateI18nDraftPath = z.object({
+    draftId: z.string()
+});
+
+/**
+ * Update a translation draft
+ */
+export const zUpdateI18nDraftResponse = zI18nDraft;
 
 export const zPublishI18nProfileBody = zPublishI18nProfileRequest;
 

@@ -3222,6 +3222,73 @@ export type ListI18nDraftsResponse = Array<{
 }>;
 
 /**
+ * Body for `POST /api/admin/i18n/drafts`. Stages a new translation draft against a target profile, optionally seeding from a source profile.
+ */
+export type CreateI18nDraftRequest = {
+    /**
+     * Draft name, e.g. the target locale being staged.
+     */
+    name: string;
+    /**
+     * Profile the draft targets.
+     */
+    profile_id: string;
+    /**
+     * Optional profile to seed the draft's keys from.
+     */
+    source_profile_id?: string;
+};
+
+/**
+ * One staged translation draft.
+ */
+export type I18nDraft = {
+    /**
+     * Stable opaque draft id.
+     */
+    id: string;
+    /**
+     * Draft name, e.g. the target locale being staged.
+     */
+    name?: string;
+    /**
+     * Profile the draft targets.
+     */
+    profileId?: string;
+    /**
+     * Profile the draft was seeded from, or `null`.
+     */
+    sourceProfileId?: string | null;
+    /**
+     * Lifecycle state of the draft.
+     */
+    status?: 'open' | 'merged' | 'abandoned';
+    /**
+     * Actor email that created the draft.
+     */
+    createdBy?: string;
+    /**
+     * ISO-8601 timestamp of creation.
+     */
+    createdAt?: string;
+    /**
+     * ISO-8601 merge/publish timestamp, or `null`.
+     */
+    publishedAt?: string | null;
+    [key: string]: unknown;
+};
+
+/**
+ * Body for `PATCH /api/admin/i18n/drafts/{draftId}`. Transitions the draft's lifecycle state.
+ */
+export type UpdateI18nDraftRequest = {
+    /**
+     * New lifecycle state for the draft.
+     */
+    status?: 'open' | 'merged' | 'abandoned';
+};
+
+/**
  * Body for `POST /api/admin/i18n/profiles/{profileId}/publish`. The `chunk` is an audit label only.
  */
 export type PublishI18nProfileRequest = {
@@ -7826,6 +7893,113 @@ export type ListI18nDraftsResponses = {
 };
 
 export type ListI18nDraftsResponse2 = ListI18nDraftsResponses[keyof ListI18nDraftsResponses];
+
+export type CreateI18nDraftData = {
+    body: CreateI18nDraftRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/admin/i18n/drafts';
+};
+
+export type CreateI18nDraftErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type CreateI18nDraftError = CreateI18nDraftErrors[keyof CreateI18nDraftErrors];
+
+export type CreateI18nDraftResponses = {
+    /**
+     * Create a translation draft
+     */
+    200: I18nDraft;
+};
+
+export type CreateI18nDraftResponse = CreateI18nDraftResponses[keyof CreateI18nDraftResponses];
+
+export type UpdateI18nDraftData = {
+    body: UpdateI18nDraftRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The draft id to update.
+         */
+        draftId: string;
+    };
+    query?: never;
+    url: '/api/admin/i18n/drafts/{draftId}';
+};
+
+export type UpdateI18nDraftErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type UpdateI18nDraftError = UpdateI18nDraftErrors[keyof UpdateI18nDraftErrors];
+
+export type UpdateI18nDraftResponses = {
+    /**
+     * Update a translation draft
+     */
+    200: I18nDraft;
+};
+
+export type UpdateI18nDraftResponse = UpdateI18nDraftResponses[keyof UpdateI18nDraftResponses];
 
 export type PublishI18nProfileData = {
     body: PublishI18nProfileRequest;

@@ -312,6 +312,116 @@
       - FORBIDDEN
     x-cli:
       name: list
+  post:
+    operationId: createI18nDraft
+    summary: Create a translation draft
+    description: |-
+      Stage a new translation draft against a target profile, optionally seeding its keys from a source profile.
+
+      **Use case:** Open a machine-translation draft for review before publishing it to a locale.
+    tags:
+      - Drafts
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/i18n.yaml#/CreateI18nDraftRequest
+          example:
+            name: fr:prod
+            profile_id: 3f1a6c2e-1b2c-4d5e-8f90-0a1b2c3d4e5f
+    responses:
+      "200":
+        description: Create a translation draft
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/i18n.yaml#/CreateI18nDraftResponse
+            example:
+              id: draft_01j7
+              name: fr:prod
+              profileId: 3f1a6c2e-1b2c-4d5e-8f90-0a1b2c3d4e5f
+              status: open
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: create
+/api/admin/i18n/drafts/{draftId}:
+  patch:
+    operationId: updateI18nDraft
+    summary: Update a translation draft
+    description: |-
+      Transition a draft's lifecycle state (`open` / `merged` / `abandoned`).
+
+      **Use case:** Mark a reviewed draft as merged, or abandon one that should not ship.
+    tags:
+      - Drafts
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: draftId
+        in: path
+        required: true
+        description: The draft id to update.
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/i18n.yaml#/UpdateI18nDraftRequest
+          example:
+            status: merged
+    responses:
+      "200":
+        description: Update a translation draft
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/i18n.yaml#/UpdateI18nDraftResponse
+            example:
+              id: draft_01j7
+              status: merged
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: update
+      positional:
+        - draftId
 /api/admin/i18n/profiles/{profileId}/publish:
   post:
     operationId: publishI18nProfile

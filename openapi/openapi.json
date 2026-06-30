@@ -6510,6 +6510,163 @@
         "x-cli": {
           "name": "list"
         }
+      },
+      "post": {
+        "operationId": "createI18nDraft",
+        "summary": "Create a translation draft",
+        "description": "Stage a new translation draft against a target profile, optionally seeding its keys from a source profile.\n\n**Use case:** Open a machine-translation draft for review before publishing it to a locale.",
+        "tags": [
+          "Drafts"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateI18nDraftRequest"
+              },
+              "example": {
+                "name": "fr:prod",
+                "profile_id": "3f1a6c2e-1b2c-4d5e-8f90-0a1b2c3d4e5f"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Create a translation draft",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/I18nDraft"
+                },
+                "example": {
+                  "id": "draft_01j7",
+                  "name": "fr:prod",
+                  "profileId": "3f1a6c2e-1b2c-4d5e-8f90-0a1b2c3d4e5f",
+                  "status": "open"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "create"
+        }
+      }
+    },
+    "/api/admin/i18n/drafts/{draftId}": {
+      "patch": {
+        "operationId": "updateI18nDraft",
+        "summary": "Update a translation draft",
+        "description": "Transition a draft's lifecycle state (`open` / `merged` / `abandoned`).\n\n**Use case:** Mark a reviewed draft as merged, or abandon one that should not ship.",
+        "tags": [
+          "Drafts"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "name": "draftId",
+            "in": "path",
+            "required": true,
+            "description": "The draft id to update.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateI18nDraftRequest"
+              },
+              "example": {
+                "status": "merged"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Update a translation draft",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/I18nDraft"
+                },
+                "example": {
+                  "id": "draft_01j7",
+                  "status": "merged"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "update",
+          "positional": [
+            "draftId"
+          ]
+        }
       }
     },
     "/api/admin/i18n/profiles/{profileId}/publish": {
@@ -15214,6 +15371,110 @@
           "additionalProperties": {},
           "description": "One staged translation draft."
         }
+      },
+      "CreateI18nDraftRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Draft name, e.g. the target locale being staged."
+          },
+          "profile_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Profile the draft targets."
+          },
+          "source_profile_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Optional profile to seed the draft's keys from."
+          }
+        },
+        "required": [
+          "name",
+          "profile_id"
+        ],
+        "additionalProperties": false,
+        "description": "Body for `POST /api/admin/i18n/drafts`. Stages a new translation draft against a target profile, optionally seeding from a source profile."
+      },
+      "I18nDraft": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable opaque draft id."
+          },
+          "name": {
+            "type": "string",
+            "description": "Draft name, e.g. the target locale being staged."
+          },
+          "profileId": {
+            "type": "string",
+            "description": "Profile the draft targets."
+          },
+          "sourceProfileId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Profile the draft was seeded from, or `null`."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "merged",
+              "abandoned"
+            ],
+            "description": "Lifecycle state of the draft."
+          },
+          "createdBy": {
+            "type": "string",
+            "description": "Actor email that created the draft."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO-8601 timestamp of creation."
+          },
+          "publishedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO-8601 merge/publish timestamp, or `null`."
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": {},
+        "description": "One staged translation draft."
+      },
+      "UpdateI18nDraftRequest": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "merged",
+              "abandoned"
+            ],
+            "description": "New lifecycle state for the draft."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body for `PATCH /api/admin/i18n/drafts/{draftId}`. Transitions the draft's lifecycle state."
       },
       "PublishI18nProfileRequest": {
         "type": "object",
