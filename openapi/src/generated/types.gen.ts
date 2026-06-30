@@ -2287,6 +2287,178 @@ export type DeleteMetricResponse = {
 };
 
 /**
+ * Metric query DSL string, e.g. `sum(purchase, amount)`. Provide this OR `query_ir`.
+ */
+export type Query = string;
+
+/**
+ * Typed query IR — the structured alternative to `query`. Provide this OR `query`.
+ */
+export type QueryIr = {
+    /**
+     * Aggregation function applied to the source event.
+     */
+    agg: {
+        kind: 'count_users';
+    } | {
+        kind: 'count_events';
+    } | {
+        kind: 'sum';
+    } | {
+        kind: 'avg';
+    } | {
+        kind: 'min';
+    } | {
+        kind: 'max';
+    } | {
+        kind: 'unique';
+    } | {
+        kind: 'quantile';
+        /**
+         * Quantile fraction (0.5 = p50 … 0.999 = p999).
+         */
+        p: 0.5 | 0.75 | 0.9 | 0.95 | 0.99 | 0.999;
+    } | {
+        kind: 'retention_Nd';
+        /**
+         * Retention window in days (1–90).
+         */
+        n: number;
+    } | {
+        kind: 'ratio';
+        /**
+         * Numerator or denominator arm of a `ratio` aggregation.
+         */
+        numerator: {
+            /**
+             * Counting mode for this ratio arm.
+             */
+            agg: 'count_users' | 'count_events';
+            /**
+             * Source event name for this ratio arm.
+             */
+            metric: string;
+            /**
+             * Optional label filters.
+             */
+            filters?: Array<{
+                /**
+                 * Event property / label identifier.
+                 */
+                label: string;
+                /**
+                 * Match operator (`=~`/`!~` are regex).
+                 */
+                op: '=' | '!=' | '=~' | '!~';
+                /**
+                 * Quoted filter value (coerced for numeric labels).
+                 */
+                value: string;
+            }>;
+        };
+        /**
+         * Numerator or denominator arm of a `ratio` aggregation.
+         */
+        denominator: {
+            /**
+             * Counting mode for this ratio arm.
+             */
+            agg: 'count_users' | 'count_events';
+            /**
+             * Source event name for this ratio arm.
+             */
+            metric: string;
+            /**
+             * Optional label filters.
+             */
+            filters?: Array<{
+                /**
+                 * Event property / label identifier.
+                 */
+                label: string;
+                /**
+                 * Match operator (`=~`/`!~` are regex).
+                 */
+                op: '=' | '!=' | '=~' | '!~';
+                /**
+                 * Quoted filter value (coerced for numeric labels).
+                 */
+                value: string;
+            }>;
+        };
+    };
+    /**
+     * Source event name (must equal `event_name`).
+     */
+    metric: string;
+    /**
+     * Numeric property summed/averaged for `sum`/`avg`/quantile aggregations.
+     */
+    valueLabel?: string;
+    /**
+     * Label filters on the event.
+     */
+    filters?: Array<{
+        /**
+         * Event property / label identifier.
+         */
+        label: string;
+        /**
+         * Match operator (`=~`/`!~` are regex).
+         */
+        op: '=' | '!=' | '=~' | '!~';
+        /**
+         * Quoted filter value (coerced for numeric labels).
+         */
+        value: string;
+    }>;
+    /**
+     * Optional group-by clause (ignored for experiment analysis).
+     */
+    groupBy?: {
+        /**
+         * `by` keeps the listed labels; `without` drops them.
+         */
+        op: 'by' | 'without';
+        /**
+         * Labels to group by (max 5).
+         */
+        labels: Array<string>;
+    };
+};
+
+/**
+ * Winsorise percentile (1–99) to clamp outliers. Defaults to 99.
+ */
+export type WinsorizePct = number;
+
+/**
+ * Minimum detectable effect (relative, 0–1) for power planning. `null` to omit.
+ */
+export type MinDetectableEffect = number | null;
+
+/**
+ * Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).
+ */
+export type Direction = 'higher_better' | 'lower_better' | 'neutral';
+
+/**
+ * Body for `PATCH /api/admin/metrics/{id}`. Every field is optional (`name` is immutable); provide at most one of `query` / `query_ir`.
+ */
+export type UpdateMetricRequest = {
+    folder?: Folder;
+    /**
+     * Source event the query reads from.
+     */
+    event_name?: string;
+    query?: Query;
+    query_ir?: QueryIr;
+    winsorize_pct?: WinsorizePct;
+    min_detectable_effect?: MinDetectableEffect;
+    direction?: Direction;
+};
+
+/**
  * Every catalogued event in the project (including pending auto-discovered names).
  */
 export type ListEventsResponse = Array<{
@@ -6546,6 +6718,62 @@ export type GetMetricResponses = {
 };
 
 export type GetMetricResponse2 = GetMetricResponses[keyof GetMetricResponses];
+
+export type UpdateMetricData = {
+    body: UpdateMetricRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Stable opaque metric id (`met_…`) or the metric's `name`.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/metrics/{id}';
+};
+
+export type UpdateMetricErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type UpdateMetricError = UpdateMetricErrors[keyof UpdateMetricErrors];
+
+export type UpdateMetricResponses = {
+    /**
+     * Update a metric
+     */
+    200: GetMetricResponse;
+};
+
+export type UpdateMetricResponse = UpdateMetricResponses[keyof UpdateMetricResponses];
 
 export type ListEventsData = {
     body?: never;

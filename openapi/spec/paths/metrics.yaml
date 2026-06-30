@@ -188,6 +188,65 @@
       name: show
       positional:
         - id
+  patch:
+    operationId: updateMetric
+    summary: Update a metric
+    description: |-
+      Update a metric's definition — folder, source event, query (`query` DSL or typed `query_ir`), winsorisation, minimum detectable effect, or direction. `name` is immutable. Provide at most one of `query` / `query_ir`.
+
+      **Use case:** Refine a metric's query or guardrail direction without recreating it.
+    tags:
+      - Metrics
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque metric id (`met_…`) or the metric's `name`.
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/metrics.yaml#/UpdateMetricRequest
+          example:
+            direction: lower_better
+            winsorize_pct: 95
+    responses:
+      "200":
+        description: Update a metric
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/metrics.yaml#/GetMetricResponse
+            example:
+              id: met_01j7w8a1b2c3d4e5f6g7h8i9j0
+              name: revenue
+              direction: lower_better
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: update
+      positional:
+        - id
   delete:
     operationId: deleteMetric
     summary: Archive a metric

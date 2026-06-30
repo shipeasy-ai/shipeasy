@@ -981,6 +981,27 @@ CreateMetricRequest:
     - event_name
   additionalProperties: false
   description: Body for `POST /api/admin/metrics`. Requires `name`, `event_name`, and exactly one of `query` / `query_ir`.
+UpdateMetricRequest:
+  type: object
+  properties:
+    folder:
+      $ref: ./common.yaml#/Folder
+    event_name:
+      type: string
+      minLength: 1
+      description: Source event the query reads from.
+    query:
+      $ref: "#/CreateMetricRequest/properties/query"
+    query_ir:
+      $ref: "#/CreateMetricRequest/properties/query_ir"
+    winsorize_pct:
+      $ref: "#/CreateMetricRequest/properties/winsorize_pct"
+    min_detectable_effect:
+      $ref: "#/CreateMetricRequest/properties/min_detectable_effect"
+    direction:
+      $ref: "#/CreateMetricRequest/properties/direction"
+  additionalProperties: false
+  description: "Body for `PATCH /api/admin/metrics/{id}`. Every field is optional (`name` is immutable); provide at most one of `query` / `query_ir`."
 CreateMetricResponse:
   type: object
   properties:

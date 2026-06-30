@@ -1296,6 +1296,134 @@ export const zDeleteMetricResponse = z.object({
 });
 
 /**
+ * Metric query DSL string, e.g. `sum(purchase, amount)`. Provide this OR `query_ir`.
+ */
+export const zQuery = z.string().min(1).max(4096);
+
+/**
+ * Typed query IR — the structured alternative to `query`. Provide this OR `query`.
+ */
+export const zQueryIr = z.object({
+    agg: z.union([
+        z.object({
+            kind: z.literal('count_users')
+        }),
+        z.object({
+            kind: z.literal('count_events')
+        }),
+        z.object({
+            kind: z.literal('sum')
+        }),
+        z.object({
+            kind: z.literal('avg')
+        }),
+        z.object({
+            kind: z.literal('min')
+        }),
+        z.object({
+            kind: z.literal('max')
+        }),
+        z.object({
+            kind: z.literal('unique')
+        }),
+        z.object({
+            kind: z.literal('quantile'),
+            p: z.union([
+                z.literal(0.5),
+                z.literal(0.75),
+                z.literal(0.9),
+                z.literal(0.95),
+                z.literal(0.99),
+                z.literal(0.999)
+            ])
+        }),
+        z.object({
+            kind: z.literal('retention_Nd'),
+            n: z.int().gte(1).lte(90)
+        }),
+        z.object({
+            kind: z.literal('ratio'),
+            numerator: z.object({
+                agg: z.enum(['count_users', 'count_events']),
+                metric: z.string().min(1).max(128),
+                filters: z.array(z.object({
+                    label: z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/),
+                    op: z.enum([
+                        '=',
+                        '!=',
+                        '=~',
+                        '!~'
+                    ]),
+                    value: z.string().max(512)
+                })).max(16).optional()
+            }),
+            denominator: z.object({
+                agg: z.enum(['count_users', 'count_events']),
+                metric: z.string().min(1).max(128),
+                filters: z.array(z.object({
+                    label: z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/),
+                    op: z.enum([
+                        '=',
+                        '!=',
+                        '=~',
+                        '!~'
+                    ]),
+                    value: z.string().max(512)
+                })).max(16).optional()
+            })
+        })
+    ]),
+    metric: z.string().min(1).max(128),
+    valueLabel: z.string().min(1).max(128).optional(),
+    filters: z.array(z.object({
+        label: z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/),
+        op: z.enum([
+            '=',
+            '!=',
+            '=~',
+            '!~'
+        ]),
+        value: z.string().max(512)
+    })).max(16).optional().default([]),
+    groupBy: z.object({
+        op: z.enum(['by', 'without']),
+        labels: z.array(z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/)).max(5)
+    }).optional()
+});
+
+/**
+ * Winsorise percentile (1–99) to clamp outliers. Defaults to 99.
+ */
+export const zWinsorizePct = z.int().gte(1).lte(99).default(99);
+
+/**
+ * Minimum detectable effect (relative, 0–1) for power planning. `null` to omit.
+ */
+export const zMinDetectableEffect = z.number().nullable().default(null);
+
+/**
+ * Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).
+ */
+export const zDirection = z.enum([
+    'higher_better',
+    'lower_better',
+    'neutral'
+]).default('higher_better');
+
+/**
+ * Body for `PATCH /api/admin/metrics/{id}`. Every field is optional (`name` is immutable); provide at most one of `query` / `query_ir`.
+ */
+export const zUpdateMetricRequest = z.object({
+    folder: zFolder.optional(),
+    event_name: z.string().min(1).optional(),
+    query: zQuery.optional(),
+    query_ir: zQueryIr.optional(),
+    winsorize_pct: zWinsorizePct.optional(),
+    min_detectable_effect: zMinDetectableEffect.optional(),
+    direction: zDirection.optional()
+});
+
+/**
  * Every catalogued event in the project (including pending auto-discovered names).
  */
 export const zListEventsResponse = z.array(z.object({
@@ -2918,6 +3046,21 @@ export const zGetMetricPath = z.object({
  * Get a metric
  */
 export const zGetMetricResponse2 = zGetMetricResponse;
+
+export const zUpdateMetricBody = zUpdateMetricRequest;
+
+export const zUpdateMetricHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zUpdateMetricPath = z.object({
+    id: z.string()
+});
+
+/**
+ * Update a metric
+ */
+export const zUpdateMetricResponse = zGetMetricResponse;
 
 export const zListEventsHeaders = z.object({
     'X-Project-Id': z.string().optional()
