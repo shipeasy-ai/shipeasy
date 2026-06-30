@@ -5336,7 +5336,7 @@
       "patch": {
         "operationId": "updateOpsItem",
         "summary": "Update a queue item",
-        "description": "Update a queue item's `status` and/or `priority`. Other fields are immutable.\n\n**Use case:** Move an item through its lifecycle (triage → in_progress → resolved) as you work it.",
+        "description": "Update a queue item. The body is validated against the item's stored type: a `bug` accepts its content fields (title, steps-to-reproduce, actual/expected result) plus `status`/`priority`/`notify` and a GitHub PR link; a `feature_request` its content (title, description, use-case) plus the same triage fields; `error`/`alert`/`measure_plan` accept `status`/`priority`/`notify` only (their content is platform-owned). Pass at least one field.\n\n**Use case:** Move an item through its lifecycle (triage → in_progress → resolved) and edit a bug/feature's content as you work it.",
         "tags": [
           "Ops"
         ],
@@ -15255,23 +15255,21 @@
         "additionalProperties": {},
         "description": "One queue item, any of the five types. Shared fields apply to all; `stepsToReproduce`/`actualResult`/`expectedResult`/`viewport` are bug-specific, `description`/`useCase` feature-specific, and `context` carries the per-type payload for auto-filed `error`/`alert`/`measure_plan` tickets."
       },
-      "UpdateOpsItemRequest": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "description": "New lifecycle status.",
-            "type": "string",
-            "enum": [
-              "open",
-              "triaged",
-              "in_progress",
-              "ready_for_qa",
-              "resolved",
-              "wont_fix"
-            ]
-          },
-          "priority": {
-            "description": "New triage priority.",
+      "OpsItemStatus": {
+        "type": "string",
+        "enum": [
+          "open",
+          "triaged",
+          "in_progress",
+          "ready_for_qa",
+          "resolved",
+          "wont_fix"
+        ],
+        "description": "Lifecycle status of a queue item."
+      },
+      "OpsItemPriorityOrNull": {
+        "anyOf": [
+          {
             "type": "string",
             "enum": [
               "nice_to_have",
@@ -15280,12 +15278,145 @@
               "critical"
             ]
           },
-          "notify": {
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Triage priority, or `null` to clear it."
+      },
+      "OpsItemNotifyOrNull": {
+        "anyOf": [
+          {
             "$ref": "#/components/schemas/NotificationTarget"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Where this item's completion notification lands, or `null`."
+      },
+      "UpdateBugRequest": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "New bug title."
+          },
+          "stepsToReproduce": {
+            "type": "string",
+            "maxLength": 8000,
+            "description": "Updated reproduction steps."
+          },
+          "actualResult": {
+            "type": "string",
+            "maxLength": 8000,
+            "description": "Updated actual result."
+          },
+          "expectedResult": {
+            "type": "string",
+            "maxLength": 8000,
+            "description": "Updated expected result."
+          },
+          "status": {
+            "$ref": "#/components/schemas/OpsItemStatus"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/OpsItemPriorityOrNull"
+          },
+          "githubPrNumber": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Link (or, when `null`, unlink) a GitHub pull request to this bug."
+          },
+          "notify": {
+            "$ref": "#/components/schemas/OpsItemNotifyOrNull"
           }
         },
         "additionalProperties": false,
-        "description": "Body for `PATCH /api/admin/ops/{handle}`. Pass at least one of `status` / `priority`. `notify` sets where this item's completion notification lands."
+        "description": "Content + triage update for a `bug` item (`PATCH /api/admin/ops/{handle}` when the item is a bug)."
+      },
+      "UpdateFeatureRequestRequest": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "New feature-request title."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 8000,
+            "description": "Updated description."
+          },
+          "useCase": {
+            "type": "string",
+            "maxLength": 8000,
+            "description": "Updated use case."
+          },
+          "status": {
+            "$ref": "#/components/schemas/OpsItemStatus"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/OpsItemPriorityOrNull"
+          },
+          "githubPrNumber": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Link (or, when `null`, unlink) a GitHub pull request to this request."
+          },
+          "notify": {
+            "$ref": "#/components/schemas/OpsItemNotifyOrNull"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Content + triage update for a `feature_request` item (`PATCH /api/admin/ops/{handle}` when the item is a feature request)."
+      },
+      "UpdateOpsItemStatusRequest": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/OpsItemStatus"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/OpsItemPriorityOrNull"
+          },
+          "notify": {
+            "$ref": "#/components/schemas/OpsItemNotifyOrNull"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Triage-only update — the shape accepted for any item, and the ONLY shape for auto-filed `error`/`alert`/`measure_plan` tickets (their content is not user-editable)."
+      },
+      "UpdateOpsItemRequest": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/UpdateBugRequest"
+          },
+          {
+            "$ref": "#/components/schemas/UpdateFeatureRequestRequest"
+          },
+          {
+            "$ref": "#/components/schemas/UpdateOpsItemStatusRequest"
+          }
+        ],
+        "description": "Body for `PATCH /api/admin/ops/{handle}`. The body is type-less — the server validates it against the stored item's type: a `bug` accepts the bug content fields, a `feature_request` the feature fields, and `error`/`alert`/`measure_plan` only `status`/`priority`/`notify`. Pass at least one field."
       },
       "UpdateOpsItemResponse": {
         "type": "object",

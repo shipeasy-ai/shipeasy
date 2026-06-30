@@ -359,31 +359,112 @@ CreateOpsItemResponse:
     - id
   additionalProperties: false
   description: Response for `POST /api/admin/ops`.
-UpdateOpsItemRequest:
-  type: object
-  properties:
-    status:
-      description: New lifecycle status.
-      type: string
-      enum:
-        - open
-        - triaged
-        - in_progress
-        - ready_for_qa
-        - resolved
-        - wont_fix
-    priority:
-      description: New triage priority.
-      type: string
+OpsItemStatus:
+  type: string
+  enum:
+    - open
+    - triaged
+    - in_progress
+    - ready_for_qa
+    - resolved
+    - wont_fix
+  description: Lifecycle status of a queue item.
+OpsItemPriorityOrNull:
+  anyOf:
+    - type: string
       enum:
         - nice_to_have
         - medium
         - high
         - critical
+    - type: "null"
+  description: Triage priority, or `null` to clear it.
+OpsItemNotifyOrNull:
+  anyOf:
+    - $ref: ./common.yaml#/NotificationTarget
+    - type: "null"
+  description: Where this item's completion notification lands, or `null`.
+UpdateOpsItemStatusRequest:
+  type: object
+  properties:
+    status:
+      $ref: "#/OpsItemStatus"
+    priority:
+      $ref: "#/OpsItemPriorityOrNull"
     notify:
-      $ref: ./common.yaml#/NotificationTarget
+      $ref: "#/OpsItemNotifyOrNull"
   additionalProperties: false
-  description: Body for `PATCH /api/admin/ops/{handle}`. Pass at least one of `status` / `priority`. `notify` sets where this item's completion notification lands.
+  description: "Triage-only update — the shape accepted for any item, and the ONLY shape for auto-filed `error`/`alert`/`measure_plan` tickets (their content is not user-editable)."
+UpdateBugRequest:
+  type: object
+  properties:
+    title:
+      type: string
+      minLength: 1
+      maxLength: 200
+      description: New bug title.
+    stepsToReproduce:
+      type: string
+      maxLength: 8000
+      description: Updated reproduction steps.
+    actualResult:
+      type: string
+      maxLength: 8000
+      description: Updated actual result.
+    expectedResult:
+      type: string
+      maxLength: 8000
+      description: Updated expected result.
+    status:
+      $ref: "#/OpsItemStatus"
+    priority:
+      $ref: "#/OpsItemPriorityOrNull"
+    githubPrNumber:
+      anyOf:
+        - type: integer
+          minimum: 1
+        - type: "null"
+      description: Link (or, when `null`, unlink) a GitHub pull request to this bug.
+    notify:
+      $ref: "#/OpsItemNotifyOrNull"
+  additionalProperties: false
+  description: "Content + triage update for a `bug` item (`PATCH /api/admin/ops/{handle}` when the item is a bug)."
+UpdateFeatureRequestRequest:
+  type: object
+  properties:
+    title:
+      type: string
+      minLength: 1
+      maxLength: 200
+      description: New feature-request title.
+    description:
+      type: string
+      maxLength: 8000
+      description: Updated description.
+    useCase:
+      type: string
+      maxLength: 8000
+      description: Updated use case.
+    status:
+      $ref: "#/OpsItemStatus"
+    priority:
+      $ref: "#/OpsItemPriorityOrNull"
+    githubPrNumber:
+      anyOf:
+        - type: integer
+          minimum: 1
+        - type: "null"
+      description: Link (or, when `null`, unlink) a GitHub pull request to this request.
+    notify:
+      $ref: "#/OpsItemNotifyOrNull"
+  additionalProperties: false
+  description: "Content + triage update for a `feature_request` item (`PATCH /api/admin/ops/{handle}` when the item is a feature request)."
+UpdateOpsItemRequest:
+  anyOf:
+    - $ref: "#/UpdateBugRequest"
+    - $ref: "#/UpdateFeatureRequestRequest"
+    - $ref: "#/UpdateOpsItemStatusRequest"
+  description: "Body for `PATCH /api/admin/ops/{handle}`. The body is type-less — the server validates it against the stored item's type: a `bug` accepts the bug content fields, a `feature_request` the feature fields, and `error`/`alert`/`measure_plan` only `status`/`priority`/`notify`. Pass at least one field."
 UpdateOpsItemResponse:
   type: object
   properties:

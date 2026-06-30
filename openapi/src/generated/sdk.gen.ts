@@ -933,9 +933,9 @@ export const getOpsItem = <ThrowOnError extends boolean = false>(options: Option
 /**
  * Update a queue item
  *
- * Update a queue item's `status` and/or `priority`. Other fields are immutable.
+ * Update a queue item. The body is validated against the item's stored type: a `bug` accepts its content fields (title, steps-to-reproduce, actual/expected result) plus `status`/`priority`/`notify` and a GitHub PR link; a `feature_request` its content (title, description, use-case) plus the same triage fields; `error`/`alert`/`measure_plan` accept `status`/`priority`/`notify` only (their content is platform-owned). Pass at least one field.
  *
- * **Use case:** Move an item through its lifecycle (triage → in_progress → resolved) as you work it.
+ * **Use case:** Move an item through its lifecycle (triage → in_progress → resolved) and edit a bug/feature's content as you work it.
  */
 export const updateOpsItem = <ThrowOnError extends boolean = false>(options: Options<UpdateOpsItemData, ThrowOnError>): RequestResult<UpdateOpsItemResponses, UpdateOpsItemErrors, ThrowOnError> => (options.client ?? client).patch<UpdateOpsItemResponses, UpdateOpsItemErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

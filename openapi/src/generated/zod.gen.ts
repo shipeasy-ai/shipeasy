@@ -1703,25 +1703,76 @@ export const zGetOpsItemResponse = z.object({
 });
 
 /**
- * Body for `PATCH /api/admin/ops/{handle}`. Pass at least one of `status` / `priority`. `notify` sets where this item's completion notification lands.
+ * Lifecycle status of a queue item.
  */
-export const zUpdateOpsItemRequest = z.object({
-    status: z.enum([
-        'open',
-        'triaged',
-        'in_progress',
-        'ready_for_qa',
-        'resolved',
-        'wont_fix'
-    ]).optional(),
-    priority: z.enum([
-        'nice_to_have',
-        'medium',
-        'high',
-        'critical'
-    ]).optional(),
-    notify: zNotificationTarget.optional()
+export const zOpsItemStatus = z.enum([
+    'open',
+    'triaged',
+    'in_progress',
+    'ready_for_qa',
+    'resolved',
+    'wont_fix'
+]);
+
+/**
+ * Triage priority, or `null` to clear it.
+ */
+export const zOpsItemPriorityOrNull = z.enum([
+    'nice_to_have',
+    'medium',
+    'high',
+    'critical'
+]).nullable();
+
+/**
+ * Where this item's completion notification lands, or `null`.
+ */
+export const zOpsItemNotifyOrNull = zNotificationTarget.nullable();
+
+/**
+ * Content + triage update for a `bug` item (`PATCH /api/admin/ops/{handle}` when the item is a bug).
+ */
+export const zUpdateBugRequest = z.object({
+    title: z.string().min(1).max(200).optional(),
+    stepsToReproduce: z.string().max(8000).optional(),
+    actualResult: z.string().max(8000).optional(),
+    expectedResult: z.string().max(8000).optional(),
+    status: zOpsItemStatus.optional(),
+    priority: zOpsItemPriorityOrNull.optional(),
+    githubPrNumber: z.int().gte(1).nullish(),
+    notify: zOpsItemNotifyOrNull.optional()
 });
+
+/**
+ * Content + triage update for a `feature_request` item (`PATCH /api/admin/ops/{handle}` when the item is a feature request).
+ */
+export const zUpdateFeatureRequestRequest = z.object({
+    title: z.string().min(1).max(200).optional(),
+    description: z.string().max(8000).optional(),
+    useCase: z.string().max(8000).optional(),
+    status: zOpsItemStatus.optional(),
+    priority: zOpsItemPriorityOrNull.optional(),
+    githubPrNumber: z.int().gte(1).nullish(),
+    notify: zOpsItemNotifyOrNull.optional()
+});
+
+/**
+ * Triage-only update — the shape accepted for any item, and the ONLY shape for auto-filed `error`/`alert`/`measure_plan` tickets (their content is not user-editable).
+ */
+export const zUpdateOpsItemStatusRequest = z.object({
+    status: zOpsItemStatus.optional(),
+    priority: zOpsItemPriorityOrNull.optional(),
+    notify: zOpsItemNotifyOrNull.optional()
+});
+
+/**
+ * Body for `PATCH /api/admin/ops/{handle}`. The body is type-less — the server validates it against the stored item's type: a `bug` accepts the bug content fields, a `feature_request` the feature fields, and `error`/`alert`/`measure_plan` only `status`/`priority`/`notify`. Pass at least one field.
+ */
+export const zUpdateOpsItemRequest = z.union([
+    zUpdateBugRequest,
+    zUpdateFeatureRequestRequest,
+    zUpdateOpsItemStatusRequest
+]);
 
 /**
  * Response for the update / link-pr endpoints.

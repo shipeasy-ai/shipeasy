@@ -2976,19 +2976,87 @@ export type GetOpsItemResponse = {
 };
 
 /**
- * Body for `PATCH /api/admin/ops/{handle}`. Pass at least one of `status` / `priority`. `notify` sets where this item's completion notification lands.
+ * Lifecycle status of a queue item.
  */
-export type UpdateOpsItemRequest = {
+export type OpsItemStatus = 'open' | 'triaged' | 'in_progress' | 'ready_for_qa' | 'resolved' | 'wont_fix';
+
+/**
+ * Triage priority, or `null` to clear it.
+ */
+export type OpsItemPriorityOrNull = 'nice_to_have' | 'medium' | 'high' | 'critical' | null;
+
+/**
+ * Where this item's completion notification lands, or `null`.
+ */
+export type OpsItemNotifyOrNull = NotificationTarget | null;
+
+/**
+ * Content + triage update for a `bug` item (`PATCH /api/admin/ops/{handle}` when the item is a bug).
+ */
+export type UpdateBugRequest = {
     /**
-     * New lifecycle status.
+     * New bug title.
      */
-    status?: 'open' | 'triaged' | 'in_progress' | 'ready_for_qa' | 'resolved' | 'wont_fix';
+    title?: string;
     /**
-     * New triage priority.
+     * Updated reproduction steps.
      */
-    priority?: 'nice_to_have' | 'medium' | 'high' | 'critical';
-    notify?: NotificationTarget;
+    stepsToReproduce?: string;
+    /**
+     * Updated actual result.
+     */
+    actualResult?: string;
+    /**
+     * Updated expected result.
+     */
+    expectedResult?: string;
+    status?: OpsItemStatus;
+    priority?: OpsItemPriorityOrNull;
+    /**
+     * Link (or, when `null`, unlink) a GitHub pull request to this bug.
+     */
+    githubPrNumber?: number | null;
+    notify?: OpsItemNotifyOrNull;
 };
+
+/**
+ * Content + triage update for a `feature_request` item (`PATCH /api/admin/ops/{handle}` when the item is a feature request).
+ */
+export type UpdateFeatureRequestRequest = {
+    /**
+     * New feature-request title.
+     */
+    title?: string;
+    /**
+     * Updated description.
+     */
+    description?: string;
+    /**
+     * Updated use case.
+     */
+    useCase?: string;
+    status?: OpsItemStatus;
+    priority?: OpsItemPriorityOrNull;
+    /**
+     * Link (or, when `null`, unlink) a GitHub pull request to this request.
+     */
+    githubPrNumber?: number | null;
+    notify?: OpsItemNotifyOrNull;
+};
+
+/**
+ * Triage-only update — the shape accepted for any item, and the ONLY shape for auto-filed `error`/`alert`/`measure_plan` tickets (their content is not user-editable).
+ */
+export type UpdateOpsItemStatusRequest = {
+    status?: OpsItemStatus;
+    priority?: OpsItemPriorityOrNull;
+    notify?: OpsItemNotifyOrNull;
+};
+
+/**
+ * Body for `PATCH /api/admin/ops/{handle}`. The body is type-less — the server validates it against the stored item's type: a `bug` accepts the bug content fields, a `feature_request` the feature fields, and `error`/`alert`/`measure_plan` only `status`/`priority`/`notify`. Pass at least one field.
+ */
+export type UpdateOpsItemRequest = UpdateBugRequest | UpdateFeatureRequestRequest | UpdateOpsItemStatusRequest;
 
 /**
  * Response for the update / link-pr endpoints.
