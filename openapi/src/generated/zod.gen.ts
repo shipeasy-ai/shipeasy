@@ -1561,7 +1561,8 @@ export const zListOpsItemsResponse = z.array(z.object({
         'bug',
         'feature_request',
         'error',
-        'alert'
+        'alert',
+        'measure_plan'
     ]),
     title: z.string(),
     status: z.enum([
@@ -1583,21 +1584,69 @@ export const zListOpsItemsResponse = z.array(z.object({
 }));
 
 /**
- * Body for `POST /api/admin/ops`. Files one queue item; `type` selects bug vs. feature request.
+ * Delivery target for a notification; `null` = use the project default.
  */
-export const zCreateOpsItemRequest = z.object({
-    type: z.enum(['bug', 'feature_request']),
+export const zNotificationTarget = z.object({
+    slackChannel: z.object({
+        id: z.string().min(1),
+        name: z.string().min(1)
+    }).nullish(),
+    email: z.email().nullish()
+}).nullable();
+
+/**
+ * Bug-kind fields for `POST /api/admin/ops` (sent alongside `type: bug`).
+ */
+export const zCreateBugRequest = z.object({
     title: z.string().min(1).max(200),
-    body: z.string().optional(),
+    stepsToReproduce: z.string().max(8000).optional().default(''),
+    actualResult: z.string().max(8000).optional().default(''),
+    expectedResult: z.string().max(8000).optional().default(''),
     priority: z.enum([
         'nice_to_have',
         'medium',
         'high',
         'critical'
-    ]).optional(),
-    stepsToReproduce: z.string().optional(),
-    pageUrl: z.string().optional()
+    ]).nullish(),
+    reporterEmail: z.email().nullish(),
+    pageUrl: z.url().nullish(),
+    userAgent: z.string().max(500).nullish(),
+    viewport: z.string().max(40).nullish(),
+    context: z.record(z.string(), z.unknown()).nullish(),
+    notify: zNotificationTarget.nullish()
 });
+
+/**
+ * Feature-request-kind fields for `POST /api/admin/ops` (sent alongside `type: feature_request`).
+ */
+export const zCreateFeatureRequestRequest = z.object({
+    title: z.string().min(1).max(200),
+    description: z.string().max(8000).optional().default(''),
+    useCase: z.string().max(8000).optional().default(''),
+    priority: z.enum([
+        'nice_to_have',
+        'medium',
+        'high',
+        'critical'
+    ]).nullish(),
+    reporterEmail: z.email().nullish(),
+    pageUrl: z.url().nullish(),
+    userAgent: z.string().max(500).nullish(),
+    context: z.record(z.string(), z.unknown()).nullish(),
+    notify: zNotificationTarget.nullish()
+});
+
+/**
+ * Body for `POST /api/admin/ops`. A discriminated union on `type`: `bug` carries the bug fields, `feature_request` the feature fields. Only these two user-fileable types are accepted — `error`, `alert`, and `measure_plan` tickets are auto-filed by the platform and cannot be created over the API.
+ */
+export const zCreateOpsItemRequest = z.union([
+    z.object({
+        type: z.enum(['bug'])
+    }).and(zCreateBugRequest),
+    z.object({
+        type: z.enum(['feature_request'])
+    }).and(zCreateFeatureRequestRequest)
+]);
 
 /**
  * Response for `POST /api/admin/ops`.
@@ -1608,7 +1657,7 @@ export const zCreateOpsItemResponse = z.object({
 });
 
 /**
- * One queue item — any type.
+ * One queue item, any of the five types. Shared fields apply to all; `stepsToReproduce`/`actualResult`/`expectedResult`/`viewport` are bug-specific, `description`/`useCase` feature-specific, and `context` carries the per-type payload for auto-filed `error`/`alert`/`measure_plan` tickets.
  */
 export const zGetOpsItemResponse = z.object({
     id: z.string(),
@@ -1617,7 +1666,8 @@ export const zGetOpsItemResponse = z.object({
         'bug',
         'feature_request',
         'error',
-        'alert'
+        'alert',
+        'measure_plan'
     ]),
     title: z.string(),
     status: z.enum([
@@ -1634,20 +1684,23 @@ export const zGetOpsItemResponse = z.object({
         'high',
         'critical'
     ]).nullable(),
+    source: z.enum(['team', 'system']).optional(),
     sourceRef: z.string().nullish(),
-    createdAt: z.string()
+    reporterEmail: z.string().nullish(),
+    pageUrl: z.string().nullish(),
+    userAgent: z.string().nullish(),
+    stepsToReproduce: z.string().optional(),
+    actualResult: z.string().optional(),
+    expectedResult: z.string().optional(),
+    viewport: z.string().nullish(),
+    description: z.string().optional(),
+    useCase: z.string().optional(),
+    context: z.record(z.string(), z.unknown()).nullish(),
+    connectorData: z.record(z.string(), z.unknown()).nullish(),
+    notify: zNotificationTarget.nullish(),
+    createdAt: z.string(),
+    updatedAt: z.string().optional()
 });
-
-/**
- * Delivery target for a notification; `null` = use the project default.
- */
-export const zNotificationTarget = z.object({
-    slackChannel: z.object({
-        id: z.string().min(1),
-        name: z.string().min(1)
-    }).nullish(),
-    email: z.email().nullish()
-}).nullable();
 
 /**
  * Body for `PATCH /api/admin/ops/{handle}`. Pass at least one of `status` / `priority`. `notify` sets where this item's completion notification lands.

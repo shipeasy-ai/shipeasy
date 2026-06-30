@@ -2714,9 +2714,9 @@ export type ListOpsItemsResponse = Array<{
      */
     number: number | null;
     /**
-     * Queue item type. `bug` and `feature_request` are user-fileable; `error` and `alert` tickets are auto-filed by the platform.
+     * Queue item type. `bug` and `feature_request` are user-fileable; `error`, `alert`, and `measure_plan` tickets are auto-filed by the platform (a tracked production error, a metric-threshold alert, and an assistant-proposed measurement plan respectively).
      */
-    type: 'bug' | 'feature_request' | 'error' | 'alert';
+    type: 'bug' | 'feature_request' | 'error' | 'alert' | 'measure_plan';
     /**
      * One-line item title.
      */
@@ -2741,34 +2741,126 @@ export type ListOpsItemsResponse = Array<{
 }>;
 
 /**
- * Body for `POST /api/admin/ops`. Files one queue item; `type` selects bug vs. feature request.
+ * Delivery target for a notification; `null` = use the project default.
  */
-export type CreateOpsItemRequest = {
+export type NotificationTarget = {
+    slackChannel?: {
+        id: string;
+        name: string;
+    } | null;
+    email?: string | null;
+} | null;
+
+/**
+ * Bug-kind fields for `POST /api/admin/ops` (sent alongside `type: bug`).
+ */
+export type CreateBugRequest = {
     /**
-     * Item type to file. Only the two user-fileable types are accepted here — `error` and `alert` tickets are auto-filed by the platform and cannot be created over the API.
-     */
-    type: 'bug' | 'feature_request';
-    /**
-     * One-line title of the bug or feature request.
+     * One-line bug title.
      */
     title: string;
     /**
-     * Detailed description / steps to reproduce.
-     */
-    body?: string;
-    /**
-     * Initial triage priority.
-     */
-    priority?: 'nice_to_have' | 'medium' | 'high' | 'critical';
-    /**
-     * Reproduction steps (bugs).
+     * How to reproduce the bug.
      */
     stepsToReproduce?: string;
     /**
-     * URL of the page the item relates to.
+     * What actually happened.
      */
-    pageUrl?: string;
+    actualResult?: string;
+    /**
+     * What was expected instead.
+     */
+    expectedResult?: string;
+    /**
+     * Initial triage priority, or `null`.
+     */
+    priority?: 'nice_to_have' | 'medium' | 'high' | 'critical' | null;
+    /**
+     * Email of the reporter, or `null`.
+     */
+    reporterEmail?: string | null;
+    /**
+     * URL of the page the bug relates to, or `null`.
+     */
+    pageUrl?: string | null;
+    /**
+     * Reporter's user-agent string, or `null`.
+     */
+    userAgent?: string | null;
+    /**
+     * Reporter's viewport (e.g. `1280x720`), or `null`.
+     */
+    viewport?: string | null;
+    /**
+     * Arbitrary capture context, or `null`.
+     */
+    context?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Where this bug's completion notification lands.
+     */
+    notify?: NotificationTarget | null;
 };
+
+/**
+ * Feature-request-kind fields for `POST /api/admin/ops` (sent alongside `type: feature_request`).
+ */
+export type CreateFeatureRequestRequest = {
+    /**
+     * One-line feature-request title.
+     */
+    title: string;
+    /**
+     * What the feature is.
+     */
+    description?: string;
+    /**
+     * Why it's needed / the use case.
+     */
+    useCase?: string;
+    /**
+     * Initial triage priority, or `null`.
+     */
+    priority?: 'nice_to_have' | 'medium' | 'high' | 'critical' | null;
+    /**
+     * Email of the reporter, or `null`.
+     */
+    reporterEmail?: string | null;
+    /**
+     * URL of the page the request relates to, or `null`.
+     */
+    pageUrl?: string | null;
+    /**
+     * Reporter's user-agent string, or `null`.
+     */
+    userAgent?: string | null;
+    /**
+     * Arbitrary capture context, or `null`.
+     */
+    context?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Where this request's completion notification lands.
+     */
+    notify?: NotificationTarget | null;
+};
+
+/**
+ * Body for `POST /api/admin/ops`. A discriminated union on `type`: `bug` carries the bug fields, `feature_request` the feature fields. Only these two user-fileable types are accepted — `error`, `alert`, and `measure_plan` tickets are auto-filed by the platform and cannot be created over the API.
+ */
+export type CreateOpsItemRequest = ({
+    /**
+     * Files a bug.
+     */
+    type: 'bug';
+} & CreateBugRequest) | ({
+    /**
+     * Files a feature request.
+     */
+    type: 'feature_request';
+} & CreateFeatureRequestRequest);
 
 /**
  * Response for `POST /api/admin/ops`.
@@ -2785,7 +2877,7 @@ export type CreateOpsItemResponse = {
 };
 
 /**
- * One queue item — any type.
+ * One queue item, any of the five types. Shared fields apply to all; `stepsToReproduce`/`actualResult`/`expectedResult`/`viewport` are bug-specific, `description`/`useCase` feature-specific, and `context` carries the per-type payload for auto-filed `error`/`alert`/`measure_plan` tickets.
  */
 export type GetOpsItemResponse = {
     /**
@@ -2797,42 +2889,91 @@ export type GetOpsItemResponse = {
      */
     number: number | null;
     /**
-     * Queue item type. `bug` and `feature_request` are user-fileable; `error` and `alert` tickets are auto-filed by the platform.
+     * Queue item type. `bug` and `feature_request` are user-fileable; `error`, `alert`, and `measure_plan` tickets are auto-filed by the platform (a tracked production error, a metric-threshold alert, and an assistant-proposed measurement plan respectively).
      */
-    type: 'bug' | 'feature_request' | 'error' | 'alert';
+    type: 'bug' | 'feature_request' | 'error' | 'alert' | 'measure_plan';
     /**
-     * One-line item title.
+     * One-line item title (all types).
      */
     title: string;
     /**
-     * Lifecycle status of a queue item.
+     * Lifecycle status of a queue item (all types).
      */
     status: 'open' | 'triaged' | 'in_progress' | 'ready_for_qa' | 'resolved' | 'wont_fix';
     /**
-     * Triage priority, or `null` if not yet set.
+     * Triage priority, or `null` if not yet set (all types).
      */
     priority: 'nice_to_have' | 'medium' | 'high' | 'critical' | null;
     /**
-     * Source reference for auto-filed tickets (e.g. an error fingerprint).
+     * How the item was filed: `team` (a human admin/teammate — bug/feature) or `system` (auto-filed — error/alert/measure_plan).
+     */
+    source?: 'team' | 'system';
+    /**
+     * Stable key of the originating record for auto-filed tickets (error fingerprint, `<alert source>:<dedupeKey>`, or measurement-plan ref); `null` for human-filed bugs/features.
      */
     sourceRef?: string | null;
+    /**
+     * Reporter email (bug/feature), or `null`.
+     */
+    reporterEmail?: string | null;
+    /**
+     * URL the item relates to (bug/feature), or `null`.
+     */
+    pageUrl?: string | null;
+    /**
+     * Reporter user-agent (bug/feature), or `null`.
+     */
+    userAgent?: string | null;
+    /**
+     * Reproduction steps — populated for `bug`, empty string otherwise.
+     */
+    stepsToReproduce?: string;
+    /**
+     * What actually happened — `bug` only, empty string otherwise.
+     */
+    actualResult?: string;
+    /**
+     * What was expected — `bug` only, empty string otherwise.
+     */
+    expectedResult?: string;
+    /**
+     * Reporter viewport — `bug` only, else `null`.
+     */
+    viewport?: string | null;
+    /**
+     * Feature description — populated for `feature_request`, empty string otherwise.
+     */
+    description?: string;
+    /**
+     * Feature use case — `feature_request` only, empty string otherwise.
+     */
+    useCase?: string;
+    /**
+     * Type-specific capture context (e.g. the error/alert/measure_plan details for auto-filed tickets), or `null`.
+     */
+    context?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Connector linkage (e.g. the opened GitHub issue / linked PR), or `null`.
+     */
+    connectorData?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Per-item completion-notification target, or `null` (falls back to the project default).
+     */
+    notify?: NotificationTarget | null;
     /**
      * ISO-8601 creation timestamp.
      */
     createdAt: string;
+    /**
+     * ISO-8601 last-update timestamp.
+     */
+    updatedAt?: string;
     [key: string]: unknown;
 };
-
-/**
- * Delivery target for a notification; `null` = use the project default.
- */
-export type NotificationTarget = {
-    slackChannel?: {
-        id: string;
-        name: string;
-    } | null;
-    email?: string | null;
-} | null;
 
 /**
  * Body for `PATCH /api/admin/ops/{handle}`. Pass at least one of `status` / `priority`. `notify` sets where this item's completion notification lands.
