@@ -959,6 +959,76 @@ export const zListAttributesResponse = z.array(z.object({
 }));
 
 /**
+ * Declared value type of a targeting attribute.
+ */
+export const zAttributeType = z.enum([
+    'string',
+    'number',
+    'boolean',
+    'enum',
+    'date'
+]);
+
+/**
+ * Body for `POST /api/admin/attributes`. Declares a targeting attribute.
+ */
+export const zCreateAttributeRequest = z.object({
+    name: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/),
+    type: zAttributeType,
+    enum_values: z.array(z.string()).nullish().default(null),
+    required: z.boolean().optional().default(false),
+    description: z.string().optional(),
+    sdk_path: z.string().optional()
+});
+
+/**
+ * Response for `POST /api/admin/attributes`.
+ */
+export const zCreateAttributeResponse = z.object({
+    id: z.string(),
+    name: z.string()
+});
+
+/**
+ * One targeting attribute row.
+ */
+export const zGetAttributeResponse = z.object({
+    id: z.string(),
+    name: z.string(),
+    type: zAttributeType,
+    enumValues: z.array(z.string()).nullish(),
+    required: z.union([z.literal(0), z.literal(1)]).optional(),
+    description: z.string().nullish(),
+    sdkPath: z.string().nullish(),
+    createdAt: z.string().optional()
+});
+
+/**
+ * Response for `DELETE /api/admin/attributes/{id}`.
+ */
+export const zDeleteAttributeResponse = z.object({
+    ok: z.boolean()
+});
+
+/**
+ * Body for `PATCH /api/admin/attributes/{id}`. Every field is optional; `name` is immutable.
+ */
+export const zUpdateAttributeRequest = z.object({
+    type: zAttributeType.optional(),
+    enum_values: z.array(z.string()).nullish(),
+    required: z.boolean().optional(),
+    description: z.string().optional(),
+    sdk_path: z.string().optional()
+});
+
+/**
+ * Response for `PATCH /api/admin/attributes/{id}`.
+ */
+export const zUpdateAttributeResponse = z.object({
+    id: z.string()
+});
+
+/**
  * Every metric in the project (the list endpoint is not paginated).
  */
 export const zListMetricsResponse = z.array(z.object({
@@ -3102,6 +3172,58 @@ export const zListAttributesHeaders = z.object({
  * List targeting attributes
  */
 export const zListAttributesResponse2 = zListAttributesResponse;
+
+export const zCreateAttributeBody = zCreateAttributeRequest;
+
+export const zCreateAttributeHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+/**
+ * Declare a targeting attribute
+ */
+export const zCreateAttributeResponse2 = zCreateAttributeResponse;
+
+export const zDeleteAttributeHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zDeleteAttributePath = z.object({
+    id: z.string()
+});
+
+/**
+ * Archive a targeting attribute
+ */
+export const zDeleteAttributeResponse2 = zDeleteAttributeResponse;
+
+export const zGetAttributeHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zGetAttributePath = z.object({
+    id: z.string()
+});
+
+/**
+ * Get a targeting attribute
+ */
+export const zGetAttributeResponse2 = zGetAttributeResponse;
+
+export const zUpdateAttributeBody = zUpdateAttributeRequest;
+
+export const zUpdateAttributeHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zUpdateAttributePath = z.object({
+    id: z.string()
+});
+
+/**
+ * Update a targeting attribute
+ */
+export const zUpdateAttributeResponse2 = zUpdateAttributeResponse;
 
 export const zListMetricsHeaders = z.object({
     'X-Project-Id': z.string().optional()

@@ -1723,6 +1723,131 @@ export type ListAttributesResponse = Array<{
 }>;
 
 /**
+ * Declared value type of a targeting attribute.
+ */
+export type AttributeType = 'string' | 'number' | 'boolean' | 'enum' | 'date';
+
+/**
+ * Body for `POST /api/admin/attributes`. Declares a targeting attribute.
+ */
+export type CreateAttributeRequest = {
+    /**
+     * Attribute key (lowercase alphanumeric start, then letters/digits/`_`/`-`; max 64 chars). Immutable after create.
+     */
+    name: string;
+    type: AttributeType;
+    /**
+     * Allowed values when `type` is `enum` (required in that case — 422 otherwise); `null` for non-enum types.
+     */
+    enum_values?: Array<string> | null;
+    /**
+     * Whether the attribute must be present on the evaluation context.
+     */
+    required?: boolean;
+    /**
+     * Optional human note shown in the dashboard.
+     */
+    description?: string;
+    /**
+     * Optional dotted path the SDK reads the value from.
+     */
+    sdk_path?: string;
+};
+
+/**
+ * Response for `POST /api/admin/attributes`.
+ */
+export type CreateAttributeResponse = {
+    /**
+     * Newly assigned attribute id.
+     */
+    id: string;
+    /**
+     * The attribute key that was created.
+     */
+    name: string;
+};
+
+/**
+ * One targeting attribute row.
+ */
+export type GetAttributeResponse = {
+    /**
+     * Stable opaque attribute id.
+     */
+    id: string;
+    /**
+     * Attribute key.
+     */
+    name: string;
+    type: AttributeType;
+    /**
+     * Allowed values for `enum` attributes, else `null`.
+     */
+    enumValues?: Array<string> | null;
+    /**
+     * Whether the attribute is required (D1 stores the flag as `0`/`1`).
+     */
+    required?: 0 | 1;
+    /**
+     * Human note, or `null`.
+     */
+    description?: string | null;
+    /**
+     * Dotted SDK path, or `null`.
+     */
+    sdkPath?: string | null;
+    /**
+     * ISO-8601 creation timestamp.
+     */
+    createdAt?: string;
+    [key: string]: unknown;
+};
+
+/**
+ * Response for `DELETE /api/admin/attributes/{id}`.
+ */
+export type DeleteAttributeResponse = {
+    /**
+     * True when the attribute was archived.
+     */
+    ok: boolean;
+};
+
+/**
+ * Body for `PATCH /api/admin/attributes/{id}`. Every field is optional; `name` is immutable.
+ */
+export type UpdateAttributeRequest = {
+    type?: AttributeType;
+    /**
+     * Replacement allowed values (for `enum`), or `null` to clear.
+     */
+    enum_values?: Array<string> | null;
+    /**
+     * Whether the attribute must be present on the evaluation context.
+     */
+    required?: boolean;
+    /**
+     * Optional human note shown in the dashboard.
+     */
+    description?: string;
+    /**
+     * Optional dotted path the SDK reads the value from.
+     */
+    sdk_path?: string;
+};
+
+/**
+ * Response for `PATCH /api/admin/attributes/{id}`.
+ */
+export type UpdateAttributeResponse = {
+    /**
+     * Id of the attribute that was updated.
+     */
+    id: string;
+};
+
+/**
  * Every metric in the project (the list endpoint is not paginated).
  */
 export type ListMetricsResponse = Array<{
@@ -6715,6 +6840,225 @@ export type ListAttributesResponses = {
 };
 
 export type ListAttributesResponse2 = ListAttributesResponses[keyof ListAttributesResponses];
+
+export type CreateAttributeData = {
+    body: CreateAttributeRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/admin/attributes';
+};
+
+export type CreateAttributeErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type CreateAttributeError = CreateAttributeErrors[keyof CreateAttributeErrors];
+
+export type CreateAttributeResponses = {
+    /**
+     * Declare a targeting attribute
+     */
+    201: CreateAttributeResponse;
+};
+
+export type CreateAttributeResponse2 = CreateAttributeResponses[keyof CreateAttributeResponses];
+
+export type DeleteAttributeData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The attribute id.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/attributes/{id}';
+};
+
+export type DeleteAttributeErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type DeleteAttributeError = DeleteAttributeErrors[keyof DeleteAttributeErrors];
+
+export type DeleteAttributeResponses = {
+    /**
+     * Archive a targeting attribute
+     */
+    200: DeleteAttributeResponse;
+};
+
+export type DeleteAttributeResponse2 = DeleteAttributeResponses[keyof DeleteAttributeResponses];
+
+export type GetAttributeData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The attribute id.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/attributes/{id}';
+};
+
+export type GetAttributeErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type GetAttributeError = GetAttributeErrors[keyof GetAttributeErrors];
+
+export type GetAttributeResponses = {
+    /**
+     * Get a targeting attribute
+     */
+    200: GetAttributeResponse;
+};
+
+export type GetAttributeResponse2 = GetAttributeResponses[keyof GetAttributeResponses];
+
+export type UpdateAttributeData = {
+    body: UpdateAttributeRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The attribute id.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/attributes/{id}';
+};
+
+export type UpdateAttributeErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type UpdateAttributeError = UpdateAttributeErrors[keyof UpdateAttributeErrors];
+
+export type UpdateAttributeResponses = {
+    /**
+     * Update a targeting attribute
+     */
+    200: UpdateAttributeResponse;
+};
+
+export type UpdateAttributeResponse2 = UpdateAttributeResponses[keyof UpdateAttributeResponses];
 
 export type ListMetricsData = {
     body?: never;

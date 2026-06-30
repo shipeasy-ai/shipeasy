@@ -14,3 +14,144 @@ ListAttributesResponse:
     additionalProperties: {}
     description: One auto-inferred targeting attribute.
   description: Every auto-inferred targeting attribute in the project.
+AttributeType:
+  type: string
+  enum:
+    - string
+    - number
+    - boolean
+    - enum
+    - date
+  description: Declared value type of a targeting attribute.
+CreateAttributeRequest:
+  type: object
+  properties:
+    name:
+      type: string
+      pattern: ^[a-z0-9][a-z0-9_-]{0,63}$
+      description: Attribute key (lowercase alphanumeric start, then letters/digits/`_`/`-`; max 64 chars). Immutable after create.
+    type:
+      $ref: "#/AttributeType"
+    enum_values:
+      anyOf:
+        - type: array
+          items:
+            type: string
+        - type: "null"
+      default: null
+      description: Allowed values when `type` is `enum` (required in that case — 422 otherwise); `null` for non-enum types.
+    required:
+      type: boolean
+      default: false
+      description: Whether the attribute must be present on the evaluation context.
+    description:
+      type: string
+      description: Optional human note shown in the dashboard.
+    sdk_path:
+      type: string
+      description: Optional dotted path the SDK reads the value from.
+  required:
+    - name
+    - type
+  additionalProperties: false
+  description: Body for `POST /api/admin/attributes`. Declares a targeting attribute.
+CreateAttributeResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Newly assigned attribute id.
+    name:
+      type: string
+      description: The attribute key that was created.
+  required:
+    - id
+    - name
+  additionalProperties: false
+  description: Response for `POST /api/admin/attributes`.
+UpdateAttributeRequest:
+  type: object
+  properties:
+    type:
+      $ref: "#/AttributeType"
+    enum_values:
+      anyOf:
+        - type: array
+          items:
+            type: string
+        - type: "null"
+      description: Replacement allowed values (for `enum`), or `null` to clear.
+    required:
+      type: boolean
+      description: Whether the attribute must be present on the evaluation context.
+    description:
+      type: string
+      description: Optional human note shown in the dashboard.
+    sdk_path:
+      type: string
+      description: Optional dotted path the SDK reads the value from.
+  additionalProperties: false
+  description: "Body for `PATCH /api/admin/attributes/{id}`. Every field is optional; `name` is immutable."
+UpdateAttributeResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Id of the attribute that was updated.
+  required:
+    - id
+  additionalProperties: false
+  description: Response for `PATCH /api/admin/attributes/{id}`.
+GetAttributeResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Stable opaque attribute id.
+    name:
+      type: string
+      description: Attribute key.
+    type:
+      $ref: "#/AttributeType"
+    enumValues:
+      anyOf:
+        - type: array
+          items:
+            type: string
+        - type: "null"
+      description: Allowed values for `enum` attributes, else `null`.
+    required:
+      type: integer
+      enum:
+        - 0
+        - 1
+      description: Whether the attribute is required (D1 stores the flag as `0`/`1`).
+    description:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Human note, or `null`.
+    sdkPath:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Dotted SDK path, or `null`.
+    createdAt:
+      type: string
+      description: ISO-8601 creation timestamp.
+  required:
+    - id
+    - name
+    - type
+  additionalProperties: {}
+  description: One targeting attribute row.
+DeleteAttributeResponse:
+  type: object
+  properties:
+    ok:
+      type: boolean
+      description: True when the attribute was archived.
+  required:
+    - ok
+  additionalProperties: false
+  description: Response for `DELETE /api/admin/attributes/{id}`.

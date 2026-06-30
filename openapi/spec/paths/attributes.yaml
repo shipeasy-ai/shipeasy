@@ -42,3 +42,220 @@
       - FORBIDDEN
     x-cli:
       name: list
+  post:
+    operationId: createAttribute
+    summary: Declare a targeting attribute
+    description: |-
+      Declare a targeting attribute the SDK reports and gates/experiments can target. `type: enum` requires `enum_values`.
+
+      **Use case:** Register a `plan` or `country` attribute so targeting rules can reference it.
+    tags:
+      - Attributes
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/attributes.yaml#/CreateAttributeRequest
+          example:
+            name: plan
+            type: enum
+            enum_values:
+              - free
+              - paid
+            required: true
+    responses:
+      "201":
+        description: Declare a targeting attribute
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/attributes.yaml#/CreateAttributeResponse
+            example:
+              id: attr_01j7w8a1b2c3
+              name: plan
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - ALREADY_EXISTS
+      - VALIDATION
+    x-cli:
+      name: create
+      positional:
+        - name
+/api/admin/attributes/{id}:
+  get:
+    operationId: getAttribute
+    summary: Get a targeting attribute
+    description: |-
+      Fetch one targeting attribute by id.
+
+      **Use case:** Inspect an attribute's declared type + allowed values before editing it.
+    tags:
+      - Attributes
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: The attribute id.
+        schema:
+          type: string
+    responses:
+      "200":
+        description: Get a targeting attribute
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/attributes.yaml#/GetAttributeResponse
+            example:
+              id: attr_01j7w8a1b2c3
+              name: plan
+              type: enum
+              enumValues:
+                - free
+                - paid
+              required: 1
+              createdAt: 2026-06-20T09:14:08.000Z
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: get
+      positional:
+        - id
+  patch:
+    operationId: updateAttribute
+    summary: Update a targeting attribute
+    description: |-
+      Update a targeting attribute's type, allowed values, required flag, description, or SDK path. `name` is immutable.
+
+      **Use case:** Add an allowed value to an `enum` attribute, or flip its required flag.
+    tags:
+      - Attributes
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: The attribute id.
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/attributes.yaml#/UpdateAttributeRequest
+          example:
+            enum_values:
+              - free
+              - paid
+              - enterprise
+    responses:
+      "200":
+        description: Update a targeting attribute
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/attributes.yaml#/UpdateAttributeResponse
+            example:
+              id: attr_01j7w8a1b2c3
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: update
+      positional:
+        - id
+  delete:
+    operationId: deleteAttribute
+    summary: Archive a targeting attribute
+    description: |-
+      Soft-deletes (archives) a targeting attribute.
+
+      **Use case:** Retire an attribute no targeting rule references anymore (the user-facing verb is `archive`).
+    tags:
+      - Attributes
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: The attribute id.
+        schema:
+          type: string
+    responses:
+      "200":
+        description: Archive a targeting attribute
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/attributes.yaml#/DeleteAttributeResponse
+            example:
+              ok: true
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: archive
+      positional:
+        - id

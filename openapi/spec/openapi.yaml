@@ -243,6 +243,8 @@ paths:
     $ref: ./paths/universes.yaml#/~1api~1admin~1universes~1{id}
   /api/admin/attributes:
     $ref: ./paths/attributes.yaml#/~1api~1admin~1attributes
+  /api/admin/attributes/{id}:
+    $ref: ./paths/attributes.yaml#/~1api~1admin~1attributes~1{id}
   /api/admin/metrics:
     $ref: ./paths/metrics.yaml#/~1api~1admin~1metrics
   /api/admin/metrics/{id}:

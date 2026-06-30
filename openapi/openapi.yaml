@@ -3015,6 +3015,223 @@ paths:
         - FORBIDDEN
       x-cli:
         name: list
+    post:
+      operationId: createAttribute
+      summary: Declare a targeting attribute
+      description: |-
+        Declare a targeting attribute the SDK reports and gates/experiments can target. `type: enum` requires `enum_values`.
+
+        **Use case:** Register a `plan` or `country` attribute so targeting rules can reference it.
+      tags:
+        - Attributes
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAttributeRequest'
+            example:
+              name: plan
+              type: enum
+              enum_values:
+                - free
+                - paid
+              required: true
+      responses:
+        '201':
+          description: Declare a targeting attribute
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateAttributeResponse'
+              example:
+                id: attr_01j7w8a1b2c3
+                name: plan
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - ALREADY_EXISTS
+        - VALIDATION
+      x-cli:
+        name: create
+        positional:
+          - name
+  /api/admin/attributes/{id}:
+    get:
+      operationId: getAttribute
+      summary: Get a targeting attribute
+      description: |-
+        Fetch one targeting attribute by id.
+
+        **Use case:** Inspect an attribute's declared type + allowed values before editing it.
+      tags:
+        - Attributes
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: id
+          in: path
+          required: true
+          description: The attribute id.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Get a targeting attribute
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetAttributeResponse'
+              example:
+                id: attr_01j7w8a1b2c3
+                name: plan
+                type: enum
+                enumValues:
+                  - free
+                  - paid
+                required: 1
+                createdAt: '2026-06-20T09:14:08.000Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+      x-cli:
+        name: get
+        positional:
+          - id
+    patch:
+      operationId: updateAttribute
+      summary: Update a targeting attribute
+      description: |-
+        Update a targeting attribute's type, allowed values, required flag, description, or SDK path. `name` is immutable.
+
+        **Use case:** Add an allowed value to an `enum` attribute, or flip its required flag.
+      tags:
+        - Attributes
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: id
+          in: path
+          required: true
+          description: The attribute id.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAttributeRequest'
+            example:
+              enum_values:
+                - free
+                - paid
+                - enterprise
+      responses:
+        '200':
+          description: Update a targeting attribute
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateAttributeResponse'
+              example:
+                id: attr_01j7w8a1b2c3
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+        - VALIDATION
+      x-cli:
+        name: update
+        positional:
+          - id
+    delete:
+      operationId: deleteAttribute
+      summary: Archive a targeting attribute
+      description: |-
+        Soft-deletes (archives) a targeting attribute.
+
+        **Use case:** Retire an attribute no targeting rule references anymore (the user-facing verb is `archive`).
+      tags:
+        - Attributes
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: id
+          in: path
+          required: true
+          description: The attribute id.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Archive a targeting attribute
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteAttributeResponse'
+              example:
+                ok: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+      x-cli:
+        name: archive
+        positional:
+          - id
   /api/admin/metrics:
     get:
       operationId: listMetrics
@@ -8830,6 +9047,147 @@ components:
         additionalProperties: {}
         description: One auto-inferred targeting attribute.
       description: Every auto-inferred targeting attribute in the project.
+    AttributeType:
+      type: string
+      enum:
+        - string
+        - number
+        - boolean
+        - enum
+        - date
+      description: Declared value type of a targeting attribute.
+    CreateAttributeRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          pattern: ^[a-z0-9][a-z0-9_-]{0,63}$
+          description: Attribute key (lowercase alphanumeric start, then letters/digits/`_`/`-`; max 64 chars). Immutable after create.
+        type:
+          $ref: '#/components/schemas/AttributeType'
+        enum_values:
+          anyOf:
+            - type: array
+              items:
+                type: string
+            - type: 'null'
+          default: null
+          description: Allowed values when `type` is `enum` (required in that case — 422 otherwise); `null` for non-enum types.
+        required:
+          type: boolean
+          default: false
+          description: Whether the attribute must be present on the evaluation context.
+        description:
+          type: string
+          description: Optional human note shown in the dashboard.
+        sdk_path:
+          type: string
+          description: Optional dotted path the SDK reads the value from.
+      required:
+        - name
+        - type
+      additionalProperties: false
+      description: Body for `POST /api/admin/attributes`. Declares a targeting attribute.
+    CreateAttributeResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Newly assigned attribute id.
+        name:
+          type: string
+          description: The attribute key that was created.
+      required:
+        - id
+        - name
+      additionalProperties: false
+      description: Response for `POST /api/admin/attributes`.
+    GetAttributeResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Stable opaque attribute id.
+        name:
+          type: string
+          description: Attribute key.
+        type:
+          $ref: '#/components/schemas/AttributeType'
+        enumValues:
+          anyOf:
+            - type: array
+              items:
+                type: string
+            - type: 'null'
+          description: Allowed values for `enum` attributes, else `null`.
+        required:
+          type: integer
+          enum:
+            - 0
+            - 1
+          description: Whether the attribute is required (D1 stores the flag as `0`/`1`).
+        description:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: Human note, or `null`.
+        sdkPath:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: Dotted SDK path, or `null`.
+        createdAt:
+          type: string
+          description: ISO-8601 creation timestamp.
+      required:
+        - id
+        - name
+        - type
+      additionalProperties: {}
+      description: One targeting attribute row.
+    DeleteAttributeResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          description: True when the attribute was archived.
+      required:
+        - ok
+      additionalProperties: false
+      description: Response for `DELETE /api/admin/attributes/{id}`.
+    UpdateAttributeRequest:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/AttributeType'
+        enum_values:
+          anyOf:
+            - type: array
+              items:
+                type: string
+            - type: 'null'
+          description: Replacement allowed values (for `enum`), or `null` to clear.
+        required:
+          type: boolean
+          description: Whether the attribute must be present on the evaluation context.
+        description:
+          type: string
+          description: Optional human note shown in the dashboard.
+        sdk_path:
+          type: string
+          description: Optional dotted path the SDK reads the value from.
+      additionalProperties: false
+      description: Body for `PATCH /api/admin/attributes/{id}`. Every field is optional; `name` is immutable.
+    UpdateAttributeResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Id of the attribute that was updated.
+      required:
+        - id
+      additionalProperties: false
+      description: Response for `PATCH /api/admin/attributes/{id}`.
     ListMetricsResponse:
       type: array
       items:
