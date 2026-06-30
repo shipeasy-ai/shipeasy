@@ -34,4 +34,4 @@ asserting no 5xx and full status/schema conformance (the `bearerSdkKey` auth the
 spec declares is exercised end-to-end). Run it locally with
 `pnpm --filter @shipeasy/ui test:contract` (see `apps/ui/contract-tests/`).
 
-<!-- ci: republish trigger — runs the publish workflow on the fixed pnpm/action-setup config; no package content change -->
+<!-- ci: republish trigger (v2) — publish workflows re-run on the corrected pnpm/action-setup config; no package content change -->

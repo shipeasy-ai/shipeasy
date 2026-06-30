@@ -52,7 +52,12 @@ jobs:
           submodules: true
           path: app
 
+      # This job checks both repos out into subdirs (spec-repo/, app/), so the
+      # action runs at a root with no package.json — it needs an explicit pnpm
+      # version (there's no `packageManager` field to read here, unlike the
+      # marketplace-root jobs in ci.yml / publish-*.yml).
       - uses: pnpm/action-setup@v6
+        with: { version: 10 }
       - uses: actions/setup-node@v6
         with: { node-version: 22, cache: pnpm, cache-dependency-path: app/pnpm-lock.yaml }
       - uses: actions/setup-python@v5

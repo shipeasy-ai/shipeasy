@@ -675,4 +675,4 @@ Install `mcp-publisher` with `brew install mcp-publisher` (or the [release binar
 - Stdio transport stays healthy: unhandled rejections are captured in `index.ts` and converted to `notifications/message` errors — the process never exits on a per-request failure.
 - Template updates are co-versioned with the SDK (`shipeasy/templates/`) and validated in CI with `tsc --noEmit` / `py_compile` / equivalent.
 
-<!-- ci: republish trigger — runs the publish workflow on the fixed pnpm/action-setup config; no package content change -->
+<!-- ci: republish trigger (v2) — publish workflows re-run on the corrected pnpm/action-setup config; no package content change -->
