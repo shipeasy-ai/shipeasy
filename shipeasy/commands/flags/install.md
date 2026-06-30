@@ -57,10 +57,11 @@ release_killswitch_create  { "name": "<folder.name>" }                          
 ops_alerts_create          { "name": "<name>", "metricId": "<id>", "comparator": "gt", "threshold": <n> }  # alert rule
 ```
 
-Workflows (slash commands) that involve codebase analysis:
+Workflows that involve codebase analysis live in the area skills:
 
-- `/shipeasy:experiments:create <name>` — design + draft an A/B test
-- `/shipeasy:metrics:create <name>` — analyze + instrument + create a metric
+- `/shipeasy:experiments` — design + draft an A/B test (analyze the codebase,
+  propose a variation point + success metric, instrument events, draft).
+- `/shipeasy:metrics` — analyze + instrument + create a metric.
 
 Or just ask — the `flags`, `experiments`, `metrics`, and `alerts` skills carry
 the guidance and always delegate to the MCP server or CLI.

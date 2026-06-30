@@ -231,8 +231,8 @@ a running experiment; stop the experiment first.
 
 The analyze → propose → instrument → create flow documented above runs through
 the `metrics_create` MCP tool (plus `metrics_events_create` to register a new
-event) or `shipeasy metrics create`. In Claude Code it's also exposed as the
-`/shipeasy:metrics:create` slash command, but the MCP/CLI path is the
+event) or `shipeasy metrics create`. In Claude Code it's the workflow this
+`metrics` skill drives when you ask to create a metric; the MCP/CLI path is the
 harness-agnostic equivalent.
 
 ## Relationship to experiments

@@ -264,9 +264,8 @@ never a raw HTTP call:
   `ops_alerts_create`) or the equivalent CLI (`shipeasy release flags create`,
   `… configs create`, `… experiments create`, `… killswitch create`,
   `shipeasy metrics events create`, `shipeasy metrics create`,
-  `shipeasy ops alerts create`). The
-  `/shipeasy:experiments:create` and `/shipeasy:metrics:create` workflow
-  commands are also available. Typical uses: wrap a risky fix in a fresh gate,
+  `shipeasy ops alerts create`). The `experiments` and `metrics` skills carry
+  the analyze-and-instrument design flows. Typical uses: wrap a risky fix in a fresh gate,
   add the event + metric a fix needs for verification, add an alert rule that
   would have caught the regression.
 - **Push + publish i18n keys** — `shipeasy i18n push` (insert-only) +

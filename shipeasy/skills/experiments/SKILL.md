@@ -54,7 +54,7 @@ Before creating, decide:
    skill) — it's required before start. Adding metrics post-hoc inflates
    false-positive rate.
 
-## How to act: MCP server or CLI (plus one workflow command)
+## How to act: MCP server or CLI
 
 Lifecycle CRUD — list / start / stop / results / update / archive, and universe
 management — has **no per-verb slash command**. Drive it through:
@@ -63,11 +63,184 @@ management — has **no per-verb slash command**. Drive it through:
    when the `shipeasy` MCP server is registered.
 2. **The `shipeasy` CLI** (`shipeasy release experiments …`) as the fallback.
 
-The one exception is `/shipeasy:experiments:create` — a multi-step workflow that
-analyzes the project, proposes variation points + a success metric, instruments
-events, and *then* drafts the experiment. Reach for it (or just follow the
-"Designing" + "Creating" sections below) when starting from a vague ask; use the
-MCP/CLI directly when the design is already pinned down.
+When the design is already pinned down (you know the variation point, the
+groups, and the goal metric), jump straight to "Creating" below and call the
+MCP/CLI. When you're starting from a **vague ask** — the user wants "an A/B test
+on checkout" but hasn't named the variation point, the event, or the metric —
+run the full analyze → propose → provision workflow in the next section first.
+
+## Workflow — design a new experiment (analyze → propose → provision)
+
+When the user says *"set up an A/B test for <X>"* (or anything equivalent)
+**without** naming the variation point, the event, and the metric, drive the
+whole "design a new A/B test" flow from analysis to draft. The user does **not**
+know yet which event or metric to use — your job is to look at the codebase,
+propose options, confirm with `AskUserQuestion`, then provision everything.
+
+Prereqs: `.shipeasy` bound, and the `shipeasy` MCP server available — this flow
+instruments events and drafts the experiment through it
+(`metrics_events_create`, `release_experiments_create`); the `shipeasy` CLI is
+the fallback. The experiment `<name>` comes from the user's request; if blank,
+ask.
+
+### Phase 1 — locate variation points in the user's code
+
+Search the codebase for *where the variant decision needs to be made*.
+Heuristics in priority order:
+
+1. The user's request usually names a feature (`an A/B test on the checkout
+   button` → look at the checkout flow). Grep for the feature name first.
+2. If unclear, ask for the surface area before scanning blindly — one
+   `AskUserQuestion` with 2–4 candidate areas from the route table
+   (`apps/**/page.tsx`, `src/routes/**`).
+
+For each candidate variation point, capture:
+
+- file:line of the component / handler that would branch on the variant
+- the user-visible behaviour you'd toggle (button copy, route order,
+  ranking weights, layout, …)
+
+Stop at **one** variation point per experiment. Multi-variate is out of
+scope here.
+
+### Phase 2 — propose a success metric
+
+A metric ties variant → outcome. Look for:
+
+1. **Existing `events.track(...)` call sites** — `grep -rn 'events\.track\b' src apps`
+   (anywhere in the JS subprojects). These are pre-existing events; a metric over
+   them needs zero new instrumentation.
+2. **Implicit conversion points** — checkout submit, signup form submit, "Add to
+   cart" handler, share button, etc. — code that fires when the user does the
+   thing the experiment cares about. These need a new `events.track(name, props)`
+   call.
+3. **Existing metrics** — `shipeasy metrics list --json` for anything already
+   defined; reusing avoids both an event and a metric.
+
+Build 2–4 candidate metrics, each as `{ event, aggregation, why }`. Examples:
+
+- `count_users(checkout_completed)` — distinct users who finished checkout. Best
+  when "did they convert?" is binary.
+- `sum(purchase, amount)` — total revenue. Best when bigger basket is the win
+  condition.
+- `avg(time_to_paint, ms)` — page-load metric. Best for perf experiments.
+
+Present with `AskUserQuestion`:
+
+```
+Q: Which metric should decide this experiment?
+   Options:
+   1. <name1> — <DSL> (reuses event <event1>, no new instrumentation)
+   2. <name2> — <DSL> (needs new events.track("<event2>", { ... }) at <file:line>)
+   3. <name3> — <DSL> (needs new event)
+```
+
+### Phase 3 — provision (in order, halt on first failure)
+
+**Pull the SDK call sites below (`events.track`, `experiments.assign`) for this
+project's language from the `docs` MCP.** Before editing 3a/3d, detect the
+language from `.shipeasy` or the subproject's manifest (`package.json`,
+`pyproject.toml`, `Gemfile`, `go.mod`, `pom.xml`, `build.gradle*`,
+`composer.json`, `Package.swift`), then fetch the snippets:
+`docs_get { sdk: <lang>, path: "metrics" }` for the track call and
+`docs_get { sdk: <lang>, path: "experiments", name: "<name>" }` for assignment
+(run `docs_list { sdk: <lang> }` to find the handle; CLI
+`shipeasy docs get --sdk <lang> <path>`). The examples below show the shape —
+use the docs snippets for the exact calls.
+
+For the chosen metric:
+
+**3a.** If the event isn't emitted yet, instrument it. Edit the call site (one
+Edit per file). Single import — the example below shows the shape, pull this
+project's language with `docs_get` as above:
+
+```ts
+// Example shape — fetch the exact call for this project's language via docs_get
+import { events } from "@shipeasy/sdk/client"; // or "@shipeasy/sdk/server"
+events.track("<event>", { /* labels referenced by the metric query */ });
+```
+
+Confirm labels in the payload match every `{label=...}`, `by (...)`,
+`value_label` referenced by the metric query — otherwise the metric returns
+empty.
+
+**3b.** Create the metric:
+
+```bash
+shipeasy metrics create "<metric_name>" \
+  --event-name "<event_name>" \
+  --query '<dsl>'
+```
+
+**3c.** Create the experiment draft. Default groups are an even `control` +
+`treatment` split — `weight: 5000` each (basis points; all groups' weights must
+sum to exactly 10000) — unless the user asked otherwise. The decision metric goes
+in `goal_metric` (inline: an `event` + `aggregation`, or a DSL `query`); it
+auto-creates the event if missing, so the metric you created in 3b can also be
+referenced by its query here. Use MCP for typed errors:
+
+```
+mcp tool: release_experiments_create {
+  "name": "<name from the user's request>",
+  "universe": "default",
+  "allocation_percent": 100,
+  "groups": [
+    { "name": "control",   "weight": 5000, "params": { "variant": "v1" } },
+    { "name": "treatment", "weight": 5000, "params": { "variant": "v2" } }
+  ],
+  "goal_metric": { "event": "<event_name>", "aggregation": "count_users" }
+}
+```
+
+**3d.** Edit the variation point so the runtime branches on the assignment call
+(the example below shows the shape — pull this project's language with
+`docs_get { sdk: <lang>, path: "experiments" }` as noted at the top of Phase 3):
+
+```ts
+// Example shape — fetch the exact call for this project's language via docs_get
+import { experiments } from "@shipeasy/sdk/server"; // or "@shipeasy/sdk/client"
+const { group } = await experiments.assign("<name>", { user_id });
+if (group === "treatment") {
+  /* new code path */
+} else {
+  /* old code path */
+}
+```
+
+### Phase 4 — verify
+
+```bash
+shipeasy metrics list                       # the new metric appears
+shipeasy release experiments get "<name>"   # state: draft
+```
+
+Plus build/type-check the touched files.
+
+### Phase 5 — hand-off
+
+Tell the user:
+
+```
+✅ Experiment <name> drafted.
+   Variant point: <file:line>
+   Event:         <event_name> (new | reused)
+   Metric:        <metric_name> = <DSL>
+   Groups:        control 5000 / treatment 5000 (basis points)
+Next (via the shipeasy MCP server or CLI):
+   release_experiments_start   { "id": "<name>" }   # begin assigning traffic
+   release_experiments_results { "id": "<name>" }   # enrolment + significance
+   # CLI fallback: shipeasy release experiments start|results <name>
+```
+
+Do **not** start the experiment automatically — the user reviews the diff first.
+
+Workflow-specific rules (on top of the "Hard rules" below):
+
+- Don't restart an experiment under the same name once stopped (the assignment
+  hash changes, re-randomising users). New attempts use `<old>_v2`.
+- Don't add multiple success metrics. Pre-register one.
+- Don't gate eligibility inside the experiment groups — push restrictions to a
+  `targeting_gate` (a separate feature gate) so the universe stays clean.
 
 ## Creating
 
