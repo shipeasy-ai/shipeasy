@@ -1,0 +1,47 @@
+# Skills ↔ command contract.
+#
+# Every shipped skill (shipeasy/skills/**/SKILL.md) documents CLI invocations
+# (`shipeasy …`) and MCP tool calls (`mcp tool: …`, `tool_name { … }`). This
+# workflow scans them out and verifies each one against the *real* surfaces —
+# the CLI commander tree and the MCP tool catalog — so a renamed/removed
+# command, a dropped flag, or a param that no longer exists fails CI instead of
+# shipping a skill that tells the agent to run something that errors.
+#
+# Separate from ci.yml on purpose: it also fires on skill-only edits (which
+# ci.yml ignores) and gates the change that introduced the drift.
+name: Skills Contract
+
+on:
+  push:
+    paths:
+      - "shipeasy/skills/**"
+      - "cli/**"
+      - "mcp/**"
+      - "openapi/**"
+      - "skills-contract/**"
+      - "pnpm-workspace.yaml"
+  pull_request:
+    paths:
+      - "shipeasy/skills/**"
+      - "cli/**"
+      - "mcp/**"
+      - "openapi/**"
+      - "skills-contract/**"
+      - "pnpm-workspace.yaml"
+  workflow_dispatch:
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+        with: { version: 10 }
+      - uses: actions/setup-node@v6
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      # Build the CLI/MCP (and their openapi dep) so the test imports the
+      # freshly-generated command tree + tool catalog, not a stale dist.
+      - run: pnpm --filter @shipeasy/skills-contract... build
+      - run: pnpm --filter @shipeasy/skills-contract test

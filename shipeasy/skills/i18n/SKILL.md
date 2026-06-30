@@ -285,7 +285,7 @@ publishes — one command. (In Claude Code: `/shipeasy:i18n:migrate <library>`.)
 | `409 key exists` | Leave it. Re-runs are idempotent.                               |
 | `401`            | `shipeasy logout && shipeasy login`. Retry **once**.            |
 | `429` plan-limit | Surface to user. Do not auto-upgrade.                           |
-| Profile missing  | `i18n_profiles_create { "name": "en:prod", "locales": ["en"] }`. |
+| Profile missing  | `i18n_profiles_create { "name": "en:prod" }` (the locale is encoded in the handle). |
 
 ## Hard rules
 

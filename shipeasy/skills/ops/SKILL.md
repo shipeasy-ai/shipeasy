@@ -75,8 +75,8 @@ Use the `ops_list` / `ops_get` / `ops_update` MCP tools, or the CLI. Listing is
 unified across every type — filter with `--type`:
 
 ```bash
-shipeasy ops list                                   # whole queue, newest first
-shipeasy ops list --type bug --status open --json   # bug work queue
+shipeasy ops list                                   # whole queue, newest first (prints JSON)
+shipeasy ops list --type bug --status open           # bug work queue
 shipeasy ops update <handle> --status in_progress    # handle = per-project #number or id
 
 shipeasy ops list --type feature_request

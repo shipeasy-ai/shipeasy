@@ -86,7 +86,7 @@ grep -rnE 'events\.track\(\s*["'"'"']' --include='*.ts' --include='*.tsx' \
   --include='*.js' --include='*.jsx' src apps packages 2>/dev/null | head -50
 
 # (b) Existing metrics, in case the user really just wants a tweak.
-shipeasy metrics list --json
+shipeasy metrics list            # generated module commands print JSON
 ```
 
 Then heuristically find *uninstrumented* candidates — places where a

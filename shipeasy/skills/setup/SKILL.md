@@ -97,7 +97,8 @@ shipeasy whoami    # re-verify; writes ~/.config/shipeasy/config.json + .shipeas
 
 Verify: `shipeasy whoami` shows a bound dir and `.shipeasy` has `project_id`.
 Self-heal: `401` → `shipeasy logout && shipeasy login` (retry once); headless →
-`shipeasy login --no-browser`, surface the URL once. **One project per repo** —
+`shipeasy login` always prints the auth URL — surface it once for the user to
+open manually. **One project per repo** —
 the single root `.shipeasy` is inherited by subprojects (like `.git`).
 
 ---

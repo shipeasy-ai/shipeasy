@@ -1,7 +1,9 @@
-# Only the three TS packages are workspace members. The plugin tree (shipeasy/)
-# and scripts/ are NOT npm packages — they're left out deliberately so pnpm
-# never tries to link or publish them.
+# Only the TS packages are workspace members. The plugin tree (shipeasy/) and
+# scripts/ are NOT npm packages — they're left out deliberately so pnpm never
+# tries to link or publish them. `skills-contract` is a private (never-published)
+# test package that scans the skill tree against the CLI/MCP surfaces.
 packages:
   - "openapi"
   - "mcp"
   - "cli"
+  - "skills-contract"

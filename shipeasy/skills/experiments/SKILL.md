@@ -160,8 +160,9 @@ significance flag. Use `release_experiments_timeseries` for the full
 per-day history, or `release_experiments_get` for the experiment's current
 state. There is no `release_experiments_status`.
 
-Stop with `release_experiments_stop { "id": ..., "winner": "treatment" }`
-(or omit `winner` for inconclusive).
+Stop with `release_experiments_stop { "id": ... }` (the call takes only the
+experiment id — it halts allocation; the winner is a reading of the results,
+not a stored field).
 
 ## Holdouts
 
