@@ -45,10 +45,6 @@ ListConfigsResponse:
                 - publishedAt
                 - publishedBy
               additionalProperties: false
-            required:
-              - dev
-              - staging
-              - prod
             description: Per-env latest published version metadata.
           drafts:
             type: object
@@ -71,27 +67,15 @@ ListConfigsResponse:
                 - authorEmail
                 - baseVersion
               additionalProperties: false
-            required:
-              - dev
-              - staging
-              - prod
             description: Per-env active drafts (if any).
           values:
             description: Per-env latest published values (only returned by `GET /{id}`, not list).
             type: object
             additionalProperties: {}
-            required:
-              - dev
-              - staging
-              - prod
           draftValues:
             description: Per-env draft values (only returned by `GET /{id}`).
             type: object
             additionalProperties: {}
-            required:
-              - dev
-              - staging
-              - prod
         required:
           - id
           - name
@@ -151,10 +135,6 @@ GetConfigResponse:
           - publishedAt
           - publishedBy
         additionalProperties: false
-      required:
-        - dev
-        - staging
-        - prod
       description: Per-env latest published version metadata.
     drafts:
       type: object
@@ -177,27 +157,15 @@ GetConfigResponse:
           - authorEmail
           - baseVersion
         additionalProperties: false
-      required:
-        - dev
-        - staging
-        - prod
       description: Per-env active drafts (if any).
     values:
       description: Per-env latest published values (only returned by `GET /{id}`, not list).
       type: object
       additionalProperties: {}
-      required:
-        - dev
-        - staging
-        - prod
     draftValues:
       description: Per-env draft values (only returned by `GET /{id}`).
       type: object
       additionalProperties: {}
-      required:
-        - dev
-        - staging
-        - prod
   required:
     - id
     - name

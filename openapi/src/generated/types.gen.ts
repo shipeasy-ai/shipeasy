@@ -1414,6 +1414,10 @@ export type ListKillswitchesResponse = {
                  * ISO-8601 publish timestamp for this version.
                  */
                 publishedAt: string;
+                /**
+                 * Email/id of the actor who published this version.
+                 */
+                publishedBy?: string | null;
             };
         };
     }>;
@@ -1490,6 +1494,10 @@ export type GetKillswitchResponse = {
              * ISO-8601 publish timestamp for this version.
              */
             publishedAt: string;
+            /**
+             * Email/id of the actor who published this version.
+             */
+            publishedBy?: string | null;
         };
     };
 };
@@ -6476,12 +6484,7 @@ export type ListEventsData = {
         'X-Project-Id'?: string;
     };
     path?: never;
-    query?: {
-        /**
-         * When `true`, return only pending (auto-discovered, unapproved) events. Omit to return the full catalog.
-         */
-        pending?: boolean;
-    };
+    query?: never;
     url: '/api/admin/events';
 };
 
@@ -6793,7 +6796,7 @@ export type ApproveEventResponses = {
     /**
      * Approve a pending event
      */
-    201: ApproveEventResponse;
+    200: ApproveEventResponse;
 };
 
 export type ApproveEventResponse2 = ApproveEventResponses[keyof ApproveEventResponses];
@@ -7076,7 +7079,7 @@ export type LinkPrToOpsItemResponses = {
     /**
      * Link a fixing PR
      */
-    201: LinkPrToOpsItemResponse;
+    200: LinkPrToOpsItemResponse;
 };
 
 export type LinkPrToOpsItemResponse2 = LinkPrToOpsItemResponses[keyof LinkPrToOpsItemResponses];
@@ -7494,7 +7497,7 @@ export type UpsertProjectResponses = {
     /**
      * Find-or-create a project by domain
      */
-    201: UpsertProjectResponse;
+    200: UpsertProjectResponse;
 };
 
 export type UpsertProjectResponse2 = UpsertProjectResponses[keyof UpsertProjectResponses];

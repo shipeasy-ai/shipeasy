@@ -94,7 +94,7 @@
                 domain: shouks.app
                 name: Shouks
     responses:
-      "201":
+      "200":
         description: Find-or-create a project by domain
         content:
           application/json:

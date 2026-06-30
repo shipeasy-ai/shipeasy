@@ -771,9 +771,9 @@ export const getMetric = <ThrowOnError extends boolean = false>(options: Options
 /**
  * List events
  *
- * Returns every catalogued event in the project, including pending auto-discovered names. Pass `?pending=true` to return only the unapproved queue.
+ * Returns every catalogued event in the project, including pending auto-discovered names. Each row carries its own `pending` flag, so the unapproved queue can be filtered client-side.
  *
- * **Use case:** Snapshot the event catalog — for example to review the `pending` auto-discovery queue (`?pending=true`) before approving names, or to confirm which events your metrics can reference.
+ * **Use case:** Snapshot the event catalog — for example to review the pending auto-discovery queue before approving names, or to confirm which events your metrics can reference.
  */
 export const listEvents = <ThrowOnError extends boolean = false>(options?: Options<ListEventsData, ThrowOnError>): RequestResult<ListEventsResponses, ListEventsErrors, ThrowOnError> => (options?.client ?? client).get<ListEventsResponses, ListEventsErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

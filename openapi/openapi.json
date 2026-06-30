@@ -4428,22 +4428,13 @@
       "get": {
         "operationId": "listEvents",
         "summary": "List events",
-        "description": "Returns every catalogued event in the project, including pending auto-discovered names. Pass `?pending=true` to return only the unapproved queue.\n\n**Use case:** Snapshot the event catalog — for example to review the `pending` auto-discovery queue (`?pending=true`) before approving names, or to confirm which events your metrics can reference.",
+        "description": "Returns every catalogued event in the project, including pending auto-discovered names. Each row carries its own `pending` flag, so the unapproved queue can be filtered client-side.\n\n**Use case:** Snapshot the event catalog — for example to review the pending auto-discovery queue before approving names, or to confirm which events your metrics can reference.",
         "tags": [
           "Events"
         ],
         "parameters": [
           {
             "$ref": "#/components/parameters/ProjectId"
-          },
-          {
-            "name": "pending",
-            "in": "query",
-            "required": false,
-            "description": "When `true`, return only pending (auto-discovered, unapproved) events. Omit to return the full catalog.",
-            "schema": {
-              "type": "boolean"
-            }
           }
         ],
         "responses": {
@@ -4902,7 +4893,7 @@
           }
         },
         "responses": {
-          "201": {
+          "200": {
             "description": "Approve a pending event",
             "content": {
               "application/json": {
@@ -5378,7 +5369,7 @@
           }
         },
         "responses": {
-          "201": {
+          "200": {
             "description": "Link a fixing PR",
             "content": {
               "application/json": {
@@ -6016,7 +6007,7 @@
           }
         },
         "responses": {
-          "201": {
+          "200": {
             "description": "Find-or-create a project by domain",
             "content": {
               "application/json": {
@@ -10888,11 +10879,6 @@
                     ],
                     "additionalProperties": false
                   },
-                  "required": [
-                    "dev",
-                    "staging",
-                    "prod"
-                  ],
                   "description": "Per-env latest published version metadata."
                 },
                 "drafts": {
@@ -10922,32 +10908,17 @@
                     ],
                     "additionalProperties": false
                   },
-                  "required": [
-                    "dev",
-                    "staging",
-                    "prod"
-                  ],
                   "description": "Per-env active drafts (if any)."
                 },
                 "values": {
                   "description": "Per-env latest published values (only returned by `GET /{id}`, not list).",
                   "type": "object",
-                  "additionalProperties": {},
-                  "required": [
-                    "dev",
-                    "staging",
-                    "prod"
-                  ]
+                  "additionalProperties": {}
                 },
                 "draftValues": {
                   "description": "Per-env draft values (only returned by `GET /{id}`).",
                   "type": "object",
-                  "additionalProperties": {},
-                  "required": [
-                    "dev",
-                    "staging",
-                    "prod"
-                  ]
+                  "additionalProperties": {}
                 }
               },
               "required": [
@@ -11092,11 +11063,6 @@
               ],
               "additionalProperties": false
             },
-            "required": [
-              "dev",
-              "staging",
-              "prod"
-            ],
             "description": "Per-env latest published version metadata."
           },
           "drafts": {
@@ -11126,32 +11092,17 @@
               ],
               "additionalProperties": false
             },
-            "required": [
-              "dev",
-              "staging",
-              "prod"
-            ],
             "description": "Per-env active drafts (if any)."
           },
           "values": {
             "description": "Per-env latest published values (only returned by `GET /{id}`, not list).",
             "type": "object",
-            "additionalProperties": {},
-            "required": [
-              "dev",
-              "staging",
-              "prod"
-            ]
+            "additionalProperties": {}
           },
           "draftValues": {
             "description": "Per-env draft values (only returned by `GET /{id}`).",
             "type": "object",
-            "additionalProperties": {},
-            "required": [
-              "dev",
-              "staging",
-              "prod"
-            ]
+            "additionalProperties": {}
           }
         },
         "required": [
@@ -11449,6 +11400,17 @@
                       "publishedAt": {
                         "type": "string",
                         "description": "ISO-8601 publish timestamp for this version."
+                      },
+                      "publishedBy": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Email/id of the actor who published this version."
                       }
                     },
                     "required": [
@@ -11458,11 +11420,6 @@
                     ],
                     "additionalProperties": false
                   },
-                  "required": [
-                    "dev",
-                    "staging",
-                    "prod"
-                  ],
                   "description": "Per-env latest value, switches, version, and publish timestamp."
                 }
               },
@@ -11595,6 +11552,17 @@
                 "publishedAt": {
                   "type": "string",
                   "description": "ISO-8601 publish timestamp for this version."
+                },
+                "publishedBy": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Email/id of the actor who published this version."
                 }
               },
               "required": [
@@ -11604,11 +11572,6 @@
               ],
               "additionalProperties": false
             },
-            "required": [
-              "dev",
-              "staging",
-              "prod"
-            ],
             "description": "Per-env latest value, switches, version, and publish timestamp."
           }
         },

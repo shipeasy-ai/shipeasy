@@ -300,7 +300,7 @@
             prNumber: 412
             prUrl: https://github.com/acme/app/pull/412
     responses:
-      "201":
+      "200":
         description: Link a fixing PR
         content:
           application/json:

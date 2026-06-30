@@ -41,15 +41,16 @@ ListKillswitchesResponse:
                 publishedAt:
                   type: string
                   description: ISO-8601 publish timestamp for this version.
+                publishedBy:
+                  anyOf:
+                    - type: string
+                    - type: "null"
+                  description: Email/id of the actor who published this version.
               required:
                 - value
                 - version
                 - publishedAt
               additionalProperties: false
-            required:
-              - dev
-              - staging
-              - prod
             description: Per-env latest value, switches, version, and publish timestamp.
         required:
           - id
@@ -104,15 +105,16 @@ GetKillswitchResponse:
           publishedAt:
             type: string
             description: ISO-8601 publish timestamp for this version.
+          publishedBy:
+            anyOf:
+              - type: string
+              - type: "null"
+            description: Email/id of the actor who published this version.
         required:
           - value
           - version
           - publishedAt
         additionalProperties: false
-      required:
-        - dev
-        - staging
-        - prod
       description: Per-env latest value, switches, version, and publish timestamp.
   required:
     - id

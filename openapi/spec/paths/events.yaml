@@ -3,19 +3,13 @@
     operationId: listEvents
     summary: List events
     description: |-
-      Returns every catalogued event in the project, including pending auto-discovered names. Pass `?pending=true` to return only the unapproved queue.
+      Returns every catalogued event in the project, including pending auto-discovered names. Each row carries its own `pending` flag, so the unapproved queue can be filtered client-side.
 
-      **Use case:** Snapshot the event catalog — for example to review the `pending` auto-discovery queue (`?pending=true`) before approving names, or to confirm which events your metrics can reference.
+      **Use case:** Snapshot the event catalog — for example to review the pending auto-discovery queue before approving names, or to confirm which events your metrics can reference.
     tags:
       - Events
     parameters:
       - $ref: ../components/parameters.yaml#/ProjectId
-      - name: pending
-        in: query
-        required: false
-        description: When `true`, return only pending (auto-discovered, unapproved) events. Omit to return the full catalog.
-        schema:
-          type: boolean
     responses:
       "200":
         description: List events
@@ -340,7 +334,7 @@
                     type: number
                     required: true
     responses:
-      "201":
+      "200":
         description: Approve a pending event
         content:
           application/json:

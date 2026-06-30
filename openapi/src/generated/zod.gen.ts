@@ -799,7 +799,8 @@ export const zListKillswitchesResponse = z.object({
             value: z.boolean(),
             switches: z.record(z.string(), z.boolean()).optional(),
             version: z.int().gte(-9007199254740991).lte(9007199254740991),
-            publishedAt: z.string()
+            publishedAt: z.string(),
+            publishedBy: z.string().nullish()
         }))
     })),
     next_cursor: z.string().nullable()
@@ -830,7 +831,8 @@ export const zGetKillswitchResponse = z.object({
         value: z.boolean(),
         switches: z.record(z.string(), z.boolean()).optional(),
         version: z.int().gte(-9007199254740991).lte(9007199254740991),
-        publishedAt: z.string()
+        publishedAt: z.string(),
+        publishedBy: z.string().nullish()
     }))
 });
 
@@ -2879,10 +2881,6 @@ export const zGetMetricResponse2 = zGetMetricResponse;
 
 export const zListEventsHeaders = z.object({
     'X-Project-Id': z.string().optional()
-});
-
-export const zListEventsQuery = z.object({
-    pending: z.boolean().optional()
 });
 
 /**
