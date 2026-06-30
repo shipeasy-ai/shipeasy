@@ -3033,7 +3033,7 @@ export type ListI18nProfilesResponse = Array<{
  */
 export type CreateI18nProfileRequest = {
     /**
-     * Profile handle to create, e.g. `en:prod` or `fr:prod`. The locale is encoded in the handle, so no separate locale fields are accepted.
+     * Profile handle to create, e.g. `en:prod` or `fr:prod`. Lowercase alphanumeric start, then letters/digits/`_`/`:`/`.`/`-`; max 64 chars. The locale is encoded in the handle, so no separate locale fields are accepted.
      */
     name: string;
 };
@@ -3128,6 +3128,14 @@ export type PushI18nKeysRequest = {
          * Translated value for the key.
          */
         value: string;
+        /**
+         * Optional human note stored with the key.
+         */
+        description?: string;
+        /**
+         * Optional explicit list of `{{var}}` placeholder names in the value. Auto-derived from the value when omitted.
+         */
+        variables?: Array<string>;
     }>;
 };
 

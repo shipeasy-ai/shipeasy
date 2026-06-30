@@ -1740,7 +1740,7 @@ export const zListI18nProfilesResponse = z.array(z.object({
  * Body for `POST /api/admin/i18n/profiles`. Only `name` is accepted.
  */
 export const zCreateI18nProfileRequest = z.object({
-    name: z.string()
+    name: z.string().min(1).max(64).regex(/^[a-z0-9][a-z0-9_:.-]*$/)
 });
 
 /**
@@ -1773,12 +1773,14 @@ export const zListI18nKeysResponse = z.object({
  * Body for `POST /api/admin/i18n/keys`. Insert-only: keys that already exist are never overwritten — use `PUT /keys/{id}` to change a value.
  */
 export const zPushI18nKeysRequest = z.object({
-    profile_id: z.string(),
-    chunk: z.string().optional(),
+    profile_id: z.uuid(),
+    chunk: z.string().min(1).max(64).optional().default('default'),
     keys: z.array(z.object({
-        key: z.string(),
-        value: z.string()
-    }))
+        key: z.string().min(1).max(256),
+        value: z.string(),
+        description: z.string().optional(),
+        variables: z.array(z.string().min(1).max(64)).max(32).optional()
+    })).min(1).max(5000)
 });
 
 /**
@@ -1892,9 +1894,9 @@ export const zPublishI18nProfileResponse = z.object({
  * Body for `POST /api/admin/i18n/set`. Upserts one key's value and publishes the profile live.
  */
 export const zSetI18nLabelRequest = z.object({
-    key: z.string(),
+    key: z.string().min(1).max(256),
     value: z.string(),
-    profile: z.string().optional(),
+    profile: z.string().min(1).max(64).optional(),
     description: z.string().optional()
 });
 

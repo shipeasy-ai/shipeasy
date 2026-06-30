@@ -30,7 +30,10 @@ CreateI18nProfileRequest:
   properties:
     name:
       type: string
-      description: Profile handle to create, e.g. `en:prod` or `fr:prod`. The locale is encoded in the handle, so no separate locale fields are accepted.
+      minLength: 1
+      maxLength: 64
+      pattern: ^[a-z0-9][a-z0-9_:.-]*$
+      description: Profile handle to create, e.g. `en:prod` or `fr:prod`. Lowercase alphanumeric start, then letters/digits/`_`/`:`/`.`/`-`; max 64 chars. The locale is encoded in the handle, so no separate locale fields are accepted.
   required:
     - name
   additionalProperties: false
@@ -110,21 +113,40 @@ PushI18nKeysRequest:
   properties:
     profile_id:
       type: string
+      format: uuid
       description: Target profile id to add keys to.
     chunk:
       description: Logical grouping the new keys are filed under. Defaults to `default`.
       type: string
+      minLength: 1
+      maxLength: 64
+      default: default
     keys:
       type: array
+      minItems: 1
+      maxItems: 5000
       items:
         type: object
         properties:
           key:
             type: string
+            minLength: 1
+            maxLength: 256
             description: Dotted key path, e.g. `home.cta`.
           value:
             type: string
             description: Translated value for the key.
+          description:
+            type: string
+            description: Optional human note stored with the key.
+          variables:
+            type: array
+            maxItems: 32
+            items:
+              type: string
+              minLength: 1
+              maxLength: 64
+            description: Optional explicit list of `{{var}}` placeholder names in the value. Auto-derived from the value when omitted.
         required:
           - key
           - value
@@ -377,6 +399,8 @@ SetI18nLabelRequest:
   properties:
     key:
       type: string
+      minLength: 1
+      maxLength: 256
       description: Dotted key path to set, e.g. `home.cta`.
     value:
       type: string
@@ -384,6 +408,8 @@ SetI18nLabelRequest:
     profile:
       description: Profile name to target, e.g. `en:prod`. Omit to target the project's default-marked profile.
       type: string
+      minLength: 1
+      maxLength: 64
     description:
       description: Optional human note to store with the key.
       type: string

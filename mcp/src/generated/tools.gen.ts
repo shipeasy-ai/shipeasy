@@ -8,9 +8,19 @@ import { clean, unwrap } from "../tools/_gen-runtime.js";
 
 export const GENERATED_TOOLS: Tool[] = [
   {
+    name: "i18n_drafts_create",
+    description: "Create a translation draft. Stage a new translation draft against a target profile, optionally seeding its keys from a source profile.",
+    inputSchema: {"type":"object","properties":{"name":{"type":"string","minLength":1,"maxLength":64,"description":"Draft name, e.g. the target locale being staged."},"profile_id":{"type":"string","format":"uuid","description":"Profile the draft targets."},"source_profile_id":{"type":"string","format":"uuid","description":"Optional profile to seed the draft's keys from."}},"required":["name","profile_id"]},
+  },
+  {
     name: "i18n_drafts_list",
     description: "List translation drafts. List staged translation drafts awaiting review/publish.",
     inputSchema: {"type":"object","properties":{},"required":[]},
+  },
+  {
+    name: "i18n_drafts_update",
+    description: "Update a translation draft. Transition a draft's lifecycle state (`open` / `merged` / `abandoned`).",
+    inputSchema: {"type":"object","properties":{"draftId":{"type":"string","description":"The draft id to update."},"status":{"type":"string","enum":["open","merged","abandoned"],"description":"New lifecycle state for the draft."}},"required":["draftId"]},
   },
   {
     name: "i18n_keys_list",
@@ -20,22 +30,22 @@ export const GENERATED_TOOLS: Tool[] = [
   {
     name: "i18n_keys_push",
     description: "Push new i18n keys (insert-only). Add NEW keys to a profile. Insert-only — existing keys are left untouched (overwrite one with `updateI18nKey`).",
-    inputSchema: {"type":"object","properties":{"profile_id":{"type":"string","description":"Target profile id to add keys to."},"chunk":{"description":"Logical grouping the new keys are filed under. Defaults to `default`.","type":"string"},"keys":{"type":"array","items":{"type":"object","properties":{"key":{"type":"string","description":"Dotted key path, e.g. `home.cta`."},"value":{"type":"string","description":"Translated value for the key."}},"required":["key","value"],"additionalProperties":false},"description":"Keys to add. Insert-only — existing keys are reported back as `skipped`."}},"required":["profile_id","keys"]},
+    inputSchema: {"type":"object","properties":{"profile_id":{"type":"string","format":"uuid","description":"Target profile id to add keys to."},"chunk":{"description":"Logical grouping the new keys are filed under. Defaults to `default`.","type":"string","minLength":1,"maxLength":64,"default":"default"},"keys":{"type":"array","minItems":1,"maxItems":5000,"items":{"type":"object","properties":{"key":{"type":"string","minLength":1,"maxLength":256,"description":"Dotted key path, e.g. `home.cta`."},"value":{"type":"string","description":"Translated value for the key."},"description":{"type":"string","description":"Optional human note stored with the key."},"variables":{"type":"array","maxItems":32,"items":{"type":"string","minLength":1,"maxLength":64},"description":"Optional explicit list of `{{var}}` placeholder names in the value. Auto-derived from the value when omitted."}},"required":["key","value"],"additionalProperties":false},"description":"Keys to add. Insert-only — existing keys are reported back as `skipped`."}},"required":["profile_id","keys"]},
   },
   {
     name: "i18n_keys_set",
     description: "Set a key's value and publish it live. Upsert a single key's value into a profile and immediately publish the whole profile (KV rebuild + CDN purge) so the new value is live in one call. The key is inserted when new and overwritten when it already exists. `profile` is a profile name — omit it to target the project'…",
-    inputSchema: {"type":"object","properties":{"key":{"type":"string","description":"Dotted key path to set, e.g. `home.cta`."},"value":{"type":"string","description":"New value for the key. Inserted when the key is new, overwritten when it exists."},"profile":{"description":"Profile name to target, e.g. `en:prod`. Omit to target the project's default-marked profile.","type":"string"},"description":{"description":"Optional human note to store with the key.","type":"string"}},"required":["key","value"]},
+    inputSchema: {"type":"object","properties":{"key":{"type":"string","minLength":1,"maxLength":256,"description":"Dotted key path to set, e.g. `home.cta`."},"value":{"type":"string","description":"New value for the key. Inserted when the key is new, overwritten when it exists."},"profile":{"description":"Profile name to target, e.g. `en:prod`. Omit to target the project's default-marked profile.","type":"string","minLength":1,"maxLength":64},"description":{"description":"Optional human note to store with the key.","type":"string"}},"required":["key","value"]},
   },
   {
     name: "i18n_keys_update",
     description: "Update one i18n key. Overwrite a single existing key's value — the only overwrite path.",
-    inputSchema: {"type":"object","properties":{"id":{"type":"string","description":"The key's id."},"value":{"type":"string","description":"New value for the key (the only overwrite path)."},"description":{"description":"Optional human note to store with the key.","type":"string"}},"required":["id","value"]},
+    inputSchema: {"type":"object","properties":{"id":{"type":"string","description":"The key's id."},"value":{"type":"string","description":"New value for the key (the only overwrite path)."},"description":{"description":"Optional human note to store with the key.","type":"string"},"variables":{"description":"Explicit `{{var}}` placeholder names in the value. Omit to auto-derive them from the value.","type":"array","maxItems":32,"items":{"type":"string","minLength":1,"maxLength":64}}},"required":["id","value"]},
   },
   {
     name: "i18n_profiles_create",
     description: "Create an i18n profile. Create a locale profile. `name` is the stable handle (e.g. `fr:prod`).",
-    inputSchema: {"type":"object","properties":{"name":{"type":"string","description":"Profile handle to create, e.g. `en:prod` or `fr:prod`."},"locales":{"description":"Locales this profile carries, e.g. `[\"fr\", \"fr-CA\"]`. Defaults to `[\"en\"]`.","type":"array","items":{"type":"string"}},"default_locale":{"description":"Default locale for the profile. Defaults to the first entry of `locales`.","type":"string"}},"required":["name"]},
+    inputSchema: {"type":"object","properties":{"name":{"type":"string","minLength":1,"maxLength":64,"pattern":"^[a-z0-9][a-z0-9_:.-]*$","description":"Profile handle to create, e.g. `en:prod` or `fr:prod`. Lowercase alphanumeric start, then letters/digits/`_`/`:`/`.`/`-`; max 64 chars. The locale is encoded in the handle, so no separate locale fields are accepted."}},"required":["name"]},
   },
   {
     name: "i18n_profiles_list",
@@ -79,8 +89,8 @@ export const GENERATED_TOOLS: Tool[] = [
   },
   {
     name: "metrics_events_list",
-    description: "List events. Returns every catalogued event in the project, including pending auto-discovered names. Pass `?pending=true` to return only the unapproved queue.",
-    inputSchema: {"type":"object","properties":{"pending":{"type":"boolean","description":"When `true`, return only pending (auto-discovered, unapproved) events. Omit to return the full catalog."}},"required":[]},
+    description: "List events. Returns every catalogued event in the project, including pending auto-discovered names. Each row carries its own `pending` flag, so the unapproved queue can be filtered client-side.",
+    inputSchema: {"type":"object","properties":{},"required":[]},
   },
   {
     name: "metrics_events_update",
@@ -160,7 +170,7 @@ export const GENERATED_TOOLS: Tool[] = [
   {
     name: "ops_update",
     description: "Update a queue item. Update a queue item's `status` and/or `priority`. Other fields are immutable.",
-    inputSchema: {"type":"object","properties":{"handle":{"type":"string","description":"Per-project item number (e.g. `7`) or the full ops item id."},"status":{"description":"New lifecycle status.","type":"string","enum":["open","triaged","in_progress","ready_for_qa","resolved","wont_fix"]},"priority":{"description":"New triage priority.","type":"string","enum":["nice_to_have","medium","high","critical"]}},"required":["handle"]},
+    inputSchema: {"type":"object","properties":{"handle":{"type":"string","description":"Per-project item number (e.g. `7`) or the full ops item id."},"status":{"description":"New lifecycle status.","type":"string","enum":["open","triaged","in_progress","ready_for_qa","resolved","wont_fix"]},"priority":{"description":"New triage priority.","type":"string","enum":["nice_to_have","medium","high","critical"]},"notify":{"anyOf":[{"type":"object","properties":{"slackChannel":{"anyOf":[{"type":"object","properties":{"id":{"type":"string","minLength":1},"name":{"type":"string","minLength":1}},"required":["id","name"],"additionalProperties":false},{"type":"null"}]},"email":{"anyOf":[{"type":"string","format":"email"},{"type":"null"}]}},"additionalProperties":false},{"type":"null"}],"description":"Delivery target for a notification; `null` = use the project default."}},"required":["handle"]},
   },
   {
     name: "projects_current",
@@ -381,7 +391,9 @@ export const GENERATED_TOOLS: Tool[] = [
 
 /** tool name → whether it mutates (drives the server's binding guard). */
 export const GENERATED_MUTATES: Record<string, boolean> = {
+  "i18n_drafts_create": true,
   "i18n_drafts_list": false,
+  "i18n_drafts_update": true,
   "i18n_keys_list": false,
   "i18n_keys_push": true,
   "i18n_keys_set": true,
@@ -459,12 +471,14 @@ export const GENERATED_MUTATES: Record<string, boolean> = {
 
 /** tool name → (client, args) → unwrapped sdk result. */
 export const GENERATED_DISPATCH: Record<string, (client: Client, args: Record<string, unknown>) => Promise<unknown>> = {
+  "i18n_drafts_create": (client, args) => api.createI18nDraft({ client, body: clean({ "name": args["name"], "profile_id": args["profile_id"], "source_profile_id": args["source_profile_id"] }) }).then(unwrap) as Promise<unknown>,
   "i18n_drafts_list": (client, args) => api.listI18nDrafts({ client }).then(unwrap) as Promise<unknown>,
+  "i18n_drafts_update": (client, args) => api.updateI18nDraft({ client, path: { "draftId": args["draftId"] as string }, body: clean({ "status": args["status"] }) }).then(unwrap) as Promise<unknown>,
   "i18n_keys_list": (client, args) => api.listI18nKeys({ client, query: clean({ "profile_id": args["profile_id"], "prefix": args["prefix"], "q": args["q"], "limit": args["limit"] }) }).then(unwrap) as Promise<unknown>,
   "i18n_keys_push": (client, args) => api.pushI18nKeys({ client, body: clean({ "profile_id": args["profile_id"], "chunk": args["chunk"], "keys": args["keys"] }) }).then(unwrap) as Promise<unknown>,
   "i18n_keys_set": (client, args) => api.setI18nLabel({ client, body: clean({ "key": args["key"], "value": args["value"], "profile": args["profile"], "description": args["description"] }) }).then(unwrap) as Promise<unknown>,
-  "i18n_keys_update": (client, args) => api.updateI18nKey({ client, path: { "id": args["id"] as string }, body: clean({ "value": args["value"], "description": args["description"] }) }).then(unwrap) as Promise<unknown>,
-  "i18n_profiles_create": (client, args) => api.createI18nProfile({ client, body: clean({ "name": args["name"], "locales": args["locales"], "default_locale": args["default_locale"] }) }).then(unwrap) as Promise<unknown>,
+  "i18n_keys_update": (client, args) => api.updateI18nKey({ client, path: { "id": args["id"] as string }, body: clean({ "value": args["value"], "description": args["description"], "variables": args["variables"] }) }).then(unwrap) as Promise<unknown>,
+  "i18n_profiles_create": (client, args) => api.createI18nProfile({ client, body: clean({ "name": args["name"] }) }).then(unwrap) as Promise<unknown>,
   "i18n_profiles_list": (client, args) => api.listI18nProfiles({ client }).then(unwrap) as Promise<unknown>,
   "i18n_profiles_publish": (client, args) => api.publishI18nProfile({ client, path: { "profileId": args["profileId"] as string }, body: clean({ "chunk": args["chunk"] }) }).then(unwrap) as Promise<unknown>,
   "metrics_archive": (client, args) => api.deleteMetric({ client, path: { "id": args["id"] as string } }).then(unwrap) as Promise<unknown>,
@@ -473,7 +487,7 @@ export const GENERATED_DISPATCH: Record<string, (client: Client, args: Record<st
   "metrics_events_archive": (client, args) => api.deleteEvent({ client, path: { "id": args["id"] as string } }).then(unwrap) as Promise<unknown>,
   "metrics_events_create": (client, args) => api.createEvent({ client, body: clean({ "name": args["name"], "folder": args["folder"], "description": args["description"], "properties": args["properties"] }) }).then(unwrap) as Promise<unknown>,
   "metrics_events_get": (client, args) => api.getEvent({ client, path: { "id": args["id"] as string } }).then(unwrap) as Promise<unknown>,
-  "metrics_events_list": (client, args) => api.listEvents({ client, query: clean({ "pending": args["pending"] }) }).then(unwrap) as Promise<unknown>,
+  "metrics_events_list": (client, args) => api.listEvents({ client }).then(unwrap) as Promise<unknown>,
   "metrics_events_update": (client, args) => api.updateEvent({ client, path: { "id": args["id"] as string }, body: clean({ "folder": args["folder"], "description": args["description"], "properties": args["properties"] }) }).then(unwrap) as Promise<unknown>,
   "metrics_list": (client, args) => api.listMetrics({ client }).then(unwrap) as Promise<unknown>,
   "metrics_show": (client, args) => api.getMetric({ client, path: { "id": args["id"] as string } }).then(unwrap) as Promise<unknown>,
@@ -489,7 +503,7 @@ export const GENERATED_DISPATCH: Record<string, (client: Client, args: Record<st
   "ops_link_pr": (client, args) => api.linkPrToOpsItem({ client, path: { "handle": args["handle"] as string }, body: clean({ "prNumber": args["prNumber"], "prUrl": args["prUrl"] }) }).then(unwrap) as Promise<unknown>,
   "ops_list": (client, args) => api.listOpsItems({ client, query: clean({ "type": args["type"], "status": args["status"], "limit": args["limit"] }) }).then(unwrap) as Promise<unknown>,
   "ops_notify": (client, args) => api.notifyOps({ client, body: clean({ "title": args["title"], "summary": args["summary"], "steps": args["steps"], "href": args["href"], "dedupeKey": args["dedupeKey"] }) }).then(unwrap) as Promise<unknown>,
-  "ops_update": (client, args) => api.updateOpsItem({ client, path: { "handle": args["handle"] as string }, body: clean({ "status": args["status"], "priority": args["priority"] }) }).then(unwrap) as Promise<unknown>,
+  "ops_update": (client, args) => api.updateOpsItem({ client, path: { "handle": args["handle"] as string }, body: clean({ "status": args["status"], "priority": args["priority"], "notify": args["notify"] }) }).then(unwrap) as Promise<unknown>,
   "projects_current": (client, args) => api.getCurrentProject({ client }).then(unwrap) as Promise<unknown>,
   "release_configs_activity": (client, args) => api.listConfigActivity({ client, path: { "id": args["id"] as string }, query: clean({ "limit": args["limit"] }) }).then(unwrap) as Promise<unknown>,
   "release_configs_archive": (client, args) => api.deleteConfig({ client, path: { "id": args["id"] as string } }).then(unwrap) as Promise<unknown>,
