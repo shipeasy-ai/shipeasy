@@ -2752,9 +2752,13 @@ export type NotificationTarget = {
 } | null;
 
 /**
- * Bug-kind fields for `POST /api/admin/ops` (sent alongside `type: bug`).
+ * Bug-kind fields for `POST /api/admin/ops` (sent with `type: bug`).
  */
 export type CreateBugRequest = {
+    /**
+     * Discriminator — files a bug.
+     */
+    type: 'bug';
     /**
      * One-line bug title.
      */
@@ -2804,9 +2808,13 @@ export type CreateBugRequest = {
 };
 
 /**
- * Feature-request-kind fields for `POST /api/admin/ops` (sent alongside `type: feature_request`).
+ * Feature-request-kind fields for `POST /api/admin/ops` (sent with `type: feature_request`).
  */
 export type CreateFeatureRequestRequest = {
+    /**
+     * Discriminator — files a feature request.
+     */
+    type: 'feature_request';
     /**
      * One-line feature-request title.
      */
@@ -2851,14 +2859,8 @@ export type CreateFeatureRequestRequest = {
  * Body for `POST /api/admin/ops`. A discriminated union on `type`: `bug` carries the bug fields, `feature_request` the feature fields. Only these two user-fileable types are accepted — `error`, `alert`, and `measure_plan` tickets are auto-filed by the platform and cannot be created over the API.
  */
 export type CreateOpsItemRequest = ({
-    /**
-     * Files a bug.
-     */
     type: 'bug';
 } & CreateBugRequest) | ({
-    /**
-     * Files a feature request.
-     */
     type: 'feature_request';
 } & CreateFeatureRequestRequest);
 

@@ -1595,9 +1595,10 @@ export const zNotificationTarget = z.object({
 }).nullable();
 
 /**
- * Bug-kind fields for `POST /api/admin/ops` (sent alongside `type: bug`).
+ * Bug-kind fields for `POST /api/admin/ops` (sent with `type: bug`).
  */
 export const zCreateBugRequest = z.object({
+    type: z.enum(['bug']),
     title: z.string().min(1).max(200),
     stepsToReproduce: z.string().max(8000).optional().default(''),
     actualResult: z.string().max(8000).optional().default(''),
@@ -1617,9 +1618,10 @@ export const zCreateBugRequest = z.object({
 });
 
 /**
- * Feature-request-kind fields for `POST /api/admin/ops` (sent alongside `type: feature_request`).
+ * Feature-request-kind fields for `POST /api/admin/ops` (sent with `type: feature_request`).
  */
 export const zCreateFeatureRequestRequest = z.object({
+    type: z.enum(['feature_request']),
     title: z.string().min(1).max(200),
     description: z.string().max(8000).optional().default(''),
     useCase: z.string().max(8000).optional().default(''),
@@ -1639,13 +1641,9 @@ export const zCreateFeatureRequestRequest = z.object({
 /**
  * Body for `POST /api/admin/ops`. A discriminated union on `type`: `bug` carries the bug fields, `feature_request` the feature fields. Only these two user-fileable types are accepted — `error`, `alert`, and `measure_plan` tickets are auto-filed by the platform and cannot be created over the API.
  */
-export const zCreateOpsItemRequest = z.union([
-    z.object({
-        type: z.enum(['bug'])
-    }).and(zCreateBugRequest),
-    z.object({
-        type: z.enum(['feature_request'])
-    }).and(zCreateFeatureRequestRequest)
+export const zCreateOpsItemRequest = z.discriminatedUnion('type', [
+    zCreateBugRequest.extend({ type: z.literal('bug') }),
+    zCreateFeatureRequestRequest.extend({ type: z.literal('feature_request') })
 ]);
 
 /**

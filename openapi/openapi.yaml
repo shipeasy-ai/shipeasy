@@ -3789,14 +3789,17 @@ paths:
                 value:
                   type: bug
                   title: Checkout button misaligned on mobile
-                  body: On iOS Safari the primary CTA overlaps the price.
+                  stepsToReproduce: Open the cart on iOS Safari and tap the price row.
+                  actualResult: The primary CTA overlaps the price.
+                  expectedResult: The CTA sits below the price with clear spacing.
                   priority: high
               featureRequest:
                 summary: File a feature request
                 value:
                   type: feature_request
                   title: Dark mode for the dashboard
-                  body: Add a theme toggle that persists per user.
+                  description: Add a theme toggle that persists per user.
+                  useCase: Reduce eye strain for users working at night.
                   priority: nice_to_have
       responses:
         '201':
@@ -10569,6 +10572,11 @@ components:
     CreateBugRequest:
       type: object
       properties:
+        type:
+          type: string
+          enum:
+            - bug
+          description: Discriminator — files a bug.
         title:
           type: string
           minLength: 1
@@ -10635,12 +10643,18 @@ components:
             - type: 'null'
           description: Where this bug's completion notification lands.
       required:
+        - type
         - title
       additionalProperties: false
-      description: 'Bug-kind fields for `POST /api/admin/ops` (sent alongside `type: bug`).'
+      description: 'Bug-kind fields for `POST /api/admin/ops` (sent with `type: bug`).'
     CreateFeatureRequestRequest:
       type: object
       properties:
+        type:
+          type: string
+          enum:
+            - feature_request
+          description: Discriminator — files a feature request.
         title:
           type: string
           minLength: 1
@@ -10696,33 +10710,19 @@ components:
             - type: 'null'
           description: Where this request's completion notification lands.
       required:
+        - type
         - title
       additionalProperties: false
-      description: 'Feature-request-kind fields for `POST /api/admin/ops` (sent alongside `type: feature_request`).'
+      description: 'Feature-request-kind fields for `POST /api/admin/ops` (sent with `type: feature_request`).'
     CreateOpsItemRequest:
       oneOf:
-        - allOf:
-            - type: object
-              required:
-                - type
-              properties:
-                type:
-                  type: string
-                  enum:
-                    - bug
-                  description: Files a bug.
-            - $ref: '#/components/schemas/CreateBugRequest'
-        - allOf:
-            - type: object
-              required:
-                - type
-              properties:
-                type:
-                  type: string
-                  enum:
-                    - feature_request
-                  description: Files a feature request.
-            - $ref: '#/components/schemas/CreateFeatureRequestRequest'
+        - $ref: '#/components/schemas/CreateBugRequest'
+        - $ref: '#/components/schemas/CreateFeatureRequestRequest'
+      discriminator:
+        propertyName: type
+        mapping:
+          bug: '#/components/schemas/CreateBugRequest'
+          feature_request: '#/components/schemas/CreateFeatureRequestRequest'
       description: 'Body for `POST /api/admin/ops`. A discriminated union on `type`: `bug` carries the bug fields, `feature_request` the feature fields. Only these two user-fileable types are accepted — `error`, `alert`, and `measure_plan` tickets are auto-filed by the platform and cannot be created over the API.'
     CreateOpsItemResponse:
       type: object

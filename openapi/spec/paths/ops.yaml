@@ -109,14 +109,17 @@
               value:
                 type: bug
                 title: Checkout button misaligned on mobile
-                body: On iOS Safari the primary CTA overlaps the price.
+                stepsToReproduce: Open the cart on iOS Safari and tap the price row.
+                actualResult: The primary CTA overlaps the price.
+                expectedResult: The CTA sits below the price with clear spacing.
                 priority: high
             featureRequest:
               summary: File a feature request
               value:
                 type: feature_request
                 title: Dark mode for the dashboard
-                body: Add a theme toggle that persists per user.
+                description: Add a theme toggle that persists per user.
+                useCase: Reduce eye strain for users working at night.
                 priority: nice_to_have
     responses:
       "201":
