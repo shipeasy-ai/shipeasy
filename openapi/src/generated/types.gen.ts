@@ -2652,7 +2652,18 @@ export type GetOpsItemResponse = {
 };
 
 /**
- * Body for `PATCH /api/admin/ops/{handle}`. Pass at least one of `status` / `priority`.
+ * Delivery target for a notification; `null` = use the project default.
+ */
+export type NotificationTarget = {
+    slackChannel?: {
+        id: string;
+        name: string;
+    } | null;
+    email?: string | null;
+} | null;
+
+/**
+ * Body for `PATCH /api/admin/ops/{handle}`. Pass at least one of `status` / `priority`. `notify` sets where this item's completion notification lands.
  */
 export type UpdateOpsItemRequest = {
     /**
@@ -2663,6 +2674,7 @@ export type UpdateOpsItemRequest = {
      * New triage priority.
      */
     priority?: 'nice_to_have' | 'medium' | 'high' | 'critical';
+    notify?: NotificationTarget;
 };
 
 /**
@@ -2765,17 +2777,6 @@ export type ListSlackChannelsResponse = {
         isPrivate?: boolean;
     }>;
 };
-
-/**
- * Delivery target for a notification; `null` = use the project default.
- */
-export type NotificationTarget = {
-    slackChannel?: {
-        id: string;
-        name: string;
-    } | null;
-    email?: string | null;
-} | null;
 
 export type ListAlertRulesResponse = Array<{
     /**
@@ -3028,21 +3029,13 @@ export type ListI18nProfilesResponse = Array<{
 }>;
 
 /**
- * Body for `POST /api/admin/i18n/profiles`. Only `name` is required.
+ * Body for `POST /api/admin/i18n/profiles`. Only `name` is accepted.
  */
 export type CreateI18nProfileRequest = {
     /**
-     * Profile handle to create, e.g. `en:prod` or `fr:prod`.
+     * Profile handle to create, e.g. `en:prod` or `fr:prod`. The locale is encoded in the handle, so no separate locale fields are accepted.
      */
     name: string;
-    /**
-     * Locales this profile carries, e.g. `["fr", "fr-CA"]`. Defaults to `["en"]`.
-     */
-    locales?: Array<string>;
-    /**
-     * Default locale for the profile. Defaults to the first entry of `locales`.
-     */
-    default_locale?: string;
 };
 
 /**
@@ -3176,6 +3169,10 @@ export type UpdateI18nKeyRequest = {
      * Optional human note to store with the key.
      */
     description?: string;
+    /**
+     * Explicit `{{var}}` placeholder names in the value. Omit to auto-derive them from the value.
+     */
+    variables?: Array<string>;
 };
 
 /**

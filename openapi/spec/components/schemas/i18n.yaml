@@ -30,19 +30,11 @@ CreateI18nProfileRequest:
   properties:
     name:
       type: string
-      description: Profile handle to create, e.g. `en:prod` or `fr:prod`.
-    locales:
-      description: Locales this profile carries, e.g. `["fr", "fr-CA"]`. Defaults to `["en"]`.
-      type: array
-      items:
-        type: string
-    default_locale:
-      description: Default locale for the profile. Defaults to the first entry of `locales`.
-      type: string
+      description: Profile handle to create, e.g. `en:prod` or `fr:prod`. The locale is encoded in the handle, so no separate locale fields are accepted.
   required:
     - name
   additionalProperties: false
-  description: Body for `POST /api/admin/i18n/profiles`. Only `name` is required.
+  description: Body for `POST /api/admin/i18n/profiles`. Only `name` is accepted.
 CreateI18nProfileResponse:
   type: object
   properties:
@@ -181,6 +173,14 @@ UpdateI18nKeyRequest:
     description:
       description: Optional human note to store with the key.
       type: string
+    variables:
+      description: Explicit `{{var}}` placeholder names in the value. Omit to auto-derive them from the value.
+      type: array
+      maxItems: 32
+      items:
+        type: string
+        minLength: 1
+        maxLength: 64
   required:
     - value
   additionalProperties: false

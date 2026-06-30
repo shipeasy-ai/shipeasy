@@ -1511,7 +1511,18 @@ export const zGetOpsItemResponse = z.object({
 });
 
 /**
- * Body for `PATCH /api/admin/ops/{handle}`. Pass at least one of `status` / `priority`.
+ * Delivery target for a notification; `null` = use the project default.
+ */
+export const zNotificationTarget = z.object({
+    slackChannel: z.object({
+        id: z.string().min(1),
+        name: z.string().min(1)
+    }).nullish(),
+    email: z.email().nullish()
+}).nullable();
+
+/**
+ * Body for `PATCH /api/admin/ops/{handle}`. Pass at least one of `status` / `priority`. `notify` sets where this item's completion notification lands.
  */
 export const zUpdateOpsItemRequest = z.object({
     status: z.enum([
@@ -1527,7 +1538,8 @@ export const zUpdateOpsItemRequest = z.object({
         'medium',
         'high',
         'critical'
-    ]).optional()
+    ]).optional(),
+    notify: zNotificationTarget.optional()
 });
 
 /**
@@ -1582,17 +1594,6 @@ export const zListSlackChannelsResponse = z.object({
         isPrivate: z.boolean().optional()
     }))
 });
-
-/**
- * Delivery target for a notification; `null` = use the project default.
- */
-export const zNotificationTarget = z.object({
-    slackChannel: z.object({
-        id: z.string().min(1),
-        name: z.string().min(1)
-    }).nullish(),
-    email: z.email().nullish()
-}).nullable();
 
 export const zListAlertRulesResponse = z.array(z.object({
     id: z.string(),
@@ -1736,12 +1737,10 @@ export const zListI18nProfilesResponse = z.array(z.object({
 }));
 
 /**
- * Body for `POST /api/admin/i18n/profiles`. Only `name` is required.
+ * Body for `POST /api/admin/i18n/profiles`. Only `name` is accepted.
  */
 export const zCreateI18nProfileRequest = z.object({
-    name: z.string(),
-    locales: z.array(z.string()).optional(),
-    default_locale: z.string().optional()
+    name: z.string()
 });
 
 /**
@@ -1798,7 +1797,8 @@ export const zPushI18nKeysResponse = z.object({
  */
 export const zUpdateI18nKeyRequest = z.object({
     value: z.string(),
-    description: z.string().optional()
+    description: z.string().optional(),
+    variables: z.array(z.string().min(1).max(64)).max(32).optional()
 });
 
 /**

@@ -14170,6 +14170,56 @@
         "additionalProperties": {},
         "description": "One queue item — any type."
       },
+      "NotificationTarget": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "slackChannel": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "email": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Delivery target for a notification; `null` = use the project default."
+      },
       "UpdateOpsItemRequest": {
         "type": "object",
         "properties": {
@@ -14194,10 +14244,13 @@
               "high",
               "critical"
             ]
+          },
+          "notify": {
+            "$ref": "#/components/schemas/NotificationTarget"
           }
         },
         "additionalProperties": false,
-        "description": "Body for `PATCH /api/admin/ops/{handle}`. Pass at least one of `status` / `priority`."
+        "description": "Body for `PATCH /api/admin/ops/{handle}`. Pass at least one of `status` / `priority`. `notify` sets where this item's completion notification lands."
       },
       "UpdateOpsItemResponse": {
         "type": "object",
@@ -14353,56 +14406,6 @@
         ],
         "additionalProperties": false,
         "description": "Response for `GET /api/admin/slack/channels`."
-      },
-      "NotificationTarget": {
-        "anyOf": [
-          {
-            "type": "object",
-            "properties": {
-              "slackChannel": {
-                "anyOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "name": {
-                        "type": "string",
-                        "minLength": 1
-                      }
-                    },
-                    "required": [
-                      "id",
-                      "name"
-                    ],
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "email": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "email"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "description": "Delivery target for a notification; `null` = use the project default."
       },
       "ListAlertRulesResponse": {
         "type": "array",
@@ -14914,25 +14917,14 @@
         "properties": {
           "name": {
             "type": "string",
-            "description": "Profile handle to create, e.g. `en:prod` or `fr:prod`."
-          },
-          "locales": {
-            "description": "Locales this profile carries, e.g. `[\"fr\", \"fr-CA\"]`. Defaults to `[\"en\"]`.",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "default_locale": {
-            "description": "Default locale for the profile. Defaults to the first entry of `locales`.",
-            "type": "string"
+            "description": "Profile handle to create, e.g. `en:prod` or `fr:prod`. The locale is encoded in the handle, so no separate locale fields are accepted."
           }
         },
         "required": [
           "name"
         ],
         "additionalProperties": false,
-        "description": "Body for `POST /api/admin/i18n/profiles`. Only `name` is required."
+        "description": "Body for `POST /api/admin/i18n/profiles`. Only `name` is accepted."
       },
       "CreateI18nProfileResponse": {
         "type": "object",
@@ -15127,6 +15119,16 @@
           "description": {
             "description": "Optional human note to store with the key.",
             "type": "string"
+          },
+          "variables": {
+            "description": "Explicit `{{var}}` placeholder names in the value. Omit to auto-derive them from the value.",
+            "type": "array",
+            "maxItems": 32,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
           }
         },
         "required": [

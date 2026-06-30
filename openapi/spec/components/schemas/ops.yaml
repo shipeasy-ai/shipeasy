@@ -195,8 +195,10 @@ UpdateOpsItemRequest:
         - medium
         - high
         - critical
+    notify:
+      $ref: ./common.yaml#/NotificationTarget
   additionalProperties: false
-  description: Body for `PATCH /api/admin/ops/{handle}`. Pass at least one of `status` / `priority`.
+  description: Body for `PATCH /api/admin/ops/{handle}`. Pass at least one of `status` / `priority`. `notify` sets where this item's completion notification lands.
 UpdateOpsItemResponse:
   type: object
   properties:
