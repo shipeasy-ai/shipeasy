@@ -82,3 +82,5 @@ source that powers `--help`), so it never drifts from the installed binary. Add
 ## License
 
 MIT
+
+<!-- ci: republish trigger — runs the publish workflow on the fixed pnpm/action-setup config; no package content change -->
