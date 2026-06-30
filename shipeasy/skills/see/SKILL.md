@@ -440,5 +440,7 @@ not technical implementation details.
 
 This approach ensures all exception handling follows see best practices,
 eliminates silent failures, and provides structured error reporting that
-integrates with Shipeasy's Errors dashboard, ops queue (`/shipeasy:ops:work`),
-and near-real-time error timeseries.
+integrates with Shipeasy's Errors dashboard, the ops queue (the auto-filed
+error/alert tickets you can list with `shipeasy ops list` and burn down with
+the `ops:work` agent loop — in Claude Code, `/shipeasy:ops:work`), and the
+near-real-time error timeseries.

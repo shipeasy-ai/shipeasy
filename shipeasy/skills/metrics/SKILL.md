@@ -19,13 +19,13 @@ subcommand, an unexpected `400`/`404`, or something that worked before — are
 Before deeper debugging, update to latest and retry once:
 
 - **CLI:** `npm i -g @shipeasy/cli@latest` (or one-off: `npx @shipeasy/cli@latest <cmd>`).
-- **Plugin (skills + slash commands):** `/plugin marketplace update shipeasy`
-  then `/plugin install shipeasy@shipeasy`. There is no `claude plugin update`;
-  or open `/plugin` and enable auto-update on the `shipeasy` marketplace.
 - **MCP server:** pinned to `@shipeasy/mcp@latest` — restart the session to
   pick up a new release.
+- **In Claude Code only:** also refresh the plugin — `/plugin marketplace update
+  shipeasy` then `/plugin install shipeasy@shipeasy` (or enable auto-update on the
+  `shipeasy` marketplace via `/plugin`).
 
-Only treat it as a real bug if it still fails on the latest CLI **and** plugin.
+Only treat it as a real bug if it still fails on the latest CLI **and** MCP.
 
 ## Concepts
 
@@ -156,14 +156,15 @@ on this call.
 
 ```bash
 shipeasy metrics create <name> \
-  --event <event_name> \
+  --event-name <event_name> \
   --query '<dsl>' \
   [--folder <folder>] \
-  [--winsorize <pct>]   # default 99
-  [--mde <0..1>]        # min detectable effect for power calcs
+  [--winsorize-pct <pct>]            # default 99
+  [--min-detectable-effect <0..1>]   # min detectable effect for power calcs
+  [--direction <higher_better|lower_better|neutral>]
 ```
 
-The CLI enforces that the event inside `--query` equals `--event` —
+The CLI enforces that the event inside `--query` equals `--event-name` —
 they reference the same source event.
 
 ### 5. Verify
@@ -199,14 +200,14 @@ metrics over the wrong event are the most common avoidable mistake.
 
    ```bash
    shipeasy metrics create <name> \
-     --event <event_name> \
+     --event-name <event_name> \
      --query '<dsl>' \
      [--folder <folder>] \
-     [--winsorize <pct>]   # default 99
-     [--mde <0..1>]        # min detectable effect for power calcs
+     [--winsorize-pct <pct>]            # default 99
+     [--min-detectable-effect <0..1>]   # min detectable effect for power calcs
    ```
 
-   The CLI enforces that the event inside `--query` equals `--event` —
+   The CLI enforces that the event inside `--query` equals `--event-name` —
    they reference the same source event.
 
 4. **Verify:** `shipeasy metrics list` → the new row appears with the
@@ -228,24 +229,28 @@ Deleting a metric is **UI-only** — remove it from the dashboard (there is no
 delete tool or command). The dashboard refuses while the metric is referenced by
 a running experiment; stop the experiment first.
 
-The one workflow command is `/shipeasy:metrics:create` — the analyze → propose →
-instrument → create flow documented above. Plain creates can also go straight
-through the `metrics_create` MCP tool or `shipeasy metrics create`.
+The analyze → propose → instrument → create flow documented above runs through
+the `metrics_create` MCP tool (plus `metrics_events_create` to register a new
+event) or `shipeasy metrics create`. In Claude Code it's also exposed as the
+`/shipeasy:metrics:create` slash command, but the MCP/CLI path is the
+harness-agnostic equivalent.
 
 ## Relationship to experiments
 
-A metric becomes an experiment's `success_metric` by name. Always
+A metric backs an experiment's `goal_metric` by name. Always
 pre-register the metric before starting the experiment — adding metrics
 post-hoc inflates the false-positive rate. See the `experiments` skill
 for the experiment lifecycle.
 
 ## Knobs
 
-- `--winsorize <pct>` clips outliers at the Nth percentile before
+- `--winsorize-pct <pct>` clips outliers at the Nth percentile before
   aggregating. Default `99`. Lower it (e.g. `95`) for heavy-tailed
   metrics like revenue.
-- `--mde <0..1>` is the smallest effect size you want the experiment to
-  detect. Used by the analysis pipeline for power / sample-size calcs.
+- `--min-detectable-effect <0..1>` is the smallest effect size you want the
+  experiment to detect. Used by the analysis pipeline for power / sample-size calcs.
+- `--direction <higher_better|lower_better|neutral>` declares the desired
+  direction of movement (`higher_better` default; `neutral` = guardrail).
 - `--folder <name>` groups metrics in the dashboard. No semantic effect.
 
 ## API

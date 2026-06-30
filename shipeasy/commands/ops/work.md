@@ -53,14 +53,13 @@ Prereqs:
   writes still require `.shipeasy` in the checkout, so the trigger prompt
   creates it when the repo doesn't ship one. Don't bail for a missing
   `.shipeasy` before checking whether creds are already present.)
-- `feedback` module enabled (`/shipeasy:ops:install`). `feedback bugs list`
-  returning `403` means it isn't.
-- CLI ≥ `1.12.0` — the unified `shipeasy ops.list` / `ops.get` / `ops.update` /
-  `ops.link-pr`, `ops.errors update`, and `ops.notify` (the escalation bell)
-  commands this loop drives. The scheduled trigger runs
-  `npx @shipeasy/cli@latest`, so it always has them; for a local run,
-  `shipeasy ops.notify --help` failing means the CLI is too old
-  (`npm i -g @shipeasy/cli@latest`).
+- `feedback` module enabled (`/shipeasy:ops:install`). `shipeasy ops list
+  --type bug` returning `403` means it isn't.
+- CLI ≥ `1.12.0` — the unified `shipeasy ops list` / `ops get` / `ops update` /
+  `ops link-pr` and `ops notify` (the escalation bell) commands this loop
+  drives. The scheduled trigger runs `npx @shipeasy/cli@latest`, so it always
+  has them; for a local run, `shipeasy ops notify --help` failing means the CLI
+  is too old (`npm i -g @shipeasy/cli@latest`).
 - Working tree clean **or** the user explicitly asked to work on top of WIP.
   If `git status --porcelain` is non-empty and the user hasn't confirmed,
   stop and ask — mixing per-item diffs with pre-existing WIP makes the
@@ -89,13 +88,13 @@ Pull the queue with the CLI — one command over the unified table, covering all
 four types (`error`/`alert` tickets included):
 
 ```
-shipeasy ops.list --type <bug|feature_request|error|alert|all> --status <status|all> --limit 200 --json
+shipeasy ops list --type <bug|feature_request|error|alert|all> --status <status|all> --limit 200 --json
 ```
 
-`ops.list` already sorts by `priority desc` (`critical > high > medium >
+`ops list` already sorts by `priority desc` (`critical > high > medium >
 nice_to_have > null`) then `createdAt asc` — the queue order. (Drop `--json`
-for a table; `shipeasy ops.list --help` for the filters. `shipeasy feedback
-bugs list` / `features list` still work for the two human-filed types.)
+for a table; `shipeasy ops list --help` for the filters. Filter the two
+human-filed types with `--type bug` / `--type feature_request`.)
 **Never call the admin HTTP API with `curl`** — every step in this loop has a
 `shipeasy` command; use it (the CLI handles auth + the `.shipeasy` binding).
 
@@ -147,21 +146,20 @@ interleave. Do not parallelise. Different items almost always touch different
 files; serial keeps blame clean and lets the user halt mid-loop.
 
 Every item — **any type** — takes the same status write:
-`shipeasy ops.update <#number|id> --status <status>` (it resolves the per-item
-number or the id; bugs/features can also use `shipeasy ops … update`).
+`shipeasy ops update <handle> --status <status>` (the `<handle>` is the
+per-item `#number` or the full id; the API resolves either).
 Flip to `in_progress` when you start an item.
 
 ### 1a. Bugs
 
-1. `shipeasy ops bug get "$ID" --json` — read `title`, `description`,
+1. `shipeasy ops get <handle> --json` — read `title`, `description`,
    `pageUrl`, `priority`, `context`, `attachments[]`.
-2. `shipeasy ops bug attachments "$ID" --json` — download each. **Read
-   screenshots into context** (the image renders to you). **Recordings**
-   (`.webm`/`.mp4`) can't be watched — surface the `file://` path and ask
-   whether screenshots+text suffice; don't silently skip.
+2. For each entry in `attachments[]`, fetch its URL. **Read screenshots into
+   context** (the image renders to you). **Recordings** (`.webm`/`.mp4`) can't
+   be watched — surface the path and ask whether screenshots+text suffice;
+   don't silently skip.
 3. Flip to `in_progress` (skip if already):
-   `shipeasy ops.update <#number|id> --status in_progress` (or
-   `shipeasy ops bug update`).
+   `shipeasy ops update <handle> --status in_progress`.
 4. Investigate from `pageUrl` / stack frame / screenshot text. Reproduce
    locally if the dev server is up. Reuse `superpowers:systematic-debugging`
    when the cause isn't obvious — don't guess.
@@ -198,21 +196,20 @@ Flip to `in_progress` when you start an item.
 ### 1c. Error tickets
 
 1. The ticket's `description` already carries the consequence, count, seen
-   URLs, fingerprint, and stack head. For deeper context pull the raw error:
-   `shipeasy ops.errors get <context.error.id> --json` — `stack`,
-   `lastExtrasJson`, `causedByFingerprint`.
+   URLs, fingerprint, and stack head; `context.error.{id,fingerprint}` ties it
+   to the underlying tracked error. Re-read the ticket any time with
+   `shipeasy ops get <handle> --json` (`context.error` holds the stack head +
+   fingerprint).
 2. Locate the throw site from the stack frame / message. Reproduce if
    feasible. Fix the root cause (same hard rules as bugs). When the fix adds
    a catch block, instrument it with `see(e).causes_the(…).to(…)` from
    `@shipeasy/sdk` (see the `see` skill for consequence-writing rules).
-3. Two status writes when the fix lands:
-   - the ticket: `shipeasy ops.update <#number|id> --status resolved` (or
-     `ready_for_qa` in PR mode);
-   - the underlying tracked error:
-     `shipeasy ops.errors update <context.error.id> --status resolved`. A
-     resolved error **reopens automatically if it recurs** (and re-files a
-     ticket if it climbs over the threshold again), so this is safe
-     pre-deploy. Note the fingerprint in your summary.
+3. Flip the ticket when the fix lands:
+   `shipeasy ops update <handle> --status resolved` (or `ready_for_qa` in PR
+   mode). The underlying tracked error auto-resolves with the ticket and
+   **reopens automatically if it recurs** (re-filing a ticket if it climbs
+   back over the threshold), so this is safe pre-deploy. Note the fingerprint
+   in your summary.
 
 ### 1d. Alert tickets
 
@@ -230,11 +227,11 @@ Flip to `in_progress` when you start an item.
    intentional incident response.)
 2. The *alert* auto-resolves when its condition clears; the **ticket** is the
    work record. If code needs to change, land the fix as its own atomic diff
-   and flip the ticket (`shipeasy ops.update <#number|id> --status resolved`,
+   and flip the ticket (`shipeasy ops update <handle> --status resolved`,
    or `ready_for_qa` in PR mode). If it's an ops acknowledgement (bad
    threshold, expected spike), say so and flip the ticket to `resolved` with a
    one-line note in your summary. Rule *definitions* can be tuned via the
-   `ops_alerts_update` MCP tool / `shipeasy alert-rules update` by a human — the
+   `ops_alerts_update` MCP tool / `shipeasy ops alerts update` by a human — the
    ops key cannot edit them, so when
    the right fix IS a rule change, **raise a notification** spelling out the new
    threshold/comparator/window (see
@@ -249,7 +246,7 @@ One short paragraph per item, then the next:
   Cause:  <one line>
   Fix:    <files changed, one line each | "no code change — ops ack">
   Verify: <test cmd | dev-server URL | "manual" | "watch fingerprint drop off">
-  Notify: <"raised: <title>" when you escalated via ops.notify | "—">
+  Notify: <"raised: <title>" when you escalated via ops notify | "—">
   PR:     <url | "—">
 ```
 
@@ -263,10 +260,11 @@ never a raw HTTP call:
 - **Create** gates, dynamic configs, experiments, kill switches, events,
   metrics, and alert rules — through the `shipeasy` MCP tools
   (`release_flags_create`, `release_configs_create`, `release_experiments_create`,
-  `release_killswitch_create`, `events_create`, `metrics_create`,
+  `release_killswitch_create`, `metrics_events_create`, `metrics_create`,
   `ops_alerts_create`) or the equivalent CLI (`shipeasy release flags create`,
   `… configs create`, `… experiments create`, `… killswitch create`,
-  `shipeasy metrics create`, `shipeasy alert-rules create`). The
+  `shipeasy metrics events create`, `shipeasy metrics create`,
+  `shipeasy ops alerts create`). The
   `/shipeasy:experiments:create` and `/shipeasy:metrics:create` workflow
   commands are also available. Typical uses: wrap a risky fix in a fresh gate,
   add the event + metric a fix needs for verification, add an alert rule that
@@ -298,23 +296,24 @@ Fire it when — and only when — the work genuinely isn't yours to land in cod
 - an existing resource that must be mutated (the ops key is create-only).
 
 ```
-shipeasy ops.notify --item <#number> \
+shipeasy ops notify \
   --title "<one-line: what's blocked>" \
   --summary "<one sentence: why it can't be fixed in code>" \
-  --step "<concrete action 1>" \
-  --step "<concrete action 2>" \
-  --step "<… then re-run /shipeasy:ops:work>"
+  --steps '["<concrete action 1>", "<concrete action 2>", "<… then re-run /shipeasy:ops:work>"]' \
+  --dedupe-key "feedback:<number>" \
+  --href "/dashboard/<project>/bugs/<number>"
 ```
 
-Make it **self-contained and actionable** — the human reads only this card, not
-your transcript. 3–6 ordered steps, each naming the exact file, command, env
-var, or dashboard page. The notification stands out in the bell with a violet
+`--steps` is a JSON array of ordered strings. Make it **self-contained and
+actionable** — the human reads only this card, not your transcript. 3–6 ordered
+steps, each naming the exact file, command, env var, or dashboard page. The
+notification stands out in the bell with a violet
 "from your agent" accent and expands the full step-by-step guide on demand (a
-"Details" toggle). `--summary` and each `--step` render **markdown** (lists,
-`code`, **bold**), so write them naturally — no need to flatten formatting.
+"Details" toggle). `--summary` and each step in `--steps` render **markdown**
+(lists, `code`, **bold**), so write them naturally — no need to flatten formatting.
 
 **Reference entities inline so the card links them.** Anywhere in `--title`,
-`--summary`, or a `--step`, mention an admin entity with a reference token and
+`--summary`, or a step, mention an admin entity with a reference token and
 the dashboard turns it into a hover chip (entity name + live status) that
 deep-links to that entity. Prefer these over bare names:
 
@@ -334,12 +333,11 @@ deep-links to that entity. Prefer these over bare names:
 text wherever they aren't rendered, so they're always safe to use — e.g. a step
 like `Roll back @gate:checkout-flow once #42 reproduces.`
 
-`--item <#number>` ties the card to the queue item and sets a stable dedupe key
-(`feedback:<n>`), so re-running the loop over the same still-blocked item
-**updates the one card instead of stacking duplicates**. Add `--href
-/dashboard/<project>/bugs/<n>` (or the matching list page) to deep-link the
-card. `ops.notify` is create-only and ops-key-safe — it never reads, marks
-read, or deletes the feed.
+`--dedupe-key "feedback:<n>"` sets a stable per-escalation key, so re-running
+the loop over the same still-blocked item **updates the one card instead of
+stacking duplicates**. Add `--href /dashboard/<project>/bugs/<n>` (or the
+matching list page) to deep-link the card. `ops notify` is create-only and
+ops-key-safe — it never reads, marks read, or deletes the feed.
 
 **Escalating does not replace the status write.** Still leave the item
 `in_progress` with its hand-off note (bugs/features) — or `resolved` with a
@@ -377,10 +375,10 @@ above:
    feedback table (on `connector_data.github.pr`):
 
    ```
-   shipeasy ops.link-pr <#number|id> <pr-number> --url <pr-url>
+   shipeasy ops link-pr <handle> --pr-number <pr-number> --pr-url <pr-url>
    ```
 
-   Pass the real PR number + url the previous step printed. (`--url` is what
+   Pass the real PR number + url the previous step printed. (`--pr-url` is what
    makes the badge deep-link for error/alert tickets, which have no GitHub
    issue to derive the url from.) This is the ONLY feedback write beyond status
    the ops key may do — it touches `connector_data.github.pr` only.

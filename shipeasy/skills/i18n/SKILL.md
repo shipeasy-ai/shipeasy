@@ -13,81 +13,95 @@ copy in a project that has `@shipeasy/sdk` installed.
 
 Most failures here — `unknown command` / `unknown option`, a missing
 subcommand, an unexpected `400`/`404`, or something that worked before — are
-**version drift**: the CLI or plugin is older than the feature being invoked.
-Before deeper debugging, update to latest and retry once:
+**version drift**: the CLI or MCP server is older than the feature being
+invoked. Before deeper debugging, update to latest and retry once:
 
 - **CLI:** `npm i -g @shipeasy/cli@latest` (or one-off: `npx @shipeasy/cli@latest <cmd>`).
-- **Plugin (skills + slash commands):** `/plugin marketplace update shipeasy`
-  then `/plugin install shipeasy@shipeasy`. There is no `claude plugin update`;
-  or open `/plugin` and enable auto-update on the `shipeasy` marketplace.
-- **MCP server:** pinned to `@shipeasy/mcp@latest` — restart the session to
-  pick up a new release.
+- **MCP server:** pinned to `@shipeasy/mcp@latest` — it auto-pulls the latest
+  release on restart, so restart the session/MCP host to pick up a new version.
+- **In Claude Code only:** to refresh the bundled skills + slash commands, run
+  `/plugin marketplace update shipeasy` then `/plugin install shipeasy@shipeasy`
+  (or enable auto-update on the `shipeasy` marketplace via `/plugin`).
 
-Only treat it as a real bug if it still fails on the latest CLI **and** plugin.
+Only treat it as a real bug if it still fails on the latest CLI **and** MCP server.
 
 ## Enabling on a project
 
-`/shipeasy:i18n:install` (or `shipeasy modules enable translations`,
-then create the `en:prod` profile).
+Enable the module with `shipeasy install i18n` — it turns on `translations`,
+creates the `en:prod` profile if missing, and verifies the admin path. In
+Claude Code you can also run `/shipeasy:i18n:install`, which wraps the same CLI
+command and adds the loader-script judgment.
 
-## How to act: MCP server / CLI for keys, workflow commands for codemods
+## How to act: MCP tools for admin keys, CLI for codemods / fs-AST
 
-Key-level CRUD has **no per-verb slash command** — drive it through the MCP
-tools or the CLI:
+The i18n surface splits in two:
 
-- Create / push keys → `i18n_create_key`, `i18n_push_keys` (or
-  `shipeasy i18n push`).
-- Change one existing key's value (the only overwrite path — extract/push are
-  insert-only) → `i18n_create_key` with the overwrite flag, or
-  `shipeasy i18n update <key> <value>`.
-- Validate that every `t("key")` in code exists server-side → `i18n_validate_keys`
-  (or `shipeasy i18n validate` — non-zero exit on drift, for CI/pre-commit).
-- Manage locale profiles → `i18n_profiles_list`, `i18n_create_profile` (or
-  `shipeasy i18n profiles …`).
-- Publish a chunk → `i18n_publish_profile` (or `shipeasy i18n publish`).
+- **Admin (pure-API) operations** — work over the MCP tools **or** the CLI:
+  - Push NEW keys (insert-only; existing keys untouched) → `i18n_keys_push`
+    (or `shipeasy i18n push <file>`).
+  - Set one key's value **and publish it live** in a single call → `i18n_keys_set`
+    (upsert + profile-wide publish).
+  - Change one existing key's value without publishing (the only pure-overwrite
+    path; needs the key's id) → `i18n_keys_update { id, value }`
+    (or `shipeasy i18n update <key> <value>`).
+  - Manage locale profiles → `i18n_profiles_list`, `i18n_profiles_create`
+    (or `shipeasy i18n profiles list/create`).
+  - Publish a profile → `i18n_profiles_publish { profileId }`
+    (or `shipeasy i18n publish`).
+  - List staged translation drafts → `i18n_drafts_list`.
+- **Source-scanning / fs-AST operations** — **CLI only** (these are no longer
+  MCP tools):
+  - Find translatable strings → `shipeasy i18n scan [paths]`.
+  - Wrap + extract via codemod → `shipeasy i18n extract` / `shipeasy i18n codemod i18n`.
+  - Validate that every `t("key")` in code exists server-side → `shipeasy i18n validate`
+    (non-zero exit on drift, for CI/pre-commit).
+  - Inject the loader script → `shipeasy i18n install-loader`.
 
 ### One-shot "change a string and ship it"
 
 To change one string's value AND make it live in a single step, use the
-**set-and-publish** admin endpoint:
+**set-and-publish** tool `i18n_keys_set`:
 
 ```
-POST /api/admin/i18n/set
-{ "key": "home.cta", "value": "Get started" }                       # → default profile, published live
-{ "key": "home.cta", "value": "Commencer", "profile": "fr:prod" }   # → a named profile
+mcp tool: i18n_keys_set { "key": "home.cta", "value": "Get started" }                     # → default profile, published live
+mcp tool: i18n_keys_set { "key": "home.cta", "value": "Commencer", "profile": "fr:prod" } # → a named profile
 ```
 
-- `profile` is optional — omit it to target the project's **default** profile
-  (the one seeded as `en:prod`); pass a name to target another locale.
+- `profile` is optional — omit it to target the project's **default**-marked
+  profile (the one seeded as `en:prod`); pass a name to target another locale.
 - It inserts the key if it's new and overwrites it if it exists (no "key not
   found"), then publishes the whole profile (KV rebuild + CDN purge) and returns
-  the truthful publish result (`version`, `key_count`, `changed`, `purged`,
-  `kv_verified`, plus a `warning` when it landed but isn't fully live).
+  the publish result.
 - Prefer this over `push` (insert-only, never overwrites) + a separate
   `publish` when you just want to correct/replace one live string.
 
-Note: any single-key edit (`shipeasy i18n update`, the devtools overlay, or this
-`set` endpoint) **already rebuilds KV + purges the CDN** — a separate `publish`
+Note: any single-key edit (`shipeasy i18n update`, the devtools overlay, or
+`i18n_keys_set`) **already rebuilds KV + purges the CDN** — a separate `publish`
 is only needed after an insert-only `push`, or to re-ship after a failed purge.
 
 ### Find a key by its value
 
-The keys listing searches **both key name and value** via `q`:
+`i18n_keys_list` searches **both key name and value** via `q`:
 
 ```
-GET /api/admin/i18n/keys?q=Get%20started               # any profile
-GET /api/admin/i18n/keys?profile_id=<id>&q=Commencer   # one profile
+mcp tool: i18n_keys_list { "q": "Get started" }                            # any profile
+mcp tool: i18n_keys_list { "profile_id": "<id>", "q": "Commencer" }        # one profile
 ```
 
 Use it to locate the key behind a piece of on-screen copy before changing it.
 
-The remaining slash commands are the multi-step codemod/translation workflows
-(AST scan + file edits + push + publish), which is more than a single tool call:
+The multi-step codemod/translation workflows (AST scan + file edits + push +
+publish) are driven by single CLI verbs:
 
-- `/shipeasy:i18n:extract [dir]` — wrap hardcoded strings + push + publish.
-- `/shipeasy:i18n:migrate <lib>` — port another i18n library to Shipeasy.
-- `/shipeasy:i18n:translate <target-profile>` — machine-translate the app
-  into a new locale (Anthropic key read locally, never sent to Shipeasy).
+- `shipeasy i18n extract [dir]` — wrap hardcoded strings + push + publish.
+- `shipeasy i18n migrate <lib>` — port another i18n library to Shipeasy.
+- Machine-translating into a new locale (Anthropic key read locally, never sent
+  to Shipeasy) has no single CLI verb — orchestrate it via the i18n MCP tools
+  (`i18n_profiles_create` → `i18n_drafts_list` → publish).
+
+In Claude Code these are also exposed as the `/shipeasy:i18n:extract`,
+`/shipeasy:i18n:migrate`, and `/shipeasy:i18n:translate` slash commands, which
+wrap the same CLI/MCP paths.
 
 ## The pattern
 
@@ -143,6 +157,10 @@ Stored value: `"{{seconds}}s install"`. Curly braces are placeholders.
 
 ### Call `t()` at render time — never at module load
 
+> Applies to component/UI frameworks (React, Vue, Svelte, …). The trap is the
+> same in any language with module-level evaluation; the JSX below is the JS/TS
+> shape — use the `docs_get` snippet for your SDK.
+
 `i18n.t()` must run **during render**, not when a module is first imported.
 A call evaluated at import time bakes into a frozen string before translations
 have loaded and before the edit-labels devtools can patch `t()` — so the string
@@ -170,6 +188,10 @@ already render-time and need no change — this only bites pre-computed constant
 
 ### Attributes: only translate what the user reads
 
+> Applies to HTML/JSX templates (web SDKs). Native UI toolkits have the same
+> split between user-visible labels and structural identifiers — wrap only the
+> former.
+
 Wrap translatable **user-visible** attributes — `aria-label`, `title`,
 `placeholder`, `alt`. **Never** wrap structural / reference attributes:
 `aria-controls`, `aria-describedby`, `aria-labelledby`, `id`, `for`, `name`,
@@ -192,59 +214,69 @@ its panel `id`) and surfaces a junk "label" in the edit-labels overlay.
 shipeasy i18n scan src --json
 ```
 
-Or: `mcp tool: i18n_scan_code { "paths": ["src"] }`.
+(Source scanning is CLI-only — there is no MCP tool for it.)
 
 ### 2. Wrap in code
 
-Edit each file. Import `i18n` from `@shipeasy/sdk/client`.
+Edit each file. Import the i18n entrypoint for this project's SDK language
+(for JS/TS: `i18n` from `@shipeasy/sdk/client` — see the docs_get note above).
 
-### 3. Create keys in the backend
+### 3. Push the keys to the backend
+
+For one key that should also go **live immediately** (upsert + publish):
 
 ```
-mcp tool: i18n_create_key {
+mcp tool: i18n_keys_set {
   "key": "landing.hero.title",
   "value": "Ship faster with Shipeasy",
-  "chunk": "landing",
   "profile": "en:prod",
   "description": "Hero headline"
 }
 ```
 
-CLI fallback:
+For a batch of NEW keys (insert-only; publish separately in step 4), push a
+flat `{ "<key>": "<value>" }` JSON file:
 
 ```bash
 echo '{"landing.hero.title":"Ship faster with Shipeasy"}' > /tmp/keys.json
 shipeasy i18n push /tmp/keys.json --profile en:prod --chunk landing
 ```
 
-### 4. Publish the chunk
+(MCP equivalent: `i18n_keys_push { profile_id, chunk, keys: [{ key, value }] }`.)
+
+### 4. Publish the profile
 
 ```
-mcp tool: i18n_publish_profile { "profile": "en:prod", "chunk": "landing" }
+mcp tool: i18n_profiles_publish { "profileId": "<profile id>", "chunk": "landing" }
 ```
 
-This rebuilds the KV manifest and purges the CDN cache.
+(Or `shipeasy i18n publish --profile en:prod --chunk landing`.) This rebuilds
+the KV manifest and purges the CDN cache. Publishing is profile-wide — the
+`chunk` is an audit label only. Skip this if you used `i18n_keys_set`, which
+already publishes.
 
 ### 5. Validate
 
-```
-mcp tool: i18n_validate_keys { "profile": "en:prod" }
+```bash
+shipeasy i18n validate src --profile en:prod
 ```
 
-Confirms the keys are reachable from the CDN. If the loader script is in
-place, also load the page in a browser to verify the strings render.
+CLI-only — confirms every `t("key")` referenced in code exists server-side
+(non-zero exit on drift). If the loader script is in place, also load the page
+in a browser to verify the strings render.
 
 ## Bulk migration from another i18n library
 
 If the project already uses `react-i18next`, `react-intl`, `lingui`, or
-`next-intl`, run the codemod migration:
+`next-intl` (or `raw-i18next`), run the migration verb:
 
 ```bash
-shipeasy codemod i18n --migrate react-i18next
+shipeasy i18n migrate react-i18next
 # or react-intl | lingui | next-intl | raw-i18next
 ```
 
-Or `/shipeasy:i18n:migrate <library>`.
+This codemods the call sites, pushes any existing translation file, and
+publishes — one command. (In Claude Code: `/shipeasy:i18n:migrate <library>`.)
 
 ## Errors → action
 
@@ -253,13 +285,15 @@ Or `/shipeasy:i18n:migrate <library>`.
 | `409 key exists` | Leave it. Re-runs are idempotent.                               |
 | `401`            | `shipeasy logout && shipeasy login`. Retry **once**.            |
 | `429` plan-limit | Surface to user. Do not auto-upgrade.                           |
-| Profile missing  | `i18n_create_profile { "name": "en:prod", "locales": ["en"] }`. |
+| Profile missing  | `i18n_profiles_create { "name": "en:prod", "locales": ["en"] }`. |
 
 ## Hard rules
 
-- Use `i18n` from `@shipeasy/sdk/client`, never React hooks for the wrapping.
-- One `shipeasy()` call per runtime. Never call `i18n.init()`, `fetchLabels()`,
-  or build a custom `lib/shipeasy.ts` wrapper.
+- Use the SDK's own i18n entrypoint for this project's language (for JS/TS:
+  `i18n` from `@shipeasy/sdk/client`, never React hooks for the wrapping) —
+  fetch the exact call via `docs_get`.
+- One `shipeasy()` configure call per runtime. Never add a separate
+  `i18n.init()`, `fetchLabels()`, or a custom SDK-config wrapper.
 - One `publish` per chunk, after all keys are created — not once per key.
 - Never edit chunks the agent didn't create unless explicitly asked.
 - Call `i18n.t()` at render time, never at module load. In static config arrays

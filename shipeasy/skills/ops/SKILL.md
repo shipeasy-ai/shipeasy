@@ -13,39 +13,40 @@ devtools `<script>` tag), plus auto-filed **production-error** and **alert**
 tickets. The CLI mirrors the same admin API, so items can be filed, listed,
 triaged, and worked from a terminal or a CI script.
 
-> **Filing and listing have no slash command** — use the `shipeasy` MCP tools
-> (`ops_create`, `ops_list`, `ops_get`, `ops_update`) when the server is
-> registered, or the `shipeasy ops` CLI as the fallback. The slash commands are
-> the multi-step workflows only: `/shipeasy:ops:install` (enable + verify + wire),
-> `/shipeasy:ops:work` (burn down the queue), and `/shipeasy:ops:create_trigger`
-> (schedule the loop). This is the same on every host.
+> **Filing and listing are plain tool/CLI calls, not slash commands** — use the
+> `shipeasy` MCP tools (`ops_create`, `ops_list`, `ops_get`, `ops_update`) when the
+> server is registered, or the `shipeasy ops` CLI (`shipeasy ops create` / `list`
+> / `get` / `update`) as the fallback. Multi-step workflows are exposed as
+> slash commands in Claude Code — install via `shipeasy install ops`; in Claude
+> Code also: `/shipeasy:ops:install` (enable + verify + wire), `/shipeasy:ops:work`
+> (burn down the queue), and `/shipeasy:ops:create_trigger` (schedule the loop).
 
 ## First fix: update before you debug
 
 Most failures here — `unknown command` / `unknown option`, a missing
 subcommand, an unexpected `400`/`404`, or something that worked before — are
-**version drift**: the CLI or plugin is older than the feature being invoked.
-Before deeper debugging, update to latest and retry once:
+**version drift**: the CLI or MCP server is older than the feature being
+invoked. Before deeper debugging, update to latest and retry once:
 
 - **CLI:** `npm i -g @shipeasy/cli@latest` (or one-off: `npx @shipeasy/cli@latest <cmd>`).
-- **Plugin (skills + slash commands):** `/plugin marketplace update shipeasy`
-  then `/plugin install shipeasy@shipeasy`. There is no `claude plugin update`;
-  or open `/plugin` and enable auto-update on the `shipeasy` marketplace.
-- **MCP server:** pinned to `@shipeasy/mcp@latest` — restart the session to
-  pick up a new release.
+- **MCP server:** pinned to `@shipeasy/mcp@latest` — it auto-pulls the latest
+  release on restart, so restart the session/server to pick up new tools.
+- **In Claude Code (plugin skills + slash commands):** `/plugin marketplace
+  update shipeasy` then `/plugin install shipeasy@shipeasy`, or open `/plugin`
+  and enable auto-update on the `shipeasy` marketplace.
 
-Only treat it as a real bug if it still fails on the latest CLI **and** plugin.
+Only treat it as a real bug if it still fails on the latest CLI and MCP server.
 
 ## Enabling on a project
 
 ```bash
-shipeasy modules enable feedback
-shipeasy modules list           # confirm `feedback` shows ✓
+shipeasy install ops            # enables `feedback` + `events`, verifies the queue
 ```
 
-Or run `/shipeasy:ops:install` to enable + verify + drop the project
-pointer skill in one shot (it also turns on production-error and alert
-collection).
+This enables the feedback module (plus `events` for error collection) and
+verifies the queue + errors admin paths are reachable. In Claude Code you can
+instead run `/shipeasy:ops:install`, which wraps the same command and also wires
+the devtools overlay + `see()` reporting.
 
 The toggle is per-project: same `.shipeasy` binding the rest of the CLI
 uses. Devtools picks it up on the next load — no rebuild required.
@@ -56,27 +57,33 @@ Prefer the `ops_create` MCP tool when the server is registered; otherwise the
 `shipeasy ops` CLI:
 
 ```bash
-shipeasy ops bug create "Checkout button is unresponsive on mobile" \
-  --description "Tapping 'Pay' on iOS Safari does nothing on slow 3G." \
+shipeasy ops bug "Checkout button is unresponsive on mobile" \
+  --body "Tapping 'Pay' on iOS Safari does nothing on slow 3G." \
   --page-url "https://acme.com/checkout"
 
-shipeasy ops feature create "Bulk-archive in dashboard" \
-  --description "Lets ops clear stale gates without opening each row."
+shipeasy ops feature "Bulk-archive in dashboard" \
+  --body "Lets ops clear stale gates without opening each row."
 ```
+
+`shipeasy ops bug`/`shipeasy ops feature` are sugar for
+`shipeasy ops create <title> --type bug|feature_request`. The equivalent MCP
+tools are `ops_bug` / `ops_feature` (or `ops_create` with `type`).
 
 ## Listing & triage — MCP tool or CLI
 
-Use the `ops_list` / `ops_get` / `ops_update` MCP tools, or the CLI:
+Use the `ops_list` / `ops_get` / `ops_update` MCP tools, or the CLI. Listing is
+unified across every type — filter with `--type`:
 
 ```bash
-shipeasy ops bug list
-shipeasy ops bug list --status open --json    # work queue
-shipeasy ops bug update <id> --status in_progress
+shipeasy ops list                                   # whole queue, newest first
+shipeasy ops list --type bug --status open --json   # bug work queue
+shipeasy ops update <handle> --status in_progress    # handle = per-project #number or id
 
-shipeasy ops feature list
+shipeasy ops list --type feature_request
 ```
 
-`list` returns the most-recent rows; pipe through `--json` for scripts.
+`list` returns the most-recent rows; pipe through `--json` for scripts. A
+queue item is addressed by its per-project `number` (e.g. `7`) or its full id.
 
 **Deletion is UI-only.** Spam/duplicate removal is a human call made in
 the dashboard — the plugin ships no delete command, and the loops never
@@ -91,6 +98,8 @@ after verification in the dashboard. Do **not** skip straight to
 `resolved` from code — that's a QA-only transition.
 
 ## Auto-fixing the queue
+
+In Claude Code:
 
 ```
 /shipeasy:ops:work [--type bug|feature|error|alert|all] [--priority high|critical] [--limit N] [--dry-run]
@@ -108,11 +117,13 @@ device, customer env), leave it as-is with a hand-off note and move on.
 
 ### Running it on a schedule (unattended)
 
+In Claude Code:
+
 ```
 /shipeasy:ops:create_trigger --provider claude
 ```
 
-Provisions a **Claude Code scheduled routine** (via `/schedule`) that runs
+Provisions a **Claude Code scheduled routine** that runs
 `/shipeasy:ops:work --pr` on a cadence you choose — burning down the active
 queue, committing each fix, opening one PR, and linking it back to every fixed
 bug (with `Closes #<issue>` for any connected GitHub issue) — then registers it
@@ -135,9 +146,10 @@ app. When `/shipeasy:ops:work` fixes an error item and needs to add or adjust a
 language from the `docs` MCP.** Detect the language from `.shipeasy` or the
 subproject's manifest (`package.json`, `pyproject.toml`, `Gemfile`, `go.mod`,
 `pom.xml`, `build.gradle*`, `composer.json`, `Package.swift`), then fetch the
-snippet: `docs_get { sdk: <lang>, path: <errors-page> }` (run
-`docs_list { sdk: <lang> }` to find the errors/feedback page handle; CLI
-`shipeasy docs get --sdk <lang> <errors-page>`). See the `see` skill for the
+snippet with the `docs_get` MCP tool:
+`docs_get { sdk: <lang>, path: "<group/resource>" }` (run
+`docs_list { sdk: <lang> }` to find the errors/feedback page path; CLI
+`shipeasy docs get --sdk <lang> <group/resource>`). See the `see` skill for the
 grammar.
 
 ## When to use this skill
@@ -146,12 +158,12 @@ grammar.
   "show me open feedback".
 - A devtools-captured report needs triaging from a script or CI job.
 - Onboarding asks how to expose the in-page report button — the answer is
-  `/shipeasy:ops:install` (or `shipeasy modules enable feedback`).
+  `shipeasy install ops` (in Claude Code: `/shipeasy:ops:install`).
 
 ## Errors → action
 
-| Error                     | Action                                            |
-| ------------------------- | ------------------------------------------------- |
-| `403 module not enabled`  | Run `shipeasy modules enable feedback` and retry. |
-| `401`                     | Re-run `shipeasy login`.                          |
-| `404 not found` on update | Check the ID with `shipeasy ops bug list`.  |
+| Error                     | Action                                                  |
+| ------------------------- | ------------------------------------------------------- |
+| `403 module not enabled`  | Run `shipeasy install ops` and retry.                   |
+| `401`                     | Re-run `shipeasy login`.                                |
+| `404 not found` on update | Check the handle with `shipeasy ops list --type bug`.   |

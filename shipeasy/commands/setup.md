@@ -1,5 +1,5 @@
 ---
-description: Run the Shipeasy base install — SDK, auth, project bind, keys, root-layout init, MCP registration.
+description: Run the Shipeasy base install — SDK, auth, project bind, keys, SDK init, MCP registration.
 argument-hint: "[--domain <production-domain>]"
 ---
 
@@ -27,16 +27,18 @@ Steps in brief (full detail in the skill):
 3. `shipeasy login` (via Bash) at the monorepo root. Browser opens; user
    picks an existing project or fills in name + production domain to
    create a new one. CLI auto-writes `.shipeasy` on return. Commit it.
-4. `shipeasy keys create --type server --env prod` + `--type client --env prod`
-   — `--env` is required for both (keys are environment-locked at mint); same
-   pair used by every subproject.
+4. `shipeasy i18n keys create --type server --env prod` + `--type client --env prod`
+   — `--env` is required for `server`/`client` keys (environment-locked at
+   mint); same pair used by every subproject.
 5. For each JS subproject: `cd <dir> && pnpm add @shipeasy/sdk [@shipeasy/react]`,
    persist keys to that subproject's `.env.local` (or its detected
    secret store).
-6. For each JS entry point: add the single `await shipeasy({...})` call
-   (root layout / `main.tsx` / `src/server.ts` depending on framework).
-   For Next.js App Router also render `getBootstrapHtml()` into `<head>`.
-7. Verify: `shipeasy whoami`, `shipeasy keys list`, per-subproject build.
+6. For each entry point: follow the per-language installation doc
+   (`docs_get { sdk, path: "installation" }`, or `shipeasy docs get --sdk
+   <lang> installation`) — it names the one `configure(...)` call site and any
+   framework generator (root layout / `main.tsx` / `src/server.ts`). The docs
+   are version-correct; do not hand-write the initializer from memory.
+7. Verify: `shipeasy whoami`, `shipeasy i18n keys list`, per-subproject build.
 8. Print the hand-off report and stop. **Do not run `git commit`.**
 
 When done, point the user at the three install sections:

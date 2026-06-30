@@ -56,8 +56,9 @@ the module didn't enable — surface the error before continuing. No rebuild
 needed; devtools picks it up on next load.
 
 > `shipeasy install ops` needs `@shipeasy/cli` ≥ 2.2.0. On `unknown command`,
-> update once (`npm i -g @shipeasy/cli@latest`) and retry — the inline
-> `shipeasy modules enable feedback` it replaced was removed from the CLI.
+> update once (`npm i -g @shipeasy/cli@latest`) and retry — there is no
+> `shipeasy modules enable` command; `shipeasy install <module>` is the only
+> module enable path.
 
 Everything below is the part the binary can't own: **wiring the SDK into your
 code**, which is language- and framework-specific. That's why this stays a
@@ -160,7 +161,7 @@ Two layers, both part of the same SDK — no separate error SDK, no second key:
 Verify capture once events flow:
 
 ```bash
-shipeasy ops.errors list        # [] until the first error lands; never 403
+shipeasy ops list --type error  # [] until the first error lands; never 403
 ```
 
 ---
@@ -171,9 +172,9 @@ shipeasy ops.errors list        # [] until the first error lands; never 403
 reachable. If you want to eyeball the rows after wiring:
 
 ```bash
-shipeasy ops bug list           # returns [] or rows, never 403
-shipeasy ops feature list
-shipeasy ops.errors list              # read-only tracked errors
+shipeasy ops list --type bug              # returns [] or rows, never 403
+shipeasy ops list --type feature_request
+shipeasy ops list --type error           # auto-filed error tickets
 ```
 
 A `403` here means the module didn't enable — re-run `shipeasy install ops`.
@@ -241,7 +242,7 @@ Wired:    devtools overlay (?se=1 on any browser surface) <enabled | declined | 
           see() error reporting per the project's language docs
 Skills:   ops + see — live via the installed plugin (no hand-written copies)
 Rule:     CLAUDE.md — handled exceptions must use see()
-Next:     ops_create  { "type": "bug", "title": "<title>" }   — file one (or `shipeasy ops bug create`)
+Next:     ops_create  { "type": "bug", "title": "<title>" }   — file one (or `shipeasy ops bug "<title>"`)
           ops_list    { "type": "error" }                     — list bugs/features/errors/alerts
           /shipeasy:ops:work                                   — burn down bugs+features+errors+alerts
           or have end users submit via the in-page Report panel.
@@ -286,5 +287,5 @@ Act on whatever the user selects (do nothing for unchecked options):
   2. create the **metric** over that event (`metrics_create` MCP tool /
      `shipeasy metrics create …`; `metrics_grammar` for the DSL);
   3. create the **alert rule** (`ops_alerts_create` MCP tool /
-     `shipeasy alert-rules create …`).
-  Confirm each rule lands with `ops_alerts_list` / `shipeasy alert-rules list`.
+     `shipeasy ops alerts create …`).
+  Confirm each rule lands with `ops_alerts_list` / `shipeasy ops alerts list`.

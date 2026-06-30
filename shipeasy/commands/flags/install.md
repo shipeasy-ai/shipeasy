@@ -51,10 +51,10 @@ Point the user at how to create resources — via the `shipeasy` MCP server, the
 CLI, or the higher-level skills (all delegate to the same surface):
 
 ```
-release_flags_create       { "name": "<name>", "rollout_percent": <n> }   # gate
-release_configs_create     { "name": "<name>", ... }                      # dynamic config
-release_killswitch_create  { "name": "<folder.name>" }                    # kill switch
-ops_alerts_create          { "name": "<name>", "metric": "<m>", ... }     # alert rule
+release_flags_create       { "name": "<name>", "rollout_percent": <n> }              # gate
+release_configs_create     { "name": "<folder.name>", "schema": { ... }, "value": ... } # dynamic config
+release_killswitch_create  { "name": "<folder.name>" }                               # kill switch
+ops_alerts_create          { "name": "<name>", "metricId": "<id>", "comparator": "gt", "threshold": <n> }  # alert rule
 ```
 
 Workflows (slash commands) that involve codebase analysis:

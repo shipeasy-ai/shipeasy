@@ -13,8 +13,8 @@ then provision everything.
 
 Prereqs: `.shipeasy` bound, and the `shipeasy` MCP server available — this
 workflow instruments events and drafts the experiment through it
-(`events_create`, `release_experiments_create`); the `shipeasy` CLI is the
-fallback. Experiment `<name>` taken from `$ARGUMENTS`; if blank, ask.
+(`metrics_events_create`, `release_experiments_create`); the `shipeasy` CLI is
+the fallback. Experiment `<name>` taken from `$ARGUMENTS`; if blank, ask.
 
 ## Phase 1 — locate variation points in the user's code
 
@@ -102,23 +102,28 @@ returns empty.
 
 ```bash
 shipeasy metrics create "<metric_name>" \
-  --event "<event_name>" \
+  --event-name "<event_name>" \
   --query '<dsl>'
 ```
 
-**3c.** Create the experiment draft. Default groups are
-`control` 50% + `treatment` 50` unless the user asked otherwise. Use
+**3c.** Create the experiment draft. Default groups are an even
+`control` + `treatment` split — `weight: 5000` each (basis points; all
+groups' weights must sum to exactly 10000) — unless the user asked
+otherwise. The decision metric goes in `goal_metric` (inline: an `event` +
+`aggregation`, or a DSL `query`); it auto-creates the event if missing, so
+the metric you created in 3b can also be referenced by its query here. Use
 MCP for typed errors:
 
 ```
 mcp tool: release_experiments_create {
   "name": "<name from $ARGUMENTS>",
   "universe": "default",
+  "allocation_percent": 100,
   "groups": [
-    { "name": "control",   "allocation": 50, "params": { "variant": "v1" } },
-    { "name": "treatment", "allocation": 50, "params": { "variant": "v2" } }
+    { "name": "control",   "weight": 5000, "params": { "variant": "v1" } },
+    { "name": "treatment", "weight": 5000, "params": { "variant": "v2" } }
   ],
-  "success_metric": "<metric_name>"
+  "goal_metric": { "event": "<event_name>", "aggregation": "count_users" }
 }
 ```
 
@@ -141,7 +146,7 @@ if (group === "treatment") {
 
 ```bash
 shipeasy metrics list                       # the new metric appears
-shipeasy release experiments status "<name>"        # state: draft
+shipeasy release experiments get "<name>"           # state: draft
 ```
 
 Plus build/type-check the touched files.
@@ -155,11 +160,11 @@ Tell the user:
    Variant point: <file:line>
    Event:         <event_name> (new | reused)
    Metric:        <metric_name> = <DSL>
-   Groups:        control 50 / treatment 50
+   Groups:        control 5000 / treatment 5000 (basis points)
 Next (via the shipeasy MCP server or CLI):
-   release_experiments_start  { "name": "<name>" }   # begin assigning traffic
-   release_experiments_status { "name": "<name>" }   # enrolment + significance
-   # CLI fallback: shipeasy release experiments start|status <name>
+   release_experiments_start   { "id": "<name>" }   # begin assigning traffic
+   release_experiments_results { "id": "<name>" }   # enrolment + significance
+   # CLI fallback: shipeasy release experiments start|results <name>
 ```
 
 Do **not** start the experiment automatically — the user reviews the

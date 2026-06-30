@@ -15,23 +15,24 @@ same call shape, fed by `@shipeasy/sdk`.
 
 Most failures here — `unknown command` / `unknown option`, a missing
 subcommand, an unexpected `400`/`404`, or something that worked before — are
-**version drift**: the CLI or plugin is older than the feature being invoked.
-Before deeper debugging, update to latest and retry once:
+**version drift**: the CLI or MCP server is older than the feature being
+invoked. Before deeper debugging, update to latest and retry once:
 
 - **CLI:** `npm i -g @shipeasy/cli@latest` (or one-off: `npx @shipeasy/cli@latest <cmd>`).
-- **Plugin (skills + slash commands):** `/plugin marketplace update shipeasy`
-  then `/plugin install shipeasy@shipeasy`. There is no `claude plugin update`;
-  or open `/plugin` and enable auto-update on the `shipeasy` marketplace.
-- **MCP server:** pinned to `@shipeasy/mcp@latest` — restart the session to
-  pick up a new release.
+- **MCP server:** pinned to `@shipeasy/mcp@latest` — restart the session/agent
+  to pick up a new release.
+- **In Claude Code (plugin skills + slash commands):**
+  `/plugin marketplace update shipeasy` then `/plugin install shipeasy@shipeasy`
+  (there is no `claude plugin update`), or open `/plugin` and enable auto-update.
 
-Only treat it as a real bug if it still fails on the latest CLI **and** plugin.
+Only treat it as a real bug if it still fails on the latest CLI **and** MCP server.
 
 ## Enabling on a project
 
-`/shipeasy:flags:install` (the one platform install — folds gates, configs,
-kill switches, experiments, and events) or
-`shipeasy modules enable gates && shipeasy modules enable configs`.
+Run `shipeasy install flags` — the one platform install that folds gates,
+configs, kill switches, experiments, and events into a single enable. In Claude
+Code you can instead invoke `/shipeasy:flags:install`, which delegates to the
+same CLI command.
 
 ## How to act: always the MCP server or the CLI
 
@@ -55,21 +56,29 @@ Prefer MCP tools — they validate input shapes and return typed errors:
 ```
 mcp tool: release_flags_create {
   "name": "checkout_v2",
+  "enabled": true,
   "rollout_percent": 10,
-  "targeting": [{ "attribute": "country", "op": "in", "values": ["US","CA"] }],
-  "default": false
+  "rules": [{ "attr": "country", "op": "in", "value": ["US","CA"] }]
 }
+// rollout_percent is 0–100 (friendly alias); rollout_pct is basis points
+// (0–10000). rules are AND-combined { attr, op, value }; ops: eq/neq/in/
+// not_in/gt/gte/lt/lte/contains/regex.
 ```
 
 ```
 mcp tool: release_configs_create {
-  "name": "search_ranking",
-  "value_type": "json",
-  "default_value": { "boost": 1.0, "model": "v3" },
-  "rules": [
-    { "if": { "country": "DE" }, "value": { "boost": 1.2, "model": "v3" } }
-  ]
+  "name": "search.ranking",
+  "schema": {
+    "type": "object",
+    "properties": { "boost": { "type": "number" }, "model": { "type": "string" } },
+    "required": ["boost", "model"]
+  },
+  "value": { "boost": 1.0, "model": "v3" }
 }
+// Configs are JSON-Schema-first: `schema` (draft 2020-12, top-level
+// type:object) + `value` (one JSON object for all envs, or a { env: value }
+// map). The name is `folder.name` form. Per-env edits go through the
+// draft → publish path (release_configs_draft / release_configs_publish).
 ```
 
 CLI equivalents (the fallback when MCP isn't registered):
@@ -97,8 +106,9 @@ for configs (run `docs_list { sdk: <lang> }` to find the handle; CLI
 below shows the shape — use the docs snippet for the exact call.
 
 ```ts
-// Example shape — fetch the exact call for this project's language via docs_get
-// Server (one configure call already done in `layout.tsx`):
+// Example shape (TypeScript) — fetch the exact call for THIS project's
+// language via docs_get; do not assume TS/Next.js.
+// Server (one configure call already done at app startup):
 import { gates, configs } from "@shipeasy/sdk/server";
 const isOn = await gates.check("checkout_v2", { country: req.country });
 const ranking = await configs.get("search_ranking", { country: req.country });
@@ -129,7 +139,7 @@ For risky launches, create a separate `kill_<feature>` gate that defaults
 | Error                | Action                                              |
 | -------------------- | --------------------------------------------------- |
 | `409 already exists` | Either pick a new name or update the existing gate. |
-| `400 invalid rule`   | Check `targeting` / `rules` shape against schema.   |
+| `400 invalid rule`   | Check the `rules` `{ attr, op, value }` shape.      |
 | `401`                | Re-run `shipeasy login`.                            |
 | `429` plan-limit     | Surface plan limits to user.                        |
 

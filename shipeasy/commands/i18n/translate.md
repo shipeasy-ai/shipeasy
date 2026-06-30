@@ -1,14 +1,18 @@
 ---
 name: i18n-translate
-description: Machine-translate a project into a new locale — seed a target profile from the source, run Anthropic translation on the draft, then publish
+description: Machine-translate a project into a new locale — seed a target profile from the source, run Anthropic translation on the values, then publish
 argument-hint: "<target-profile> [--from <source-profile>] [--glossary <term=translation,...>]"
 user-invocable: true
 ---
 
-Stand up a new locale end-to-end: create the target profile seeded from the
-source, run Anthropic translation over the draft key-by-key, then publish to
-the CDN. This is the only path that exposes the platform's machine-translation
-engine — no CLI verb covers it, so it runs through the i18n MCP tools.
+Stand up a new locale end-to-end: create the target profile, pull the source
+profile's keys, translate every value with Anthropic (locally, in this agent),
+push the translated values, then publish to the CDN.
+
+There is **no single MCP tool or CLI verb** for the machine-translation step —
+this command orchestrates it over the i18n MCP tools (`i18n_profiles_create`,
+`i18n_keys_list`, `i18n_keys_push`, `i18n_profiles_publish`) plus an Anthropic
+call you make yourself.
 
 Prereq: `.shipeasy` bound; the `shipeasy` MCP server available (this workflow
 runs through the `i18n_*` tools); a populated source profile (default `en:prod`);
@@ -20,65 +24,65 @@ source profile (default `en:prod`).
 
 ## Steps
 
-1. **Create the target profile, seeded from the source** (gives you a draft
-   of untranslated keys to work on):
+1. **Create the target profile** for the new locale:
 
    ```
-   mcp tool: i18n_create_profile { "name": "<target>", "source_profile": "<source>" }
+   mcp tool: i18n_profiles_create { "name": "<target>", "locales": ["<locale-of-target>"] }
    ```
 
-   CLI fallback creates the profile but does not seed keys — prefer the MCP
-   tool here so there's a draft to translate:
+   (CLI equivalent: `shipeasy i18n profiles create <target> --locales <locale>`.)
 
-   ```bash
-   shipeasy i18n profiles create <target> --locales <locale-of-target>
-   ```
-
-2. **Find the draft id** for the target (the seed produced one):
+2. **Pull the source keys** to translate. List the source profile and capture
+   each key's `key` + `value`:
 
    ```
-   mcp tool: i18n_drafts_list
+   mcp tool: i18n_profiles_list                                   # find the source profile id
+   mcp tool: i18n_keys_list { "profile_id": "<source profile id>", "limit": 500 }
    ```
 
-   If no draft exists (e.g. the profile was created without seeding), create
-   one in the dashboard's String Manager for `<target>` — draft creation is a
-   dashboard step today — then re-list.
+   Page with `prefix`/`limit` if the source has more than 500 keys.
 
-3. **Run the translation** over the draft, key by key:
+3. **Translate the values locally.** For each source value, produce the target
+   translation with Anthropic — this is your own model call, run in this agent;
+   the source strings never leave the local environment. Preserve every
+   placeholder verbatim (`{{count}}`, `{name}`, `%s`, etc.) and honour any
+   `--glossary term=translation,...` pairs (pin brand names / domain terms so
+   the model doesn't paraphrase them).
+
+4. **Push the translated values** into the target profile (insert-only — this
+   never clobbers human edits already made there):
 
    ```
-   mcp tool: i18n_translate_draft {
-     "draft_id":       "<id from step 2>",
-     "source_profile": "<source>",
-     "target_profile": "<target>",
-     "glossary":       [ /* optional: terms to keep verbatim or force */ ],
-     "max_parallel":   8
+   mcp tool: i18n_keys_push {
+     "profile_id": "<target profile id>",
+     "keys": [ { "key": "home.cta", "value": "Commencer" }, … ]
    }
    ```
 
-   `glossary` (from `--glossary term=translation,...`) pins brand names and
-   domain terms so the model doesn't paraphrase them.
+   To overwrite a single already-translated value later, use
+   `i18n_keys_set { key, value, profile: "<target>" }` (upsert + publish) or
+   `shipeasy i18n update <key> <value> --profile <target>`.
 
-4. **Review, then publish.** Skim a sample of translated values for obvious
-   misses (placeholders like `{count}` preserved, no English left in). Then:
+5. **Review, then publish.** Skim a sample of translated values for obvious
+   misses (placeholders preserved, no source-language text left in). Then
+   publish profile-wide:
 
    ```
-   mcp tool: i18n_publish_profile { "profile": "<target>" }
+   mcp tool: i18n_profiles_publish { "profileId": "<target profile id>" }
    ```
 
    CLI fallback: `shipeasy i18n publish --profile <target>`.
 
-5. **Wire the locale up** so the app can request it — the loader picks the
+6. **Wire the locale up** so the app can request it — the loader picks the
    profile via `data-profile` (or the SSR fetch). Point the user at where the
    active profile is selected for their framework; this command does not
    change runtime locale selection.
 
 ## Notes
 
-- Translation drafts are **insert-only** at the key level — re-running won't
-  clobber human edits made in the dashboard. To change a single translated
-  value, use the `i18n_create_key` MCP tool with the overwrite flag, or
-  `shipeasy i18n update <key> <value> --profile <target>`.
-- Cost + latency scale with key count × locales; `max_parallel` trades speed
-  for rate-limit headroom.
+- `i18n_keys_push` is **insert-only** — re-running won't clobber human edits.
+  To change a single translated value, use `i18n_keys_set` (upsert + publish)
+  or `shipeasy i18n update <key> <value> --profile <target>`.
+- Cost + latency scale with key count × locales; batch your Anthropic calls and
+  cap parallelism to stay within rate limits.
 - No deletion here — removing a locale/profile is a dashboard action.

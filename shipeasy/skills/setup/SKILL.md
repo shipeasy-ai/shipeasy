@@ -104,16 +104,16 @@ the single root `.shipeasy` is inherited by subprojects (like `.git`).
 
 ## 3. Create SDK keys
 
-Keys are **env-locked at mint** — `--env` (`dev|staging|prod`) is required and
-there is no `?env=` override. Default to `prod`:
+Keys are **env-locked at mint** — `--env` (`dev|staging|prod`) is required for
+`server`/`client` keys. Default to `prod`:
 
 ```bash
-shipeasy keys create --type server --env prod --json
-shipeasy keys create --type client --env prod --json   # only needed for browser targets
+shipeasy i18n keys create --type server --env prod --json
+shipeasy i18n keys create --type client --env prod --json   # only needed for browser targets
 ```
 
 Capture each `key` (plaintext shown once), persist it in step 4, discard.
-Verify with `shipeasy keys list`.
+Verify with `shipeasy i18n keys list`.
 
 ---
 
@@ -170,7 +170,8 @@ Ask with `AskUserQuestion`. If yes:
 
 In Next.js, source `/se-devtools.js` in dev and the CDN URL in prod, and read
 both attrs from `NEXT_PUBLIC_*` env (add `NEXT_PUBLIC_SHIPEASY_PROJECT_ID`).
-Then `shipeasy modules enable feedback` and verify the overlay mounts on `?se=1`.
+Then `shipeasy install ops` (enables the feedback/errors module) and verify the
+overlay mounts on `?se=1`.
 If declined, note it in the hand-off; it can be added later via
 `/shipeasy:ops:install`.
 
@@ -207,7 +208,7 @@ Feature add-ons: `/shipeasy:flags:install`, `/shipeasy:ops:install`,
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
-shipeasy whoami && test -f .shipeasy && shipeasy keys list && shipeasy modules list
+shipeasy whoami && test -f .shipeasy && shipeasy i18n keys list && shipeasy projects current
 ( cd <js-subproject> && (pnpm build || npm run build) )   # per JS subproject
 ```
 

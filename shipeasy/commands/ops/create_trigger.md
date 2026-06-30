@@ -36,7 +36,7 @@ section there before provisioning a non-`claude` provider.
   that provider's section in `TRIGGER-INSTALL.md`:
   1. **Schedule** — ask the user the cadence (step 1 below) → cron.
   2. **Mint the restricted `ops` key + read the project id** — provider-
-     independent (`shipeasy keys create --type ops --json` + the `.shipeasy`
+     independent (`shipeasy i18n keys create --type ops --json` + the `.shipeasy`
      project id); the key is what the run authenticates with. (For `claude`,
      `shipeasy trigger create` mints it for you — step 2 below.)
   3. **Build the trigger prompt** — the shared body in `TRIGGER-INSTALL.md`

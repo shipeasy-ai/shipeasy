@@ -1,7 +1,7 @@
 ---
 name: metrics-create
 description: Create a Shipeasy metric (event-backed query) for tracking or experiment success
-argument-hint: "<name> --event <event> --query '<dsl>'"
+argument-hint: "<name> --event-name <event> --query '<dsl>'"
 user-invocable: true
 ---
 
@@ -11,8 +11,8 @@ Prereqs:
 
 - `.shipeasy` bound.
 - The `shipeasy` MCP server is available — this workflow creates the metric
-  (and instruments any backing event) through it (`metrics_create`,
-  `events_create`); the `shipeasy` CLI is the fallback.
+  (and registers any backing event) through it (`metrics_create`,
+  `metrics_events_create`); the `shipeasy` CLI is the fallback.
 
 Workflow:
 
@@ -44,13 +44,13 @@ Workflow:
 
    ```bash
    shipeasy metrics create <name> \
-     --event <event_name> \
+     --event-name <event_name> \
      --query '<dsl>' \
      [--folder <folder>] \
-     [--winsorize <pct>]   # default 99
-     [--mde <0..1>]        # min detectable effect for power calcs
+     [--winsorize-pct <pct>]            # default 99
+     [--min-detectable-effect <0..1>]   # min detectable effect for power calcs
    ```
 
-   The event inside `--query` must equal `--event` — the CLI enforces this.
+   The event inside `--query` must equal `--event-name` — the CLI enforces this.
 
 5. Verify: `shipeasy metrics list` (expect the new row with the rendered query).

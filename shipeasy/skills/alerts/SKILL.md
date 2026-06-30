@@ -14,12 +14,12 @@ them with the `ops_list` MCP tool / `shipeasy ops` CLI, `--type alert`).
 
 Alert *rules* are **writable** here. The *raised alerts* themselves are
 read-only and belong to `ops`. Alert rules ride the flags platform install
-(`/shipeasy:flags:install`) and sit on top of the `events` + `metrics` you
-already defined.
+(`shipeasy install flags`; in Claude Code, `/shipeasy:flags:install`) and sit on
+top of the `events` + `metrics` you already defined.
 
-> **There are no `alerts` slash commands.** Create / list / update alert rules
-> through the `shipeasy` MCP tools (`ops_alerts_create`, `ops_alerts_list`,
-> `ops_alerts_update`) when the server is registered, or the `shipeasy alert-rules`
+> **There are no per-verb `alerts` slash commands.** Create / list / update alert
+> rules through the `shipeasy` MCP tools (`ops_alerts_create`, `ops_alerts_list`,
+> `ops_alerts_update`) when the server is registered, or the `shipeasy ops alerts`
 > CLI as the fallback. This is the same on every host.
 
 ## First fix: update before you debug
@@ -38,7 +38,7 @@ neither can change after create. There is no way to repoint a rule at a
 different metric — tune everything else with an update, or delete + recreate to
 change the metric. Deletion is **UI-only** (no delete command ships).
 
-Defaults: `--window 24` (whole **hours**, 1–720), `--severity warn`, enabled.
+Defaults: `--window-hours 24` (whole **hours**, 1–720), `--severity warn`, enabled.
 
 ## Create
 
@@ -52,30 +52,31 @@ Defaults: `--window 24` (whole **hours**, 1–720), `--severity warn`, enabled.
    ```
    mcp tool: ops_alerts_create {
      "name":         "<label>",
-     "metric":       "<metric id or name>",
+     "metricId":     "<metric id or name>",
      "comparator":   "gt" | "gte" | "lt" | "lte",
      "threshold":    <number>,
-     "window_hours": <1–720>,                     // optional, default 24
+     "windowHours":  <1–720>,                     // optional, default 24
      "severity":     "danger" | "warn" | "info",  // optional, default warn
-     "enabled":      true | false                 // optional, default true
+     "enabled":      true | false,                // optional, default true
+     "notify":       <Slack/email target>         // optional; null → project default
    }
    ```
-3. Otherwise the CLI (`--metric` accepts a metric id or name):
+3. Otherwise the CLI (`--metric-id` accepts a metric id or name):
    ```bash
-   shipeasy alert-rules create "<label>" \
-     --metric <id|name> --comparator gt --threshold 50 \
-     --window 24 --severity warn
+   shipeasy ops alerts create \
+     --name "<label>" --metric-id <id|name> --comparator gt --threshold 50 \
+     --window-hours 24 --severity warn
    ```
 
 Sub-hour windows are not representable. If the user asks for "last 30 minutes",
-use `--window 1` and call out the rounding.
+use `--window-hours 1` and call out the rounding.
 
 ## List
 
 ```
 mcp tool: ops_alerts_list
 ```
-or `shipeasy alert-rules list [--json]`. Fields: `id`, `name`, `metricId`,
+or `shipeasy ops alerts list [--json]`. Fields: `id`, `name`, `metricId`,
 `metricName`, `comparator`, `threshold`, `windowHours`, `severity`, `enabled`,
 `createdAt`, `updatedAt`. The `id` (unique id-prefix, or unique `name`) is what
 update takes. These are rule *definitions* — for alerts they have *raised*, use
@@ -84,9 +85,10 @@ the `ops` skill (`ops_list` MCP tool / `shipeasy ops` CLI, `--type alert`).
 ## Update
 
 `ops_alerts_update { "id": "<id|prefix|name>", … }` or
-`shipeasy alert-rules update <id> [--threshold] [--comparator] [--window]
-[--severity] [--name] [--enabled true|false]`. There is **no `--metric` flag**
-(immutable). `--enabled false` pauses evaluation without deleting.
+`shipeasy ops alerts update <id> [--threshold] [--comparator] [--window-hours]
+[--severity] [--name] [--enabled true|false] [--notify]`. There is **no
+`--metric-id` flag** (immutable). `--enabled false` pauses evaluation without
+deleting.
 
 ## When to use this skill
 
@@ -99,9 +101,9 @@ skill. For the metrics the rules read, use the `metrics` skill.
 
 ## Errors → action
 
-| Error                      | Action                                                   |
-| -------------------------- | -------------------------------------------------------- |
-| `403 module not enabled`   | Run `/shipeasy:flags:install` (enables events/metrics).  |
-| `404 metric not found`     | Check the id/name with `shipeasy metrics list`.          |
-| `400` on `--metric` update | The metric is immutable — delete + recreate the rule.    |
-| `401`                      | Re-run `shipeasy login`.                                 |
+| Error                         | Action                                                                              |
+| ----------------------------- | ----------------------------------------------------------------------------------- |
+| `403 module not enabled`      | Run `shipeasy install flags` (enables events/metrics; in Claude Code, `/shipeasy:flags:install`). |
+| `404 metric not found`        | Check the id/name with `shipeasy metrics list`.                                     |
+| `400` on `--metric-id` update | The metric is immutable — delete + recreate the rule.                               |
+| `401`                         | Re-run `shipeasy login`.                                                            |
