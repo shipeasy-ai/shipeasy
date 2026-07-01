@@ -22,9 +22,9 @@ to create/list/update gates, experiments, configs, metrics, and to manage feedba
 tool reports it is not authenticated, run \`npx @shipeasy/cli login\` once in a terminal.
 
 Workflows:
-- Feature gates, dynamic configs, kill switches, experiments, event metrics — \`/shipeasy:flags:install\` (Claude) or the \`exp_*\` MCP tools.
-- In-app bug reports, feature requests, production errors, alerts — \`/shipeasy:ops:install\`.
-- Translations (i18n) — \`/shipeasy:i18n:install\`.
+- Feature gates, dynamic configs, kill switches, experiments, event metrics — the \`shipeasy-flags-install\` skill or the \`exp_*\` MCP tools.
+- In-app bug reports, feature requests, production errors, alerts — the \`shipeasy-ops-install\` skill.
+- Translations (i18n) — the \`shipeasy-i18n-install\` skill.
 
 Read flags/experiments from the SDK (never re-fetch on the hot path — the SDK caches):
 

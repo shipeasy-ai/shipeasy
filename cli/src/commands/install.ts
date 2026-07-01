@@ -184,8 +184,8 @@ export function installCommand(parent: Command): Command {
                 "   shipeasy release flags create   <name> --rollout <n>\n" +
                 "   shipeasy release configs create <name>\n" +
                 "   shipeasy release ks create      <folder.name>\n" +
-                "   /shipeasy:experiments:create <name>   — design + draft an A/B test\n" +
-                "   /shipeasy:metrics:create <name>       — analyze + instrument a metric",
+                "   the shipeasy-experiments skill   — design + draft an A/B test\n" +
+                "   the shipeasy-metrics skill       — analyze + instrument a metric",
             );
           } else if (target === "i18n") {
             console.log(
@@ -197,7 +197,7 @@ export function installCommand(parent: Command): Command {
           } else if (target === "ops") {
             console.log(
               "\nNext (these need codebase work — run the slash command):\n" +
-                "   /shipeasy:ops:install   — wire the devtools overlay + see() error\n" +
+                "   the shipeasy-ops-install skill   — wire the devtools overlay + see() error\n" +
                 "                            reporting per your language's docs\n" +
                 "   shipeasy ops bug list   — confirm the queue is reachable",
             );
@@ -220,7 +220,7 @@ export function installCommand(parent: Command): Command {
       "    default en:prod) exists, since the server does not auto-create one.\n" +
       "  • ops   — feedback + events (the queue + production-error tickets). The\n" +
       "    code wiring (devtools overlay, see() reporting) is language-specific\n" +
-      "    and stays in `/shipeasy:ops:install`.\n\n" +
+      "    and stays in the `shipeasy-ops-install` skill.\n\n" +
       "Requires an admin session (`shipeasy login`) and a bound project; an `ops` " +
       "key cannot toggle modules.",
   );

@@ -144,9 +144,9 @@ export function detectCommand(parent: Command): void {
             secret_store: "<dir>/.env.local (gitignored)",
             docs: "shipeasy docs get --sdk typescript installation",
             next_skills: [
-              "/shipeasy:flags:install",
-              "/shipeasy:ops:install",
-              "/shipeasy:i18n:install",
+              "shipeasy-flags-install",
+              "shipeasy-ops-install",
+              "shipeasy-i18n-install",
             ],
           },
         },

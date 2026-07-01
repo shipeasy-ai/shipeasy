@@ -17,10 +17,28 @@ import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 
 const ROOT = process.cwd();
-// The area skills — the natural-language umbrella, loaded by every host. They
-// are the cross-host surface; all CRUD is delegated to the `shipeasy` MCP server
-// or the `shipeasy` CLI, and the few remaining slash commands are workflows.
-const EXPECTED_SKILLS = ["alerts", "experiments", "flags", "i18n", "metrics", "ops", "see", "setup"];
+// ALL skills — 9 area guides + 8 workflow skills. They are the whole cross-host
+// surface (there is no separate commands/ dir); all CRUD is delegated to the
+// `shipeasy` MCP server or the `shipeasy` CLI.
+const EXPECTED_SKILLS = [
+  "shipeasy-alerts",
+  "shipeasy-common",
+  "shipeasy-experiments",
+  "shipeasy-flags",
+  "shipeasy-flags-install",
+  "shipeasy-i18n",
+  "shipeasy-i18n-extract",
+  "shipeasy-i18n-install",
+  "shipeasy-i18n-migrate",
+  "shipeasy-i18n-translate",
+  "shipeasy-metrics",
+  "shipeasy-ops",
+  "shipeasy-ops-install",
+  "shipeasy-ops-trigger",
+  "shipeasy-ops-work",
+  "shipeasy-see",
+  "shipeasy-setup",
+];
 
 const HOSTS = {
   claude: {

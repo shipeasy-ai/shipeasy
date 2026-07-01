@@ -60,8 +60,8 @@ manifest that *points at* the shared files; nothing is duplicated.
 ## Install in 12 seconds
 
 There are two install tiers. **Tier 1** hosts have a native plugin system, so
-one command bundles skills + MCP (and, for Claude Code, the slash commands).
-**Tier 2** hosts (70+ agents) take the shared skills via the
+one command bundles skills + MCP. **Tier 2** hosts (70+ agents) take the same
+shared skills via the
 [`vercel-labs/skills`](https://github.com/vercel-labs/skills) CLI plus a small
 MCP config snippet.
 
@@ -76,7 +76,7 @@ MCP config snippet.
 ### Tier 2 — skills + MCP (Cursor, Windsurf, Cline, Gemini, OpenCode, Continue, …)
 
 ```bash
-# 1. skills — installs the 8 area skills
+# 1. skills — installs all 17 shipeasy-* skills
 npx skills add https://github.com/shipeasy-ai/shipeasy -a <agent>
 
 # 2. MCP — add the shipeasy server to that agent's MCP config:
@@ -88,21 +88,22 @@ npx skills add https://github.com/shipeasy-ai/shipeasy -a <agent>
 formats live in **[`INSTALL.md`](./INSTALL.md)** (also published at
 <https://docs.shipeasy.ai/get-started/agents>).
 
-## Then: `/shipeasy:setup`
+## Then: "set up shipeasy"
 
-Installing the plugin registers the skills, slash commands and MCP tools — it
-does **not** run any shell commands. To go live:
+Installing the plugin registers the skills and MCP tools — it does **not** run
+any shell commands. To go live:
 
-1. **`/shipeasy:setup`** — installs `@shipeasy/sdk`, authenticates, binds the
-   repo to a project, mints keys, and wires the SDK into your root layout.
-2. **Turn on the modules you want** — there are exactly three install sections:
-   - **`/shipeasy:flags:install`** — flags + configs + kill switches +
+1. **The `shipeasy-setup` skill** (say *"set up shipeasy"*) — installs
+   `@shipeasy/sdk`, authenticates, binds the repo to a project, mints keys, and
+   wires the SDK into your root layout.
+2. **Turn on the modules you want** — there are exactly three install skills:
+   - **`shipeasy-flags-install`** — flags + configs + kill switches +
      experiments + events (the whole decide-at-runtime platform, one pass).
-   - **`/shipeasy:ops:install`** — feedback (bugs + feature requests) +
+   - **`shipeasy-ops-install`** — feedback (bugs + feature requests) +
      production errors + alerts.
-   - **`/shipeasy:i18n:install`** — translations.
+   - **`shipeasy-i18n-install`** — translations.
 
-Each install command toggles the matching per-project modules and verifies the
+Each install skill toggles the matching per-project modules and verifies the
 wiring. After that, just talk to your agent.
 
 ```text
@@ -118,18 +119,20 @@ Agent ▸ Created gate `new_pricing_page` (rollout 5%). Add gates.check("new_pri
 | **Native plugin (Tier 1)** | Claude Code · Codex · GitHub Copilot CLI |
 | **Skills + MCP (Tier 2)** | Cursor · Windsurf · Cline · Gemini CLI · OpenCode · Continue · OpenClaw · 70+ more |
 
-The 8 area skills and the `shipeasy` MCP server port to *every* agent. The 11
-`/shipeasy:<area>:<workflow>` slash commands are **Claude Code-only** (no other
-host has a slash-command primitive) — on other hosts the same flows trigger from
-natural-language phrasing. Skills and MCP are *referenced, never copied*.
+All 17 skills (9 area guides + 8 multi-step workflow skills) and the
+`shipeasy` MCP server port to *every* agent — the flows trigger from
+natural-language phrasing everywhere, and Claude Code additionally exposes each
+skill as a `/shipeasy:<skill-name>` command. Skills and MCP are *referenced,
+never copied*.
 
 ## Learn more
 
-- 📖 **[Command & skill reference](./docs/reference.md)** — every slash command,
-  skill auto-trigger, MCP tool and CLI mapping, plus the headline workflows.
+- 📖 **[Skill reference](./docs/reference.md)** — every skill, its
+  auto-triggers, MCP tool and CLI mapping, plus the headline workflows.
 - 🧩 **[`INSTALL.md`](./INSTALL.md)** — full per-agent install reference (70+ hosts).
-- ⏰ **[`TRIGGER-INSTALL.md`](./TRIGGER-INSTALL.md)** — set up unattended scheduled
-  triggers that burn down your ops inbox and open one PR per item.
+- ⏰ **[Trigger install guide](./shipeasy/skills/shipeasy-ops-trigger/TRIGGER-INSTALL.md)**
+  — set up unattended scheduled triggers that burn down your ops inbox and open
+  one PR per item.
 - 🌐 **[shipeasy.ai](https://shipeasy.ai)** · **[docs.shipeasy.ai](https://docs.shipeasy.ai)**
 
 ---

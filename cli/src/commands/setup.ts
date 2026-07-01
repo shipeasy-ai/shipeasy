@@ -211,7 +211,7 @@ function spawnClaude(arg: string): Promise<number> {
 
 async function claudeHandoff(opts: SetupOpts, interactive: boolean): Promise<void> {
   heading("4. Finish the in-repo SDK wiring (Claude)");
-  const slash = `/shipeasy:setup${opts.domain ? ` --domain ${opts.domain}` : ""}`;
+  const slash = `/shipeasy:shipeasy-setup${opts.domain ? ` --domain ${opts.domain}` : ""}`;
 
   if (insideClaudeCode()) {
     console.log(
@@ -326,10 +326,10 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   console.log("Next steps:");
   console.log("  • shipeasy whoami                 — confirm auth + bound project");
   console.log(
-    "  • /shipeasy:flags:install         — feature gates, configs, kill switches, experiments",
+    "  • the shipeasy-flags-install skill   — feature gates, configs, kill switches, experiments",
   );
-  console.log("  • /shipeasy:ops:install           — in-app feedback + production-error tracking");
-  console.log("  • /shipeasy:i18n:install          — translations");
+  console.log("  • the shipeasy-ops-install skill     — in-app feedback + production-error tracking");
+  console.log("  • the shipeasy-i18n-install skill    — translations");
   if (opts.dryRun) console.log("\n(dry run — no files were written.)");
 }
 
@@ -342,7 +342,7 @@ export function setupCommand(parent: Command): void {
     )
     .option("--yes", "Non-interactive: bind current project + wire all detected agents")
     .option("--agents <list>", "Comma list to wire (claude,cursor,codex,copilot,jules)")
-    .option("--domain <domain>", "Production domain, passed to the Claude /shipeasy:setup step")
+    .option("--domain <domain>", "Production domain, passed to the Claude shipeasy-setup skill step")
     .option("--scope <scope>", "user | project (MCP config scope)", "project")
     .option("--no-claude-run", "Don't launch Claude Code for the in-repo wiring step")
     .option("--dry-run", "Show what would change without writing files or launching anything")

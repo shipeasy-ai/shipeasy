@@ -569,9 +569,9 @@ function isWorkspaceRoot(root: string): boolean {
 function recommend(info: ProjectInfo, hasNestedTargets: boolean): SkillRecommendation {
   const sdk = SDK_FOR_LANGUAGE[info.language] ?? null;
   const featureSkills = [
-    "/shipeasy:flags:install",
-    "/shipeasy:ops:install",
-    "/shipeasy:i18n:install",
+    "shipeasy-flags-install",
+    "shipeasy-ops-install",
+    "shipeasy-i18n-install",
   ];
 
   if (!sdk) {

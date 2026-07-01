@@ -89,15 +89,16 @@ claude plugin marketplace add shipeasy-ai/shipeasy || claude plugin marketplace 
 claude plugin install shipeasy@shipeasy
 npm install -g @shipeasy/cli@latest
 
-A plugin installed mid-session does NOT register its slash commands, so invoking
-/shipeasy:ops:work reports "Unknown skill" — that is expected. Resolve the work
-command deterministically and follow it verbatim with the --pr flag:
+A plugin installed mid-session does NOT register its skills, so invoking the
+shipeasy-ops-work skill may report "Unknown skill" — that is expected. Resolve
+the workflow file deterministically and follow it verbatim with the --pr flag:
 
-WORK_MD=$(find ~/.claude/plugins/marketplaces -path '*shipeasy*' -name work.md 2>/dev/null | head -1)
-test -n "$WORK_MD" || WORK_MD=$(find ~/.claude/plugins/cache -path '*shipeasy*' -name work.md 2>/dev/null | sort -V | tail -1)
+WORK_MD=$(find ~/.claude/plugins/marketplaces -path '*shipeasy*skills/shipeasy-ops-work*' -name SKILL.md 2>/dev/null | head -1)
+test -n "$WORK_MD" || WORK_MD=$(find ~/.claude/plugins/cache -path '*shipeasy*skills/shipeasy-ops-work*' -name SKILL.md 2>/dev/null | sort -V | tail -1)
+test -n "$WORK_MD" || WORK_MD=$(find ~/.claude/plugins -path '*shipeasy*' -name work.md 2>/dev/null | head -1)   # pre-3.10 plugin layout
 
-Read that file and follow it exactly as if /shipeasy:ops:work --pr had been
-invoked: burn down the unified feedback queue (bugs, feature requests, auto-filed
+Read that file and follow it exactly as if the shipeasy-ops-work skill had been
+invoked with --pr: burn down the unified feedback queue (bugs, feature requests, auto-filed
 error/alert tickets), commit each fixed item on its OWN claude/-prefixed branch,
 open ONE pull request PER item (add "Closes #<issue>" for connected items), and
 flip each fixed item to ready_for_qa. If the queue is empty, exit cleanly without

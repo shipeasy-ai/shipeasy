@@ -1359,7 +1359,7 @@ shipeasy setup [options]
 | --- | --- | --- |
 | `--yes` | optional | Non-interactive: bind current project + wire all detected agents |
 | `--agents <list>` | optional | Comma list to wire (claude,cursor,codex,copilot,jules) |
-| `--domain <domain>` | optional | Production domain, passed to the Claude /shipeasy:setup step |
+| `--domain <domain>` | optional | Production domain, passed to the Claude shipeasy-setup skill step |
 | `--scope <scope>` | optional | user \| project (MCP config scope) (default: `"project"`) |
 | `--no-claude-run` | optional | Don't launch Claude Code for the in-repo wiring step |
 | `--dry-run` | optional | Show what would change without writing files or launching anything |
@@ -1389,7 +1389,7 @@ Turns on a coherent group of project modules in one call, then verifies the admi
     default en:prod) exists, since the server does not auto-create one.
   • ops   — feedback + events (the queue + production-error tickets). The
     code wiring (devtools overlay, see() reporting) is language-specific
-    and stays in `/shipeasy:ops:install`.
+    and stays in the `shipeasy-ops-install` skill.
 
 Requires an admin session (`shipeasy login`) and a bound project; an `ops` key cannot toggle modules.
 
@@ -1558,9 +1558,9 @@ Returns (with --json):
         "secret_store": "<dir>/.env.local (gitignored)",
         "docs": "shipeasy docs get --sdk typescript installation",
         "next_skills": [
-          "/shipeasy:flags:install",
-          "/shipeasy:ops:install",
-          "/shipeasy:i18n:install"
+          "shipeasy-flags-install",
+          "shipeasy-ops-install",
+          "shipeasy-i18n-install"
         ]
       }
     }
@@ -2015,7 +2015,7 @@ shipeasy i18n codemod i18n --migrate react-i18next
 
 Extract hardcoded strings → wrap with i18n.t() → push + publish keys (JS/TS)
 
-Runs the whole extraction pipeline as one command: the AST codemod wraps translatable strings with i18n.t() and writes a flat keys file, then those keys are pushed (insert-only) and published. For non-JS/TS projects there is no codemod — the command points you at the per-language docs and the /shipeasy:i18n:extract skill applies them.
+Runs the whole extraction pipeline as one command: the AST codemod wraps translatable strings with i18n.t() and writes a flat keys file, then those keys are pushed (insert-only) and published. For non-JS/TS projects there is no codemod — the command points you at the per-language docs and the shipeasy-i18n-extract skill applies them.
 
 ```bash
 shipeasy i18n extract [options] [target]

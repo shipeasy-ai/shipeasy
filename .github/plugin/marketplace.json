@@ -1,15 +1,18 @@
 {
   "name": "shipeasy",
-  "owner": { "name": "Shipeasy", "url": "https://shipeasy.ai" },
+  "owner": {
+    "name": "Shipeasy",
+    "url": "https://shipeasy.ai"
+  },
   "metadata": {
     "description": "Shipeasy — feature flags, A/B experiments, event metrics, translations, and in-app feedback. One plugin, one MCP registration.",
-    "version": "3.7.1"
+    "version": "3.10.0"
   },
   "plugins": [
     {
       "name": "shipeasy",
-      "description": "End-to-end Shipeasy: SDK install + auth + bind, experiments, metrics, gates, configs, kill switches, alert rules, translations, and feedback. Bundles the eight area skills and the shipeasy MCP server. Reuses the same shipeasy/skills/ as the Claude Code and Codex plugins — no content duplicated. All CRUD is delegated to the shipeasy MCP server or CLI.",
-      "version": "3.7.1",
+      "description": "End-to-end Shipeasy: SDK install + auth + bind, experiments, metrics, gates, configs, kill switches, alert rules, translations, and feedback. Bundles the same 17 skills as the Claude Code and Codex plugins plus the shipeasy MCP server — no content duplicated. All CRUD is delegated to the shipeasy MCP server or CLI.",
+      "version": "3.10.0",
       "source": "./shipeasy"
     }
   ]

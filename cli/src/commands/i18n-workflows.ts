@@ -131,7 +131,7 @@ const NON_JS_HINT =
   "  shipeasy docs get   --sdk <lang> i18n\n" +
   "then push the keys with `shipeasy i18n push <file> --profile <profile>`.\n" +
   "(Per-language SDK extractors are the planned bridge; until then the\n" +
-  "/shipeasy:i18n:extract skill applies the docs for you.)";
+  "shipeasy-i18n-extract skill applies the docs for you.)";
 
 export function i18nWorkflowCommands(i18n: Command): void {
   // ── i18n extract ─────────────────────────────────────────────────────────
@@ -184,7 +184,7 @@ export function i18nWorkflowCommands(i18n: Command): void {
       "translatable strings with i18n.t() and writes a flat keys file, then those " +
       "keys are pushed (insert-only) and published. For non-JS/TS projects there " +
       "is no codemod — the command points you at the per-language docs and the " +
-      "/shipeasy:i18n:extract skill applies them.",
+      "shipeasy-i18n-extract skill applies them.",
   );
   withExamples(extract, [
     { note: "Extract under auto-detected dirs, push + publish", run: "shipeasy i18n extract" },

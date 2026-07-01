@@ -80,3 +80,55 @@ describe("MCP tools referenced by skills exist (name + params)", () => {
     expect(validateMcpRef(ref, toolByName)).toEqual([]);
   });
 });
+
+// The plugin ships no slash-command surface anymore — every workflow is a
+// skill. A `/shipeasy:<…>` token in any shipped skill file (SKILL.md or a
+// companion doc like TRIGGER-INSTALL.md) is therefore a stale reference that
+// dead-ends on every host. Skills reference each other by skill name instead
+// (e.g. "the `shipeasy-ops-work` skill").
+describe("skills are self-contained (no stale slash-command refs, namespaced names)", () => {
+  const skillDirs = readdirSync(SKILLS_DIR).filter((d) =>
+    existsSync(join(SKILLS_DIR, d, "SKILL.md")),
+  );
+
+  it("every skill dir is shipeasy-prefixed and matches its frontmatter name", () => {
+    for (const dir of skillDirs) {
+      expect(dir, `skill dir "${dir}" must be namespaced`).toMatch(/^shipeasy-/);
+      const raw = readFileSync(join(SKILLS_DIR, dir, "SKILL.md"), "utf8");
+      const name = raw.match(/^---\n[\s\S]*?^name:[ \t]*(\S+)[ \t]*$/m)?.[1];
+      expect(name, `skill "${dir}" frontmatter name`).toBe(dir);
+    }
+  });
+
+  it("no skill file references a /shipeasy:* slash command", () => {
+    const offenders: string[] = [];
+    for (const dir of skillDirs) {
+      for (const f of readdirSync(join(SKILLS_DIR, dir)).filter((f) => f.endsWith(".md"))) {
+        const raw = readFileSync(join(SKILLS_DIR, dir, f), "utf8");
+        for (const [i, line] of raw.split("\n").entries()) {
+          if (line.includes("/shipeasy:")) offenders.push(`${dir}/${f}:${i + 1}: ${line.trim()}`);
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("every skill another skill points at actually ships", () => {
+    const shipped = new Set(skillDirs);
+    const offenders: string[] = [];
+    for (const dir of skillDirs) {
+      for (const f of readdirSync(join(SKILLS_DIR, dir)).filter((f) => f.endsWith(".md"))) {
+        const raw = readFileSync(join(SKILLS_DIR, dir, f), "utf8");
+        // `shipeasy-<name>` in backticks or the "shipeasy-<name> skill" phrasing.
+        for (const m of raw.matchAll(/`(shipeasy-[a-z0-9-]+)`(?:\s+skill)?|\b(shipeasy-[a-z0-9-]+)\s+skill\b/g)) {
+          const name = m[1] ?? m[2];
+          // Ignore non-skill shipeasy-* identifiers (packages, hosts, files).
+          if (name.startsWith("shipeasy-mcp") || name.startsWith("shipeasy-ai")) continue;
+          if (name === "shipeasy-onboarded") continue; // the project pointer setup drops
+          if (!shipped.has(name)) offenders.push(`${dir}/${f}: references unknown skill "${name}"`);
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+});

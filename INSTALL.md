@@ -3,31 +3,33 @@
 Shipeasy ships two things to a coding agent:
 
 1. **Skills** — `SKILL.md` files that auto-trigger on natural-language phrasing
-   and walk the agent through each workflow:
-   - **8 area skills** (`flags`, `experiments`, `metrics`, `i18n`, `ops`,
-     `alerts`, `see`, `setup`) — the umbrella guides, one per subsystem. These
-     cover *every* feature (e.g. `flags` covers configs + kill switches, `ops`
-     covers the bug/feature/error inbox). They **always delegate all CRUD to the
+   (and are user-invocable as commands on hosts that support it):
+   - **9 area skills** (`shipeasy-flags`, `shipeasy-experiments`,
+     `shipeasy-metrics`, `shipeasy-i18n`, `shipeasy-ops`, `shipeasy-alerts`,
+     `shipeasy-see`, `shipeasy-setup`, `shipeasy-common`) — the umbrella
+     guides, one per subsystem. These cover *every* feature (e.g.
+     `shipeasy-flags` covers configs + kill switches, `shipeasy-ops` covers the
+     bug/feature/error inbox). They **always delegate all CRUD to the
      `shipeasy` MCP server or the `shipeasy` CLI**.
-   - **A small set of workflow slash commands** — 11 multi-step flows
-     (`/shipeasy:setup`, `/shipeasy:flags:install`, `/shipeasy:ops:install`,
-     `/shipeasy:ops:work`, `/shipeasy:ops:create_trigger`,
-     `/shipeasy:i18n:{install,extract,migrate,translate}`,
-     `/shipeasy:experiments:create`, `/shipeasy:metrics:create`). These are
-     **Claude-Code-only**; other hosts reach the same behaviour through the area
-     skills + the `shipeasy` MCP tools / CLI.
+   - **8 workflow skills** — the multi-step flows: the three installs
+     (`shipeasy-flags-install`, `shipeasy-ops-install`, `shipeasy-i18n-install`),
+     the i18n codemods (`shipeasy-i18n-{extract,migrate,translate}`), the
+     `shipeasy-ops-work` queue loop, and its `shipeasy-ops-trigger` scheduler.
+     (Base onboarding is the `shipeasy-setup` area skill.) There is no separate
+     `commands/` surface — every workflow is a skill and installs on **every**
+     host.
 2. **The `shipeasy` MCP server** — `npx -y @shipeasy/mcp@latest`, the tool
    surface that actually creates gates, drafts experiments, pushes i18n keys,
    files feedback, etc.
 
 **How each consumer sees the skills:**
 
-- **Claude Code** reads the workflow command files directly as
-  `/shipeasy:<area>:<verb>` **slash commands**, on top of the 8 area skills.
-- **The `skills` CLI** (every other host) installs the **8 area skills** from
-  the bare repo URL. There is no slash-command primitive on those hosts; the
-  area skills drive the same workflows through ordinary
-  phrasing/`@shipeasy`-triggered invocation, delegating CRUD to the MCP / CLI.
+- **Claude Code / Codex / Copilot** load all 17 skills from the plugin; in
+  Claude Code each is also user-invocable as a slash command
+  (`/shipeasy:<skill-name>`).
+- **The `skills` CLI** (every other host) installs the same 17 skills from the
+  bare repo URL; they trigger on phrasing (or the host's explicit skill
+  invocation), delegating CRUD to the MCP / CLI.
 
 Both artifacts live **once** in this repo under [`shipeasy/`](./shipeasy) and
 are *referenced* by every host's manifest — nothing is duplicated per agent.
@@ -40,9 +42,9 @@ There are two install tiers:
   Gemini CLI, Continue, and 60+ other agents supported by
   [`vercel-labs/skills`](https://github.com/vercel-labs/skills).
 
-After installing in **any** host, run the onboarding once (Tier 1 Claude Code:
-`/shipeasy:setup`; everywhere else: ask the agent to *"set up shipeasy"* — the
-`setup` skill drives `shipeasy login` + key minting through the MCP).
+After installing in **any** host, run the onboarding once: ask the agent to
+*"set up shipeasy"* (or invoke the `shipeasy-setup` skill directly) — it drives
+`shipeasy login` + key minting through the CLI/MCP).
 
 ---
 
@@ -65,8 +67,8 @@ claude plugin marketplace add shipeasy-ai/shipeasy
 claude plugin install shipeasy@shipeasy
 ```
 
-Gets skills + MCP + the full `/shipeasy:*` slash-command set. Then run
-`/shipeasy:setup`.
+Gets all 17 skills (each user-invocable as `/shipeasy:<skill-name>`) + MCP.
+Then run the `shipeasy-setup` skill.
 
 ### Codex
 
@@ -77,9 +79,8 @@ In the Codex TUI (`/plugins` opens the browser, or add the source directly):
 /plugin install shipeasy@shipeasy
 ```
 
-Gets the area skills + MCP. (Codex plugins have no slash-command primitive, so
-invoke explicitly with `@shipeasy`, or describe the task and let a skill
-trigger.)
+Gets all 17 skills + MCP. (Invoke explicitly with `@shipeasy`, or describe
+the task and let a skill trigger.)
 
 ### GitHub Copilot CLI
 
@@ -103,13 +104,13 @@ For every other agent: install the skills, then run onboarding — the `setup`
 skill registers the MCP server for you.
 
 ```bash
-# the 8 area skills (they cover every feature via the MCP tools / CLI):
+# all 17 skills (area guides + workflow skills, the whole surface):
 npx skills add https://github.com/shipeasy-ai/shipeasy -a <agent>
 # then, in the agent:  "set up shipeasy in this repo"
 ```
 
-The 8 area skills are the whole surface — they cover every feature and delegate
-all CRUD to the `shipeasy` MCP server or CLI.
+The 17 skills are the whole surface — they cover every feature and workflow and
+delegate all CRUD to the `shipeasy` MCP server or CLI.
 
 The `skills` CLI copies **skill text only** — it does not register MCP servers.
 But you no longer have to hand-edit MCP config: the `setup` skill detects that
@@ -133,7 +134,7 @@ files and writes them into the target agent's skills directory. Point it at the
 npx skills add https://github.com/shipeasy-ai/shipeasy -a <agent>
 ```
 
-The CLI's manifest-mode scan walks depth-1 and installs the 8 area skills
+The CLI's manifest-mode scan walks depth-1 and installs all 17 skills
 (`skills/<name>/SKILL.md`) — the whole surface.
 
 Add `-g` to install into the user-global skills dir instead of the project.
@@ -213,16 +214,16 @@ mcpServers:
 Plugin/skill install only *registers* the skills + MCP — it runs no shell
 commands. To wire Shipeasy into your app:
 
-1. **Authenticate + bind.** Claude Code: `/shipeasy:setup`. Any other host:
-   tell the agent *"set up shipeasy in this repo"* — the `setup` skill runs
-   `shipeasy login`, binds the repo to a project, mints server + client keys,
-   and wires the SDK into the root layout (all via the CLI). On a Tier-2
-   (skills-CLI) install it also **registers the `shipeasy` MCP server** if it's
-   missing, then asks you to reload the agent so the tools load before step 2.
-2. **Enable the modules you want.** `/shipeasy:flags:install` (gates + configs
-   + kill switches + experiments + events), `/shipeasy:ops:install` (feedback +
-   errors + alerts), `/shipeasy:i18n:install` (translations) — or, on a
-   command-less host, ask for the equivalent and the install skills drive it.
+1. **Authenticate + bind.** Tell the agent *"set up shipeasy in this repo"*
+   (or invoke the `shipeasy-setup` skill) — it runs `shipeasy login`, binds the
+   repo to a project, mints server + client keys, and wires the SDK into the
+   root layout (all via the CLI). On a Tier-2 (skills-CLI) install it also
+   **registers the `shipeasy` MCP server** if it's missing, then asks you to
+   reload the agent so the tools load before step 2.
+2. **Enable the modules you want.** The `shipeasy-flags-install` (gates +
+   configs + kill switches + experiments + events), `shipeasy-ops-install`
+   (feedback + errors + alerts), and `shipeasy-i18n-install` (translations)
+   skills — ask for the one you want and it drives the whole pass.
 
 ---
 
@@ -230,25 +231,23 @@ commands. To wire Shipeasy into your app:
 
 | Capability | Claude Code | Codex | Copilot CLI | Tier-2 (OpenCode, Cursor, …) |
 | --- | :---: | :---: | :---: | :---: |
-| 8 area skills (cover every feature) | ✅ | ✅ | ✅ | ✅ |
+| 17 skills (area guides + workflows) | ✅ | ✅ | ✅ | ✅ |
 | CRUD (via `shipeasy` MCP / CLI) | ✅ | ✅ | ✅ | ✅ |
 | `shipeasy` MCP server | ✅ | ✅ | ✅ | ✅ |
-| Workflow slash commands (`/shipeasy:*`) | ✅ | — (skills + MCP/CLI) | — (skills + MCP/CLI) | — (skills + MCP/CLI) |
+| Skills user-invocable as commands | ✅ (`/shipeasy:<skill>`) | phrasing / `@shipeasy` | phrasing | host-dependent |
 | One-command install | ✅ | ✅ | ✅ | skills CLI; MCP self-registers on setup |
 
-Slash commands are the only Claude-Code-exclusive surface; everything that
-*does* work (creating gates, drafting experiments, pushing i18n, filing
-feedback) runs through the MCP, which every host has.
+The whole surface — including every multi-step workflow — is identical on
+every host; only the invocation affordance differs.
 
 ---
 
 ## Notes & caveats
 
 - **Skill format is universal.** `SKILL.md` needs only `name` + `description`
-  frontmatter; the extra `user-invocable` field we ship is an unknown key that
-  Claude Code, Codex, and OpenCode explicitly ignore. (Copilot's handling of
-  unknown frontmatter keys is undocumented but has not been a problem in
-  practice.)
+  frontmatter. The extra fields we ship (`user-invocable`, `argument-hint`) are
+  meaningful to Claude Code (slash invocation + `$ARGUMENTS`) and ignored as
+  unknown keys elsewhere.
 - **Why a second MCP file.** Claude Code and Codex accept the bare
   `mcpServers`/`command`+`args` shape (`shipeasy/.mcp.json`). Copilot, OpenCode,
   and Continue require a transport/`type` field, so Copilot bundles
@@ -257,5 +256,5 @@ feedback) runs through the MCP, which every host has.
 - **Updating.** Plugin hosts: re-run `marketplace update` / re-install. Skills
   CLI: re-run `npx skills add …` (symlinks by default, so it tracks the repo;
   pass `--copy` for a frozen copy). The MCP always resolves `@latest`.
-- **Deletions are UI-only** on every host — the plugin/skills ship no `:delete`
+- **Deletions are UI-only** on every host — the plugin/skills ship no delete
   verb for any resource.
