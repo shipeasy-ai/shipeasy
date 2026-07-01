@@ -15294,7 +15294,8 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 200,
-            "description": "One-line bug title."
+            "pattern": "^\\S(.*\\S)?$",
+            "description": "One-line bug title (no leading/trailing whitespace)."
           },
           "stepsToReproduce": {
             "type": "string",
@@ -15424,7 +15425,8 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 200,
-            "description": "One-line feature-request title."
+            "pattern": "^\\S(.*\\S)?$",
+            "description": "One-line feature-request title (no leading/trailing whitespace)."
           },
           "description": {
             "type": "string",
@@ -15814,7 +15816,8 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 200,
-            "description": "New bug title."
+            "pattern": "^\\S(.*\\S)?$",
+            "description": "New bug title (no leading/trailing whitespace)."
           },
           "stepsToReproduce": {
             "type": "string",
@@ -15863,7 +15866,8 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 200,
-            "description": "New feature-request title."
+            "pattern": "^\\S(.*\\S)?$",
+            "description": "New feature-request title (no leading/trailing whitespace)."
           },
           "description": {
             "type": "string",
@@ -16493,7 +16497,8 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 2048,
-            "description": "Hostname-like project identifier (e.g. `acme.com`). Use `*` to allow any origin. The project is keyed by `(owner_email, domain)`, so a second call with the same domain returns the existing project."
+            "pattern": "^(\\*|(\\*\\.)?[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+)$",
+            "description": "Lowercase bare hostname (e.g. `acme.com`, `app.acme.com`, `*.acme.com`), or `*` to allow any origin. Full URLs with `https://` are not accepted. The project is keyed by `(owner_email, domain)`, so a second call with the same domain returns the existing project."
           },
           "name": {
             "description": "Human-readable project name. Defaults to the domain on first create.",

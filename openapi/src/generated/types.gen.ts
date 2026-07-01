@@ -2889,7 +2889,7 @@ export type CreateBugRequest = {
      */
     type: 'bug';
     /**
-     * One-line bug title.
+     * One-line bug title (no leading/trailing whitespace).
      */
     title: string;
     /**
@@ -2945,7 +2945,7 @@ export type CreateFeatureRequestRequest = {
      */
     type: 'feature_request';
     /**
-     * One-line feature-request title.
+     * One-line feature-request title (no leading/trailing whitespace).
      */
     title: string;
     /**
@@ -3126,7 +3126,7 @@ export type OpsItemNotifyOrNull = NotificationTarget | null;
  */
 export type UpdateBugRequest = {
     /**
-     * New bug title.
+     * New bug title (no leading/trailing whitespace).
      */
     title?: string;
     /**
@@ -3155,7 +3155,7 @@ export type UpdateBugRequest = {
  */
 export type UpdateFeatureRequestRequest = {
     /**
-     * New feature-request title.
+     * New feature-request title (no leading/trailing whitespace).
      */
     title?: string;
     /**
@@ -3482,7 +3482,7 @@ export type GetCurrentProjectResponse = {
  */
 export type UpsertProjectRequest = {
     /**
-     * Hostname-like project identifier (e.g. `acme.com`). Use `*` to allow any origin. The project is keyed by `(owner_email, domain)`, so a second call with the same domain returns the existing project.
+     * Lowercase bare hostname (e.g. `acme.com`, `app.acme.com`, `*.acme.com`), or `*` to allow any origin. Full URLs with `https://` are not accepted. The project is keyed by `(owner_email, domain)`, so a second call with the same domain returns the existing project.
      */
     domain: string;
     /**

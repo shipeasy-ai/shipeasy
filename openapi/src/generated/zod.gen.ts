@@ -8,9 +8,9 @@ export const zListGatesResponse = z.object({
         name: z.string().max(128).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$/),
         enabled: z.union([
             z.boolean(),
-            z.int().gte(0).lte(1)
+            z.coerce.number().int().gte(0).lte(1)
         ]),
-        rolloutPct: z.int().gte(0).lte(10000),
+        rolloutPct: z.coerce.number().int().gte(0).lte(10000),
         rules: z.array(z.object({
             attr: z.string().min(1),
             op: z.enum([
@@ -67,14 +67,14 @@ export const zListGatesResponse = z.object({
                     ]),
                     value: z.unknown()
                 })).optional().default([]),
-                rolloutPct: z.int().gte(0).lte(10000).optional(),
+                rolloutPct: z.coerce.number().int().gte(0).lte(10000).optional(),
                 bucketBy: z.string().optional(),
                 salt: z.string().optional(),
                 ramp: z.object({
-                    from: z.int().gte(0).lte(10000),
-                    to: z.int().gte(0).lte(10000),
-                    startAt: z.int().gte(0).lte(9007199254740991),
-                    durationMs: z.int().gt(0).lte(9007199254740991)
+                    from: z.coerce.number().int().gte(0).lte(10000),
+                    to: z.coerce.number().int().gte(0).lte(10000),
+                    startAt: z.coerce.number().int().gte(0).lte(9007199254740991),
+                    durationMs: z.coerce.number().int().gt(0).lte(9007199254740991)
                 }).optional(),
                 locked: z.boolean().optional()
             }), z.object({
@@ -82,14 +82,14 @@ export const zListGatesResponse = z.object({
                 type: z.literal('rollout'),
                 name: z.string().optional(),
                 fromTemplate: z.string().nullish(),
-                rolloutPct: z.int().gte(0).lte(10000),
+                rolloutPct: z.coerce.number().int().gte(0).lte(10000),
                 bucketBy: z.string().optional(),
                 salt: z.string().optional(),
                 ramp: z.object({
-                    from: z.int().gte(0).lte(10000),
-                    to: z.int().gte(0).lte(10000),
-                    startAt: z.int().gte(0).lte(9007199254740991),
-                    durationMs: z.int().gt(0).lte(9007199254740991)
+                    from: z.coerce.number().int().gte(0).lte(10000),
+                    to: z.coerce.number().int().gte(0).lte(10000),
+                    startAt: z.coerce.number().int().gte(0).lte(9007199254740991),
+                    durationMs: z.coerce.number().int().gt(0).lte(9007199254740991)
                 }).optional(),
                 locked: z.boolean().optional()
             })])).nullish(),
@@ -139,8 +139,8 @@ export const zFolder = z.string().max(256).regex(/^[a-zA-Z0-9_-]+$/).nullable();
 export const zCreateGateRequest = z.object({
     name: z.string().max(128).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$/),
     enabled: z.boolean().optional().default(true),
-    rollout_pct: z.int().gte(0).lte(10000).optional().default(0),
-    rollout_percent: z.number().gte(0).lte(100).optional(),
+    rollout_pct: z.coerce.number().int().gte(0).lte(10000).optional().default(0),
+    rollout_percent: z.coerce.number().gte(0).lte(100).optional(),
     rules: z.array(z.object({
         attr: z.string().min(1),
         op: z.enum([
@@ -192,14 +192,14 @@ export const zCreateGateRequest = z.object({
                 ]),
                 value: z.unknown()
             })).optional().default([]),
-            rolloutPct: z.int().gte(0).lte(10000).optional(),
+            rolloutPct: z.coerce.number().int().gte(0).lte(10000).optional(),
             bucketBy: z.string().optional(),
             salt: z.string().optional(),
             ramp: z.object({
-                from: z.int().gte(0).lte(10000),
-                to: z.int().gte(0).lte(10000),
-                startAt: z.int().gte(0).lte(9007199254740991),
-                durationMs: z.int().gt(0).lte(9007199254740991)
+                from: z.coerce.number().int().gte(0).lte(10000),
+                to: z.coerce.number().int().gte(0).lte(10000),
+                startAt: z.coerce.number().int().gte(0).lte(9007199254740991),
+                durationMs: z.coerce.number().int().gt(0).lte(9007199254740991)
             }).optional(),
             locked: z.boolean().optional()
         }), z.object({
@@ -207,14 +207,14 @@ export const zCreateGateRequest = z.object({
             type: z.literal('rollout'),
             name: z.string().optional(),
             fromTemplate: z.string().nullish(),
-            rolloutPct: z.int().gte(0).lte(10000),
+            rolloutPct: z.coerce.number().int().gte(0).lte(10000),
             bucketBy: z.string().optional(),
             salt: z.string().optional(),
             ramp: z.object({
-                from: z.int().gte(0).lte(10000),
-                to: z.int().gte(0).lte(10000),
-                startAt: z.int().gte(0).lte(9007199254740991),
-                durationMs: z.int().gt(0).lte(9007199254740991)
+                from: z.coerce.number().int().gte(0).lte(10000),
+                to: z.coerce.number().int().gte(0).lte(10000),
+                startAt: z.coerce.number().int().gte(0).lte(9007199254740991),
+                durationMs: z.coerce.number().int().gt(0).lte(9007199254740991)
             }).optional(),
             locked: z.boolean().optional()
         })])).nullish(),
@@ -238,8 +238,8 @@ export const zDeleteGateResponse = z.object({
  * Body for `PATCH /api/admin/gates/{id}`. Partial — only supplied fields change. Array fields (`rules`, `stack`) replace, not merge.
  */
 export const zUpdateGateRequest = z.object({
-    rollout_pct: z.int().gte(0).lte(10000).optional(),
-    rollout_percent: z.number().gte(0).lte(100).optional(),
+    rollout_pct: z.coerce.number().int().gte(0).lte(10000).optional(),
+    rollout_percent: z.coerce.number().gte(0).lte(100).optional(),
     rules: z.array(z.object({
         attr: z.string().min(1),
         op: z.enum([
@@ -291,14 +291,14 @@ export const zUpdateGateRequest = z.object({
                 ]),
                 value: z.unknown()
             })).optional().default([]),
-            rolloutPct: z.int().gte(0).lte(10000).optional(),
+            rolloutPct: z.coerce.number().int().gte(0).lte(10000).optional(),
             bucketBy: z.string().optional(),
             salt: z.string().optional(),
             ramp: z.object({
-                from: z.int().gte(0).lte(10000),
-                to: z.int().gte(0).lte(10000),
-                startAt: z.int().gte(0).lte(9007199254740991),
-                durationMs: z.int().gt(0).lte(9007199254740991)
+                from: z.coerce.number().int().gte(0).lte(10000),
+                to: z.coerce.number().int().gte(0).lte(10000),
+                startAt: z.coerce.number().int().gte(0).lte(9007199254740991),
+                durationMs: z.coerce.number().int().gt(0).lte(9007199254740991)
             }).optional(),
             locked: z.boolean().optional()
         }), z.object({
@@ -306,14 +306,14 @@ export const zUpdateGateRequest = z.object({
             type: z.literal('rollout'),
             name: z.string().optional(),
             fromTemplate: z.string().nullish(),
-            rolloutPct: z.int().gte(0).lte(10000),
+            rolloutPct: z.coerce.number().int().gte(0).lte(10000),
             bucketBy: z.string().optional(),
             salt: z.string().optional(),
             ramp: z.object({
-                from: z.int().gte(0).lte(10000),
-                to: z.int().gte(0).lte(10000),
-                startAt: z.int().gte(0).lte(9007199254740991),
-                durationMs: z.int().gt(0).lte(9007199254740991)
+                from: z.coerce.number().int().gte(0).lte(10000),
+                to: z.coerce.number().int().gte(0).lte(10000),
+                startAt: z.coerce.number().int().gte(0).lte(9007199254740991),
+                durationMs: z.coerce.number().int().gt(0).lte(9007199254740991)
             }).optional(),
             locked: z.boolean().optional()
         })])).nullish(),
@@ -360,7 +360,7 @@ export const zListExperimentsResponse = z.object({
         ]),
         universe: z.string(),
         targetingGate: z.string().nullable(),
-        allocationPct: z.int().gte(-9007199254740991).lte(9007199254740991),
+        allocationPct: z.coerce.number().int().gte(-9007199254740991).lte(9007199254740991),
         salt: z.string(),
         params: z.record(z.string(), z.enum([
             'string',
@@ -369,12 +369,12 @@ export const zListExperimentsResponse = z.object({
         ])),
         groups: z.array(z.object({
             name: z.string().min(1).max(64),
-            weight: z.int().gte(0).lte(10000),
+            weight: z.coerce.number().int().gte(0).lte(10000),
             params: z.record(z.string(), z.unknown()).optional().default({})
         })),
-        significanceThreshold: z.number(),
-        minRuntimeDays: z.int().gte(-9007199254740991).lte(9007199254740991),
-        minSampleSize: z.int().gte(-9007199254740991).lte(9007199254740991),
+        significanceThreshold: z.coerce.number(),
+        minRuntimeDays: z.coerce.number().int().gte(-9007199254740991).lte(9007199254740991),
+        minSampleSize: z.coerce.number().int().gte(-9007199254740991).lte(9007199254740991),
         sequentialTesting: z.boolean(),
         startedAt: z.string().nullable(),
         stoppedAt: z.string().nullish(),
@@ -420,8 +420,8 @@ export const zCreateExperimentRequest = z.object({
     folder: zFolder.optional(),
     universe: z.string().min(1),
     targeting_gate: z.string().nullish().default(null),
-    allocation_pct: z.int().gte(0).lte(10000).optional().default(0),
-    allocation_percent: z.number().gte(0).lte(100).optional(),
+    allocation_pct: z.coerce.number().int().gte(0).lte(10000).optional().default(0),
+    allocation_percent: z.coerce.number().gte(0).lte(100).optional(),
     salt: z.string().min(1).max(64).optional(),
     params: z.record(z.string(), z.enum([
         'string',
@@ -430,12 +430,12 @@ export const zCreateExperimentRequest = z.object({
     ])).optional().default({}),
     groups: z.array(z.object({
         name: z.string().min(1).max(64),
-        weight: z.int().gte(0).lte(10000),
+        weight: z.coerce.number().int().gte(0).lte(10000),
         params: z.record(z.string(), z.unknown()).optional().default({})
     })).min(2),
-    significance_threshold: z.number().gte(0.0001).lte(0.5).optional().default(0.05),
-    min_runtime_days: z.int().gte(0).lte(365).optional().default(0),
-    min_sample_size: z.int().gte(1).lte(9007199254740991).optional().default(100),
+    significance_threshold: z.coerce.number().gte(0.0001).lte(0.5).optional().default(0.05),
+    min_runtime_days: z.coerce.number().int().gte(0).lte(365).optional().default(0),
+    min_sample_size: z.coerce.number().int().gte(1).lte(9007199254740991).optional().default(100),
     sequential_testing: z.boolean().optional().default(false),
     goal_metric: zExperimentInlineMetric.optional(),
     guardrail_metrics: z.array(zExperimentInlineMetric).max(10).optional().default([])
@@ -464,7 +464,7 @@ export const zGetExperimentResponse = z.object({
     ]),
     universe: z.string(),
     targetingGate: z.string().nullable(),
-    allocationPct: z.int().gte(-9007199254740991).lte(9007199254740991),
+    allocationPct: z.coerce.number().int().gte(-9007199254740991).lte(9007199254740991),
     salt: z.string(),
     params: z.record(z.string(), z.enum([
         'string',
@@ -473,12 +473,12 @@ export const zGetExperimentResponse = z.object({
     ])),
     groups: z.array(z.object({
         name: z.string().min(1).max(64),
-        weight: z.int().gte(0).lte(10000),
+        weight: z.coerce.number().int().gte(0).lte(10000),
         params: z.record(z.string(), z.unknown()).optional().default({})
     })),
-    significanceThreshold: z.number(),
-    minRuntimeDays: z.int().gte(-9007199254740991).lte(9007199254740991),
-    minSampleSize: z.int().gte(-9007199254740991).lte(9007199254740991),
+    significanceThreshold: z.coerce.number(),
+    minRuntimeDays: z.coerce.number().int().gte(-9007199254740991).lte(9007199254740991),
+    minSampleSize: z.coerce.number().int().gte(-9007199254740991).lte(9007199254740991),
     sequentialTesting: z.boolean(),
     startedAt: z.string().nullable(),
     stoppedAt: z.string().nullish(),
@@ -502,8 +502,8 @@ export const zUpdateExperimentRequest = z.object({
     bucket_by: z.string().min(1).max(128).regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/).nullish(),
     folder: zFolder.optional(),
     targeting_gate: z.string().nullish(),
-    allocation_pct: z.int().gte(0).lte(10000).optional(),
-    allocation_percent: z.number().gte(0).lte(100).optional(),
+    allocation_pct: z.coerce.number().int().gte(0).lte(10000).optional(),
+    allocation_percent: z.coerce.number().gte(0).lte(100).optional(),
     salt: z.string().min(1).max(64).optional(),
     universe: z.string().optional(),
     params: z.record(z.string(), z.enum([
@@ -513,12 +513,12 @@ export const zUpdateExperimentRequest = z.object({
     ])).optional(),
     groups: z.array(z.object({
         name: z.string().min(1).max(64),
-        weight: z.int().gte(0).lte(10000),
+        weight: z.coerce.number().int().gte(0).lte(10000),
         params: z.record(z.string(), z.unknown()).optional().default({})
     })).min(2).optional(),
-    significance_threshold: z.number().gte(0.0001).lte(0.5).optional(),
-    min_runtime_days: z.int().gte(0).lte(365).optional(),
-    min_sample_size: z.int().gte(1).lte(9007199254740991).optional(),
+    significance_threshold: z.coerce.number().gte(0.0001).lte(0.5).optional(),
+    min_runtime_days: z.coerce.number().int().gte(0).lte(365).optional(),
+    min_sample_size: z.coerce.number().int().gte(1).lte(9007199254740991).optional(),
     sequential_testing: z.boolean().optional(),
     goal_metric: zExperimentInlineMetric.optional(),
     guardrail_metrics: z.array(zExperimentInlineMetric).max(10).optional()
@@ -591,11 +591,11 @@ export const zGetExperimentResultsResponse = z.object({
         metric: z.string(),
         group_name: z.string(),
         ds: z.string(),
-        n: z.number().nullable(),
-        mean: z.number().nullable(),
-        delta_pct: z.number().nullable(),
-        p_value: z.number().nullable(),
-        srm_detected: z.number().nullable()
+        n: z.coerce.number().nullable(),
+        mean: z.coerce.number().nullable(),
+        delta_pct: z.coerce.number().nullable(),
+        p_value: z.coerce.number().nullable(),
+        srm_detected: z.coerce.number().nullable()
     })),
     verdict: z.enum([
         'ship',
@@ -621,11 +621,11 @@ export const zGetExperimentTimeseriesResponse = z.object({
         metric: z.string(),
         group_name: z.string(),
         ds: z.string(),
-        n: z.number().nullable(),
-        mean: z.number().nullable(),
-        delta_pct: z.number().nullable(),
-        p_value: z.number().nullable(),
-        srm_detected: z.number().nullable()
+        n: z.coerce.number().nullable(),
+        mean: z.coerce.number().nullable(),
+        delta_pct: z.coerce.number().nullable(),
+        p_value: z.coerce.number().nullable(),
+        srm_detected: z.coerce.number().nullable()
     }))
 });
 
@@ -642,14 +642,14 @@ export const zListConfigsResponse = z.object({
         schema: z.record(z.string(), z.unknown()),
         updatedAt: z.string(),
         envs: z.record(z.string(), z.object({
-            version: z.int().gte(-9007199254740991).lte(9007199254740991),
+            version: z.coerce.number().int().gte(-9007199254740991).lte(9007199254740991),
             publishedAt: z.string(),
             publishedBy: z.string()
         })),
         drafts: z.record(z.string(), z.object({
             updatedAt: z.string(),
             authorEmail: z.string(),
-            baseVersion: z.int().gte(-9007199254740991).lte(9007199254740991)
+            baseVersion: z.coerce.number().int().gte(-9007199254740991).lte(9007199254740991)
         })),
         values: z.record(z.string(), z.unknown()).optional(),
         draftValues: z.record(z.string(), z.unknown()).optional()
@@ -685,14 +685,14 @@ export const zGetConfigResponse = z.object({
     schema: z.record(z.string(), z.unknown()),
     updatedAt: z.string(),
     envs: z.record(z.string(), z.object({
-        version: z.int().gte(-9007199254740991).lte(9007199254740991),
+        version: z.coerce.number().int().gte(-9007199254740991).lte(9007199254740991),
         publishedAt: z.string(),
         publishedBy: z.string()
     })),
     drafts: z.record(z.string(), z.object({
         updatedAt: z.string(),
         authorEmail: z.string(),
-        baseVersion: z.int().gte(-9007199254740991).lte(9007199254740991)
+        baseVersion: z.coerce.number().int().gte(-9007199254740991).lte(9007199254740991)
     })),
     values: z.record(z.string(), z.unknown()).optional(),
     draftValues: z.record(z.string(), z.unknown()).optional()
@@ -735,7 +735,7 @@ export const zSaveConfigDraftRequest = z.object({
 export const zSaveConfigDraftResponse = z.object({
     id: z.string(),
     env: zEnv,
-    baseVersion: z.int().gte(-9007199254740991).lte(9007199254740991),
+    baseVersion: z.coerce.number().int().gte(-9007199254740991).lte(9007199254740991),
     updatedAt: z.string()
 });
 
@@ -760,7 +760,7 @@ export const zPublishConfigDraftRequest = z.object({
 export const zPublishConfigDraftResponse = z.object({
     id: z.string(),
     env: zEnv,
-    version: z.int().gte(-9007199254740991).lte(9007199254740991)
+    version: z.coerce.number().int().gte(-9007199254740991).lte(9007199254740991)
 });
 
 /**
@@ -799,7 +799,7 @@ export const zListKillswitchesResponse = z.object({
         envs: z.record(z.string(), z.object({
             value: z.boolean(),
             switches: z.record(z.string(), z.boolean()).optional(),
-            version: z.int().gte(-9007199254740991).lte(9007199254740991),
+            version: z.coerce.number().int().gte(-9007199254740991).lte(9007199254740991),
             publishedAt: z.string(),
             publishedBy: z.string().nullish()
         }))
@@ -831,7 +831,7 @@ export const zGetKillswitchResponse = z.object({
     envs: z.record(z.string(), z.object({
         value: z.boolean(),
         switches: z.record(z.string(), z.boolean()).optional(),
-        version: z.int().gte(-9007199254740991).lte(9007199254740991),
+        version: z.coerce.number().int().gte(-9007199254740991).lte(9007199254740991),
         publishedAt: z.string(),
         publishedBy: z.string().nullish()
     }))
@@ -905,7 +905,7 @@ export const zKillswitchValue = z.object({
 export const zSetKillswitchValueResponse = z.object({
     id: z.string(),
     env: zEnv,
-    version: z.int().gte(-9007199254740991).lte(9007199254740991),
+    version: z.coerce.number().int().gte(-9007199254740991).lte(9007199254740991),
     published: zKillswitchValue
 });
 
@@ -914,7 +914,7 @@ export const zListUniversesResponse = z.object({
         id: z.string(),
         name: z.string().max(128).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$/),
         unitType: z.string(),
-        holdoutRange: z.tuple([z.number(), z.number()]).nullable(),
+        holdoutRange: z.tuple([z.coerce.number(), z.coerce.number()]).nullable(),
         createdAt: z.string()
     })),
     next_cursor: z.string().nullable()
@@ -927,7 +927,7 @@ export const zCreateUniverseRequest = z.object({
     name: z.string().max(128).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$/),
     folder: zFolder.optional(),
     unit_type: z.string().optional().default('user_id'),
-    holdout_range: z.tuple([z.int().gte(0).lte(9999), z.int().gte(0).lte(9999)]).nullish().default(null)
+    holdout_range: z.tuple([z.coerce.number().int().gte(0).lte(9999), z.coerce.number().int().gte(0).lte(9999)]).nullish().default(null)
 });
 
 export const zCreateUniverseResponse = z.object({
@@ -944,7 +944,7 @@ export const zDeleteUniverseResponse = z.object({
  */
 export const zUpdateUniverseRequest = z.object({
     folder: zFolder.optional(),
-    holdout_range: z.tuple([z.int().gte(0).lte(9999), z.int().gte(0).lte(9999)]).nullish()
+    holdout_range: z.tuple([z.coerce.number().int().gte(0).lte(9999), z.coerce.number().int().gte(0).lte(9999)]).nullish()
 });
 
 export const zUpdateUniverseResponse = z.object({
@@ -1076,7 +1076,7 @@ export const zListMetricsResponse = z.array(z.object({
             }),
             z.object({
                 kind: z.literal('retention_Nd'),
-                n: z.int().gte(1).lte(90)
+                n: z.coerce.number().int().gte(1).lte(90)
             }),
             z.object({
                 kind: z.literal('ratio'),
@@ -1132,8 +1132,8 @@ export const zListMetricsResponse = z.array(z.object({
         'lower_better',
         'neutral'
     ]).optional(),
-    winsorizePct: z.number().optional(),
-    minDetectableEffect: z.number().nullish(),
+    winsorizePct: z.coerce.number().optional(),
+    minDetectableEffect: z.coerce.number().nullish(),
     createdAt: z.string().optional(),
     updatedAt: z.string().optional()
 }));
@@ -1182,7 +1182,7 @@ export const zCreateMetricRequest = z.object({
             }),
             z.object({
                 kind: z.literal('retention_Nd'),
-                n: z.int().gte(1).lte(90)
+                n: z.coerce.number().int().gte(1).lte(90)
             }),
             z.object({
                 kind: z.literal('ratio'),
@@ -1233,8 +1233,8 @@ export const zCreateMetricRequest = z.object({
             labels: z.array(z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/)).max(5)
         }).optional()
     }).optional(),
-    winsorize_pct: z.int().gte(1).lte(99).optional().default(99),
-    min_detectable_effect: z.number().nullish().default(null),
+    winsorize_pct: z.coerce.number().int().gte(1).lte(99).optional().default(99),
+    min_detectable_effect: z.coerce.number().nullish().default(null),
     direction: z.enum([
         'higher_better',
         'lower_better',
@@ -1297,7 +1297,7 @@ export const zGetMetricResponse = z.object({
             }),
             z.object({
                 kind: z.literal('retention_Nd'),
-                n: z.int().gte(1).lte(90)
+                n: z.coerce.number().int().gte(1).lte(90)
             }),
             z.object({
                 kind: z.literal('ratio'),
@@ -1353,8 +1353,8 @@ export const zGetMetricResponse = z.object({
         'lower_better',
         'neutral'
     ]).optional(),
-    winsorizePct: z.number().optional(),
-    minDetectableEffect: z.number().nullish(),
+    winsorizePct: z.coerce.number().optional(),
+    minDetectableEffect: z.coerce.number().nullish(),
     createdAt: z.string().optional(),
     updatedAt: z.string().optional()
 });
@@ -1410,7 +1410,7 @@ export const zQueryIr = z.object({
         }),
         z.object({
             kind: z.literal('retention_Nd'),
-            n: z.int().gte(1).lte(90)
+            n: z.coerce.number().int().gte(1).lte(90)
         }),
         z.object({
             kind: z.literal('ratio'),
@@ -1465,12 +1465,12 @@ export const zQueryIr = z.object({
 /**
  * Winsorise percentile (1–99) to clamp outliers. Defaults to 99.
  */
-export const zWinsorizePct = z.int().gte(1).lte(99).default(99);
+export const zWinsorizePct = z.coerce.number().int().gte(1).lte(99).default(99);
 
 /**
  * Minimum detectable effect (relative, 0–1) for power planning. `null` to omit.
  */
-export const zMinDetectableEffect = z.number().nullable().default(null);
+export const zMinDetectableEffect = z.coerce.number().nullable().default(null);
 
 /**
  * Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).
@@ -1512,7 +1512,7 @@ export const zListEventsResponse = z.array(z.object({
         required: z.boolean().optional().default(false),
         description: z.string().optional().default('')
     })),
-    pending: z.int().gte(-9007199254740991).lte(9007199254740991),
+    pending: z.coerce.number().int().gte(-9007199254740991).lte(9007199254740991),
     createdAt: z.string()
 }));
 
@@ -1561,7 +1561,7 @@ export const zGetEventResponse = z.object({
         required: z.boolean().optional().default(false),
         description: z.string().optional().default('')
     })),
-    pending: z.int().gte(-9007199254740991).lte(9007199254740991),
+    pending: z.coerce.number().int().gte(-9007199254740991).lte(9007199254740991),
     createdAt: z.string()
 });
 
@@ -1627,7 +1627,7 @@ export const zApproveEventResponse = z.object({
  */
 export const zListOpsItemsResponse = z.array(z.object({
     id: z.string(),
-    number: z.number().nullable(),
+    number: z.coerce.number().nullable(),
     type: z.enum([
         'bug',
         'feature_request',
@@ -1670,7 +1670,7 @@ export const zNotificationTarget = z.object({
  */
 export const zCreateBugRequest = z.object({
     type: z.enum(['bug']),
-    title: z.string().min(1).max(200),
+    title: z.string().min(1).max(200).regex(/^\S(.*\S)?$/),
     stepsToReproduce: z.string().max(8000).optional().default(''),
     actualResult: z.string().max(8000).optional().default(''),
     expectedResult: z.string().max(8000).optional().default(''),
@@ -1693,7 +1693,7 @@ export const zCreateBugRequest = z.object({
  */
 export const zCreateFeatureRequestRequest = z.object({
     type: z.enum(['feature_request']),
-    title: z.string().min(1).max(200),
+    title: z.string().min(1).max(200).regex(/^\S(.*\S)?$/),
     description: z.string().max(8000).optional().default(''),
     useCase: z.string().max(8000).optional().default(''),
     priority: z.enum([
@@ -1722,7 +1722,7 @@ export const zCreateOpsItemRequest = z.discriminatedUnion('type', [
  */
 export const zCreateOpsItemResponse = z.object({
     id: z.string(),
-    number: z.number().nullish()
+    number: z.coerce.number().nullish()
 });
 
 /**
@@ -1730,7 +1730,7 @@ export const zCreateOpsItemResponse = z.object({
  */
 export const zGetOpsItemResponse = z.object({
     id: z.string(),
-    number: z.number().nullable(),
+    number: z.coerce.number().nullable(),
     type: z.enum([
         'bug',
         'feature_request',
@@ -1802,13 +1802,13 @@ export const zOpsItemNotifyOrNull = zNotificationTarget.nullable();
  * Content + triage update for a `bug` item (`PATCH /api/admin/ops/{handle}` when the item is a bug).
  */
 export const zUpdateBugRequest = z.object({
-    title: z.string().min(1).max(200).optional(),
+    title: z.string().min(1).max(200).regex(/^\S(.*\S)?$/).optional(),
     stepsToReproduce: z.string().max(8000).optional(),
     actualResult: z.string().max(8000).optional(),
     expectedResult: z.string().max(8000).optional(),
     status: zOpsItemStatus.optional(),
     priority: zOpsItemPriorityOrNull.optional(),
-    githubPrNumber: z.int().gte(1).nullish(),
+    githubPrNumber: z.coerce.number().int().gte(1).nullish(),
     notify: zOpsItemNotifyOrNull.optional()
 });
 
@@ -1816,12 +1816,12 @@ export const zUpdateBugRequest = z.object({
  * Content + triage update for a `feature_request` item (`PATCH /api/admin/ops/{handle}` when the item is a feature request).
  */
 export const zUpdateFeatureRequestRequest = z.object({
-    title: z.string().min(1).max(200).optional(),
+    title: z.string().min(1).max(200).regex(/^\S(.*\S)?$/).optional(),
     description: z.string().max(8000).optional(),
     useCase: z.string().max(8000).optional(),
     status: zOpsItemStatus.optional(),
     priority: zOpsItemPriorityOrNull.optional(),
-    githubPrNumber: z.int().gte(1).nullish(),
+    githubPrNumber: z.coerce.number().int().gte(1).nullish(),
     notify: zOpsItemNotifyOrNull.optional()
 });
 
@@ -1854,7 +1854,7 @@ export const zUpdateOpsItemResponse = z.object({
  * Body for `POST /api/admin/ops/{handle}/link-pr`.
  */
 export const zLinkPrToOpsItemRequest = z.object({
-    prNumber: z.int().gt(0).lte(9007199254740991).nullable(),
+    prNumber: z.coerce.number().int().gt(0).lte(9007199254740991).nullable(),
     prUrl: z.url().optional()
 });
 
@@ -1907,8 +1907,8 @@ export const zListAlertRulesResponse = z.array(z.object({
         'lt',
         'lte'
     ]),
-    threshold: z.number(),
-    windowHours: z.int().gte(-9007199254740991).lte(9007199254740991),
+    threshold: z.coerce.number(),
+    windowHours: z.coerce.number().int().gte(-9007199254740991).lte(9007199254740991),
     severity: z.enum([
         'danger',
         'warn',
@@ -1929,8 +1929,8 @@ export const zCreateAlertRuleRequest = z.object({
         'lt',
         'lte'
     ]),
-    threshold: z.number(),
-    windowHours: z.int().gte(1).lte(720).optional().default(24),
+    threshold: z.coerce.number(),
+    windowHours: z.coerce.number().int().gte(1).lte(720).optional().default(24),
     severity: z.enum([
         'danger',
         'warn',
@@ -1956,8 +1956,8 @@ export const zUpdateAlertRuleRequest = z.object({
         'lt',
         'lte'
     ]).optional(),
-    threshold: z.number().optional(),
-    windowHours: z.int().gte(1).lte(720).optional(),
+    threshold: z.coerce.number().optional(),
+    windowHours: z.coerce.number().int().gte(1).lte(720).optional(),
     severity: z.enum([
         'danger',
         'warn',
@@ -1985,26 +1985,26 @@ export const zGetCurrentProjectResponse = z.object({
     billingInterval: z.enum(['monthly', 'annual']),
     currentPeriodEnd: z.string().nullable(),
     trialEndsAt: z.string().nullable(),
-    cancelAtPeriodEnd: z.number(),
+    cancelAtPeriodEnd: z.coerce.number(),
     moduleTranslations: z.union([
         z.boolean(),
-        z.number()
+        z.coerce.number()
     ]),
     moduleConfigs: z.union([
         z.boolean(),
-        z.number()
+        z.coerce.number()
     ]),
     moduleGates: z.union([
         z.boolean(),
-        z.number()
+        z.coerce.number()
     ]),
     moduleExperiments: z.union([
         z.boolean(),
-        z.number()
+        z.coerce.number()
     ]),
     moduleFeedback: z.union([
         z.boolean(),
-        z.number()
+        z.coerce.number()
     ]),
     createdAt: z.string(),
     updatedAt: z.string()
@@ -2014,7 +2014,7 @@ export const zGetCurrentProjectResponse = z.object({
  * Body for `POST /api/admin/projects/upsert`. Only `domain` is required; the owner is resolved from the caller's session.
  */
 export const zUpsertProjectRequest = z.object({
-    domain: z.string().min(1).max(2048),
+    domain: z.string().min(1).max(2048).regex(/^(\*|(\*\.)?[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+)$/),
     name: z.string().min(1).max(100).optional()
 });
 
@@ -2032,7 +2032,7 @@ export const zUpsertProjectResponse = z.object({
 export const zListI18nProfilesResponse = z.array(z.object({
     id: z.string(),
     name: z.string(),
-    isDefault: z.number().optional(),
+    isDefault: z.coerce.number().optional(),
     createdAt: z.string().optional(),
     deletedAt: z.string().nullish()
 }));
@@ -2067,7 +2067,7 @@ export const zListI18nKeysResponse = z.object({
         updatedAt: z.string().optional(),
         updatedBy: z.string().optional()
     })),
-    total: z.number()
+    total: z.coerce.number()
 });
 
 /**
@@ -2090,8 +2090,8 @@ export const zPushI18nKeysRequest = z.object({
 export const zPushI18nKeysResponse = z.object({
     added: z.array(z.string()),
     skipped: z.array(z.string()),
-    pushed_count: z.number(),
-    skipped_count: z.number(),
+    pushed_count: z.coerce.number(),
+    skipped_count: z.coerce.number(),
     chunk: z.string().optional()
 });
 
@@ -2180,7 +2180,7 @@ export const zPublishI18nProfileResponse = z.object({
     chunk: z.string().nullable(),
     published_at: z.string(),
     version: z.string(),
-    key_count: z.number(),
+    key_count: z.coerce.number(),
     changed: z.boolean(),
     purged: z.enum([
         'purged',
@@ -2212,7 +2212,7 @@ export const zSetI18nLabelResponse = z.object({
     value: z.string(),
     published_at: z.string(),
     version: z.string(),
-    key_count: z.number(),
+    key_count: z.coerce.number(),
     changed: z.boolean(),
     purged: z.enum([
         'purged',
@@ -2252,7 +2252,7 @@ export const zErrorRecord = z.object({
     ]).nullish(),
     lastExtrasJson: z.string().nullish(),
     sdkVersion: z.string().nullish(),
-    count: z.int().gte(1),
+    count: z.coerce.number().int().gte(1),
     status: z.enum([
         'open',
         'resolved',
@@ -2285,16 +2285,16 @@ export const zUpdateErrorStatusRequest = z.object({
  */
 export const zFileErrorTicketResponse = z.object({
     id: z.string(),
-    number: z.int()
+    number: z.coerce.number().int()
 });
 
 /**
  * Time window for the occurrence series. Bounds are epoch **seconds** (Analytics Engine stores the occurrence timestamp in seconds). `to` must be strictly greater than `from`.
  */
 export const zErrorSeriesRequest = z.object({
-    from: z.int().gte(0),
-    to: z.int().gte(0),
-    bucket: z.int().gte(60).lte(86400).optional().default(3600)
+    from: z.coerce.number().int().gte(0),
+    to: z.coerce.number().int().gte(0),
+    bucket: z.coerce.number().int().gte(60).lte(86400).optional().default(3600)
 });
 
 /**
@@ -2303,8 +2303,8 @@ export const zErrorSeriesRequest = z.object({
 export const zErrorSeriesResponse = z.object({
     sql: z.string(),
     rows: z.array(z.object({
-        t: z.int(),
-        v: z.number()
+        t: z.coerce.number().int(),
+        v: z.coerce.number()
     }))
 });
 
@@ -2564,7 +2564,7 @@ export const zCreateKeyRequest = z.object({
         'configs:write',
         'experiments:write'
     ])).optional(),
-    expiresInDays: z.int().gte(1).lte(3650).nullish(),
+    expiresInDays: z.coerce.number().int().gte(1).lte(3650).nullish(),
     env: z.enum([
         'dev',
         'staging',
@@ -2633,7 +2633,7 @@ export const zProjectId = z.string();
 /**
  * Page size (1–500). Defaults to 100.
  */
-export const zPaginationLimit = z.int().gte(1).lte(500).default(100);
+export const zPaginationLimit = z.coerce.number().int().gte(1).lte(500).default(100);
 
 /**
  * Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page.
@@ -2645,7 +2645,7 @@ export const zListGatesHeaders = z.object({
 });
 
 export const zListGatesQuery = z.object({
-    limit: z.int().gte(1).lte(500).optional().default(100),
+    limit: z.coerce.number().int().gte(1).lte(500).optional().default(100),
     cursor: z.string().optional()
 });
 
@@ -2724,7 +2724,7 @@ export const zListExperimentsHeaders = z.object({
 });
 
 export const zListExperimentsQuery = z.object({
-    limit: z.int().gte(1).lte(500).optional().default(100),
+    limit: z.coerce.number().int().gte(1).lte(500).optional().default(100),
     cursor: z.string().optional()
 });
 
@@ -2863,7 +2863,7 @@ export const zListConfigsHeaders = z.object({
 });
 
 export const zListConfigsQuery = z.object({
-    limit: z.int().gte(1).lte(500).optional().default(100),
+    limit: z.coerce.number().int().gte(1).lte(500).optional().default(100),
     cursor: z.string().optional()
 });
 
@@ -2978,7 +2978,7 @@ export const zListConfigActivityPath = z.object({
 });
 
 export const zListConfigActivityQuery = z.object({
-    limit: z.int().gte(1).lte(100).optional().default(20)
+    limit: z.coerce.number().int().gte(1).lte(100).optional().default(20)
 });
 
 /**
@@ -3006,7 +3006,7 @@ export const zListKillswitchesHeaders = z.object({
 });
 
 export const zListKillswitchesQuery = z.object({
-    limit: z.int().gte(1).lte(500).optional().default(100),
+    limit: z.coerce.number().int().gte(1).lte(500).optional().default(100),
     cursor: z.string().optional()
 });
 
@@ -3117,7 +3117,7 @@ export const zListUniversesHeaders = z.object({
 });
 
 export const zListUniversesQuery = z.object({
-    limit: z.int().gte(1).lte(500).optional().default(100),
+    limit: z.coerce.number().int().gte(1).lte(500).optional().default(100),
     cursor: z.string().optional()
 });
 
@@ -3388,7 +3388,7 @@ export const zListOpsItemsQuery = z.object({
         ]),
         z.literal('all')
     ]).optional(),
-    limit: z.int().gte(1).lte(500).optional()
+    limit: z.coerce.number().int().gte(1).lte(500).optional()
 });
 
 /**
@@ -3566,7 +3566,7 @@ export const zListI18nKeysQuery = z.object({
     profile_id: z.string().optional(),
     prefix: z.string().optional(),
     q: z.string().optional(),
-    limit: z.int().gte(1).lte(500).optional()
+    limit: z.coerce.number().int().gte(1).lte(500).optional()
 });
 
 /**
@@ -3673,7 +3673,7 @@ export const zListErrorsQuery = z.object({
         'all'
     ]).optional().default('all'),
     q: z.string().max(200).optional(),
-    limit: z.int().gte(1).lte(500).optional().default(200)
+    limit: z.coerce.number().int().gte(1).lte(500).optional().default(200)
 });
 
 /**
@@ -3831,7 +3831,7 @@ export const zListKeysHeaders = z.object({
 });
 
 export const zListKeysQuery = z.object({
-    limit: z.int().gte(1).lte(500).optional().default(100),
+    limit: z.coerce.number().int().gte(1).lte(500).optional().default(100),
     cursor: z.string().optional()
 });
 
