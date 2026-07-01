@@ -33,9 +33,16 @@ describe("custom-operations registry", () => {
     await expect(get.run({ sdk: "cobol", path: "flags" })).rejects.toThrow(/Unknown SDK/);
   });
 
-  it("docs params mark sdk required and path positional", () => {
+  it("docs params mark sdk optional (defaulted from .shipeasy) and path positional", () => {
     const get = customOperations.find((o) => opId(o) === "docs.get")!;
-    expect(get.params.find((p) => p.name === "sdk")?.required).toBe(true);
+    // `sdk` is optional: the CLI/MCP adapters default it from the nearest
+    // `.shipeasy`, and the op throws a clear error only if it's still empty.
+    expect(get.params.find((p) => p.name === "sdk")?.required).toBe(false);
     expect(get.params.find((p) => p.name === "path")?.positional).toBe(true);
+  });
+
+  it("docs get rejects a missing SDK with actionable guidance", async () => {
+    const get = customOperations.find((o) => opId(o) === "docs.get")!;
+    await expect(get.run({ path: "flags" })).rejects.toThrow(/No SDK given and none recorded/);
   });
 });

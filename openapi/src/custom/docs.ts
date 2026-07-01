@@ -49,6 +49,21 @@ const DEFAULT_CONTENT: Record<string, string> = {
     "---\nname: shipeasy-sdk\ndescription: Use the Shipeasy SDK for flags, experiments, configs, and i18n.\n---\n\nThis SDK has not published a skill yet. See https://docs.shipeasy.ai.",
 };
 
+/**
+ * Resolve the caller-supplied `sdk`. The adapters (CLI/MCP) default it from the
+ * nearest `.shipeasy` before we get here, so an empty value means neither a flag
+ * nor a bound project supplied one — surface that explicitly.
+ */
+function requireSdk(sdk: unknown): string {
+  const s = typeof sdk === "string" ? sdk.trim() : "";
+  if (!s)
+    throw new CustomOpError(
+      `No SDK given and none recorded in .shipeasy. Pass --sdk <lang> (one of: ${SDK_ENUM.join(", ")}), ` +
+        `or run \`shipeasy detect\` in the project to record its sdk.`,
+      400,
+    );
+  return s;
+}
 function repoFor(sdk: string): { owner: string; repo: string } {
   const r = SDK_REPOS[sdk.toLowerCase()];
   if (!r) throw new CustomOpError(`Unknown SDK '${sdk}'. One of: ${SDK_ENUM.join(", ")}`, 400);
@@ -104,12 +119,13 @@ export const docsOps: CustomOp[] = [
     summary: "List an SDK's documentation tree",
     description:
       "Fetch an SDK's `/docs/manifest.json` and return the doc tree — feature pages, nested snippet groups, and whether an installable skill exists.",
-    params: [{ name: "sdk", type: "string", description: "SDK language.", required: true, enum: SDK_ENUM }],
+    params: [{ name: "sdk", type: "string", description: "SDK language. Defaults to the `sdk` recorded in the nearest `.shipeasy` when omitted.", required: false, enum: SDK_ENUM }],
     examples: [{ run: "shipeasy docs list --sdk python" }],
     run: async (args) => {
-      const { manifest, fallback } = await loadManifest(args.sdk as string);
+      const sdk = requireSdk(args.sdk);
+      const { manifest, fallback } = await loadManifest(sdk);
       return {
-        sdk: args.sdk,
+        sdk,
         fallback,
         pages: Object.keys(manifest.pages ?? {}),
         snippets: Object.fromEntries(
@@ -126,7 +142,7 @@ export const docsOps: CustomOp[] = [
     description:
       "Fetch one feature page (`flags`, `experiments`, …) or nested snippet (`release/experiments`, …), substituting declared {{placeholders}} from caller args.",
     params: [
-      { name: "sdk", type: "string", description: "SDK language.", required: true, enum: SDK_ENUM },
+      { name: "sdk", type: "string", description: "SDK language. Defaults to the `sdk` recorded in the nearest `.shipeasy` when omitted.", required: false, enum: SDK_ENUM },
       { name: "path", type: "string", description: "Page key or snippet 'group/resource'.", required: true, positional: true },
       { name: "framework", type: "string", description: "Framework hint (substitutes {{FRAMEWORK}})." },
       { name: "name", type: "string", description: "Resource name (substitutes {{RESOURCE_NAME}})." },
@@ -136,7 +152,7 @@ export const docsOps: CustomOp[] = [
       { note: "A nested snippet", run: "shipeasy docs get --sdk typescript release/flags --name checkout_v2" },
     ],
     run: async (args) => {
-      const sdk = args.sdk as string;
+      const sdk = requireSdk(args.sdk);
       const { manifest, fallback } = await loadManifest(sdk);
       const path = resolvePath(manifest, args.path as string);
       const body = fallback ? DEFAULT_CONTENT[path] : ((await fetchText(`${pagesBase(sdk)}/${path}`)) ?? undefined);
@@ -151,12 +167,12 @@ export const docsOps: CustomOp[] = [
     description:
       "Fetch the SDK's `skill/SKILL.md` (frontmatter intact) so an agent can install it verbatim. The CLI `--install` writes it locally (a consumer fs side-effect).",
     params: [
-      { name: "sdk", type: "string", description: "SDK language.", required: true, enum: SDK_ENUM },
+      { name: "sdk", type: "string", description: "SDK language. Defaults to the `sdk` recorded in the nearest `.shipeasy` when omitted.", required: false, enum: SDK_ENUM },
       { name: "install", type: "boolean", description: "CLI only: write the skill to the local agent skills dir." },
     ],
     examples: [{ run: "shipeasy docs skill --sdk python" }],
     run: async (args) => {
-      const sdk = args.sdk as string;
+      const sdk = requireSdk(args.sdk);
       const { manifest, fallback } = await loadManifest(sdk);
       const skillPath = manifest.skill ?? "skill/SKILL.md";
       const content = fallback ? DEFAULT_CONTENT[skillPath] : ((await fetchText(`${pagesBase(sdk)}/${skillPath}`)) ?? undefined);

@@ -24,7 +24,7 @@ keeps.
    `/shipeasy:setup` first:
 
    ```bash
-   test -f .shipeasy && shipeasy whoami | grep -q "Bound dir" && echo OK
+   shipeasy root >/dev/null 2>&1 && echo OK   # a .shipeasy is bound at or above cwd
    ```
 
 2. Run the installer (uses `en:prod` by default — it matches the default

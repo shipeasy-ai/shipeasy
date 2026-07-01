@@ -6,6 +6,7 @@ import { join, resolve } from "node:path";
 import { customOperations, CustomOpError, type CustomOp } from "@shipeasy/openapi/custom";
 import { defineGroup, num, bool, str } from "./_gen-runtime";
 import { printJson } from "../util/output";
+import { getBoundSdk } from "../util/project-config";
 
 /**
  * CLI adapter for the shared custom-operations registry (`@shipeasy/openapi/custom`)
@@ -111,6 +112,12 @@ export function customCommands(program: Command): void {
       const pos = argv.slice(0, positionals.length).map(String);
       try {
         const args = coerce(op, pos, opts);
+        // `docs` defaults its `--sdk` to the `sdk` recorded in the nearest
+        // `.shipeasy`, so callers inside a bound project can omit it.
+        if (op.group[0] === "docs" && !args.sdk) {
+          const sdk = getBoundSdk(process.cwd());
+          if (sdk) args.sdk = sdk;
+        }
         const result = await op.run(args);
         // `docs skill --install` installs the fetched skill (delegating agent
         // detection + placement to the `skills` CLI).

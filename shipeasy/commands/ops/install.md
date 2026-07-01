@@ -34,7 +34,7 @@ latest and retry once before treating anything as a bug:
 ## 1. Confirm base is in place
 
 ```bash
-test -f .shipeasy && shipeasy whoami | grep -q "Bound dir" && echo OK
+shipeasy root >/dev/null 2>&1 && echo OK   # a .shipeasy is bound at or above cwd
 ```
 
 If the check fails, stop and tell the user to run `/shipeasy:setup` first.

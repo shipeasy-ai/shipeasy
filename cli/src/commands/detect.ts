@@ -2,7 +2,32 @@ import path from "node:path";
 import { Command } from "commander";
 import { detectTargets, type TargetRecommendation } from "./scan";
 import { printJson } from "../util/output";
+import { mergeDetected } from "../util/project-config";
 import { withExamples, withDetails, withOutput } from "../util/examples";
+
+/**
+ * Record what we detected into each real target's own `.shipeasy` (non-
+ * destructively — `project_id` is never touched). This seeds the `sdk` the
+ * `docs` commands default to, even before the project is bound. Skips the
+ * workspace-root / unsupported folders that carry no SDK. Returns the paths
+ * written so the caller can surface them.
+ */
+function recordDetection(targets: TargetRecommendation[]): string[] {
+  const written: string[] = [];
+  for (const t of targets) {
+    const { sdk, action } = t.recommendation;
+    // Only real projects get a file: not unsupported langs, not JS workspace
+    // roots (those aren't a project — the subprojects beneath them are).
+    if (!sdk || action === "skip_workspace_root" || action === "skip_unsupported") continue;
+    const { path: p } = mergeDetected(t.path, {
+      language: t.language,
+      sdk,
+      frameworks: t.frameworks,
+    });
+    written.push(p);
+  }
+  return written;
+}
 
 const ACTION_GLYPH: Record<string, string> = {
   install: "▸",
@@ -58,11 +83,18 @@ export function detectCommand(parent: Command): void {
         process.exit(1);
       });
       if (!result) return;
+      const wrote = recordDetection(result.targets);
       if (opts.json) {
-        printJson(result);
+        printJson({ ...result, recorded: wrote });
         return;
       }
       printHuman(result.root, result.targets);
+      if (wrote.length) {
+        console.log(
+          `\nRecorded language/sdk into ${wrote.length} .shipeasy file(s):\n` +
+            wrote.map((p) => `  ${rel(result.root, p)}`).join("\n"),
+        );
+      }
     });
 
   withDetails(
@@ -78,7 +110,11 @@ export function detectCommand(parent: Command): void {
       "get` line that pulls the version-correct install + `configure()` wiring for that " +
       "language, and the feature-install skills to run next. Already-onboarded folders " +
       "and JS workspace roots are flagged so they're skipped. Use `--json` to drive it " +
-      "programmatically.",
+      "programmatically.\n\n" +
+      "It also **writes what it detected** — the `language`, `sdk`, and `frameworks` — into " +
+      "each real target's own `.shipeasy` (non-destructively; `project_id` is never touched), " +
+      "recording one file per project and seeding the `sdk` that `shipeasy docs` defaults to. " +
+      "`--json` echoes the written paths under `recorded`.",
   );
 
   withExamples(cmd, [
@@ -115,6 +151,7 @@ export function detectCommand(parent: Command): void {
           },
         },
       ],
+      recorded: ["/repo/apps/web/.shipeasy"],
     },
   });
 }

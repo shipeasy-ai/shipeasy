@@ -16,7 +16,8 @@ import { setupCommand } from "./commands/setup";
 import { installCommand } from "./commands/install";
 import { triggerCommand } from "./commands/trigger";
 import { detectCommand } from "./commands/detect";
-import { bindProject } from "./util/project-config";
+import { bindProject, findProjectConfigDir, readProjectConfig } from "./util/project-config";
+import { printJson } from "./util/output";
 import { reportCliError } from "./util/error-reporter";
 import { withExamples, withDetails, withTreeHelp } from "./util/examples";
 
@@ -112,6 +113,46 @@ export function buildProgram(): Command {
     { run: "shipeasy bind", note: "bind to the active session's project" },
     { run: "shipeasy bind proj_abc123" },
     { run: "shipeasy bind proj_abc123 --name 'Acme Web'" },
+  ]);
+
+  const rootCmd = program
+    .command("root")
+    .description("Print the project root — the nearest .shipeasy dir (walks up from cwd, like .git)")
+    .option("--json", "Output the resolved root as JSON")
+    .action((opts: { json?: boolean }) => {
+      const dir = findProjectConfigDir(process.cwd());
+      if (!dir) {
+        console.error(
+          "No .shipeasy found from this directory upward. This dir isn't inside a bound\n" +
+            "Shipeasy project. Bind one with `shipeasy bind <project_id>` (or `shipeasy detect`\n" +
+            "to record language/sdk), or run `shipeasy login` to create/pick a project.",
+        );
+        process.exit(1);
+      }
+      const cfg = readProjectConfig(dir);
+      if (opts.json) {
+        printJson({ root: dir, project_id: cfg.project_id ?? null, sdk: cfg.sdk ?? null });
+        return;
+      }
+      console.log(dir);
+      if (cfg.project_id) console.log(`  project: ${cfg.project_id}`);
+      if (cfg.sdk) console.log(`  sdk:     ${cfg.sdk}`);
+    });
+
+  withDetails(
+    rootCmd,
+    "The project root is **the folder that holds `.shipeasy`**, found by walking up from " +
+      "the cwd (like git finds `.git`). The nearest file wins, so a subproject's own " +
+      "`.shipeasy` shadows any ancestor and the walk stops there — one `.shipeasy` per " +
+      "project. Use this instead of `git rev-parse --show-toplevel` when you need the " +
+      "Shipeasy project boundary: it respects a subproject root and never overshoots to " +
+      "the git root above it. Exits non-zero (with guidance) when nothing is bound.",
+  );
+
+  withExamples(rootCmd, [
+    { run: "shipeasy root", note: "print the nearest .shipeasy dir" },
+    { run: "shipeasy root --json", note: "root + project_id + sdk, machine-readable" },
+    { run: "cd \"$(shipeasy root)\"", note: "cd to the project root" },
   ]);
 
   // ── Generated command tree ────────────────────────────────────────────────

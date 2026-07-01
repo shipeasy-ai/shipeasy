@@ -26,8 +26,12 @@ so it never goes stale; the docs are the version-correct source of truth and
    browser, the user clicks Authorize, the CLI exits 0. Just run it and wait.
 3. **Never `git commit`/`git push`/`npm publish`.** Stop at "ready to commit".
 4. **Never log a server key.** Strip `sdk_server_*` from any output.
-5. **One project per repo, always bound.** A single `.shipeasy` at the monorepo
-   root covers every subproject; commit it.
+5. **One `.shipeasy` per project, always bound.** Each install target gets its
+   own `.shipeasy` at its own root — carrying that app's `project_id` **and** its
+   detected `sdk`/`language`. The nearest file wins on read, so the boundary is
+   the app folder and never overshoots to the git root. Commit them. Use
+   `shipeasy root` (not `git rev-parse --show-toplevel`) to resolve "the project
+   root."
 6. **One `configure(...)` per runtime.** No `src/lib/shipeasy.ts` wrappers.
 
 ## First fix: update before you debug
@@ -85,22 +89,33 @@ or `skip_workspace_root` / `skip_unsupported` (don't install). The `sdk` field i
 exactly the value the `docs` lookups in step 4 take. Print the target list and
 act only on the `install` / `set_key` folders.
 
+`detect` also **writes** each real target's own `.shipeasy` with its
+`sdk`/`language`/`frameworks` (non-destructively — never `project_id`); the
+`recorded` array lists the files it touched. From now on `docs get <page>` in a
+target defaults `--sdk` from that file, so you rarely pass it.
+
 ---
 
-## 2. Authenticate + bind
+## 2. Authenticate + bind (per target)
+
+Authenticate once, then bind **each install target in its own folder** so every
+app carries its own `.shipeasy` (the folder that holds it IS that app's root).
 
 ```bash
-cd "$(git rev-parse --show-toplevel)"
 shipeasy whoami    # skip login if already authed
 shipeasy login     # opens browser; user picks/creates a project (idempotent on owner+domain)
-shipeasy whoami    # re-verify; writes ~/.config/shipeasy/config.json + .shipeasy in cwd
+# For each install/set_key target from step 1 — defaults to the session's
+# project; pass a different project_id if the user wants apps kept separate:
+( cd <target> && shipeasy bind )   # writes <target>/.shipeasy → project_id (preserves detect's sdk)
+( cd <target> && shipeasy root )   # re-verify: prints the target dir + project + sdk
 ```
 
-Verify: `shipeasy whoami` shows a bound dir and `.shipeasy` has `project_id`.
-Self-heal: `401` → `shipeasy logout && shipeasy login` (retry once); headless →
-`shipeasy login` always prints the auth URL — surface it once for the user to
-open manually. **One project per repo** —
-the single root `.shipeasy` is inherited by subprojects (like `.git`).
+Verify: `shipeasy root` inside each target prints that target's own dir and a
+`project_id` (detect already recorded its `sdk`). Self-heal: `401` →
+`shipeasy logout && shipeasy login` (retry once); headless → `shipeasy login`
+always prints the auth URL — surface it once for the user to open manually.
+**One `.shipeasy` per project** — the nearest file wins, so binding a subproject
+never mutates an ancestor.
 
 ---
 
@@ -209,12 +224,13 @@ Feature add-ons: `/shipeasy:flags:install`, `/shipeasy:ops:install`,
 ## 7. Final verification gate
 
 ```bash
-cd "$(git rev-parse --show-toplevel)"
-shipeasy whoami && test -f .shipeasy && shipeasy i18n keys list && shipeasy projects current
+shipeasy whoami && shipeasy i18n keys list && shipeasy projects current
+( cd <target> && shipeasy root )                          # per install target — prints its dir + project + sdk
 ( cd <js-subproject> && (pnpm build || npm run build) )   # per JS subproject
 ```
 
-Every line must pass before reporting done.
+Every line must pass before reporting done (`shipeasy root` must resolve inside
+each target you onboarded).
 
 ---
 
@@ -250,9 +266,11 @@ Invoke the selected installs in order; if none, finish.
 
 ```bash
 git status && git diff --stat
-git add .shipeasy .claude/skills/shipeasy-setup <subproject>/<manifest+lockfile> <entry-files>
+git add <target>/.shipeasy .claude/skills/shipeasy-setup <subproject>/<manifest+lockfile> <entry-files>
 git commit -m "chore: onboard Shipeasy base (SDK + auth + bind)"
 ```
+
+Stage each target's own `.shipeasy` (one per onboarded app), not a single root file.
 
 Confirm `.env*` is gitignored first. Never `git add -A`.
 

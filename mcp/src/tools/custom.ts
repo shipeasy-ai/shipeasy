@@ -1,5 +1,6 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { customOperations, type CustomOp, type CustomParam } from "@shipeasy/openapi/custom";
+import { getBoundSdk } from "../util/project-config.js";
 
 /**
  * MCP adapter for the shared custom-operations registry (`@shipeasy/openapi/custom`)
@@ -37,4 +38,17 @@ export const CUSTOM_TOOLS: Tool[] = customOperations.map((op) => ({
 
 /** tool name → (args) → result. No client; custom ops are auth-free. */
 export const CUSTOM_DISPATCH: Record<string, (args: Record<string, unknown>) => Promise<unknown>> =
-  Object.fromEntries(customOperations.map((op) => [customToolName(op), async (args) => op.run(args)]));
+  Object.fromEntries(
+    customOperations.map((op) => [
+      customToolName(op),
+      async (args: Record<string, unknown>) => {
+        // `docs` tools default `sdk` to the `sdk` recorded in the bound
+        // `.shipeasy`, so an agent in a bound project can omit it.
+        if (op.group[0] === "docs" && !args.sdk) {
+          const sdk = getBoundSdk(process.cwd());
+          if (sdk) args = { ...args, sdk };
+        }
+        return op.run(args);
+      },
+    ]),
+  );

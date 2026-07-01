@@ -55,12 +55,22 @@ Only treat it as a real bug if it still fails on the latest CLI **and** MCP.
 
 ## Project binding (`.shipeasy`)
 
-Everything is scoped to the project bound in the current repo. **One project per
-repo, always bound.** A single `.shipeasy` at the repo root carries the
-`project_id` and is inherited by every subproject, like `.git` — commit it.
+Everything is scoped to the project bound in the current directory. **One
+`.shipeasy` per project** — the folder that holds the file **is** the project
+root. Reads walk **up** from the cwd to the *nearest* `.shipeasy` (like git and
+`.git`), so a subproject's own file shadows any ancestor and the walk **stops
+there** — it never overshoots to the git root above it. A monorepo with several
+apps therefore has several `.shipeasy` files, one per app; commit them.
+
+**Use `shipeasy root`, not `git rev-parse --show-toplevel`,** whenever you need
+"the project root" — it returns the nearest `.shipeasy` dir (the Shipeasy
+boundary) and exits non-zero when nothing is bound. Alongside `project_id`, a
+`.shipeasy` also records the detected `language`/`sdk`/`frameworks` (written by
+`shipeasy detect`).
 
 ```bash
-shipeasy whoami    # shows the bound dir + project; skip login if already authed
+shipeasy root      # print the nearest .shipeasy dir (+ project_id / sdk); the project boundary
+shipeasy whoami    # server call — shows the session's project; skip login if already authed
 shipeasy login     # opens a browser; user picks/creates a project (idempotent)
 shipeasy logout    # then login again to recover from a 401
 ```
@@ -93,12 +103,14 @@ an SDK call site (`flags.track`, `flags.getExperiment`, `flags.get`,
 surface rather than hand-writing it — namespaces and method names differ per
 SDK, so never assume the TypeScript spelling:
 
-1. Detect the language from `.shipeasy` or the subproject's manifest
-   (`package.json`, `pyproject.toml`, `Gemfile`, `go.mod`, `pom.xml`,
-   `build.gradle*`, `composer.json`, `Package.swift`).
-2. Fetch the snippet: `docs_get { sdk: <lang>, path: "<page>" }` (run
-   `docs_list { sdk: <lang> }` to find the handle). CLI fallback:
-   `shipeasy docs get --sdk <lang> <page>`.
+1. Read the language from the nearest `.shipeasy` — its `sdk` field, written by
+   `shipeasy detect` (run `detect` first if the file has no `sdk` yet). Fall back
+   to the subproject's manifest (`package.json`, `pyproject.toml`, `Gemfile`,
+   `go.mod`, `pom.xml`, `build.gradle*`, `composer.json`, `Package.swift`).
+2. Fetch the snippet: `docs_get { path: "<page>" }` — `sdk` defaults to the
+   `.shipeasy` `sdk` when omitted, so you rarely pass it explicitly (run
+   `docs_list {}` to find the handle). Pass `sdk` only to override. CLI fallback:
+   `shipeasy docs get <page>` (add `--sdk <lang>` to override).
 
 Example shapes in the feature skills are **shape only** — the docs are the
 source of truth and win on any conflict.

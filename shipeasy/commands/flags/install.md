@@ -26,7 +26,7 @@ run it with the **Bash tool** and relay its output.
    user to run `/shipeasy:setup` first:
 
    ```bash
-   test -f .shipeasy && shipeasy whoami | grep -q "Bound dir" && echo OK
+   shipeasy root >/dev/null 2>&1 && echo OK   # a .shipeasy is bound at or above cwd
    ```
 
 2. Run the installer and relay its output verbatim:

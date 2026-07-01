@@ -93,7 +93,7 @@ in this flow.
 ## Prerequisites (verify in order; stop at the first failure)
 
 ```bash
-test -f .shipeasy && echo ".shipeasy OK"          # base onboarding + bound project
+shipeasy root >/dev/null 2>&1 && echo ".shipeasy OK"   # base onboarding + bound project (walks up)
 shipeasy login                                      # idempotent — no-op if already logged in
 shipeasy whoami | grep -q "feedback" || echo "RUN /shipeasy:ops:install"   # feedback module on
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 && git remote -v | grep -q github.com \
