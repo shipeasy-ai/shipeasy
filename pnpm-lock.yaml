@@ -146,6 +146,9 @@ importers:
       '@shipeasy/mcp':
         specifier: workspace:*
         version: link:../mcp
+      '@shipeasy/sdk':
+        specifier: ^6.2.0
+        version: 6.2.0
     devDependencies:
       '@types/node':
         specifier: ^20.19.39
@@ -854,6 +857,22 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@shipeasy/sdk@6.2.0':
+    resolution: {integrity: sha512-7PRTPg1USB3Yp0Z4cTaRazhyVYLw+7K0Y8QYqkI5MSRl7opakArpZ9+qip2y3A8PycmYJo3CKDrNiFtz/vlGFw==}
+    engines: {node: '>=20'}
+    hasBin: true
+    peerDependencies:
+      '@openfeature/server-sdk': '>=1.13.0'
+      '@openfeature/web-sdk': '>=1.2.0'
+      next: '>=13'
+    peerDependenciesMeta:
+      '@openfeature/server-sdk':
+        optional: true
+      '@openfeature/web-sdk':
+        optional: true
+      next:
+        optional: true
+
   '@turbo/darwin-64@2.10.0':
     resolution: {integrity: sha512-EwvHThXzpY0KGd1/NAmuewI5D+aVa3Rl/OlxE36yfjUKb/+ySrfJrSlEFt8aD1OXwnnaHnQnPKHFndor0Zxlsg==}
     cpu: [x64]
@@ -1446,6 +1465,9 @@ packages:
 
   ms@2.1.3:
     resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
+
+  murmurhash-js@1.0.0:
+    resolution: {integrity: sha512-TvmkNhkv8yct0SVBSy+o8wYzXjE4Zz3PCesbfs8HiCXXdcTuocApFv11UWlNFWKYsP2okqrhb7JNlSm9InBhIw==}
 
   mz@2.7.0:
     resolution: {integrity: sha512-z81GNO7nnYMEhrGh9LeymoE4+Yr0Wn5McHIZMK5cfQCl+NDX08sCZgUc9/6MHni9IWuFLm1Z3HTCXu2z9fN62Q==}
@@ -2378,6 +2400,10 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.62.2':
     optional: true
 
+  '@shipeasy/sdk@6.2.0':
+    dependencies:
+      murmurhash-js: 1.0.0
+
   '@turbo/darwin-64@2.10.0':
     optional: true
 
@@ -2983,6 +3009,8 @@ snapshots:
       ufo: 1.6.4
 
   ms@2.1.3: {}
+
+  murmurhash-js@1.0.0: {}
 
   mz@2.7.0:
     dependencies:

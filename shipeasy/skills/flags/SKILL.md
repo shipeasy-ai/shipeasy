@@ -53,18 +53,23 @@ Pull the call site for this project's SDK language from the `docs` surface (see
 `docs_get { sdk: <lang>, path: "release/configs", name: "search_ranking" }` for
 configs. The snippet below is **shape only**.
 
-```ts
-// Example shape (TypeScript) — fetch the exact call for THIS project's
-// language via docs_get; do not assume TS/Next.js.
-// Server (one configure call already done at app startup):
-import { gates, configs } from "@shipeasy/sdk/server";
-const isOn = await gates.check("checkout_v2", { country: req.country });
-const ranking = await configs.get("search_ranking", { country: req.country });
+Gates and configs are both read off the one `flags` facade — `flags.get` for a
+gate, `flags.getConfig` for a config. Do not assume TS/Next.js; fetch the exact
+call for this project's language via `docs_get`.
 
-// Client:
-import { gates, configs } from "@shipeasy/sdk/client";
-const isOnClient = gates.check("checkout_v2");
-const rankingClient = configs.get("search_ranking");
+```ts
+// Server — flags.get takes the User as its 2nd arg (configure() ran at startup).
+import { flags } from "@shipeasy/sdk/server";
+const user = { user_id: req.userId, country: req.country };
+const isOn = flags.get("checkout_v2", user); // boolean
+const ranking = flags.getConfig("search_ranking"); // typed config value
+```
+
+```ts
+// Client — the user is set once via shipeasy({ clientKey }) / identify().
+import { flags } from "@shipeasy/sdk/client";
+const isOnClient = flags.get("checkout_v2"); // boolean
+const rankingClient = flags.getConfig("search_ranking");
 ```
 
 ## Rollout playbook

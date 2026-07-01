@@ -2,7 +2,7 @@
   "name": "@shipeasy/skills-contract",
   "private": true,
   "version": "0.0.0",
-  "description": "Contract test: every CLI/MCP command referenced by a shipped skill must exist (command path + flags + tool params) on the real CLI command tree and MCP tool catalog.",
+  "description": "Contract test: every CLI/MCP command referenced by a shipped skill must exist (command path + flags + tool params) on the real CLI command tree and MCP tool catalog; and every @shipeasy/sdk code snippet a skill embeds type-checks against the real SDK.",
   "type": "module",
   "scripts": {
     "test": "vitest run",
@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "@shipeasy/cli": "workspace:*",
-    "@shipeasy/mcp": "workspace:*"
+    "@shipeasy/mcp": "workspace:*",
+    "@shipeasy/sdk": "^6.2.0"
   },
   "devDependencies": {
     "@types/node": "^20.19.39",

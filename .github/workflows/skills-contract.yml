@@ -1,11 +1,14 @@
-# Skills ↔ command contract.
+# Skills ↔ command + SDK contract.
 #
 # Every shipped skill (shipeasy/skills/**/SKILL.md) documents CLI invocations
-# (`shipeasy …`) and MCP tool calls (`mcp tool: …`, `tool_name { … }`). This
-# workflow scans them out and verifies each one against the *real* surfaces —
-# the CLI commander tree and the MCP tool catalog — so a renamed/removed
-# command, a dropped flag, or a param that no longer exists fails CI instead of
-# shipping a skill that tells the agent to run something that errors.
+# (`shipeasy …`), MCP tool calls (`mcp tool: …`, `tool_name { … }`), AND
+# embedded @shipeasy/sdk code snippets (```ts / ```tsx). This workflow scans
+# them out and verifies each against the *real* surfaces:
+#   - CLI commander tree + MCP tool catalog (built fresh below), so a
+#     renamed/removed command, a dropped flag, or a missing param fails CI.
+#   - the real @shipeasy/sdk types (installed at @latest just before the run),
+#     so a skill telling the reader to write `gates.check(...)` / `events.track`
+#     that no longer type-checks fails CI instead of shipping.
 #
 # Separate from ci.yml on purpose: it also fires on skill-only edits (which
 # ci.yml ignores) and gates the change that introduced the drift.
@@ -40,6 +43,10 @@ jobs:
       - uses: actions/setup-node@v6
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
+      # Type-check the skill SDK snippets against the LATEST published SDK, not
+      # whatever the lockfile pinned — a green run then means the examples still
+      # compile against what a user actually installs today.
+      - run: pnpm --filter @shipeasy/skills-contract add @shipeasy/sdk@latest
       # Build the CLI/MCP (and their openapi dep) so the test imports the
       # freshly-generated command tree + tool catalog, not a stale dist.
       - run: pnpm --filter @shipeasy/skills-contract... build

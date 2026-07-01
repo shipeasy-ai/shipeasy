@@ -18,7 +18,7 @@ metrics read) are enabled by `shipeasy install flags`.
 
 ## Concepts
 
-- **Event.** A named user action emitted via `events.track(name, props)`.
+- **Event.** A named user action emitted via `flags.track(name, props)`.
   All metric data comes from events. Metrics over an event that is never
   emitted return zero.
 - **Aggregation.** How rows roll up — `count_users`, `count`, `sum`,
@@ -71,7 +71,7 @@ Two parallel searches:
 
 ```bash
 # (a) Already-instrumented events — zero new code if one fits.
-grep -rnE 'events\.track\(\s*["'"'"']' --include='*.ts' --include='*.tsx' \
+grep -rnE 'flags\.track\(\s*["'"'"']' --include='*.ts' --include='*.tsx' \
   --include='*.js' --include='*.jsx' src apps packages 2>/dev/null | head -50
 
 # (b) Existing metrics, in case the user really just wants a tweak.
@@ -79,7 +79,7 @@ shipeasy metrics list            # generated module commands print JSON
 ```
 
 Then heuristically find *uninstrumented* candidates — places where a
-new `events.track(...)` call would naturally belong:
+new `flags.track(...)` call would naturally belong:
 
 - Form submit handlers (`onSubmit`, `<form action=`).
 - Click handlers on primary CTAs (`onClick` on buttons whose copy
@@ -116,12 +116,12 @@ Q: Which event should `checkout_conversion` aggregate over?
 ```
 
 If the user picks option (3) — *new event* — propose the exact
-`events.track(...)` payload (the labels you'll need for filters /
+`flags.track(...)` payload (the labels you'll need for filters /
 `by (...)` / value position).
 
 ### 3. Instrument (only if a new event was chosen)
 
-Pull the `events.track` call site for this project's language from the `docs`
+Pull the `flags.track` call site for this project's language from the `docs`
 surface (see `common` → "Pulling SDK call sites"):
 `docs_get { sdk: <lang>, path: "metrics" }`. The snippet below is **shape only**.
 
@@ -129,8 +129,8 @@ Edit one file:
 
 ```ts
 // Example shape — fetch the exact call for this project's language via docs_get
-import { events } from "@shipeasy/sdk/client"; // or "@shipeasy/sdk/server"
-events.track("<event>", { /* labels referenced by the query */ });
+import { flags } from "@shipeasy/sdk/client"; // server: flags.track(userId, event, props)
+flags.track("checkout_completed", { /* labels referenced by the query */ });
 ```
 
 Confirm every label referenced by the metric query — in filters, the

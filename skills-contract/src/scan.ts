@@ -88,6 +88,57 @@ export function extractCliRefs(file: string, raw: string): CliRef[] {
   return refs;
 }
 
+// ── SDK snippet extraction (TS/TSX code that imports @shipeasy/sdk) ────────────
+
+export interface SdkSnippet {
+  file: string;
+  /** nth SDK snippet within the file — used to name the synthesized module. */
+  index: number;
+  lang: "ts" | "tsx";
+  /** The raw block body, verbatim. */
+  code: string;
+  /** Top-level `import …` statements, hoisted to module scope. */
+  imports: string;
+  /** Everything that isn't an import — wrapped in an async fn so top-level
+   *  `await` / `return` in the illustrative fragments stay legal. */
+  body: string;
+}
+
+/** Split a snippet into its (module-scope) imports and the remaining body.
+ *  Import statements may span multiple lines; consume until the one that
+ *  carries the `from "…"` (or a bare `;`). */
+export function splitImports(code: string): { imports: string; body: string } {
+  const lines = code.split("\n");
+  const imports: string[] = [];
+  const body: string[] = [];
+  const terminates = (s: string) => /;\s*(?:\/\/.*)?$|\bfrom\s+["'][^"']+["']/.test(s);
+  for (let i = 0; i < lines.length; i++) {
+    if (/^\s*import\b/.test(lines[i])) {
+      let stmt = lines[i];
+      while (!terminates(stmt) && i + 1 < lines.length) stmt += "\n" + lines[++i];
+      imports.push(stmt);
+    } else {
+      body.push(lines[i]);
+    }
+  }
+  return { imports: imports.join("\n"), body: body.join("\n") };
+}
+
+/** Every fenced ```ts / ```tsx block that imports `@shipeasy/sdk`. Blocks that
+ *  don't import the SDK (pure signature docs, pattern fragments) are illustrative
+ *  and deliberately not compiled. */
+export function extractSdkSnippets(file: string, raw: string): SdkSnippet[] {
+  const out: SdkSnippet[] = [];
+  let n = 0;
+  for (const m of raw.matchAll(/```(tsx?)\n([\s\S]*?)```/g)) {
+    const code = m[2];
+    if (!/from\s+["']@shipeasy\/sdk/.test(code)) continue;
+    const { imports, body } = splitImports(code);
+    out.push({ file, index: n++, lang: m[1] === "tsx" ? "tsx" : "ts", code, imports, body });
+  }
+  return out;
+}
+
 // ── MCP extraction ────────────────────────────────────────────────────────────
 
 /** Capture a balanced `{ … }` starting at `start` (which must point at `{`). */

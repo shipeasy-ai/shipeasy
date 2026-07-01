@@ -119,14 +119,14 @@ scope here.
 
 A metric ties variant → outcome. Look for:
 
-1. **Existing `events.track(...)` call sites** — `grep -rn 'events\.track\b' src apps`
+1. **Existing `flags.track(...)` call sites** — `grep -rn 'flags\.track\b' src apps`
    (anywhere in the JS subprojects). These are pre-existing events; a metric over
    them needs zero new instrumentation.
 2. **Implicit conversion points** — checkout submit, signup form submit, "Add to
    cart" handler, share button, etc. — code that fires when the user does the
-   thing the experiment cares about. These need a new `events.track(name, props)`
+   thing the experiment cares about. These need a new `flags.track(name, props)`
    call.
-3. **Existing metrics** — `shipeasy metrics list --json` for anything already
+3. **Existing metrics** — `shipeasy metrics list` for anything already
    defined; reusing avoids both an event and a metric.
 
 Build 2–4 candidate metrics, each as `{ event, aggregation, why }`. Examples:
@@ -143,13 +143,13 @@ Present with `AskUserQuestion`:
 Q: Which metric should decide this experiment?
    Options:
    1. <name1> — <DSL> (reuses event <event1>, no new instrumentation)
-   2. <name2> — <DSL> (needs new events.track("<event2>", { ... }) at <file:line>)
+   2. <name2> — <DSL> (needs new flags.track("<event2>", { ... }) at <file:line>)
    3. <name3> — <DSL> (needs new event)
 ```
 
 ### Phase 3 — provision (in order, halt on first failure)
 
-Pull the SDK call sites used below (`events.track` for 3a, `experiments.assign`
+Pull the SDK call sites used below (`flags.track` for 3a, `experiments.assign`
 for 3d) from the `docs` surface for this project's language — see `common` →
 "Pulling SDK call sites": `docs_get { sdk: <lang>, path: "metrics" }` and
 `docs_get { sdk: <lang>, path: "experiments", name: "<name>" }`. The examples
@@ -163,8 +163,8 @@ project's language with `docs_get` as above:
 
 ```ts
 // Example shape — fetch the exact call for this project's language via docs_get
-import { events } from "@shipeasy/sdk/client"; // or "@shipeasy/sdk/server"
-events.track("<event>", { /* labels referenced by the metric query */ });
+import { flags } from "@shipeasy/sdk/client"; // server: flags.track(userId, event, props)
+flags.track("checkout_completed", { /* labels referenced by the metric query */ });
 ```
 
 Confirm labels in the payload match every `{label=...}`, `by (...)`,
@@ -205,8 +205,8 @@ mcp tool: release_experiments_create {
 
 ```ts
 // Example shape — fetch the exact call for this project's language via docs_get
-import { experiments } from "@shipeasy/sdk/server"; // or "@shipeasy/sdk/client"
-const { group } = await experiments.assign("<name>", { user_id });
+import { flags } from "@shipeasy/sdk/server"; // client: flags.getExperiment(name, defaultParams)
+const { group } = flags.getExperiment("checkout_button_v2", { user_id }, { variant: "v1" });
 if (group === "treatment") {
   /* new code path */
 } else {
@@ -289,12 +289,13 @@ surface (see `common` → "Pulling SDK call sites"):
 The snippet below is **shape only** — the API differs per SDK.
 
 ```ts
-// Example shape (TypeScript)
-import { experiments } from "@shipeasy/sdk/server";
-const { group, params } = await experiments.assign("checkout_button_v2", {
-  user_id,
-  country,
-});
+// Example shape (TypeScript) — client omits the user arg
+import { flags } from "@shipeasy/sdk/server";
+const { group, params } = flags.getExperiment(
+  "checkout_button_v2",
+  { user_id, country },
+  { variant: "v1" },
+);
 ```
 
 Assignment is **sticky** for the same user_id. Track conversion via your
