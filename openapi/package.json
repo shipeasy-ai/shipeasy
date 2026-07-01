@@ -30,6 +30,14 @@
       "types": "./dist/custom.d.ts",
       "default": "./dist/custom.js"
     },
+    "./node-context": {
+      "types": "./dist/node-context.d.ts",
+      "default": "./dist/node-context.js"
+    },
+    "./codegen": {
+      "types": "./src/codegen.ts",
+      "default": "./src/codegen.ts"
+    },
     "./openapi.yaml": "./openapi.yaml",
     "./openapi.json": "./openapi.json"
   },
