@@ -15567,6 +15567,124 @@
         "additionalProperties": false,
         "description": "Response for `POST /api/admin/ops`."
       },
+      "GithubConnectorData": {
+        "type": "object",
+        "properties": {
+          "issue": {
+            "type": "object",
+            "properties": {
+              "number": {
+                "type": "number",
+                "description": "GitHub issue number."
+              },
+              "url": {
+                "type": "string",
+                "description": "HTML URL of the opened issue."
+              },
+              "owner": {
+                "type": "string",
+                "description": "Repository owner (org or user)."
+              },
+              "repo": {
+                "type": "string",
+                "description": "Repository name."
+              },
+              "createdAt": {
+                "type": "string",
+                "description": "ISO-8601 timestamp the issue was opened."
+              }
+            },
+            "required": [
+              "number",
+              "url",
+              "owner",
+              "repo"
+            ],
+            "additionalProperties": {},
+            "description": "The GitHub issue this item opened."
+          },
+          "pr": {
+            "type": "object",
+            "properties": {
+              "number": {
+                "type": "number",
+                "description": "Pull request number."
+              },
+              "url": {
+                "type": "string",
+                "description": "HTML URL of the linked pull request."
+              },
+              "linkedAt": {
+                "type": "string",
+                "description": "ISO-8601 timestamp the PR was linked."
+              },
+              "connectedToIssue": {
+                "type": "boolean",
+                "description": "Whether the PR was wired to the issue on GitHub (via a closing keyword or a comment)."
+              },
+              "method": {
+                "type": "string",
+                "enum": [
+                  "closes",
+                  "comment"
+                ],
+                "description": "How the PR was connected to the issue."
+              }
+            },
+            "required": [
+              "number",
+              "url"
+            ],
+            "additionalProperties": {},
+            "description": "The pull request linked to this item via `link-pr`."
+          }
+        },
+        "additionalProperties": {},
+        "description": "GitHub connector trace — the issue it opened and, once linked, the pull request."
+      },
+      "SlackConnectorData": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "object",
+            "properties": {
+              "channel": {
+                "type": "string",
+                "description": "Slack channel id the message was posted to."
+              },
+              "ts": {
+                "type": "string",
+                "description": "Slack message timestamp (`ts`) — the message handle used for in-place `chat.update`."
+              },
+              "postedAt": {
+                "type": "string",
+                "description": "ISO-8601 timestamp the message was posted."
+              }
+            },
+            "required": [
+              "channel",
+              "ts"
+            ],
+            "additionalProperties": {},
+            "description": "The Slack message the driver posted for this item."
+          }
+        },
+        "additionalProperties": {},
+        "description": "Slack connector trace — the message the driver posted for this item. The linked pull request is recorded on `github.pr`, not here."
+      },
+      "ConnectorData": {
+        "type": "object",
+        "properties": {
+          "github": {
+            "$ref": "#/components/schemas/GithubConnectorData"
+          },
+          "slack": {
+            "$ref": "#/components/schemas/SlackConnectorData"
+          }
+        },
+        "additionalProperties": {},
+        "description": "Connector linkage for one queue item, keyed by provider. Each provider's driver deep-merges its own trace into this blob, so any subset of providers may be present. Unknown/future providers may appear as additional keys."
+      },
       "GetOpsItemResponse": {
         "type": "object",
         "properties": {
@@ -15728,14 +15846,13 @@
           "connectorData": {
             "anyOf": [
               {
-                "type": "object",
-                "additionalProperties": {}
+                "$ref": "#/components/schemas/ConnectorData"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "Connector linkage (e.g. the opened GitHub issue / linked PR), or `null`."
+            "description": "Per-connector linkage recorded for this item, keyed by connector provider. Populated as connectors act on the item (e.g. GitHub opens an issue, Slack posts a message); more than one provider can be present at once. `null` if no connector has touched the item."
           },
           "notify": {
             "anyOf": [

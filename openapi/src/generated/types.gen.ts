@@ -3008,6 +3008,99 @@ export type CreateOpsItemResponse = {
 };
 
 /**
+ * GitHub connector trace — the issue it opened and, once linked, the pull request.
+ */
+export type GithubConnectorData = {
+    /**
+     * The GitHub issue this item opened.
+     */
+    issue?: {
+        /**
+         * GitHub issue number.
+         */
+        number: number;
+        /**
+         * HTML URL of the opened issue.
+         */
+        url: string;
+        /**
+         * Repository owner (org or user).
+         */
+        owner: string;
+        /**
+         * Repository name.
+         */
+        repo: string;
+        /**
+         * ISO-8601 timestamp the issue was opened.
+         */
+        createdAt?: string;
+        [key: string]: unknown;
+    };
+    /**
+     * The pull request linked to this item via `link-pr`.
+     */
+    pr?: {
+        /**
+         * Pull request number.
+         */
+        number: number;
+        /**
+         * HTML URL of the linked pull request.
+         */
+        url: string;
+        /**
+         * ISO-8601 timestamp the PR was linked.
+         */
+        linkedAt?: string;
+        /**
+         * Whether the PR was wired to the issue on GitHub (via a closing keyword or a comment).
+         */
+        connectedToIssue?: boolean;
+        /**
+         * How the PR was connected to the issue.
+         */
+        method?: 'closes' | 'comment';
+        [key: string]: unknown;
+    };
+    [key: string]: unknown;
+};
+
+/**
+ * Slack connector trace — the message the driver posted for this item. The linked pull request is recorded on `github.pr`, not here.
+ */
+export type SlackConnectorData = {
+    /**
+     * The Slack message the driver posted for this item.
+     */
+    message?: {
+        /**
+         * Slack channel id the message was posted to.
+         */
+        channel: string;
+        /**
+         * Slack message timestamp (`ts`) — the message handle used for in-place `chat.update`.
+         */
+        ts: string;
+        /**
+         * ISO-8601 timestamp the message was posted.
+         */
+        postedAt?: string;
+        [key: string]: unknown;
+    };
+    [key: string]: unknown;
+};
+
+/**
+ * Connector linkage for one queue item, keyed by provider. Each provider's driver deep-merges its own trace into this blob, so any subset of providers may be present. Unknown/future providers may appear as additional keys.
+ */
+export type ConnectorData = {
+    github?: GithubConnectorData;
+    slack?: SlackConnectorData;
+    [key: string]: unknown;
+};
+
+/**
  * One queue item, any of the five types. Shared fields apply to all; `stepsToReproduce`/`actualResult`/`expectedResult`/`viewport` are bug-specific, `description`/`useCase` feature-specific, and `context` carries the per-type payload for auto-filed `error`/`alert`/`measure_plan` tickets.
  */
 export type GetOpsItemResponse = {
@@ -3086,11 +3179,9 @@ export type GetOpsItemResponse = {
         [key: string]: unknown;
     } | null;
     /**
-     * Connector linkage (e.g. the opened GitHub issue / linked PR), or `null`.
+     * Per-connector linkage recorded for this item, keyed by connector provider. Populated as connectors act on the item (e.g. GitHub opens an issue, Slack posts a message); more than one provider can be present at once. `null` if no connector has touched the item.
      */
-    connectorData?: {
-        [key: string]: unknown;
-    } | null;
+    connectorData?: ConnectorData | null;
     /**
      * Per-item completion-notification target, or `null` (falls back to the project default).
      */

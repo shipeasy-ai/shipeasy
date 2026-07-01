@@ -1726,6 +1726,45 @@ export const zCreateOpsItemResponse = z.object({
 });
 
 /**
+ * GitHub connector trace — the issue it opened and, once linked, the pull request.
+ */
+export const zGithubConnectorData = z.object({
+    issue: z.object({
+        number: z.coerce.number(),
+        url: z.string(),
+        owner: z.string(),
+        repo: z.string(),
+        createdAt: z.string().optional()
+    }).optional(),
+    pr: z.object({
+        number: z.coerce.number(),
+        url: z.string(),
+        linkedAt: z.string().optional(),
+        connectedToIssue: z.boolean().optional(),
+        method: z.enum(['closes', 'comment']).optional()
+    }).optional()
+});
+
+/**
+ * Slack connector trace — the message the driver posted for this item. The linked pull request is recorded on `github.pr`, not here.
+ */
+export const zSlackConnectorData = z.object({
+    message: z.object({
+        channel: z.string(),
+        ts: z.string(),
+        postedAt: z.string().optional()
+    }).optional()
+});
+
+/**
+ * Connector linkage for one queue item, keyed by provider. Each provider's driver deep-merges its own trace into this blob, so any subset of providers may be present. Unknown/future providers may appear as additional keys.
+ */
+export const zConnectorData = z.object({
+    github: zGithubConnectorData.optional(),
+    slack: zSlackConnectorData.optional()
+});
+
+/**
  * One queue item, any of the five types. Shared fields apply to all; `stepsToReproduce`/`actualResult`/`expectedResult`/`viewport` are bug-specific, `description`/`useCase` feature-specific, and `context` carries the per-type payload for auto-filed `error`/`alert`/`measure_plan` tickets.
  */
 export const zGetOpsItemResponse = z.object({
@@ -1765,7 +1804,7 @@ export const zGetOpsItemResponse = z.object({
     description: z.string().optional(),
     useCase: z.string().optional(),
     context: z.record(z.string(), z.unknown()).nullish(),
-    connectorData: z.record(z.string(), z.unknown()).nullish(),
+    connectorData: zConnectorData.nullish(),
     notify: zNotificationTarget.nullish(),
     createdAt: z.string(),
     updatedAt: z.string().optional()
