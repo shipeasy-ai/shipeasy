@@ -44,31 +44,11 @@ run on the same users independently of what's already running. Manage
 universes with the `release_experiments_universes_*` MCP tools (or
 `shipeasy release experiments universes …` on the CLI).
 
-## First fix: update before you debug
-
-Most failures here — `unknown command` / `unknown option`, a missing
-subcommand, an unexpected `400`/`404`, or something that worked before — are
-**version drift**: the tooling is older than the feature being invoked.
-Before deeper debugging, update to latest and retry once:
-
-- **CLI:** `npm i -g @shipeasy/cli@latest` (or one-off: `npx @shipeasy/cli@latest <cmd>`).
-- **MCP server:** pinned to `@shipeasy/mcp@latest` — it auto-pulls the newest
-  release on restart, so restart the MCP server / session to pick it up.
-- **In Claude Code only** (skills + slash commands): `/plugin marketplace update shipeasy`
-  then `/plugin install shipeasy@shipeasy`, or open `/plugin` and enable
-  auto-update on the `shipeasy` marketplace.
-
-Only treat it as a real bug if it still fails on the latest CLI **and** MCP.
-
-## Enabling on a project
-
-Run the one platform install — it folds gates, configs, kill switches,
-experiments, and events into a single step. Experiments are not a separate
-module; they ride the flags install:
-
-- **CLI (any harness):** `shipeasy install flags`.
-- **In Claude Code:** `/shipeasy:flags:install` (convenience wrapper around
-  the same install).
+**Prerequisites live in the `common` skill** — the MCP ⇄ CLI ⇄ API surfaces,
+updating on version drift, the `.shipeasy` binding, and archive-not-delete.
+Experiments aren't a separate module: they ride the flags install
+(`shipeasy install flags`; in Claude Code, `/shipeasy:flags:install`). Read
+parameter shapes from the tool (`--help` / MCP schema), not from here.
 
 ## Designing
 
@@ -88,14 +68,12 @@ Before creating, decide:
    skill) — it's required before start. Adding metrics post-hoc inflates
    false-positive rate.
 
-## How to act: MCP server or CLI
+## How to act
 
-Lifecycle CRUD — list / start / stop / results / update / archive, and universe
-management — has **no per-verb slash command**. Drive it through:
-
-1. **MCP tools** (`release_experiments_*`, `release_experiments_universes_*`)
-   when the `shipeasy` MCP server is registered.
-2. **The `shipeasy` CLI** (`shipeasy release experiments …`) as the fallback.
+Lifecycle CRUD (list / start / stop / results / update / archive) and universe
+management run through the `release_experiments_*` /
+`release_experiments_universes_*` MCP tools or the `shipeasy release experiments
+…` CLI (see `common` → surfaces).
 
 When the design is already pinned down (you know the variation point, the
 groups, and the goal metric), jump straight to "Creating" below and call the
@@ -171,16 +149,11 @@ Q: Which metric should decide this experiment?
 
 ### Phase 3 — provision (in order, halt on first failure)
 
-**Pull the SDK call sites below (`events.track`, `experiments.assign`) for this
-project's language from the `docs` MCP.** Before editing 3a/3d, detect the
-language from `.shipeasy` or the subproject's manifest (`package.json`,
-`pyproject.toml`, `Gemfile`, `go.mod`, `pom.xml`, `build.gradle*`,
-`composer.json`, `Package.swift`), then fetch the snippets:
-`docs_get { sdk: <lang>, path: "metrics" }` for the track call and
-`docs_get { sdk: <lang>, path: "experiments", name: "<name>" }` for assignment
-(run `docs_list { sdk: <lang> }` to find the handle; CLI
-`shipeasy docs get --sdk <lang> <path>`). The examples below show the shape —
-use the docs snippets for the exact calls.
+Pull the SDK call sites used below (`events.track` for 3a, `experiments.assign`
+for 3d) from the `docs` surface for this project's language — see `common` →
+"Pulling SDK call sites": `docs_get { sdk: <lang>, path: "metrics" }` and
+`docs_get { sdk: <lang>, path: "experiments", name: "<name>" }`. The examples
+below are **shape only**.
 
 For the chosen metric:
 
@@ -292,58 +265,31 @@ mcp tool: release_experiments_create {
 }
 ```
 
-Key shapes (these are the ones people get wrong):
+Gotchas (the ones people get wrong — the rest is in the tool schema / `--help`):
 
 - `groups[].weight` is in **basis points** and must sum to **exactly 10000**
   (a 50/50 split is `5000` + `5000`, not `50` + `50`). There is no
   `groups[].allocation`.
-- `allocation_pct` (basis points, 0–10000) — or the friendly alias
-  `allocation_percent` (0–100) — is the share of the *targeted* audience
-  enrolled at all. Distinct from the per-group `weight` split.
-- `goal_metric` is the decision metric. Provide it inline as either a DSL
-  `query` (`{ "query": "count_users(purchase_completed)" }`) or an
-  `event` + `aggregation` (auto-creates the event). It is **required before
-  start**. There is no `success_metric` field. Attach extra
-  guardrail/secondary metrics inline via `guardrail_metrics`, or after the
-  fact with `release_experiments_set_metrics`.
+- `allocation_percent` (0–100 friendly alias; `allocation_pct` is basis points)
+  is the share of the *targeted* audience enrolled at all — distinct from the
+  per-group `weight` split.
+- `goal_metric` is the decision metric and is **required before start** (there
+  is no `success_metric` field). Provide it inline as a DSL `query` or an
+  `event` + `aggregation`. Extra guardrail metrics go in `guardrail_metrics`.
 
-This creates a **draft**. Start it:
-
-```
-mcp tool: release_experiments_start { "id": "checkout_button_v2" }
-```
-
-CLI equivalents (the fallback when MCP isn't registered):
-
-```bash
-shipeasy release experiments list
-shipeasy release experiments create --help
-shipeasy release experiments start <name>
-shipeasy release experiments stop <name>
-shipeasy release experiments results <name>      # enrolment + significance
-shipeasy release experiments timeseries <name>   # full per-day history
-```
-
-For the metric query DSL itself, see the `metrics` skill or run
-`shipeasy metrics grammar`.
+This creates a **draft**. Start it with `release_experiments_start { "id": … }`
+(CLI: `shipeasy release experiments start <name>`). For the metric query DSL,
+see the `metrics` skill or run `shipeasy metrics grammar`.
 
 ## Reading from the SDK
 
-**The customer app may be in any SDK language (ts/python/ruby/go/php/java/
-kotlin/swift) — never assume TypeScript/Next.js. Always pull the exact call
-site from the `docs` MCP for this project's language.** Detect the language
-from `.shipeasy` or the subproject's manifest (`package.json`,
-`pyproject.toml`, `Gemfile`, `go.mod`, `pom.xml`, `build.gradle*`,
-`composer.json`, `Package.swift`), then fetch the snippet:
-`docs_get { sdk: <lang>, path: "experiments", name: "checkout_button_v2" }`
-(run `docs_list { sdk: <lang> }` to find the handle; CLI
-`shipeasy docs get --sdk <lang> experiments --name checkout_button_v2`). The
-example below is **only the shape** — use the docs snippet for the exact,
-version-correct call in the project's language.
+Pull the assignment call site for this project's language from the `docs`
+surface (see `common` → "Pulling SDK call sites"):
+`docs_get { sdk: <lang>, path: "experiments", name: "checkout_button_v2" }`.
+The snippet below is **shape only** — the API differs per SDK.
 
 ```ts
-// Example shape (TypeScript) — fetch the real call for this project's
-// language via docs_get; the API differs per SDK.
+// Example shape (TypeScript)
 import { experiments } from "@shipeasy/sdk/server";
 const { group, params } = await experiments.assign("checkout_button_v2", {
   user_id,
@@ -357,19 +303,15 @@ analysis cron.
 
 ## Stopping
 
-```
-mcp tool: release_experiments_results { "id": "checkout_button_v2" }
-```
+`release_experiments_results { "id": … }` returns the latest per-metric /
+per-group result — enrolled count, lift, p-value, significance flag. Use
+`release_experiments_timeseries` for the full per-day history, or
+`release_experiments_get` for current state. There is no
+`release_experiments_status`.
 
-(`id` accepts the experiment's `name` or its `exp_…` id.) Returns the
-latest per-metric/per-group result — enrolled count, lift, p-value,
-significance flag. Use `release_experiments_timeseries` for the full
-per-day history, or `release_experiments_get` for the experiment's current
-state. There is no `release_experiments_status`.
-
-Stop with `release_experiments_stop { "id": ... }` (the call takes only the
-experiment id — it halts allocation; the winner is a reading of the results,
-not a stored field).
+Stop with `release_experiments_stop { "id": … }` — it halts allocation; the
+winner is a *reading* of the results, not a stored field. (Every `id` param
+accepts the experiment's `name` or its `exp_…` id; see the tool schema.)
 
 ## Holdouts
 

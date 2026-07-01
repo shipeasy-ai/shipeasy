@@ -9,28 +9,12 @@ user-invocable: true
 This is the canonical i18n workflow. Use it whenever you change user-visible
 copy in a project that has `@shipeasy/sdk` installed.
 
-## First fix: update before you debug
-
-Most failures here — `unknown command` / `unknown option`, a missing
-subcommand, an unexpected `400`/`404`, or something that worked before — are
-**version drift**: the CLI or MCP server is older than the feature being
-invoked. Before deeper debugging, update to latest and retry once:
-
-- **CLI:** `npm i -g @shipeasy/cli@latest` (or one-off: `npx @shipeasy/cli@latest <cmd>`).
-- **MCP server:** pinned to `@shipeasy/mcp@latest` — it auto-pulls the latest
-  release on restart, so restart the session/MCP host to pick up a new version.
-- **In Claude Code only:** to refresh the bundled skills + slash commands, run
-  `/plugin marketplace update shipeasy` then `/plugin install shipeasy@shipeasy`
-  (or enable auto-update on the `shipeasy` marketplace via `/plugin`).
-
-Only treat it as a real bug if it still fails on the latest CLI **and** MCP server.
-
-## Enabling on a project
-
-Enable the module with `shipeasy install i18n` — it turns on `translations`,
-creates the `en:prod` profile if missing, and verifies the admin path. In
-Claude Code you can also run `/shipeasy:i18n:install`, which wraps the same CLI
-command and adds the loader-script judgment.
+**Prerequisites live in the `common` skill** — the MCP ⇄ CLI ⇄ API surfaces,
+updating on version drift, and the `.shipeasy` binding. Enable the module with
+`shipeasy install i18n` (turns on `translations`, creates the `en:prod` profile,
+verifies the admin path); in Claude Code, `/shipeasy:i18n:install` wraps it and
+adds the loader-script judgment. The i18n surface has one topic-specific split,
+below.
 
 ## How to act: MCP tools for admin keys, CLI for codemods / fs-AST
 
@@ -107,13 +91,9 @@ wrap the same CLI/MCP paths.
 
 Every user-facing string becomes an i18n translate call.
 
-**Pull the i18n call form for this project's SDK language from the `docs` MCP.**
-Detect the language from `.shipeasy` or the subproject's manifest
-(`package.json`, `pyproject.toml`, `Gemfile`, `go.mod`, `pom.xml`,
-`build.gradle*`, `composer.json`, `Package.swift`), then fetch the snippet:
-`docs_get { sdk: <lang>, path: "i18n" }` (run `docs_list { sdk: <lang> }` to find
-the handle; CLI `shipeasy docs get --sdk <lang> i18n`). The example below shows
-the shape — use the docs snippet for the exact call.
+Pull the i18n call form for this project's language from the `docs` surface (see
+`common` → "Pulling SDK call sites"): `docs_get { sdk: <lang>, path: "i18n" }`.
+The snippet below is **shape only**.
 
 ```tsx
 // Example shape — fetch the exact call for this project's language via docs_get

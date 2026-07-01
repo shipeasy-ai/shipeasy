@@ -33,9 +33,10 @@ so it never goes stale; the docs are the version-correct source of truth and
 ## First fix: update before you debug
 
 `unknown command/option`, an unexpected `400`/`404`, or a regression is usually
-**version drift**. Update and retry once before treating it as a bug:
-`npm i -g @shipeasy/cli@latest`; for the MCP server (pinned `@shipeasy/mcp@latest`)
-restart the session.
+**version drift** — update and retry once before treating it as a bug. See the
+`common` skill ("First fix: update before you debug") for the exact per-surface
+update commands; the short form is `npm i -g @shipeasy/cli@latest` + restart the
+MCP server.
 
 ---
 

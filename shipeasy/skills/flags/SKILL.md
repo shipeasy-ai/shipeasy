@@ -11,47 +11,15 @@ A **gate** is a boolean (on/off, percentage rollout, targeting). A
 share the same KV blob and the same evaluation semantics — same SDK key,
 same call shape, fed by `@shipeasy/sdk`.
 
-## First fix: update before you debug
-
-Most failures here — `unknown command` / `unknown option`, a missing
-subcommand, an unexpected `400`/`404`, or something that worked before — are
-**version drift**: the CLI or MCP server is older than the feature being
-invoked. Before deeper debugging, update to latest and retry once:
-
-- **CLI:** `npm i -g @shipeasy/cli@latest` (or one-off: `npx @shipeasy/cli@latest <cmd>`).
-- **MCP server:** pinned to `@shipeasy/mcp@latest` — restart the session/agent
-  to pick up a new release.
-- **In Claude Code (plugin skills + slash commands):**
-  `/plugin marketplace update shipeasy` then `/plugin install shipeasy@shipeasy`
-  (there is no `claude plugin update`), or open `/plugin` and enable auto-update.
-
-Only treat it as a real bug if it still fails on the latest CLI **and** MCP server.
-
-## Enabling on a project
-
-Run `shipeasy install flags` — the one platform install that folds gates,
-configs, kill switches, experiments, and events into a single enable. In Claude
-Code you can instead invoke `/shipeasy:flags:install`, which delegates to the
-same CLI command.
-
-## How to act: always the MCP server or the CLI
-
-There are **no per-verb slash commands** for gates, configs, or kill switches.
-Every create / list / update / archive / toggle goes through one of two
-surfaces, preferred in this order:
-
-1. **MCP tools** (`release_flags_*`, `release_configs_*`, `release_killswitch_*`)
-   when the `shipeasy` MCP server is registered — they validate input shapes and
-   return typed errors.
-2. **The `shipeasy` CLI** (`shipeasy release flags|configs|killswitch …`) as the
-   fallback when MCP isn't available (e.g. a skills-CLI install on a host that
-   hasn't registered the server yet).
-
-Deletion is **UI-only** — there is no delete tool or command; archive instead.
+**Prerequisites live in the `common` skill** — the MCP ⇄ CLI ⇄ API surfaces
+(`release_flags_*` / `release_configs_*` / `release_killswitch_*`, or
+`shipeasy release flags|configs|killswitch …`), updating on version drift, the
+`.shipeasy` binding, `shipeasy install flags` to enable, and archive-not-delete.
+Read parameter shapes from the tool (`--help` / MCP schema), not from here.
 
 ## Creating
 
-Prefer MCP tools — they validate input shapes and return typed errors:
+Shapes below are the ones people get wrong — everything else is in the tool:
 
 ```
 mcp tool: release_flags_create {
@@ -60,50 +28,30 @@ mcp tool: release_flags_create {
   "rollout_percent": 10,
   "rules": [{ "attr": "country", "op": "in", "value": ["US","CA"] }]
 }
-// rollout_percent is 0–100 (friendly alias); rollout_pct is basis points
-// (0–10000). rules are AND-combined { attr, op, value }; ops: eq/neq/in/
-// not_in/gt/gte/lt/lte/contains/regex.
+// Gotcha: rollout_percent is the friendly 0–100 alias; rollout_pct is basis
+// points (0–10000). rules are AND-combined.
 ```
 
 ```
 mcp tool: release_configs_create {
   "name": "search.ranking",
-  "schema": {
-    "type": "object",
-    "properties": { "boost": { "type": "number" }, "model": { "type": "string" } },
-    "required": ["boost", "model"]
-  },
+  "schema": { "type": "object", "properties": {
+    "boost": { "type": "number" }, "model": { "type": "string" } },
+    "required": ["boost", "model"] },
   "value": { "boost": 1.0, "model": "v3" }
 }
-// Configs are JSON-Schema-first: `schema` (draft 2020-12, top-level
-// type:object) + `value` (one JSON object for all envs, or a { env: value }
-// map). The name is `folder.name` form. Per-env edits go through the
-// draft → publish path (release_configs_draft / release_configs_publish).
-```
-
-CLI equivalents (the fallback when MCP isn't registered):
-
-```bash
-shipeasy release flags create --help
-shipeasy release flags list
-shipeasy release flags update <name>      # adjust rollout / targeting
-shipeasy release flags archive <name>     # disable a gate without deleting
-
-shipeasy release configs create|list|update|archive --help
-shipeasy release killswitch create|list|set|unset|update|archive --help
+// Gotcha: configs are JSON-Schema-first — `schema` (draft 2020-12, top-level
+// type:object) + `value` (one object for all envs, or a { env: value } map).
+// Per-env edits go through the draft → publish path, not a flat update.
 ```
 
 ## Reading from the SDK
 
-**Pull the call site for this project's SDK language from the `docs` MCP.**
-Detect the language from `.shipeasy` or the subproject's manifest
-(`package.json`, `pyproject.toml`, `Gemfile`, `go.mod`, `pom.xml`,
-`build.gradle*`, `composer.json`, `Package.swift`), then fetch the snippet:
-`docs_get { sdk: <lang>, path: "release/flags", name: "checkout_v2" }` for gates
-and `docs_get { sdk: <lang>, path: "release/configs", name: "search_ranking" }`
-for configs (run `docs_list { sdk: <lang> }` to find the handle; CLI
-`shipeasy docs get --sdk <lang> release/flags --name checkout_v2`). The example
-below shows the shape — use the docs snippet for the exact call.
+Pull the call site for this project's SDK language from the `docs` surface (see
+`common` → "Pulling SDK call sites"): `docs_get { sdk: <lang>, path:
+"release/flags", name: "checkout_v2" }` for gates,
+`docs_get { sdk: <lang>, path: "release/configs", name: "search_ranking" }` for
+configs. The snippet below is **shape only**.
 
 ```ts
 // Example shape (TypeScript) — fetch the exact call for THIS project's

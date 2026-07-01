@@ -11,21 +11,10 @@ experiment success criteria and standalone dashboards. They are defined
 by a lexical DSL that compiles to Analytics Engine SQL — Shipeasy
 materialises results on the daily analysis cron, not on read.
 
-## First fix: update before you debug
-
-Most failures here — `unknown command` / `unknown option`, a missing
-subcommand, an unexpected `400`/`404`, or something that worked before — are
-**version drift**: the CLI or plugin is older than the feature being invoked.
-Before deeper debugging, update to latest and retry once:
-
-- **CLI:** `npm i -g @shipeasy/cli@latest` (or one-off: `npx @shipeasy/cli@latest <cmd>`).
-- **MCP server:** pinned to `@shipeasy/mcp@latest` — restart the session to
-  pick up a new release.
-- **In Claude Code only:** also refresh the plugin — `/plugin marketplace update
-  shipeasy` then `/plugin install shipeasy@shipeasy` (or enable auto-update on the
-  `shipeasy` marketplace via `/plugin`).
-
-Only treat it as a real bug if it still fails on the latest CLI **and** MCP.
+**Prerequisites live in the `common` skill** — the MCP ⇄ CLI ⇄ API surfaces
+(`metrics_*`, or `shipeasy metrics …`), updating on version drift, the
+`.shipeasy` binding, and enabling via the flags install. Events (the data
+metrics read) are enabled by `shipeasy install flags`.
 
 ## Concepts
 
@@ -132,13 +121,9 @@ If the user picks option (3) — *new event* — propose the exact
 
 ### 3. Instrument (only if a new event was chosen)
 
-**Pull the `events.track` call site for this project's SDK language from the
-`docs` MCP.** Detect the language from `.shipeasy` or the subproject's manifest
-(`package.json`, `pyproject.toml`, `Gemfile`, `go.mod`, `pom.xml`,
-`build.gradle*`, `composer.json`, `Package.swift`), then fetch the snippet:
-`docs_get { sdk: <lang>, path: "metrics" }` (run `docs_list { sdk: <lang> }` to
-find the handle; CLI `shipeasy docs get --sdk <lang> metrics`). The example below
-shows the shape — use the docs snippet for the exact call.
+Pull the `events.track` call site for this project's language from the `docs`
+surface (see `common` → "Pulling SDK call sites"):
+`docs_get { sdk: <lang>, path: "metrics" }`. The snippet below is **shape only**.
 
 Edit one file:
 
@@ -186,54 +171,16 @@ In that case go straight to phase 4. Otherwise, run the full flow —
 "the user didn't ask for AskUserQuestion" is not a reason to skip it;
 metrics over the wrong event are the most common avoidable mistake.
 
-## Legacy quick reference
+## Other operations
 
-1. **Confirm the event is emitted.** Grep the app code for
-   `events.track("<event>"`. If absent, instrument it first — a metric
-   over a never-emitted event is silent and useless.
+Listing, showing, and the DSL grammar run through the `metrics_list` /
+`metrics_show` / `metrics_grammar` MCP tools or the `shipeasy metrics …` CLI
+(see `common` → surfaces). Creating goes through `metrics_create` (plus
+`metrics_events_create` to register a new event) — the analyze → propose →
+instrument → create flow above is what this skill drives on an ask.
 
-2. **Confirm referenced labels exist on the event payload.** If the
-   query mentions `country` but `events.track("purchase", { amount })`
-   omits `country`, the metric will be empty. Add it to the track call.
-
-3. **Create:**
-
-   ```bash
-   shipeasy metrics create <name> \
-     --event-name <event_name> \
-     --query '<dsl>' \
-     [--folder <folder>] \
-     [--winsorize-pct <pct>]            # default 99
-     [--min-detectable-effect <0..1>]   # min detectable effect for power calcs
-   ```
-
-   The CLI enforces that the event inside `--query` equals `--event-name` —
-   they reference the same source event.
-
-4. **Verify:** `shipeasy metrics list` → the new row appears with the
-   rendered query.
-
-## Other operations — MCP server or CLI
-
-Listing, showing, and the DSL grammar have **no per-verb slash command** — use
-the MCP tools (`metrics_list`, `metrics_show`, `metrics_grammar`) when the
-`shipeasy` MCP server is registered, or the CLI as the fallback:
-
-```bash
-shipeasy metrics list             # all metrics
-shipeasy metrics show <id>        # one metric
-shipeasy metrics grammar          # DSL reference
-```
-
-Deleting a metric is **UI-only** — remove it from the dashboard (there is no
-delete tool or command). The dashboard refuses while the metric is referenced by
-a running experiment; stop the experiment first.
-
-The analyze → propose → instrument → create flow documented above runs through
-the `metrics_create` MCP tool (plus `metrics_events_create` to register a new
-event) or `shipeasy metrics create`. In Claude Code it's the workflow this
-`metrics` skill drives when you ask to create a metric; the MCP/CLI path is the
-harness-agnostic equivalent.
+Deletion is **UI-only** (see `common`). The dashboard additionally refuses while
+the metric is referenced by a running experiment — stop the experiment first.
 
 ## Relationship to experiments
 

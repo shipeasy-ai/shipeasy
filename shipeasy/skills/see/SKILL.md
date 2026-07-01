@@ -21,13 +21,9 @@ import { see } from "@shipeasy/sdk/client"; // or "@shipeasy/sdk/server"
 see(problem).causes_the(subject).to(outcome).extras({ ...debugging });
 ```
 
-> **Pull the exact `see()` syntax for this repo's SDK language from the `docs`
-> MCP.** Detect the project's language (from `.shipeasy` or the manifest —
-> `package.json`, `pyproject.toml`, `Gemfile`, `go.mod`, `pom.xml`,
-> `build.gradle*`, `composer.json`, `Package.swift`), then fetch the
-> error-reporting page for it: `docs_get { sdk: <lang>, path: <errors-page> }`
-> (run `docs_list { sdk: <lang> }` to find the handle; CLI fallback
-> `shipeasy docs get --sdk <lang> <errors-page>`). The examples below show the
+> **Pull the exact `see()` call form for this repo's SDK language from the
+> `docs` surface** (see the `common` skill → "Pulling SDK call sites"):
+> `docs_get { sdk: <lang>, path: <errors-page> }`. The examples below show the
 > grammar — problem → consequence → extras; take the exact call form from those
 > docs.
 

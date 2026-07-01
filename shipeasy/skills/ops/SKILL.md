@@ -13,29 +13,13 @@ devtools `<script>` tag), plus auto-filed **production-error** and **alert**
 tickets. The CLI mirrors the same admin API, so items can be filed, listed,
 triaged, and worked from a terminal or a CI script.
 
-> **Filing and listing are plain tool/CLI calls, not slash commands** — use the
-> `shipeasy` MCP tools (`ops_create`, `ops_list`, `ops_get`, `ops_update`) when the
-> server is registered, or the `shipeasy ops` CLI (`shipeasy ops create` / `list`
-> / `get` / `update`) as the fallback. Multi-step workflows are exposed as
-> slash commands in Claude Code — install via `shipeasy install ops`; in Claude
-> Code also: `/shipeasy:ops:install` (enable + verify + wire), `/shipeasy:ops:work`
-> (burn down the queue), and `/shipeasy:ops:create_trigger` (schedule the loop).
-
-## First fix: update before you debug
-
-Most failures here — `unknown command` / `unknown option`, a missing
-subcommand, an unexpected `400`/`404`, or something that worked before — are
-**version drift**: the CLI or MCP server is older than the feature being
-invoked. Before deeper debugging, update to latest and retry once:
-
-- **CLI:** `npm i -g @shipeasy/cli@latest` (or one-off: `npx @shipeasy/cli@latest <cmd>`).
-- **MCP server:** pinned to `@shipeasy/mcp@latest` — it auto-pulls the latest
-  release on restart, so restart the session/server to pick up new tools.
-- **In Claude Code (plugin skills + slash commands):** `/plugin marketplace
-  update shipeasy` then `/plugin install shipeasy@shipeasy`, or open `/plugin`
-  and enable auto-update on the `shipeasy` marketplace.
-
-Only treat it as a real bug if it still fails on the latest CLI and MCP server.
+**Prerequisites live in the `common` skill** — the MCP ⇄ CLI ⇄ API surfaces,
+updating on version drift, and the `.shipeasy` binding. Filing / listing / triage
+are plain tool calls (`ops_create`, `ops_list`, `ops_get`, `ops_update`, or the
+`shipeasy ops` CLI). What's ops-specific: **multi-step workflows are exposed as
+slash commands** in Claude Code — `/shipeasy:ops:install` (enable + verify +
+wire), `/shipeasy:ops:work` (burn down the queue), and
+`/shipeasy:ops:create_trigger` (schedule the loop).
 
 ## Enabling on a project
 
@@ -43,13 +27,10 @@ Only treat it as a real bug if it still fails on the latest CLI and MCP server.
 shipeasy install ops            # enables `feedback` + `events`, verifies the queue
 ```
 
-This enables the feedback module (plus `events` for error collection) and
-verifies the queue + errors admin paths are reachable. In Claude Code you can
-instead run `/shipeasy:ops:install`, which wraps the same command and also wires
-the devtools overlay + `see()` reporting.
-
-The toggle is per-project: same `.shipeasy` binding the rest of the CLI
-uses. Devtools picks it up on the next load — no rebuild required.
+Enables the feedback module (plus `events` for error collection) and verifies the
+queue + errors admin paths. In Claude Code, `/shipeasy:ops:install` wraps the same
+command and also wires the devtools overlay + `see()` reporting. Devtools picks
+up the per-project toggle on the next load — no rebuild required.
 
 ## Filing — MCP tool or CLI
 
@@ -142,15 +123,9 @@ if you need a programmatic read path.
 The one SDK call site that feeds this queue is **`see()` error reporting** —
 auto-filed production-error tickets come from `see()` instrumentation in the
 app. When `/shipeasy:ops:work` fixes an error item and needs to add or adjust a
-`see()` call site, **pull the `see()` error-reporting form for this project's
-language from the `docs` MCP.** Detect the language from `.shipeasy` or the
-subproject's manifest (`package.json`, `pyproject.toml`, `Gemfile`, `go.mod`,
-`pom.xml`, `build.gradle*`, `composer.json`, `Package.swift`), then fetch the
-snippet with the `docs_get` MCP tool:
-`docs_get { sdk: <lang>, path: "<group/resource>" }` (run
-`docs_list { sdk: <lang> }` to find the errors/feedback page path; CLI
-`shipeasy docs get --sdk <lang> <group/resource>`). See the `see` skill for the
-grammar.
+`see()` call site, pull the error-reporting form for this project's language
+from the `docs` surface (see `common` → "Pulling SDK call sites"), and see the
+`see` skill for the grammar.
 
 ## When to use this skill
 
