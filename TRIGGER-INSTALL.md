@@ -1,7 +1,12 @@
 # Moved
 
-The per-platform trigger install guide now ships inside the `shipeasy-ops-trigger`
-skill so every install (plugin or skills CLI) carries it:
-[`shipeasy/skills/shipeasy-ops-trigger/TRIGGER-INSTALL.md`](./shipeasy/skills/shipeasy-ops-trigger/TRIGGER-INSTALL.md).
+The per-platform trigger install runbook is served by the CLI / MCP server so
+it always matches the shipped tooling:
 
-Also published at <https://docs.shipeasy.ai/get-started/triggers>.
+```bash
+shipeasy trigger guide [--provider <name>]   # MCP tool: trigger_guide
+```
+
+Run with no flag to auto-detect the calling agent. Also published at
+<https://docs.shipeasy.ai/get-started/triggers>. The `shipeasy-ops-trigger`
+skill drives the full provisioning flow.

@@ -130,7 +130,8 @@ never copied*.
 - 📖 **[Skill reference](./docs/reference.md)** — every skill, its
   auto-triggers, MCP tool and CLI mapping, plus the headline workflows.
 - 🧩 **[`INSTALL.md`](./INSTALL.md)** — full per-agent install reference (70+ hosts).
-- ⏰ **[Trigger install guide](./shipeasy/skills/shipeasy-ops-trigger/TRIGGER-INSTALL.md)**
+- ⏰ **Trigger install guide** — `shipeasy trigger guide [--provider <name>]`
+  (auto-detects your agent; also at <https://docs.shipeasy.ai/get-started/triggers>)
   — set up unattended scheduled triggers that burn down your ops inbox and open
   one PR per item.
 - 🌐 **[shipeasy.ai](https://shipeasy.ai)** · **[docs.shipeasy.ai](https://docs.shipeasy.ai)**

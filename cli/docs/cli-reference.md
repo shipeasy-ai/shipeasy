@@ -84,6 +84,33 @@ shipeasy bind proj_abc123
 shipeasy bind proj_abc123 --name 'Acme Web'
 ```
 
+## `shipeasy root`
+
+Print the project root — the nearest .shipeasy dir (walks up from cwd, like .git)
+
+The project root is **the folder that holds `.shipeasy`**, found by walking up from the cwd (like git finds `.git`). The nearest file wins, so a subproject's own `.shipeasy` shadows any ancestor and the walk stops there — one `.shipeasy` per project. Use this instead of `git rev-parse --show-toplevel` when you need the Shipeasy project boundary: it respects a subproject root and never overshoots to the git root above it. Exits non-zero (with guidance) when nothing is bound.
+
+```bash
+shipeasy root [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--json` | optional | Output the resolved root as JSON |
+
+Examples:
+
+```bash
+# print the nearest .shipeasy dir
+shipeasy root
+
+# root + project_id + sdk, machine-readable
+shipeasy root --json
+
+# cd to the project root
+cd "$(shipeasy root)"
+```
+
 ## `shipeasy metrics`
 
 Metrics: the event-backed queries that drive tracking dashboards and experiment success / guardrail measurement.
@@ -110,7 +137,6 @@ shipeasy metrics events list [options]
 
 | Option | | Description |
 | --- | --- | --- |
-| `--pending <value>` | optional | When `true`, return only pending (auto-discovered, unapproved) events. Omit to return the full catalog. |
 | `--data <value>` | optional | Request body as a JSON object. |
 
 #### `shipeasy metrics events create`
@@ -127,7 +153,7 @@ shipeasy metrics events create [options] <name>
 
 | Option | | Description |
 | --- | --- | --- |
-| `--folder <value>` | optional | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
+| `--folder <value>` | optional | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `--description <value>` | optional | Optional human-readable description of the event. |
 | `--properties <value>` | optional | Typed properties declared on the event. Defaults to an empty list. |
 
@@ -161,7 +187,7 @@ shipeasy metrics events update [options] <id>
 
 | Option | | Description |
 | --- | --- | --- |
-| `--folder <value>` | optional | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
+| `--folder <value>` | optional | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `--description <value>` | optional | New description for the event. |
 | `--properties <value>` | optional | Replaces the full property set (no merge). Omit to leave properties unchanged. |
 
@@ -195,7 +221,7 @@ shipeasy metrics events approve [options] <id>
 
 | Option | | Description |
 | --- | --- | --- |
-| `--folder <value>` | optional | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
+| `--folder <value>` | optional | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `--description <value>` | optional | New description for the event. |
 | `--properties <value>` | optional | Replaces the full property set (no merge). Omit to leave properties unchanged. |
 
@@ -225,13 +251,13 @@ shipeasy metrics create [options] <name>
 
 | Option | | Description |
 | --- | --- | --- |
-| `--folder <value>` | optional | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
+| `--folder <value>` | optional | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `--event-name <value>` | optional | Source event the query reads from. |
-| `--query <value>` | optional | Metric query DSL string, e.g. `sum(purchase, amount)`. Provide this OR `query_ir`. |
-| `--query-ir <value>` | optional | Typed query IR — the structured alternative to `query`. Provide this OR `query`. |
+| `--query <value>` | optional | Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`. |
 | `--winsorize-pct <value>` | optional | Winsorise percentile (1–99) to clamp outliers. Defaults to 99. |
 | `--min-detectable-effect <value>` | optional | Minimum detectable effect (relative, 0–1) for power planning. `null` to omit. |
 | `--direction <value>` | optional | Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail). |
+| `--query-ir <value>` | optional | Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body. |
 
 ### `shipeasy metrics show`
 
@@ -248,6 +274,28 @@ shipeasy metrics show [options] <id>
 | Option | | Description |
 | --- | --- | --- |
 | `--data <value>` | optional | Request body as a JSON object. |
+
+### `shipeasy metrics update`
+
+Update a metric
+
+```bash
+shipeasy metrics update [options] <id>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `id` | required | Stable opaque metric id (`met_…`) or the metric's `name`. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--folder <value>` | optional | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
+| `--event-name <value>` | optional | Source event the query reads from. |
+| `--query <value>` | optional | Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`. |
+| `--winsorize-pct <value>` | optional | Winsorise percentile (1–99) to clamp outliers. Defaults to 99. |
+| `--min-detectable-effect <value>` | optional | Minimum detectable effect (relative, 0–1) for power planning. `null` to omit. |
+| `--direction <value>` | optional | Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail). |
+| `--query-ir <value>` | optional | Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body. |
 
 ### `shipeasy metrics archive`
 
@@ -330,7 +378,7 @@ shipeasy ops alerts create [options]
 | `--window-hours <value>` | optional | Lookback window (hours) the metric is aggregated over. 1–720. |
 | `--severity <value>` | optional | Severity of the raised alert. |
 | `--enabled <value>` | optional | Whether the rule is evaluated by the cron. |
-| `--notify <value>` | optional | Where to deliver this rule's alert (Slack channel and/or email target). |
+| `--notify <value>` | optional | Delivery target for a notification; `null` = use the project default. |
 
 #### `shipeasy ops alerts update`
 
@@ -352,7 +400,7 @@ shipeasy ops alerts update [options] <id>
 | `--window-hours <value>` | optional | — |
 | `--severity <value>` | optional | — |
 | `--enabled <value>` | optional | — |
-| `--notify <value>` | optional | — |
+| `--notify <value>` | optional | Delivery target for a notification; `null` = use the project default. |
 
 #### `shipeasy ops alerts archive`
 
@@ -395,15 +443,23 @@ shipeasy ops create [options] <title>
 
 | Argument | | Description |
 | --- | --- | --- |
-| `title` | required | One-line title of the bug or feature request. |
+| `title` | required | One-line bug title (no leading/trailing whitespace). |
 
 | Option | | Description |
 | --- | --- | --- |
-| `--type <value>` | optional | Item type to file. Only the two user-fileable types are accepted here — `error` and `alert` tickets are auto-filed by the platform and cannot be created over the API. |
-| `--body <value>` | optional | Detailed description / steps to reproduce. |
-| `--priority <value>` | optional | Initial triage priority. |
-| `--steps-to-reproduce <value>` | optional | Reproduction steps (bugs). |
-| `--page-url <value>` | optional | URL of the page the item relates to. |
+| `--type <value>` | optional | Discriminator — files a bug. |
+| `--steps-to-reproduce <value>` | optional | How to reproduce the bug. |
+| `--actual-result <value>` | optional | What actually happened. |
+| `--expected-result <value>` | optional | What was expected instead. |
+| `--priority <value>` | optional | Initial triage priority, or `null`. |
+| `--reporter-email <value>` | optional | Email of the reporter, or `null`. |
+| `--page-url <value>` | optional | URL of the page the bug relates to, or `null`. |
+| `--user-agent <value>` | optional | Reporter's user-agent string, or `null`. |
+| `--viewport <value>` | optional | Reporter's viewport (e.g. `1280x720`), or `null`. |
+| `--context <value>` | optional | Arbitrary capture context, or `null`. |
+| `--notify <value>` | optional | Where this bug's completion notification lands. |
+| `--description <value>` | optional | What the feature is. |
+| `--use-case <value>` | optional | Why it's needed / the use case. |
 
 ### `shipeasy ops bug`
 
@@ -415,14 +471,22 @@ shipeasy ops bug [options] <title>
 
 | Argument | | Description |
 | --- | --- | --- |
-| `title` | required | One-line title of the bug or feature request. |
+| `title` | required | One-line bug title (no leading/trailing whitespace). |
 
 | Option | | Description |
 | --- | --- | --- |
-| `--body <value>` | optional | Detailed description / steps to reproduce. |
-| `--priority <value>` | optional | Initial triage priority. |
-| `--steps-to-reproduce <value>` | optional | Reproduction steps (bugs). |
-| `--page-url <value>` | optional | URL of the page the item relates to. |
+| `--steps-to-reproduce <value>` | optional | How to reproduce the bug. |
+| `--actual-result <value>` | optional | What actually happened. |
+| `--expected-result <value>` | optional | What was expected instead. |
+| `--priority <value>` | optional | Initial triage priority, or `null`. |
+| `--reporter-email <value>` | optional | Email of the reporter, or `null`. |
+| `--page-url <value>` | optional | URL of the page the bug relates to, or `null`. |
+| `--user-agent <value>` | optional | Reporter's user-agent string, or `null`. |
+| `--viewport <value>` | optional | Reporter's viewport (e.g. `1280x720`), or `null`. |
+| `--context <value>` | optional | Arbitrary capture context, or `null`. |
+| `--notify <value>` | optional | Where this bug's completion notification lands. |
+| `--description <value>` | optional | What the feature is. |
+| `--use-case <value>` | optional | Why it's needed / the use case. |
 
 ### `shipeasy ops feature`
 
@@ -434,14 +498,22 @@ shipeasy ops feature [options] <title>
 
 | Argument | | Description |
 | --- | --- | --- |
-| `title` | required | One-line title of the bug or feature request. |
+| `title` | required | One-line bug title (no leading/trailing whitespace). |
 
 | Option | | Description |
 | --- | --- | --- |
-| `--body <value>` | optional | Detailed description / steps to reproduce. |
-| `--priority <value>` | optional | Initial triage priority. |
-| `--steps-to-reproduce <value>` | optional | Reproduction steps (bugs). |
-| `--page-url <value>` | optional | URL of the page the item relates to. |
+| `--steps-to-reproduce <value>` | optional | How to reproduce the bug. |
+| `--actual-result <value>` | optional | What actually happened. |
+| `--expected-result <value>` | optional | What was expected instead. |
+| `--priority <value>` | optional | Initial triage priority, or `null`. |
+| `--reporter-email <value>` | optional | Email of the reporter, or `null`. |
+| `--page-url <value>` | optional | URL of the page the bug relates to, or `null`. |
+| `--user-agent <value>` | optional | Reporter's user-agent string, or `null`. |
+| `--viewport <value>` | optional | Reporter's viewport (e.g. `1280x720`), or `null`. |
+| `--context <value>` | optional | Arbitrary capture context, or `null`. |
+| `--notify <value>` | optional | Where this bug's completion notification lands. |
+| `--description <value>` | optional | What the feature is. |
+| `--use-case <value>` | optional | Why it's needed / the use case. |
 
 ### `shipeasy ops get`
 
@@ -473,8 +545,16 @@ shipeasy ops update [options] <handle>
 
 | Option | | Description |
 | --- | --- | --- |
-| `--status <value>` | optional | New lifecycle status. |
-| `--priority <value>` | optional | New triage priority. |
+| `--title <value>` | optional | New bug title (no leading/trailing whitespace). |
+| `--steps-to-reproduce <value>` | optional | Updated reproduction steps. |
+| `--actual-result <value>` | optional | Updated actual result. |
+| `--expected-result <value>` | optional | Updated expected result. |
+| `--status <value>` | optional | Lifecycle status of a queue item. |
+| `--priority <value>` | optional | Triage priority, or `null` to clear it. |
+| `--github-pr-number <value>` | optional | Link (or, when `null`, unlink) a GitHub pull request to this bug. |
+| `--notify <value>` | optional | Where this item's completion notification lands, or `null`. |
+| `--description <value>` | optional | Updated description. |
+| `--use-case <value>` | optional | Updated use case. |
 
 ### `shipeasy ops link-pr`
 
@@ -539,8 +619,39 @@ shipeasy projects upsert [options]
 
 | Option | | Description |
 | --- | --- | --- |
-| `--domain <value>` | optional | Hostname-like project identifier (e.g. `acme.com`). Use `*` to allow any origin. The project is keyed by `(owner_email, domain)`, so a second call with the same domain returns the existing project. |
+| `--domain <value>` | optional | Lowercase bare hostname (e.g. `acme.com`, `app.acme.com`, `*.acme.com`), or `*` to allow any origin. Full URLs with `https://` are not accepted. The project is keyed by `(owner_email, domain)`, so a second call with the same domain returns the existing project. |
 | `--name <value>` | optional | Human-readable project name. Defaults to the domain on first create. |
+
+### `shipeasy projects update`
+
+Update the current project
+
+```bash
+shipeasy projects update [options] <id>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `id` | required | Stable opaque project id. Must match the caller's own project. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--name <value>` | optional | New project name. |
+| `--domain <value>` | optional | Lowercase bare hostname (e.g. `acme.com`, `app.acme.com`, `*.acme.com`), or `*` to allow any origin. Full URLs with `https://` are not accepted. The project is keyed by `(owner_email, domain)`, so a second call with the same domain returns the existing project. |
+| `--slug <value>` | optional | URL-safe identifier used in app URLs and SDK config. Lowercase letters, numbers, and hyphens; 2–48 chars; cannot start or end with a hyphen. The caller lowercases the raw slug before sending. |
+| `--default-env <value>` | optional | Default environment new resources are scoped to. |
+| `--timezone <value>` | optional | IANA timezone the project's daily analysis runs in. |
+| `--stat-method <value>` | optional | Statistical method the experiment analyzer uses. |
+| `--sig-threshold <value>` | optional | Significance threshold (alpha) for experiment analysis. |
+| `--auto-rollback <value>` | optional | Whether a failing guardrail auto-rolls back the experiment. |
+| `--min-sample-days <value>` | optional | Minimum number of days an experiment must run before it can be called. |
+| `--module-translations <value>` | optional | Enable/disable the i18n/translations module. |
+| `--module-configs <value>` | optional | Enable/disable the dynamic-configs module. |
+| `--module-gates <value>` | optional | Enable/disable the feature-gates module. |
+| `--module-experiments <value>` | optional | Enable/disable the experiments module. |
+| `--module-feedback <value>` | optional | Enable/disable the feedback/ops module. |
+| `--module-user <value>` | optional | Enable/disable the user-management module. |
+| `--module-events <value>` | optional | Enable/disable the events module. |
 
 ## `shipeasy release`
 
@@ -582,12 +693,12 @@ shipeasy release configs create [options] <name>
 
 | Argument | | Description |
 | --- | --- | --- |
-| `name` | required | Stable config key in `folder.name` form (two lowercase segments separated by a dot, e.g. `pricing.tiers`). Used by SDKs as `Shipeasy.getConfig('<name>')`. Immutable after create. |
+| `name` | required | Stable config/killswitch key in `folder.name` form (two lowercase segments separated by a dot, e.g. `pricing.tiers`). Immutable after create. |
 
 | Option | | Description |
 | --- | --- | --- |
 | `--description <value>` | optional | Optional free-form description shown in the dashboard. Max 512 chars. |
-| `--folder <value>` | optional | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
+| `--folder <value>` | optional | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `--schema <value>` | optional | JSON Schema (draft 2020-12) describing the shape of the config value. Top-level `type` must be `'object'`; every published value is validated against this schema. |
 | `--value <value>` | optional | Initial config value. Either a single JSON object applied to every env, or a `{ env: value }` map seeding per-env values. Must match `schema`. Defaults to `{}` on every env when omitted. |
 
@@ -623,7 +734,7 @@ shipeasy release configs update [options] <id>
 | --- | --- | --- |
 | `--schema <value>` | optional | Replacement schema. When supplied, the new schema is validated against every published value before it lands. |
 | `--value <value>` | optional | Flat value applied to **every** env. Publishes a new version per env. To target one env, use `PUT /{id}/drafts` then `POST /{id}/publish`. |
-| `--folder <value>` | optional | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
+| `--folder <value>` | optional | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 
 #### `shipeasy release configs archive`
 
@@ -707,6 +818,22 @@ shipeasy release configs activity [options] <id>
 | `--limit <value>` | optional | Max rows to return (1–100). Defaults to 20. |
 | `--data <value>` | optional | Request body as a JSON object. |
 
+#### `shipeasy release configs update-schema`
+
+Update a config schema
+
+```bash
+shipeasy release configs update-schema [options] <id>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `id` | required | Stable opaque config id (`cfg_…`) or the config's `name`. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--schema <value>` | optional | Replacement JSON Schema (draft 2020-12). Validated against every published value before it lands. |
+
 ### `shipeasy release experiments`
 
 A/B/n experiments: randomised group assignment plus the analysis pipeline (t-test, sequential testing, SRM detection) on top of a universe.
@@ -751,7 +878,7 @@ shipeasy release experiments universes create [options] <name>
 
 | Option | | Description |
 | --- | --- | --- |
-| `--folder <value>` | optional | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
+| `--folder <value>` | optional | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `--unit-type <value>` | optional | Unit of randomisation. Typically `user_id`. Use `account_id` to keep whole accounts in the same group across an experiment. |
 | `--holdout-range <value>` | optional | Inclusive `[lo, hi]` bucket range (0–9999) reserved as the **holdout** — callers hashed into this slice are excluded from every experiment in the universe. `null` disables the holdout. Pro plan or higher required. |
 
@@ -769,7 +896,7 @@ shipeasy release experiments universes update [options] <id>
 
 | Option | | Description |
 | --- | --- | --- |
-| `--folder <value>` | optional | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
+| `--folder <value>` | optional | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `--holdout-range <value>` | optional | Inclusive `[lo, hi]` bucket range (0–9999) reserved as the **holdout** — callers hashed into this slice are excluded from every experiment in the universe. `null` disables the holdout. Pro plan or higher required. |
 
 ##### `shipeasy release experiments universes archive`
@@ -822,7 +949,7 @@ shipeasy release experiments create [options] <name>
 | `--owner-email <value>` | optional | Owner email. Display-only. |
 | `--audience <value>` | optional | Audience label shown in the editor. Display-only. |
 | `--bucket-by <value>` | optional | — |
-| `--folder <value>` | optional | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
+| `--folder <value>` | optional | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `--universe <value>` | optional | Name of an existing universe in the project. Returns `422` if the universe doesn't exist. |
 | `--targeting-gate <value>` | optional | Optional gate name. Only callers that pass the gate are enrolled in the experiment. |
 | `--allocation-pct <value>` | optional | Share of the (gated) audience allocated to the experiment, in basis points (0–10000 = 0%–100%). `0` = unallocated. Use `allocation_percent` (0–100) below to think in percent. Immutable while the experiment is running. |
@@ -834,7 +961,7 @@ shipeasy release experiments create [options] <name>
 | `--min-runtime-days <value>` | optional | Minimum days the experiment must run before results are considered conclusive. |
 | `--min-sample-size <value>` | optional | Minimum exposures per group before results are considered conclusive. |
 | `--sequential-testing <value>` | optional | Enable sequential testing (always-valid p-values). Requires Premium plan or higher. |
-| `--goal-metric <value>` | optional | Single goal metric defined inline — either a DSL `query` or an `event` (+`aggregation`/`value`) the server compiles. Attaching one is required before the experiment can be started. The underlying event is auto-created if missing. |
+| `--goal-metric <value>` | optional | Inline metric — a DSL `query`, or an `event` (+ `aggregation`/`value`) the server compiles into one. |
 | `--guardrail-metrics <value>` | optional | Up to 10 guardrail metrics defined inline. Each is upserted (event + metric) and attached with role=guardrail. |
 
 #### `shipeasy release experiments get`
@@ -874,7 +1001,7 @@ shipeasy release experiments update [options] <id>
 | `--owner-email <value>` | optional | — |
 | `--audience <value>` | optional | — |
 | `--bucket-by <value>` | optional | — |
-| `--folder <value>` | optional | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
+| `--folder <value>` | optional | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `--targeting-gate <value>` | optional | — |
 | `--allocation-pct <value>` | optional | Basis-points allocation (0–10000). Use `allocation_percent` (0–100) for percent. Immutable while the experiment is running. |
 | `--allocation-percent <value>` | optional | Allocation as a **percentage** (0–100). Friendlier alias for `allocation_pct`; converted to basis points server-side. Wins over `allocation_pct` if both are supplied. Immutable while running. |
@@ -886,7 +1013,7 @@ shipeasy release experiments update [options] <id>
 | `--min-runtime-days <value>` | optional | — |
 | `--min-sample-size <value>` | optional | — |
 | `--sequential-testing <value>` | optional | — |
-| `--goal-metric <value>` | optional | Replaces the goal metric — DSL `query` or `event` (+`aggregation`/`value`) the server compiles (event auto-upserted). |
+| `--goal-metric <value>` | optional | Inline metric — a DSL `query`, or an `event` (+ `aggregation`/`value`) the server compiles into one. |
 | `--guardrail-metrics <value>` | optional | Replaces the guardrail set wholesale (event auto-upserted per entry). |
 
 #### `shipeasy release experiments archive`
@@ -1034,6 +1161,78 @@ shipeasy release flags attributes list [options]
 | --- | --- | --- |
 | `--data <value>` | optional | Request body as a JSON object. |
 
+##### `shipeasy release flags attributes create`
+
+Declare a targeting attribute
+
+```bash
+shipeasy release flags attributes create [options] <name>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `name` | required | Attribute key (lowercase alphanumeric start, then letters/digits/`_`/`-`; max 64 chars). Immutable after create. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--type <value>` | optional | Declared value type of a targeting attribute. |
+| `--enum-values <value>` | optional | Allowed values when `type` is `enum` (required in that case — 422 otherwise); `null` for non-enum types. |
+| `--required <value>` | optional | Whether the attribute must be present on the evaluation context. |
+| `--description <value>` | optional | Optional human note shown in the dashboard. |
+| `--sdk-path <value>` | optional | Optional dotted path the SDK reads the value from. |
+
+##### `shipeasy release flags attributes get`
+
+Get a targeting attribute
+
+```bash
+shipeasy release flags attributes get [options] <id>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `id` | required | The attribute id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+##### `shipeasy release flags attributes update`
+
+Update a targeting attribute
+
+```bash
+shipeasy release flags attributes update [options] <id>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `id` | required | The attribute id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--type <value>` | optional | Declared value type of a targeting attribute. |
+| `--enum-values <value>` | optional | Replacement allowed values (for `enum`), or `null` to clear. |
+| `--required <value>` | optional | Whether the attribute must be present on the evaluation context. |
+| `--description <value>` | optional | Optional human note shown in the dashboard. |
+| `--sdk-path <value>` | optional | Optional dotted path the SDK reads the value from. |
+
+##### `shipeasy release flags attributes archive`
+
+Archive a targeting attribute
+
+```bash
+shipeasy release flags attributes archive [options] <id>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `id` | required | The attribute id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
 #### `shipeasy release flags list`
 
 List feature gates
@@ -1070,7 +1269,7 @@ shipeasy release flags create [options] <name>
 | `--stack <value>` | optional | Optional gatekeeper stack. When provided, takes precedence over `rules` + `rollout_pct` at evaluation time. Omit (or pass `null`) for a flat gate. |
 | `--title <value>` | optional | Human-readable title shown in the dashboard. Free-form, no key format constraint. |
 | `--description <value>` | optional | Long-form description / runbook. Markdown is rendered in the dashboard. |
-| `--folder <value>` | optional | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
+| `--folder <value>` | optional | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `--group <value>` | optional | Group label for dashboard organisation (e.g. team or product area). |
 | `--owner-email <value>` | optional | Owner contact. Displayed verbatim; not used for auth. |
 
@@ -1095,7 +1294,7 @@ shipeasy release flags update [options] <id>
 | `--stack <value>` | optional | Replaces the gatekeeper stack wholesale. Send `null` to revert to flat `rules` + `rollout_pct` evaluation. |
 | `--title <value>` | optional | Human-readable title shown in the dashboard. Free-form, no key format constraint. |
 | `--description <value>` | optional | Long-form description / runbook. Markdown is rendered in the dashboard. |
-| `--folder <value>` | optional | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
+| `--folder <value>` | optional | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `--group <value>` | optional | Group label for dashboard organisation (e.g. team or product area). |
 | `--owner-email <value>` | optional | Owner contact. Displayed verbatim; not used for auth. |
 
@@ -1179,12 +1378,12 @@ shipeasy release killswitch create [options] <name>
 
 | Argument | | Description |
 | --- | --- | --- |
-| `name` | required | Stable killswitch key in `folder.name` form (two lowercase segments separated by a dot — e.g. `payments.checkout`). Immutable after create. |
+| `name` | required | Stable config/killswitch key in `folder.name` form (two lowercase segments separated by a dot, e.g. `pricing.tiers`). Immutable after create. |
 
 | Option | | Description |
 | --- | --- | --- |
 | `--description <value>` | optional | Optional free-form description shown in the dashboard. Max 512 chars. |
-| `--folder <value>` | optional | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
+| `--folder <value>` | optional | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `--value <value>` | optional | Default value applied to every env at creation. Defaults to `false`. Use `true` to ship the killswitch pre-tripped. |
 | `--switches <value>` | optional | Initial per-switch overrides applied to every env. Empty/omitted leaves the killswitch with only the flat `value`. |
 
@@ -1219,7 +1418,7 @@ shipeasy release killswitch update [options] <id>
 | Option | | Description |
 | --- | --- | --- |
 | `--description <value>` | optional | New description, or `null` to clear it. Max 512 chars. |
-| `--folder <value>` | optional | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
+| `--folder <value>` | optional | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `--value <value>` | optional | Flat value applied to every env. Publishes a new version per env when set. Omit to leave values unchanged. |
 | `--switches <value>` | optional | Replace the switches map wholesale on every env. To edit a single entry on a single env use `PUT /{id}/switch` instead. |
 
@@ -1274,6 +1473,23 @@ shipeasy release killswitch unset [options] <id>
 | `--env <value>` | optional | Target environment. One of the project's configured envs (`dev`, `staging`, `prod`). |
 | `--switch-key <value>` | optional | Switch key to remove. |
 
+#### `shipeasy release killswitch set-value`
+
+Set the flat value on one env
+
+```bash
+shipeasy release killswitch set-value [options] <id>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `id` | required | Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--env <value>` | optional | Target environment. One of the project's configured envs (`dev`, `staging`, `prod`). |
+| `--value <value>` | optional | Flat boolean to publish on `env`. Publishes a new version on that env only. |
+
 ## `shipeasy whoami`
 
 Show the current project
@@ -1286,60 +1502,6 @@ shipeasy whoami [options]
 | --- | --- | --- |
 | `--data <value>` | optional | Request body as a JSON object. |
 
-## `shipeasy docs`
-
-docs commands
-
-```bash
-shipeasy docs [options] [command]
-```
-
-### `shipeasy docs list`
-
-List an SDK's documentation tree
-
-```bash
-shipeasy docs list [options]
-```
-
-| Option | | Description |
-| --- | --- | --- |
-| `--sdk <value>` | optional | SDK language. |
-
-### `shipeasy docs get`
-
-Fetch one SDK doc page or snippet
-
-```bash
-shipeasy docs get [options] <path>
-```
-
-| Argument | | Description |
-| --- | --- | --- |
-| `path` | required | Page key or snippet 'group/resource'. |
-
-| Option | | Description |
-| --- | --- | --- |
-| `--sdk <value>` | optional | SDK language. |
-| `--framework <value>` | optional | Framework hint (substitutes {{FRAMEWORK}}). |
-| `--name <value>` | optional | Resource name (substitutes {{RESOURCE_NAME}}). |
-
-### `shipeasy docs skill`
-
-Fetch an SDK's installable LLM skill
-
-```bash
-shipeasy docs skill [options]
-```
-
-| Option | | Description |
-| --- | --- | --- |
-| `--sdk <value>` | optional | SDK language. |
-| `--install` | optional | CLI only: write the skill to the local agent skills dir. |
-| `--agent <name>` | optional | Install into one agent (skips the picker, e.g. claude-code, codex) |
-| `--global` | optional | Install into the user-global skills dir |
-| `--dir <path>` | optional | Write this exact skills dir instead of delegating to the skills CLI |
-
 ## `shipeasy setup`
 
 One-command onboarding: log in + bind a project, detect your coding agents, register the Shipeasy MCP server + skills, and hand SDK wiring to the agent.
@@ -1347,7 +1509,7 @@ One-command onboarding: log in + bind a project, detect your coding agents, regi
 `setup` is the one place that wires Shipeasy into your coding agents — there is no separate `skills`/`plugin` install step. It **detects every agent** in your environment (Claude Code, Cursor, OpenAI Codex, GitHub Copilot, Google Jules) and wires each one the way that agent expects:
 
 - **Claude Code** — installs the marketplace plugin (slash commands + skills + MCP), or drops `.mcp.json` when the `claude` binary isn't on PATH.
-- **Cursor / Codex / Copilot / Jules** — registers the `@shipeasy/mcp` server in that agent's config and writes its instructions file (`.cursor/rules/shipeasy.mdc`, `AGENTS.md`, `.github/copilot-instructions.md`).
+- **Cursor / Codex / Copilot / Jules** — registers the hosted `mcp.shipeasy.ai` MCP server in that agent's config and writes its instructions file (`.cursor/rules/shipeasy.mdc`, `AGENTS.md`, `.github/copilot-instructions.md`).
 
 Pick a subset with `--agents`, or let it auto-detect. It's idempotent — safe to re-run as you add agents. In CI (non-TTY) it runs non-interactively with `SHIPEASY_CLI_TOKEN` + `SHIPEASY_PROJECT_ID`.
 
@@ -1495,6 +1657,72 @@ shipeasy trigger link --routine-id trig_abc123
 shipeasy trigger link --routine-id trig_abc123 --token … --events bug.created,feature_request.created
 ```
 
+### `shipeasy trigger guide`
+
+Print the per-provider runbook for provisioning the recurring feedback trigger
+
+```bash
+shipeasy trigger guide [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--provider <value>` | optional | Platform that hosts the scheduled run. Omit to auto-detect the calling harness. |
+
+## `shipeasy docs`
+
+docs commands
+
+```bash
+shipeasy docs [options] [command]
+```
+
+### `shipeasy docs list`
+
+List an SDK's documentation tree
+
+```bash
+shipeasy docs list [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--sdk <value>` | optional | SDK language. Defaults to the `sdk` recorded in the nearest `.shipeasy` when omitted. |
+
+### `shipeasy docs get`
+
+Fetch one SDK doc page or snippet
+
+```bash
+shipeasy docs get [options] <path>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `path` | required | Page key or snippet 'group/resource'. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--sdk <value>` | optional | SDK language. Defaults to the `sdk` recorded in the nearest `.shipeasy` when omitted. |
+| `--framework <value>` | optional | Framework hint (substitutes {{FRAMEWORK}}). |
+| `--name <value>` | optional | Resource name (substitutes {{RESOURCE_NAME}}). |
+
+### `shipeasy docs skill`
+
+Fetch an SDK's installable LLM skill
+
+```bash
+shipeasy docs skill [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--sdk <value>` | optional | SDK language. Defaults to the `sdk` recorded in the nearest `.shipeasy` when omitted. |
+| `--install` | optional | CLI only: write the skill to the local agent skills dir. |
+| `--agent <name>` | optional | Install into one agent (skips the picker, e.g. claude-code, codex) |
+| `--global` | optional | Install into the user-global skills dir |
+| `--dir <path>` | optional | Write this exact skills dir instead of delegating to the skills CLI |
+
 ## `shipeasy detect`
 
 Scan the repo for install targets and print a per-folder onboarding recommendation (language, install command, keys, secret store, docs handle, next skills).
@@ -1502,6 +1730,8 @@ Scan the repo for install targets and print a per-folder onboarding recommendati
 `detect` is the engine behind the setup skill's 'detect subprojects' step. With no args it walks the tree under the cwd (depth 4, pruning node_modules/vendor/build/etc.) and finds every project manifest (package.json, pyproject.toml, Gemfile, go.mod, pom.xml, build.gradle[.kts], composer.json, Package.swift). Pass explicit paths to scan only those folders.
 
 For each folder it reports the detected language + frameworks and a **recommendation**: the SDK install command, which keys to mint (server, plus client for browser frameworks), the idiomatic secret store, the `shipeasy docs get` line that pulls the version-correct install + `configure()` wiring for that language, and the feature-install skills to run next. Already-onboarded folders and JS workspace roots are flagged so they're skipped. Use `--json` to drive it programmatically.
+
+It also **writes what it detected** — the `language`, `sdk`, and `frameworks` — into each real target's own `.shipeasy` (non-destructively; `project_id` is never touched), recording one file per project and seeding the `sdk` that `shipeasy docs` defaults to. `--json` echoes the written paths under `recorded`.
 
 ```bash
 shipeasy detect [options] [paths...]
@@ -1564,6 +1794,9 @@ Returns (with --json):
         ]
       }
     }
+  ],
+  "recorded": [
+    "/repo/apps/web/.shipeasy"
   ]
 }
 ```
@@ -1578,7 +1811,7 @@ shipeasy mcp [options] [command]
 
 ### `shipeasy mcp install`
 
-Register the Shipeasy MCP server with installed AI assistants
+Register the hosted Shipeasy MCP server (https://mcp.shipeasy.ai) with installed AI assistants
 
 ```bash
 shipeasy mcp install [options]
@@ -1615,21 +1848,6 @@ Examples:
 
 ```bash
 shipeasy mcp status
-```
-
-### `shipeasy mcp start`
-
-Run the Shipeasy MCP stdio server (forwards to @shipeasy/mcp)
-
-```bash
-shipeasy mcp start [options]
-```
-
-Examples:
-
-```bash
-# stdio server an assistant launches
-shipeasy mcp start
 ```
 
 ### `shipeasy mcp uninstall`

@@ -122,6 +122,7 @@ exports[`command tree > matches the registered command surface (snapshot) 1`] = 
   "setup",
   "trigger",
   "trigger create",
+  "trigger guide",
   "trigger link",
   "whoami",
 ]

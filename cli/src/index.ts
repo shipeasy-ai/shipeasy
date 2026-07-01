@@ -163,21 +163,23 @@ export function buildProgram(): Command {
   // calling a generated sdk fn. Regenerate with `pnpm gen:cli`.
   registerGeneratedCommands(program, genCtx);
 
-  // ── Custom (non-spec) operations — the shared sugar registry ──────────────
-  // metrics grammar + docs list/get/skill. Same registry the MCP server will
-  // project, so the surfaces stay in sync (@shipeasy/openapi/custom).
-  customCommands(program);
-
   // ── Custom commands (fs/AST + auth + install — not API endpoints) ─────────
   setupCommand(program);
   // `install <module>` — the platform installer (flags | i18n | ops). Enables
   // a module group via PATCH /api/admin/projects/:id (there is no `modules`
-  // command); the install slash commands orchestrate this.
+  // command); the install skills orchestrate this.
   installCommand(program);
   // `trigger create/link` — the Shipeasy side of the recurring-trigger hybrid
   // split (mint ops key + emit the RemoteTrigger body; the agent creates the
   // routine via its in-process RemoteTrigger tool).
   triggerCommand(program);
+
+  // ── Custom (non-spec) operations — the shared sugar registry ──────────────
+  // metrics grammar, docs list/get/skill, trigger guide. Same registry the MCP
+  // server projects, so the surfaces stay in sync (@shipeasy/openapi/custom).
+  // Mounted AFTER triggerCommand so `trigger guide` joins the existing
+  // hand-written `trigger` group instead of minting a duplicate.
+  customCommands(program);
   detectCommand(program);
   mcpCommand(program);
 

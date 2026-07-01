@@ -1,58 +1,58 @@
 ---
 name: shipeasy-ops-trigger
-description: Provision a recurring, unattended trigger that runs the shipeasy-ops-work loop in --pr mode on a schedule — one PR per fixed item. Provider-pluggable (--provider claude|cursor|copilot|windsurf|codex|cline|openclaw|opencode|continue|gemini); per-platform walkthrough in this skill's TRIGGER-INSTALL.md. Trigger on "recurring fix routine", "scheduled trigger", "unattended queue burn-down".
+description: Provision a recurring, unattended trigger that runs the shipeasy-ops-work loop in --pr mode on a schedule — one PR per fixed item. Provider-pluggable (--provider claude|cursor|copilot|windsurf|codex|cline|openclaw|opencode|continue|gemini); the per-platform runbook comes from `shipeasy trigger guide` (MCP: trigger_guide). Trigger on "recurring fix routine", "scheduled trigger", "unattended queue burn-down".
 argument-hint: "[--provider claude|cursor|copilot|windsurf|codex|cline|openclaw|opencode|continue|gemini] [--frequency 4h|6h|daily|weekdays|weekly] [--dry-run]"
 user-invocable: true
 ---
 
 ## Provider selection
 
-This skill is **provider-pluggable**. Read `--provider` from `$ARGUMENTS`; if
-omitted, default to `claude`. Every provider schedules the **same work** (the
-`shipeasy-ops-work` `--pr` loop) — they differ only in **what schedules it**,
-**how the run is launched**, and **how it authenticates**. Full copy-paste
-detail per platform is in **[`TRIGGER-INSTALL.md`](./TRIGGER-INSTALL.md)**
-(shipped alongside this skill) — read the matching section there before
-provisioning a non-`claude` provider.
+This skill is **provider-pluggable**. Every provider schedules the **same
+work** (the `shipeasy-ops-work` `--pr` loop) — they differ only in **what
+schedules it**, **how the run is launched**, and **how it authenticates**.
 
-| `--provider` | Tier | Scheduler | Launch / headless |
-| --- | --- | --- | --- |
-| `claude` *(default)* | A — native cloud | `RemoteTrigger` routine (`/v1/code/triggers`, Anthropic cloud) | `shipeasy trigger create` emits the body → agent creates it via RemoteTrigger; runs `ops:work --pr`; **registers a Shipeasy connector** |
-| `cursor` | A — native cloud | Cursor Automation / `POST /v1/agents` | `autoCreatePR`; auth `CURSOR_API_KEY` |
-| `copilot` | A — native cloud | Copilot automations, or scheduled Actions + cloud agent | `gh agent-task` / CLI; needs PAT w/ Copilot Requests |
-| `windsurf` | A — native cloud | Devin Scheduled Sessions (cron, cloud VM) | auth `WINDSURF_API_KEY`/`DEVIN_API_KEY` |
-| `cline` | B — local daemon | `cline schedule create --cron` (`cline hub`) | `cline --auto-approve true` |
-| `openclaw` | B — local daemon | `openclaw cron create` (gateway) | delegates to a coding-agent skill; **static API key only** |
-| `codex` | C (confirmed) | GitHub Actions `schedule:` cron whose job runs **`codex cloud exec --env <ENV_ID>`** → **Codex Cloud** task (machine off); fallbacks: Codex Automations (local cron, machine-on) · in-runner `codex exec` | install via `codex plugin marketplace add shipeasy-ai/shipeasy` + `codex plugin add shipeasy@shipeasy`. **Do the work upfront:** write the workflow file, open the Codex Cloud environment page (chatgpt.com/codex/cloud/settings/environments) in the browser, PAUSE for the user to set network + `SHIPEASY_CLI_TOKEN`/`SHIPEASY_PROJECT_ID` there, then commit. Repo secrets: `CODEX_API_KEY` + `CODEX_ENV_ID`. Instant trigger / verify = `codex cloud exec --env <ENV_ID> "<prompt>"` |
-| `opencode` | C — headless + cron | system cron / Actions `schedule:` | `opencode run` (`permission: "allow"`) |
-| `continue` | C — headless + cron | system cron / Actions `schedule:` | `cn -p --auto` |
-| `gemini` | C — headless + cron | Actions `schedule:` (run-gemini-cli) | `gemini -p --approval-mode=yolo` |
+**The per-provider runbook is served by the CLI/MCP, not by this skill.**
+Resolve the provider, then pull that platform's full walkthrough:
 
-**Dispatch:**
+```bash
+shipeasy trigger guide [--provider <name>]     # MCP tool: trigger_guide
+```
 
-- **`--provider claude`** → follow the rest of this document (the hybrid-split
-  steps). It is the deepest, most automated flow and the only one that registers
-  a Shipeasy connector.
-- **Any other provider** → do **not** improvise. Do the shared prep, then follow
-  that provider's section in `TRIGGER-INSTALL.md`:
+1. `--provider` in `$ARGUMENTS` wins — pass it through.
+2. Omitted → run `shipeasy trigger guide` with no flag: it **auto-detects the
+   calling harness** (over MCP from the client name; over the CLI from env
+   markers) and returns that provider's guide.
+3. It returns `provider: null` (undetectable) → it includes a `providers`
+   index (name, tier, scheduler, Shipeasy-fireable) — ask the user with
+   `AskUserQuestion`, then re-run with `--provider <name>`.
+
+**Dispatch on the resolved provider:**
+
+- **`claude`** → follow the rest of this document (the hybrid-split steps
+  below). It is the deepest, most automated flow and the only *routine*
+  connector.
+- **Any other provider** → do **not** improvise. Do the shared prep, then
+  follow the guide's provider section **verbatim**:
   1. **Schedule** — ask the user the cadence (step 1 below) → cron.
   2. **Mint the restricted `ops` key + read the project id** — provider-
-     independent (`shipeasy i18n keys create --type ops --json` + the `.shipeasy`
-     project id); the key is what the run authenticates with. (For `claude`,
-     `shipeasy trigger create` mints it for you — step 2 below.)
-  3. **Build the trigger prompt** — the shared body in `TRIGGER-INSTALL.md`
-     ("The work is identical everywhere"), substituting the `ops` key,
-     project id, and the host's install line from `INSTALL.md`.
-  4. **Provision the schedule on that platform** per its `TRIGGER-INSTALL.md`
-     section — create the native automation (Tier A/B) or write the system-cron
-     / GitHub Actions `schedule:` job (Tier C). Use the **Bash tool** to run any
-     CLI/API steps; for UI-only steps (e.g. Cursor's PR toggle, a routine token)
-     walk the user through them.
-  5. **Verify** with one manual fire and confirm a PR (or empty-queue exit), and
-     hand off where to pause/inspect it (the platform's own scheduler UI —
-     connector registration in Shipeasy is `claude`-only today).
-  Respect `--dry-run` (print the plan + prompt, mint nothing) and the Hard rules
-  below (restricted `ops` key, never print secrets, confirm before a paid fire).
+     independent (`shipeasy i18n keys create --type ops --json` + the
+     `.shipeasy` project id); the key is what the run authenticates with.
+     (For `claude`, `shipeasy trigger create` mints it for you — step 2 below.)
+  3. **Build the trigger prompt** — the guide output includes the shared
+     trigger-prompt template; substitute the `ops` key, project id, and the
+     host's install line.
+  4. **Provision the schedule on that platform** per the guide — create the
+     native automation (Tier A/B) or write the system-cron / GitHub Actions
+     `schedule:` job (Tier C). Use the **Bash tool** to run any CLI/API steps;
+     for UI-only steps (e.g. Cursor's PR toggle, a routine token) walk the
+     user through them.
+  5. **Verify** with one manual fire and confirm a PR (or empty-queue exit),
+     and hand off where to pause/inspect it. If the guide marks the provider
+     **Shipeasy-fireable**, register the connector with
+     `shipeasy trigger link`.
+  Respect `--dry-run` (print the plan + prompt, mint nothing) and the Hard
+  rules below (restricted `ops` key, never print secrets, confirm before a
+  paid fire).
 
 
 ## The `claude` provider — hybrid split

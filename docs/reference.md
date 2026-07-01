@@ -2,8 +2,8 @@
 
 > Full reference for the Shipeasy plugin surface. For installation see
 > [`../README.md`](../README.md) and [`../INSTALL.md`](../INSTALL.md); for
-> unattended scheduled triggers see
-> [`../shipeasy/skills/shipeasy-ops-trigger/TRIGGER-INSTALL.md`](../shipeasy/skills/shipeasy-ops-trigger/TRIGGER-INSTALL.md).
+> unattended scheduled triggers run `shipeasy trigger guide` (also at
+> <https://docs.shipeasy.ai/get-started/triggers>).
 
 The plugin ships exactly **17 skills** — **9 area skills** that auto-trigger on
 natural language and carry the guidance for each subsystem, plus **8 workflow
@@ -54,7 +54,7 @@ skill triggers from phrasing or the host's explicit skill invocation.
 | `shipeasy-i18n-migrate` | `<library>` | Run `shipeasy i18n migrate <library>` — codemod react-i18next / react-intl / lingui / next-intl / raw-i18next call sites to Shipeasy, push, publish. |
 | `shipeasy-i18n-translate` | `<target-profile> [--from <source>] [--glossary <t=v,…>]` | Stand up a new locale: seed the target profile, machine-translate the draft (Anthropic key read locally), publish. |
 | `shipeasy-ops-work` | `[--type bug\|feature\|error\|alert\|all] [--priority high\|critical] [--limit <N>] [--pr] [--dry-run]` | The unified work loop over the operational queue — one atomic diff per item: bugs fix-first, features design-first, errors/alerts diagnose-first. `--pr` opens one PR per item (the mode the scheduled trigger runs). |
-| `shipeasy-ops-trigger` | `[--provider claude\|cursor\|copilot\|…] [--frequency 4h\|6h\|daily\|weekdays\|weekly] [--dry-run]` | Provision a recurring, unattended trigger that runs the `shipeasy-ops-work` loop in `--pr` mode on a schedule. Provider-pluggable; per-platform walkthrough ships in the skill's own `TRIGGER-INSTALL.md`. |
+| `shipeasy-ops-trigger` | `[--provider claude\|cursor\|copilot\|…] [--frequency 4h\|6h\|daily\|weekdays\|weekly] [--dry-run]` | Provision a recurring, unattended trigger that runs the `shipeasy-ops-work` loop in `--pr` mode on a schedule. Provider-pluggable; the per-platform runbook comes from `shipeasy trigger guide` / the `trigger_guide` MCP tool (auto-detects the calling harness). |
 
 The `SKILL.md` files under `shipeasy/skills/<name>/` are the authoritative
 behaviour spec — the file *is* the prompt the agent follows. Open the matching
@@ -99,7 +99,7 @@ Prereqs: flags platform enabled (`shipeasy-flags-install`).
 Provisions the unattended trigger that runs `shipeasy-ops-work --pr` on a
 cadence. `--provider claude` (default) backs it with a scheduled Claude Code
 routine in Anthropic's cloud (no GitHub Actions) and registers a Shipeasy
-connector; other providers per the skill's `TRIGGER-INSTALL.md`.
+connector; other providers per `shipeasy trigger guide --provider <name>`.
 
 ---
 
@@ -167,7 +167,7 @@ marketplace/
         ├── shipeasy-{flags,ops,i18n}-install/SKILL.md
         ├── shipeasy-i18n-{extract,migrate,translate}/SKILL.md
         ├── shipeasy-ops-work/SKILL.md
-        └── shipeasy-ops-trigger/{SKILL.md,TRIGGER-INSTALL.md}
+        └── shipeasy-ops-trigger/SKILL.md
 ```
 
 Skills and MCP are *referenced, never copied*: each host's manifest points its

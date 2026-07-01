@@ -39,11 +39,11 @@ Prefer the `ops_create` MCP tool when the server is registered; otherwise the
 
 ```bash
 shipeasy ops bug "Checkout button is unresponsive on mobile" \
-  --body "Tapping 'Pay' on iOS Safari does nothing on slow 3G." \
+  --actual-result "Tapping 'Pay' on iOS Safari does nothing on slow 3G." \
   --page-url "https://acme.com/checkout"
 
 shipeasy ops feature "Bulk-archive in dashboard" \
-  --body "Lets ops clear stale gates without opening each row."
+  --description "Lets ops clear stale gates without opening each row."
 ```
 
 `shipeasy ops bug`/`shipeasy ops feature` are sugar for
