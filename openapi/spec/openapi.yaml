@@ -273,6 +273,8 @@ paths:
     $ref: ./paths/projects.yaml#/~1api~1admin~1projects~1current
   /api/admin/projects/upsert:
     $ref: ./paths/projects.yaml#/~1api~1admin~1projects~1upsert
+  /api/admin/projects/{id}:
+    $ref: ./paths/projects.yaml#/~1api~1admin~1projects~1{id}
   /api/admin/i18n/profiles:
     $ref: ./paths/i18n.yaml#/~1api~1admin~1i18n~1profiles
   /api/admin/i18n/keys:
@@ -303,6 +305,8 @@ paths:
     $ref: ./paths/connectors.yaml#/~1api~1admin~1connectors~1{id}~1fire
   /api/admin/connectors/{id}/test:
     $ref: ./paths/connectors.yaml#/~1api~1admin~1connectors~1{id}~1test
+  /api/admin/connectors/{id}/trigger:
+    $ref: ./paths/connectors.yaml#/~1api~1admin~1connectors~1{id}~1trigger
   /api/admin/keys:
     $ref: ./paths/keys.yaml#/~1api~1admin~1keys
   /api/admin/keys/{id}/revoke:

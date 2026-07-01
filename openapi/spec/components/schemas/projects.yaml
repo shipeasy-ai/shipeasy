@@ -147,3 +147,76 @@ UpsertProjectResponse:
     - created
   additionalProperties: false
   description: Result of `POST /api/admin/projects/upsert`.
+UpdateProjectRequest:
+  type: object
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 120
+      description: New project name.
+    domain:
+      $ref: "#/UpsertProjectRequest/properties/domain"
+    slug:
+      type: string
+      minLength: 2
+      maxLength: 48
+      pattern: ^[a-z0-9](?:[a-z0-9-]{0,46}[a-z0-9])?$
+      description: URL-safe identifier used in app URLs and SDK config. Lowercase letters, numbers, and hyphens; 2–48 chars; cannot start or end with a hyphen. The caller lowercases the raw slug before sending.
+    defaultEnv:
+      type: string
+      enum:
+        - dev
+        - staging
+        - prod
+      description: Default environment new resources are scoped to.
+    timezone:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: IANA timezone the project's daily analysis runs in.
+    statMethod:
+      type: string
+      enum:
+        - sequential
+        - fixed
+        - bayesian
+      description: Statistical method the experiment analyzer uses.
+    sigThreshold:
+      type: string
+      enum:
+        - "0.01"
+        - "0.05"
+        - "0.10"
+      description: Significance threshold (alpha) for experiment analysis.
+    autoRollback:
+      type: boolean
+      description: Whether a failing guardrail auto-rolls back the experiment.
+    minSampleDays:
+      type: integer
+      minimum: 1
+      maximum: 365
+      description: Minimum number of days an experiment must run before it can be called.
+    moduleTranslations:
+      type: boolean
+      description: Enable/disable the i18n/translations module.
+    moduleConfigs:
+      type: boolean
+      description: Enable/disable the dynamic-configs module.
+    moduleGates:
+      type: boolean
+      description: Enable/disable the feature-gates module.
+    moduleExperiments:
+      type: boolean
+      description: Enable/disable the experiments module.
+    moduleFeedback:
+      type: boolean
+      description: Enable/disable the feedback/ops module.
+    moduleUser:
+      type: boolean
+      description: Enable/disable the user-management module.
+    moduleEvents:
+      type: boolean
+      description: Enable/disable the events module.
+  additionalProperties: false
+  description: "Body for `PATCH /api/admin/projects/{id}`. Partial — every field is optional; only supplied fields change. The project id in the path must match the caller's own project."

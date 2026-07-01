@@ -28,15 +28,15 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   g_metrics.command("create")
     .description("Create a metric")
     .argument("<name>", "Stable metric key. Single segment or `folder.name`; lowercase letters, digits, `_`/`-`; max 128 chars.")
-    .option("--folder <value>", "Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK.")
+    .option("--folder <value>", "Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).")
     .option("--event-name <value>", "Source event the query reads from.")
-    .option("--query <value>", "Metric query DSL string, e.g. `sum(purchase, amount)`. Provide this OR `query_ir`.")
-    .option("--query-ir <value>", "Typed query IR — the structured alternative to `query`. Provide this OR `query`.")
+    .option("--query <value>", "Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`.")
     .option("--winsorize-pct <value>", "Winsorise percentile (1–99) to clamp outliers. Defaults to 99.")
     .option("--min-detectable-effect <value>", "Minimum detectable effect (relative, 0–1) for power planning. `null` to omit.")
     .option("--direction <value>", "Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).")
+    .option("--query-ir <value>", "Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body.")
     .action(async (name, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createMetric({ client, body: clean({ name: name, folder: str(opts.folder), event_name: str(opts.eventName), query: str(opts.query), query_ir: json(opts.queryIr), winsorize_pct: num(opts.winsorizePct), min_detectable_effect: num(opts.minDetectableEffect), direction: str(opts.direction) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createMetric({ client, body: clean({ name: name, folder: str(opts.folder), event_name: str(opts.eventName), query: str(opts.query), winsorize_pct: num(opts.winsorizePct), min_detectable_effect: num(opts.minDetectableEffect), direction: str(opts.direction), query_ir: json(opts.queryIr) }) }) });
     });
   g_metrics.command("show")
     .description("Get a metric")
@@ -44,6 +44,19 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--data <value>", "Request body as a JSON object.")
     .action(async (id, opts) => {
       await ctx.run({ mutates: false, invoke: (client) => api.getMetric({ client, path: { id: id }, body: json(opts.data) as never }) });
+    });
+  g_metrics.command("update")
+    .description("Update a metric")
+    .argument("<id>", "Stable opaque metric id (`met_…`) or the metric's `name`.")
+    .option("--folder <value>", "Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).")
+    .option("--event-name <value>", "Source event the query reads from.")
+    .option("--query <value>", "Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`.")
+    .option("--winsorize-pct <value>", "Winsorise percentile (1–99) to clamp outliers. Defaults to 99.")
+    .option("--min-detectable-effect <value>", "Minimum detectable effect (relative, 0–1) for power planning. `null` to omit.")
+    .option("--direction <value>", "Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).")
+    .option("--query-ir <value>", "Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body.")
+    .action(async (id, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.updateMetric({ client, path: { id: id }, body: clean({ folder: str(opts.folder), event_name: str(opts.eventName), query: str(opts.query), winsorize_pct: num(opts.winsorizePct), min_detectable_effect: num(opts.minDetectableEffect), direction: str(opts.direction), query_ir: json(opts.queryIr) }) }) });
     });
   g_metrics.command("archive")
     .description("Archive a metric")
@@ -63,34 +76,58 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     });
   g_ops.command("create")
     .description("File a queue item (bug or feature request) — pass --type.")
-    .argument("<title>", "One-line title of the bug or feature request.")
-    .option("--type <value>", "Item type to file. Only the two user-fileable types are accepted here — `error` and `alert` tickets are auto-filed by the platform and cannot be created over the API.")
-    .option("--body <value>", "Detailed description / steps to reproduce.")
-    .option("--priority <value>", "Initial triage priority.")
-    .option("--steps-to-reproduce <value>", "Reproduction steps (bugs).")
-    .option("--page-url <value>", "URL of the page the item relates to.")
+    .argument("<title>", "One-line bug title (no leading/trailing whitespace).")
+    .option("--type <value>", "Discriminator — files a bug.")
+    .option("--steps-to-reproduce <value>", "How to reproduce the bug.")
+    .option("--actual-result <value>", "What actually happened.")
+    .option("--expected-result <value>", "What was expected instead.")
+    .option("--priority <value>", "Initial triage priority, or `null`.")
+    .option("--reporter-email <value>", "Email of the reporter, or `null`.")
+    .option("--page-url <value>", "URL of the page the bug relates to, or `null`.")
+    .option("--user-agent <value>", "Reporter's user-agent string, or `null`.")
+    .option("--viewport <value>", "Reporter's viewport (e.g. `1280x720`), or `null`.")
+    .option("--context <value>", "Arbitrary capture context, or `null`.")
+    .option("--notify <value>", "Where this bug's completion notification lands.")
+    .option("--description <value>", "What the feature is.")
+    .option("--use-case <value>", "Why it's needed / the use case.")
     .action(async (title, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, type: str(opts.type), body: str(opts.body), priority: str(opts.priority), stepsToReproduce: str(opts.stepsToReproduce), pageUrl: str(opts.pageUrl) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, type: str(opts.type), stepsToReproduce: str(opts.stepsToReproduce), actualResult: str(opts.actualResult), expectedResult: str(opts.expectedResult), priority: str(opts.priority), reporterEmail: str(opts.reporterEmail), pageUrl: str(opts.pageUrl), userAgent: str(opts.userAgent), viewport: str(opts.viewport), context: json(opts.context), notify: str(opts.notify), description: str(opts.description), useCase: str(opts.useCase) }) }) });
     });
   g_ops.command("bug")
     .description("File a bug report.")
-    .argument("<title>", "One-line title of the bug or feature request.")
-    .option("--body <value>", "Detailed description / steps to reproduce.")
-    .option("--priority <value>", "Initial triage priority.")
-    .option("--steps-to-reproduce <value>", "Reproduction steps (bugs).")
-    .option("--page-url <value>", "URL of the page the item relates to.")
+    .argument("<title>", "One-line bug title (no leading/trailing whitespace).")
+    .option("--steps-to-reproduce <value>", "How to reproduce the bug.")
+    .option("--actual-result <value>", "What actually happened.")
+    .option("--expected-result <value>", "What was expected instead.")
+    .option("--priority <value>", "Initial triage priority, or `null`.")
+    .option("--reporter-email <value>", "Email of the reporter, or `null`.")
+    .option("--page-url <value>", "URL of the page the bug relates to, or `null`.")
+    .option("--user-agent <value>", "Reporter's user-agent string, or `null`.")
+    .option("--viewport <value>", "Reporter's viewport (e.g. `1280x720`), or `null`.")
+    .option("--context <value>", "Arbitrary capture context, or `null`.")
+    .option("--notify <value>", "Where this bug's completion notification lands.")
+    .option("--description <value>", "What the feature is.")
+    .option("--use-case <value>", "Why it's needed / the use case.")
     .action(async (title, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, body: str(opts.body), priority: str(opts.priority), stepsToReproduce: str(opts.stepsToReproduce), pageUrl: str(opts.pageUrl), type: "bug" }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, stepsToReproduce: str(opts.stepsToReproduce), actualResult: str(opts.actualResult), expectedResult: str(opts.expectedResult), priority: str(opts.priority), reporterEmail: str(opts.reporterEmail), pageUrl: str(opts.pageUrl), userAgent: str(opts.userAgent), viewport: str(opts.viewport), context: json(opts.context), notify: str(opts.notify), description: str(opts.description), useCase: str(opts.useCase), type: "bug" }) }) });
     });
   g_ops.command("feature")
     .description("File a feature request.")
-    .argument("<title>", "One-line title of the bug or feature request.")
-    .option("--body <value>", "Detailed description / steps to reproduce.")
-    .option("--priority <value>", "Initial triage priority.")
-    .option("--steps-to-reproduce <value>", "Reproduction steps (bugs).")
-    .option("--page-url <value>", "URL of the page the item relates to.")
+    .argument("<title>", "One-line bug title (no leading/trailing whitespace).")
+    .option("--steps-to-reproduce <value>", "How to reproduce the bug.")
+    .option("--actual-result <value>", "What actually happened.")
+    .option("--expected-result <value>", "What was expected instead.")
+    .option("--priority <value>", "Initial triage priority, or `null`.")
+    .option("--reporter-email <value>", "Email of the reporter, or `null`.")
+    .option("--page-url <value>", "URL of the page the bug relates to, or `null`.")
+    .option("--user-agent <value>", "Reporter's user-agent string, or `null`.")
+    .option("--viewport <value>", "Reporter's viewport (e.g. `1280x720`), or `null`.")
+    .option("--context <value>", "Arbitrary capture context, or `null`.")
+    .option("--notify <value>", "Where this bug's completion notification lands.")
+    .option("--description <value>", "What the feature is.")
+    .option("--use-case <value>", "Why it's needed / the use case.")
     .action(async (title, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, body: str(opts.body), priority: str(opts.priority), stepsToReproduce: str(opts.stepsToReproduce), pageUrl: str(opts.pageUrl), type: "feature_request" }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, stepsToReproduce: str(opts.stepsToReproduce), actualResult: str(opts.actualResult), expectedResult: str(opts.expectedResult), priority: str(opts.priority), reporterEmail: str(opts.reporterEmail), pageUrl: str(opts.pageUrl), userAgent: str(opts.userAgent), viewport: str(opts.viewport), context: json(opts.context), notify: str(opts.notify), description: str(opts.description), useCase: str(opts.useCase), type: "feature_request" }) }) });
     });
   g_ops.command("get")
     .description("Get one queue item")
@@ -102,10 +139,18 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   g_ops.command("update")
     .description("Update a queue item")
     .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id.")
-    .option("--status <value>", "New lifecycle status.")
-    .option("--priority <value>", "New triage priority.")
+    .option("--title <value>", "New bug title (no leading/trailing whitespace).")
+    .option("--steps-to-reproduce <value>", "Updated reproduction steps.")
+    .option("--actual-result <value>", "Updated actual result.")
+    .option("--expected-result <value>", "Updated expected result.")
+    .option("--status <value>", "Lifecycle status of a queue item.")
+    .option("--priority <value>", "Triage priority, or `null` to clear it.")
+    .option("--github-pr-number <value>", "Link (or, when `null`, unlink) a GitHub pull request to this bug.")
+    .option("--notify <value>", "Where this item's completion notification lands, or `null`.")
+    .option("--description <value>", "Updated description.")
+    .option("--use-case <value>", "Updated use case.")
     .action(async (handle, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateOpsItem({ client, path: { handle: handle }, body: clean({ status: str(opts.status), priority: str(opts.priority) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.updateOpsItem({ client, path: { handle: handle }, body: clean({ title: str(opts.title), stepsToReproduce: str(opts.stepsToReproduce), actualResult: str(opts.actualResult), expectedResult: str(opts.expectedResult), status: str(opts.status), priority: str(opts.priority), githubPrNumber: num(opts.githubPrNumber), notify: str(opts.notify), description: str(opts.description), useCase: str(opts.useCase) }) }) });
     });
   g_ops.command("link-pr")
     .description("Link a fixing PR")
@@ -139,22 +184,43 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     });
   g_projects.command("upsert")
     .description("Find-or-create a project by domain")
-    .option("--domain <value>", "Hostname-like project identifier (e.g. `acme.com`). Use `*` to allow any origin. The project is keyed by `(owner_email, domain)`, so a second call with the same domain returns the existing project.")
+    .option("--domain <value>", "Lowercase bare hostname (e.g. `acme.com`, `app.acme.com`, `*.acme.com`), or `*` to allow any origin. Full URLs with `https://` are not accepted. The project is keyed by `(owner_email, domain)`, so a second call with the same domain returns the existing project.")
     .option("--name <value>", "Human-readable project name. Defaults to the domain on first create.")
     .action(async (opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.upsertProject({ client, body: clean({ domain: str(opts.domain), name: str(opts.name) }) }) });
     });
+  g_projects.command("update")
+    .description("Update the current project")
+    .argument("<id>", "Stable opaque project id. Must match the caller's own project.")
+    .option("--name <value>", "New project name.")
+    .option("--domain <value>", "Lowercase bare hostname (e.g. `acme.com`, `app.acme.com`, `*.acme.com`), or `*` to allow any origin. Full URLs with `https://` are not accepted. The project is keyed by `(owner_email, domain)`, so a second call with the same domain returns the existing project.")
+    .option("--slug <value>", "URL-safe identifier used in app URLs and SDK config. Lowercase letters, numbers, and hyphens; 2–48 chars; cannot start or end with a hyphen. The caller lowercases the raw slug before sending.")
+    .option("--default-env <value>", "Default environment new resources are scoped to.")
+    .option("--timezone <value>", "IANA timezone the project's daily analysis runs in.")
+    .option("--stat-method <value>", "Statistical method the experiment analyzer uses.")
+    .option("--sig-threshold <value>", "Significance threshold (alpha) for experiment analysis.")
+    .option("--auto-rollback <value>", "Whether a failing guardrail auto-rolls back the experiment.")
+    .option("--min-sample-days <value>", "Minimum number of days an experiment must run before it can be called.")
+    .option("--module-translations <value>", "Enable/disable the i18n/translations module.")
+    .option("--module-configs <value>", "Enable/disable the dynamic-configs module.")
+    .option("--module-gates <value>", "Enable/disable the feature-gates module.")
+    .option("--module-experiments <value>", "Enable/disable the experiments module.")
+    .option("--module-feedback <value>", "Enable/disable the feedback/ops module.")
+    .option("--module-user <value>", "Enable/disable the user-management module.")
+    .option("--module-events <value>", "Enable/disable the events module.")
+    .action(async (id, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.updateProject({ client, path: { id: id }, body: clean({ name: str(opts.name), domain: str(opts.domain), slug: str(opts.slug), defaultEnv: str(opts.defaultEnv), timezone: str(opts.timezone), statMethod: str(opts.statMethod), sigThreshold: str(opts.sigThreshold), autoRollback: bool(opts.autoRollback), minSampleDays: num(opts.minSampleDays), moduleTranslations: bool(opts.moduleTranslations), moduleConfigs: bool(opts.moduleConfigs), moduleGates: bool(opts.moduleGates), moduleExperiments: bool(opts.moduleExperiments), moduleFeedback: bool(opts.moduleFeedback), moduleUser: bool(opts.moduleUser), moduleEvents: bool(opts.moduleEvents) }) }) });
+    });
   g_metrics_events.command("list")
     .description("List events")
-    .option("--pending <value>", "When `true`, return only pending (auto-discovered, unapproved) events. Omit to return the full catalog.")
     .option("--data <value>", "Request body as a JSON object.")
     .action(async (opts) => {
-      await ctx.run({ mutates: false, invoke: (client) => api.listEvents({ client, query: clean({ pending: bool(opts.pending) }), body: json(opts.data) as never }) });
+      await ctx.run({ mutates: false, invoke: (client) => api.listEvents({ client, body: json(opts.data) as never }) });
     });
   g_metrics_events.command("create")
     .description("Register an event")
     .argument("<name>", "Event name. Starts with a letter, digit, or `_`; letters, digits, `_`, `-`, `.`; max 128 chars. Immutable after create — this is the handle metric queries reference.")
-    .option("--folder <value>", "Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK.")
+    .option("--folder <value>", "Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).")
     .option("--description <value>", "Optional human-readable description of the event.")
     .option("--properties <value>", "Typed properties declared on the event. Defaults to an empty list.")
     .action(async (name, opts) => {
@@ -170,7 +236,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   g_metrics_events.command("update")
     .description("Update an event")
     .argument("<id>", "Stable opaque event id (`evt_…`) or the event's `name`.")
-    .option("--folder <value>", "Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK.")
+    .option("--folder <value>", "Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).")
     .option("--description <value>", "New description for the event.")
     .option("--properties <value>", "Replaces the full property set (no merge). Omit to leave properties unchanged.")
     .action(async (id, opts) => {
@@ -186,7 +252,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   g_metrics_events.command("approve")
     .description("Approve a pending event")
     .argument("<id>", "Stable opaque event id (`evt_…`) or the event's `name`.")
-    .option("--folder <value>", "Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK.")
+    .option("--folder <value>", "Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).")
     .option("--description <value>", "New description for the event.")
     .option("--properties <value>", "Replaces the full property set (no merge). Omit to leave properties unchanged.")
     .action(async (id, opts) => {
@@ -213,7 +279,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--window-hours <value>", "Lookback window (hours) the metric is aggregated over. 1–720.")
     .option("--severity <value>", "Severity of the raised alert.")
     .option("--enabled <value>", "Whether the rule is evaluated by the cron.")
-    .option("--notify <value>", "Where to deliver this rule's alert (Slack channel and/or email target).")
+    .option("--notify <value>", "Delivery target for a notification; `null` = use the project default.")
     .action(async (opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.createAlertRule({ client, body: clean({ name: str(opts.name), metricId: str(opts.metricId), comparator: str(opts.comparator), threshold: num(opts.threshold), windowHours: num(opts.windowHours), severity: str(opts.severity), enabled: bool(opts.enabled), notify: json(opts.notify) }) }) });
     });
@@ -226,7 +292,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--window-hours <value>", "")
     .option("--severity <value>", "")
     .option("--enabled <value>", "")
-    .option("--notify <value>", "")
+    .option("--notify <value>", "Delivery target for a notification; `null` = use the project default.")
     .action(async (id, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.updateAlertRule({ client, path: { id: id }, body: clean({ name: str(opts.name), comparator: str(opts.comparator), threshold: num(opts.threshold), windowHours: num(opts.windowHours), severity: str(opts.severity), enabled: bool(opts.enabled), notify: json(opts.notify) }) }) });
     });
@@ -247,9 +313,9 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     });
   g_release_configs.command("create")
     .description("Create a dynamic config")
-    .argument("<name>", "Stable config key in `folder.name` form (two lowercase segments separated by a dot, e.g. `pricing.tiers`). Used by SDKs as `Shipeasy.getConfig('<name>')`. Immutable after create.")
+    .argument("<name>", "Stable config/killswitch key in `folder.name` form (two lowercase segments separated by a dot, e.g. `pricing.tiers`). Immutable after create.")
     .option("--description <value>", "Optional free-form description shown in the dashboard. Max 512 chars.")
-    .option("--folder <value>", "Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK.")
+    .option("--folder <value>", "Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).")
     .option("--schema <value>", "JSON Schema (draft 2020-12) describing the shape of the config value. Top-level `type` must be `'object'`; every published value is validated against this schema.")
     .option("--value <value>", "Initial config value. Either a single JSON object applied to every env, or a `{ env: value }` map seeding per-env values. Must match `schema`. Defaults to `{}` on every env when omitted.")
     .action(async (name, opts) => {
@@ -267,7 +333,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .argument("<id>", "Stable opaque config id (`cfg_…`) or the config's `name`.")
     .option("--schema <value>", "Replacement schema. When supplied, the new schema is validated against every published value before it lands.")
     .option("--value <value>", "Flat value applied to **every** env. Publishes a new version per env. To target one env, use `PUT /{id}/drafts` then `POST /{id}/publish`.")
-    .option("--folder <value>", "Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK.")
+    .option("--folder <value>", "Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).")
     .action(async (id, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.updateConfig({ client, path: { id: id }, body: clean({ schema: json(opts.schema), value: str(opts.value), folder: str(opts.folder) }) }) });
     });
@@ -308,6 +374,13 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .action(async (id, opts) => {
       await ctx.run({ mutates: false, invoke: (client) => api.listConfigActivity({ client, path: { id: id }, query: clean({ limit: num(opts.limit) }), body: json(opts.data) as never }) });
     });
+  g_release_configs.command("update-schema")
+    .description("Update a config schema")
+    .argument("<id>", "Stable opaque config id (`cfg_…`) or the config's `name`.")
+    .option("--schema <value>", "Replacement JSON Schema (draft 2020-12). Validated against every published value before it lands.")
+    .action(async (id, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.updateConfigSchema({ client, path: { id: id }, body: clean({ schema: json(opts.schema) }) }) });
+    });
   g_release_experiments.command("list")
     .description("List experiments")
     .option("--limit <value>", "Page size (1–500). Defaults to 100.")
@@ -325,7 +398,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--owner-email <value>", "Owner email. Display-only.")
     .option("--audience <value>", "Audience label shown in the editor. Display-only.")
     .option("--bucket-by <value>", "")
-    .option("--folder <value>", "Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK.")
+    .option("--folder <value>", "Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).")
     .option("--universe <value>", "Name of an existing universe in the project. Returns `422` if the universe doesn't exist.")
     .option("--targeting-gate <value>", "Optional gate name. Only callers that pass the gate are enrolled in the experiment.")
     .option("--allocation-pct <value>", "Share of the (gated) audience allocated to the experiment, in basis points (0–10000 = 0%–100%). `0` = unallocated. Use `allocation_percent` (0–100) below to think in percent. Immutable while the experiment is running.")
@@ -337,7 +410,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--min-runtime-days <value>", "Minimum days the experiment must run before results are considered conclusive.")
     .option("--min-sample-size <value>", "Minimum exposures per group before results are considered conclusive.")
     .option("--sequential-testing <value>", "Enable sequential testing (always-valid p-values). Requires Premium plan or higher.")
-    .option("--goal-metric <value>", "Single goal metric defined inline — either a DSL `query` or an `event` (+`aggregation`/`value`) the server compiles. Attaching one is required before the experiment can be started. The underlying event is auto-created if missing.")
+    .option("--goal-metric <value>", "Inline metric — a DSL `query`, or an `event` (+ `aggregation`/`value`) the server compiles into one.")
     .option("--guardrail-metrics <value>", "Up to 10 guardrail metrics defined inline. Each is upserted (event + metric) and attached with role=guardrail.")
     .action(async (name, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.createExperiment({ client, body: clean({ name: name, description: str(opts.description), hypothesis: str(opts.hypothesis), tag: str(opts.tag), owner_email: str(opts.ownerEmail), audience: str(opts.audience), bucket_by: str(opts.bucketBy), folder: str(opts.folder), universe: str(opts.universe), targeting_gate: str(opts.targetingGate), allocation_pct: num(opts.allocationPct), allocation_percent: num(opts.allocationPercent), salt: str(opts.salt), params: json(opts.params), groups: json(opts.groups), significance_threshold: num(opts.significanceThreshold), min_runtime_days: num(opts.minRuntimeDays), min_sample_size: num(opts.minSampleSize), sequential_testing: bool(opts.sequentialTesting), goal_metric: json(opts.goalMetric), guardrail_metrics: json(opts.guardrailMetrics) }) }) });
@@ -359,7 +432,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--owner-email <value>", "")
     .option("--audience <value>", "")
     .option("--bucket-by <value>", "")
-    .option("--folder <value>", "Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK.")
+    .option("--folder <value>", "Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).")
     .option("--targeting-gate <value>", "")
     .option("--allocation-pct <value>", "Basis-points allocation (0–10000). Use `allocation_percent` (0–100) for percent. Immutable while the experiment is running.")
     .option("--allocation-percent <value>", "Allocation as a **percentage** (0–100). Friendlier alias for `allocation_pct`; converted to basis points server-side. Wins over `allocation_pct` if both are supplied. Immutable while running.")
@@ -371,7 +444,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--min-runtime-days <value>", "")
     .option("--min-sample-size <value>", "")
     .option("--sequential-testing <value>", "")
-    .option("--goal-metric <value>", "Replaces the goal metric — DSL `query` or `event` (+`aggregation`/`value`) the server compiles (event auto-upserted).")
+    .option("--goal-metric <value>", "Inline metric — a DSL `query`, or an `event` (+ `aggregation`/`value`) the server compiles into one.")
     .option("--guardrail-metrics <value>", "Replaces the guardrail set wholesale (event auto-upserted per entry).")
     .action(async (id, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.updateExperiment({ client, path: { id: id }, body: clean({ name: str(opts.name), description: str(opts.description), hypothesis: str(opts.hypothesis), tag: str(opts.tag), owner_email: str(opts.ownerEmail), audience: str(opts.audience), bucket_by: str(opts.bucketBy), folder: str(opts.folder), targeting_gate: str(opts.targetingGate), allocation_pct: num(opts.allocationPct), allocation_percent: num(opts.allocationPercent), salt: str(opts.salt), universe: str(opts.universe), params: json(opts.params), groups: json(opts.groups), significance_threshold: num(opts.significanceThreshold), min_runtime_days: num(opts.minRuntimeDays), min_sample_size: num(opts.minSampleSize), sequential_testing: bool(opts.sequentialTesting), goal_metric: json(opts.goalMetric), guardrail_metrics: json(opts.guardrailMetrics) }) }) });
@@ -449,7 +522,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--stack <value>", "Optional gatekeeper stack. When provided, takes precedence over `rules` + `rollout_pct` at evaluation time. Omit (or pass `null`) for a flat gate.")
     .option("--title <value>", "Human-readable title shown in the dashboard. Free-form, no key format constraint.")
     .option("--description <value>", "Long-form description / runbook. Markdown is rendered in the dashboard.")
-    .option("--folder <value>", "Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK.")
+    .option("--folder <value>", "Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).")
     .option("--group <value>", "Group label for dashboard organisation (e.g. team or product area).")
     .option("--owner-email <value>", "Owner contact. Displayed verbatim; not used for auth.")
     .action(async (name, opts) => {
@@ -465,7 +538,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--stack <value>", "Replaces the gatekeeper stack wholesale. Send `null` to revert to flat `rules` + `rollout_pct` evaluation.")
     .option("--title <value>", "Human-readable title shown in the dashboard. Free-form, no key format constraint.")
     .option("--description <value>", "Long-form description / runbook. Markdown is rendered in the dashboard.")
-    .option("--folder <value>", "Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK.")
+    .option("--folder <value>", "Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).")
     .option("--group <value>", "Group label for dashboard organisation (e.g. team or product area).")
     .option("--owner-email <value>", "Owner contact. Displayed verbatim; not used for auth.")
     .action(async (id, opts) => {
@@ -502,9 +575,9 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     });
   g_release_killswitch.command("create")
     .description("Create a killswitch")
-    .argument("<name>", "Stable killswitch key in `folder.name` form (two lowercase segments separated by a dot — e.g. `payments.checkout`). Immutable after create.")
+    .argument("<name>", "Stable config/killswitch key in `folder.name` form (two lowercase segments separated by a dot, e.g. `pricing.tiers`). Immutable after create.")
     .option("--description <value>", "Optional free-form description shown in the dashboard. Max 512 chars.")
-    .option("--folder <value>", "Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK.")
+    .option("--folder <value>", "Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).")
     .option("--value <value>", "Default value applied to every env at creation. Defaults to `false`. Use `true` to ship the killswitch pre-tripped.")
     .option("--switches <value>", "Initial per-switch overrides applied to every env. Empty/omitted leaves the killswitch with only the flat `value`.")
     .action(async (name, opts) => {
@@ -521,7 +594,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .description("Update a killswitch")
     .argument("<id>", "Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.")
     .option("--description <value>", "New description, or `null` to clear it. Max 512 chars.")
-    .option("--folder <value>", "Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK.")
+    .option("--folder <value>", "Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).")
     .option("--value <value>", "Flat value applied to every env. Publishes a new version per env when set. Omit to leave values unchanged.")
     .option("--switches <value>", "Replace the switches map wholesale on every env. To edit a single entry on a single env use `PUT /{id}/switch` instead.")
     .action(async (id, opts) => {
@@ -551,6 +624,14 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .action(async (id, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.unsetKillswitchSwitch({ client, path: { id: id }, body: clean({ env: str(opts.env), switchKey: str(opts.switchKey) }) }) });
     });
+  g_release_killswitch.command("set-value")
+    .description("Set the flat value on one env")
+    .argument("<id>", "Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.")
+    .option("--env <value>", "Target environment. One of the project's configured envs (`dev`, `staging`, `prod`).")
+    .option("--value <value>", "Flat boolean to publish on `env`. Publishes a new version on that env only.")
+    .action(async (id, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.setKillswitchValue({ client, path: { id: id }, body: clean({ env: str(opts.env), value: bool(opts.value) }) }) });
+    });
   g_release_experiments_universes.command("list")
     .description("List universes")
     .option("--limit <value>", "Page size (1–500). Defaults to 100.")
@@ -562,7 +643,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   g_release_experiments_universes.command("create")
     .description("Create a universe")
     .argument("<name>", "Stable universe key. Single segment or `folder.name`. Lowercase letters, digits, `_` or `-`; max 128 chars. Immutable after create.")
-    .option("--folder <value>", "Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK.")
+    .option("--folder <value>", "Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).")
     .option("--unit-type <value>", "Unit of randomisation. Typically `user_id`. Use `account_id` to keep whole accounts in the same group across an experiment.")
     .option("--holdout-range <value>", "Inclusive `[lo, hi]` bucket range (0–9999) reserved as the **holdout** — callers hashed into this slice are excluded from every experiment in the universe. `null` disables the holdout. Pro plan or higher required.")
     .action(async (name, opts) => {
@@ -571,7 +652,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   g_release_experiments_universes.command("update")
     .description("Update a universe")
     .argument("<id>", "Stable opaque universe id (`uni_…`) or the universe's `name`.")
-    .option("--folder <value>", "Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK.")
+    .option("--folder <value>", "Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).")
     .option("--holdout-range <value>", "Inclusive `[lo, hi]` bucket range (0–9999) reserved as the **holdout** — callers hashed into this slice are excluded from every experiment in the universe. `null` disables the holdout. Pro plan or higher required.")
     .action(async (id, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.updateUniverse({ client, path: { id: id }, body: clean({ folder: str(opts.folder), holdout_range: json(opts.holdoutRange) }) }) });
@@ -588,5 +669,41 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--data <value>", "Request body as a JSON object.")
     .action(async (opts) => {
       await ctx.run({ mutates: false, invoke: (client) => api.listAttributes({ client, body: json(opts.data) as never }) });
+    });
+  g_release_flags_attributes.command("create")
+    .description("Declare a targeting attribute")
+    .argument("<name>", "Attribute key (lowercase alphanumeric start, then letters/digits/`_`/`-`; max 64 chars). Immutable after create.")
+    .option("--type <value>", "Declared value type of a targeting attribute.")
+    .option("--enum-values <value>", "Allowed values when `type` is `enum` (required in that case — 422 otherwise); `null` for non-enum types.")
+    .option("--required <value>", "Whether the attribute must be present on the evaluation context.")
+    .option("--description <value>", "Optional human note shown in the dashboard.")
+    .option("--sdk-path <value>", "Optional dotted path the SDK reads the value from.")
+    .action(async (name, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.createAttribute({ client, body: clean({ name: name, type: str(opts.type), enum_values: json(opts.enumValues), required: bool(opts.required), description: str(opts.description), sdk_path: str(opts.sdkPath) }) }) });
+    });
+  g_release_flags_attributes.command("get")
+    .description("Get a targeting attribute")
+    .argument("<id>", "The attribute id.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (id, opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.getAttribute({ client, path: { id: id }, body: json(opts.data) as never }) });
+    });
+  g_release_flags_attributes.command("update")
+    .description("Update a targeting attribute")
+    .argument("<id>", "The attribute id.")
+    .option("--type <value>", "Declared value type of a targeting attribute.")
+    .option("--enum-values <value>", "Replacement allowed values (for `enum`), or `null` to clear.")
+    .option("--required <value>", "Whether the attribute must be present on the evaluation context.")
+    .option("--description <value>", "Optional human note shown in the dashboard.")
+    .option("--sdk-path <value>", "Optional dotted path the SDK reads the value from.")
+    .action(async (id, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.updateAttribute({ client, path: { id: id }, body: clean({ type: str(opts.type), enum_values: json(opts.enumValues), required: bool(opts.required), description: str(opts.description), sdk_path: str(opts.sdkPath) }) }) });
+    });
+  g_release_flags_attributes.command("archive")
+    .description("Archive a targeting attribute")
+    .argument("<id>", "The attribute id.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (id, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.deleteAttribute({ client, path: { id: id }, body: json(opts.data) as never }) });
     });
 }

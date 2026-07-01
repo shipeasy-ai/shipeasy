@@ -1139,108 +1139,158 @@ export const zListMetricsResponse = z.array(z.object({
 }));
 
 /**
- * Body for `POST /api/admin/metrics`. Requires `name`, `event_name`, and exactly one of `query` / `query_ir`.
+ * Source event the query reads from.
  */
-export const zCreateMetricRequest = z.object({
+export const zMetricEventName = z.string().min(1);
+
+/**
+ * Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`.
+ */
+export const zMetricQueryDsl = z.string().min(1).max(4096);
+
+/**
+ * Winsorise percentile (1–99) to clamp outliers. Defaults to 99.
+ */
+export const zMetricWinsorizePct = z.coerce.number().int().gte(1).lte(99).default(99);
+
+/**
+ * Minimum detectable effect (relative, 0–1) for power planning. `null` to omit.
+ */
+export const zMetricMinDetectableEffect = z.coerce.number().nullable().default(null);
+
+/**
+ * Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).
+ */
+export const zMetricDirection = z.enum([
+    'higher_better',
+    'lower_better',
+    'neutral'
+]).default('higher_better');
+
+/**
+ * Create a metric, supplying the query as a `query` DSL string.
+ */
+export const zCreateMetricWithQuery = z.object({
     name: zMetricName,
     folder: zFolder.optional(),
-    event_name: z.string().min(1),
-    query: z.string().min(1).max(4096).optional(),
-    query_ir: z.object({
-        agg: z.union([
-            z.object({
-                kind: z.literal('count_users')
-            }),
-            z.object({
-                kind: z.literal('count_events')
-            }),
-            z.object({
-                kind: z.literal('sum')
-            }),
-            z.object({
-                kind: z.literal('avg')
-            }),
-            z.object({
-                kind: z.literal('min')
-            }),
-            z.object({
-                kind: z.literal('max')
-            }),
-            z.object({
-                kind: z.literal('unique')
-            }),
-            z.object({
-                kind: z.literal('quantile'),
-                p: z.union([
-                    z.literal(0.5),
-                    z.literal(0.75),
-                    z.literal(0.9),
-                    z.literal(0.95),
-                    z.literal(0.99),
-                    z.literal(0.999)
-                ])
-            }),
-            z.object({
-                kind: z.literal('retention_Nd'),
-                n: z.coerce.number().int().gte(1).lte(90)
-            }),
-            z.object({
-                kind: z.literal('ratio'),
-                numerator: z.object({
-                    agg: z.enum(['count_users', 'count_events']),
-                    metric: z.string().min(1).max(128),
-                    filters: z.array(z.object({
-                        label: z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/),
-                        op: z.enum([
-                            '=',
-                            '!=',
-                            '=~',
-                            '!~'
-                        ]),
-                        value: z.string().max(512)
-                    })).max(16).optional()
-                }),
-                denominator: z.object({
-                    agg: z.enum(['count_users', 'count_events']),
-                    metric: z.string().min(1).max(128),
-                    filters: z.array(z.object({
-                        label: z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/),
-                        op: z.enum([
-                            '=',
-                            '!=',
-                            '=~',
-                            '!~'
-                        ]),
-                        value: z.string().max(512)
-                    })).max(16).optional()
-                })
-            })
-        ]),
-        metric: z.string().min(1).max(128),
-        valueLabel: z.string().min(1).max(128).optional(),
-        filters: z.array(z.object({
-            label: z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/),
-            op: z.enum([
-                '=',
-                '!=',
-                '=~',
-                '!~'
-            ]),
-            value: z.string().max(512)
-        })).max(16).optional().default([]),
-        groupBy: z.object({
-            op: z.enum(['by', 'without']),
-            labels: z.array(z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/)).max(5)
-        }).optional()
-    }).optional(),
-    winsorize_pct: z.coerce.number().int().gte(1).lte(99).optional().default(99),
-    min_detectable_effect: z.coerce.number().nullish().default(null),
-    direction: z.enum([
-        'higher_better',
-        'lower_better',
-        'neutral'
-    ]).optional().default('higher_better')
+    event_name: zMetricEventName,
+    query: zMetricQueryDsl,
+    winsorize_pct: zMetricWinsorizePct.optional(),
+    min_detectable_effect: zMetricMinDetectableEffect.optional(),
+    direction: zMetricDirection.optional()
 });
+
+/**
+ * Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body.
+ */
+export const zQueryIr = z.object({
+    agg: z.union([
+        z.object({
+            kind: z.literal('count_users')
+        }),
+        z.object({
+            kind: z.literal('count_events')
+        }),
+        z.object({
+            kind: z.literal('sum')
+        }),
+        z.object({
+            kind: z.literal('avg')
+        }),
+        z.object({
+            kind: z.literal('min')
+        }),
+        z.object({
+            kind: z.literal('max')
+        }),
+        z.object({
+            kind: z.literal('unique')
+        }),
+        z.object({
+            kind: z.literal('quantile'),
+            p: z.union([
+                z.literal(0.5),
+                z.literal(0.75),
+                z.literal(0.9),
+                z.literal(0.95),
+                z.literal(0.99),
+                z.literal(0.999)
+            ])
+        }),
+        z.object({
+            kind: z.literal('retention_Nd'),
+            n: z.coerce.number().int().gte(1).lte(90)
+        }),
+        z.object({
+            kind: z.literal('ratio'),
+            numerator: z.object({
+                agg: z.enum(['count_users', 'count_events']),
+                metric: z.string().min(1).max(128),
+                filters: z.array(z.object({
+                    label: z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/),
+                    op: z.enum([
+                        '=',
+                        '!=',
+                        '=~',
+                        '!~'
+                    ]),
+                    value: z.string().max(512)
+                })).max(16).optional()
+            }),
+            denominator: z.object({
+                agg: z.enum(['count_users', 'count_events']),
+                metric: z.string().min(1).max(128),
+                filters: z.array(z.object({
+                    label: z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/),
+                    op: z.enum([
+                        '=',
+                        '!=',
+                        '=~',
+                        '!~'
+                    ]),
+                    value: z.string().max(512)
+                })).max(16).optional()
+            })
+        })
+    ]),
+    metric: z.string().min(1).max(128),
+    valueLabel: z.string().min(1).max(128).optional(),
+    filters: z.array(z.object({
+        label: z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/),
+        op: z.enum([
+            '=',
+            '!=',
+            '=~',
+            '!~'
+        ]),
+        value: z.string().max(512)
+    })).max(16).optional().default([]),
+    groupBy: z.object({
+        op: z.enum(['by', 'without']),
+        labels: z.array(z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/)).max(5)
+    }).optional()
+});
+
+/**
+ * Create a metric, supplying the query as a typed `query_ir`.
+ */
+export const zCreateMetricWithQueryIr = z.object({
+    name: zMetricName,
+    folder: zFolder.optional(),
+    event_name: zMetricEventName,
+    query_ir: zQueryIr,
+    winsorize_pct: zMetricWinsorizePct.optional(),
+    min_detectable_effect: zMetricMinDetectableEffect.optional(),
+    direction: zMetricDirection.optional()
+});
+
+/**
+ * Body for `POST /api/admin/metrics`. Requires `name`, `event_name`, and exactly one of `query` / `query_ir` — modelled as a `oneOf` of two strict variants, so supplying both (or neither) is rejected.
+ */
+export const zCreateMetricRequest = z.union([
+    zCreateMetricWithQuery,
+    zCreateMetricWithQueryIr
+]);
 
 /**
  * Result of a successful metric create.
@@ -1367,132 +1417,48 @@ export const zDeleteMetricResponse = z.object({
 });
 
 /**
- * Metric query DSL string, e.g. `sum(purchase, amount)`. Provide this OR `query_ir`.
+ * Update-metric variant that replaces the query with a `query` DSL string.
  */
-export const zQuery = z.string().min(1).max(4096);
-
-/**
- * Typed query IR — the structured alternative to `query`. Provide this OR `query`.
- */
-export const zQueryIr = z.object({
-    agg: z.union([
-        z.object({
-            kind: z.literal('count_users')
-        }),
-        z.object({
-            kind: z.literal('count_events')
-        }),
-        z.object({
-            kind: z.literal('sum')
-        }),
-        z.object({
-            kind: z.literal('avg')
-        }),
-        z.object({
-            kind: z.literal('min')
-        }),
-        z.object({
-            kind: z.literal('max')
-        }),
-        z.object({
-            kind: z.literal('unique')
-        }),
-        z.object({
-            kind: z.literal('quantile'),
-            p: z.union([
-                z.literal(0.5),
-                z.literal(0.75),
-                z.literal(0.9),
-                z.literal(0.95),
-                z.literal(0.99),
-                z.literal(0.999)
-            ])
-        }),
-        z.object({
-            kind: z.literal('retention_Nd'),
-            n: z.coerce.number().int().gte(1).lte(90)
-        }),
-        z.object({
-            kind: z.literal('ratio'),
-            numerator: z.object({
-                agg: z.enum(['count_users', 'count_events']),
-                metric: z.string().min(1).max(128),
-                filters: z.array(z.object({
-                    label: z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/),
-                    op: z.enum([
-                        '=',
-                        '!=',
-                        '=~',
-                        '!~'
-                    ]),
-                    value: z.string().max(512)
-                })).max(16).optional()
-            }),
-            denominator: z.object({
-                agg: z.enum(['count_users', 'count_events']),
-                metric: z.string().min(1).max(128),
-                filters: z.array(z.object({
-                    label: z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/),
-                    op: z.enum([
-                        '=',
-                        '!=',
-                        '=~',
-                        '!~'
-                    ]),
-                    value: z.string().max(512)
-                })).max(16).optional()
-            })
-        })
-    ]),
-    metric: z.string().min(1).max(128),
-    valueLabel: z.string().min(1).max(128).optional(),
-    filters: z.array(z.object({
-        label: z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/),
-        op: z.enum([
-            '=',
-            '!=',
-            '=~',
-            '!~'
-        ]),
-        value: z.string().max(512)
-    })).max(16).optional().default([]),
-    groupBy: z.object({
-        op: z.enum(['by', 'without']),
-        labels: z.array(z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/)).max(5)
-    }).optional()
-});
-
-/**
- * Winsorise percentile (1–99) to clamp outliers. Defaults to 99.
- */
-export const zWinsorizePct = z.coerce.number().int().gte(1).lte(99).default(99);
-
-/**
- * Minimum detectable effect (relative, 0–1) for power planning. `null` to omit.
- */
-export const zMinDetectableEffect = z.coerce.number().nullable().default(null);
-
-/**
- * Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).
- */
-export const zDirection = z.enum([
-    'higher_better',
-    'lower_better',
-    'neutral'
-]).default('higher_better');
-
-/**
- * Body for `PATCH /api/admin/metrics/{id}`. Every field is optional (`name` is immutable); provide at most one of `query` / `query_ir`.
- */
-export const zUpdateMetricRequest = z.object({
+export const zUpdateMetricWithQuery = z.object({
     folder: zFolder.optional(),
-    event_name: z.string().min(1).optional(),
-    query: zQuery.optional(),
-    query_ir: zQueryIr.optional(),
-    winsorize_pct: zWinsorizePct.optional(),
-    min_detectable_effect: zMinDetectableEffect.optional(),
-    direction: zDirection.optional()
+    event_name: zMetricEventName.optional(),
+    query: zMetricQueryDsl,
+    winsorize_pct: zMetricWinsorizePct.optional(),
+    min_detectable_effect: zMetricMinDetectableEffect.optional(),
+    direction: zMetricDirection.optional()
 });
+
+/**
+ * Update-metric variant that replaces the query with a typed `query_ir`.
+ */
+export const zUpdateMetricWithQueryIr = z.object({
+    folder: zFolder.optional(),
+    event_name: zMetricEventName.optional(),
+    query_ir: zQueryIr,
+    winsorize_pct: zMetricWinsorizePct.optional(),
+    min_detectable_effect: zMetricMinDetectableEffect.optional(),
+    direction: zMetricDirection.optional()
+});
+
+/**
+ * Update-metric variant that leaves the query untouched (metadata-only edit — folder, event, winsorisation, MDE, direction).
+ */
+export const zUpdateMetricFields = z.object({
+    folder: zFolder.optional(),
+    event_name: zMetricEventName.optional(),
+    winsorize_pct: zMetricWinsorizePct.optional(),
+    min_detectable_effect: zMetricMinDetectableEffect.optional(),
+    direction: zMetricDirection.optional()
+});
+
+/**
+ * Body for `PATCH /api/admin/metrics/{id}`. Every field is optional (`name` is immutable); provide at most one of `query` / `query_ir` — modelled as a `oneOf` of three disjoint strict variants (query-only, query_ir-only, or neither), so supplying both is rejected.
+ */
+export const zUpdateMetricRequest = z.union([
+    zUpdateMetricWithQuery,
+    zUpdateMetricWithQueryIr,
+    zUpdateMetricFields
+]);
 
 /**
  * Every catalogued event in the project (including pending auto-discovered names).
@@ -2068,6 +2034,45 @@ export const zUpsertProjectResponse = z.object({
     created: z.boolean()
 });
 
+/**
+ * Lowercase bare hostname (e.g. `acme.com`, `app.acme.com`, `*.acme.com`), or `*` to allow any origin. Full URLs with `https://` are not accepted. The project is keyed by `(owner_email, domain)`, so a second call with the same domain returns the existing project.
+ */
+export const zDomain = z.string().min(1).max(2048).regex(/^(\*|(\*\.)?[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+)$/);
+
+/**
+ * Body for `PATCH /api/admin/projects/{id}`. Partial — every field is optional; only supplied fields change. The project id in the path must match the caller's own project.
+ */
+export const zUpdateProjectRequest = z.object({
+    name: z.string().min(1).max(120).optional(),
+    domain: zDomain.optional(),
+    slug: z.string().min(2).max(48).regex(/^[a-z0-9](?:[a-z0-9-]{0,46}[a-z0-9])?$/).optional(),
+    defaultEnv: z.enum([
+        'dev',
+        'staging',
+        'prod'
+    ]).optional(),
+    timezone: z.string().min(1).max(64).optional(),
+    statMethod: z.enum([
+        'sequential',
+        'fixed',
+        'bayesian'
+    ]).optional(),
+    sigThreshold: z.enum([
+        '0.01',
+        '0.05',
+        '0.10'
+    ]).optional(),
+    autoRollback: z.boolean().optional(),
+    minSampleDays: z.coerce.number().int().gte(1).lte(365).optional(),
+    moduleTranslations: z.boolean().optional(),
+    moduleConfigs: z.boolean().optional(),
+    moduleGates: z.boolean().optional(),
+    moduleExperiments: z.boolean().optional(),
+    moduleFeedback: z.boolean().optional(),
+    moduleUser: z.boolean().optional(),
+    moduleEvents: z.boolean().optional()
+});
+
 export const zListI18nProfilesResponse = z.array(z.object({
     id: z.string(),
     name: z.string(),
@@ -2549,6 +2554,58 @@ export const zTestConnectorResponse = z.object({
     issueUrl: z.string().nullable(),
     error: z.string().optional()
 });
+
+/**
+ * Per-provider PATCH body for editing an existing `claude_trigger` connector (the dashboard "Triggers" tab). The non-secret `config` is always supplied and replaces the stored config wholesale; `name` and `token` are optional.
+ */
+export const zUpdateClaudeTriggerRequest = z.object({
+    provider: z.enum(['claude_trigger']),
+    name: z.string().min(1).max(80).optional(),
+    config: zClaudeTriggerConfig,
+    token: z.string().min(1).optional()
+});
+
+/**
+ * Per-provider PATCH body for editing an existing `cursor_trigger` connector. `config` replaces the stored config wholesale; `name` and either credential are optional (a supplied credential rotates just that key).
+ */
+export const zUpdateCursorTriggerRequest = z.object({
+    provider: z.enum(['cursor_trigger']),
+    name: z.string().min(1).max(80).optional(),
+    config: zCursorTriggerConfig,
+    apiKey: z.string().min(1).optional(),
+    opsKey: z.string().min(1).optional()
+});
+
+/**
+ * Per-provider PATCH body for editing an existing `copilot_trigger` connector. `config` replaces the stored config wholesale; `name` and `token` are optional.
+ */
+export const zUpdateCopilotTriggerRequest = z.object({
+    provider: z.enum(['copilot_trigger']),
+    name: z.string().min(1).max(80).optional(),
+    config: zCopilotTriggerConfig,
+    token: z.string().min(1).optional()
+});
+
+/**
+ * Per-provider PATCH body for editing an existing `jules_trigger` connector. `config` replaces the stored config wholesale; `name` and either credential are optional.
+ */
+export const zUpdateJulesTriggerRequest = z.object({
+    provider: z.enum(['jules_trigger']),
+    name: z.string().min(1).max(80).optional(),
+    config: zJulesTriggerConfig,
+    apiKey: z.string().min(1).optional(),
+    opsKey: z.string().min(1).optional()
+});
+
+/**
+ * Body for `PATCH /api/admin/connectors/{id}/trigger`, discriminated on `provider`. Edits an existing trigger connector: the non-secret `config` is always supplied and replaces the stored config wholesale; `name` and the credential secret(s) are optional (a supplied secret rotates just that key, a blank/omitted one leaves the stored cipher untouched).
+ */
+export const zUpdateTriggerConnectorRequest = z.discriminatedUnion('provider', [
+    zUpdateClaudeTriggerRequest.extend({ provider: z.literal('claude_trigger') }),
+    zUpdateCursorTriggerRequest.extend({ provider: z.literal('cursor_trigger') }),
+    zUpdateCopilotTriggerRequest.extend({ provider: z.literal('copilot_trigger') }),
+    zUpdateJulesTriggerRequest.extend({ provider: z.literal('jules_trigger') })
+]);
 
 /**
  * A single API key as returned by the list endpoint. Response fields are snake_case. The raw token is never returned here — only its `last4` tail. `last4` and the typed `scopes` may be `null` for keys minted before those columns existed.
@@ -3577,6 +3634,21 @@ export const zUpsertProjectHeaders = z.object({
  */
 export const zUpsertProjectResponse2 = zUpsertProjectResponse;
 
+export const zUpdateProjectBody = zUpdateProjectRequest;
+
+export const zUpdateProjectHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zUpdateProjectPath = z.object({
+    id: z.string()
+});
+
+/**
+ * The updated project.
+ */
+export const zUpdateProjectResponse = zGetCurrentProjectResponse;
+
 export const zListI18nProfilesHeaders = z.object({
     'X-Project-Id': z.string().optional()
 });
@@ -3864,6 +3936,21 @@ export const zTestConnectorPath = z.object({
  * Test a connector
  */
 export const zTestConnectorResponse2 = zTestConnectorResponse;
+
+export const zUpdateTriggerConnectorBody = zUpdateTriggerConnectorRequest;
+
+export const zUpdateTriggerConnectorHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zUpdateTriggerConnectorPath = z.object({
+    id: z.string()
+});
+
+/**
+ * Update a trigger connector
+ */
+export const zUpdateTriggerConnectorResponse = zUpdateConnectorResponse;
 
 export const zListKeysHeaders = z.object({
     'X-Project-Id': z.string().optional()

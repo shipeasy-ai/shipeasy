@@ -369,6 +369,124 @@ JulesTriggerConfig:
     - projectId
   additionalProperties: false
   description: Non-secret config for a Jules trigger.
+UpdateTriggerConnectorRequest:
+  oneOf:
+    - $ref: "#/UpdateClaudeTriggerRequest"
+    - $ref: "#/UpdateCursorTriggerRequest"
+    - $ref: "#/UpdateCopilotTriggerRequest"
+    - $ref: "#/UpdateJulesTriggerRequest"
+  discriminator:
+    propertyName: provider
+    mapping:
+      claude_trigger: "#/UpdateClaudeTriggerRequest"
+      cursor_trigger: "#/UpdateCursorTriggerRequest"
+      copilot_trigger: "#/UpdateCopilotTriggerRequest"
+      jules_trigger: "#/UpdateJulesTriggerRequest"
+  description: "Body for `PATCH /api/admin/connectors/{id}/trigger`, discriminated on `provider`. Edits an existing trigger connector: the non-secret `config` is always supplied and replaces the stored config wholesale; `name` and the credential secret(s) are optional (a supplied secret rotates just that key, a blank/omitted one leaves the stored cipher untouched)."
+UpdateClaudeTriggerRequest:
+  type: object
+  properties:
+    provider:
+      type: string
+      enum:
+        - claude_trigger
+      description: Discriminator. Claude Code scheduled-routine trigger.
+    name:
+      type: string
+      minLength: 1
+      maxLength: 80
+      description: New connector label. Optional — omit to leave it unchanged.
+    config:
+      $ref: "#/ClaudeTriggerConfig"
+    token:
+      type: string
+      minLength: 1
+      description: "New fire bearer token (secret). Optional — a blank/omitted token leaves the stored cipher untouched; a supplied one replaces it. Encrypted; never returned."
+  required:
+    - provider
+    - config
+  additionalProperties: false
+  description: "Per-provider PATCH body for editing an existing `claude_trigger` connector (the dashboard \"Triggers\" tab). The non-secret `config` is always supplied and replaces the stored config wholesale; `name` and `token` are optional."
+UpdateCursorTriggerRequest:
+  type: object
+  properties:
+    provider:
+      type: string
+      enum:
+        - cursor_trigger
+      description: Discriminator. Cursor cloud-agent trigger.
+    name:
+      type: string
+      minLength: 1
+      maxLength: 80
+      description: New connector label. Optional — omit to leave it unchanged.
+    config:
+      $ref: "#/CursorTriggerConfig"
+    apiKey:
+      type: string
+      minLength: 1
+      description: "New Cursor launch key (secret). Optional — omit to leave the stored key untouched. Rotatable independently of `opsKey`. Encrypted; never returned."
+    opsKey:
+      type: string
+      minLength: 1
+      description: "New restricted Shipeasy ops key (secret). Optional — omit to leave the stored key untouched. Rotatable independently of `apiKey`. Encrypted; never returned."
+  required:
+    - provider
+    - config
+  additionalProperties: false
+  description: "Per-provider PATCH body for editing an existing `cursor_trigger` connector. `config` replaces the stored config wholesale; `name` and either credential are optional (a supplied credential rotates just that key)."
+UpdateCopilotTriggerRequest:
+  type: object
+  properties:
+    provider:
+      type: string
+      enum:
+        - copilot_trigger
+      description: Discriminator. GitHub Copilot coding-agent trigger.
+    name:
+      type: string
+      minLength: 1
+      maxLength: 80
+      description: New connector label. Optional — omit to leave it unchanged.
+    config:
+      $ref: "#/CopilotTriggerConfig"
+    token:
+      type: string
+      minLength: 1
+      description: "New Copilot-licensed user PAT (secret). Optional — omit to leave the stored cipher untouched. Encrypted; never returned."
+  required:
+    - provider
+    - config
+  additionalProperties: false
+  description: "Per-provider PATCH body for editing an existing `copilot_trigger` connector. `config` replaces the stored config wholesale; `name` and `token` are optional."
+UpdateJulesTriggerRequest:
+  type: object
+  properties:
+    provider:
+      type: string
+      enum:
+        - jules_trigger
+      description: Discriminator. Google Jules trigger.
+    name:
+      type: string
+      minLength: 1
+      maxLength: 80
+      description: New connector label. Optional — omit to leave it unchanged.
+    config:
+      $ref: "#/JulesTriggerConfig"
+    apiKey:
+      type: string
+      minLength: 1
+      description: "New Jules launch key (secret). Optional — omit to leave the stored key untouched. Rotatable independently of `opsKey`. Encrypted; never returned."
+    opsKey:
+      type: string
+      minLength: 1
+      description: "New restricted Shipeasy ops key (secret). Optional — omit to leave the stored key untouched. Rotatable independently of `apiKey`. Encrypted; never returned."
+  required:
+    - provider
+    - config
+  additionalProperties: false
+  description: "Per-provider PATCH body for editing an existing `jules_trigger` connector. `config` replaces the stored config wholesale; `name` and either credential are optional."
 CreateConnectorResponse:
   type: object
   properties:

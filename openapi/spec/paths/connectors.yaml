@@ -450,3 +450,79 @@
       name: test
       positional:
         - id
+/api/admin/connectors/{id}/trigger:
+  patch:
+    operationId: updateTriggerConnector
+    summary: Update a trigger connector
+    description: |-
+      Edit an existing coding-agent **trigger** connector (`claude_trigger` / `cursor_trigger` / `copilot_trigger` / `jules_trigger`) — replace its non-secret `config` and, optionally, rotate its credential secret(s). Discriminated on `provider`; the id in the path selects the connector and its `provider` must match the body.
+
+      Unlike the generic `PATCH /api/admin/connectors/{id}` (which cannot touch secrets), this endpoint always replaces the non-secret `config` wholesale and merges any supplied secret over the stored credential cipher — so a single half of a two-key pair (e.g. just the ops key) can be rotated on its own. A blank/omitted secret leaves the stored cipher untouched.
+
+      The response carries only `{ id }` — re-fetch via `GET /api/admin/connectors/{id}` for the new row.
+
+      **Use case:** Re-point a Cursor trigger at a new repo ref, or rotate a Claude trigger's fire token, without deleting and re-creating the connector.
+    tags:
+      - Connectors
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque connector id. Its stored `provider` must match the body's `provider`.
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/connectors.yaml#/UpdateTriggerConnectorRequest
+          examples:
+            claude:
+              summary: Claude — repoint routine, rotate token
+              description: Replaces the routine config and rotates the fire token.
+              value:
+                provider: claude_trigger
+                config:
+                  routineId: rtn_9f2c
+                token: fire_live_a1b2c3
+            cursor:
+              summary: Cursor — rotate just the ops key
+              description: Leaves the launch key untouched, rotates only the restricted ops key.
+              value:
+                provider: cursor_trigger
+                config:
+                  repoUrl: https://github.com/acme/app
+                  projectId: f81d4fae-7dec-11d0-a765-00a0c91e6bf6
+                opsKey: sdk_ops_live_x9y8z7
+    responses:
+      "200":
+        description: Update a trigger connector
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/connectors.yaml#/UpdateConnectorResponse
+            example:
+              id: 9b0e7c2a-1f3d-4a8e-bf21-0c6a2e5d7f10
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: trigger
+      positional:
+        - id

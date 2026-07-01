@@ -2042,167 +2042,196 @@ export type ListMetricsResponse = Array<{
 }>;
 
 /**
- * Body for `POST /api/admin/metrics`. Requires `name`, `event_name`, and exactly one of `query` / `query_ir`.
+ * Source event the query reads from.
  */
-export type CreateMetricRequest = {
+export type MetricEventName = string;
+
+/**
+ * Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`.
+ */
+export type MetricQueryDsl = string;
+
+/**
+ * Winsorise percentile (1–99) to clamp outliers. Defaults to 99.
+ */
+export type MetricWinsorizePct = number;
+
+/**
+ * Minimum detectable effect (relative, 0–1) for power planning. `null` to omit.
+ */
+export type MetricMinDetectableEffect = number | null;
+
+/**
+ * Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).
+ */
+export type MetricDirection = 'higher_better' | 'lower_better' | 'neutral';
+
+/**
+ * Create a metric, supplying the query as a `query` DSL string.
+ */
+export type CreateMetricWithQuery = {
     name: MetricName;
     folder?: Folder;
+    event_name: MetricEventName;
+    query: MetricQueryDsl;
+    winsorize_pct?: MetricWinsorizePct;
+    min_detectable_effect?: MetricMinDetectableEffect;
+    direction?: MetricDirection;
+};
+
+/**
+ * Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body.
+ */
+export type QueryIr = {
     /**
-     * Source event the query reads from.
+     * Aggregation function applied to the source event.
      */
-    event_name: string;
-    /**
-     * Metric query DSL string, e.g. `sum(purchase, amount)`. Provide this OR `query_ir`.
-     */
-    query?: string;
-    /**
-     * Typed query IR — the structured alternative to `query`. Provide this OR `query`.
-     */
-    query_ir?: {
+    agg: {
+        kind: 'count_users';
+    } | {
+        kind: 'count_events';
+    } | {
+        kind: 'sum';
+    } | {
+        kind: 'avg';
+    } | {
+        kind: 'min';
+    } | {
+        kind: 'max';
+    } | {
+        kind: 'unique';
+    } | {
+        kind: 'quantile';
         /**
-         * Aggregation function applied to the source event.
+         * Quantile fraction (0.5 = p50 … 0.999 = p999).
          */
-        agg: {
-            kind: 'count_users';
-        } | {
-            kind: 'count_events';
-        } | {
-            kind: 'sum';
-        } | {
-            kind: 'avg';
-        } | {
-            kind: 'min';
-        } | {
-            kind: 'max';
-        } | {
-            kind: 'unique';
-        } | {
-            kind: 'quantile';
+        p: 0.5 | 0.75 | 0.9 | 0.95 | 0.99 | 0.999;
+    } | {
+        kind: 'retention_Nd';
+        /**
+         * Retention window in days (1–90).
+         */
+        n: number;
+    } | {
+        kind: 'ratio';
+        /**
+         * Numerator or denominator arm of a `ratio` aggregation.
+         */
+        numerator: {
             /**
-             * Quantile fraction (0.5 = p50 … 0.999 = p999).
+             * Counting mode for this ratio arm.
              */
-            p: 0.5 | 0.75 | 0.9 | 0.95 | 0.99 | 0.999;
-        } | {
-            kind: 'retention_Nd';
+            agg: 'count_users' | 'count_events';
             /**
-             * Retention window in days (1–90).
+             * Source event name for this ratio arm.
              */
-            n: number;
-        } | {
-            kind: 'ratio';
+            metric: string;
             /**
-             * Numerator or denominator arm of a `ratio` aggregation.
+             * Optional label filters.
              */
-            numerator: {
+            filters?: Array<{
                 /**
-                 * Counting mode for this ratio arm.
+                 * Event property / label identifier.
                  */
-                agg: 'count_users' | 'count_events';
+                label: string;
                 /**
-                 * Source event name for this ratio arm.
+                 * Match operator (`=~`/`!~` are regex).
                  */
-                metric: string;
+                op: '=' | '!=' | '=~' | '!~';
                 /**
-                 * Optional label filters.
+                 * Quoted filter value (coerced for numeric labels).
                  */
-                filters?: Array<{
-                    /**
-                     * Event property / label identifier.
-                     */
-                    label: string;
-                    /**
-                     * Match operator (`=~`/`!~` are regex).
-                     */
-                    op: '=' | '!=' | '=~' | '!~';
-                    /**
-                     * Quoted filter value (coerced for numeric labels).
-                     */
-                    value: string;
-                }>;
-            };
-            /**
-             * Numerator or denominator arm of a `ratio` aggregation.
-             */
-            denominator: {
-                /**
-                 * Counting mode for this ratio arm.
-                 */
-                agg: 'count_users' | 'count_events';
-                /**
-                 * Source event name for this ratio arm.
-                 */
-                metric: string;
-                /**
-                 * Optional label filters.
-                 */
-                filters?: Array<{
-                    /**
-                     * Event property / label identifier.
-                     */
-                    label: string;
-                    /**
-                     * Match operator (`=~`/`!~` are regex).
-                     */
-                    op: '=' | '!=' | '=~' | '!~';
-                    /**
-                     * Quoted filter value (coerced for numeric labels).
-                     */
-                    value: string;
-                }>;
-            };
+                value: string;
+            }>;
         };
         /**
-         * Source event name (must equal `event_name`).
+         * Numerator or denominator arm of a `ratio` aggregation.
          */
-        metric: string;
-        /**
-         * Numeric property summed/averaged for `sum`/`avg`/quantile aggregations.
-         */
-        valueLabel?: string;
-        /**
-         * Label filters on the event.
-         */
-        filters?: Array<{
+        denominator: {
             /**
-             * Event property / label identifier.
+             * Counting mode for this ratio arm.
              */
-            label: string;
+            agg: 'count_users' | 'count_events';
             /**
-             * Match operator (`=~`/`!~` are regex).
+             * Source event name for this ratio arm.
              */
-            op: '=' | '!=' | '=~' | '!~';
+            metric: string;
             /**
-             * Quoted filter value (coerced for numeric labels).
+             * Optional label filters.
              */
-            value: string;
-        }>;
-        /**
-         * Optional group-by clause (ignored for experiment analysis).
-         */
-        groupBy?: {
-            /**
-             * `by` keeps the listed labels; `without` drops them.
-             */
-            op: 'by' | 'without';
-            /**
-             * Labels to group by (max 5).
-             */
-            labels: Array<string>;
+            filters?: Array<{
+                /**
+                 * Event property / label identifier.
+                 */
+                label: string;
+                /**
+                 * Match operator (`=~`/`!~` are regex).
+                 */
+                op: '=' | '!=' | '=~' | '!~';
+                /**
+                 * Quoted filter value (coerced for numeric labels).
+                 */
+                value: string;
+            }>;
         };
     };
     /**
-     * Winsorise percentile (1–99) to clamp outliers. Defaults to 99.
+     * Source event name (must equal `event_name`).
      */
-    winsorize_pct?: number;
+    metric: string;
     /**
-     * Minimum detectable effect (relative, 0–1) for power planning. `null` to omit.
+     * Numeric property summed/averaged for `sum`/`avg`/quantile aggregations.
      */
-    min_detectable_effect?: number | null;
+    valueLabel?: string;
     /**
-     * Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).
+     * Label filters on the event.
      */
-    direction?: 'higher_better' | 'lower_better' | 'neutral';
+    filters?: Array<{
+        /**
+         * Event property / label identifier.
+         */
+        label: string;
+        /**
+         * Match operator (`=~`/`!~` are regex).
+         */
+        op: '=' | '!=' | '=~' | '!~';
+        /**
+         * Quoted filter value (coerced for numeric labels).
+         */
+        value: string;
+    }>;
+    /**
+     * Optional group-by clause (ignored for experiment analysis).
+     */
+    groupBy?: {
+        /**
+         * `by` keeps the listed labels; `without` drops them.
+         */
+        op: 'by' | 'without';
+        /**
+         * Labels to group by (max 5).
+         */
+        labels: Array<string>;
+    };
 };
+
+/**
+ * Create a metric, supplying the query as a typed `query_ir`.
+ */
+export type CreateMetricWithQueryIr = {
+    name: MetricName;
+    folder?: Folder;
+    event_name: MetricEventName;
+    query_ir: QueryIr;
+    winsorize_pct?: MetricWinsorizePct;
+    min_detectable_effect?: MetricMinDetectableEffect;
+    direction?: MetricDirection;
+};
+
+/**
+ * Body for `POST /api/admin/metrics`. Requires `name`, `event_name`, and exactly one of `query` / `query_ir` — modelled as a `oneOf` of two strict variants, so supplying both (or neither) is rejected.
+ */
+export type CreateMetricRequest = CreateMetricWithQuery | CreateMetricWithQueryIr;
 
 /**
  * Result of a successful metric create.
@@ -2416,176 +2445,44 @@ export type DeleteMetricResponse = {
 };
 
 /**
- * Metric query DSL string, e.g. `sum(purchase, amount)`. Provide this OR `query_ir`.
+ * Update-metric variant that replaces the query with a `query` DSL string.
  */
-export type Query = string;
-
-/**
- * Typed query IR — the structured alternative to `query`. Provide this OR `query`.
- */
-export type QueryIr = {
-    /**
-     * Aggregation function applied to the source event.
-     */
-    agg: {
-        kind: 'count_users';
-    } | {
-        kind: 'count_events';
-    } | {
-        kind: 'sum';
-    } | {
-        kind: 'avg';
-    } | {
-        kind: 'min';
-    } | {
-        kind: 'max';
-    } | {
-        kind: 'unique';
-    } | {
-        kind: 'quantile';
-        /**
-         * Quantile fraction (0.5 = p50 … 0.999 = p999).
-         */
-        p: 0.5 | 0.75 | 0.9 | 0.95 | 0.99 | 0.999;
-    } | {
-        kind: 'retention_Nd';
-        /**
-         * Retention window in days (1–90).
-         */
-        n: number;
-    } | {
-        kind: 'ratio';
-        /**
-         * Numerator or denominator arm of a `ratio` aggregation.
-         */
-        numerator: {
-            /**
-             * Counting mode for this ratio arm.
-             */
-            agg: 'count_users' | 'count_events';
-            /**
-             * Source event name for this ratio arm.
-             */
-            metric: string;
-            /**
-             * Optional label filters.
-             */
-            filters?: Array<{
-                /**
-                 * Event property / label identifier.
-                 */
-                label: string;
-                /**
-                 * Match operator (`=~`/`!~` are regex).
-                 */
-                op: '=' | '!=' | '=~' | '!~';
-                /**
-                 * Quoted filter value (coerced for numeric labels).
-                 */
-                value: string;
-            }>;
-        };
-        /**
-         * Numerator or denominator arm of a `ratio` aggregation.
-         */
-        denominator: {
-            /**
-             * Counting mode for this ratio arm.
-             */
-            agg: 'count_users' | 'count_events';
-            /**
-             * Source event name for this ratio arm.
-             */
-            metric: string;
-            /**
-             * Optional label filters.
-             */
-            filters?: Array<{
-                /**
-                 * Event property / label identifier.
-                 */
-                label: string;
-                /**
-                 * Match operator (`=~`/`!~` are regex).
-                 */
-                op: '=' | '!=' | '=~' | '!~';
-                /**
-                 * Quoted filter value (coerced for numeric labels).
-                 */
-                value: string;
-            }>;
-        };
-    };
-    /**
-     * Source event name (must equal `event_name`).
-     */
-    metric: string;
-    /**
-     * Numeric property summed/averaged for `sum`/`avg`/quantile aggregations.
-     */
-    valueLabel?: string;
-    /**
-     * Label filters on the event.
-     */
-    filters?: Array<{
-        /**
-         * Event property / label identifier.
-         */
-        label: string;
-        /**
-         * Match operator (`=~`/`!~` are regex).
-         */
-        op: '=' | '!=' | '=~' | '!~';
-        /**
-         * Quoted filter value (coerced for numeric labels).
-         */
-        value: string;
-    }>;
-    /**
-     * Optional group-by clause (ignored for experiment analysis).
-     */
-    groupBy?: {
-        /**
-         * `by` keeps the listed labels; `without` drops them.
-         */
-        op: 'by' | 'without';
-        /**
-         * Labels to group by (max 5).
-         */
-        labels: Array<string>;
-    };
-};
-
-/**
- * Winsorise percentile (1–99) to clamp outliers. Defaults to 99.
- */
-export type WinsorizePct = number;
-
-/**
- * Minimum detectable effect (relative, 0–1) for power planning. `null` to omit.
- */
-export type MinDetectableEffect = number | null;
-
-/**
- * Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).
- */
-export type Direction = 'higher_better' | 'lower_better' | 'neutral';
-
-/**
- * Body for `PATCH /api/admin/metrics/{id}`. Every field is optional (`name` is immutable); provide at most one of `query` / `query_ir`.
- */
-export type UpdateMetricRequest = {
+export type UpdateMetricWithQuery = {
     folder?: Folder;
-    /**
-     * Source event the query reads from.
-     */
-    event_name?: string;
-    query?: Query;
-    query_ir?: QueryIr;
-    winsorize_pct?: WinsorizePct;
-    min_detectable_effect?: MinDetectableEffect;
-    direction?: Direction;
+    event_name?: MetricEventName;
+    query: MetricQueryDsl;
+    winsorize_pct?: MetricWinsorizePct;
+    min_detectable_effect?: MetricMinDetectableEffect;
+    direction?: MetricDirection;
 };
+
+/**
+ * Update-metric variant that replaces the query with a typed `query_ir`.
+ */
+export type UpdateMetricWithQueryIr = {
+    folder?: Folder;
+    event_name?: MetricEventName;
+    query_ir: QueryIr;
+    winsorize_pct?: MetricWinsorizePct;
+    min_detectable_effect?: MetricMinDetectableEffect;
+    direction?: MetricDirection;
+};
+
+/**
+ * Update-metric variant that leaves the query untouched (metadata-only edit — folder, event, winsorisation, MDE, direction).
+ */
+export type UpdateMetricFields = {
+    folder?: Folder;
+    event_name?: MetricEventName;
+    winsorize_pct?: MetricWinsorizePct;
+    min_detectable_effect?: MetricMinDetectableEffect;
+    direction?: MetricDirection;
+};
+
+/**
+ * Body for `PATCH /api/admin/metrics/{id}`. Every field is optional (`name` is immutable); provide at most one of `query` / `query_ir` — modelled as a `oneOf` of three disjoint strict variants (query-only, query_ir-only, or neither), so supplying both is rejected.
+ */
+export type UpdateMetricRequest = UpdateMetricWithQuery | UpdateMetricWithQueryIr | UpdateMetricFields;
 
 /**
  * Every catalogued event in the project (including pending auto-discovered names).
@@ -3608,6 +3505,78 @@ export type UpsertProjectResponse = {
     created: boolean;
 };
 
+/**
+ * Lowercase bare hostname (e.g. `acme.com`, `app.acme.com`, `*.acme.com`), or `*` to allow any origin. Full URLs with `https://` are not accepted. The project is keyed by `(owner_email, domain)`, so a second call with the same domain returns the existing project.
+ */
+export type Domain = string;
+
+/**
+ * Body for `PATCH /api/admin/projects/{id}`. Partial — every field is optional; only supplied fields change. The project id in the path must match the caller's own project.
+ */
+export type UpdateProjectRequest = {
+    /**
+     * New project name.
+     */
+    name?: string;
+    domain?: Domain;
+    /**
+     * URL-safe identifier used in app URLs and SDK config. Lowercase letters, numbers, and hyphens; 2–48 chars; cannot start or end with a hyphen. The caller lowercases the raw slug before sending.
+     */
+    slug?: string;
+    /**
+     * Default environment new resources are scoped to.
+     */
+    defaultEnv?: 'dev' | 'staging' | 'prod';
+    /**
+     * IANA timezone the project's daily analysis runs in.
+     */
+    timezone?: string;
+    /**
+     * Statistical method the experiment analyzer uses.
+     */
+    statMethod?: 'sequential' | 'fixed' | 'bayesian';
+    /**
+     * Significance threshold (alpha) for experiment analysis.
+     */
+    sigThreshold?: '0.01' | '0.05' | '0.10';
+    /**
+     * Whether a failing guardrail auto-rolls back the experiment.
+     */
+    autoRollback?: boolean;
+    /**
+     * Minimum number of days an experiment must run before it can be called.
+     */
+    minSampleDays?: number;
+    /**
+     * Enable/disable the i18n/translations module.
+     */
+    moduleTranslations?: boolean;
+    /**
+     * Enable/disable the dynamic-configs module.
+     */
+    moduleConfigs?: boolean;
+    /**
+     * Enable/disable the feature-gates module.
+     */
+    moduleGates?: boolean;
+    /**
+     * Enable/disable the experiments module.
+     */
+    moduleExperiments?: boolean;
+    /**
+     * Enable/disable the feedback/ops module.
+     */
+    moduleFeedback?: boolean;
+    /**
+     * Enable/disable the user-management module.
+     */
+    moduleUser?: boolean;
+    /**
+     * Enable/disable the events module.
+     */
+    moduleEvents?: boolean;
+};
+
 export type ListI18nProfilesResponse = Array<{
     /**
      * Stable opaque profile id.
@@ -4581,6 +4550,103 @@ export type TestConnectorResponse = {
      */
     error?: string;
 };
+
+/**
+ * Per-provider PATCH body for editing an existing `claude_trigger` connector (the dashboard "Triggers" tab). The non-secret `config` is always supplied and replaces the stored config wholesale; `name` and `token` are optional.
+ */
+export type UpdateClaudeTriggerRequest = {
+    /**
+     * Discriminator. Claude Code scheduled-routine trigger.
+     */
+    provider: 'claude_trigger';
+    /**
+     * New connector label. Optional — omit to leave it unchanged.
+     */
+    name?: string;
+    config: ClaudeTriggerConfig;
+    /**
+     * New fire bearer token (secret). Optional — a blank/omitted token leaves the stored cipher untouched; a supplied one replaces it. Encrypted; never returned.
+     */
+    token?: string;
+};
+
+/**
+ * Per-provider PATCH body for editing an existing `cursor_trigger` connector. `config` replaces the stored config wholesale; `name` and either credential are optional (a supplied credential rotates just that key).
+ */
+export type UpdateCursorTriggerRequest = {
+    /**
+     * Discriminator. Cursor cloud-agent trigger.
+     */
+    provider: 'cursor_trigger';
+    /**
+     * New connector label. Optional — omit to leave it unchanged.
+     */
+    name?: string;
+    config: CursorTriggerConfig;
+    /**
+     * New Cursor launch key (secret). Optional — omit to leave the stored key untouched. Rotatable independently of `opsKey`. Encrypted; never returned.
+     */
+    apiKey?: string;
+    /**
+     * New restricted Shipeasy ops key (secret). Optional — omit to leave the stored key untouched. Rotatable independently of `apiKey`. Encrypted; never returned.
+     */
+    opsKey?: string;
+};
+
+/**
+ * Per-provider PATCH body for editing an existing `copilot_trigger` connector. `config` replaces the stored config wholesale; `name` and `token` are optional.
+ */
+export type UpdateCopilotTriggerRequest = {
+    /**
+     * Discriminator. GitHub Copilot coding-agent trigger.
+     */
+    provider: 'copilot_trigger';
+    /**
+     * New connector label. Optional — omit to leave it unchanged.
+     */
+    name?: string;
+    config: CopilotTriggerConfig;
+    /**
+     * New Copilot-licensed user PAT (secret). Optional — omit to leave the stored cipher untouched. Encrypted; never returned.
+     */
+    token?: string;
+};
+
+/**
+ * Per-provider PATCH body for editing an existing `jules_trigger` connector. `config` replaces the stored config wholesale; `name` and either credential are optional.
+ */
+export type UpdateJulesTriggerRequest = {
+    /**
+     * Discriminator. Google Jules trigger.
+     */
+    provider: 'jules_trigger';
+    /**
+     * New connector label. Optional — omit to leave it unchanged.
+     */
+    name?: string;
+    config: JulesTriggerConfig;
+    /**
+     * New Jules launch key (secret). Optional — omit to leave the stored key untouched. Rotatable independently of `opsKey`. Encrypted; never returned.
+     */
+    apiKey?: string;
+    /**
+     * New restricted Shipeasy ops key (secret). Optional — omit to leave the stored key untouched. Rotatable independently of `apiKey`. Encrypted; never returned.
+     */
+    opsKey?: string;
+};
+
+/**
+ * Body for `PATCH /api/admin/connectors/{id}/trigger`, discriminated on `provider`. Edits an existing trigger connector: the non-secret `config` is always supplied and replaces the stored config wholesale; `name` and the credential secret(s) are optional (a supplied secret rotates just that key, a blank/omitted one leaves the stored cipher untouched).
+ */
+export type UpdateTriggerConnectorRequest = ({
+    provider: 'claude_trigger';
+} & UpdateClaudeTriggerRequest) | ({
+    provider: 'cursor_trigger';
+} & UpdateCursorTriggerRequest) | ({
+    provider: 'copilot_trigger';
+} & UpdateCopilotTriggerRequest) | ({
+    provider: 'jules_trigger';
+} & UpdateJulesTriggerRequest);
 
 /**
  * A single API key as returned by the list endpoint. Response fields are snake_case. The raw token is never returned here — only its `last4` tail. `last4` and the typed `scopes` may be `null` for keys minted before those columns existed.
@@ -8452,6 +8518,62 @@ export type UpsertProjectResponses = {
 
 export type UpsertProjectResponse2 = UpsertProjectResponses[keyof UpsertProjectResponses];
 
+export type UpdateProjectData = {
+    body: UpdateProjectRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Stable opaque project id. Must match the caller's own project.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/projects/{id}';
+};
+
+export type UpdateProjectErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type UpdateProjectError = UpdateProjectErrors[keyof UpdateProjectErrors];
+
+export type UpdateProjectResponses = {
+    /**
+     * The updated project.
+     */
+    200: GetCurrentProjectResponse;
+};
+
+export type UpdateProjectResponse = UpdateProjectResponses[keyof UpdateProjectResponses];
+
 export type ListI18nProfilesData = {
     body?: never;
     headers?: {
@@ -9663,6 +9785,62 @@ export type TestConnectorResponses = {
 };
 
 export type TestConnectorResponse2 = TestConnectorResponses[keyof TestConnectorResponses];
+
+export type UpdateTriggerConnectorData = {
+    body: UpdateTriggerConnectorRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Stable opaque connector id. Its stored `provider` must match the body's `provider`.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/connectors/{id}/trigger';
+};
+
+export type UpdateTriggerConnectorErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type UpdateTriggerConnectorError = UpdateTriggerConnectorErrors[keyof UpdateTriggerConnectorErrors];
+
+export type UpdateTriggerConnectorResponses = {
+    /**
+     * Update a trigger connector
+     */
+    200: UpdateConnectorResponse;
+};
+
+export type UpdateTriggerConnectorResponse = UpdateTriggerConnectorResponses[keyof UpdateTriggerConnectorResponses];
 
 export type ListKeysData = {
     body?: never;

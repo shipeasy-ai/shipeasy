@@ -6449,6 +6449,117 @@
         }
       }
     },
+    "/api/admin/projects/{id}": {
+      "patch": {
+        "operationId": "updateProject",
+        "summary": "Update the current project",
+        "description": "Update the current project's settings — name, domain, slug, default environment, timezone, experiment-analysis knobs (statistical method, significance threshold, auto-rollback, minimum sample days), and the per-module enable flags. Partial: only the fields you send change.\n\nThe project id in the path must match the project the caller's credential resolves to (a credential can only edit its own project). Changing `domain` re-stamps the allowed origin into every live SDK key.\n\n**Use case:** Rename a project, move its domain, toggle a module on/off, or tune the experiment-analysis defaults without leaving the CLI.",
+        "tags": [
+          "Projects"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Stable opaque project id. Must match the caller's own project.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProjectRequest"
+              },
+              "examples": {
+                "rename": {
+                  "summary": "Rename the project",
+                  "value": {
+                    "name": "Acme Rockets"
+                  }
+                },
+                "toggleModule": {
+                  "summary": "Turn a module off",
+                  "value": {
+                    "moduleExperiments": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated project.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetCurrentProjectResponse"
+                },
+                "example": {
+                  "id": "f81d4fae-7dec-11d0-a765-00a0c91e6bf6",
+                  "name": "Acme Rockets",
+                  "domain": "acme.com",
+                  "ownerEmail": "owner@acme.com",
+                  "plan": "paid",
+                  "status": "active",
+                  "subscriptionStatus": "active",
+                  "billingInterval": "monthly",
+                  "currentPeriodEnd": "2026-07-12T00:00:00.000Z",
+                  "trialEndsAt": null,
+                  "cancelAtPeriodEnd": 0,
+                  "moduleTranslations": true,
+                  "moduleConfigs": true,
+                  "moduleGates": true,
+                  "moduleExperiments": false,
+                  "moduleFeedback": true,
+                  "createdAt": "2026-04-12T10:14:08.000Z",
+                  "updatedAt": "2026-06-12T08:01:55.000Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "update",
+          "positional": [
+            "id"
+          ]
+        }
+      }
+    },
     "/api/admin/i18n/profiles": {
       "get": {
         "operationId": "listI18nProfiles",
@@ -7558,7 +7669,7 @@
       "post": {
         "operationId": "fileErrorTicket",
         "summary": "File a feedback ticket for an error",
-        "description": "Files a feedback ticket (`type: \"error\"`) for a tracked production error — the \"File an issue\" action on the errors dashboard. The ticket carries the error's fingerprint as its `sourceRef` so it dedupes against, and joins back to, the tracked error. Takes no body.\n\nIdempotent: if an open `error` ticket already tracks this fingerprint (hand- or auto-filed), that existing ticket is returned instead of creating a duplicate. Returns `404` if the error does not exist.\n\n**Use case:** Promote a noisy tracked error into an actionable ticket in the ops queue (the same item the worker auto-files once an error crosses its occurrence threshold), so it can be triaged, assigned, and burned down via `/shipeasy:ops:work`.",
+        "description": "Files a feedback ticket (`type: \"error\"`) for a tracked production error — the \"File an issue\" action on the errors dashboard. The ticket carries the error's fingerprint as its `sourceRef` so it dedupes against, and joins back to, the tracked error. Takes no body.\n\nIdempotent: if an open `error` ticket already tracks this fingerprint (hand- or auto-filed), that existing ticket is returned instead of creating a duplicate. Returns `404` if the error does not exist.\n\n**Use case:** Promote a noisy tracked error into an actionable ticket in the ops queue (the same item the worker auto-files once an error crosses its occurrence threshold), so it can be triaged, assigned, and burned down via the `shipeasy-ops-work` skill.",
         "tags": [
           "Errors"
         ],
@@ -8333,6 +8444,110 @@
         ],
         "x-cli": {
           "name": "test",
+          "positional": [
+            "id"
+          ]
+        }
+      }
+    },
+    "/api/admin/connectors/{id}/trigger": {
+      "patch": {
+        "operationId": "updateTriggerConnector",
+        "summary": "Update a trigger connector",
+        "description": "Edit an existing coding-agent **trigger** connector (`claude_trigger` / `cursor_trigger` / `copilot_trigger` / `jules_trigger`) — replace its non-secret `config` and, optionally, rotate its credential secret(s). Discriminated on `provider`; the id in the path selects the connector and its `provider` must match the body.\n\nUnlike the generic `PATCH /api/admin/connectors/{id}` (which cannot touch secrets), this endpoint always replaces the non-secret `config` wholesale and merges any supplied secret over the stored credential cipher — so a single half of a two-key pair (e.g. just the ops key) can be rotated on its own. A blank/omitted secret leaves the stored cipher untouched.\n\nThe response carries only `{ id }` — re-fetch via `GET /api/admin/connectors/{id}` for the new row.\n\n**Use case:** Re-point a Cursor trigger at a new repo ref, or rotate a Claude trigger's fire token, without deleting and re-creating the connector.",
+        "tags": [
+          "Connectors"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Stable opaque connector id. Its stored `provider` must match the body's `provider`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTriggerConnectorRequest"
+              },
+              "examples": {
+                "claude": {
+                  "summary": "Claude — repoint routine, rotate token",
+                  "description": "Replaces the routine config and rotates the fire token.",
+                  "value": {
+                    "provider": "claude_trigger",
+                    "config": {
+                      "routineId": "rtn_9f2c"
+                    },
+                    "token": "fire_live_a1b2c3"
+                  }
+                },
+                "cursor": {
+                  "summary": "Cursor — rotate just the ops key",
+                  "description": "Leaves the launch key untouched, rotates only the restricted ops key.",
+                  "value": {
+                    "provider": "cursor_trigger",
+                    "config": {
+                      "repoUrl": "https://github.com/acme/app",
+                      "projectId": "f81d4fae-7dec-11d0-a765-00a0c91e6bf6"
+                    },
+                    "opsKey": "sdk_ops_live_x9y8z7"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Update a trigger connector",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateConnectorResponse"
+                },
+                "example": {
+                  "id": "9b0e7c2a-1f3d-4a8e-bf21-0c6a2e5d7f10"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "trigger",
           "positional": [
             "id"
           ]
@@ -13274,7 +13489,47 @@
         },
         "description": "Every metric in the project (the list endpoint is not paginated)."
       },
-      "CreateMetricRequest": {
+      "MetricEventName": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Source event the query reads from."
+      },
+      "MetricQueryDsl": {
+        "description": "Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`.",
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 4096
+      },
+      "MetricWinsorizePct": {
+        "default": 99,
+        "description": "Winsorise percentile (1–99) to clamp outliers. Defaults to 99.",
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 99
+      },
+      "MetricMinDetectableEffect": {
+        "default": null,
+        "description": "Minimum detectable effect (relative, 0–1) for power planning. `null` to omit.",
+        "anyOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "MetricDirection": {
+        "default": "higher_better",
+        "type": "string",
+        "enum": [
+          "higher_better",
+          "lower_better",
+          "neutral"
+        ],
+        "description": "Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail)."
+      },
+      "CreateMetricWithQuery": {
         "type": "object",
         "properties": {
           "name": {
@@ -13284,440 +13539,460 @@
             "$ref": "#/components/schemas/Folder"
           },
           "event_name": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Source event the query reads from."
+            "$ref": "#/components/schemas/MetricEventName"
           },
           "query": {
-            "description": "Metric query DSL string, e.g. `sum(purchase, amount)`. Provide this OR `query_ir`.",
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 4096
-          },
-          "query_ir": {
-            "description": "Typed query IR — the structured alternative to `query`. Provide this OR `query`.",
-            "type": "object",
-            "properties": {
-              "agg": {
-                "oneOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "kind": {
-                        "type": "string",
-                        "const": "count_users"
-                      }
-                    },
-                    "required": [
-                      "kind"
-                    ],
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "kind": {
-                        "type": "string",
-                        "const": "count_events"
-                      }
-                    },
-                    "required": [
-                      "kind"
-                    ],
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "kind": {
-                        "type": "string",
-                        "const": "sum"
-                      }
-                    },
-                    "required": [
-                      "kind"
-                    ],
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "kind": {
-                        "type": "string",
-                        "const": "avg"
-                      }
-                    },
-                    "required": [
-                      "kind"
-                    ],
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "kind": {
-                        "type": "string",
-                        "const": "min"
-                      }
-                    },
-                    "required": [
-                      "kind"
-                    ],
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "kind": {
-                        "type": "string",
-                        "const": "max"
-                      }
-                    },
-                    "required": [
-                      "kind"
-                    ],
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "kind": {
-                        "type": "string",
-                        "const": "unique"
-                      }
-                    },
-                    "required": [
-                      "kind"
-                    ],
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "kind": {
-                        "type": "string",
-                        "const": "quantile"
-                      },
-                      "p": {
-                        "anyOf": [
-                          {
-                            "type": "number",
-                            "const": 0.5
-                          },
-                          {
-                            "type": "number",
-                            "const": 0.75
-                          },
-                          {
-                            "type": "number",
-                            "const": 0.9
-                          },
-                          {
-                            "type": "number",
-                            "const": 0.95
-                          },
-                          {
-                            "type": "number",
-                            "const": 0.99
-                          },
-                          {
-                            "type": "number",
-                            "const": 0.999
-                          }
-                        ],
-                        "description": "Quantile fraction (0.5 = p50 … 0.999 = p999)."
-                      }
-                    },
-                    "required": [
-                      "kind",
-                      "p"
-                    ],
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "kind": {
-                        "type": "string",
-                        "const": "retention_Nd"
-                      },
-                      "n": {
-                        "type": "integer",
-                        "minimum": 1,
-                        "maximum": 90,
-                        "description": "Retention window in days (1–90)."
-                      }
-                    },
-                    "required": [
-                      "kind",
-                      "n"
-                    ],
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "kind": {
-                        "type": "string",
-                        "const": "ratio"
-                      },
-                      "numerator": {
-                        "type": "object",
-                        "properties": {
-                          "agg": {
-                            "type": "string",
-                            "enum": [
-                              "count_users",
-                              "count_events"
-                            ],
-                            "description": "Counting mode for this ratio arm."
-                          },
-                          "metric": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 128,
-                            "description": "Source event name for this ratio arm."
-                          },
-                          "filters": {
-                            "description": "Optional label filters.",
-                            "maxItems": 16,
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "label": {
-                                  "type": "string",
-                                  "pattern": "^[a-z_][a-z0-9_]{0,63}$",
-                                  "description": "Event property / label identifier."
-                                },
-                                "op": {
-                                  "type": "string",
-                                  "enum": [
-                                    "=",
-                                    "!=",
-                                    "=~",
-                                    "!~"
-                                  ],
-                                  "description": "Match operator (`=~`/`!~` are regex)."
-                                },
-                                "value": {
-                                  "type": "string",
-                                  "maxLength": 512,
-                                  "description": "Quoted filter value (coerced for numeric labels)."
-                                }
-                              },
-                              "required": [
-                                "label",
-                                "op",
-                                "value"
-                              ],
-                              "additionalProperties": false,
-                              "description": "One label filter on the source event."
-                            }
-                          }
-                        },
-                        "required": [
-                          "agg",
-                          "metric"
-                        ],
-                        "additionalProperties": false,
-                        "description": "Numerator or denominator arm of a `ratio` aggregation."
-                      },
-                      "denominator": {
-                        "type": "object",
-                        "properties": {
-                          "agg": {
-                            "type": "string",
-                            "enum": [
-                              "count_users",
-                              "count_events"
-                            ],
-                            "description": "Counting mode for this ratio arm."
-                          },
-                          "metric": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 128,
-                            "description": "Source event name for this ratio arm."
-                          },
-                          "filters": {
-                            "description": "Optional label filters.",
-                            "maxItems": 16,
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "label": {
-                                  "type": "string",
-                                  "pattern": "^[a-z_][a-z0-9_]{0,63}$",
-                                  "description": "Event property / label identifier."
-                                },
-                                "op": {
-                                  "type": "string",
-                                  "enum": [
-                                    "=",
-                                    "!=",
-                                    "=~",
-                                    "!~"
-                                  ],
-                                  "description": "Match operator (`=~`/`!~` are regex)."
-                                },
-                                "value": {
-                                  "type": "string",
-                                  "maxLength": 512,
-                                  "description": "Quoted filter value (coerced for numeric labels)."
-                                }
-                              },
-                              "required": [
-                                "label",
-                                "op",
-                                "value"
-                              ],
-                              "additionalProperties": false,
-                              "description": "One label filter on the source event."
-                            }
-                          }
-                        },
-                        "required": [
-                          "agg",
-                          "metric"
-                        ],
-                        "additionalProperties": false,
-                        "description": "Numerator or denominator arm of a `ratio` aggregation."
-                      }
-                    },
-                    "required": [
-                      "kind",
-                      "numerator",
-                      "denominator"
-                    ],
-                    "additionalProperties": false
-                  }
-                ],
-                "description": "Aggregation function applied to the source event."
-              },
-              "metric": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 128,
-                "description": "Source event name (must equal `event_name`)."
-              },
-              "valueLabel": {
-                "description": "Numeric property summed/averaged for `sum`/`avg`/quantile aggregations.",
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 128
-              },
-              "filters": {
-                "default": [],
-                "description": "Label filters on the event.",
-                "maxItems": 16,
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "label": {
-                      "type": "string",
-                      "pattern": "^[a-z_][a-z0-9_]{0,63}$",
-                      "description": "Event property / label identifier."
-                    },
-                    "op": {
-                      "type": "string",
-                      "enum": [
-                        "=",
-                        "!=",
-                        "=~",
-                        "!~"
-                      ],
-                      "description": "Match operator (`=~`/`!~` are regex)."
-                    },
-                    "value": {
-                      "type": "string",
-                      "maxLength": 512,
-                      "description": "Quoted filter value (coerced for numeric labels)."
-                    }
-                  },
-                  "required": [
-                    "label",
-                    "op",
-                    "value"
-                  ],
-                  "additionalProperties": false,
-                  "description": "One label filter on the source event."
-                }
-              },
-              "groupBy": {
-                "type": "object",
-                "properties": {
-                  "op": {
-                    "type": "string",
-                    "enum": [
-                      "by",
-                      "without"
-                    ],
-                    "description": "`by` keeps the listed labels; `without` drops them."
-                  },
-                  "labels": {
-                    "maxItems": 5,
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "pattern": "^[a-z_][a-z0-9_]{0,63}$",
-                      "description": "Event property / label identifier."
-                    },
-                    "description": "Labels to group by (max 5)."
-                  }
-                },
-                "required": [
-                  "op",
-                  "labels"
-                ],
-                "additionalProperties": false,
-                "description": "Optional group-by clause (ignored for experiment analysis)."
-              }
-            },
-            "required": [
-              "agg",
-              "metric"
-            ],
-            "additionalProperties": false
+            "$ref": "#/components/schemas/MetricQueryDsl"
           },
           "winsorize_pct": {
-            "default": 99,
-            "description": "Winsorise percentile (1–99) to clamp outliers. Defaults to 99.",
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 99
+            "$ref": "#/components/schemas/MetricWinsorizePct"
           },
           "min_detectable_effect": {
-            "default": null,
-            "description": "Minimum detectable effect (relative, 0–1) for power planning. `null` to omit.",
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "$ref": "#/components/schemas/MetricMinDetectableEffect"
           },
           "direction": {
-            "default": "higher_better",
-            "type": "string",
-            "enum": [
-              "higher_better",
-              "lower_better",
-              "neutral"
-            ],
-            "description": "Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail)."
+            "$ref": "#/components/schemas/MetricDirection"
           }
         },
         "required": [
           "name",
-          "event_name"
+          "event_name",
+          "query"
         ],
         "additionalProperties": false,
-        "description": "Body for `POST /api/admin/metrics`. Requires `name`, `event_name`, and exactly one of `query` / `query_ir`."
+        "description": "Create a metric, supplying the query as a `query` DSL string."
+      },
+      "QueryIr": {
+        "description": "Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body.",
+        "type": "object",
+        "properties": {
+          "agg": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "count_users"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "count_events"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "sum"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "avg"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "min"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "max"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "unique"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "quantile"
+                  },
+                  "p": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "const": 0.5
+                      },
+                      {
+                        "type": "number",
+                        "const": 0.75
+                      },
+                      {
+                        "type": "number",
+                        "const": 0.9
+                      },
+                      {
+                        "type": "number",
+                        "const": 0.95
+                      },
+                      {
+                        "type": "number",
+                        "const": 0.99
+                      },
+                      {
+                        "type": "number",
+                        "const": 0.999
+                      }
+                    ],
+                    "description": "Quantile fraction (0.5 = p50 … 0.999 = p999)."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "p"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "retention_Nd"
+                  },
+                  "n": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 90,
+                    "description": "Retention window in days (1–90)."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "n"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "ratio"
+                  },
+                  "numerator": {
+                    "type": "object",
+                    "properties": {
+                      "agg": {
+                        "type": "string",
+                        "enum": [
+                          "count_users",
+                          "count_events"
+                        ],
+                        "description": "Counting mode for this ratio arm."
+                      },
+                      "metric": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128,
+                        "description": "Source event name for this ratio arm."
+                      },
+                      "filters": {
+                        "description": "Optional label filters.",
+                        "maxItems": 16,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string",
+                              "pattern": "^[a-z_][a-z0-9_]{0,63}$",
+                              "description": "Event property / label identifier."
+                            },
+                            "op": {
+                              "type": "string",
+                              "enum": [
+                                "=",
+                                "!=",
+                                "=~",
+                                "!~"
+                              ],
+                              "description": "Match operator (`=~`/`!~` are regex)."
+                            },
+                            "value": {
+                              "type": "string",
+                              "maxLength": 512,
+                              "description": "Quoted filter value (coerced for numeric labels)."
+                            }
+                          },
+                          "required": [
+                            "label",
+                            "op",
+                            "value"
+                          ],
+                          "additionalProperties": false,
+                          "description": "One label filter on the source event."
+                        }
+                      }
+                    },
+                    "required": [
+                      "agg",
+                      "metric"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Numerator or denominator arm of a `ratio` aggregation."
+                  },
+                  "denominator": {
+                    "type": "object",
+                    "properties": {
+                      "agg": {
+                        "type": "string",
+                        "enum": [
+                          "count_users",
+                          "count_events"
+                        ],
+                        "description": "Counting mode for this ratio arm."
+                      },
+                      "metric": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128,
+                        "description": "Source event name for this ratio arm."
+                      },
+                      "filters": {
+                        "description": "Optional label filters.",
+                        "maxItems": 16,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string",
+                              "pattern": "^[a-z_][a-z0-9_]{0,63}$",
+                              "description": "Event property / label identifier."
+                            },
+                            "op": {
+                              "type": "string",
+                              "enum": [
+                                "=",
+                                "!=",
+                                "=~",
+                                "!~"
+                              ],
+                              "description": "Match operator (`=~`/`!~` are regex)."
+                            },
+                            "value": {
+                              "type": "string",
+                              "maxLength": 512,
+                              "description": "Quoted filter value (coerced for numeric labels)."
+                            }
+                          },
+                          "required": [
+                            "label",
+                            "op",
+                            "value"
+                          ],
+                          "additionalProperties": false,
+                          "description": "One label filter on the source event."
+                        }
+                      }
+                    },
+                    "required": [
+                      "agg",
+                      "metric"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Numerator or denominator arm of a `ratio` aggregation."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "numerator",
+                  "denominator"
+                ],
+                "additionalProperties": false
+              }
+            ],
+            "description": "Aggregation function applied to the source event."
+          },
+          "metric": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Source event name (must equal `event_name`)."
+          },
+          "valueLabel": {
+            "description": "Numeric property summed/averaged for `sum`/`avg`/quantile aggregations.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "filters": {
+            "default": [],
+            "description": "Label filters on the event.",
+            "maxItems": 16,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "pattern": "^[a-z_][a-z0-9_]{0,63}$",
+                  "description": "Event property / label identifier."
+                },
+                "op": {
+                  "type": "string",
+                  "enum": [
+                    "=",
+                    "!=",
+                    "=~",
+                    "!~"
+                  ],
+                  "description": "Match operator (`=~`/`!~` are regex)."
+                },
+                "value": {
+                  "type": "string",
+                  "maxLength": 512,
+                  "description": "Quoted filter value (coerced for numeric labels)."
+                }
+              },
+              "required": [
+                "label",
+                "op",
+                "value"
+              ],
+              "additionalProperties": false,
+              "description": "One label filter on the source event."
+            }
+          },
+          "groupBy": {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "enum": [
+                  "by",
+                  "without"
+                ],
+                "description": "`by` keeps the listed labels; `without` drops them."
+              },
+              "labels": {
+                "maxItems": 5,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z_][a-z0-9_]{0,63}$",
+                  "description": "Event property / label identifier."
+                },
+                "description": "Labels to group by (max 5)."
+              }
+            },
+            "required": [
+              "op",
+              "labels"
+            ],
+            "additionalProperties": false,
+            "description": "Optional group-by clause (ignored for experiment analysis)."
+          }
+        },
+        "required": [
+          "agg",
+          "metric"
+        ],
+        "additionalProperties": false
+      },
+      "CreateMetricWithQueryIr": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "$ref": "#/components/schemas/MetricName"
+          },
+          "folder": {
+            "$ref": "#/components/schemas/Folder"
+          },
+          "event_name": {
+            "$ref": "#/components/schemas/MetricEventName"
+          },
+          "query_ir": {
+            "$ref": "#/components/schemas/QueryIr"
+          },
+          "winsorize_pct": {
+            "$ref": "#/components/schemas/MetricWinsorizePct"
+          },
+          "min_detectable_effect": {
+            "$ref": "#/components/schemas/MetricMinDetectableEffect"
+          },
+          "direction": {
+            "$ref": "#/components/schemas/MetricDirection"
+          }
+        },
+        "required": [
+          "name",
+          "event_name",
+          "query_ir"
+        ],
+        "additionalProperties": false,
+        "description": "Create a metric, supplying the query as a typed `query_ir`."
+      },
+      "CreateMetricRequest": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/CreateMetricWithQuery"
+          },
+          {
+            "$ref": "#/components/schemas/CreateMetricWithQueryIr"
+          }
+        ],
+        "description": "Body for `POST /api/admin/metrics`. Requires `name`, `event_name`, and exactly one of `query` / `query_ir` — modelled as a `oneOf` of two strict variants, so supplying both (or neither) is rejected."
       },
       "CreateMetricResponse": {
         "type": "object",
@@ -14236,458 +14511,97 @@
         "additionalProperties": false,
         "description": "Soft-delete (archive) acknowledgement."
       },
-      "query": {
-        "description": "Metric query DSL string, e.g. `sum(purchase, amount)`. Provide this OR `query_ir`.",
-        "type": "string",
-        "minLength": 1,
-        "maxLength": 4096
-      },
-      "query_ir": {
-        "description": "Typed query IR — the structured alternative to `query`. Provide this OR `query`.",
-        "type": "object",
-        "properties": {
-          "agg": {
-            "oneOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "count_users"
-                  }
-                },
-                "required": [
-                  "kind"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "count_events"
-                  }
-                },
-                "required": [
-                  "kind"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "sum"
-                  }
-                },
-                "required": [
-                  "kind"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "avg"
-                  }
-                },
-                "required": [
-                  "kind"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "min"
-                  }
-                },
-                "required": [
-                  "kind"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "max"
-                  }
-                },
-                "required": [
-                  "kind"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "unique"
-                  }
-                },
-                "required": [
-                  "kind"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "quantile"
-                  },
-                  "p": {
-                    "anyOf": [
-                      {
-                        "type": "number",
-                        "const": 0.5
-                      },
-                      {
-                        "type": "number",
-                        "const": 0.75
-                      },
-                      {
-                        "type": "number",
-                        "const": 0.9
-                      },
-                      {
-                        "type": "number",
-                        "const": 0.95
-                      },
-                      {
-                        "type": "number",
-                        "const": 0.99
-                      },
-                      {
-                        "type": "number",
-                        "const": 0.999
-                      }
-                    ],
-                    "description": "Quantile fraction (0.5 = p50 … 0.999 = p999)."
-                  }
-                },
-                "required": [
-                  "kind",
-                  "p"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "retention_Nd"
-                  },
-                  "n": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 90,
-                    "description": "Retention window in days (1–90)."
-                  }
-                },
-                "required": [
-                  "kind",
-                  "n"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "ratio"
-                  },
-                  "numerator": {
-                    "type": "object",
-                    "properties": {
-                      "agg": {
-                        "type": "string",
-                        "enum": [
-                          "count_users",
-                          "count_events"
-                        ],
-                        "description": "Counting mode for this ratio arm."
-                      },
-                      "metric": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 128,
-                        "description": "Source event name for this ratio arm."
-                      },
-                      "filters": {
-                        "description": "Optional label filters.",
-                        "maxItems": 16,
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "label": {
-                              "type": "string",
-                              "pattern": "^[a-z_][a-z0-9_]{0,63}$",
-                              "description": "Event property / label identifier."
-                            },
-                            "op": {
-                              "type": "string",
-                              "enum": [
-                                "=",
-                                "!=",
-                                "=~",
-                                "!~"
-                              ],
-                              "description": "Match operator (`=~`/`!~` are regex)."
-                            },
-                            "value": {
-                              "type": "string",
-                              "maxLength": 512,
-                              "description": "Quoted filter value (coerced for numeric labels)."
-                            }
-                          },
-                          "required": [
-                            "label",
-                            "op",
-                            "value"
-                          ],
-                          "additionalProperties": false,
-                          "description": "One label filter on the source event."
-                        }
-                      }
-                    },
-                    "required": [
-                      "agg",
-                      "metric"
-                    ],
-                    "additionalProperties": false,
-                    "description": "Numerator or denominator arm of a `ratio` aggregation."
-                  },
-                  "denominator": {
-                    "type": "object",
-                    "properties": {
-                      "agg": {
-                        "type": "string",
-                        "enum": [
-                          "count_users",
-                          "count_events"
-                        ],
-                        "description": "Counting mode for this ratio arm."
-                      },
-                      "metric": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 128,
-                        "description": "Source event name for this ratio arm."
-                      },
-                      "filters": {
-                        "description": "Optional label filters.",
-                        "maxItems": 16,
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "label": {
-                              "type": "string",
-                              "pattern": "^[a-z_][a-z0-9_]{0,63}$",
-                              "description": "Event property / label identifier."
-                            },
-                            "op": {
-                              "type": "string",
-                              "enum": [
-                                "=",
-                                "!=",
-                                "=~",
-                                "!~"
-                              ],
-                              "description": "Match operator (`=~`/`!~` are regex)."
-                            },
-                            "value": {
-                              "type": "string",
-                              "maxLength": 512,
-                              "description": "Quoted filter value (coerced for numeric labels)."
-                            }
-                          },
-                          "required": [
-                            "label",
-                            "op",
-                            "value"
-                          ],
-                          "additionalProperties": false,
-                          "description": "One label filter on the source event."
-                        }
-                      }
-                    },
-                    "required": [
-                      "agg",
-                      "metric"
-                    ],
-                    "additionalProperties": false,
-                    "description": "Numerator or denominator arm of a `ratio` aggregation."
-                  }
-                },
-                "required": [
-                  "kind",
-                  "numerator",
-                  "denominator"
-                ],
-                "additionalProperties": false
-              }
-            ],
-            "description": "Aggregation function applied to the source event."
-          },
-          "metric": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 128,
-            "description": "Source event name (must equal `event_name`)."
-          },
-          "valueLabel": {
-            "description": "Numeric property summed/averaged for `sum`/`avg`/quantile aggregations.",
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 128
-          },
-          "filters": {
-            "default": [],
-            "description": "Label filters on the event.",
-            "maxItems": 16,
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "label": {
-                  "type": "string",
-                  "pattern": "^[a-z_][a-z0-9_]{0,63}$",
-                  "description": "Event property / label identifier."
-                },
-                "op": {
-                  "type": "string",
-                  "enum": [
-                    "=",
-                    "!=",
-                    "=~",
-                    "!~"
-                  ],
-                  "description": "Match operator (`=~`/`!~` are regex)."
-                },
-                "value": {
-                  "type": "string",
-                  "maxLength": 512,
-                  "description": "Quoted filter value (coerced for numeric labels)."
-                }
-              },
-              "required": [
-                "label",
-                "op",
-                "value"
-              ],
-              "additionalProperties": false,
-              "description": "One label filter on the source event."
-            }
-          },
-          "groupBy": {
-            "type": "object",
-            "properties": {
-              "op": {
-                "type": "string",
-                "enum": [
-                  "by",
-                  "without"
-                ],
-                "description": "`by` keeps the listed labels; `without` drops them."
-              },
-              "labels": {
-                "maxItems": 5,
-                "type": "array",
-                "items": {
-                  "type": "string",
-                  "pattern": "^[a-z_][a-z0-9_]{0,63}$",
-                  "description": "Event property / label identifier."
-                },
-                "description": "Labels to group by (max 5)."
-              }
-            },
-            "required": [
-              "op",
-              "labels"
-            ],
-            "additionalProperties": false,
-            "description": "Optional group-by clause (ignored for experiment analysis)."
-          }
-        },
-        "required": [
-          "agg",
-          "metric"
-        ],
-        "additionalProperties": false
-      },
-      "winsorize_pct": {
-        "default": 99,
-        "description": "Winsorise percentile (1–99) to clamp outliers. Defaults to 99.",
-        "type": "integer",
-        "minimum": 1,
-        "maximum": 99
-      },
-      "min_detectable_effect": {
-        "default": null,
-        "description": "Minimum detectable effect (relative, 0–1) for power planning. `null` to omit.",
-        "anyOf": [
-          {
-            "type": "number"
-          },
-          {
-            "type": "null"
-          }
-        ]
-      },
-      "direction": {
-        "default": "higher_better",
-        "type": "string",
-        "enum": [
-          "higher_better",
-          "lower_better",
-          "neutral"
-        ],
-        "description": "Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail)."
-      },
-      "UpdateMetricRequest": {
+      "UpdateMetricWithQuery": {
         "type": "object",
         "properties": {
           "folder": {
             "$ref": "#/components/schemas/Folder"
           },
           "event_name": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Source event the query reads from."
+            "$ref": "#/components/schemas/MetricEventName"
           },
           "query": {
-            "$ref": "#/components/schemas/query"
-          },
-          "query_ir": {
-            "$ref": "#/components/schemas/query_ir"
+            "$ref": "#/components/schemas/MetricQueryDsl"
           },
           "winsorize_pct": {
-            "$ref": "#/components/schemas/winsorize_pct"
+            "$ref": "#/components/schemas/MetricWinsorizePct"
           },
           "min_detectable_effect": {
-            "$ref": "#/components/schemas/min_detectable_effect"
+            "$ref": "#/components/schemas/MetricMinDetectableEffect"
           },
           "direction": {
-            "$ref": "#/components/schemas/direction"
+            "$ref": "#/components/schemas/MetricDirection"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "additionalProperties": false,
+        "description": "Update-metric variant that replaces the query with a `query` DSL string."
+      },
+      "UpdateMetricWithQueryIr": {
+        "type": "object",
+        "properties": {
+          "folder": {
+            "$ref": "#/components/schemas/Folder"
+          },
+          "event_name": {
+            "$ref": "#/components/schemas/MetricEventName"
+          },
+          "query_ir": {
+            "$ref": "#/components/schemas/QueryIr"
+          },
+          "winsorize_pct": {
+            "$ref": "#/components/schemas/MetricWinsorizePct"
+          },
+          "min_detectable_effect": {
+            "$ref": "#/components/schemas/MetricMinDetectableEffect"
+          },
+          "direction": {
+            "$ref": "#/components/schemas/MetricDirection"
+          }
+        },
+        "required": [
+          "query_ir"
+        ],
+        "additionalProperties": false,
+        "description": "Update-metric variant that replaces the query with a typed `query_ir`."
+      },
+      "UpdateMetricFields": {
+        "type": "object",
+        "properties": {
+          "folder": {
+            "$ref": "#/components/schemas/Folder"
+          },
+          "event_name": {
+            "$ref": "#/components/schemas/MetricEventName"
+          },
+          "winsorize_pct": {
+            "$ref": "#/components/schemas/MetricWinsorizePct"
+          },
+          "min_detectable_effect": {
+            "$ref": "#/components/schemas/MetricMinDetectableEffect"
+          },
+          "direction": {
+            "$ref": "#/components/schemas/MetricDirection"
           }
         },
         "additionalProperties": false,
-        "description": "Body for `PATCH /api/admin/metrics/{id}`. Every field is optional (`name` is immutable); provide at most one of `query` / `query_ir`."
+        "description": "Update-metric variant that leaves the query untouched (metadata-only edit — folder, event, winsorisation, MDE, direction)."
+      },
+      "UpdateMetricRequest": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/UpdateMetricWithQuery"
+          },
+          {
+            "$ref": "#/components/schemas/UpdateMetricWithQueryIr"
+          },
+          {
+            "$ref": "#/components/schemas/UpdateMetricFields"
+          }
+        ],
+        "description": "Body for `PATCH /api/admin/metrics/{id}`. Every field is optional (`name` is immutable); provide at most one of `query` / `query_ir` — modelled as a `oneOf` of three disjoint strict variants (query-only, query_ir-only, or neither), so supplying both is rejected."
       },
       "ListEventsResponse": {
         "type": "array",
@@ -16671,6 +16585,107 @@
         "additionalProperties": false,
         "description": "Result of `POST /api/admin/projects/upsert`."
       },
+      "domain": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2048,
+        "pattern": "^(\\*|(\\*\\.)?[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+)$",
+        "description": "Lowercase bare hostname (e.g. `acme.com`, `app.acme.com`, `*.acme.com`), or `*` to allow any origin. Full URLs with `https://` are not accepted. The project is keyed by `(owner_email, domain)`, so a second call with the same domain returns the existing project."
+      },
+      "UpdateProjectRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "New project name."
+          },
+          "domain": {
+            "$ref": "#/components/schemas/domain"
+          },
+          "slug": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 48,
+            "pattern": "^[a-z0-9](?:[a-z0-9-]{0,46}[a-z0-9])?$",
+            "description": "URL-safe identifier used in app URLs and SDK config. Lowercase letters, numbers, and hyphens; 2–48 chars; cannot start or end with a hyphen. The caller lowercases the raw slug before sending."
+          },
+          "defaultEnv": {
+            "type": "string",
+            "enum": [
+              "dev",
+              "staging",
+              "prod"
+            ],
+            "description": "Default environment new resources are scoped to."
+          },
+          "timezone": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "IANA timezone the project's daily analysis runs in."
+          },
+          "statMethod": {
+            "type": "string",
+            "enum": [
+              "sequential",
+              "fixed",
+              "bayesian"
+            ],
+            "description": "Statistical method the experiment analyzer uses."
+          },
+          "sigThreshold": {
+            "type": "string",
+            "enum": [
+              "0.01",
+              "0.05",
+              "0.10"
+            ],
+            "description": "Significance threshold (alpha) for experiment analysis."
+          },
+          "autoRollback": {
+            "type": "boolean",
+            "description": "Whether a failing guardrail auto-rolls back the experiment."
+          },
+          "minSampleDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365,
+            "description": "Minimum number of days an experiment must run before it can be called."
+          },
+          "moduleTranslations": {
+            "type": "boolean",
+            "description": "Enable/disable the i18n/translations module."
+          },
+          "moduleConfigs": {
+            "type": "boolean",
+            "description": "Enable/disable the dynamic-configs module."
+          },
+          "moduleGates": {
+            "type": "boolean",
+            "description": "Enable/disable the feature-gates module."
+          },
+          "moduleExperiments": {
+            "type": "boolean",
+            "description": "Enable/disable the experiments module."
+          },
+          "moduleFeedback": {
+            "type": "boolean",
+            "description": "Enable/disable the feedback/ops module."
+          },
+          "moduleUser": {
+            "type": "boolean",
+            "description": "Enable/disable the user-management module."
+          },
+          "moduleEvents": {
+            "type": "boolean",
+            "description": "Enable/disable the events module."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body for `PATCH /api/admin/projects/{id}`. Partial — every field is optional; only supplied fields change. The project id in the path must match the caller's own project."
+      },
       "ListI18nProfilesResponse": {
         "type": "array",
         "items": {
@@ -18287,6 +18302,170 @@
         ],
         "additionalProperties": false,
         "description": "Result of testing a connector. `{ ok: true, issueUrl }` on success; `{ ok: false, issueUrl: null, error }` when the dispatch fails (the request still returns HTTP 200)."
+      },
+      "UpdateClaudeTriggerRequest": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "claude_trigger"
+            ],
+            "description": "Discriminator. Claude Code scheduled-routine trigger."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "description": "New connector label. Optional — omit to leave it unchanged."
+          },
+          "config": {
+            "$ref": "#/components/schemas/ClaudeTriggerConfig"
+          },
+          "token": {
+            "type": "string",
+            "minLength": 1,
+            "description": "New fire bearer token (secret). Optional — a blank/omitted token leaves the stored cipher untouched; a supplied one replaces it. Encrypted; never returned."
+          }
+        },
+        "required": [
+          "provider",
+          "config"
+        ],
+        "additionalProperties": false,
+        "description": "Per-provider PATCH body for editing an existing `claude_trigger` connector (the dashboard \"Triggers\" tab). The non-secret `config` is always supplied and replaces the stored config wholesale; `name` and `token` are optional."
+      },
+      "UpdateCursorTriggerRequest": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "cursor_trigger"
+            ],
+            "description": "Discriminator. Cursor cloud-agent trigger."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "description": "New connector label. Optional — omit to leave it unchanged."
+          },
+          "config": {
+            "$ref": "#/components/schemas/CursorTriggerConfig"
+          },
+          "apiKey": {
+            "type": "string",
+            "minLength": 1,
+            "description": "New Cursor launch key (secret). Optional — omit to leave the stored key untouched. Rotatable independently of `opsKey`. Encrypted; never returned."
+          },
+          "opsKey": {
+            "type": "string",
+            "minLength": 1,
+            "description": "New restricted Shipeasy ops key (secret). Optional — omit to leave the stored key untouched. Rotatable independently of `apiKey`. Encrypted; never returned."
+          }
+        },
+        "required": [
+          "provider",
+          "config"
+        ],
+        "additionalProperties": false,
+        "description": "Per-provider PATCH body for editing an existing `cursor_trigger` connector. `config` replaces the stored config wholesale; `name` and either credential are optional (a supplied credential rotates just that key)."
+      },
+      "UpdateCopilotTriggerRequest": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "copilot_trigger"
+            ],
+            "description": "Discriminator. GitHub Copilot coding-agent trigger."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "description": "New connector label. Optional — omit to leave it unchanged."
+          },
+          "config": {
+            "$ref": "#/components/schemas/CopilotTriggerConfig"
+          },
+          "token": {
+            "type": "string",
+            "minLength": 1,
+            "description": "New Copilot-licensed user PAT (secret). Optional — omit to leave the stored cipher untouched. Encrypted; never returned."
+          }
+        },
+        "required": [
+          "provider",
+          "config"
+        ],
+        "additionalProperties": false,
+        "description": "Per-provider PATCH body for editing an existing `copilot_trigger` connector. `config` replaces the stored config wholesale; `name` and `token` are optional."
+      },
+      "UpdateJulesTriggerRequest": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "jules_trigger"
+            ],
+            "description": "Discriminator. Google Jules trigger."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "description": "New connector label. Optional — omit to leave it unchanged."
+          },
+          "config": {
+            "$ref": "#/components/schemas/JulesTriggerConfig"
+          },
+          "apiKey": {
+            "type": "string",
+            "minLength": 1,
+            "description": "New Jules launch key (secret). Optional — omit to leave the stored key untouched. Rotatable independently of `opsKey`. Encrypted; never returned."
+          },
+          "opsKey": {
+            "type": "string",
+            "minLength": 1,
+            "description": "New restricted Shipeasy ops key (secret). Optional — omit to leave the stored key untouched. Rotatable independently of `apiKey`. Encrypted; never returned."
+          }
+        },
+        "required": [
+          "provider",
+          "config"
+        ],
+        "additionalProperties": false,
+        "description": "Per-provider PATCH body for editing an existing `jules_trigger` connector. `config` replaces the stored config wholesale; `name` and either credential are optional."
+      },
+      "UpdateTriggerConnectorRequest": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/UpdateClaudeTriggerRequest"
+          },
+          {
+            "$ref": "#/components/schemas/UpdateCursorTriggerRequest"
+          },
+          {
+            "$ref": "#/components/schemas/UpdateCopilotTriggerRequest"
+          },
+          {
+            "$ref": "#/components/schemas/UpdateJulesTriggerRequest"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "provider",
+          "mapping": {
+            "claude_trigger": "#/components/schemas/UpdateClaudeTriggerRequest",
+            "cursor_trigger": "#/components/schemas/UpdateCursorTriggerRequest",
+            "copilot_trigger": "#/components/schemas/UpdateCopilotTriggerRequest",
+            "jules_trigger": "#/components/schemas/UpdateJulesTriggerRequest"
+          }
+        },
+        "description": "Body for `PATCH /api/admin/connectors/{id}/trigger`, discriminated on `provider`. Edits an existing trigger connector: the non-secret `config` is always supplied and replaces the stored config wholesale; `name` and the credential secret(s) are optional (a supplied secret rotates just that key, a blank/omitted one leaves the stored cipher untouched)."
       },
       "KeyRecord": {
         "type": "object",

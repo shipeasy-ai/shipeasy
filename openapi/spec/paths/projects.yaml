@@ -125,3 +125,86 @@
       - VALIDATION
     x-cli:
       name: upsert
+/api/admin/projects/{id}:
+  patch:
+    operationId: updateProject
+    summary: Update the current project
+    description: |-
+      Update the current project's settings — name, domain, slug, default environment, timezone, experiment-analysis knobs (statistical method, significance threshold, auto-rollback, minimum sample days), and the per-module enable flags. Partial: only the fields you send change.
+
+      The project id in the path must match the project the caller's credential resolves to (a credential can only edit its own project). Changing `domain` re-stamps the allowed origin into every live SDK key.
+
+      **Use case:** Rename a project, move its domain, toggle a module on/off, or tune the experiment-analysis defaults without leaving the CLI.
+    tags:
+      - Projects
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque project id. Must match the caller's own project.
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/projects.yaml#/UpdateProjectRequest
+          examples:
+            rename:
+              summary: Rename the project
+              value:
+                name: Acme Rockets
+            toggleModule:
+              summary: Turn a module off
+              value:
+                moduleExperiments: false
+    responses:
+      "200":
+        description: The updated project.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/projects.yaml#/GetCurrentProjectResponse
+            example:
+              id: f81d4fae-7dec-11d0-a765-00a0c91e6bf6
+              name: Acme Rockets
+              domain: acme.com
+              ownerEmail: owner@acme.com
+              plan: paid
+              status: active
+              subscriptionStatus: active
+              billingInterval: monthly
+              currentPeriodEnd: 2026-07-12T00:00:00.000Z
+              trialEndsAt: null
+              cancelAtPeriodEnd: 0
+              moduleTranslations: true
+              moduleConfigs: true
+              moduleGates: true
+              moduleExperiments: false
+              moduleFeedback: true
+              createdAt: 2026-04-12T10:14:08.000Z
+              updatedAt: 2026-06-12T08:01:55.000Z
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: update
+      positional:
+        - id

@@ -22,6 +22,32 @@ const OUT = fileURLToPath(new URL("../src/generated/commands.gen.ts", import.met
 // ── helpers ─────────────────────────────────────────────────────────────────
 const resolveRef = (ref) => ref.replace(/^#\//, "").split("/").reduce((o, k) => o?.[k], spec);
 const deref = (o) => (o && o.$ref ? resolveRef(o.$ref) : o);
+
+// Request-body → flag-able properties. A plain object body → its properties.
+// A oneOf/anyOf of object variants (e.g. ops' `type`-discriminated create, or
+// metrics' `query` XOR `query_ir`) → the union of every variant's properties,
+// where a field is `required` only when required in EVERY variant (so the
+// discriminator surfaces as a required flag and the mutually-exclusive fields as
+// optional ones). This holds for discriminated and undiscriminated unions alike;
+// only a non-object body (or one whose variants aren't all objects) stays opaque
+// → null → a single `--data <json>` flag.
+function bodyPropsOf(bodySchema) {
+  if (!bodySchema) return null;
+  if (bodySchema.type === "object" && bodySchema.properties)
+    return Object.entries(bodySchema.properties).map(([name, s]) => ({ name, schema: deref(s), required: (bodySchema.required ?? []).includes(name) }));
+  const union = bodySchema.oneOf ?? bodySchema.anyOf;
+  if (!union) return null;
+  const variants = union.map(deref);
+  if (!variants.every((v) => v?.type === "object" && v.properties)) return null;
+  const merged = new Map(); // name → { schema, reqCount }
+  for (const v of variants)
+    for (const [name, s] of Object.entries(v.properties)) {
+      const e = merged.get(name) ?? { schema: deref(s), reqCount: 0 };
+      if ((v.required ?? []).includes(name)) e.reqCount++;
+      merged.set(name, e);
+    }
+  return [...merged.entries()].map(([name, e]) => ({ name, schema: e.schema, required: e.reqCount === variants.length }));
+}
 const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const kebab = (s) => s.replace(/_/g, "-").replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
 const camel = (s) => s.replace(/[-_]([a-z0-9])/g, (_, c) => c.toUpperCase());
@@ -114,10 +140,7 @@ for (const [path, item] of Object.entries(spec.paths)) {
     const pathParams = allParams.filter((p) => p.in === "path");
     const queryParams = allParams.filter((p) => p.in === "query");
     const bodySchema = deref(op.requestBody?.content?.["application/json"]?.schema);
-    const bodyProps =
-      bodySchema?.type === "object" && bodySchema.properties
-        ? Object.entries(bodySchema.properties).map(([name, s]) => ({ name, schema: deref(s), required: (bodySchema.required ?? []).includes(name) }))
-        : null; // null → opaque body (oneOf / non-object): expose --data <json>
+    const bodyProps = bodyPropsOf(bodySchema); // null → opaque body: expose --data <json>
 
     const positional = xcli.positional ?? [];
     // synthetic verbs share one endpoint; default to single command

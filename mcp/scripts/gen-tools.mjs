@@ -27,6 +27,32 @@ const OUT = fileURLToPath(new URL("../src/generated/tools.gen.ts", import.meta.u
 // ── helpers ─────────────────────────────────────────────────────────────────
 const resolveRef = (ref) => ref.replace(/^#\//, "").split("/").reduce((o, k) => o?.[k], spec);
 const deref = (o) => (o && o.$ref ? resolveRef(o.$ref) : o);
+
+// Request-body → tool input properties. A plain object body → its properties.
+// A oneOf/anyOf of object variants (e.g. ops' `type`-discriminated create, or
+// metrics' `query` XOR `query_ir`) → the union of every variant's properties,
+// where a field is `required` only when required in EVERY variant (so the
+// discriminator becomes a required input and the mutually-exclusive fields
+// optional ones). This holds for discriminated and undiscriminated unions alike;
+// only a non-object body (or one whose variants aren't all objects) stays opaque
+// → null → a single `body` object input.
+function bodyPropsOf(bodySchema) {
+  if (!bodySchema) return null;
+  if (bodySchema.type === "object" && bodySchema.properties)
+    return Object.entries(bodySchema.properties).map(([name, s]) => ({ name, schema: deref(s), required: (bodySchema.required ?? []).includes(name) }));
+  const union = bodySchema.oneOf ?? bodySchema.anyOf;
+  if (!union) return null;
+  const variants = union.map(deref);
+  if (!variants.every((v) => v?.type === "object" && v.properties)) return null;
+  const merged = new Map(); // name → { schema, reqCount }
+  for (const v of variants)
+    for (const [name, s] of Object.entries(v.properties)) {
+      const e = merged.get(name) ?? { schema: deref(s), reqCount: 0 };
+      if ((v.required ?? []).includes(name)) e.reqCount++;
+      merged.set(name, e);
+    }
+  return [...merged.entries()].map(([name, e]) => ({ name, schema: e.schema, required: e.reqCount === variants.length }));
+}
 const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const firstLine = (s) => (s ? String(s).split("\n")[0].trim() : "");
 const q = (s) => JSON.stringify(s ?? "");
@@ -111,14 +137,7 @@ for (const [, item] of Object.entries(spec.paths)) {
     const queryParams = allParams.filter((p) => p.in === "query");
     const bodySchema = deref(op.requestBody?.content?.["application/json"]?.schema);
     const bodyRequired = op.requestBody?.required === true;
-    const bodyProps =
-      bodySchema?.type === "object" && bodySchema.properties
-        ? Object.entries(bodySchema.properties).map(([name, s]) => ({
-            name,
-            schema: deref(s),
-            required: (bodySchema.required ?? []).includes(name),
-          }))
-        : null; // null → opaque body (oneOf / non-object): expose a single `body` object
+    const bodyProps = bodyPropsOf(bodySchema); // null → opaque body: expose a single `body` object
 
     const verbs = xcli.commands ?? [{ name: xcli.name, summary: op.summary, preset: {} }];
 
