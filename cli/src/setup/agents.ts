@@ -21,8 +21,13 @@ export interface AgentInfo {
   reason: string;
 }
 
-/** The MCP server entry every assistant registers. */
-export const SERVER_SPEC = { command: "npx", args: ["-y", "@shipeasy/mcp@latest"] };
+/** The hosted, remote Shipeasy MCP server. Assistants connect over HTTP — no
+ *  local `npx` process, no per-machine install; auth is negotiated by the
+ *  client against the hosted endpoint on first use. */
+export const MCP_URL = "https://mcp.shipeasy.ai";
+
+/** The MCP server entry every assistant registers (streamable-HTTP remote). */
+export const SERVER_SPEC = { type: "http", url: MCP_URL };
 
 const MARKETPLACE_SLUG = "shipeasy-ai/shipeasy";
 
@@ -125,11 +130,7 @@ export interface McpResult {
 
 /** The exact `[mcp_servers.shipeasy]` block for a hand-edited `~/.codex/config.toml`. */
 export function codexTomlSnippet(): string {
-  return [
-    "[mcp_servers.shipeasy]",
-    `command = "${SERVER_SPEC.command}"`,
-    `args = [${SERVER_SPEC.args.map((a) => `"${a}"`).join(", ")}]`,
-  ].join("\n");
+  return ["[mcp_servers.shipeasy]", `url = "${MCP_URL}"`].join("\n");
 }
 
 /** Resolve the JSON MCP config path + wrapper key for the file-based agents. */
@@ -200,16 +201,12 @@ export function registerMcp(agent: AgentId, ctx: InstallCtx): McpResult {
     if (ctx.dryRun) {
       return {
         action: "shell",
-        detail: "would run: codex mcp add shipeasy -- npx -y @shipeasy/mcp@latest",
+        detail: `would run: codex mcp add shipeasy --url ${MCP_URL}`,
       };
     }
-    const res = spawnSync(
-      "codex",
-      ["mcp", "add", "shipeasy", "--", "npx", "-y", "@shipeasy/mcp@latest"],
-      {
-        stdio: ["ignore", "pipe", "pipe"],
-      },
-    );
+    const res = spawnSync("codex", ["mcp", "add", "shipeasy", "--url", MCP_URL], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
     if (res.status !== 0) {
       return {
         action: "error",
@@ -222,8 +219,7 @@ export function registerMcp(agent: AgentId, ctx: InstallCtx): McpResult {
   if (agent === "jules") {
     return {
       action: "manual",
-      detail:
-        "Jules connects MCP servers from its Settings page (cloud) — point it at @shipeasy/mcp. AGENTS.md covers the workflows in the meantime.",
+      detail: `Jules connects MCP servers from its Settings page (cloud) — point it at ${MCP_URL}. AGENTS.md covers the workflows in the meantime.`,
     };
   }
 

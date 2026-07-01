@@ -361,8 +361,8 @@ export function setupCommand(parent: Command): void {
       "Google Jules) and wires each one the way that agent expects:\n\n" +
       "- **Claude Code** — installs the marketplace plugin (slash commands + " +
       "skills + MCP), or drops `.mcp.json` when the `claude` binary isn't on PATH.\n" +
-      "- **Cursor / Codex / Copilot / Jules** — registers the `@shipeasy/mcp` " +
-      "server in that agent's config and writes its instructions file " +
+      "- **Cursor / Codex / Copilot / Jules** — registers the hosted " +
+      "`mcp.shipeasy.ai` MCP server in that agent's config and writes its instructions file " +
       "(`.cursor/rules/shipeasy.mdc`, `AGENTS.md`, `.github/copilot-instructions.md`).\n\n" +
       "Pick a subset with `--agents`, or let it auto-detect. It's idempotent — " +
       "safe to re-run as you add agents. In CI (non-TTY) it runs non-interactively " +

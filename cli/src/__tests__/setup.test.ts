@@ -76,11 +76,11 @@ describe("onPath", () => {
 });
 
 describe("codexTomlSnippet", () => {
-  it("emits an [mcp_servers.shipeasy] block with npx args", () => {
+  it("emits an [mcp_servers.shipeasy] block pointing at the hosted URL", () => {
     const s = codexTomlSnippet();
     expect(s).toContain("[mcp_servers.shipeasy]");
-    expect(s).toContain('command = "npx"');
-    expect(s).toContain('"@shipeasy/mcp@latest"');
+    expect(s).toContain('url = "https://mcp.shipeasy.ai"');
+    expect(s).not.toContain("npx");
   });
 });
 
@@ -155,7 +155,8 @@ describe("registerMcp", () => {
       const r = registerMcp("cursor", ctx(dir));
       expect(r.action).toBe("wrote");
       const cfg = JSON.parse(readFileSync(join(dir, ".cursor", "mcp.json"), "utf8"));
-      expect(cfg.mcpServers.shipeasy.command).toBe("npx");
+      expect(cfg.mcpServers.shipeasy.type).toBe("http");
+      expect(cfg.mcpServers.shipeasy.url).toBe("https://mcp.shipeasy.ai");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -167,7 +168,7 @@ describe("registerMcp", () => {
       const r1 = registerMcp("copilot", ctx(dir));
       expect(r1.action).toBe("wrote");
       const cfg = JSON.parse(readFileSync(join(dir, ".vscode", "mcp.json"), "utf8"));
-      expect(cfg.servers.shipeasy.command).toBe("npx");
+      expect(cfg.servers.shipeasy.url).toBe("https://mcp.shipeasy.ai");
       expect(cfg.mcpServers).toBeUndefined();
       const r2 = registerMcp("copilot", ctx(dir));
       expect(r2.action).toBe("skipped");

@@ -1,9 +1,9 @@
 import { Command } from "commander";
-import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { loadCredentials } from "../auth/storage";
+import { MCP_URL, SERVER_SPEC } from "../setup/agents";
 import { mergeMcpServer, readJsonConfig, writeJsonConfig } from "../util/json-config";
 import { withExamples } from "../util/examples";
 
@@ -15,10 +15,9 @@ interface ClientTarget {
   path: string;
 }
 
-const SERVER_SPEC = {
-  command: "npx",
-  args: ["-y", "@shipeasy/mcp@latest"],
-};
+// The registered entry is the hosted, remote MCP server (mcp.shipeasy.ai) —
+// defined once in ../setup/agents so `shipeasy setup` and `shipeasy mcp install`
+// register the exact same thing.
 
 function targetsForScope(scope: "user" | "project", cwd: string): ClientTarget[] {
   if (scope === "user") {
@@ -50,7 +49,7 @@ export function mcpCommand(parent: Command): void {
 
   const installMcp = mcp
     .command("install")
-    .description("Register the Shipeasy MCP server with installed AI assistants")
+    .description(`Register the hosted Shipeasy MCP server (${MCP_URL}) with installed AI assistants`)
     .option("--client <name>", "Restrict to one client (claude | cursor | windsurf | all)", "all")
     .option("--scope <scope>", "user | project", "user")
     .option("--force", "Replace an existing 'shipeasy' MCP entry without prompting")
@@ -159,25 +158,8 @@ export function mcpCommand(parent: Command): void {
 
   withExamples(statusMcp, [{ run: "shipeasy mcp status" }]);
 
-  const startMcp = mcp
-    .command("start")
-    .description("Run the Shipeasy MCP stdio server (forwards to @shipeasy/mcp)")
-    .allowUnknownOption()
-    .action(() => {
-      const args = process.argv.slice(process.argv.indexOf("start") + 1);
-      const child = spawn("npx", ["-y", "@shipeasy/mcp@latest", ...args], {
-        stdio: "inherit",
-      });
-      child.on("exit", (code) => process.exit(code ?? 0));
-      child.on("error", (err) => {
-        console.error(`Failed to launch @shipeasy/mcp: ${String(err)}`);
-        process.exit(1);
-      });
-    });
-
-  withExamples(startMcp, [
-    { run: "shipeasy mcp start", note: "stdio server an assistant launches" },
-  ]);
+  // No `mcp start`: the server is hosted at mcp.shipeasy.ai and reached over
+  // HTTP, so there is no local stdio process for an assistant to launch.
 
   // Convenience: `shipeasy mcp uninstall` removes the entry.
   const uninstallMcp = mcp
