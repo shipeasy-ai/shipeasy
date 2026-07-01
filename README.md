@@ -1,6 +1,7 @@
 <div align="center">
 
 [![API contract tests](https://img.shields.io/github/actions/workflow/status/shipeasy-ai/shipeasy/contract-tests.yml?branch=main&style=flat-square&label=API%20contract%20tests&logo=github)](https://github.com/shipeasy-ai/shipeasy/actions/workflows/contract-tests.yml)
+[![Skills contract](https://img.shields.io/github/actions/workflow/status/shipeasy-ai/shipeasy/skills-contract.yml?branch=main&style=flat-square&label=Skills%20contract%20%28CLI%20%C2%B7%20MCP%20%C2%B7%20SDK%29&logo=github)](https://github.com/shipeasy-ai/shipeasy/actions/workflows/skills-contract.yml)
 [![Production health probe](https://img.shields.io/github/actions/workflow/status/shipeasy-ai/shipeasy/prod-probe.yml?branch=main&style=flat-square&label=Production%20health%20probe&logo=github)](https://github.com/shipeasy-ai/shipeasy/actions/workflows/prod-probe.yml)
 
 <img src="./assets/hero.svg" alt="Shipeasy — ship experiments 10× faster, just by asking your AI agent" width="100%" />
