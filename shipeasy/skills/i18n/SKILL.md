@@ -278,15 +278,6 @@ shipeasy i18n migrate react-i18next
 This codemods the call sites, pushes any existing translation file, and
 publishes — one command. (In Claude Code: `/shipeasy:i18n:migrate <library>`.)
 
-## Errors → action
-
-| Error            | Action                                                          |
-| ---------------- | --------------------------------------------------------------- |
-| `409 key exists` | Leave it. Re-runs are idempotent.                               |
-| `401`            | `shipeasy logout && shipeasy login`. Retry **once**.            |
-| `429` plan-limit | Surface to user. Do not auto-upgrade.                           |
-| Profile missing  | `i18n_profiles_create { "name": "en:prod" }` (the locale is encoded in the handle). |
-
 ## Hard rules
 
 - Use the SDK's own i18n entrypoint for this project's language (for JS/TS:

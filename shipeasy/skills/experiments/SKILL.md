@@ -10,6 +10,40 @@ An **experiment** is a randomized assignment between two or more variants
 within a **universe**. The universe owns holdouts and mutual-exclusion;
 individual experiments do not.
 
+## What a universe is
+
+A **universe** is the shared randomization space that a set of experiments
+lives in. It is the unit of *isolation* and *mutual exclusion*: every
+experiment names exactly one universe, and the universe — not the
+experiment — owns the traffic-splitting rules that keep those experiments
+from interfering with each other.
+
+Concretely, a universe defines:
+
+- **Mutual exclusion.** All experiments in the same universe partition the
+  *same* population by bucket, so a given unit can be enrolled in at most
+  one experiment per universe at a time. Put experiments that must not
+  overlap (e.g. two competing checkout redesigns) in one universe; put
+  independent experiments that may run concurrently on the same users in
+  **different** universes.
+- **Unit of randomization** (`unit_type`, default `user_id`). The
+  identity that assignment hashes on and that stays sticky — usually the
+  user, but it can be any stable id (account, device, session).
+- **Holdout** (`holdout_range`, an inclusive `[lo, hi]` slice of the
+  0–9999 bucket space, or `null`). Units hashed into that slice are held
+  out of **every** experiment in the universe — the global control group.
+  See "Holdouts" below.
+- **Name + folder.** The `name` is unique per project and is how
+  experiments reference the universe (by bare name, e.g. `"default"`);
+  `folder` is organizational metadata only.
+
+Every project has a **`default`** universe. Reuse it — or a shared
+universe — when a new experiment must be mutually exclusive with existing
+traffic. Create a **new** universe when the experiment should be able to
+run on the same users independently of what's already running. Manage
+universes with the `release_experiments_universes_*` MCP tools (or
+`shipeasy release experiments universes …` on the CLI).
+
 ## First fix: update before you debug
 
 Most failures here — `unknown command` / `unknown option`, a missing
@@ -347,18 +381,6 @@ in the universe (`null` disables it). To hold out 1% of users, reserve a
 (`release_experiments_universes_create`) or update it later
 (`release_experiments_universes_update`). Per-experiment holdouts are not a
 feature — by design. (Holdouts require Pro plan or higher.)
-
-## Errors → action
-
-| Error                  | Action                                                |
-| ---------------------- | ----------------------------------------------------- |
-| `400 group weights ≠ 10000` | Fix `groups[].weight` (basis points; must sum to 10000). |
-| `409`/`412` while running | `allocation_pct`/`groups`/`salt`/`universe`/`params` are immutable while running — stop the experiment first. |
-| `422 universe not found` | Create the universe, or fix the `universe` name.      |
-| `409 name exists`      | Reuse if drafted; otherwise rename.                   |
-| `412 not in draft`     | Stop or recreate — running experiments are immutable. |
-| `401`                  | Re-run `shipeasy login`.                              |
-| `429` plan-limit       | Surface to user.                                      |
 
 ## Hard rules
 

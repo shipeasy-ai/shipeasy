@@ -134,15 +134,6 @@ const rankingClient = configs.get("search_ranking");
 For risky launches, create a separate `kill_<feature>` gate that defaults
 **on** and gates the old code path. Flip to off if the new path breaks.
 
-## Errors → action
-
-| Error                | Action                                              |
-| -------------------- | --------------------------------------------------- |
-| `409 already exists` | Either pick a new name or update the existing gate. |
-| `400 invalid rule`   | Check the `rules` `{ attr, op, value }` shape.      |
-| `401`                | Re-run `shipeasy login`.                            |
-| `429` plan-limit     | Surface plan limits to user.                        |
-
 ## Hard rules
 
 - Gate **new** behavior, not old behavior. The default value is what

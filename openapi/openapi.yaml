@@ -6680,7 +6680,7 @@ components:
         INTERNAL: Unexpected server error.
     Error:
       type: object
-      description: Uniform error envelope returned by every admin endpoint on a non-2xx status. `error` is the human-readable message; `code` is the stable machine code (present whenever the failure maps to a catalogued `ErrorCode`); `detail` carries extra context (validation paths, conflicting field).
+      description: Uniform error envelope returned by every admin endpoint on a non-2xx status. `error` is the human-readable message; `code` is the stable machine code (present whenever the failure maps to a catalogued `ErrorCode`); `detail` carries extra context (validation paths, conflicting field); `instructions` is optional actionable guidance for resolving the error.
       required:
         - error
       additionalProperties: false
@@ -6693,6 +6693,9 @@ components:
         detail:
           type: string
           description: Extra context (validation details, conflicting field, referenced row).
+        instructions:
+          type: string
+          description: Actionable guidance for resolving this error — what to check or change next.
     Folder:
       anyOf:
         - type: string

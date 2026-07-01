@@ -159,11 +159,3 @@ grammar.
 - A devtools-captured report needs triaging from a script or CI job.
 - Onboarding asks how to expose the in-page report button — the answer is
   `shipeasy install ops` (in Claude Code: `/shipeasy:ops:install`).
-
-## Errors → action
-
-| Error                     | Action                                                  |
-| ------------------------- | ------------------------------------------------------- |
-| `403 module not enabled`  | Run `shipeasy install ops` and retry.                   |
-| `401`                     | Re-run `shipeasy login`.                                |
-| `404 not found` on update | Check the handle with `shipeasy ops list --type bug`.   |

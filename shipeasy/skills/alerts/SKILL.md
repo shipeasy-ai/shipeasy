@@ -98,12 +98,3 @@ deleting.
 
 For the alerts those rules *raise* (triaging, working them), use the `ops`
 skill. For the metrics the rules read, use the `metrics` skill.
-
-## Errors → action
-
-| Error                         | Action                                                                              |
-| ----------------------------- | ----------------------------------------------------------------------------------- |
-| `403 module not enabled`      | Run `shipeasy install flags` (enables events/metrics; in Claude Code, `/shipeasy:flags:install`). |
-| `404 metric not found`        | Check the id/name with `shipeasy metrics list`.                                     |
-| `400` on `--metric-id` update | The metric is immutable — delete + recreate the rule.                               |
-| `401`                         | Re-run `shipeasy login`.                                                            |
