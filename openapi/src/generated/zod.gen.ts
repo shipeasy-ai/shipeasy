@@ -2414,7 +2414,7 @@ export const zClaudeTriggerConfig = z.object({
  * Create a Claude Code routine trigger in one shot. Idempotent by `config.routineId` — re-creating with the same routine id updates the existing row.
  */
 export const zCreateClaudeTriggerRequest = z.object({
-    provider: z.literal('claude_trigger'),
+    provider: z.enum(['claude_trigger']),
     name: z.string().min(1).max(80).optional().default('Claude trigger'),
     events: z.array(zConnectorEvent).optional().default([]),
     config: zClaudeTriggerConfig,
@@ -2435,7 +2435,7 @@ export const zCursorTriggerConfig = z.object({
  * Create a Cursor cloud-agent trigger. Both keys are required up front (never tokenless). Idempotent by `config.repoUrl`.
  */
 export const zCreateCursorTriggerRequest = z.object({
-    provider: z.literal('cursor_trigger'),
+    provider: z.enum(['cursor_trigger']),
     name: z.string().min(1).max(80).optional().default('Cursor trigger'),
     events: z.array(zConnectorEvent).optional().default([]),
     config: zCursorTriggerConfig,
@@ -2458,7 +2458,7 @@ export const zCopilotTriggerConfig = z.object({
  * Create a GitHub Copilot coding-agent trigger. Idempotent by `config.owner/config.repo`.
  */
 export const zCreateCopilotTriggerRequest = z.object({
-    provider: z.literal('copilot_trigger'),
+    provider: z.enum(['copilot_trigger']),
     name: z.string().min(1).max(80).optional().default('Copilot trigger'),
     events: z.array(zConnectorEvent).optional().default([]),
     config: zCopilotTriggerConfig,
@@ -2479,7 +2479,7 @@ export const zJulesTriggerConfig = z.object({
  * Create a Google Jules trigger. Both keys are required up front. Idempotent by `config.source`.
  */
 export const zCreateJulesTriggerRequest = z.object({
-    provider: z.literal('jules_trigger'),
+    provider: z.enum(['jules_trigger']),
     name: z.string().min(1).max(80).optional().default('Jules trigger'),
     events: z.array(zConnectorEvent).optional().default([]),
     config: zJulesTriggerConfig,
@@ -2495,10 +2495,10 @@ export const zCreateConnectorRequest = z.discriminatedUnion('provider', [
     zCreateOAuthConnectorRequest.extend({ provider: z.literal('google_sheets') }),
     zCreateOAuthConnectorRequest.extend({ provider: z.literal('github') }),
     zCreateOAuthConnectorRequest.extend({ provider: z.literal('slack') }),
-    zCreateClaudeTriggerRequest,
-    zCreateCursorTriggerRequest,
-    zCreateCopilotTriggerRequest,
-    zCreateJulesTriggerRequest
+    zCreateClaudeTriggerRequest.extend({ provider: z.literal('claude_trigger') }),
+    zCreateCursorTriggerRequest.extend({ provider: z.literal('cursor_trigger') }),
+    zCreateCopilotTriggerRequest.extend({ provider: z.literal('copilot_trigger') }),
+    zCreateJulesTriggerRequest.extend({ provider: z.literal('jules_trigger') })
 ]);
 
 export const zCreateConnectorResponse = z.object({

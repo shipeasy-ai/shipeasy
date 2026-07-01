@@ -17850,7 +17850,9 @@
         "properties": {
           "provider": {
             "type": "string",
-            "const": "claude_trigger",
+            "enum": [
+              "claude_trigger"
+            ],
             "description": "Discriminator. Claude Code scheduled-routine trigger."
           },
           "name": {
@@ -17920,7 +17922,9 @@
         "properties": {
           "provider": {
             "type": "string",
-            "const": "cursor_trigger",
+            "enum": [
+              "cursor_trigger"
+            ],
             "description": "Discriminator. Cursor cloud-agent trigger."
           },
           "name": {
@@ -18003,7 +18007,9 @@
         "properties": {
           "provider": {
             "type": "string",
-            "const": "copilot_trigger",
+            "enum": [
+              "copilot_trigger"
+            ],
             "description": "Discriminator. GitHub Copilot coding-agent trigger."
           },
           "name": {
@@ -18074,7 +18080,9 @@
         "properties": {
           "provider": {
             "type": "string",
-            "const": "jules_trigger",
+            "enum": [
+              "jules_trigger"
+            ],
             "description": "Discriminator. Google Jules trigger."
           },
           "name": {
