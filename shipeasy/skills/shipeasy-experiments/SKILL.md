@@ -87,7 +87,7 @@ When the user says *"set up an A/B test for <X>"* (or anything equivalent)
 **without** naming the variation point, the event, and the metric, drive the
 whole "design a new A/B test" flow from analysis to draft. The user does **not**
 know yet which event or metric to use — your job is to look at the codebase,
-propose options, confirm with `AskUserQuestion`, then provision everything.
+propose options, confirm with the user, then provision everything.
 
 Prereqs: `.shipeasy` bound, and the `shipeasy` MCP server available — this flow
 instruments events and drafts the experiment through it
@@ -103,7 +103,7 @@ Heuristics in priority order:
 1. The user's request usually names a feature (`an A/B test on the checkout
    button` → look at the checkout flow). Grep for the feature name first.
 2. If unclear, ask for the surface area before scanning blindly — one
-   `AskUserQuestion` with 2–4 candidate areas from the route table
+   question with 2–4 candidate areas from the route table
    (`apps/**/page.tsx`, `src/routes/**`).
 
 For each candidate variation point, capture:
@@ -137,7 +137,7 @@ Build 2–4 candidate metrics, each as `{ event, aggregation, why }`. Examples:
   condition.
 - `avg(time_to_paint, ms)` — page-load metric. Best for perf experiments.
 
-Present with `AskUserQuestion`:
+Present the choice to the user:
 
 ```
 Q: Which metric should decide this experiment?

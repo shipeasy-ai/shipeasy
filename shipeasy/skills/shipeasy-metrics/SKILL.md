@@ -61,7 +61,7 @@ event up front.
 
 Read the user's request. Translate into one sentence of the form
 *"count/sum/average of <what>, when <which user action> happens"*. If
-you can't fill in the blanks, ask **one** clarifying `AskUserQuestion`
+you can't fill in the blanks, ask the user **one** clarifying question
 (2–4 options framed around concrete app surfaces, not generic phrasing).
 
 ### 1. Analyze the project for candidate events
@@ -89,9 +89,9 @@ new `flags.track(...)` call would naturally belong:
 
 For each candidate, capture `file:line` and the user-visible action.
 
-### 2. Propose with AskUserQuestion
+### 2. Propose to the user
 
-Use `AskUserQuestion` with 2–4 options. Each option label is the
+Ask the user, with 2–4 options. Each option label is the
 *event name + one-line behaviour*. Include in the option description:
 
 - whether the event already exists (no new instrumentation) or needs to
@@ -156,7 +156,7 @@ Skip phases 1–2 only if **all** of the following hold:
 - no new instrumentation is implied.
 
 In that case go straight to phase 4. Otherwise, run the full flow —
-"the user didn't ask for AskUserQuestion" is not a reason to skip it;
+"the user didn't ask to be prompted" is not a reason to skip it;
 metrics over the wrong event are the most common avoidable mistake.
 
 ## Other operations

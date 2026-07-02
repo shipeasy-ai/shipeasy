@@ -1,6 +1,6 @@
 ---
 name: shipeasy-ops-install
-description: Enable the feedback module + error collection, wire the devtools overlay and see() error reporting per the project's language docs, and add the CLAUDE.md error-handling rule. Language-agnostic — pulls the live per-language docs page rather than hard-coding any one SDK.
+description: Enable the feedback module + error collection, wire the devtools overlay and see() error reporting per the project's language docs, and add the see() error-handling rule to the repo's agent-instructions file (AGENTS.md / CLAUDE.md / …). Language-agnostic — pulls the live per-language docs page rather than hard-coding any one SDK.
 user-invocable: true
 ---
 
@@ -110,7 +110,7 @@ users file bug/feature reports from, and it does not require the server SDK.
 Only relevant for a project with a browser-rendered surface; skip for a
 headless service.
 
-Ask before adding it (`AskUserQuestion`, single-select) — don't enable it
+Ask the user before adding it (single choice) — don't enable it
 silently. If the user confirms, follow the **"Add the script tag"** section
 of https://docs.shipeasy.ai/feedback/devtools — the current shape is:
 
@@ -207,12 +207,15 @@ npx skills add https://github.com/shipeasy-ai/shipeasy -a <agent>
 
 ---
 
-## 8. Add the CLAUDE.md error-handling rule (ask once, default yes)
+## 8. Add the error-handling rule to the agent-instructions file (ask once, default yes)
 
-Append the block below to the repo-root `CLAUDE.md` (create it if missing).
-**Skip if a `see()` rule is already present** — never duplicate it. This is
-what makes the agent wrap error handling in `see()` on every future task,
-not just when the skill happens to trigger:
+Append the block below to the repo's agent-instructions file — whichever your
+coding agent reads on every task (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`,
+`.windsurfrules`, `.github/copilot-instructions.md`, …). Add it to whichever
+already exists; if several do, pick the one the running agent reads; if none
+does, create `AGENTS.md`. **Skip if a `see()` rule is already present** —
+never duplicate it. This is what makes the agent wrap error handling in
+`see()` on every future task, not just when the skill happens to trigger:
 
 ```markdown
 ## Error handling
@@ -242,7 +245,7 @@ Wired:    devtools overlay (?se=1 on any browser surface) <enabled | declined | 
           auto error capture (network failures → errors primitive)
           see() error reporting per the project's language docs
 Skills:   ops + see — live via the installed plugin (no hand-written copies)
-Rule:     CLAUDE.md — handled exceptions must use see()
+Rule:     agent-instructions file — handled exceptions must use see()
 Next:     ops_bug     { "body": { "title": "<title>" } }      — file one (or `shipeasy ops bug "<title>"`)
           ops_list    { "type": "error" }                     — list bugs/features/errors/alerts
           the shipeasy-ops-work skill                         — burn down bugs+features+errors+alerts
@@ -253,9 +256,8 @@ Next:     ops_bug     { "body": { "title": "<title>" } }      — file one (or `
 
 ## 10. Offer the follow-on setup (ask the user)
 
-The module is wired, but two high-value steps still need a decision. Call
-**AskUserQuestion** with `multiSelect: true` so the user can pick either,
-both, or neither.
+The module is wired, but two high-value steps still need a decision. Ask the
+user (allow multiple selections) so they can pick either, both, or neither.
 
 - **Question:** "Ops module is installed. What would you like to set up
   next?" (header: `Next steps`)

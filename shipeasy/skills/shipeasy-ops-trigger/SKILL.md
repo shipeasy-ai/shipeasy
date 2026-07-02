@@ -25,8 +25,8 @@ shipeasy ops trigger create <anything-else>     # prints the platform-scheduled 
    agent you are: Claude Code → `claude`, Cursor → `cursor`, Copilot →
    `copilot`, Gemini → `jules`). A platform outside the four supported ones
    stays as-is — the create command prints its platform-scheduled setup.
-3. Genuinely ambiguous → ask the user with `AskUserQuestion` (the four
-   supported providers + "other platform").
+3. Genuinely ambiguous → ask the user (the four supported providers +
+   "other platform").
 
 **Dispatch on the resolved provider:**
 
@@ -127,7 +127,7 @@ just burns tokens.
 
 ## 1. Ask the cadence
 
-Call **AskUserQuestion** for the schedule (skip if `--frequency` was passed). Map
+Ask the user for the schedule (skip if `--frequency` was passed). Map
 to the `--frequency` value: `4h` (default), `6h`, `daily`, `weekdays`, `weekly`,
 or a raw 5-field cron. (The routines API enforces a **1-hour minimum interval**.)
 
