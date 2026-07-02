@@ -16,15 +16,14 @@ project's unified `feedback` queue — holding five item types:
 | `alert`           | **the platform** (auto-filed)                            | an alert transitioned to active (metric rule, SRM/peek, guardrail) |
 | `measure_plan`    | **the website assistant** (auto-filed)                   | a measurement plan: instant resources already created; the event instrumentation it depends on is code you implement |
 
-Error/alert tickets are created automatically with the investigation context
-baked into `description` + `context` (`context.error.{id,fingerprint}` /
-`context.alert.{source,dedupeKey,…}`) — you no longer pull the raw
-`errors`/`alerts` sources to build the queue; those stay available for
-*diagnosis* while working a ticket.
+Error/alert tickets arrive with the investigation context baked into
+`description` + `context` (`context.error.{id,fingerprint}` /
+`context.alert.{source,dedupeKey,…}`) — the raw `errors`/`alerts` sources are
+for *diagnosis* while working a ticket, not for building the queue.
 
 `measure_plan` tickets come from the in-dashboard assistant, which can create
-metrics/experiments/alert rules over the API but **can't edit the repo** — so
-it created what it could on the spot and filed the rest here for you. Read
+metrics/experiments/alert rules over the API but **can't edit the repo** — it
+created what it could and filed the rest here for you. Read
 `context.measurePlan`:
 
 - `created[]` — resources already live (`{kind,id,name}`); don't recreate them.
@@ -33,37 +32,17 @@ it created what it could on the spot and filed the rest here for you. Read
 - `instrumentation[]` — the code work: for each, emit the `event` at the place
   `detail` describes (follow the `flags`/`experiments` skills for the SDK call).
 
-Working a `measure_plan`: implement the `instrumentation[]` events in code,
-register/create any `pending[]` resources, verify the `created[]` metrics now
-bind to a real event, then ship it like any other item (in `--pr` mode: one
-branch + PR, flip to `ready_for_qa`). This is the Claude-Code half of the split
-— the assistant filed the ticket precisely because it could not do this part.
+Working one: implement the `instrumentation[]` events, create the `pending[]`
+resources, verify the `created[]` metrics now bind to a real event, then ship
+it like any other item.
 
 **Loop, do not batch.** Each item is its own mini-investigation + fix;
 finishing one before starting the next keeps every diff reviewable and avoids
 cross-item contamination. Follow the `shipeasy-ops` skill for triage semantics.
 
-Prereqs:
-
-- `.shipeasy` bound. Run the `shipeasy-setup` skill first if missing. (Unattended runs
-  — the scheduled trigger — authenticate from the `SHIPEASY_CLI_TOKEN` +
-  `SHIPEASY_PROJECT_ID` env vars the routine prompt exports per shell (a
-  restricted `ops` key + project id; the CLI config file works too). That
-  substitutes for `shipeasy login`, **not** for the `.shipeasy` bind — status
-  writes still require `.shipeasy` in the checkout, so the trigger prompt
-  creates it when the repo doesn't ship one. Don't bail for a missing
-  `.shipeasy` before checking whether creds are already present.)
-- `feedback` module enabled (the `shipeasy-ops-install` skill). `shipeasy ops
-  list --type bug` returning `403` means it isn't.
-- CLI ≥ `1.12.0` — the unified `shipeasy ops list` / `ops get` / `ops update` /
-  `ops link-pr` and `ops notify` (the escalation bell) commands this loop
-  drives. The scheduled trigger runs `npx @shipeasy/cli@latest`, so it always
-  has them; for a local run, `shipeasy ops notify --help` failing means the CLI
-  is too old (`npm i -g @shipeasy/cli@latest`).
-- Working tree clean **or** the user explicitly asked to work on top of WIP.
-  If `git status --porcelain` is non-empty and the user hasn't confirmed,
-  stop and ask — mixing per-item diffs with pre-existing WIP makes the
-  commits unreviewable.
+Binding, auth (interactive and unattended), CLI updates, and module enablement
+are the `shipeasy-common` skill (module install: `shipeasy-ops-install`) — not
+restated here.
 
 ## 0. Build the work queue
 
@@ -71,54 +50,32 @@ Parse `$ARGUMENTS` up-front:
 
 - `--type bug|feature|error|alert|measure_plan|all` — default `all` (`feature`
   maps to `feature_request`).
-- `--status <s>` — default `open`. Pass `all` to include everything **except
-  `pending_approval`** (see the approval gate below).
+- `--status <s>` — default `open`. Pass `all` for every workable status.
 - `--priority high|critical` — filter after pull (any type; priorities are
   shared).
-- `--limit <N>` — default `20`. Slice after sort.
-- `--pr` — packaging for unattended / scheduled runs: each fixed item gets its
-  own branch, its own focused commit, and its **own pull request**. Applies
-  the lifecycle deltas in [§2 PR mode](#2-pr-mode---pr). Without it (the
-  default) the loop leaves the work uncommitted for you to review and commit
-  yourself.
+- `--limit <N>` — default `20`. Slice after pull.
+- `--pr` — packaging for unattended / scheduled runs: one branch, one focused
+  commit, one **pull request per item** ([§2](#2-pr-mode---pr)). Without it
+  (the default) the loop leaves the work uncommitted for you to review and
+  commit yourself.
 - `--dry-run` — print the queue and exit 0. No status flips, no edits, no
   attachment downloads, no commits.
 
-Pull the queue with the CLI — one command over the unified table, covering all
-four types (`error`/`alert` tickets included):
+Check the working tree: it must be clean (`git status --porcelain`) **or** the
+user explicitly asked to work on top of WIP — otherwise stop and ask; mixing
+per-item diffs with pre-existing WIP makes the commits unreviewable.
+
+Pull the queue with one CLI command over the unified table:
 
 ```
 shipeasy ops list --type <bug|feature_request|error|alert|all> --status <status|all> --limit 200
 ```
 
-`ops list` already sorts by `priority desc` (`critical > high > medium >
-nice_to_have > null`) then `createdAt asc` — the queue order. (Output is
-JSON; `shipeasy ops list --help` for the filters. Filter the two
-human-filed types with `--type bug` / `--type feature_request`.)
-**Never call the admin HTTP API with `curl`** — every step in this loop has a
-`shipeasy` command; use it (the CLI handles auth + the `.shipeasy` binding).
+The response is already in work order — **work it top-down**. (Output is JSON;
+`shipeasy ops list --help` for the filters.) **Never call the admin HTTP API
+with `curl`** — every step in this loop has a `shipeasy` command; use it.
 
-**The `pending_approval` gate — never work these.** Some items land in a
-`pending_approval` status: a pre-open holding state for inbound that a human must
-sign off before any code is written (e.g. connector requests filed from a
-customer's connectors panel land here in Shipeasy's own project). **Drop every
-`pending_approval` row from the queue** — do not investigate, fix, status-flip,
-or PR them, *even when `--status all` was passed*. They are approved by a human
-in the dashboard moving them to `open` (the orange "Pending approval" badge +
-hovercard mark them); once `open`, they flow through this loop like any other
-item. If a `--status pending_approval` run is requested explicitly, print the
-list and stop — surfacing them for review is fine; working them is not.
-
-**The `triage` gate — never work these either.** Questions and error messages
-users submit to the "Stuck in onboarding?" assistant land as `triage` rows in
-Shipeasy's own project (rose "Triage" badge). They are onboarding-friction
-signal for a human to read and turn into docs/product fixes, not actionable
-tickets. **Drop every `triage` row from the queue** — same rule as
-`pending_approval`: do not investigate, fix, status-flip, or PR them, *even when
-`--status all` was passed*. A human triages them in the dashboard (moving the
-real ones to `open` with a proper title); only then do they flow through this loop.
-
-Print the combined queue, grouped by type, before starting:
+Print the queue, grouped by type, before starting:
 
 ```
 Queue:
@@ -198,8 +155,7 @@ Flip to `in_progress` when you start an item.
 1. The ticket's `description` already carries the consequence, count, seen
    URLs, fingerprint, and stack head; `context.error.{id,fingerprint}` ties it
    to the underlying tracked error. Re-read the ticket any time with
-   `shipeasy ops get <handle>` (`context.error` holds the stack head +
-   fingerprint).
+   `shipeasy ops get <handle>`.
 2. Locate the throw site from the stack frame / message. Reproduce if
    feasible. Fix the root cause (same hard rules as bugs). When the fix adds
    a catch block, instrument it with `see(e).causes_the(…).to(…)` from
@@ -232,9 +188,8 @@ Flip to `in_progress` when you start an item.
    threshold, expected spike), say so and flip the ticket to `resolved` with a
    one-line note in your summary. Rule *definitions* can be tuned via the
    `ops_alerts_update` MCP tool / `shipeasy ops alerts update` by a human — the
-   ops key cannot edit them, so when
-   the right fix IS a rule change, **raise a notification** spelling out the new
-   threshold/comparator/window (see
+   ops key cannot edit them, so when the right fix IS a rule change, **raise a
+   notification** spelling out the new threshold/comparator/window (see
    [Escalate](#escalate-raise-a-bell-notification-when-the-fix-isnt-in-code)).
 
 ### 1e. Report and continue
@@ -261,13 +216,10 @@ never a raw HTTP call:
   metrics, and alert rules — through the `shipeasy` MCP tools
   (`release_flags_create`, `release_configs_create`, `release_experiments_create`,
   `release_killswitch_create`, `metrics_events_create`, `metrics_create`,
-  `ops_alerts_create`) or the equivalent CLI (`shipeasy release flags create`,
-  `… configs create`, `… experiments create`, `… killswitch create`,
-  `shipeasy metrics events create`, `shipeasy metrics create`,
-  `shipeasy ops alerts create`). The `experiments` and `metrics` skills carry
-  the analyze-and-instrument design flows. Typical uses: wrap a risky fix in a fresh gate,
-  add the event + metric a fix needs for verification, add an alert rule that
-  would have caught the regression.
+  `ops_alerts_create`) or the equivalent CLI. The `experiments` and `metrics`
+  skills carry the analyze-and-instrument design flows. Typical uses: wrap a
+  risky fix in a fresh gate, add the event + metric a fix needs for
+  verification, add an alert rule that would have caught the regression.
 - **Push + publish i18n keys** — `shipeasy i18n push` (insert-only) +
   `shipeasy i18n publish` (or the `shipeasy-i18n` skill) — so a fix that adds
   user-visible copy can ship its keys.
@@ -306,10 +258,9 @@ shipeasy ops notify \
 `--steps` is a JSON array of ordered strings. Make it **self-contained and
 actionable** — the human reads only this card, not your transcript. 3–6 ordered
 steps, each naming the exact file, command, env var, or dashboard page. The
-notification stands out in the bell with a violet
-"from your agent" accent and expands the full step-by-step guide on demand (a
-"Details" toggle). `--summary` and each step in `--steps` render **markdown**
-(lists, `code`, **bold**), so write them naturally — no need to flatten formatting.
+notification stands out in the bell with a violet "from your agent" accent and
+expands the full step-by-step guide on demand. `--summary` and each step render
+**markdown**, so write them naturally.
 
 **Reference entities inline so the card links them.** Anywhere in `--title`,
 `--summary`, or a step, mention an admin entity with a reference token and
@@ -436,13 +387,11 @@ push straight to the default branch.
 - **One item at a time.** Loop, never parallelise.
 - **One PR per item in `--pr` mode.** Never bundle two items into one PR.
 - **Never delete anything.** Resolving / fixing-in-code are the terminal
-  states. Deletion of a feedback record is a human call made in the UI — list
-  the queue with the `ops_list` MCP tool / `shipeasy ops` CLI. (This plugin
-  ships no delete command for any resource, and the ops key cannot delete or
-  archive server-side.)
+  states; deletion is a human call made in the UI (see `shipeasy-common`).
 - **Never flip `wont_fix` without asking** — product decision.
 - **Recordings need human acknowledgement** — don't claim a bug fixed if you
   skipped its recording.
 - **Stop the loop on the first auth/permission error.** A `401`/`403` means
-  the binding or feedback module is wrong — don't burn the whole queue
-  reproducing the same failure.
+  the binding or feedback module is wrong (`shipeasy-common` /
+  `shipeasy-ops-install`) — don't burn the whole queue reproducing the same
+  failure.

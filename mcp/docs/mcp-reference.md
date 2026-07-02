@@ -113,7 +113,7 @@ _Parameters_
 | `stack` | optional | `any` | Optional gatekeeper stack. When provided, takes precedence over `rules` + `rollout_pct` at evaluation time. Omit (or pass `null`) for a flat gate. |
 | `title` | optional | `string` | Human-readable title shown in the dashboard. Free-form, no key format constraint. _(length 0–140)_ |
 | `description` | optional | `string` | Long-form description / runbook. Markdown is rendered in the dashboard. _(length 0–2000)_ |
-| `folder` | optional | `any` | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
+| `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `group` | optional | `string` | Group label for dashboard organisation (e.g. team or product area). _(length 0–64)_ |
 | `owner_email` | optional | `string` | Owner contact. Displayed verbatim; not used for auth. _(length 0–190)_ |
 
@@ -211,7 +211,7 @@ _Parameters_
 | `stack` | optional | `any` | Replaces the gatekeeper stack wholesale. Send `null` to revert to flat `rules` + `rollout_pct` evaluation. |
 | `title` | optional | `string` | Human-readable title shown in the dashboard. Free-form, no key format constraint. _(length 0–140)_ |
 | `description` | optional | `string` | Long-form description / runbook. Markdown is rendered in the dashboard. _(length 0–2000)_ |
-| `folder` | optional | `any` | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
+| `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `group` | optional | `string` | Group label for dashboard organisation (e.g. team or product area). _(length 0–64)_ |
 | `owner_email` | optional | `string` | Owner contact. Displayed verbatim; not used for auth. _(length 0–190)_ |
 
@@ -228,6 +228,69 @@ platform has observed in evaluation calls. Read-only — populated by the
 SDK hot path, surfaced here so you can see which keys (and value types)
 are available when writing gate/experiment targeting rules.
 
+##### `release_flags_attributes_archive`
+
+**Archive a targeting attribute**
+
+Soft-deletes (archives) a targeting attribute.
+
+**Use case:** Retire an attribute no targeting rule references anymore (the user-facing verb is `archive`).
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `id` | required | `string` | The attribute id. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
+##### `release_flags_attributes_create`
+
+**Declare a targeting attribute**
+
+Declare a targeting attribute the SDK reports and gates/experiments can target. `type: enum` requires `enum_values`.
+
+**Use case:** Register a `plan` or `country` attribute so targeting rules can reference it.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `name` | required | `string` | Attribute key (lowercase alphanumeric start, then letters/digits/`_`/`-`; max 64 chars). Immutable after create. _(pattern `^[a-z0-9][a-z0-9_-]{0,63}$`)_ |
+| `type` | required | `"string" \| "number" \| "boolean" \| "enum" \| "date"` | Declared value type of a targeting attribute. |
+| `enum_values` | optional | `any` | Allowed values when `type` is `enum` (required in that case — 422 otherwise); `null` for non-enum types. _(default `null`)_ |
+| `required` | optional | `boolean` | Whether the attribute must be present on the evaluation context. _(default `false`)_ |
+| `description` | optional | `string` | Optional human note shown in the dashboard. |
+| `sdk_path` | optional | `string` | Optional dotted path the SDK reads the value from. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `ALREADY_EXISTS` — A resource with this name already exists in the project.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+##### `release_flags_attributes_get`
+
+**Get a targeting attribute**
+
+Fetch one targeting attribute by id.
+
+**Use case:** Inspect an attribute's declared type + allowed values before editing it.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `id` | required | `string` | The attribute id. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
 ##### `release_flags_attributes_list`
 
 **List targeting attributes**
@@ -243,6 +306,31 @@ _No parameters._
 _Errors_ — beyond the [common errors](#errors):
 
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+
+##### `release_flags_attributes_update`
+
+**Update a targeting attribute**
+
+Update a targeting attribute's type, allowed values, required flag, description, or SDK path. `name` is immutable.
+
+**Use case:** Add an allowed value to an `enum` attribute, or flip its required flag.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `id` | required | `string` | The attribute id. |
+| `type` | optional | `"string" \| "number" \| "boolean" \| "enum" \| "date"` | Declared value type of a targeting attribute. |
+| `enum_values` | optional | `any` | Replacement allowed values (for `enum`), or `null` to clear. |
+| `required` | optional | `boolean` | Whether the attribute must be present on the evaluation context. |
+| `description` | optional | `string` | Optional human note shown in the dashboard. |
+| `sdk_path` | optional | `string` | Optional dotted path the SDK reads the value from. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
 
 ### Killswitch
 
@@ -293,9 +381,9 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `name` | required | `string` | Stable killswitch key in `folder.name` form (two lowercase segments separated by a dot — e.g. `payments.checkout`). Immutable after create. _(length 0–128)_ |
+| `name` | required | `string` | Stable config/killswitch key in `folder.name` form (two lowercase segments separated by a dot, e.g. `pricing.tiers`). Immutable after create. _(length 0–128; pattern `^(?:_default\|[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$`)_ |
 | `description` | optional | `string` | Optional free-form description shown in the dashboard. Max 512 chars. _(length 0–512)_ |
-| `folder` | optional | `any` | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
+| `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `value` | optional | `boolean` | Default value applied to every env at creation. Defaults to `false`. Use `true` to ship the killswitch pre-tripped. |
 | `switches` | optional | `object` | Initial per-switch overrides applied to every env. Empty/omitted leaves the killswitch with only the flat `value`. |
 
@@ -371,6 +459,33 @@ _Errors_ — beyond the [common errors](#errors):
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 - `VALIDATION` — The request body failed structural (schema) validation.
 
+#### `release_killswitch_set_value`
+
+**Set the flat value on one env**
+
+Sets the flat `value` on a single `env`, publishing one new version on that env only. `switches` and other envs are untouched.
+
+Use this to trip (or untrip) a killswitch on one environment without replacing its per-key overrides.
+
+**Use cases**
+
+- **Trip on prod** — `{ "env": "prod", "value": true }`.
+- **Untrip on prod** — `{ "env": "prod", "value": false }`.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `id` | required | `string` | Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`. |
+| `env` | required | `"dev" \| "staging" \| "prod"` | Target environment. One of the project's configured envs (`dev`, `staging`, `prod`). |
+| `value` | required | `boolean` | Flat boolean to publish on `env`. Publishes a new version on that env only. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
 #### `release_killswitch_unset`
 
 **Remove one switch entry**
@@ -415,7 +530,7 @@ _Parameters_
 | --- | --- | --- | --- |
 | `id` | required | `string` | Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`. |
 | `description` | optional | `any` | New description, or `null` to clear it. Max 512 chars. |
-| `folder` | optional | `any` | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
+| `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `value` | optional | `boolean` | Flat value applied to every env. Publishes a new version per env when set. Omit to leave values unchanged. |
 | `switches` | optional | `object` | Replace the switches map wholesale on every env. To edit a single entry on a single env use `PUT /{id}/switch` instead. |
 
@@ -494,9 +609,9 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `name` | required | `string` | Stable config key in `folder.name` form (two lowercase segments separated by a dot, e.g. `pricing.tiers`). Used by SDKs as `Shipeasy.getConfig('<name>')`. Immutable after create. _(length 0–128)_ |
+| `name` | required | `string` | Stable config/killswitch key in `folder.name` form (two lowercase segments separated by a dot, e.g. `pricing.tiers`). Immutable after create. _(length 0–128; pattern `^(?:_default\|[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$`)_ |
 | `description` | optional | `string` | Optional free-form description shown in the dashboard. Max 512 chars. _(length 0–512)_ |
-| `folder` | optional | `any` | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
+| `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `schema` | required | `object` | JSON Schema (draft 2020-12) describing the shape of the config value. Top-level `type` must be `'object'`; every published value is validated against this schema. |
 | `value` | optional | `any` | Initial config value. Either a single JSON object applied to every env, or a `{ env: value }` map seeding per-env values. Must match `schema`. Defaults to `{}` on every env when omitted. |
 
@@ -633,7 +748,28 @@ _Parameters_
 | `id` | required | `string` | Stable opaque config id (`cfg_…`) or the config's `name`. |
 | `schema` | optional | `object` | Replacement schema. When supplied, the new schema is validated against every published value before it lands. |
 | `value` | optional | `any` | Flat value applied to **every** env. Publishes a new version per env. To target one env, use `PUT /{id}/drafts` then `POST /{id}/publish`. |
-| `folder` | optional | `any` | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
+| `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+#### `release_configs_update_schema`
+
+**Update a config schema**
+
+Replaces a config's JSON Schema in place. Every existing published value is re-validated against the new schema before it lands; the update fails if any value no longer validates.
+
+**Use case:** Evolve a config's shape (add/remove a field) without republishing values.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `id` | required | `string` | Stable opaque config id (`cfg_…`) or the config's `name`. |
+| `schema` | required | `object` | Replacement JSON Schema (draft 2020-12). Validated against every published value before it lands. |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -703,7 +839,7 @@ _Parameters_
 | `owner_email` | optional | `any` | Owner email. Display-only. _(default `null`)_ |
 | `audience` | optional | `any` | Audience label shown in the editor. Display-only. _(default `null`)_ |
 | `bucket_by` | optional | `any` | — _(default `null`)_ |
-| `folder` | optional | `any` | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
+| `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `universe` | required | `string` | Name of an existing universe in the project. Returns `422` if the universe doesn't exist. _(length 1–∞)_ |
 | `targeting_gate` | optional | `any` | Optional gate name. Only callers that pass the gate are enrolled in the experiment. _(default `null`)_ |
 | `allocation_pct` | optional | `integer` | Share of the (gated) audience allocated to the experiment, in basis points (0–10000 = 0%–100%). `0` = unallocated. Use `allocation_percent` (0–100) below to think in percent. Immutable while the experiment is running. _(default `0`; 0–10000)_ |
@@ -715,12 +851,12 @@ _Parameters_
 | `min_runtime_days` | optional | `integer` | Minimum days the experiment must run before results are considered conclusive. _(default `0`; 0–365)_ |
 | `min_sample_size` | optional | `integer` | Minimum exposures per group before results are considered conclusive. _(default `100`; 1–9007199254740991)_ |
 | `sequential_testing` | optional | `boolean` | Enable sequential testing (always-valid p-values). Requires Premium plan or higher. _(default `false`)_ |
-| `goal_metric` | optional | `object` | Single goal metric defined inline — either a DSL `query` or an `event` (+`aggregation`/`value`) the server compiles. Attaching one is required before the experiment can be started. The underlying event is auto-created if missing. |
-| `goal_metric.name` | optional | `string` | — _(length 0–128; pattern `^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$`)_ |
-| `goal_metric.query` | optional | `string` | Metric DSL string, e.g. `count_users(checkout_completed)`. Provide this OR `event`. _(length 1–4096)_ |
-| `goal_metric.event` | optional | `string` | Event name to build the metric from server-side (friendlier alternative to `query`). Auto-created if missing. _(length 1–256)_ |
+| `goal_metric` | optional | `object` | Inline metric — a DSL `query`, or an `event` (+ `aggregation`/`value`) the server compiles into one. |
+| `goal_metric.name` | optional | `string` | Stable metric key. Single segment or `folder.name`; lowercase letters, digits, `_`/`-`; max 128 chars. _(length 0–128; pattern `^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$`)_ |
+| `goal_metric.query` | optional | `string` | Metric DSL string. Provide this OR `event`. _(length 1–4096)_ |
+| `goal_metric.event` | optional | `string` | Event name to build the metric from server-side. Auto-created if missing. _(length 1–256)_ |
 | `goal_metric.aggregation` | optional | `"count_users" \| "count_events" \| "retention_7d" \| "retention_30d" \| "sum" \| "avg"` | Reducer for the `event` form. Defaults to `count_users`. |
-| `goal_metric.value` | optional | `string` | Numeric event property for `sum`/`avg` aggregations (with `event`). _(length 1–256)_ |
+| `goal_metric.value` | optional | `string` | Numeric event property for `sum`/`avg` (with `event`). _(length 1–256)_ |
 | `guardrail_metrics` | optional | `object[]` | Up to 10 guardrail metrics defined inline. Each is upserted (event + metric) and attached with role=guardrail. _(default `[]`)_ |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -983,7 +1119,7 @@ _Parameters_
 | `owner_email` | optional | `any` | — |
 | `audience` | optional | `any` | — |
 | `bucket_by` | optional | `any` | — |
-| `folder` | optional | `any` | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
+| `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `targeting_gate` | optional | `any` | — |
 | `allocation_pct` | optional | `integer` | Basis-points allocation (0–10000). Use `allocation_percent` (0–100) for percent. Immutable while the experiment is running. _(0–10000)_ |
 | `allocation_percent` | optional | `number` | Allocation as a **percentage** (0–100). Friendlier alias for `allocation_pct`; converted to basis points server-side. Wins over `allocation_pct` if both are supplied. Immutable while running. _(0–100)_ |
@@ -995,12 +1131,12 @@ _Parameters_
 | `min_runtime_days` | optional | `integer` | — _(0–365)_ |
 | `min_sample_size` | optional | `integer` | — _(1–9007199254740991)_ |
 | `sequential_testing` | optional | `boolean` | — |
-| `goal_metric` | optional | `object` | Replaces the goal metric — DSL `query` or `event` (+`aggregation`/`value`) the server compiles (event auto-upserted). |
-| `goal_metric.name` | optional | `string` | — _(length 0–128; pattern `^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$`)_ |
-| `goal_metric.query` | optional | `string` | Metric DSL string, e.g. `count_users(checkout_completed)`. Provide this OR `event`. _(length 1–4096)_ |
-| `goal_metric.event` | optional | `string` | Event name to build the metric from server-side (friendlier alternative to `query`). Auto-created if missing. _(length 1–256)_ |
+| `goal_metric` | optional | `object` | Inline metric — a DSL `query`, or an `event` (+ `aggregation`/`value`) the server compiles into one. |
+| `goal_metric.name` | optional | `string` | Stable metric key. Single segment or `folder.name`; lowercase letters, digits, `_`/`-`; max 128 chars. _(length 0–128; pattern `^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$`)_ |
+| `goal_metric.query` | optional | `string` | Metric DSL string. Provide this OR `event`. _(length 1–4096)_ |
+| `goal_metric.event` | optional | `string` | Event name to build the metric from server-side. Auto-created if missing. _(length 1–256)_ |
 | `goal_metric.aggregation` | optional | `"count_users" \| "count_events" \| "retention_7d" \| "retention_30d" \| "sum" \| "avg"` | Reducer for the `event` form. Defaults to `count_users`. |
-| `goal_metric.value` | optional | `string` | Numeric event property for `sum`/`avg` aggregations (with `event`). _(length 1–256)_ |
+| `goal_metric.value` | optional | `string` | Numeric event property for `sum`/`avg` (with `event`). _(length 1–256)_ |
 | `guardrail_metrics` | optional | `object[]` | Replaces the guardrail set wholesale (event auto-upserted per entry). |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -1065,7 +1201,7 @@ _Parameters_
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
 | `name` | required | `string` | Stable universe key. Single segment or `folder.name`. Lowercase letters, digits, `_` or `-`; max 128 chars. Immutable after create. _(length 0–128; pattern `^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$`)_ |
-| `folder` | optional | `any` | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
+| `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `unit_type` | optional | `string` | Unit of randomisation. Typically `user_id`. Use `account_id` to keep whole accounts in the same group across an experiment. _(default `"user_id"`)_ |
 | `holdout_range` | optional | `any` | Inclusive `[lo, hi]` bucket range (0–9999) reserved as the **holdout** — callers hashed into this slice are excluded from every experiment in the universe. `null` disables the holdout. Pro plan or higher required. _(default `null`)_ |
 
@@ -1113,7 +1249,7 @@ _Parameters_
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
 | `id` | required | `string` | Stable opaque universe id (`uni_…`) or the universe's `name`. |
-| `folder` | optional | `any` | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
+| `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `holdout_range` | optional | `any` | Inclusive `[lo, hi]` bucket range (0–9999) reserved as the **holdout** — callers hashed into this slice are excluded from every experiment in the universe. `null` disables the holdout. Pro plan or higher required. |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -1181,10 +1317,13 @@ _Parameters_
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
 | `name` | required | `string` | Stable metric key. Single segment or `folder.name`; lowercase letters, digits, `_`/`-`; max 128 chars. _(length 0–128; pattern `^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$`)_ |
-| `folder` | optional | `any` | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
+| `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `event_name` | required | `string` | Source event the query reads from. _(length 1–∞)_ |
-| `query` | optional | `string` | Metric query DSL string, e.g. `sum(purchase, amount)`. Provide this OR `query_ir`. _(length 1–4096)_ |
-| `query_ir` | optional | `object` | Typed query IR — the structured alternative to `query`. Provide this OR `query`. |
+| `query` | optional | `string` | Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`. _(length 1–4096)_ |
+| `winsorize_pct` | optional | `integer` | Winsorise percentile (1–99) to clamp outliers. Defaults to 99. _(default `99`; 1–99)_ |
+| `min_detectable_effect` | optional | `any` | Minimum detectable effect (relative, 0–1) for power planning. `null` to omit. _(default `null`)_ |
+| `direction` | optional | `"higher_better" \| "lower_better" \| "neutral"` | Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail). _(default `"higher_better"`)_ |
+| `query_ir` | optional | `object` | Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body. |
 | `query_ir.agg` | required | `any` | Aggregation function applied to the source event. |
 | `query_ir.metric` | required | `string` | Source event name (must equal `event_name`). _(length 1–128)_ |
 | `query_ir.valueLabel` | optional | `string` | Numeric property summed/averaged for `sum`/`avg`/quantile aggregations. _(length 1–128)_ |
@@ -1192,9 +1331,6 @@ _Parameters_
 | `query_ir.groupBy` | optional | `object` | Optional group-by clause (ignored for experiment analysis). |
 | `query_ir.groupBy.op` | required | `"by" \| "without"` | `by` keeps the listed labels; `without` drops them. |
 | `query_ir.groupBy.labels` | required | `string[]` | Labels to group by (max 5). |
-| `winsorize_pct` | optional | `integer` | Winsorise percentile (1–99) to clamp outliers. Defaults to 99. _(default `99`; 1–99)_ |
-| `min_detectable_effect` | optional | `any` | Minimum detectable effect (relative, 0–1) for power planning. `null` to omit. _(default `null`)_ |
-| `direction` | optional | `"higher_better" \| "lower_better" \| "neutral"` | Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail). _(default `"higher_better"`)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1208,7 +1344,7 @@ _Errors_ — beyond the [common errors](#errors):
 
 **Print the metric query DSL grammar**
 
-Print the grammar + examples for the metric query DSL used by `metrics create`.
+Print the full metric query DSL reference — grammar, aggregation semantics, filter/group-by rules, and glossed examples — used to author `metrics create --query`.
 
 _Parameters_
 
@@ -1218,7 +1354,7 @@ _No parameters._
 
 **List metrics**
 
-Returns every metric in the project (not paginated) — name, folder, source event, aggregation, and the rendered query.
+Returns every metric in the project (not paginated) — name, folder, source event, the typed `queryIr`, and the rendered query.
 
 **Use case:** Audit every metric defined in the project — for example to find the metric id to attach as an experiment's success metric.
 
@@ -1249,6 +1385,40 @@ _Errors_ — beyond the [common errors](#errors):
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 
+### `metrics_update`
+
+**Update a metric**
+
+Update a metric's definition — folder, source event, query (`query` DSL or typed `query_ir`), winsorisation, minimum detectable effect, or direction. `name` is immutable. Provide at most one of `query` / `query_ir`.
+
+**Use case:** Refine a metric's query or guardrail direction without recreating it.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `id` | required | `string` | Stable opaque metric id (`met_…`) or the metric's `name`. |
+| `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
+| `event_name` | optional | `string` | Source event the query reads from. _(length 1–∞)_ |
+| `query` | optional | `string` | Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`. _(length 1–4096)_ |
+| `winsorize_pct` | optional | `integer` | Winsorise percentile (1–99) to clamp outliers. Defaults to 99. _(default `99`; 1–99)_ |
+| `min_detectable_effect` | optional | `any` | Minimum detectable effect (relative, 0–1) for power planning. `null` to omit. _(default `null`)_ |
+| `direction` | optional | `"higher_better" \| "lower_better" \| "neutral"` | Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail). _(default `"higher_better"`)_ |
+| `query_ir` | optional | `object` | Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body. |
+| `query_ir.agg` | required | `any` | Aggregation function applied to the source event. |
+| `query_ir.metric` | required | `string` | Source event name (must equal `event_name`). _(length 1–128)_ |
+| `query_ir.valueLabel` | optional | `string` | Numeric property summed/averaged for `sum`/`avg`/quantile aggregations. _(length 1–128)_ |
+| `query_ir.filters` | optional | `object[]` | Label filters on the event. _(default `[]`)_ |
+| `query_ir.groupBy` | optional | `object` | Optional group-by clause (ignored for experiment analysis). |
+| `query_ir.groupBy.op` | required | `"by" \| "without"` | `by` keeps the listed labels; `without` drops them. |
+| `query_ir.groupBy.labels` | required | `string[]` | Labels to group by (max 5). |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
 ### Events
 
 Events: the catalog of event names (and their typed properties) that metric queries reference.
@@ -1276,7 +1446,7 @@ _Parameters_
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
 | `id` | required | `string` | Stable opaque event id (`evt_…`) or the event's `name`. |
-| `folder` | optional | `any` | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
+| `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `description` | optional | `string` | New description for the event. |
 | `properties` | optional | `object[]` | Replaces the full property set (no merge). Omit to leave properties unchanged. |
 
@@ -1324,7 +1494,7 @@ _Parameters_
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
 | `name` | required | `string` | Event name. Starts with a letter, digit, or `_`; letters, digits, `_`, `-`, `.`; max 128 chars. Immutable after create — this is the handle metric queries reference. _(pattern `^[a-zA-Z0-9_][a-zA-Z0-9_\-.]{0,127}$`)_ |
-| `folder` | optional | `any` | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
+| `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `description` | optional | `string` | Optional human-readable description of the event. |
 | `properties` | optional | `object[]` | Typed properties declared on the event. Defaults to an empty list. _(default `[]`)_ |
 
@@ -1357,15 +1527,13 @@ _Errors_ — beyond the [common errors](#errors):
 
 **List events**
 
-Returns every catalogued event in the project, including pending auto-discovered names. Pass `?pending=true` to return only the unapproved queue.
+Returns every catalogued event in the project, including pending auto-discovered names. Each row carries its own `pending` flag, so the unapproved queue can be filtered client-side.
 
-**Use case:** Snapshot the event catalog — for example to review the `pending` auto-discovery queue (`?pending=true`) before approving names, or to confirm which events your metrics can reference.
+**Use case:** Snapshot the event catalog — for example to review the pending auto-discovery queue before approving names, or to confirm which events your metrics can reference.
 
 _Parameters_
 
-| Parameter | | Type | Description |
-| --- | --- | --- | --- |
-| `pending` | optional | `boolean` | When `true`, return only pending (auto-discovered, unapproved) events. Omit to return the full catalog. |
+_No parameters._
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1386,7 +1554,7 @@ _Parameters_
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
 | `id` | required | `string` | Stable opaque event id (`evt_…`) or the event's `name`. |
-| `folder` | optional | `any` | Optional folder name used to group items in the dashboard. Part of the SDK lookup key: an item in folder `checkout` named `new-cart` is referenced as `checkout/new-cart` from the SDK. |
+| `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `description` | optional | `string` | New description for the event. |
 | `properties` | optional | `object[]` | Replaces the full property set (no merge). Omit to leave properties unchanged. |
 
@@ -1423,11 +1591,17 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `title` | required | `string` | One-line title of the bug or feature request. _(length 1–200)_ |
-| `body` | optional | `string` | Detailed description / steps to reproduce. |
-| `priority` | optional | `"nice_to_have" \| "medium" \| "high" \| "critical"` | Initial triage priority. |
-| `stepsToReproduce` | optional | `string` | Reproduction steps (bugs). |
-| `pageUrl` | optional | `string` | URL of the page the item relates to. |
+| `title` | required | `string` | One-line bug title (no leading/trailing whitespace). _(length 1–200; pattern `^\S(.*\S)?$`)_ |
+| `stepsToReproduce` | optional | `string` | How to reproduce the bug. _(default `""`; length 0–8000)_ |
+| `actualResult` | optional | `string` | What actually happened. _(default `""`; length 0–8000)_ |
+| `expectedResult` | optional | `string` | What was expected instead. _(default `""`; length 0–8000)_ |
+| `priority` | optional | `any` | Initial triage priority, or `null`. |
+| `reporterEmail` | optional | `any` | Email of the reporter, or `null`. |
+| `pageUrl` | optional | `any` | URL of the page the bug relates to, or `null`. |
+| `userAgent` | optional | `any` | Reporter's user-agent string, or `null`. |
+| `viewport` | optional | `any` | Reporter's viewport (e.g. `1280x720`), or `null`. |
+| `context` | optional | `any` | Arbitrary capture context, or `null`. |
+| `notify` | optional | `any` | Where this bug's completion notification lands. |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1450,12 +1624,20 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `type` | required | `"bug" \| "feature_request"` | Item type to file. Only the two user-fileable types are accepted here — `error` and `alert` tickets are auto-filed by the platform and cannot be created over the API. |
-| `title` | required | `string` | One-line title of the bug or feature request. _(length 1–200)_ |
-| `body` | optional | `string` | Detailed description / steps to reproduce. |
-| `priority` | optional | `"nice_to_have" \| "medium" \| "high" \| "critical"` | Initial triage priority. |
-| `stepsToReproduce` | optional | `string` | Reproduction steps (bugs). |
-| `pageUrl` | optional | `string` | URL of the page the item relates to. |
+| `type` | required | `"bug"` | Discriminator — files a bug. |
+| `title` | required | `string` | One-line bug title (no leading/trailing whitespace). _(length 1–200; pattern `^\S(.*\S)?$`)_ |
+| `stepsToReproduce` | optional | `string` | How to reproduce the bug. _(default `""`; length 0–8000)_ |
+| `actualResult` | optional | `string` | What actually happened. _(default `""`; length 0–8000)_ |
+| `expectedResult` | optional | `string` | What was expected instead. _(default `""`; length 0–8000)_ |
+| `priority` | optional | `any` | Initial triage priority, or `null`. |
+| `reporterEmail` | optional | `any` | Email of the reporter, or `null`. |
+| `pageUrl` | optional | `any` | URL of the page the bug relates to, or `null`. |
+| `userAgent` | optional | `any` | Reporter's user-agent string, or `null`. |
+| `viewport` | optional | `any` | Reporter's viewport (e.g. `1280x720`), or `null`. |
+| `context` | optional | `any` | Arbitrary capture context, or `null`. |
+| `notify` | optional | `any` | Where this bug's completion notification lands. |
+| `description` | optional | `string` | What the feature is. _(default `""`; length 0–8000)_ |
+| `useCase` | optional | `string` | Why it's needed / the use case. _(default `""`; length 0–8000)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1478,11 +1660,15 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `title` | required | `string` | One-line title of the bug or feature request. _(length 1–200)_ |
-| `body` | optional | `string` | Detailed description / steps to reproduce. |
-| `priority` | optional | `"nice_to_have" \| "medium" \| "high" \| "critical"` | Initial triage priority. |
-| `stepsToReproduce` | optional | `string` | Reproduction steps (bugs). |
-| `pageUrl` | optional | `string` | URL of the page the item relates to. |
+| `title` | required | `string` | One-line feature-request title (no leading/trailing whitespace). _(length 1–200; pattern `^\S(.*\S)?$`)_ |
+| `description` | optional | `string` | What the feature is. _(default `""`; length 0–8000)_ |
+| `useCase` | optional | `string` | Why it's needed / the use case. _(default `""`; length 0–8000)_ |
+| `priority` | optional | `any` | Initial triage priority, or `null`. |
+| `reporterEmail` | optional | `any` | Email of the reporter, or `null`. |
+| `pageUrl` | optional | `any` | URL of the page the request relates to, or `null`. |
+| `userAgent` | optional | `any` | Reporter's user-agent string, or `null`. |
+| `context` | optional | `any` | Arbitrary capture context, or `null`. |
+| `notify` | optional | `any` | Where this request's completion notification lands. |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1535,7 +1721,7 @@ _Errors_ — beyond the [common errors](#errors):
 
 **List the operational queue**
 
-Returns the unified ops queue (bugs, feature requests, errors, alerts), newest first. Filter by `type` and/or `status`, and cap with `limit`.
+Returns the unified ops queue (bugs, feature requests, errors, alerts) in work order — highest priority first, oldest first within a priority — so consumers work it top-down. Filter by `type` and/or `status`, and cap with `limit`. Human-gated holding states (items awaiting human sign-off in the dashboard) are never returned by `all`/default status.
 
 **Use case:** Pull the open queue to triage — e.g. every `bug` still `open` — before working items down one by one.
 
@@ -1578,17 +1764,25 @@ _Errors_ — beyond the [common errors](#errors):
 
 **Update a queue item**
 
-Update a queue item's `status` and/or `priority`. Other fields are immutable.
+Update a queue item. The body is validated against the item's stored type: a `bug` accepts its content fields (title, steps-to-reproduce, actual/expected result) plus `status`/`priority`/`notify` and a GitHub PR link; a `feature_request` its content (title, description, use-case) plus the same triage fields; `error`/`alert`/`measure_plan` accept `status`/`priority`/`notify` only (their content is platform-owned). Pass at least one field.
 
-**Use case:** Move an item through its lifecycle (triage → in_progress → resolved) as you work it.
+**Use case:** Move an item through its lifecycle (triage → in_progress → resolved) and edit a bug/feature's content as you work it.
 
 _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
 | `handle` | required | `string` | Per-project item number (e.g. `7`) or the full ops item id. |
-| `status` | optional | `"open" \| "triaged" \| "in_progress" \| "ready_for_qa" \| "resolved" \| "wont_fix"` | New lifecycle status. |
-| `priority` | optional | `"nice_to_have" \| "medium" \| "high" \| "critical"` | New triage priority. |
+| `title` | optional | `string` | New bug title (no leading/trailing whitespace). _(length 1–200; pattern `^\S(.*\S)?$`)_ |
+| `stepsToReproduce` | optional | `string` | Updated reproduction steps. _(length 0–8000)_ |
+| `actualResult` | optional | `string` | Updated actual result. _(length 0–8000)_ |
+| `expectedResult` | optional | `string` | Updated expected result. _(length 0–8000)_ |
+| `status` | optional | `"open" \| "triaged" \| "in_progress" \| "ready_for_qa" \| "resolved" \| "wont_fix"` | Lifecycle status of a queue item. |
+| `priority` | optional | `any` | Triage priority, or `null` to clear it. |
+| `githubPrNumber` | optional | `any` | Link (or, when `null`, unlink) a GitHub pull request to this bug. |
+| `notify` | optional | `any` | Where this item's completion notification lands, or `null`. |
+| `description` | optional | `string` | Updated description. _(length 0–8000)_ |
+| `useCase` | optional | `string` | Updated use case. _(length 0–8000)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1665,7 +1859,7 @@ _Parameters_
 | `windowHours` | optional | `integer` | Lookback window (hours) the metric is aggregated over. 1–720. _(default `24`; 1–720)_ |
 | `severity` | optional | `"danger" \| "warn" \| "info"` | Severity of the raised alert. _(default `"warn"`)_ |
 | `enabled` | optional | `boolean` | Whether the rule is evaluated by the cron. _(default `true`)_ |
-| `notify` | optional | `any` | Where to deliver this rule's alert (Slack channel and/or email target). |
+| `notify` | optional | `any` | Delivery target for a notification; `null` = use the project default. |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1714,13 +1908,95 @@ _Parameters_
 | `windowHours` | optional | `integer` | — _(1–720)_ |
 | `severity` | optional | `"danger" \| "warn" \| "info"` | — |
 | `enabled` | optional | `boolean` | — |
-| `notify` | optional | `any` | — |
+| `notify` | optional | `any` | Delivery target for a notification; `null` = use the project default. |
 
 _Errors_ — beyond the [common errors](#errors):
 
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 - `VALIDATION` — The request body failed structural (schema) validation.
+
+### Trigger
+
+Recurring coding-agent triggers: the scheduled, unattended runs that burn
+down the ops queue in `--pr` mode (one PR per fixed item; nothing
+auto-merges). Shipeasy can fire four providers directly — Claude routines,
+Cursor cloud agents, Copilot cloud agents, and Google Jules (the Gemini
+path) — registered here as trigger connectors (idempotent per provider
+key). Other platforms (Codex, Windsurf, Cline, OpenClaw, OpenCode,
+Continue) schedule on their own surface — typically a GitHub Actions
+`schedule:` cron running the platform's headless CLI with the shared
+trigger prompt.
+
+#### `ops_trigger_create_claude`
+
+Register a Claude Code scheduled routine as the trigger connector. Creates (or idempotently updates) a coding-agent **trigger** connector — the recurring, unattended run that burns down the ops queue in `--pr` mode. Discriminated on `provider`; only the four Shipeasy-fireable providers are accepted (`claude_trigger`, `cursor_trigger`, `copilo…
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `name` | optional | `string` | Human-readable connector label. _(default `"Claude trigger"`; length 1–80)_ |
+| `events` | optional | `"bug.created" \| "feature_request.created"[]` | Events that auto-fire the routine. Defaults to empty so the trigger does not auto-fire paid runs until events are subscribed. _(default `[]`)_ |
+| `config` | required | `object` | Non-secret config for a Claude trigger. |
+| `config.routineId` | required | `string` | The Claude Code routine id this connector fires (the id recorded at setup). Idempotency key for the connector. _(length 1–∞)_ |
+| `config.fireText` | optional | `string` | Optional default prompt sent on a manual fire / when no event text applies. _(length 1–∞)_ |
+| `token` | optional | `string` | The routine's fire bearer token (secret). **Optional** — a tokenless trigger is recorded but not fireable until a token is added later. Encrypted into the credentials cipher; never persisted in `config` or returned. _(length 1–∞)_ |
+| `enabled` | optional | `boolean` | Whether the trigger is active on create. _(default `true`)_ |
+
+#### `ops_trigger_create_copilot`
+
+Register a GitHub Copilot cloud-agent trigger. Creates (or idempotently updates) a coding-agent **trigger** connector — the recurring, unattended run that burns down the ops queue in `--pr` mode. Discriminated on `provider`; only the four Shipeasy-fireable providers are accepted (`claude_trigger`, `cursor_trigger`, `copilo…
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `name` | optional | `string` | Human-readable connector label. _(default `"Copilot trigger"`; length 1–80)_ |
+| `events` | optional | `"bug.created" \| "feature_request.created"[]` | Events that auto-fire a Copilot agent task. Defaults to empty. _(default `[]`)_ |
+| `config` | required | `object` | Non-secret config for a Copilot trigger. |
+| `config.owner` | required | `string` | GitHub repo owner. Together with `repo` forms the connector's idempotency key (`owner/repo`). _(length 1–∞)_ |
+| `config.repo` | required | `string` | GitHub repo name. _(length 1–∞)_ |
+| `config.baseRef` | optional | `string` | Optional base ref the agent branches from. _(length 1–∞)_ |
+| `config.projectId` | required | `string` | Shipeasy project id the run targets. _(length 1–∞)_ |
+| `token` | required | `string` | Copilot-licensed user PAT (secret). The ops key lives in the repo's GitHub "Agents" secret store and is never sent through Shipeasy. Encrypted; never returned. _(length 1–∞)_ |
+| `enabled` | optional | `boolean` | Whether the trigger is active on create. _(default `true`)_ |
+
+#### `ops_trigger_create_cursor`
+
+Register a Cursor cloud-agent trigger (cold-fire; Shipeasy launches the run). Creates (or idempotently updates) a coding-agent **trigger** connector — the recurring, unattended run that burns down the ops queue in `--pr` mode. Discriminated on `provider`; only the four Shipeasy-fireable providers are accepted (`claude_trigger`, `cursor_trigger`, `copilo…
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `name` | optional | `string` | Human-readable connector label. _(default `"Cursor trigger"`; length 1–80)_ |
+| `events` | optional | `"bug.created" \| "feature_request.created"[]` | Events that auto-fire a cold cloud-agent run. Defaults to empty. _(default `[]`)_ |
+| `config` | required | `object` | Non-secret config for a Cursor trigger. |
+| `config.repoUrl` | required | `string` | Repo the cloud agent runs against, e.g. `https://github.com/owner/repo`. Idempotency key for the connector. _(format: uri)_ |
+| `config.startingRef` | optional | `string` | Optional git ref the run starts from. _(length 1–∞)_ |
+| `config.projectId` | required | `string` | Shipeasy project id the run targets. _(length 1–∞)_ |
+| `apiKey` | required | `string` | Cursor API key that launches the run (secret). Encrypted into the credentials cipher; never returned. _(length 1–∞)_ |
+| `opsKey` | required | `string` | Restricted Shipeasy ops key, injected into the run as `SHIPEASY_CLI_TOKEN` via the launch envVars (secret). Encrypted; never returned. _(length 1–∞)_ |
+| `enabled` | optional | `boolean` | Whether the trigger is active on create. _(default `true`)_ |
+
+#### `ops_trigger_create_jules`
+
+Register a Google Jules (Gemini) trigger. Creates (or idempotently updates) a coding-agent **trigger** connector — the recurring, unattended run that burns down the ops queue in `--pr` mode. Discriminated on `provider`; only the four Shipeasy-fireable providers are accepted (`claude_trigger`, `cursor_trigger`, `copilo…
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `name` | optional | `string` | Human-readable connector label. _(default `"Jules trigger"`; length 1–80)_ |
+| `events` | optional | `"bug.created" \| "feature_request.created"[]` | Events that auto-fire a Jules session. Defaults to empty. _(default `[]`)_ |
+| `config` | required | `object` | Non-secret config for a Jules trigger. |
+| `config.source` | required | `string` | Jules source for the connected repo, e.g. `sources/github/owner/repo`. Idempotency key for the connector. _(length 1–∞)_ |
+| `config.startingBranch` | optional | `string` | Optional branch the session starts from. _(length 1–∞)_ |
+| `config.projectId` | required | `string` | Shipeasy project id the run targets. _(length 1–∞)_ |
+| `apiKey` | required | `string` | Jules API key that launches the session (secret). Encrypted into the credentials cipher; never returned. _(length 1–∞)_ |
+| `opsKey` | required | `string` | Restricted Shipeasy ops key, embedded in the prompt (Jules exposes no env channel) (secret). Encrypted; never returned. _(length 1–∞)_ |
+| `enabled` | optional | `boolean` | Whether the trigger is active on create. _(default `true`)_ |
 
 ## Projects
 
@@ -1745,6 +2021,44 @@ _No parameters._
 _Errors_ — beyond the [common errors](#errors):
 
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+
+### `projects_update`
+
+**Update the current project**
+
+Update the current project's settings — name, domain, slug, default environment, timezone, experiment-analysis knobs (statistical method, significance threshold, auto-rollback, minimum sample days), and the per-module enable flags. Partial: only the fields you send change.
+
+The project id in the path must match the project the caller's credential resolves to (a credential can only edit its own project). Changing `domain` re-stamps the allowed origin into every live SDK key.
+
+**Use case:** Rename a project, move its domain, toggle a module on/off, or tune the experiment-analysis defaults without leaving the CLI.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `id` | required | `string` | Stable opaque project id. Must match the caller's own project. |
+| `name` | optional | `string` | New project name. _(length 1–120)_ |
+| `domain` | optional | `string` | Lowercase bare hostname (e.g. `acme.com`, `app.acme.com`, `*.acme.com`), or `*` to allow any origin. Full URLs with `https://` are not accepted. The project is keyed by `(owner_email, domain)`, so a second call with the same domain returns the existing project. _(length 1–2048; pattern `^(\*\|(\*\.)?[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+)$`)_ |
+| `slug` | optional | `string` | URL-safe identifier used in app URLs and SDK config. Lowercase letters, numbers, and hyphens; 2–48 chars; cannot start or end with a hyphen. The caller lowercases the raw slug before sending. _(length 2–48; pattern `^[a-z0-9](?:[a-z0-9-]{0,46}[a-z0-9])?$`)_ |
+| `defaultEnv` | optional | `"dev" \| "staging" \| "prod"` | Default environment new resources are scoped to. |
+| `timezone` | optional | `string` | IANA timezone the project's daily analysis runs in. _(length 1–64)_ |
+| `statMethod` | optional | `"sequential" \| "fixed" \| "bayesian"` | Statistical method the experiment analyzer uses. |
+| `sigThreshold` | optional | `"0.01" \| "0.05" \| "0.10"` | Significance threshold (alpha) for experiment analysis. |
+| `autoRollback` | optional | `boolean` | Whether a failing guardrail auto-rolls back the experiment. |
+| `minSampleDays` | optional | `integer` | Minimum number of days an experiment must run before it can be called. _(1–365)_ |
+| `moduleTranslations` | optional | `boolean` | Enable/disable the i18n/translations module. |
+| `moduleConfigs` | optional | `boolean` | Enable/disable the dynamic-configs module. |
+| `moduleGates` | optional | `boolean` | Enable/disable the feature-gates module. |
+| `moduleExperiments` | optional | `boolean` | Enable/disable the experiments module. |
+| `moduleFeedback` | optional | `boolean` | Enable/disable the feedback/ops module. |
+| `moduleUser` | optional | `boolean` | Enable/disable the user-management module. |
+| `moduleEvents` | optional | `boolean` | Enable/disable the events module. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
 
 ### `projects_upsert`
 
@@ -1796,9 +2110,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `name` | required | `string` | Profile handle to create, e.g. `en:prod` or `fr:prod`. |
-| `locales` | optional | `string[]` | Locales this profile carries, e.g. `["fr", "fr-CA"]`. Defaults to `["en"]`. |
-| `default_locale` | optional | `string` | Default locale for the profile. Defaults to the first entry of `locales`. |
+| `name` | required | `string` | Profile handle to create, e.g. `en:prod` or `fr:prod`. Lowercase alphanumeric start, then letters/digits/`_`/`:`/`.`/`-`; max 64 chars. The locale is encoded in the handle, so no separate locale fields are accepted. _(length 1–64; pattern `^[a-z0-9][a-z0-9_:.-]*$`)_ |
 
 #### `i18n_profiles_list`
 
@@ -1844,8 +2156,8 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `profile_id` | required | `string` | Target profile id to add keys to. |
-| `chunk` | optional | `string` | Logical grouping the new keys are filed under. Defaults to `default`. |
+| `profile_id` | required | `string` | Target profile id to add keys to. _(format: uuid)_ |
+| `chunk` | optional | `string` | Logical grouping the new keys are filed under. Defaults to `default`. _(default `"default"`; length 1–64)_ |
 | `keys` | required | `object[]` | Keys to add. Insert-only — existing keys are reported back as `skipped`. |
 
 #### `i18n_keys_set`
@@ -1856,9 +2168,9 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `key` | required | `string` | Dotted key path to set, e.g. `home.cta`. |
+| `key` | required | `string` | Dotted key path to set, e.g. `home.cta`. _(length 1–256)_ |
 | `value` | required | `string` | New value for the key. Inserted when the key is new, overwritten when it exists. |
-| `profile` | optional | `string` | Profile name to target, e.g. `en:prod`. Omit to target the project's default-marked profile. |
+| `profile` | optional | `string` | Profile name to target, e.g. `en:prod`. Omit to target the project's default-marked profile. _(length 1–64)_ |
 | `description` | optional | `string` | Optional human note to store with the key. |
 
 #### `i18n_keys_update`
@@ -1872,10 +2184,23 @@ _Parameters_
 | `id` | required | `string` | The key's id. |
 | `value` | required | `string` | New value for the key (the only overwrite path). |
 | `description` | optional | `string` | Optional human note to store with the key. |
+| `variables` | optional | `string[]` | Explicit `{{var}}` placeholder names in the value. Omit to auto-derive them from the value. |
 
 ### Drafts
 
 Machine-translation drafts awaiting review before publish.
+
+#### `i18n_drafts_create`
+
+Create a translation draft. Stage a new translation draft against a target profile, optionally seeding its keys from a source profile.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `name` | required | `string` | Draft name, e.g. the target locale being staged. _(length 1–64)_ |
+| `profile_id` | required | `string` | Profile the draft targets. _(format: uuid)_ |
+| `source_profile_id` | optional | `string` | Optional profile to seed the draft's keys from. _(format: uuid)_ |
 
 #### `i18n_drafts_list`
 
@@ -1884,6 +2209,17 @@ List translation drafts. List staged translation drafts awaiting review/publish.
 _Parameters_
 
 _No parameters._
+
+#### `i18n_drafts_update`
+
+Update a translation draft. Transition a draft's lifecycle state (`open` / `merged` / `abandoned`).
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `draftId` | required | `string` | The draft id to update. |
+| `status` | optional | `"open" \| "merged" \| "abandoned"` | New lifecycle state for the draft. |
 
 ## Auth
 
@@ -1927,7 +2263,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `sdk` | required | `"typescript" \| "javascript" \| "node" \| "ts" \| "python" \| "go" \| "java" \| "kotlin" \| "php" \| "swift" \| "ruby"` | SDK language. |
+| `sdk` | optional | `"typescript" \| "javascript" \| "node" \| "ts" \| "python" \| "go" \| "java" \| "kotlin" \| "php" \| "swift" \| "ruby"` | SDK language. Defaults to the `sdk` recorded in the nearest `.shipeasy` when omitted. |
 | `path` | required | `string` | Page key or snippet 'group/resource'. |
 | `framework` | optional | `string` | Framework hint (substitutes {{FRAMEWORK}}). |
 | `name` | optional | `string` | Resource name (substitutes {{RESOURCE_NAME}}). |
@@ -1942,7 +2278,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `sdk` | required | `"typescript" \| "javascript" \| "node" \| "ts" \| "python" \| "go" \| "java" \| "kotlin" \| "php" \| "swift" \| "ruby"` | SDK language. |
+| `sdk` | optional | `"typescript" \| "javascript" \| "node" \| "ts" \| "python" \| "go" \| "java" \| "kotlin" \| "php" \| "swift" \| "ruby"` | SDK language. Defaults to the `sdk` recorded in the nearest `.shipeasy` when omitted. |
 
 ### `docs_skill`
 
@@ -1954,5 +2290,5 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `sdk` | required | `"typescript" \| "javascript" \| "node" \| "ts" \| "python" \| "go" \| "java" \| "kotlin" \| "php" \| "swift" \| "ruby"` | SDK language. |
+| `sdk` | optional | `"typescript" \| "javascript" \| "node" \| "ts" \| "python" \| "go" \| "java" \| "kotlin" \| "php" \| "swift" \| "ruby"` | SDK language. Defaults to the `sdk` recorded in the nearest `.shipeasy` when omitted. |
 | `install` | optional | `boolean` | CLI only: write the skill to the local agent skills dir. |

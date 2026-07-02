@@ -164,7 +164,7 @@ export const GENERATED_TOOLS: Tool[] = [
   },
   {
     name: "ops_list",
-    description: "List the operational queue. Returns the unified ops queue (bugs, feature requests, errors, alerts), newest first. Filter by `type` and/or `status`, and cap with `limit`.",
+    description: "List the operational queue. Returns the unified ops queue (bugs, feature requests, errors, alerts) in work order — highest priority first, oldest first within a priority — so consumers work it top-down. Filter by `type` and/or `status`, and cap with `limit`. Human-gated holding states (items awaiting hum…",
     inputSchema: {"type":"object","properties":{"type":{"anyOf":[{"type":"string","enum":["bug","feature_request","error","alert"],"description":"Queue item type. `bug` and `feature_request` are user-fileable; `error` and `alert` tickets are auto-filed by the platform."},{"type":"string","const":"all"}],"description":"Filter by item type (`bug`/`feature_request`/`error`/`alert`), or `all`."},"status":{"anyOf":[{"type":"string","enum":["open","triaged","in_progress","ready_for_qa","resolved","wont_fix"],"description":"Lifecycle status of a queue item."},{"type":"string","const":"all"}],"description":"Filter by lifecycle status, or `all`."},"limit":{"type":"integer","minimum":1,"maximum":500,"description":"Max items to return (1–500)."}},"required":[]},
   },
   {
