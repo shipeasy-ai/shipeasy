@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Native git hook (core.hooksPath=.githooks). No husky.
+#
+# Keeps the generated reference docs in sync with the tooling that backs them.
+# The CLI/MCP/OpenAPI surfaces are the single source of truth; `turbo docs`
+# walks the live Commander tree + MCP tool registry (both driven by the
+# @shipeasy/openapi operation registry) and re-renders:
+#   • cli/docs/cli-reference.md + mcp/docs/mcp-reference.md   (in this repo)
+#   • apps/docs/content/docs/get-started/{cli,mcp}-reference.mdx
+#     (the PUBLISHED site — only when checked out inside the monorepo)
+#
+# So a staged change under openapi/, cli/, or mcp/ that isn't itself a doc
+# output regenerates the docs, and the in-repo copies are re-staged into the
+# same commit. The apps/docs/*.mdx pages live in the PARENT monorepo's tree —
+# they get regenerated on disk but cannot be staged from this submodule; the
+# hook prints them so you can commit them in the parent.
+set -euo pipefail
+
+# Staged source changes under a tool surface, ignoring generated outputs
+# (the docs we write back, and build artifacts) so re-staging can't loop.
+triggers=$(git diff --cached --name-only --diff-filter=ACMR \
+  | grep -E '^(openapi|cli|mcp)/' \
+  | grep -vE '(^|/)(docs|dist)/' \
+  || true)
+
+if [ -z "$triggers" ]; then
+  exit 0
+fi
+
+echo "pre-commit: openapi/cli/mcp changed — regenerating reference docs (pnpm docs)"
+pnpm docs
+
+# Re-stage the in-repo generated copies (paths inside this submodule only).
+in_repo_docs="cli/docs/cli-reference.md mcp/docs/mcp-reference.md"
+for f in $in_repo_docs; do
+  [ -f "$f" ] && git add "$f"
+done
+
+# The published site pages live one level up, in the parent monorepo — they
+# were just regenerated but can't be staged from inside this submodule. Surface
+# them so they get committed there.
+parent_docs="../apps/docs/content/docs/get-started/cli-reference.mdx ../apps/docs/content/docs/get-started/mcp-reference.mdx"
+dirty_parent=""
+for f in $parent_docs; do
+  if [ -f "$f" ] && ! git -C .. diff --quiet -- "${f#../}" 2>/dev/null; then
+    dirty_parent="$dirty_parent ${f#../}"
+  fi
+done
+if [ -n "$dirty_parent" ]; then
+  echo "pre-commit: published docs regenerated in the parent monorepo — commit these there:"
+  for f in $dirty_parent; do echo "    $f"; done
+fi
