@@ -27,7 +27,10 @@ shipeasy ops trigger create cursor --help
      service-account key is ideal for an unattended trigger).
 3. **Register the connector** — `shipeasy ops trigger create cursor …` with the
    repo, branch, Cursor API key, and the `ops` key (per the `--help` runbook).
-   This is what makes it fireable.
+   This is what makes it fireable. (No browser step is required. If the user
+   would rather fill the connect form in the UI — it also links where to create
+   the Cursor API key — **open the dashboard**: `…/triggers?provider=cursor`, see
+   "Opening the filtered trigger page" in `SKILL.md`.)
 4. **Verify** — one manual fire and confirm a PR (or empty-queue exit).
 
 Respect `--dry-run` and the shared hard rules in `SKILL.md` (restricted `ops`

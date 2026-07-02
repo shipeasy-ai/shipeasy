@@ -33,9 +33,11 @@ prefixed: `@Shipeasy /shipeasy:ops:create_trigger --provider codex --frequency <
    restricted `ops` key, **writes `.github/workflows/shipeasy-trigger.yml`** on
    that cron (with `workflow_dispatch:` for the instant trigger), opens the Codex
    Cloud environment page, and pauses.
-3. **Configure the Codex Cloud environment (browser, UI-only)** — the task runs
+3. **Configure the Codex Cloud environment — BROWSER-ONLY.** The task runs
    *inside* this environment, so its network allowlist + Shipeasy creds live
-   here, not as Actions secrets:
+   here, not as Actions secrets. **Don't narrate this in chat — open the
+   dashboard** (`…/triggers?provider=codex`, see "Opening the filtered trigger
+   page" in `SKILL.md`); the page walks the user through it. What they set there:
    - Network access → **Custom**, allow `shipeasy.ai` + `api.shipeasy.ai` (keep
      "include default package managers" checked).
    - Env vars: `SHIPEASY_CLI_TOKEN=<ops key>` and `SHIPEASY_PROJECT_ID=<project id>`.

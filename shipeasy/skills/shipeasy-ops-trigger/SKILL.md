@@ -36,6 +36,31 @@ git rev-parse --is-inside-work-tree >/dev/null 2>&1 && git remote -v | grep -q g
 - **Don't fire a paid run without telling the user.** A verify run spends tokens
   and may open a real PR. Confirm first.
 - **Respect `--dry-run`** — print the plan + prompt, mint nothing.
+- **UI-only steps → open the dashboard, don't narrate them.** Several providers
+  have configuration that only exists in a browser (a Codex Cloud environment,
+  a repo's Agents secret store, a routine's network allowlist / fire token).
+  Don't hand-walk the user through these in chat — **open the filtered trigger
+  page** and let the UI explain (see below). Do the CLI/API side yourself first
+  (mint the key, register the connector), then send them to finish the browser
+  bit.
+
+## Opening the filtered trigger page
+
+When a step is browser-only, open the dashboard triggers page **preselected to
+the resolved provider** — the page (`trigger-setup.tsx`) then walks the user
+through that provider's exact fields, secrets, and network settings:
+
+```
+https://shipeasy.ai/dashboard/<PROJECT_ID>/triggers?provider=<provider>
+```
+
+- `<PROJECT_ID>` — from `.shipeasy` / `shipeasy projects current`.
+- `<provider>` — the resolved provider (`jules` is accepted as an alias for
+  `gemini`; unknown values fall back to the picker).
+- Open it with the Bash tool (`open <url>` on macOS, `xdg-open` on Linux) or, if
+  you can't open a browser, print the link for the user to click.
+
+The provider reference marks which of its steps are browser-only.
 
 ## 3. Resolve the provider
 

@@ -32,6 +32,10 @@ shipeasy ops trigger create jules --help    # alias: gemini
      app → Settings** (`jules.google`; max 3 keys per account).
 3. **Register the connector** — `shipeasy ops trigger create jules …` with the
    source, branch, Jules API key, and the `ops` key (per the `--help` runbook).
+   (No browser step is required. If the user would rather fill the connect form
+   in the UI — it also links where to create the Jules API key — **open the
+   dashboard**: `…/triggers?provider=jules`, see "Opening the filtered trigger
+   page" in `SKILL.md`. `jules` and `gemini` both resolve to this card.)
 4. **Verify** — one manual fire and confirm a PR (or empty-queue exit).
 
 Respect `--dry-run` and the shared hard rules in `SKILL.md` (restricted `ops`

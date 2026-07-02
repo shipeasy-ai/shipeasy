@@ -19,11 +19,13 @@ shipeasy ops trigger create copilot --help
 
 ## Flow
 
-1. **Mint the restricted `ops` key** (`shipeasy sdk keys create --type ops --json`),
-   then have the user add it to the repo's Agents secret store (browser, UI-only):
-   **Settings → Secrets and variables → Copilot**:
-   - `SHIPEASY_CLI_TOKEN` = the `ops` key
-   - `SHIPEASY_PROJECT_ID` = the project id
+1. **Mint the restricted `ops` key** (`shipeasy sdk keys create --type ops --json`).
+   It then has to go into the repo's **Agents secret store — BROWSER-ONLY**
+   (**Settings → Secrets and variables → Copilot**): `SHIPEASY_CLI_TOKEN` = the
+   `ops` key, `SHIPEASY_PROJECT_ID` = the project id. Don't dictate the clicks —
+   **open the dashboard** (`…/triggers?provider=copilot`, see "Opening the
+   filtered trigger page" in `SKILL.md`); it shows the exact secret names and
+   where to paste them.
 2. **Collect the connection inputs:**
    - Repo owner + repo name, base branch (optional, defaults to `main`).
    - A **fine-grained personal access token** with the **"Agent tasks"**

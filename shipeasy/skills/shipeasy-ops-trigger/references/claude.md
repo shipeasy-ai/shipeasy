@@ -23,6 +23,12 @@ over the **`/v1/code/triggers`** API. That API is reachable only by the agent's
 There is **no `/schedule` slash command, no GitHub Actions, no `.github/` file**
 in this flow.
 
+**Browser-only steps** (do the CLI side first, then open the dashboard to finish
+— see "Opening the filtered trigger page" in `SKILL.md`,
+`…/triggers?provider=claude`): the routine's **network allowlist** (step 3) and
+the optional **fire token** (step 7) live in Anthropic's routine UI. The
+dashboard page walks the user through both.
+
 ## Claude-specific rules
 
 - **Never echo the ops key into chat.** The CLI writes the create body (which
