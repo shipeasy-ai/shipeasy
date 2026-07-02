@@ -27,8 +27,6 @@ const EXPECTED_SKILLS = [
   "shipeasy-experiments",
   "shipeasy-flags",
   "shipeasy-i18n",
-  "shipeasy-i18n-migrate",
-  "shipeasy-i18n-translate",
   "shipeasy-metrics",
   "shipeasy-ops",
   "shipeasy-ops-install",

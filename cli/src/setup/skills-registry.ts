@@ -28,7 +28,36 @@ export function marketplaceSkillSource(name: string): string {
 
 /** Raw-content URL for a marketplace skill's SKILL.md (for templated install). */
 export function marketplaceSkillRawUrl(name: string, ref = "main"): string {
-  return `https://raw.githubusercontent.com/${MARKETPLACE_SLUG}/${ref}/${SKILLS_SUBDIR}/${name}/SKILL.md`;
+  return marketplaceSkillFileRawUrl(name, "SKILL.md", ref);
+}
+
+/** Raw-content URL for any file inside a marketplace skill's directory. */
+export function marketplaceSkillFileRawUrl(name: string, file: string, ref = "main"): string {
+  return `https://raw.githubusercontent.com/${MARKETPLACE_SLUG}/${ref}/${SKILLS_SUBDIR}/${name}/${file}`;
+}
+
+/**
+ * List a marketplace skill's `references/` files (skill-relative paths) via the
+ * GitHub contents API. Best-effort: a skill without references, an API error,
+ * or no network all yield `[]` — SKILL.md alone still installs.
+ */
+export async function listMarketplaceSkillReferences(
+  name: string,
+  ref = "main",
+): Promise<string[]> {
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/${MARKETPLACE_SLUG}/contents/${SKILLS_SUBDIR}/${name}/references?ref=${ref}`,
+      { headers: { accept: "application/vnd.github+json" } },
+    );
+    if (!res.ok) return [];
+    const entries = (await res.json()) as Array<{ type?: string; name?: string }>;
+    return entries
+      .filter((e) => e.type === "file" && typeof e.name === "string")
+      .map((e) => `references/${e.name}`);
+  } catch {
+    return [];
+  }
 }
 
 /** De-duplicated skill names for a set of selected features (unknown → []). */

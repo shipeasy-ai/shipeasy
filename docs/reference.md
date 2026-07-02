@@ -5,12 +5,19 @@
 > unattended scheduled triggers see `shipeasy ops trigger create <provider>
 > --help` (also at <https://docs.shipeasy.ai/get-started/triggers>).
 
-The plugin ships **14 skills** — **9 area skills** that auto-trigger on natural
-language and carry the guidance for each subsystem, plus **5 workflow skills**
+The plugin ships **12 skills** — **9 area skills** that auto-trigger on natural
+language and carry the guidance for each subsystem, plus **3 workflow skills**
 for the multi-step flows. Everything else — all day-to-day CRUD — runs through
 the generated `shipeasy` MCP tools or the `shipeasy` CLI. (The thin
-`*-install` onboarding wrappers for flags/i18n were removed: `shipeasy setup`
-and `shipeasy install <group>` do that work now.)
+`*-install` onboarding wrappers for flags/i18n were removed — `shipeasy setup`
+and `shipeasy install <group>` do that work now — and the i18n
+migrate/translate workflows live inside `shipeasy-i18n` as references.)
+
+Larger skills follow a **router + references** layout: a thin `SKILL.md`
+carries the triggers, hard rules, and a routing table pointing into the
+skill's `references/` directory, which holds the per-topic runbooks. Agents
+read a reference only when routed to it, so the extra depth costs no context
+until needed.
 
 Two cross-cutting rules shape the whole surface:
 
@@ -29,7 +36,7 @@ skill triggers from phrasing or the host's explicit skill invocation.
 
 ---
 
-## The 14 skills
+## The 12 skills
 
 ### Area skills (guidance; auto-trigger on phrasing)
 
@@ -42,7 +49,7 @@ skill triggers from phrasing or the host's explicit skill invocation.
 | `shipeasy-metrics` | Event metrics + the query DSL | "create metric", "track metric", "metric DSL" |
 | `shipeasy-alerts` | Metric-threshold alert rules | "alert rule", "alert me when", "metric threshold" |
 | `shipeasy-ops` | The operational inbox: bugs, feature requests, error/alert tickets | "bug report", "feature request", "ops inbox" |
-| `shipeasy-i18n` | Translatable text: `i18n.t()` wrapping, keys, profiles, publish | "translate", "i18n", "make this translatable" |
+| `shipeasy-i18n` | Translatable text end-to-end: `i18n.t()` wrapping, keys, profiles, publish, plus the migrate-a-library and machine-translate-a-locale runbooks (`references/`) | "translate", "i18n", "make this translatable", "new locale", "migrate i18n" |
 | `shipeasy-see` | Structured error reporting (`see()`, consequences, violations) | error handling, `console.error` migration, try/catch reviews |
 
 ### Workflow skills (multi-step orchestrations)
@@ -50,14 +57,17 @@ skill triggers from phrasing or the host's explicit skill invocation.
 | Skill | Argument(s) | What it does |
 | --- | --- | --- |
 | `shipeasy-ops-install` | — | Enable `feedback` + production error collection, wire the devtools overlay and `see()` reporting per the project's language docs, and add the CLAUDE.md error-handling rule. |
-| `shipeasy-i18n-migrate` | `<library>` | Run `shipeasy i18n migrate <library>` — codemod react-i18next / react-intl / lingui / next-intl / raw-i18next call sites to Shipeasy, push, publish. |
-| `shipeasy-i18n-translate` | `<target-profile> [--from <source>] [--glossary <t=v,…>]` | Stand up a new locale: seed the target profile, machine-translate the draft (Anthropic key read locally), publish. |
-| `shipeasy-ops-work` | `[--type bug\|feature\|error\|alert\|all] [--priority high\|critical] [--limit <N>] [--pr] [--dry-run]` | The unified work loop over the operational queue — one atomic diff per item: bugs fix-first, features design-first, errors/alerts diagnose-first. `--pr` opens one PR per item (the mode the scheduled trigger runs). |
+| `shipeasy-ops-work` | `[--type bug\|feature\|error\|alert\|measure_plan\|all] [--priority high\|critical] [--limit <N>] [--pr] [--dry-run]` | The unified work loop over the operational queue — one atomic diff per item, each type worked per its `references/` runbook. `--pr` opens one PR per item (the mode the scheduled trigger runs). |
 | `shipeasy-ops-trigger` | `[--provider claude\|cursor\|copilot\|…] [--frequency 4h\|6h\|daily\|weekdays\|weekly] [--dry-run]` | Provision a recurring, unattended trigger that runs the `shipeasy-ops-work` loop in `--pr` mode on a schedule. Provider-pluggable; the per-platform runbook is the built-in help of `shipeasy ops trigger create <provider>` (spec-generated; MCP: `ops_trigger_create_*`). |
 
-The `SKILL.md` files under `shipeasy/skills/<name>/` are the authoritative
-behaviour spec — the file *is* the prompt the agent follows. Open the matching
-file for the full, current step list rather than relying on a copy here.
+(The former `shipeasy-i18n-migrate` / `shipeasy-i18n-translate` workflow
+skills are now references inside `shipeasy-i18n` — same flows, routed from
+its SKILL.md.)
+
+The `SKILL.md` files under `shipeasy/skills/<name>/` (plus their
+`references/*.md`) are the authoritative behaviour spec — the file *is* the
+prompt the agent follows. Open the matching file for the full, current step
+list rather than relying on a copy here.
 
 ---
 
@@ -163,11 +173,11 @@ marketplace/
     ├── .plugin/plugin.json             # Copilot manifest → SAME ./skills/ + ./.mcp.copilot.json
     ├── .mcp.json                        # MCP registration (mcpServers wrapper; Claude + Codex)
     ├── .mcp.copilot.json               # MCP registration with type:"local" (Copilot requires it)
-    └── skills/                          # ALL 17 skills — area guides + workflow skills
-        ├── shipeasy-{setup,common,flags,experiments,metrics,alerts,ops,i18n,see}/SKILL.md
-        ├── shipeasy-{flags,ops,i18n}-install/SKILL.md
-        ├── shipeasy-i18n-{extract,migrate,translate}/SKILL.md
-        ├── shipeasy-ops-work/SKILL.md
+    └── skills/                          # ALL 12 skills — router SKILL.md + optional references/
+        ├── shipeasy-{setup,common,flags,experiments,metrics,alerts,ops,see}/SKILL.md
+        ├── shipeasy-i18n/{SKILL.md,references/}      # wrapping, admin-keys, migrate, translate
+        ├── shipeasy-ops-install/SKILL.md
+        ├── shipeasy-ops-work/{SKILL.md,references/}  # per-item-type runbooks
         └── shipeasy-ops-trigger/SKILL.md
 ```
 
@@ -188,7 +198,7 @@ per-plugin job:
 
 1. **Validates wiring deterministically** — `node scripts/validate-plugin.mjs <host>`
    parses that host's marketplace + plugin manifests, asserts the marketplace
-   `source` resolves to `./shipeasy`, that all 17 skills are present with a
+   `source` resolves to `./shipeasy`, that all 12 skills are present with a
    valid `name`/`description` matching their directory, and that the MCP file
    registers `shipeasy` (Copilot additionally requires `type: "local"`).
 2. **Installs the host CLI** and prints its version.

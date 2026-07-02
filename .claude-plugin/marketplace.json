@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "shipeasy",
-      "description": "End-to-end Shipeasy plugin: base SDK install + auth + bind, plus experiments, metrics, gates, configs, kill switches, alert rules, translations, and feedback. Ships 17 skills — 9 area guides (shipeasy-flags, shipeasy-experiments, shipeasy-metrics, shipeasy-alerts, shipeasy-ops, shipeasy-i18n, shipeasy-see, shipeasy-setup, shipeasy-common) and 8 multi-step workflow skills (the three installs, the i18n codemods, the shipeasy-ops-work loop and its shipeasy-ops-trigger scheduler). All day-to-day CRUD (create/list/update/archive) runs through the registered shipeasy MCP server or the shipeasy CLI. Deletions are UI-only. Registers the shipeasy MCP server.",
+      "description": "End-to-end Shipeasy plugin: base SDK install + auth + bind, plus experiments, metrics, gates, configs, kill switches, alert rules, translations, and feedback. Ships 12 skills — 9 area guides (shipeasy-flags, shipeasy-experiments, shipeasy-metrics, shipeasy-alerts, shipeasy-ops, shipeasy-i18n, shipeasy-see, shipeasy-setup, shipeasy-common) and 3 multi-step workflow skills (shipeasy-ops-install, the shipeasy-ops-work loop and its shipeasy-ops-trigger scheduler); larger skills route from a thin SKILL.md into per-topic references/. All day-to-day CRUD (create/list/update/archive) runs through the registered shipeasy MCP server or the shipeasy CLI. Deletions are UI-only. Registers the shipeasy MCP server.",
       "source": "./shipeasy",
       "category": "feature"
     }

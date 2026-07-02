@@ -1,8 +1,13 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { customOperations } from "@shipeasy/openapi/custom";
-import { marketplaceSkillRawUrl, runSkillsAdd } from "./skills-registry";
+import {
+  listMarketplaceSkillReferences,
+  marketplaceSkillFileRawUrl,
+  marketplaceSkillRawUrl,
+  runSkillsAdd,
+} from "./skills-registry";
 
 /**
  * SDK-docs helpers shared by `shipeasy setup` and the `docs skill --install`
@@ -54,13 +59,23 @@ export async function fetchSdkSkill(sdk: string): Promise<string | null> {
   }
 }
 
-/** Write a fetched SKILL.md into `<base>/<dirName>/SKILL.md`. */
-export function writeSkillDir(content: string, dirName: string, base: string): string {
+/**
+ * Write a skill's files into `<base>/<dirName>/` — `files` maps skill-relative
+ * paths (`SKILL.md`, `references/foo.md`, …) to content. Returns the SKILL.md
+ * path (the skill's entry point).
+ */
+export function writeSkillDir(
+  files: Record<string, string>,
+  dirName: string,
+  base: string,
+): string {
   const dir = join(base, dirName);
-  mkdirSync(dir, { recursive: true });
-  const path = join(dir, "SKILL.md");
-  writeFileSync(path, content, "utf8");
-  return path;
+  for (const [rel, content] of Object.entries(files)) {
+    const path = join(dir, rel);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, content, "utf8");
+  }
+  return join(dir, "SKILL.md");
 }
 
 // Snippet placeholders let a skill carry a language-neutral body and get the
@@ -95,22 +110,22 @@ export interface SkillInstallResult {
 }
 
 /**
- * Place a skill's content on disk by **running the `skills` CLI ourselves**
+ * Place a skill's files on disk by **running the `skills` CLI ourselves**
  * (`npx -y skills add <src> [-a <agent>]…`), one `add` per named agent (else
  * auto-detect). `dirName` is the installed skill folder (e.g. `shipeasy-python`
  * or `shipeasy-flags`). Explicit `dir` skips delegation (direct write); if
  * `npx`/`skills` can't run we fall back to `.claude/skills/`.
  */
 function placeSkill(
-  content: string,
+  files: Record<string, string>,
   dirName: string,
   opts: { dir?: string; global?: boolean; agent?: string; agents?: string[] },
 ): SkillInstallResult {
   if (opts.dir) {
-    return { action: "wrote", detail: writeSkillDir(content, dirName, resolve(opts.dir)) };
+    return { action: "wrote", detail: writeSkillDir(files, dirName, resolve(opts.dir)) };
   }
   const src = mkdtempSync(join(tmpdir(), "se-skill-"));
-  writeSkillDir(content, dirName, src);
+  writeSkillDir(files, dirName, src);
   const results = runSkillsAdd(src, {
     agents: opts.agent ? [opts.agent] : opts.agents,
     global: opts.global,
@@ -125,7 +140,7 @@ function placeSkill(
   const base = opts.global
     ? join(homedir(), ".claude", "skills")
     : join(process.cwd(), ".claude", "skills");
-  return { action: "wrote", detail: writeSkillDir(content, dirName, base) };
+  return { action: "wrote", detail: writeSkillDir(files, dirName, base) };
 }
 
 /**
@@ -138,22 +153,34 @@ export async function installSkill(
   opts: { dir?: string; global?: boolean; agent?: string; agents?: string[] } = {},
 ): Promise<SkillInstallResult> {
   const baked = await substituteSdkSnippets(content, sdk);
-  return placeSkill(baked, `shipeasy-${sdk}`, opts);
+  return placeSkill({ "SKILL.md": baked }, `shipeasy-${sdk}`, opts);
 }
 
 /**
  * Install a marketplace how-to skill (e.g. `shipeasy-flags`) with its snippets
- * templated for `sdk`: fetch the skill's raw SKILL.md, substitute
- * `{{SDK_SNIPPET:…}}` from `sdk`'s docs, then place it. Returns `failed` when
- * the skill can't be fetched (offline / renamed). `ref` pins the repo branch.
+ * templated for `sdk`: fetch the skill's raw SKILL.md **and its `references/`
+ * files** (skills follow the router-plus-references layout, so the references
+ * carry part of the surface — including snippet placeholders), substitute
+ * `{{SDK_SNIPPET:…}}` from `sdk`'s docs in every file, then place the whole
+ * directory. Reference fetching is best-effort (a miss installs SKILL.md
+ * alone); returns `failed` only when SKILL.md itself can't be fetched
+ * (offline / renamed). `ref` pins the repo branch.
  */
 export async function installMarketplaceSkill(
   name: string,
   sdk: string,
   opts: { agents?: string[]; global?: boolean; ref?: string } = {},
 ): Promise<SkillInstallResult> {
-  const raw = await fetchText(marketplaceSkillRawUrl(name, opts.ref ?? "main"));
+  const ref = opts.ref ?? "main";
+  const raw = await fetchText(marketplaceSkillRawUrl(name, ref));
   if (!raw) return { action: "failed", detail: `${name}: could not fetch skill` };
-  const baked = await substituteSdkSnippets(raw, sdk);
-  return placeSkill(baked, name, { agents: opts.agents, global: opts.global });
+  const files: Record<string, string> = { "SKILL.md": raw };
+  for (const rel of await listMarketplaceSkillReferences(name, ref)) {
+    const content = await fetchText(marketplaceSkillFileRawUrl(name, rel, ref));
+    if (content) files[rel] = content;
+  }
+  for (const [rel, content] of Object.entries(files)) {
+    files[rel] = await substituteSdkSnippets(content, sdk);
+  }
+  return placeSkill(files, name, { agents: opts.agents, global: opts.global });
 }

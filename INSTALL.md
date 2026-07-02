@@ -26,10 +26,10 @@ Shipeasy ships two things to a coding agent:
 
 **How each consumer sees the skills:**
 
-- **Claude Code / Codex / Copilot** load all 17 skills from the plugin; in
+- **Claude Code / Codex / Copilot** load all 12 skills from the plugin; in
   Claude Code each is also user-invocable as a slash command
   (`/shipeasy:<skill-name>`).
-- **The `skills` CLI** (every other host) installs the same 17 skills from the
+- **The `skills` CLI** (every other host) installs the same 12 skills from the
   bare repo URL; they trigger on phrasing (or the host's explicit skill
   invocation), delegating CRUD to the MCP / CLI.
 
@@ -69,7 +69,7 @@ claude plugin marketplace add shipeasy-ai/shipeasy
 claude plugin install shipeasy@shipeasy
 ```
 
-Gets all 17 skills (each user-invocable as `/shipeasy:<skill-name>`) + MCP.
+Gets all 12 skills (each user-invocable as `/shipeasy:<skill-name>`) + MCP.
 Then run the `shipeasy-setup` skill.
 
 ### Codex
@@ -81,7 +81,7 @@ In the Codex TUI (`/plugins` opens the browser, or add the source directly):
 /plugin install shipeasy@shipeasy
 ```
 
-Gets all 17 skills + MCP. (Invoke explicitly with `@shipeasy`, or describe
+Gets all 12 skills + MCP. (Invoke explicitly with `@shipeasy`, or describe
 the task and let a skill trigger.)
 
 ### GitHub Copilot CLI
@@ -106,12 +106,12 @@ For every other agent: install the skills, then run onboarding — the `setup`
 skill registers the MCP server for you.
 
 ```bash
-# all 17 skills (area guides + workflow skills, the whole surface):
+# all 12 skills (area guides + workflow skills, the whole surface):
 npx skills add https://github.com/shipeasy-ai/shipeasy -a <agent>
 # then, in the agent:  "set up shipeasy in this repo"
 ```
 
-The 17 skills are the whole surface — they cover every feature and workflow and
+The 12 skills are the whole surface — they cover every feature and workflow and
 delegate all CRUD to the `shipeasy` MCP server or CLI.
 
 The `skills` CLI copies **skill text only** — it does not register MCP servers.
@@ -136,7 +136,7 @@ files and writes them into the target agent's skills directory. Point it at the
 npx skills add https://github.com/shipeasy-ai/shipeasy -a <agent>
 ```
 
-The CLI's manifest-mode scan walks depth-1 and installs all 17 skills
+The CLI's manifest-mode scan walks depth-1 and installs all 12 skills
 (`skills/<name>/SKILL.md`) — the whole surface.
 
 Add `-g` to install into the user-global skills dir instead of the project.
@@ -234,7 +234,7 @@ commands. To wire Shipeasy into your app:
 
 | Capability | Claude Code | Codex | Copilot CLI | Tier-2 (OpenCode, Cursor, …) |
 | --- | :---: | :---: | :---: | :---: |
-| 17 skills (area guides + workflows) | ✅ | ✅ | ✅ | ✅ |
+| 12 skills (area guides + workflows) | ✅ | ✅ | ✅ | ✅ |
 | CRUD (via `shipeasy` MCP / CLI) | ✅ | ✅ | ✅ | ✅ |
 | `shipeasy` MCP server | ✅ | ✅ | ✅ | ✅ |
 | Skills user-invocable as commands | ✅ (`/shipeasy:<skill>`) | phrasing / `@shipeasy` | phrasing | host-dependent |
