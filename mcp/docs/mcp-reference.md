@@ -1730,7 +1730,7 @@ _Parameters_
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
 | `type` | optional | `any` | Filter by item type (`bug`/`feature_request`/`error`/`alert`), or `all`. |
-| `status` | optional | `any` | Filter by lifecycle status, or `all`. |
+| `status` | optional | `any` | Filter by lifecycle status, or `all`. The human-gated holding states (`pending_approval`, `triage`) are excluded from `all`/default and returned only when requested as the exact status. |
 | `limit` | optional | `integer` | Max items to return (1–500). _(1–500)_ |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -1741,17 +1741,17 @@ _Errors_ — beyond the [common errors](#errors):
 
 **Raise an attention notification**
 
-Raise a 'needs your attention' bell notification. Create-only and idempotent on `dedupeKey`.
+Raise a 'needs your attention' bell notification. Create-only and idempotent on `dedupeKey` — re-raising with the same key updates the one card instead of stacking duplicates. It never reads, marks read, or deletes the feed, so it is safe for restricted ops keys.
 
-**Use case:** Escalate something that needs a human, deduped so repeats don't spam the bell.
+**Use case:** Escalate work that can't land in code (a product decision, a credential only a human has, a resource only a human may edit), deduped so repeats don't spam the bell.
 
 _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
 | `title` | required | `string` | One-line headline of what's blocked. _(length 1–200)_ |
-| `summary` | required | `string` | One sentence: why it can't be fixed in code. _(length 1–280)_ |
-| `steps` | optional | `string[]` | Ordered steps the human should take to unblock. |
+| `summary` | required | `string` | One sentence: why it can't be fixed in code. Renders markdown. _(length 1–280)_ |
+| `steps` | optional | `string[]` | Ordered steps the human should take to unblock — self-contained (the human reads only this card, not the agent's transcript), 3–6 steps, each naming the exact file, command, env var, or dashboard page. Renders markdown. |
 | `href` | optional | `string` | Dashboard-relative deep link to the related item. |
 | `dedupeKey` | optional | `string` | Stable per-escalation key (e.g. `feedback:7`) so re-runs dedupe to one row. |
 
@@ -1766,7 +1766,13 @@ _Errors_ — beyond the [common errors](#errors):
 
 Update a queue item. The body is validated against the item's stored type: a `bug` accepts its content fields (title, steps-to-reproduce, actual/expected result) plus `status`/`priority`/`notify` and a GitHub PR link; a `feature_request` its content (title, description, use-case) plus the same triage fields; `error`/`alert`/`measure_plan` accept `status`/`priority`/`notify` only (their content is platform-owned). Pass at least one field.
 
-**Use case:** Move an item through its lifecycle (triage → in_progress → resolved) and edit a bug/feature's content as you work it.
+Completing an `error` ticket (status `resolved` or `ready_for_qa`) also resolves the tracked error it links to; the error reopens automatically if it recurs — so completing is safe pre-deploy.
+
+**Use cases**
+
+- **Start working an item** — `{ "status": "in_progress" }`.
+- **Hand off for review** — `{ "status": "ready_for_qa" }` once the fix landed (the mode PR-based loops use).
+- **Triage** — `{ "priority": "high" }`, content edits on bug/feature items.
 
 _Parameters_
 
@@ -1777,8 +1783,8 @@ _Parameters_
 | `stepsToReproduce` | optional | `string` | Updated reproduction steps. _(length 0–8000)_ |
 | `actualResult` | optional | `string` | Updated actual result. _(length 0–8000)_ |
 | `expectedResult` | optional | `string` | Updated expected result. _(length 0–8000)_ |
-| `status` | optional | `"open" \| "triaged" \| "in_progress" \| "ready_for_qa" \| "resolved" \| "wont_fix"` | Lifecycle status of a queue item. |
-| `priority` | optional | `any` | Triage priority, or `null` to clear it. |
+| `status` | optional | `"open" \| "pending_approval" \| "triage" \| "triaged" \| "in_progress" \| "ready_for_qa" \| "resolved" \| "wont_fix"` | Lifecycle status of a queue item. The working flow is `open` → `triaged` → `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`). Two human-gated holding states park an item OUT of the work queue until a human promotes it to `open` in the dashboard, so `GET /api/admin/ops` excludes them under `status=all`/default and returns them only when requested as an exact `status`: `pending_approval` is the pre-open approval gate for untriaged inbound (e.g. connector requests filed from a customer's connectors panel) so it never gets auto-implemented — approving = flipping the status to `open`; `triage` is the onboarding-help bucket — questions/errors submitted to the "Stuck in onboarding?" assistant are funnelled into the platform project as `triage` rows so the team can see where people get stuck and follow up, keeping onboarding chatter out of the work queue until a human moves real items to `open`. |
+| `priority` | optional | `any` | Triage priority, or `null` when not set (in an update, `null` clears it). |
 | `githubPrNumber` | optional | `any` | Link (or, when `null`, unlink) a GitHub pull request to this bug. |
 | `notify` | optional | `any` | Where this item's completion notification lands, or `null`. |
 | `description` | optional | `string` | Updated description. _(length 0–8000)_ |

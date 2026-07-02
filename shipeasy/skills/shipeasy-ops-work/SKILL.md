@@ -44,6 +44,13 @@ Binding, auth (interactive and unattended), CLI updates, and module enablement
 are the `shipeasy-common` skill (module install: `shipeasy-ops-install`) — not
 restated here.
 
+The commands named below (`ops list/get/update/link-pr/notify`, MCP twins
+`ops_list`/`ops_get`/`ops_update`/`ops_link-pr`/`ops_notify`) are
+**references, not exact syntax**. The tool docs carry the full argument
+documentation and examples — confirm with `shipeasy ops <cmd> --help` or the
+MCP tool schema before the first call of each; this skill only carries the
+loop semantics the tool docs don't.
+
 ## 0. Build the work queue
 
 Parse `$ARGUMENTS` up-front:
@@ -65,15 +72,10 @@ Check the working tree: it must be clean (`git status --porcelain`) **or** the
 user explicitly asked to work on top of WIP — otherwise stop and ask; mixing
 per-item diffs with pre-existing WIP makes the commits unreviewable.
 
-Pull the queue with one CLI command over the unified table:
-
-```
-shipeasy ops list --type <bug|feature_request|error|alert|all> --status <status|all> --limit 200
-```
-
-The response is already in work order — **work it top-down**. (Output is JSON;
-`shipeasy ops list --help` for the filters.) **Never call the admin HTTP API
-with `curl`** — every step in this loop has a `shipeasy` command; use it.
+Pull the queue in one `ops list` call over the unified table, filtered per the
+parsed arguments (pull up to 200; slice locally). The response is already in
+work order — **work it top-down**. **Never call the admin HTTP API with
+`curl`** — every step in this loop has a `shipeasy` command / MCP tool; use it.
 
 Print the queue, grouped by type, before starting:
 
@@ -126,10 +128,9 @@ Flip to `in_progress` when you start an item.
    the page for UI fixes).
 6. `--status resolved` only if confidently fixed + verified; `--status
    ready_for_qa` if it needs human verification. Can't fix? Leave it
-   `in_progress`, write a one-paragraph hand-off note, **and raise a
-   notification** (see [Escalate](#escalate-raise-a-bell-notification-when-the-fix-isnt-in-code))
-   so the human sees what you need — then move on. Never `wont_fix` without
-   asking — that's a product call (and itself a reason to escalate).
+   `in_progress`, write a one-paragraph hand-off note, **and
+   [escalate](#escalate-raise-a-bell-notification-when-the-fix-isnt-in-code)**
+   — then move on.
 
 ### 1b. Features
 
@@ -142,13 +143,13 @@ Flip to `in_progress` when you start an item.
    satisfies the use case; flag larger refactors as follow-ups.
 3. Implement as **one atomic diff**. No half-finished work — if it genuinely
    can't land in one pass (missing API, schema change you can't apply), note
-   the gap, **raise a notification** with the blocker + next steps (see
-   [Escalate](#escalate-raise-a-bell-notification-when-the-fix-isnt-in-code)),
-   and skip; don't land a partial. Reuse existing utilities before adding
-   abstractions. Run the gate (incl. an e2e spec for new UI workflows — see
-   CLAUDE.md).
+   the gap,
+   **[escalate](#escalate-raise-a-bell-notification-when-the-fix-isnt-in-code)**
+   with the blocker + next steps, and skip; don't land a partial. Reuse
+   existing utilities before adding abstractions. Run the gate (incl. an e2e
+   spec for new UI workflows — see CLAUDE.md).
 4. Flip to `ready_for_qa` when implemented; `resolved` is the human's call
-   after it ships. Never `wont_fix` without asking.
+   after it ships.
 
 ### 1c. Error tickets
 
@@ -160,12 +161,9 @@ Flip to `in_progress` when you start an item.
    feasible. Fix the root cause (same hard rules as bugs). When the fix adds
    a catch block, instrument it with `see(e).causes_the(…).to(…)` from
    `@shipeasy/sdk` (see the `shipeasy-see` skill for consequence-writing rules).
-3. Flip the ticket when the fix lands:
-   `shipeasy ops update <handle> --status resolved` (or `ready_for_qa` in PR
-   mode). The underlying tracked error auto-resolves with the ticket and
-   **reopens automatically if it recurs** (re-filing a ticket if it climbs
-   back over the threshold), so this is safe pre-deploy. Note the fingerprint
-   in your summary.
+3. Flip the ticket when the fix lands. The underlying tracked error
+   auto-resolves with the ticket and **reopens automatically if it recurs**,
+   so this is safe pre-deploy. Note the fingerprint in your summary.
 
 ### 1d. Alert tickets
 
@@ -183,14 +181,11 @@ Flip to `in_progress` when you start an item.
    intentional incident response.)
 2. The *alert* auto-resolves when its condition clears; the **ticket** is the
    work record. If code needs to change, land the fix as its own atomic diff
-   and flip the ticket (`shipeasy ops update <handle> --status resolved`,
-   or `ready_for_qa` in PR mode). If it's an ops acknowledgement (bad
-   threshold, expected spike), say so and flip the ticket to `resolved` with a
-   one-line note in your summary. Rule *definitions* can be tuned via the
-   `ops_alerts_update` MCP tool / `shipeasy ops alerts update` by a human — the
-   ops key cannot edit them, so when the right fix IS a rule change, **raise a
-   notification** spelling out the new threshold/comparator/window (see
-   [Escalate](#escalate-raise-a-bell-notification-when-the-fix-isnt-in-code)).
+   and flip the ticket. If it's an ops acknowledgement (bad threshold,
+   expected spike), say so and flip the ticket to `resolved` with a one-line
+   note in your summary. When the right fix IS a rule change (new
+   threshold/comparator/window), that's a human edit the ops key can't make —
+   **escalate** with the exact new values.
 
 ### 1e. Report and continue
 
@@ -213,13 +208,11 @@ and i18n publishing — always reach them through the CLI / the matching skill,
 never a raw HTTP call:
 
 - **Create** gates, dynamic configs, experiments, kill switches, events,
-  metrics, and alert rules — through the `shipeasy` MCP tools
-  (`release_flags_create`, `release_configs_create`, `release_experiments_create`,
-  `release_killswitch_create`, `metrics_events_create`, `metrics_create`,
-  `ops_alerts_create`) or the equivalent CLI. The `experiments` and `metrics`
-  skills carry the analyze-and-instrument design flows. Typical uses: wrap a
-  risky fix in a fresh gate, add the event + metric a fix needs for
-  verification, add an alert rule that would have caught the regression.
+  metrics, and alert rules — the `*_create` MCP tools / `shipeasy … create`
+  commands (the `experiments`/`metrics` skills carry the design flows).
+  Typical uses: wrap a risky fix in a fresh gate, add the event + metric a
+  fix needs for verification, add an alert rule that would have caught the
+  regression.
 - **Push + publish i18n keys** — `shipeasy i18n push` (insert-only) +
   `shipeasy i18n publish` (or the `shipeasy-i18n` skill) — so a fix that adds
   user-visible copy can ship its keys.
@@ -246,48 +239,14 @@ Fire it when — and only when — the work genuinely isn't yours to land in cod
 - a bug whose only repro is a **recording you can't watch**;
 - an existing resource that must be mutated (the ops key is create-only).
 
-```
-shipeasy ops notify \
-  --title "<one-line: what's blocked>" \
-  --summary "<one sentence: why it can't be fixed in code>" \
-  --steps '["<concrete action 1>", "<concrete action 2>", "<… then re-run the shipeasy-ops-work skill>"]' \
-  --dedupe-key "feedback:<number>" \
-  --href "/dashboard/<project>/bugs/<number>"
-```
-
-`--steps` is a JSON array of ordered strings. Make it **self-contained and
-actionable** — the human reads only this card, not your transcript. 3–6 ordered
-steps, each naming the exact file, command, env var, or dashboard page. The
-notification stands out in the bell with a violet "from your agent" accent and
-expands the full step-by-step guide on demand. `--summary` and each step render
-**markdown**, so write them naturally.
-
-**Reference entities inline so the card links them.** Anywhere in `--title`,
-`--summary`, or a step, mention an admin entity with a reference token and
-the dashboard turns it into a hover chip (entity name + live status) that
-deep-links to that entity. Prefer these over bare names:
-
-| Entity            | Token                  | Aliases     |
-| ----------------- | ---------------------- | ----------- |
-| feedback item     | `#42`                  | `@feedback:42` |
-| feature flag/gate | `@gate:<name>`         | `@flag:`    |
-| experiment        | `@experiment:<name>`   | `@exp:`     |
-| dynamic config    | `@config:<name>`       |             |
-| kill switch       | `@killswitch:<name>`   | `@ks:`      |
-| metric            | `@metric:<name>`       |             |
-| universe          | `@universe:<name>`     |             |
-| alert rule        | `@alert:<name>`        |             |
-
-`<name>` is the entity's immutable name — the same slug you pass to the MCP/CLI
-(e.g. `features.checkout`); feedback uses its `#number`. Tokens degrade to plain
-text wherever they aren't rendered, so they're always safe to use — e.g. a step
-like `Roll back @gate:checkout-flow once #42 reproduces.`
-
-`--dedupe-key "feedback:<n>"` sets a stable per-escalation key, so re-running
-the loop over the same still-blocked item **updates the one card instead of
-stacking duplicates**. Add `--href /dashboard/<project>/bugs/<n>` (or the
-matching list page) to deep-link the card. `ops notify` is create-only and
-ops-key-safe — it never reads, marks read, or deletes the feed.
+Escalate with `ops notify`. Its tool docs carry the full example and field
+docs — markdown rendering, the 3–6 self-contained steps, the entity tokens
+(`#42`, `@gate:<name>`, `@metric:<name>`, …) that render as live hover chips.
+Loop specifics on top of them: write steps for a human who reads **only this
+card**, not your transcript, and end them with "re-run the shipeasy-ops-work
+skill"; pass `--dedupe-key "feedback:<number>"` and `--href` to the item's
+dashboard page, so re-running the loop over the same still-blocked item
+updates the one card instead of stacking duplicates.
 
 **Escalating does not replace the status write.** Still leave the item
 `in_progress` with its hand-off note (bugs/features) — or `resolved` with a
@@ -321,17 +280,10 @@ above:
    produces no branch, no commit, and no PR.
 
 2. **Link the PR back to the item.** Right after the PR is opened, record its
-   number + url on the item so it shows as a `PR <n>` badge in the dashboard
-   feedback table (on `connector_data.github.pr`):
-
-   ```
-   shipeasy ops link-pr <handle> --pr-number <pr-number> --pr-url <pr-url>
-   ```
-
-   Pass the real PR number + url the previous step printed. (`--pr-url` is what
-   makes the badge deep-link for error/alert tickets, which have no GitHub
-   issue to derive the url from.) This is the ONLY feedback write beyond status
-   the ops key may do — it touches `connector_data.github.pr` only.
+   number + url on the item with `ops link-pr` — pass the real PR number and
+   url the previous step printed, so it shows as a deep-linking `PR <n>` badge
+   in the dashboard feedback table. This is the ONLY feedback write beyond
+   status the ops key may do — it touches `connector_data.github.pr` only.
 
 3. **PR body = that item's story + its closing keyword.** The body carries
    the item's id/number, cause, fix, and verification notes. If the item has
@@ -348,17 +300,13 @@ above:
 4. **Where the issue number comes from.** Items opened through the GitHub
    connector already carry their issue on `connectorData.github.issue`
    (`{ number, url, owner, repo }`) — the connector created it upfront at
-   intake. Read it while working the item. Items with no connector issue
-   simply have nothing to close; their only server-side trace is the status
-   flip + the linked PR (step 2). **Do not create issues yourself.** When the
-   item HAS a connector issue, the link-pr write (step 2) also wires the PR to
-   that issue server-side (Closes #N / cross-ref comment) as a bonus — but the
-   `Closes #N` in your PR body is what actually auto-closes it on merge.
+   intake. Items with no connector issue simply have nothing to close; their
+   only server-side trace is the status flip + the linked PR (step 2).
+   **Do not create issues yourself.**
 
 5. **Lifecycle → `ready_for_qa`.** In PR mode a human reviews each PR, so
    never auto-`resolved` — flip every fixed item (any type) to
-   `ready_for_qa`. The underlying tracked error still gets its
-   `errors/<id>` → `resolved` write (it reopens on recurrence).
+   `ready_for_qa`.
 
 6. **Empty queue → no PRs.** If nothing was worked, exit cleanly without a
    branch or PR.

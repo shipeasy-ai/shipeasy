@@ -995,7 +995,13 @@ export const getOpsItem = <ThrowOnError extends boolean = false>(options: Option
  *
  * Update a queue item. The body is validated against the item's stored type: a `bug` accepts its content fields (title, steps-to-reproduce, actual/expected result) plus `status`/`priority`/`notify` and a GitHub PR link; a `feature_request` its content (title, description, use-case) plus the same triage fields; `error`/`alert`/`measure_plan` accept `status`/`priority`/`notify` only (their content is platform-owned). Pass at least one field.
  *
- * **Use case:** Move an item through its lifecycle (triage → in_progress → resolved) and edit a bug/feature's content as you work it.
+ * Completing an `error` ticket (status `resolved` or `ready_for_qa`) also resolves the tracked error it links to; the error reopens automatically if it recurs — so completing is safe pre-deploy.
+ *
+ * **Use cases**
+ *
+ * - **Start working an item** — `{ "status": "in_progress" }`.
+ * - **Hand off for review** — `{ "status": "ready_for_qa" }` once the fix landed (the mode PR-based loops use).
+ * - **Triage** — `{ "priority": "high" }`, content edits on bug/feature items.
  */
 export const updateOpsItem = <ThrowOnError extends boolean = false>(options: Options<UpdateOpsItemData, ThrowOnError>): RequestResult<UpdateOpsItemResponses, UpdateOpsItemErrors, ThrowOnError> => (options.client ?? client).patch<UpdateOpsItemResponses, UpdateOpsItemErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -1027,9 +1033,9 @@ export const linkPrToOpsItem = <ThrowOnError extends boolean = false>(options: O
 /**
  * Raise an attention notification
  *
- * Raise a 'needs your attention' bell notification. Create-only and idempotent on `dedupeKey`.
+ * Raise a 'needs your attention' bell notification. Create-only and idempotent on `dedupeKey` — re-raising with the same key updates the one card instead of stacking duplicates. It never reads, marks read, or deletes the feed, so it is safe for restricted ops keys.
  *
- * **Use case:** Escalate something that needs a human, deduped so repeats don't spam the bell.
+ * **Use case:** Escalate work that can't land in code (a product decision, a credential only a human has, a resource only a human may edit), deduped so repeats don't spam the bell.
  */
 export const notifyOps = <ThrowOnError extends boolean = false>(options: Options<NotifyOpsData, ThrowOnError>): RequestResult<NotifyOpsResponses, NotifyOpsErrors, ThrowOnError> => (options.client ?? client).post<NotifyOpsResponses, NotifyOpsErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

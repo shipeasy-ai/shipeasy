@@ -4132,7 +4132,13 @@ paths:
       description: |-
         Update a queue item. The body is validated against the item's stored type: a `bug` accepts its content fields (title, steps-to-reproduce, actual/expected result) plus `status`/`priority`/`notify` and a GitHub PR link; a `feature_request` its content (title, description, use-case) plus the same triage fields; `error`/`alert`/`measure_plan` accept `status`/`priority`/`notify` only (their content is platform-owned). Pass at least one field.
 
-        **Use case:** Move an item through its lifecycle (triage → in_progress → resolved) and edit a bug/feature's content as you work it.
+        Completing an `error` ticket (status `resolved` or `ready_for_qa`) also resolves the tracked error it links to; the error reopens automatically if it recurs — so completing is safe pre-deploy.
+
+        **Use cases**
+
+        - **Start working an item** — `{ "status": "in_progress" }`.
+        - **Hand off for review** — `{ "status": "ready_for_qa" }` once the fix landed (the mode PR-based loops use).
+        - **Triage** — `{ "priority": "high" }`, content edits on bug/feature items.
       tags:
         - Ops
       parameters:
@@ -4149,9 +4155,19 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/UpdateOpsItemRequest'
-            example:
-              status: in_progress
-              priority: high
+            examples:
+              startWork:
+                summary: Flip an item to in_progress when starting it
+                value:
+                  status: in_progress
+              handOff:
+                summary: Hand a fixed item off for human review
+                value:
+                  status: ready_for_qa
+              triage:
+                summary: Set priority while triaging
+                value:
+                  priority: high
       responses:
         '200':
           description: Update a queue item
@@ -4246,9 +4262,9 @@ paths:
       operationId: notifyOps
       summary: Raise an attention notification
       description: |-
-        Raise a 'needs your attention' bell notification. Create-only and idempotent on `dedupeKey`.
+        Raise a 'needs your attention' bell notification. Create-only and idempotent on `dedupeKey` — re-raising with the same key updates the one card instead of stacking duplicates. It never reads, marks read, or deletes the feed, so it is safe for restricted ops keys.
 
-        **Use case:** Escalate something that needs a human, deduped so repeats don't spam the bell.
+        **Use case:** Escalate work that can't land in code (a product decision, a credential only a human has, a resource only a human may edit), deduped so repeats don't spam the bell.
       tags:
         - Ops
       parameters:
@@ -4260,9 +4276,14 @@ paths:
             schema:
               $ref: '#/components/schemas/NotifyOpsRequest'
             example:
-              title: Error spike in checkout
-              summary: 5xx rate crossed 2% over the last 30m.
-              href: https://shipeasy.ai/dashboard
+              title: 'Alert rule @alert:checkout-error-rate needs a human edit for #42'
+              summary: '#42 is a false positive — the rule fires on the expected nightly batch spike, and rule definitions can only be edited by a human.'
+              steps:
+                - Open @alert:checkout-error-rate in the dashboard alerts page.
+                - Raise the threshold from `2%` to `5%` and widen the window to `1h`.
+                - 'Re-run the shipeasy-ops-work loop — #42 will be acknowledged.'
+              dedupeKey: feedback:42
+              href: /dashboard/prj_0abc/bugs/42
       responses:
         '201':
           description: Raise an attention notification

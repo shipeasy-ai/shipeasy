@@ -551,7 +551,7 @@ shipeasy ops list [options]
 | Option | | Description |
 | --- | --- | --- |
 | `--type <value>` | optional | Filter by item type (`bug`/`feature_request`/`error`/`alert`), or `all`. |
-| `--status <value>` | optional | Filter by lifecycle status, or `all`. |
+| `--status <value>` | optional | Filter by lifecycle status, or `all`. The human-gated holding states (`pending_approval`, `triage`) are excluded from `all`/default and returned only when requested as the exact status. |
 | `--limit <value>` | optional | Max items to return (1–500). |
 | `--data <value>` | optional | Request body as a JSON object. |
 
@@ -665,8 +665,8 @@ shipeasy ops update [options] <handle>
 | `--steps-to-reproduce <value>` | optional | Updated reproduction steps. |
 | `--actual-result <value>` | optional | Updated actual result. |
 | `--expected-result <value>` | optional | Updated expected result. |
-| `--status <value>` | optional | Lifecycle status of a queue item. |
-| `--priority <value>` | optional | Triage priority, or `null` to clear it. |
+| `--status <value>` | optional | Lifecycle status of a queue item. The working flow is `open` → `triaged` → `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`). Two human-gated holding states park an item OUT of the work queue until a human promotes it to `open` in the dashboard, so `GET /api/admin/ops` excludes them under `status=all`/default and returns them only when requested as an exact `status`: `pending_approval` is the pre-open approval gate for untriaged inbound (e.g. connector requests filed from a customer's connectors panel) so it never gets auto-implemented — approving = flipping the status to `open`; `triage` is the onboarding-help bucket — questions/errors submitted to the "Stuck in onboarding?" assistant are funnelled into the platform project as `triage` rows so the team can see where people get stuck and follow up, keeping onboarding chatter out of the work queue until a human moves real items to `open`. |
+| `--priority <value>` | optional | Triage priority, or `null` when not set (in an update, `null` clears it). |
 | `--github-pr-number <value>` | optional | Link (or, when `null`, unlink) a GitHub pull request to this bug. |
 | `--notify <value>` | optional | Where this item's completion notification lands, or `null`. |
 | `--description <value>` | optional | Updated description. |
@@ -700,8 +700,8 @@ shipeasy ops notify [options]
 | Option | | Description |
 | --- | --- | --- |
 | `--title <value>` | optional | One-line headline of what's blocked. |
-| `--summary <value>` | optional | One sentence: why it can't be fixed in code. |
-| `--steps <value>` | optional | Ordered steps the human should take to unblock. |
+| `--summary <value>` | optional | One sentence: why it can't be fixed in code. Renders markdown. |
+| `--steps <value>` | optional | Ordered steps the human should take to unblock — self-contained (the human reads only this card, not the agent's transcript), 3–6 steps, each naming the exact file, command, env var, or dashboard page. Renders markdown. |
 | `--href <value>` | optional | Dashboard-relative deep link to the related item. |
 | `--dedupe-key <value>` | optional | Stable per-escalation key (e.g. `feedback:7`) so re-runs dedupe to one row. |
 
