@@ -82,6 +82,7 @@ describe("command tree", () => {
         "release",
         "metrics",
         "ops",
+        "sdk",
         "i18n",
         "docs",
       ].sort(),

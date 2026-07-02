@@ -181,10 +181,15 @@ export function buildProgram(): Command {
   detectCommand(program);
   mcpCommand(program);
 
+  // SDK admin keys (server/client/admin/ops) — mint/list/revoke. Its own
+  // top-level group; nothing to do with i18n despite the historical nesting.
+  const sdk = program.command("sdk").description("Manage SDK keys (server, client, admin, ops)");
+  keysCommand(sdk); // -> sdk keys
+  withTreeHelp(sdk);
+
   // i18n stays hand-written (fs scan/codemod/loader + the file-based push/
-  // publish), with SDK-key minting + source codemods nested under it.
+  // publish), with source codemods nested under it.
   const i18n = i18nCommand(program); // -> i18n …
-  keysCommand(i18n); // -> i18n keys (SDK admin keys)
   codemodCommand(i18n); // -> i18n codemod
   // High-level orchestrators (codemod → push → publish in one verb): `extract`
   // + `migrate`. The i18n:extract / i18n:migrate skills wrap these thinly.

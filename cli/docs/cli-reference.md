@@ -1620,14 +1620,21 @@ shipeasy whoami [options]
 
 ## `shipeasy setup`
 
-One-command onboarding: log in + bind a project, detect your coding agents, register the Shipeasy MCP server + skills, and hand SDK wiring to the agent.
+Full onboarding: preconditions, monorepo target detection, login + per-target project bind, agent/MCP wiring, SDK keys, package installs, module enables — then emits harness-agnostic wiring instructions for the code changes.
 
-`setup` is the one place that wires Shipeasy into your coding agents — there is no separate `skills`/`plugin` install step. It **detects every agent** in your environment (Claude Code, Cursor, OpenAI Codex, GitHub Copilot, Google Jules) and wires each one the way that agent expects:
+`setup` now runs the whole deterministic half of onboarding itself — the same flow as the `shipeasy-setup` skill, without needing an AI to drive it:
 
-- **Claude Code** — installs the marketplace plugin (slash commands + skills + MCP), or drops `.mcp.json` when the `claude` binary isn't on PATH.
-- **Cursor / Codex / Copilot / Jules** — registers the hosted `mcp.shipeasy.ai` MCP server in that agent's config and writes its instructions file (`.cursor/rules/shipeasy.mdc`, `AGENTS.md`, `.github/copilot-instructions.md`).
+0. Preconditions (Node >= 20, git repo — offers `git init`).
+1. `detect`-powered monorepo scan; every target gets its own `.shipeasy`.
+2. Browser login, then binds the repo root AND each install target.
+3. Wires your coding agents (Claude Code plugin, Cursor/Codex/Copilot/Jules MCP + instruction files, universal AGENTS.md).
+4. Mints env-locked server/client SDK keys.
+5. Runs the SDK package install per target and persists the keys to each target's gitignored env file.
+6-7. Offers the devtools overlay + feature module enables (flags/i18n/ops).
+8-9. Drops the re-onboarding pointer skill and runs the verification gate.
+10. Everything that needs codebase judgement (entry-point `configure(...)` wiring, idiomatic secret stores, overlay script injection) is written to `shipeasy-wiring.md` — complete, self-contained instructions any coding agent (Claude, Codex, Cursor, Copilot, or a human) can execute. Key values never appear in that file.
 
-Pick a subset with `--agents`, or let it auto-detect. It's idempotent — safe to re-run as you add agents. In CI (non-TTY) it runs non-interactively with `SHIPEASY_CLI_TOKEN` + `SHIPEASY_PROJECT_ID`.
+Idempotent — safe to re-run. In CI (non-TTY) it runs non-interactively with `SHIPEASY_CLI_TOKEN` + `SHIPEASY_PROJECT_ID`.
 
 ```bash
 shipeasy setup [options]
@@ -1635,24 +1642,33 @@ shipeasy setup [options]
 
 | Option | | Description |
 | --- | --- | --- |
-| `--yes` | optional | Non-interactive: bind current project + wire all detected agents |
+| `--yes` | optional | Non-interactive: accept defaults everywhere (bind, prod keys, run installs) |
 | `--agents <list>` | optional | Comma list to wire (claude,cursor,codex,copilot,jules) |
-| `--domain <domain>` | optional | Production domain, passed to the Claude shipeasy-setup skill step |
+| `--domain <domain>` | optional | Production domain (used when creating a new project at login) |
 | `--scope <scope>` | optional | user \| project (MCP config scope) (default: `"project"`) |
-| `--no-claude-run` | optional | Don't launch Claude Code for the in-repo wiring step |
-| `--dry-run` | optional | Show what would change without writing files or launching anything |
+| `--env <env>` | optional | Environment the minted SDK keys read: dev \| staging \| prod |
+| `--devtools` | optional | Enable the devtools overlay without asking |
+| `--no-devtools` | optional | Skip the devtools overlay without asking |
+| `--features <list>` | optional | Module groups to enable non-interactively (flags,i18n,ops) |
+| `--skip-install` | optional | Don't run SDK package installs (they go into the wiring steps) |
+| `--no-agent-run` | optional | Don't offer to launch a coding agent on the wiring steps |
+| `--no-claude-run` | optional | (deprecated) alias of --no-agent-run |
+| `--dry-run` | optional | Show what would change without writing files or calling the API |
 
 Examples:
 
 ```bash
-# interactive: detect + wire every agent found
+# interactive: full onboarding, prompts as it goes
 shipeasy setup
 
-# non-interactive subset
-shipeasy setup --yes --agents claude,cursor
+# non-interactive
+shipeasy setup --yes --env prod --features flags
 
 # preview without writing
-shipeasy setup --dry-run --no-claude-run
+shipeasy setup --dry-run --no-agent-run
+
+# subset, skip overlay
+shipeasy setup --agents claude,cursor --no-devtools
 ```
 
 ## `shipeasy install`
@@ -1903,6 +1919,99 @@ shipeasy mcp uninstall
 shipeasy mcp uninstall --client cursor --scope user
 ```
 
+## `shipeasy sdk`
+
+Manage SDK keys (server, client, admin, ops)
+
+```bash
+shipeasy sdk [options] [command]
+```
+
+### `shipeasy sdk keys`
+
+Manage SDK keys (server, client, admin, ops)
+
+```bash
+shipeasy sdk keys [options] [command]
+```
+
+#### `shipeasy sdk keys list`
+
+List SDK keys for the current project
+
+```bash
+shipeasy sdk keys list [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--json` | optional | Output as JSON |
+| `--project <id>` | optional | Project ID override |
+
+Examples:
+
+```bash
+shipeasy sdk keys list
+
+# Machine-readable output
+shipeasy sdk keys list --json
+```
+
+#### `shipeasy sdk keys create`
+
+Create a new SDK key. The raw token is shown ONCE — store it now.
+
+```bash
+shipeasy sdk keys create [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--type <type>` | required | Key type: server \| client \| admin \| ops |
+| `--env <env>` | optional | Environment the key is bound to: dev \| staging \| prod (required for server/client keys) |
+| `--json` | optional | Output as JSON |
+| `--project <id>` | optional | Project ID override |
+
+Examples:
+
+```bash
+# Server key for production (private, server-only)
+shipeasy sdk keys create --type server --env prod
+
+# Public client key for staging
+shipeasy sdk keys create --type client --env staging
+
+# Restricted ops key for the trigger
+shipeasy sdk keys create --type ops
+```
+
+#### `shipeasy sdk keys revoke`
+
+Revoke a key by id (or id prefix; first match wins)
+
+```bash
+shipeasy sdk keys revoke [options] <id>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `id` | required | — |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--json` | optional | Output as JSON |
+| `--project <id>` | optional | Project ID override |
+
+Examples:
+
+```bash
+# Revoke by full id
+shipeasy sdk keys revoke 7f3a9c10-2b4d-4e6f-8a1b-0c2d3e4f5a6b
+
+# Revoke by id prefix (first match)
+shipeasy sdk keys revoke 7f3a9c10
+```
+
 ## `shipeasy i18n`
 
 String Manager (i18n) tools
@@ -2133,91 +2242,6 @@ shipeasy i18n profiles create en:prod
 
 # Multiple locales with a default
 shipeasy i18n profiles create fr:prod --locales fr,fr-CA --default-locale fr
-```
-
-### `shipeasy i18n keys`
-
-Manage SDK keys (server, client, admin, ops)
-
-```bash
-shipeasy i18n keys [options] [command]
-```
-
-#### `shipeasy i18n keys list`
-
-List SDK keys for the current project
-
-```bash
-shipeasy i18n keys list [options]
-```
-
-| Option | | Description |
-| --- | --- | --- |
-| `--json` | optional | Output as JSON |
-| `--project <id>` | optional | Project ID override |
-
-Examples:
-
-```bash
-shipeasy i18n keys list
-
-# Machine-readable output
-shipeasy i18n keys list --json
-```
-
-#### `shipeasy i18n keys create`
-
-Create a new SDK key. The raw token is shown ONCE — store it now.
-
-```bash
-shipeasy i18n keys create [options]
-```
-
-| Option | | Description |
-| --- | --- | --- |
-| `--type <type>` | required | Key type: server \| client \| admin \| ops |
-| `--env <env>` | optional | Environment the key is bound to: dev \| staging \| prod (required for server/client keys) |
-| `--json` | optional | Output as JSON |
-| `--project <id>` | optional | Project ID override |
-
-Examples:
-
-```bash
-# Server key for production (private, server-only)
-shipeasy i18n keys create --type server --env prod
-
-# Public client key for staging
-shipeasy i18n keys create --type client --env staging
-
-# Restricted ops key for the trigger
-shipeasy i18n keys create --type ops
-```
-
-#### `shipeasy i18n keys revoke`
-
-Revoke a key by id (or id prefix; first match wins)
-
-```bash
-shipeasy i18n keys revoke [options] <id>
-```
-
-| Argument | | Description |
-| --- | --- | --- |
-| `id` | required | — |
-
-| Option | | Description |
-| --- | --- | --- |
-| `--json` | optional | Output as JSON |
-| `--project <id>` | optional | Project ID override |
-
-Examples:
-
-```bash
-# Revoke by full id
-shipeasy i18n keys revoke 7f3a9c10-2b4d-4e6f-8a1b-0c2d3e4f5a6b
-
-# Revoke by id prefix (first match)
-shipeasy i18n keys revoke 7f3a9c10
 ```
 
 ### `shipeasy i18n codemod`

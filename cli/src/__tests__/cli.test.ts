@@ -51,7 +51,7 @@ describe("shipeasy CLI", () => {
     ["release", "configs", "list"],
     ["metrics", "list"],
     ["metrics", "events", "list"],
-    ["i18n", "keys", "list"],
+    ["sdk", "keys", "list"],
     ["ops", "list"],
     ["ops", "get", "7"],
     ["ops", "update", "7", "--status", "resolved"],

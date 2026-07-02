@@ -183,7 +183,7 @@ delete this file once everything passes.`,
   sections.push(`## Final verification gate (all must pass)
 
 \`\`\`bash
-shipeasy whoami && shipeasy i18n keys list && shipeasy projects current
+shipeasy whoami && shipeasy sdk keys list && shipeasy projects current
 ${input.targets.map((t) => `( cd ${t.relPath} && shipeasy root )   # must print this dir + project + sdk`).join("\n")}
 ${input.buildTargets.map((p) => `( cd ${p} && (pnpm build || npm run build) )`).join("\n")}
 \`\`\`

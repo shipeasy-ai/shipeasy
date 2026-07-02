@@ -37,7 +37,7 @@ shipeasy ops trigger create <anything-else>     # prints the platform-scheduled 
   follow the create command's printed instructions **verbatim**:
   1. **Schedule** — ask the user the cadence (step 1 below) → cron.
   2. **Mint the restricted `ops` key + read the project id** — provider-
-     independent (`shipeasy i18n keys create --type ops --json` + the
+     independent (`shipeasy sdk keys create --type ops --json` + the
      `.shipeasy` project id); the key is what the run authenticates with.
      (For `claude`, `shipeasy ops trigger prep` mints it for you — step 2 below.)
   3. **Build the trigger prompt** — the create command's help includes the

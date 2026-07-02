@@ -725,7 +725,7 @@
           Platform-scheduled setup instead (the platform's own scheduler fires the
           run; nothing to register in Shipeasy):
 
-          1. Mint the restricted ops key (`shipeasy i18n keys create --type ops --json`)
+          1. Mint the restricted ops key (`shipeasy sdk keys create --type ops --json`)
              and read the project id from .shipeasy. Never print either.
           2. Build the trigger prompt (run `shipeasy ops trigger create claude --help`
              for the shared template) with the key, project id, and your platform's

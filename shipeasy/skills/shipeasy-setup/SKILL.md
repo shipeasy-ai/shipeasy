@@ -91,8 +91,8 @@ yourself and honour the same invariants:
 shipeasy detect --json                     # per-folder targets + recommendations
 shipeasy login                             # browser auth; picks/creates a project
 ( cd <target> && shipeasy bind )           # one .shipeasy per install target
-shipeasy i18n keys create --type server --env prod --json
-shipeasy i18n keys create --type client --env prod --json   # browser targets only
+shipeasy sdk keys create --type server --env prod --json
+shipeasy sdk keys create --type client --env prod --json   # browser targets only
 shipeasy install <flags|i18n|ops>          # enable a feature module group
 shipeasy docs get --sdk <lang> installation            # version-correct wiring
 ( cd <target> && shipeasy root )           # verify each target's bind

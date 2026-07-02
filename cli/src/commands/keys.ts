@@ -77,8 +77,8 @@ export function keysCommand(parent: Command): void {
     });
 
   withExamples(keysList, [
-    { run: "shipeasy i18n keys list" },
-    { note: "Machine-readable output", run: "shipeasy i18n keys list --json" },
+    { run: "shipeasy sdk keys list" },
+    { note: "Machine-readable output", run: "shipeasy sdk keys list --json" },
   ]);
 
   const keysCreate = keys
@@ -157,13 +157,13 @@ export function keysCommand(parent: Command): void {
   withExamples(keysCreate, [
     {
       note: "Server key for production (private, server-only)",
-      run: "shipeasy i18n keys create --type server --env prod",
+      run: "shipeasy sdk keys create --type server --env prod",
     },
     {
       note: "Public client key for staging",
-      run: "shipeasy i18n keys create --type client --env staging",
+      run: "shipeasy sdk keys create --type client --env staging",
     },
-    { note: "Restricted ops key for the trigger", run: "shipeasy i18n keys create --type ops" },
+    { note: "Restricted ops key for the trigger", run: "shipeasy sdk keys create --type ops" },
   ]);
 
   const keysRevoke = keys
@@ -191,8 +191,8 @@ export function keysCommand(parent: Command): void {
     });
 
   withExamples(keysRevoke, [
-    { note: "Revoke by full id", run: "shipeasy i18n keys revoke 7f3a9c10-2b4d-4e6f-8a1b-0c2d3e4f5a6b" },
-    { note: "Revoke by id prefix (first match)", run: "shipeasy i18n keys revoke 7f3a9c10" },
+    { note: "Revoke by full id", run: "shipeasy sdk keys revoke 7f3a9c10-2b4d-4e6f-8a1b-0c2d3e4f5a6b" },
+    { note: "Revoke by id prefix (first match)", run: "shipeasy sdk keys revoke 7f3a9c10" },
   ]);
 }
 
