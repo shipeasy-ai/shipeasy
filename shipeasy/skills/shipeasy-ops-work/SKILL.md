@@ -80,8 +80,8 @@ Queue:
 If everything is empty: print "Nothing to work — queue is clear." and stop.
 If `--dry-run`: stop here. The queue print is the deliverable.
 
-Use TodoWrite to mirror the queue so progress survives a mid-loop
-interruption.
+Track the queue as a checklist (a todo list, if your agent has one) so
+progress survives a mid-loop interruption.
 
 ## 1. Per-item strict loop
 
@@ -100,16 +100,24 @@ Each type has its own runbook — the `runbook` column in the queue table
 above. **Read the runbook before working the first item of that type**
 (bugs → `references/bugs.md`, features → `references/features.md`,
 errors → `references/errors.md`, alerts → `references/alerts.md`,
-measure plans → `references/measure-plans.md`). Shared across all of them:
+measure plans → `references/measure-plans.md`). Each runbook carries **only
+the type-specific flow** — how to read, investigate, and shape the fix for
+that item type. The mechanics below are shared by **every type** and are NOT
+repeated in the runbooks:
 
-- Fix the **root cause** — no drive-by refactors, no swallowing, no deleting
-  the failing assertion. One atomic diff, scoped to this item.
-- Run the relevant gate (unit tests touching the file, `pnpm type-check` if
-  TS changed, reload the page for UI fixes, an e2e spec for new UI
-  workflows — see CLAUDE.md).
-- `resolved` only if confidently fixed + verified; `ready_for_qa` if a human
-  must verify. Can't fix? Leave it `in_progress` with a one-paragraph
-  hand-off note **and
+- **One atomic diff.** Every item ships as a single, root-cause fix scoped to
+  this item — no drive-by refactors, no swallowing, no deleting the failing
+  assertion, no half-finished work. If it genuinely can't land in one pass,
+  note the gap, **[escalate](#escalate-raise-a-bell-notification-when-the-fix-isnt-in-code)**,
+  and skip; don't land a partial.
+- **Run the gate.** Unit tests touching the file, `pnpm type-check` if TS
+  changed, reload the page for UI fixes, an e2e spec for new UI workflows —
+  follow the repo's own contributor/test conventions.
+- **Status lifecycle (every type).** `in_progress` when you start (§1);
+  `resolved` only if confidently fixed + verified, else **`ready_for_qa` when
+  implemented** and a human must verify (in `--pr` mode always `ready_for_qa`,
+  never auto-`resolved` — [§2](#2-pr-mode---pr).5). Can't fix? Leave it
+  `in_progress` with a one-paragraph hand-off note **and
   [escalate](#escalate-raise-a-bell-notification-when-the-fix-isnt-in-code)**
   — then move on.
 
@@ -195,12 +203,12 @@ above:
    git commit -m "<type>(<scope>): <title> (shipeasy #<number>)"   # one focused commit, never --no-verify
    ```
 
-   then open the pull request for **that item alone** (Claude Code's built-in
-   GitHub PR tooling, or `gh pr create` when `gh` is installed), and return to
-   the default branch before starting the next item. Branch each item off the
-   default branch — never stack item branches. In unattended cloud-routine
-   runs name branches `claude/ops-<number>-<slug>` (routines may only push
-   `claude/`-prefixed branches). `<type>` follows the item:
+   then open the pull request for **that item alone** (`gh pr create` when
+   `gh` is installed, or your agent's built-in PR tooling), and return to the
+   default branch before starting the next item. Branch each item off the
+   default branch — never stack item branches. Some hosted runners only allow
+   pushing branches under a reserved prefix — if yours does, use it
+   (e.g. `<prefix>/ops-<number>-<slug>`). `<type>` follows the item:
    `fix` for bugs and error tickets, `feat` for features, `fix`/`chore` for
    alert-driven changes. An item with no code change (ops acknowledgement)
    produces no branch, no commit, and no PR.

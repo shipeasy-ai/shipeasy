@@ -1,23 +1,20 @@
 # Runbook: `bug` items
 
-Human-filed bug reports (devtools nub, public widget, CLI, dashboard).
+Human-filed bug reports (devtools nub, public widget, CLI, dashboard). The
+report is a human's description of a symptom — your job is to turn it into a
+reproducible cause. Shared mechanics (atomic diff, gate, status lifecycle) are
+in SKILL.md §1a; this is the bug-specific flow.
 
 1. `shipeasy ops get <handle>` — read `title`, `description`, `pageUrl`,
    `priority`, `context`, `attachments[]`.
-2. For each entry in `attachments[]`, fetch its URL. **Read screenshots into
-   context** (the image renders to you). **Recordings** (`.webm`/`.mp4`) can't
-   be watched — surface the path and ask whether screenshots+text suffice;
-   don't silently skip.
-3. Flip to `in_progress` (skip if already):
-   `shipeasy ops update <handle> --status in_progress`.
-4. Investigate from `pageUrl` / stack frame / screenshot text. Reproduce
-   locally if the dev server is up. Reuse `superpowers:systematic-debugging`
-   when the cause isn't obvious — don't guess.
-5. Fix the **root cause**. No drive-by refactors, no swallowing, no deleting
-   the failing assertion. Keep the diff scoped to this bug. Run the relevant
-   gate (unit tests touching the file, `pnpm type-check` if TS changed, reload
-   the page for UI fixes).
-6. `--status resolved` only if confidently fixed + verified; `--status
-   ready_for_qa` if it needs human verification. Can't fix? Leave it
-   `in_progress`, write a one-paragraph hand-off note, **and escalate via
-   `ops notify`** (the skill's "Escalate" section) — then move on.
+2. **Attachments carry the repro.** For each entry in `attachments[]`, fetch
+   its URL. Read screenshots into context (the image renders to you) — the
+   error text/UI state in them is often the fastest path to the cause.
+   **Recordings** (`.webm`/`.mp4`) can't be watched: in interactive runs surface
+   the path and ask whether screenshots + text suffice; in unattended/`--pr`
+   runs (no reader) note the unwatched recording and **escalate** rather than
+   claim a fix you couldn't confirm against it.
+3. Investigate from `pageUrl` / stack frame / screenshot text. Reproduce
+   locally if the dev server is up; a failing repro you then flip green is the
+   strongest verification. Work the cause systematically — form a hypothesis
+   and confirm it before changing code; don't guess.
