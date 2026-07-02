@@ -4,7 +4,7 @@ import { dirname, join, relative } from "node:path";
 import { describe, it, expect, beforeAll } from "vitest";
 import ts from "typescript";
 
-import { type SdkSnippet, extractSdkSnippets } from "./scan.js";
+import { type SdkSnippet, extractSdkSnippets } from "../scan.js";
 
 // Every ```ts / ```tsx snippet a skill embeds and tells the reader to write
 // against @shipeasy/sdk is type-checked here against the REAL, latest SDK
@@ -19,7 +19,7 @@ import { type SdkSnippet, extractSdkSnippets } from "./scan.js";
 // letting the snippets stay short. See SURFACE_CODES.
 
 const here = dirname(fileURLToPath(import.meta.url));
-const PKG = join(here, ".."); // skills-contract package root
+const PKG = join(here, "..", ".."); // skills-contract package root
 const REPO = join(PKG, ".."); // marketplace root
 const SKILLS_DIR = join(REPO, "shipeasy", "skills");
 // Synthesized files live inside the package so bundler module resolution walks

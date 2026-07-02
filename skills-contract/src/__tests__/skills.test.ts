@@ -19,10 +19,10 @@ import {
   toolPrefixesFrom,
   validateCliRef,
   validateMcpRef,
-} from "./scan.js";
+} from "../scan.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const REPO = join(here, "..", "..");
+const REPO = join(here, "..", "..", "..");
 const SKILLS_DIR = join(REPO, "shipeasy", "skills");
 
 const skillFiles = readdirSync(SKILLS_DIR)
