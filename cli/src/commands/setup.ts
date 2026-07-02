@@ -1,5 +1,7 @@
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { spawn } from "node:child_process";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import prompts from "prompts";
 import { login } from "../auth/login";
 import { loadCredentials } from "../auth/storage";
@@ -20,18 +22,47 @@ import {
   writeCopilotInstructions,
   writeCursorRule,
 } from "../setup/instructions";
-import { detectProject } from "./scan";
+import {
+  actionableTargets,
+  bindTargetDirs,
+  checkPreconditions,
+  clientKeyVar,
+  ensureGitignored,
+  envFileFor,
+  gitInit,
+  maskKey,
+  needsStoreMove,
+  persistEnv,
+  projectIdVar,
+  relPath,
+  runSdkInstall,
+  writePointerSkill,
+  SERVER_KEY_VAR,
+} from "../setup/onboard";
+import { buildWiringDoc, type WiringTarget } from "../setup/wiring-doc";
+import { BROWSER_FRAMEWORKS, detectTargets, type TargetRecommendation } from "./scan";
+import { recordDetection } from "./detect";
+import { enableModuleGroup, type EnableResult } from "./install";
 import { withExamples, withDetails } from "../util/examples";
 
 const ALL_AGENTS: AgentId[] = ["claude", "cursor", "codex", "copilot", "jules"];
+const FEATURE_GROUPS = ["flags", "i18n", "ops"] as const;
+type FeatureGroup = (typeof FEATURE_GROUPS)[number];
+
+export const WIRING_FILENAME = "shipeasy-wiring.md";
 
 interface SetupOpts {
   yes?: boolean;
   agents?: string;
   domain?: string;
   scope?: "user" | "project";
+  env?: string;
+  devtools?: boolean; // undefined → ask
+  features?: string;
+  skipInstall?: boolean;
   dryRun?: boolean;
-  claudeRun?: boolean; // commander --no-claude-run → false
+  agentRun?: boolean; // commander --no-agent-run → false
+  claudeRun?: boolean; // legacy alias of --no-agent-run
 }
 
 // ── small print helpers (no chalk — the CLI avoids ESM-only deps) ───────────
@@ -107,7 +138,6 @@ async function fetchProjectName(projectId: string): Promise<string | undefined> 
  * repo — that's what the extra branch handles.
  */
 async function ensureAuthAndBind(interactive: boolean): Promise<void> {
-  heading("1. Authenticate + bind project");
   await login({}); // idempotent; runs device flow + picker + auto-bind when no session
 
   if (getBoundProjectId(process.cwd())) return; // bound (pre-existing or just bound by login)
@@ -150,7 +180,6 @@ async function ensureAuthAndBind(interactive: boolean): Promise<void> {
 async function selectAgents(opts: SetupOpts, interactive: boolean): Promise<AgentId[]> {
   const detected = detectAgents(process.cwd());
 
-  heading("2. Coding agents");
   for (const a of detected) {
     console.log(`  ${a.detected ? "✓" : "·"} ${a.label.padEnd(16)} ${a.reason}`);
   }
@@ -193,67 +222,110 @@ async function selectAgents(opts: SetupOpts, interactive: boolean): Promise<Agen
   return (picked as AgentId[] | undefined) ?? [];
 }
 
-// ── Claude code-wiring handoff ──────────────────────────────────────────────
+// ── key minting ─────────────────────────────────────────────────────────────
 
-function insideClaudeCode(): boolean {
+interface KeyCreated {
+  id: string;
+  type: string;
+  env?: string;
+  key: string;
+}
+
+const VALID_ENVS = ["dev", "staging", "prod"] as const;
+
+async function resolveKeyEnv(opts: SetupOpts, interactive: boolean): Promise<string> {
+  if (opts.env) {
+    if (!(VALID_ENVS as readonly string[]).includes(opts.env)) {
+      throw new Error(`Invalid --env '${opts.env}'. Must be one of: ${VALID_ENVS.join(", ")}`);
+    }
+    return opts.env;
+  }
+  if (!interactive) return "prod";
+  const { env } = await prompts({
+    type: "select",
+    name: "env",
+    message: "Which environment should the SDK keys read?",
+    choices: VALID_ENVS.map((e) => ({ title: e, value: e })),
+    initial: VALID_ENVS.indexOf("prod"),
+  });
+  return (env as string | undefined) ?? "prod";
+}
+
+async function mintKey(type: "server" | "client", env: string): Promise<KeyCreated> {
+  const client = getApiClient(undefined, { requireBinding: true });
+  return client.request<KeyCreated>("POST", "/api/admin/keys", { type, env });
+}
+
+// ── generic coding-agent handoff (any harness) ──────────────────────────────
+
+const WIRING_PROMPT = `Read ${WIRING_FILENAME} at the repo root and complete every unchecked step, following its operating rules exactly.`;
+
+/** CLI-launchable coding agents and how each takes a one-shot prompt. */
+const RUNNABLE_AGENTS: Array<{ label: string; bin: string; argv: (p: string) => string[] }> = [
+  { label: "Claude Code", bin: "claude", argv: (p) => [p] },
+  { label: "OpenAI Codex", bin: "codex", argv: (p) => [p] },
+  { label: "Cursor", bin: "cursor-agent", argv: (p) => [p] },
+  { label: "GitHub Copilot", bin: "copilot", argv: (p) => ["-p", p] },
+];
+
+function insideAgentSession(): boolean {
   return Boolean(
     process.env.CLAUDECODE || process.env.CLAUDE_CODE || process.env.CLAUDE_CODE_ENTRYPOINT,
   );
 }
 
-function spawnClaude(arg: string): Promise<number> {
+function spawnAgent(bin: string, args: string[]): Promise<number> {
   return new Promise((resolve) => {
-    const child = spawn("claude", [arg], { stdio: "inherit" });
+    const child = spawn(bin, args, { stdio: "inherit" });
     child.on("exit", (code) => resolve(code ?? 0));
     child.on("error", () => resolve(1));
   });
 }
 
-async function claudeHandoff(opts: SetupOpts, interactive: boolean): Promise<void> {
-  heading("4. Finish the in-repo SDK wiring (Claude)");
-  const slash = `/shipeasy:shipeasy-setup${opts.domain ? ` --domain ${opts.domain}` : ""}`;
-
-  if (insideClaudeCode()) {
+/**
+ * Hand the wiring file to a coding agent — WITHOUT assuming which one. Print
+ * copy-paste invocations for every agent CLI we know, and (interactively)
+ * offer to launch one that's on PATH. The instructions themselves are
+ * harness-neutral markdown, so "paste it into any assistant" always works.
+ */
+async function agentHandoff(opts: SetupOpts, interactive: boolean): Promise<void> {
+  if (insideAgentSession()) {
     console.log(
-      `You're already in a Claude Code session. Finish SDK install + entry-point\n` +
-        `wiring by running this slash command here:\n\n  ${slash}\n`,
+      `  You're already inside a coding-agent session — just tell it:\n\n` +
+        `    ${WIRING_PROMPT}\n`,
     );
     return;
   }
 
-  if (!onPath("claude")) {
-    console.log(
-      `Install Claude Code, then run the in-repo wiring:\n\n  claude "${slash}"\n` +
-        `  # or headless: claude -p "${slash}"\n`,
-    );
-    return;
-  }
+  const available = RUNNABLE_AGENTS.filter((a) => onPath(a.bin));
+  console.log(
+    `  Hand ${WIRING_FILENAME} to any coding agent or AI assistant. Examples:\n` +
+      RUNNABLE_AGENTS.map(
+        (a) => `    ${a.bin} ${a.argv(WIRING_PROMPT).map((s) => (s.startsWith("-") ? s : JSON.stringify(s))).join(" ")}`,
+      ).join("\n") +
+      `\n  (or open the file and paste it into your IDE's assistant)`,
+  );
 
-  if (opts.claudeRun === false || opts.dryRun) {
-    console.log(`Skipping the Claude run. Finish anytime with:\n\n  claude "${slash}"\n`);
-    return;
-  }
+  const noRun = opts.agentRun === false || opts.claudeRun === false || opts.dryRun;
+  if (!interactive || noRun || available.length === 0) return;
 
-  let proceed = false;
-  if (interactive) {
-    const r = await prompts({
-      type: "confirm",
-      name: "go",
-      message: `Run the SDK code-wiring now by launching Claude Code on "${slash}"?`,
-      initial: true,
-    });
-    proceed = Boolean(r.go);
-  }
+  const { pick } = await prompts({
+    type: "select",
+    name: "pick",
+    message: "Launch a coding agent on the wiring steps now?",
+    choices: [
+      ...available.map((a) => ({ title: `Yes — ${a.label} (${a.bin})`, value: a.bin })),
+      { title: "No — I'll run it myself later", value: "" },
+    ],
+    initial: 0,
+  });
+  const chosen = available.find((a) => a.bin === pick);
+  if (!chosen) return;
 
-  if (!proceed) {
-    console.log(`When ready, run:\n\n  claude "${slash}"\n`);
-    return;
-  }
-
-  console.log(`\nLaunching: claude "${slash}"\n`);
-  const code = await spawnClaude(slash);
+  console.log(`\nLaunching: ${chosen.bin} …\n`);
+  const code = await spawnAgent(chosen.bin, chosen.argv(WIRING_PROMPT));
   if (code !== 0) {
-    console.log(`\nClaude exited with code ${code}. You can re-run:\n\n  claude "${slash}"\n`);
+    console.log(`\n${chosen.bin} exited with code ${code}. You can re-run it anytime.`);
   }
 }
 
@@ -262,48 +334,83 @@ async function claudeHandoff(opts: SetupOpts, interactive: boolean): Promise<voi
 async function runSetup(opts: SetupOpts): Promise<void> {
   const interactive = Boolean(process.stdin.isTTY) && !opts.yes;
   const scope: "user" | "project" = opts.scope === "user" ? "user" : "project";
+  const dryRun = Boolean(opts.dryRun);
+  const cwd = process.cwd();
 
-  console.log("Shipeasy setup — one-command onboarding\n");
+  console.log("Shipeasy setup — full onboarding\n");
 
-  // Pre-flight: report what we detected (best-effort).
-  heading("0. Project");
-  try {
-    const scan = await detectProject();
-    if (scan.status === "ok" && scan.projects[0]) {
-      const p = scan.projects[0];
-      console.log(`  path:       ${p.path}`);
-      console.log(`  language:   ${p.language}`);
-      console.log(`  frameworks: ${p.frameworks.join(", ") || "—"}`);
-      console.log(
-        `  @shipeasy/sdk: ${p.shipeasy.experimentation_sdk.installed ? "installed" : "not installed"}`,
-      );
-    } else if (scan.status === "needs_clarification") {
-      console.log(`  ${scan.reason}`);
-      console.log("  (continuing — setup binds at the current directory)");
-    }
-  } catch (e) {
-    console.log(`  (project scan skipped: ${e instanceof Error ? e.message : String(e)})`);
+  // 0. Preconditions
+  heading("0. Preconditions");
+  const pre = checkPreconditions(cwd);
+  console.log(
+    `  ${pre.nodeOk ? "✓" : "✗"} node ${pre.nodeVersion}` +
+      (pre.nodeOk ? "" : "  — Shipeasy requires Node >= 20; continuing, but expect failures"),
+  );
+  if (pre.gitRepo) {
+    console.log("  ✓ git repository");
+  } else if (interactive && !dryRun) {
+    const { init } = await prompts({
+      type: "confirm",
+      name: "init",
+      message: "This folder isn't a git repository. Initialize one now?",
+      initial: true,
+    });
+    if (init) console.log(gitInit(cwd) ? "  ✓ git init" : "  ✗ git init failed — continuing");
+    else console.log("  • continuing without git (nothing will be committable)");
+  } else {
+    console.log("  • not a git repository — run `git init` if you want the changes committable");
   }
 
-  // 1. Auth + bind
-  if (opts.dryRun) {
-    heading("1. Authenticate + bind project");
-    console.log("  (dry run — would run `shipeasy login` and write .shipeasy if unbound)");
+  // 1. Detect install targets (monorepo-aware)
+  heading("1. Detect install targets");
+  const detected = await detectTargets();
+  const root = detected.root;
+  if (!dryRun) recordDetection(detected.targets); // seed each target's .shipeasy with sdk/language
+  for (const t of detected.targets) {
+    const fw = t.frameworks.length ? ` · ${t.frameworks.join(", ")}` : "";
+    console.log(`  ${t.recommendation.action.startsWith("skip") ? "·" : "▸"} ${relPath(root, t.path)}/  [${t.language}${fw}]  → ${t.recommendation.action}`);
+  }
+  const actionable = actionableTargets(detected.targets);
+  console.log(
+    actionable.length
+      ? `\n  ${actionable.length} target(s) to onboard.`
+      : "\n  Nothing to install — all detected targets are already onboarded.",
+  );
+
+  // 2. Authenticate + bind (repo root + each target)
+  heading("2. Authenticate + bind project");
+  let projectId = "";
+  let projectName: string | undefined;
+  if (dryRun) {
+    console.log("  (dry run — would run `shipeasy login`, bind cwd + each target)");
   } else {
     await ensureAuthAndBind(interactive);
+    const creds = loadCredentials();
+    if (!creds) throw new Error("Authentication did not produce credentials.");
+    projectId = getBoundProjectId(cwd) ?? creds.project_id;
+    projectName = await fetchProjectName(projectId);
+
+    const outcomes = bindTargetDirs(
+      actionable.map((t) => t.path),
+      projectId,
+      projectName,
+      bindProject,
+    );
+    for (const o of outcomes) {
+      if (o.action === "bound") console.log(`  ✓ bound ${relPath(root, o.dir)}/ → ${o.projectId}`);
+      else if (o.action === "already") console.log(`  • ${relPath(root, o.dir)}/ already bound`);
+      else
+        console.log(
+          `  → ${relPath(root, o.dir)}/ stays on ${o.projectId} (different project — ` +
+            `run \`shipeasy bind\` there to change it)`,
+        );
+    }
   }
 
-  // 2. Select agents
+  // 3. Wire coding agents (MCP + instruction files)
+  heading("3. Wire coding agents");
   const selected = await selectAgents(opts, interactive);
-
-  // 3. Wire each agent + the universal AGENTS.md
-  heading("3. Wire agents");
-  const ctx: InstallCtx = {
-    cwd: process.cwd(),
-    scope,
-    force: false,
-    dryRun: Boolean(opts.dryRun),
-  };
+  const ctx: InstallCtx = { cwd, scope, force: false, dryRun };
   if (selected.length === 0) {
     console.log("  (no agents selected — skipping)");
   } else {
@@ -316,36 +423,357 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     console.log(formatFile("AGENTS.md", writeAgentsMd(ctx)));
   }
 
-  // 4. Claude in-repo wiring handoff
-  if (selected.includes("claude")) {
-    await claudeHandoff(opts, interactive);
+  // 4. Mint SDK keys (env-locked; values persisted in step 5, never logged)
+  heading("4. Mint SDK keys");
+  let serverKey: KeyCreated | null = null;
+  let clientKey: KeyCreated | null = null;
+  const browserTarget = (t: TargetRecommendation): boolean =>
+    t.recommendation.keys.includes("client");
+  const needServer = actionable.some(
+    (t) => !t.shipeasy.env_keys_detected.includes(SERVER_KEY_VAR),
+  );
+  const needClient = actionable.some(
+    (t) => browserTarget(t) && !t.shipeasy.env_keys_detected.some((k) => k.includes("CLIENT")),
+  );
+  if (!actionable.length) {
+    console.log("  • no targets need keys — skipping");
+  } else if (dryRun) {
+    console.log("  (dry run — would mint server" + (needClient ? " + client" : "") + " keys)");
+  } else if (!needServer && !needClient) {
+    console.log("  • every target already has its keys in env — skipping");
+  } else {
+    const keyEnv = await resolveKeyEnv(opts, interactive);
+    if (needServer) {
+      serverKey = await mintKey("server", keyEnv);
+      console.log(`  ✓ server key minted (${keyEnv}): ${maskKey(serverKey.key)}`);
+    }
+    if (needClient) {
+      clientKey = await mintKey("client", keyEnv);
+      console.log(`  ✓ client key minted (${keyEnv}): ${maskKey(clientKey.key)} (public)`);
+    }
   }
 
-  // 5. Summary
-  heading("Done");
-  console.log("Next steps:");
-  console.log("  • shipeasy whoami                 — confirm auth + bound project");
-  console.log(
-    "  • the shipeasy-flags-install skill   — feature gates, configs, kill switches, experiments",
+  // 5. Per target: install the SDK package + persist the keys
+  heading("5. Install SDK + persist keys (per target)");
+  const installOutcome = new Map<string, { status: string; cmd: string }>();
+  const persistedVars = new Map<string, string[]>();
+  if (!actionable.length) {
+    console.log("  • nothing to do");
+  } else {
+    let runInstalls = !opts.skipInstall && !dryRun;
+    if (runInstalls && interactive) {
+      const needing = actionable.filter((t) => t.recommendation.action === "install");
+      if (needing.length) {
+        const { go } = await prompts({
+          type: "confirm",
+          name: "go",
+          message: `Run the SDK package install in ${needing.length} target(s) now?`,
+          initial: true,
+        });
+        runInstalls = Boolean(go);
+      }
+    }
+
+    for (const t of actionable) {
+      const rp = relPath(root, t.path);
+      console.log(`\n  ${rp}/:`);
+
+      if (t.recommendation.action === "install") {
+        if (runInstalls) {
+          const r = runSdkInstall(t);
+          installOutcome.set(t.path, r);
+          console.log(
+            r.status === "ran"
+              ? `    ✓ installed (${r.cmd})`
+              : r.status === "failed"
+                ? `    ✗ install failed (${r.cmd}) — added to the wiring steps`
+                : `    → install deferred to the wiring steps: ${r.cmd}`,
+          );
+        } else {
+          installOutcome.set(t.path, {
+            status: "deferred",
+            cmd: t.recommendation.install ?? "(see docs)",
+          });
+          console.log(`    → install ${dryRun ? "(dry run) " : ""}deferred: ${t.recommendation.install}`);
+        }
+      } else {
+        console.log("    • SDK already installed");
+      }
+
+      if (dryRun) {
+        console.log("    (dry run — would persist keys to env + guard .gitignore)");
+        continue;
+      }
+
+      const entries: Record<string, string> = {};
+      if (serverKey) entries[SERVER_KEY_VAR] = serverKey.key;
+      if (clientKey && browserTarget(t)) entries[clientKeyVar(t.frameworks)] = clientKey.key;
+      const file = envFileFor(t);
+      if (Object.keys(entries).length) {
+        const w = persistEnv(t.path, file, entries);
+        persistedVars.set(t.path, [...w.added, ...w.existing]);
+        if (w.added.length) console.log(`    ✓ ${file}: added ${w.added.join(", ")}`);
+        if (w.existing.length) console.log(`    • ${file}: ${w.existing.join(", ")} already present (left untouched)`);
+        const gi = ensureGitignored(t.path, file);
+        console.log(`    ${gi.action === "added" ? "✓" : "•"} ${gi.detail}`);
+      } else {
+        persistedVars.set(t.path, t.shipeasy.env_keys_detected);
+        console.log("    • keys already in env — nothing persisted");
+      }
+    }
+  }
+
+  // 6. Devtools overlay (in-page panel + end-user feedback surface)
+  heading("6. Devtools overlay");
+  // All real browser-facing targets — including already-onboarded ones, which
+  // may still want the overlay (recommendation.keys is empty for those).
+  const browserCandidates = detected.targets.filter(
+    (t) =>
+      !t.recommendation.action.startsWith("skip") &&
+      t.frameworks.some((f) => BROWSER_FRAMEWORKS.has(f)),
   );
-  console.log("  • the shipeasy-ops-install skill     — in-app feedback + production-error tracking");
-  console.log("  • the shipeasy-i18n-install skill    — translations");
-  if (opts.dryRun) console.log("\n(dry run — no files were written.)");
+  let devtoolsAccepted = false;
+  let opsEnabled: EnableResult | null = null;
+  if (!browserCandidates.length) {
+    console.log("  • no browser targets — skipping");
+  } else if (dryRun) {
+    console.log("  (dry run — would offer the overlay + enable the ops module)");
+  } else {
+    devtoolsAccepted = opts.devtools ?? false;
+    if (opts.devtools === undefined && interactive) {
+      const { yes } = await prompts({
+        type: "confirm",
+        name: "yes",
+        message:
+          "Add the Shipeasy devtools overlay? (in-page flag/experiment panel via ?se=1 + end-user bug reports)",
+        initial: true,
+      });
+      devtoolsAccepted = Boolean(yes);
+    }
+    if (devtoolsAccepted) {
+      try {
+        opsEnabled = await enableModuleGroup("ops");
+        console.log(`  ✓ ops module enabled (${opsEnabled.enabled_modules.join(", ")})`);
+      } catch (e) {
+        console.log(`  ✗ ops module enable failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
+      // The overlay script reads the project id from public env — persist it now.
+      for (const t of browserCandidates) {
+        const w = persistEnv(t.path, envFileFor(t), {
+          [projectIdVar(t.frameworks)]: projectId,
+        });
+        if (w.added.length)
+          console.log(`  ✓ ${relPath(root, t.path)}/${w.file}: added ${w.added.join(", ")}`);
+      }
+      console.log("  → the <script> tag injection is in the wiring steps (needs your layout)");
+    } else {
+      console.log("  • declined — add later with the shipeasy-ops-install skill");
+    }
+  }
+
+  // 7. Feature installs (server-side module groups; pure API calls)
+  heading("7. Feature installs");
+  let features: FeatureGroup[] = [];
+  if (dryRun) {
+    console.log("  (dry run — would offer flags / i18n / ops module enables)");
+  } else {
+    if (opts.features) {
+      const requested = opts.features
+        .split(",")
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean);
+      const unknown = requested.filter((f) => !(FEATURE_GROUPS as readonly string[]).includes(f));
+      if (unknown.length) {
+        throw new Error(`Unknown feature(s): ${unknown.join(", ")}. Known: ${FEATURE_GROUPS.join(", ")}`);
+      }
+      features = requested as FeatureGroup[];
+    } else if (interactive) {
+      const { picked } = await prompts({
+        type: "multiselect",
+        name: "picked",
+        message: "Enable feature modules now?",
+        choices: [
+          { title: "Flags & experiments — gates, configs, kill switches, A/B, metrics", value: "flags" },
+          { title: "Feedback, errors & alerts (ops)", value: "ops", selected: devtoolsAccepted },
+          { title: "Translations (i18n)", value: "i18n" },
+        ],
+        hint: "space to toggle, enter to confirm",
+        instructions: false,
+      });
+      features = (picked as FeatureGroup[] | undefined) ?? [];
+    }
+
+    if (!features.length) {
+      console.log("  • none selected — enable later with `shipeasy install <flags|i18n|ops>`");
+    }
+    for (const f of features) {
+      if (f === "ops" && opsEnabled) {
+        console.log("  • ops — already enabled (devtools step)");
+        continue;
+      }
+      try {
+        const r = await enableModuleGroup(f);
+        if (f === "ops") opsEnabled = r;
+        console.log(
+          `  ${r.ok ? "✓" : "✗"} ${f} — modules now: ${r.enabled_modules.join(", ")}` +
+            (r.profile_created ? " (created en:prod profile)" : ""),
+        );
+      } catch (e) {
+        console.log(`  ✗ ${f} enable failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+  }
+
+  // 8. Project pointer skill (re-onboarding breadcrumb for fresh checkouts)
+  heading("8. Project pointer skill");
+  if (dryRun) {
+    console.log("  (dry run — would write .claude/skills/shipeasy-onboarded/SKILL.md)");
+  } else {
+    const p = writePointerSkill(root);
+    console.log(
+      p.action === "wrote" ? `  ✓ wrote ${p.path}` : `  • ${p.path} already exists — left as-is`,
+    );
+  }
+
+  // 9. Verification gate
+  heading("9. Verification");
+  if (dryRun) {
+    console.log("  (dry run — skipped)");
+  } else {
+    const checks: Array<[string, boolean]> = [];
+    try {
+      const client = getApiClient();
+      await client.request("GET", `/api/admin/projects/${projectId}`);
+      checks.push([`session valid, project ${projectId} reachable`, true]);
+    } catch {
+      checks.push(["session/project check failed — run `shipeasy login`", false]);
+    }
+    try {
+      const client = getApiClient();
+      const res = await client.request<unknown[] | { data: unknown[] }>("GET", "/api/admin/keys");
+      const n = (Array.isArray(res) ? res : res.data).length;
+      checks.push([`${n} SDK key(s) on the project`, n > 0]);
+    } catch {
+      checks.push(["could not list keys", false]);
+    }
+    for (const t of actionable) {
+      const bound = getBoundProjectId(t.path);
+      checks.push([`${relPath(root, t.path)}/.shipeasy bound${bound ? ` → ${bound}` : ""}`, Boolean(bound)]);
+    }
+    for (const [label, ok] of checks) console.log(`  ${ok ? "✓" : "✗"} ${label}`);
+    if (checks.some(([, ok]) => !ok)) {
+      console.log("\n  Fix the ✗ lines before handing off — do not advance past a failing gate.");
+    }
+  }
+
+  // 10. Remaining (non-deterministic) wiring → instructions for ANY harness
+  heading("10. Remaining wiring — instructions for your coding agent");
+  const wiringTargets: WiringTarget[] = actionable.map((t) => {
+    const inst = installOutcome.get(t.path);
+    return {
+      relPath: relPath(root, t.path),
+      language: t.language,
+      sdk: t.recommendation.sdk ?? t.language,
+      frameworks: t.frameworks,
+      packageManager: t.package_manager,
+      entryPoints: t.entry_points,
+      sdkInstalled: t.recommendation.action === "set_key" || inst?.status === "ran",
+      installCmd:
+        t.recommendation.action === "install" && inst?.status !== "ran"
+          ? (t.recommendation.install ?? null)
+          : null,
+      envFile: envFileFor(t),
+      envVars: persistedVars.get(t.path) ?? [],
+      secretStoreMove: needsStoreMove(t.recommendation.secret_store)
+        ? t.recommendation.secret_store
+        : null,
+      browser: browserTarget(t),
+    };
+  });
+
+  const anythingToWire = wiringTargets.length > 0 || devtoolsAccepted || features.includes("ops");
+  if (!anythingToWire) {
+    console.log("  • nothing left — the codebase needs no wiring changes.");
+  } else if (dryRun) {
+    console.log(`  (dry run — would write ${WIRING_FILENAME} with the remaining steps)`);
+  } else {
+    const sampleBrowser = browserCandidates[0] ?? actionable.find((t) => browserTarget(t));
+    const doc = buildWiringDoc({
+      projectId,
+      targets: wiringTargets,
+      devtools:
+        devtoolsAccepted && sampleBrowser
+          ? {
+              clientKeyVar: clientKeyVar(sampleBrowser.frameworks),
+              projectIdVar: projectIdVar(sampleBrowser.frameworks),
+            }
+          : null,
+      enabledFeatures: [...features, ...(opsEnabled && !features.includes("ops") ? ["ops"] : [])],
+      buildTargets: wiringTargets
+        .filter((t) => t.language === "typescript" || t.language === "javascript")
+        .map((t) => t.relPath),
+    });
+    const wiringPath = join(root, WIRING_FILENAME);
+    writeFileSync(wiringPath, doc, "utf8");
+    console.log(`  ✓ wrote ${wiringPath}\n`);
+    await agentHandoff(opts, interactive);
+  }
+
+  // Summary
+  heading("Done");
+  console.log(`Project:   ${projectId || "(dry run)"}${projectName ? ` (${projectName})` : ""}`);
+  if (serverKey || clientKey) {
+    console.log(
+      `Keys:      ${[
+        serverKey ? `server ${maskKey(serverKey.key)}` : null,
+        clientKey ? `client ${maskKey(clientKey.key)}` : null,
+      ]
+        .filter(Boolean)
+        .join(", ")} — values in each target's gitignored env file`,
+    );
+  }
+  console.log(
+    `Targets:   ${actionable.length ? actionable.map((t) => relPath(root, t.path) + "/").join(", ") : "none needed work"}`,
+  );
+  console.log(`Devtools:  ${devtoolsAccepted ? "enabled (wire the script tag — see wiring steps)" : "declined"}`);
+  console.log(`Features:  ${features.length ? features.join(", ") : "none enabled"}`);
+  if (anythingToWire && !dryRun) {
+    console.log(`Wiring:    ${WIRING_FILENAME} — hand it to any coding agent to finish`);
+  }
+  if (projectId) {
+    const app = loadCredentials()?.app_base_url?.replace(/\/$/, "") ?? "https://app.shipeasy.ai";
+    console.log(`Dashboard: ${app}/projects/${projectId}`);
+  }
+  console.log(
+    "\nWhen the wiring is done, commit (setup never commits for you):\n" +
+      "  git add <each target>/.shipeasy .claude/skills/shipeasy-onboarded <manifests+lockfiles> <entry files>\n" +
+      '  git commit -m "chore: onboard Shipeasy base (SDK + auth + bind)"\n' +
+      "\nOptional: `shipeasy ops trigger prep` sets up the scheduled agent that burns down\n" +
+      "the bug/feature/error queue as PRs on a cadence.",
+  );
+  if (dryRun) console.log("\n(dry run — no files were written, nothing was minted.)");
 }
 
 export function setupCommand(parent: Command): void {
   const setup = parent
     .command("setup")
     .description(
-      "One-command onboarding: log in + bind a project, detect your coding agents, " +
-        "register the Shipeasy MCP server + skills, and hand SDK wiring to the agent.",
+      "Full onboarding: preconditions, monorepo target detection, login + per-target project " +
+        "bind, agent/MCP wiring, SDK keys, package installs, module enables — then emits " +
+        "harness-agnostic wiring instructions for the code changes.",
     )
-    .option("--yes", "Non-interactive: bind current project + wire all detected agents")
+    .option("--yes", "Non-interactive: accept defaults everywhere (bind, prod keys, run installs)")
     .option("--agents <list>", "Comma list to wire (claude,cursor,codex,copilot,jules)")
-    .option("--domain <domain>", "Production domain, passed to the Claude shipeasy-setup skill step")
+    .option("--domain <domain>", "Production domain (used when creating a new project at login)")
     .option("--scope <scope>", "user | project (MCP config scope)", "project")
-    .option("--no-claude-run", "Don't launch Claude Code for the in-repo wiring step")
-    .option("--dry-run", "Show what would change without writing files or launching anything")
+    .option("--env <env>", "Environment the minted SDK keys read: dev | staging | prod")
+    .option("--devtools", "Enable the devtools overlay without asking")
+    .option("--no-devtools", "Skip the devtools overlay without asking")
+    .option("--features <list>", "Module groups to enable non-interactively (flags,i18n,ops)")
+    .option("--skip-install", "Don't run SDK package installs (they go into the wiring steps)")
+    .option("--no-agent-run", "Don't offer to launch a coding agent on the wiring steps")
+    .addOption(new Option("--no-claude-run", "(deprecated) alias of --no-agent-run").hideHelp())
+    .option("--dry-run", "Show what would change without writing files or calling the API")
     .action(async (opts: SetupOpts) => {
       await runSetup(opts).catch((err: unknown) => {
         console.error(`\nSetup failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -355,23 +783,31 @@ export function setupCommand(parent: Command): void {
 
   withDetails(
     setup,
-    "`setup` is the one place that wires Shipeasy into your coding agents — there " +
-      "is no separate `skills`/`plugin` install step. It **detects every agent** " +
-      "in your environment (Claude Code, Cursor, OpenAI Codex, GitHub Copilot, " +
-      "Google Jules) and wires each one the way that agent expects:\n\n" +
-      "- **Claude Code** — installs the marketplace plugin (slash commands + " +
-      "skills + MCP), or drops `.mcp.json` when the `claude` binary isn't on PATH.\n" +
-      "- **Cursor / Codex / Copilot / Jules** — registers the hosted " +
-      "`mcp.shipeasy.ai` MCP server in that agent's config and writes its instructions file " +
-      "(`.cursor/rules/shipeasy.mdc`, `AGENTS.md`, `.github/copilot-instructions.md`).\n\n" +
-      "Pick a subset with `--agents`, or let it auto-detect. It's idempotent — " +
-      "safe to re-run as you add agents. In CI (non-TTY) it runs non-interactively " +
-      "with `SHIPEASY_CLI_TOKEN` + `SHIPEASY_PROJECT_ID`.",
+    "`setup` now runs the whole deterministic half of onboarding itself — the same " +
+      "flow as the `shipeasy-setup` skill, without needing an AI to drive it:\n\n" +
+      "0. Preconditions (Node >= 20, git repo — offers `git init`).\n" +
+      "1. `detect`-powered monorepo scan; every target gets its own `.shipeasy`.\n" +
+      "2. Browser login, then binds the repo root AND each install target.\n" +
+      "3. Wires your coding agents (Claude Code plugin, Cursor/Codex/Copilot/Jules " +
+      "MCP + instruction files, universal AGENTS.md).\n" +
+      "4. Mints env-locked server/client SDK keys.\n" +
+      "5. Runs the SDK package install per target and persists the keys to each " +
+      "target's gitignored env file.\n" +
+      "6-7. Offers the devtools overlay + feature module enables (flags/i18n/ops).\n" +
+      "8-9. Drops the re-onboarding pointer skill and runs the verification gate.\n" +
+      "10. Everything that needs codebase judgement (entry-point `configure(...)` " +
+      "wiring, idiomatic secret stores, overlay script injection) is written to " +
+      "`shipeasy-wiring.md` — complete, self-contained instructions any coding " +
+      "agent (Claude, Codex, Cursor, Copilot, or a human) can execute. Key values " +
+      "never appear in that file.\n\n" +
+      "Idempotent — safe to re-run. In CI (non-TTY) it runs non-interactively with " +
+      "`SHIPEASY_CLI_TOKEN` + `SHIPEASY_PROJECT_ID`.",
   );
 
   withExamples(setup, [
-    { run: "shipeasy setup", note: "interactive: detect + wire every agent found" },
-    { run: "shipeasy setup --yes --agents claude,cursor", note: "non-interactive subset" },
-    { run: "shipeasy setup --dry-run --no-claude-run", note: "preview without writing" },
+    { run: "shipeasy setup", note: "interactive: full onboarding, prompts as it goes" },
+    { run: "shipeasy setup --yes --env prod --features flags", note: "non-interactive" },
+    { run: "shipeasy setup --dry-run --no-agent-run", note: "preview without writing" },
+    { run: "shipeasy setup --agents claude,cursor --no-devtools", note: "subset, skip overlay" },
   ]);
 }

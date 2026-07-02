@@ -66,6 +66,8 @@ const TARGETS = {
 
 type TargetName = keyof typeof TARGETS;
 
+export const MODULE_GROUPS = Object.keys(TARGETS) as TargetName[];
+
 function isTruthy(v: boolean | number | undefined): boolean {
   return Boolean(v);
 }
@@ -80,6 +82,72 @@ function enabledList(p: ProjectModules): string[] {
     ["feedback", p.moduleFeedback],
   ];
   return mods.filter(([, v]) => isTruthy(v)).map(([k]) => k);
+}
+
+export interface EnableResult {
+  module: TargetName;
+  label: string;
+  enabled_modules: string[];
+  profile_created: boolean;
+  verify: Array<{ path: string; ok: boolean; status: number | null }>;
+  ok: boolean;
+}
+
+/**
+ * The pure enable-and-verify core, shared by `shipeasy install <module>` and
+ * `shipeasy setup`'s feature-install step: PATCH the module flags on, ensure
+ * the i18n primary profile exists, then confirm each read path is reachable
+ * (a 403 means the flag didn't take).
+ */
+export async function enableModuleGroup(
+  target: TargetName,
+  opts: { profile?: string; project?: string } = {},
+): Promise<EnableResult> {
+  const spec = TARGETS[target];
+  const client = getApiClient(opts.project, { requireBinding: true });
+
+  const project = await client.request<ProjectModules>(
+    "PATCH",
+    `/api/admin/projects/${client.projectId}`,
+    spec.patch,
+  );
+
+  let profileCreated = false;
+  if (target === "i18n") {
+    const profile = opts.profile ?? "en:prod";
+    const profiles = await client.request<Array<{ id: string; name: string }>>(
+      "GET",
+      "/api/admin/i18n/profiles",
+    );
+    if (!profiles.some((p) => p.name === profile)) {
+      await client.request("POST", "/api/admin/i18n/profiles", {
+        name: profile,
+        locales: ["en"],
+        default_locale: "en",
+      });
+      profileCreated = true;
+    }
+  }
+
+  const verify: Array<{ path: string; ok: boolean; status: number | null }> = [];
+  for (const path of spec.verify) {
+    try {
+      await client.request("GET", path);
+      verify.push({ path, ok: true, status: 200 });
+    } catch (e) {
+      const status = e instanceof ApiError ? e.status : null;
+      verify.push({ path, ok: status !== 403, status });
+    }
+  }
+
+  return {
+    module: target,
+    label: spec.label,
+    enabled_modules: enabledList(project),
+    profile_created: profileCreated,
+    verify,
+    ok: !verify.some((v) => v.status === 403),
+  };
 }
 
 export function installCommand(parent: Command): Command {
@@ -104,66 +172,28 @@ export function installCommand(parent: Command): Command {
         const spec = TARGETS[target];
 
         try {
-          const client = getApiClient(opts.project, { requireBinding: true });
-
-          // 1. Enable the module group. PATCH returns the updated project, so
-          //    we read the enabled set straight back from the response.
-          const project = await client.request<ProjectModules>(
-            "PATCH",
-            `/api/admin/projects/${client.projectId}`,
-            spec.patch,
-          );
-
-          // 2. i18n: ensure the primary profile exists (the server does NOT
-          //    auto-create one). en:prod matches the default loader + SSR fetch.
-          let profileCreated = false;
-          if (target === "i18n") {
-            const profiles = await client.request<Array<{ id: string; name: string }>>(
-              "GET",
-              "/api/admin/i18n/profiles",
-            );
-            if (!profiles.some((p) => p.name === opts.profile)) {
-              await client.request("POST", "/api/admin/i18n/profiles", {
-                name: opts.profile,
-                locales: ["en"],
-                default_locale: "en",
-              });
-              profileCreated = true;
-            }
-          }
-
-          // 3. Verify each read path is reachable (never 403). A 403 here means
-          //    the module flag didn't take — surface it rather than claim success.
-          const verify: Array<{ path: string; ok: boolean; status: number | null }> = [];
-          for (const path of spec.verify) {
-            try {
-              await client.request("GET", path);
-              verify.push({ path, ok: true, status: 200 });
-            } catch (e) {
-              const status = e instanceof ApiError ? e.status : null;
-              verify.push({ path, ok: status !== 403, status });
-            }
-          }
-          const blocked = verify.filter((v) => v.status === 403);
-
-          const enabled = enabledList(project);
+          const result = await enableModuleGroup(target, {
+            profile: opts.profile,
+            project: opts.project,
+          });
+          const blocked = result.verify.filter((v) => v.status === 403);
 
           if (opts.json) {
             return printJson({
-              module: target,
-              enabled_modules: enabled,
-              profile_created: profileCreated,
-              verify,
-              ok: blocked.length === 0,
+              module: result.module,
+              enabled_modules: result.enabled_modules,
+              profile_created: result.profile_created,
+              verify: result.verify,
+              ok: result.ok,
             });
           }
 
           console.log(`✅ ${spec.label} install complete`);
           console.log(`   ${spec.blurb}`);
-          console.log(`   Modules enabled: ${enabled.join(", ") || "(none)"}`);
+          console.log(`   Modules enabled: ${result.enabled_modules.join(", ") || "(none)"}`);
           if (target === "i18n") {
             console.log(
-              profileCreated
+              result.profile_created
                 ? `   Profile:         ${opts.profile} (created)`
                 : `   Profile:         ${opts.profile} (already existed)`,
             );

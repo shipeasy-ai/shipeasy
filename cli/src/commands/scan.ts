@@ -481,7 +481,7 @@ const SDK_FOR_LANGUAGE: Record<string, string> = {
   swift: "swift",
 };
 
-const BROWSER_FRAMEWORKS = new Set([
+export const BROWSER_FRAMEWORKS = new Set([
   "nextjs",
   "react",
   "vue",

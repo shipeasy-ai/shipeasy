@@ -12,7 +12,7 @@ import { withExamples, withDetails, withOutput } from "../util/examples";
  * workspace-root / unsupported folders that carry no SDK. Returns the paths
  * written so the caller can surface them.
  */
-function recordDetection(targets: TargetRecommendation[]): string[] {
+export function recordDetection(targets: TargetRecommendation[]): string[] {
   const written: string[] = [];
   for (const t of targets) {
     const { sdk, action } = t.recommendation;
