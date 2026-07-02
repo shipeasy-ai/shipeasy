@@ -1,7 +1,7 @@
 {
   "name": "shipeasy",
   "version": "3.11.0",
-  "description": "Shipeasy for GitHub Copilot CLI — feature flags, A/B experiments, event metrics, translations, and in-app feedback. Bundles the same 12 skills the Claude Code and Codex plugins ship and the shipeasy MCP server; uses a Copilot-shaped MCP file (type: local) since Copilot requires it. All CRUD is delegated to the shipeasy MCP server or CLI.",
+  "description": "Shipeasy for GitHub Copilot CLI — feature flags, A/B experiments, event metrics, translations, and in-app feedback. Bundles the same 11 skills the Claude Code and Codex plugins ship and the shipeasy MCP server; uses a Copilot-shaped MCP file (type: local) since Copilot requires it. All CRUD is delegated to the shipeasy MCP server or CLI.",
   "author": { "name": "Shipeasy", "url": "https://shipeasy.ai" },
   "homepage": "https://shipeasy.ai",
   "repository": "https://github.com/shipeasy-ai/shipeasy",

@@ -122,7 +122,7 @@ Agent ▸ Created gate `new_pricing_page` (rollout 5%). Add gates.check("new_pri
 | **Native plugin (Tier 1)** | Claude Code · Codex · GitHub Copilot CLI |
 | **Skills + MCP (Tier 2)** | Cursor · Windsurf · Cline · Gemini CLI · OpenCode · Continue · OpenClaw · 70+ more |
 
-All 12 skills (9 area guides + 3 multi-step workflow skills) and the
+All 11 skills (9 area guides + 2 multi-step workflow skills) and the
 `shipeasy` MCP server port to *every* agent — the flows trigger from
 natural-language phrasing everywhere, and Claude Code additionally exposes each
 skill as a `/shipeasy:<skill-name>` command. Skills and MCP are *referenced,

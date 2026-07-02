@@ -29,7 +29,7 @@ finishing one before starting the next keeps every diff reviewable and avoids
 cross-item contamination. Follow the `shipeasy-ops` skill for triage semantics.
 
 Binding, auth (interactive and unattended), CLI updates, and module enablement
-are the `shipeasy-common` skill (module install: `shipeasy-ops-install`) — not
+are the `shipeasy-common` skill (module install: `shipeasy install ops`) — not
 restated here.
 
 The commands named below (`ops list/get/update/link-pr/notify`, MCP twins
@@ -278,5 +278,5 @@ push straight to the default branch.
   skipped its recording.
 - **Stop the loop on the first auth/permission error.** A `401`/`403` means
   the binding or feedback module is wrong (`shipeasy-common` /
-  `shipeasy-ops-install`) — don't burn the whole queue reproducing the same
+  `shipeasy install ops`) — don't burn the whole queue reproducing the same
   failure.

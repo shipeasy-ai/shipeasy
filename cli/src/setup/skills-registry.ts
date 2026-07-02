@@ -9,12 +9,12 @@ import { MARKETPLACE_SLUG } from "./agents";
  *
  * **Scalability:** this is the ONE place to edit when skills are added, renamed,
  * or split — setup reads the map, it hardcodes nothing. Each feature points at
- * its umbrella *-install skill; those umbrellas pull in their own sub-skills, so
- * we never enumerate the whole tree here.
+ * its how-to skill(s); ops also ships `shipeasy-see` so the error-reporting
+ * grammar rides along whenever the feedback module is enabled.
  */
 export const FEATURE_SKILLS: Record<string, string[]> = {
   flags: ["shipeasy-flags"],
-  ops: ["shipeasy-ops"],
+  ops: ["shipeasy-ops", "shipeasy-see"],
   i18n: ["shipeasy-i18n"],
 };
 

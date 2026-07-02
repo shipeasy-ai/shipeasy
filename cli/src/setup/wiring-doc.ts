@@ -204,8 +204,9 @@ Docs: https://docs.shipeasy.ai/feedback/devtools
 function opsSection(sdk: string, doc: string | null | undefined): string {
   return `## Ops wiring — error reporting (ops module enabled)
 
-The \`shipeasy-ops\` skill was installed into your agent(s) — use it for the full
-walkthrough. In brief:
+The \`shipeasy-ops\` and \`shipeasy-see\` skills were installed into your agent(s)
+— use them for the full walkthrough (\`shipeasy-see\` is the error-reporting
+grammar). In brief:
 
 - [ ] Report errors through the SDK's error primitive at meaningful failure
       points. Use the exact call from the doc for this target's language:

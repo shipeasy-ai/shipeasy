@@ -90,7 +90,7 @@ bound `.shipeasy`):
 - `shipeasy install flags` — gates, configs, kill switches, experiments, events,
   **and** alert rules. Guided: the `shipeasy install flags` (or `shipeasy setup`).
 - `shipeasy install ops` — feedback (bug/feature reports) + error collection.
-  Guided: the `shipeasy-ops-install` skill.
+  Guided: the `shipeasy-ops` + `shipeasy-see` skills.
 - `shipeasy install i18n` — translations + the `en:prod` profile. Guided: the
   `shipeasy install i18n`.
 

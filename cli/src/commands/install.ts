@@ -226,10 +226,11 @@ export function installCommand(parent: Command): Command {
             );
           } else if (target === "ops") {
             console.log(
-              "\nNext (these need codebase work — run the slash command):\n" +
-                "   the shipeasy-ops-install skill   — wire the devtools overlay + see() error\n" +
-                "                            reporting per your language's docs\n" +
-                "   shipeasy ops bug list   — confirm the queue is reachable",
+              "\nNext (these need codebase work):\n" +
+                "   the shipeasy-ops skill    — wire the devtools overlay + see() error\n" +
+                "                               reporting per your language's docs\n" +
+                "   the shipeasy-see skill    — error-reporting grammar (installed with ops)\n" +
+                "   shipeasy ops bug list     — confirm the queue is reachable",
             );
           }
         } catch (e) {
@@ -250,7 +251,7 @@ export function installCommand(parent: Command): Command {
       "    default en:prod) exists, since the server does not auto-create one.\n" +
       "  • ops   — feedback + events (the queue + production-error tickets). The\n" +
       "    code wiring (devtools overlay, see() reporting) is language-specific\n" +
-      "    and stays in the `shipeasy-ops-install` skill.\n\n" +
+      "    and lives in the `shipeasy-ops` + `shipeasy-see` skills.\n\n" +
       "Requires an admin session (`shipeasy login`) and a bound project; an `ops` " +
       "key cannot toggle modules.",
   );

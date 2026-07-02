@@ -633,7 +633,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
       }
       console.log("  → the <script> tag injection is in the wiring steps (needs your layout)");
     } else {
-      console.log("  • declined — add later with the shipeasy-ops-install skill");
+      console.log("  • declined — add later with `shipeasy install ops` (see the shipeasy-ops skill)");
     }
   }
 

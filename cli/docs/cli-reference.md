@@ -1683,7 +1683,7 @@ Turns on a coherent group of project modules in one call, then verifies the admi
     default en:prod) exists, since the server does not auto-create one.
   • ops   — feedback + events (the queue + production-error tickets). The
     code wiring (devtools overlay, see() reporting) is language-specific
-    and stays in the `shipeasy-ops-install` skill.
+    and lives in the `shipeasy-ops` + `shipeasy-see` skills.
 
 Requires an admin session (`shipeasy login`) and a bound project; an `ops` key cannot toggle modules.
 

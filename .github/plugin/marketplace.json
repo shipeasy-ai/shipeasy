@@ -11,7 +11,7 @@
   "plugins": [
     {
       "name": "shipeasy",
-      "description": "End-to-end Shipeasy: SDK install + auth + bind, experiments, metrics, gates, configs, kill switches, alert rules, translations, and feedback. Bundles the same 12 skills as the Claude Code and Codex plugins plus the shipeasy MCP server — no content duplicated. All CRUD is delegated to the shipeasy MCP server or CLI.",
+      "description": "End-to-end Shipeasy: SDK install + auth + bind, experiments, metrics, gates, configs, kill switches, alert rules, translations, and feedback. Bundles the same 11 skills as the Claude Code and Codex plugins plus the shipeasy MCP server — no content duplicated. All CRUD is delegated to the shipeasy MCP server or CLI.",
       "version": "3.11.0",
       "source": "./shipeasy"
     }

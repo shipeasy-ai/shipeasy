@@ -11,7 +11,7 @@ import { substituteSdkSnippets } from "../setup/sdk-docs";
 describe("skills registry", () => {
   it("maps each feature to its marketplace usage skill (not the removed *-install)", () => {
     expect(FEATURE_SKILLS.flags).toEqual(["shipeasy-flags"]);
-    expect(FEATURE_SKILLS.ops).toEqual(["shipeasy-ops"]);
+    expect(FEATURE_SKILLS.ops).toEqual(["shipeasy-ops", "shipeasy-see"]);
     expect(FEATURE_SKILLS.i18n).toEqual(["shipeasy-i18n"]);
     for (const names of Object.values(FEATURE_SKILLS)) {
       for (const n of names) expect(n).not.toMatch(/-install$/);
@@ -19,7 +19,11 @@ describe("skills registry", () => {
   });
 
   it("de-duplicates skills across selected features and ignores unknowns", () => {
-    expect(skillsForFeatures(["flags", "ops"]).sort()).toEqual(["shipeasy-flags", "shipeasy-ops"]);
+    expect(skillsForFeatures(["flags", "ops"]).sort()).toEqual([
+      "shipeasy-flags",
+      "shipeasy-ops",
+      "shipeasy-see",
+    ]);
     expect(skillsForFeatures(["flags", "flags"])).toEqual(["shipeasy-flags"]);
     expect(skillsForFeatures(["nope"])).toEqual([]);
   });
