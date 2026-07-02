@@ -8,33 +8,18 @@ user-invocable: true
 The single end-to-end "work the inbox" loop. **The queue is ONE table** — the
 project's unified `feedback` queue — holding five item types:
 
-| type              | filed by                                                | what it is                                            |
-| ----------------- | ------------------------------------------------------- | ----------------------------------------------------- |
-| `bug`             | humans (devtools nub, public widget, CLI, dashboard)     | a bug report                                           |
-| `feature_request` | humans                                                   | a feature request                                      |
-| `error`           | **the platform** (auto-filed)                            | a tracked production error crossed the occurrence threshold |
-| `alert`           | **the platform** (auto-filed)                            | an alert transitioned to active (metric rule, SRM/peek, guardrail) |
-| `measure_plan`    | **the website assistant** (auto-filed)                   | a measurement plan: instant resources already created; the event instrumentation it depends on is code you implement |
+| type              | filed by                                                | what it is                                            | runbook                          |
+| ----------------- | ------------------------------------------------------- | ----------------------------------------------------- | -------------------------------- |
+| `bug`             | humans (devtools nub, public widget, CLI, dashboard)     | a bug report                                           | <references/bugs.md>             |
+| `feature_request` | humans                                                   | a feature request                                      | <references/features.md>         |
+| `error`           | **the platform** (auto-filed)                            | a tracked production error crossed the occurrence threshold | <references/errors.md>      |
+| `alert`           | **the platform** (auto-filed)                            | an alert transitioned to active (metric rule, SRM/peek, guardrail) | <references/alerts.md> |
+| `measure_plan`    | **the website assistant** (auto-filed)                   | a measurement plan: instant resources already created; the event instrumentation it depends on is code you implement | <references/measure-plans.md> |
 
 Error/alert tickets arrive with the investigation context baked into
 `description` + `context` (`context.error.{id,fingerprint}` /
 `context.alert.{source,dedupeKey,…}`) — the raw `errors`/`alerts` sources are
 for *diagnosis* while working a ticket, not for building the queue.
-
-`measure_plan` tickets come from the in-dashboard assistant, which can create
-metrics/experiments/alert rules over the API but **can't edit the repo** — it
-created what it could and filed the rest here for you. Read
-`context.measurePlan`:
-
-- `created[]` — resources already live (`{kind,id,name}`); don't recreate them.
-- `pending[]` — resources it couldn't make yet (usually a metric whose backing
-  event isn't emitted); create these **after** you add the instrumentation.
-- `instrumentation[]` — the code work: for each, emit the `event` at the place
-  `detail` describes (follow the `flags`/`experiments` skills for the SDK call).
-
-Working one: implement the `instrumentation[]` events, create the `pending[]`
-resources, verify the `created[]` metrics now bind to a real event, then ship
-it like any other item.
 
 **Loop, do not batch.** Each item is its own mini-investigation + fix;
 finishing one before starting the next keeps every diff reviewable and avoids
@@ -109,85 +94,26 @@ Every item — **any type** — takes the same status write:
 per-item `#number` or the full id; the API resolves either).
 Flip to `in_progress` when you start an item.
 
-### 1a. Bugs
+### 1a. Work the item per its type runbook
 
-1. `shipeasy ops get <handle>` — read `title`, `description`,
-   `pageUrl`, `priority`, `context`, `attachments[]`.
-2. For each entry in `attachments[]`, fetch its URL. **Read screenshots into
-   context** (the image renders to you). **Recordings** (`.webm`/`.mp4`) can't
-   be watched — surface the path and ask whether screenshots+text suffice;
-   don't silently skip.
-3. Flip to `in_progress` (skip if already):
-   `shipeasy ops update <handle> --status in_progress`.
-4. Investigate from `pageUrl` / stack frame / screenshot text. Reproduce
-   locally if the dev server is up. Reuse `superpowers:systematic-debugging`
-   when the cause isn't obvious — don't guess.
-5. Fix the **root cause**. No drive-by refactors, no swallowing, no deleting
-   the failing assertion. Keep the diff scoped to this bug. Run the relevant
-   gate (unit tests touching the file, `pnpm type-check` if TS changed, reload
-   the page for UI fixes).
-6. `--status resolved` only if confidently fixed + verified; `--status
-   ready_for_qa` if it needs human verification. Can't fix? Leave it
-   `in_progress`, write a one-paragraph hand-off note, **and
-   [escalate](#escalate-raise-a-bell-notification-when-the-fix-isnt-in-code)**
-   — then move on.
+Each type has its own runbook — the `runbook` column in the queue table
+above. **Read the runbook before working the first item of that type**
+(bugs → `references/bugs.md`, features → `references/features.md`,
+errors → `references/errors.md`, alerts → `references/alerts.md`,
+measure plans → `references/measure-plans.md`). Shared across all of them:
 
-### 1b. Features
+- Fix the **root cause** — no drive-by refactors, no swallowing, no deleting
+  the failing assertion. One atomic diff, scoped to this item.
+- Run the relevant gate (unit tests touching the file, `pnpm type-check` if
+  TS changed, reload the page for UI fixes, an e2e spec for new UI
+  workflows — see CLAUDE.md).
+- `resolved` only if confidently fixed + verified; `ready_for_qa` if a human
+  must verify. Can't fix? Leave it `in_progress` with a one-paragraph
+  hand-off note **and
+  [escalate](#escalate-raise-a-bell-notification-when-the-fix-isnt-in-code)**
+  — then move on.
 
-1. Read `title`, `description`, `useCase`, `priority`, `pageUrl` from the
-   queue JSON.
-2. **Design first** with `AskUserQuestion` (interactive runs only — unattended
-   runs pick the smallest shape): locate the surface area (grep keywords +
-   `pageUrl`), propose 2–4 implementation shapes (file:line scope, behaviour
-   delta, trade-off). Stop scope creep — propose the smallest shape that
-   satisfies the use case; flag larger refactors as follow-ups.
-3. Implement as **one atomic diff**. No half-finished work — if it genuinely
-   can't land in one pass (missing API, schema change you can't apply), note
-   the gap,
-   **[escalate](#escalate-raise-a-bell-notification-when-the-fix-isnt-in-code)**
-   with the blocker + next steps, and skip; don't land a partial. Reuse
-   existing utilities before adding abstractions. Run the gate (incl. an e2e
-   spec for new UI workflows — see CLAUDE.md).
-4. Flip to `ready_for_qa` when implemented; `resolved` is the human's call
-   after it ships.
-
-### 1c. Error tickets
-
-1. The ticket's `description` already carries the consequence, count, seen
-   URLs, fingerprint, and stack head; `context.error.{id,fingerprint}` ties it
-   to the underlying tracked error. Re-read the ticket any time with
-   `shipeasy ops get <handle>`.
-2. Locate the throw site from the stack frame / message. Reproduce if
-   feasible. Fix the root cause (same hard rules as bugs). When the fix adds
-   a catch block, instrument it with `see(e).causes_the(…).to(…)` from
-   `@shipeasy/sdk` (see the `shipeasy-see` skill for consequence-writing rules).
-3. Flip the ticket when the fix lands. The underlying tracked error
-   auto-resolves with the ticket and **reopens automatically if it recurs**,
-   so this is safe pre-deploy. Note the fingerprint in your summary.
-
-### 1d. Alert tickets
-
-1. The ticket's `description` carries the alert detail, source, observed
-   value, and dashboard link; `context.alert.source` tells you the origin:
-   - `metric_rule` — a user-defined threshold tripped. Open the metric
-     (`shipeasy metrics list`), confirm the breach is real (not a bad
-     threshold), and fix the underlying regression if there is one.
-   - `experiment_srm` / `experiment_peek` — a sample-ratio mismatch or an
-     early-peek warning on a running experiment. Usually an assignment or
-     instrumentation bug — investigate, don't just acknowledge.
-   - `guardrail` — a guardrail metric moved the wrong way. Treat like a bug
-     in the change that moved it.
-   (Killswitch-armed alerts never file tickets — arming one is usually
-   intentional incident response.)
-2. The *alert* auto-resolves when its condition clears; the **ticket** is the
-   work record. If code needs to change, land the fix as its own atomic diff
-   and flip the ticket. If it's an ops acknowledgement (bad threshold,
-   expected spike), say so and flip the ticket to `resolved` with a one-line
-   note in your summary. When the right fix IS a rule change (new
-   threshold/comparator/window), that's a human edit the ops key can't make —
-   **escalate** with the exact new values.
-
-### 1e. Report and continue
+### 1b. Report and continue
 
 One short paragraph per item, then the next:
 
