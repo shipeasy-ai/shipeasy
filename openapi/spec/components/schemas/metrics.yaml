@@ -387,7 +387,7 @@ MetricEventName:
   minLength: 1
   description: Source event the query reads from.
 MetricQueryDsl:
-  description: Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`.
+  description: Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`. Every label the query references — in filters, the value position, `by (…)`, or `without (…)` — must exist as a property on the tracked event's payload; a query over a label the event never carries validates fine but returns empty results.
   type: string
   minLength: 1
   maxLength: 4096

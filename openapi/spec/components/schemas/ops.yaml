@@ -419,7 +419,11 @@ OpsItemStatus:
     - wont_fix
   description: >-
     Lifecycle status of a queue item. The working flow is `open` → `triaged` →
-    `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`). Two
+    `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`, terminal from
+    any earlier stage). `ready_for_qa` is what a developer sets once a fix
+    lands; `resolved` is the QA sign-off, normally flipped in the dashboard
+    after verification — set it directly from code only when the fix has been
+    verified end-to-end. Two
     human-gated holding states park an item OUT of the work queue until a human
     promotes it to `open` in the dashboard, so `GET /api/admin/ops` excludes
     them under `status=all`/default and returns them only when requested as an

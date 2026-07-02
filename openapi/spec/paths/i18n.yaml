@@ -223,6 +223,8 @@
     description: |-
       Overwrite a single existing key's value — the only overwrite path.
 
+      The change goes live on its own: the profile's KV snapshot is rebuilt and the CDN purged as part of this call, so no separate profile publish is needed.
+
       **Use case:** Correct or re-translate a single string in place.
     tags:
       - Keys

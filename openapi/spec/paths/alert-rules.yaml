@@ -129,7 +129,7 @@
     operationId: updateAlertRule
     summary: Update an alert rule
     description: |-
-      Partial update of a rule's tunable knobs. `metricId` is immutable — it is rejected by the schema (the metric also pins the aggregation), so delete + recreate to repoint a rule.
+      Partial update of a rule's tunable knobs. `metricId` is immutable — the metric also pins the aggregation, so a body carrying `metricId` is rejected with `409 IMMUTABLE_FIELD`; create a new rule bound to the other metric instead (rule deletion is dashboard-only).
 
       Pass `"notify": null` to revert the rule's delivery target back to the project default.
 
@@ -195,6 +195,7 @@
       - UNAUTHORIZED
       - FORBIDDEN
       - NOT_FOUND
+      - IMMUTABLE_FIELD
       - VALIDATION
     x-cli:
       name: update

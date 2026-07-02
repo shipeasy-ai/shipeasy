@@ -1111,7 +1111,7 @@ export const deleteAlertRule = <ThrowOnError extends boolean = false>(options: O
 /**
  * Update an alert rule
  *
- * Partial update of a rule's tunable knobs. `metricId` is immutable — it is rejected by the schema (the metric also pins the aggregation), so delete + recreate to repoint a rule.
+ * Partial update of a rule's tunable knobs. `metricId` is immutable — the metric also pins the aggregation, so a body carrying `metricId` is rejected with `409 IMMUTABLE_FIELD`; create a new rule bound to the other metric instead (rule deletion is dashboard-only).
  *
  * Pass `"notify": null` to revert the rule's delivery target back to the project default.
  *
@@ -1248,6 +1248,8 @@ export const pushI18nKeys = <ThrowOnError extends boolean = false>(options: Opti
  * Update one i18n key
  *
  * Overwrite a single existing key's value — the only overwrite path.
+ *
+ * The change goes live on its own: the profile's KV snapshot is rebuilt and the CDN purged as part of this call, so no separate profile publish is needed.
  *
  * **Use case:** Correct or re-translate a single string in place.
  */
