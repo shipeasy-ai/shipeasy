@@ -108,7 +108,7 @@ overlay (`https://cdn.shipeasy.ai/se-devtools.js`, `?se=1` / Shift+Alt+S) is a
 Once the wiring is done and verified, offer the feature installs the user hasn't
 enabled yet, and the automated feedback trigger:
 
-- **Flags & experiments** — `shipeasy-flags-install`
-- **Feedback, errors & alerts** — `shipeasy-ops-install`
-- **Translations (i18n)** — `shipeasy-i18n-install`
+- **Flags & experiments** — `shipeasy install flags`; how-to: the `shipeasy-flags` skill
+- **Feedback, errors & alerts** — `shipeasy install ops`; how-to: the `shipeasy-ops` skill
+- **Translations (i18n)** — `shipeasy install i18n`; how-to: the `shipeasy-i18n` skill
 - **Scheduled fix trigger** — `shipeasy-ops-trigger` (or `shipeasy ops trigger prep`)

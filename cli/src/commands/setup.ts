@@ -11,12 +11,15 @@ import {
   type AgentId,
   type InstallCtx,
   type McpResult,
+  SKILLS_CLI_AGENT,
   detectAgents,
   detectHarness,
   installClaudePlugin,
   onPath,
   registerMcp,
 } from "../setup/agents";
+import { fetchSdkDoc, fetchSdkSkill, installMarketplaceSkill, installSkill } from "../setup/sdk-docs";
+import { skillsForFeatures } from "../setup/skills-registry";
 import {
   type FileResult,
   writeAgentsMd,
@@ -37,7 +40,6 @@ import {
   projectIdVar,
   relPath,
   runSdkInstall,
-  writePointerSkill,
   SERVER_KEY_VAR,
 } from "../setup/onboard";
 import { buildWiringDoc, type WiringTarget } from "../setup/wiring-doc";
@@ -485,10 +487,11 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     }
   }
 
-  // 5. Per target: install the SDK package + persist the keys
+  // 5. Per target: install the SDK package + persist the keys + pull docs
   heading("5. Install SDK + persist keys (per target)");
   const installOutcome = new Map<string, { status: string; cmd: string }>();
   const persistedVars = new Map<string, string[]>();
+  const installDocs = new Map<string, string | null>(); // target path → installation doc
   if (!actionable.length) {
     console.log("  • nothing to do");
   } else {
@@ -552,6 +555,37 @@ async function runSetup(opts: SetupOpts): Promise<void> {
         persistedVars.set(t.path, t.shipeasy.env_keys_detected);
         console.log("    • keys already in env — nothing persisted");
       }
+
+      // Pull the version-correct installation doc to embed in the wiring file.
+      const doc = await fetchSdkDoc(t.recommendation.sdk ?? t.language, "installation", t.frameworks[0]);
+      installDocs.set(t.path, doc);
+      console.log(doc ? "    ✓ installation doc fetched" : "    • installation doc unavailable (offline?)");
+    }
+  }
+
+  // 5b. Install the SDK how-to skill into the wired agents (runs `npx skills`).
+  heading("5b. Install SDK skills");
+  const skillsCliAgents = selected.map((a) => SKILLS_CLI_AGENT[a]).filter(Boolean) as string[];
+  const uniqueSdks = [...new Set(actionable.map((t) => t.recommendation.sdk).filter(Boolean))] as string[];
+  if (dryRun) {
+    console.log(`  (dry run — would fetch + \`npx skills add\` the SDK skill for: ${uniqueSdks.join(", ") || "—"})`);
+  } else if (!uniqueSdks.length) {
+    console.log("  • no SDKs to document — skipping");
+  } else if (!selected.length) {
+    console.log("  • no agents selected — skipping (install later: shipeasy docs skill --sdk <lang> --install)");
+  } else {
+    for (const sdk of uniqueSdks) {
+      const content = await fetchSdkSkill(sdk);
+      if (!content) {
+        console.log(`  • ${sdk}: no published skill — skipped`);
+        continue;
+      }
+      // Claude gets marketplace/SDK skills via its plugin; other agents via the
+      // `skills` CLI. Install the SDK skill for the skills-CLI agents; if none
+      // (e.g. only Claude), write it to .claude/skills so Claude Code sees it.
+      // Snippets are baked in for this SDK's language at install.
+      const res = await installSkill(content, sdk, skillsCliAgents.length ? { agents: skillsCliAgents } : {});
+      console.log(`  ${res.action === "failed" ? "✗" : "✓"} ${sdk}: ${res.detail}`);
     }
   }
 
@@ -654,21 +688,30 @@ async function runSetup(opts: SetupOpts): Promise<void> {
         console.log(`  ✗ ${f} enable failed: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
+
+    // Install each enabled feature's marketplace how-to skill into the
+    // skills-CLI agents, with its `{{SDK_SNIPPET:…}}` placeholders baked in for
+    // the primary SDK's language. Claude already has them via its plugin.
+    const enabledForSkills = [
+      ...new Set([...features, ...(opsEnabled && !features.includes("ops") ? ["ops"] : [])]),
+    ];
+    const featureSkillNames = skillsForFeatures(enabledForSkills);
+    const featureSdk = actionable[0]?.recommendation.sdk ?? actionable[0]?.language;
+    if (featureSkillNames.length && skillsCliAgents.length && featureSdk) {
+      for (const name of featureSkillNames) {
+        const res = await installMarketplaceSkill(name, featureSdk, { agents: skillsCliAgents });
+        console.log(
+          `  ${res.action === "failed" ? "✗" : "✓"} ${name}: ${res.detail}` +
+            (res.action === "failed" ? " (install later)" : ""),
+        );
+      }
+    } else if (featureSkillNames.length) {
+      console.log("  • feature skills: Claude gets them via its plugin; no other agents to install into");
+    }
   }
 
-  // 8. Project pointer skill (re-onboarding breadcrumb for fresh checkouts)
-  heading("8. Project pointer skill");
-  if (dryRun) {
-    console.log("  (dry run — would write .claude/skills/shipeasy-onboarded/SKILL.md)");
-  } else {
-    const p = writePointerSkill(root);
-    console.log(
-      p.action === "wrote" ? `  ✓ wrote ${p.path}` : `  • ${p.path} already exists — left as-is`,
-    );
-  }
-
-  // 9. Verification gate
-  heading("9. Verification");
+  // 8. Verification gate
+  heading("8. Verification");
   if (dryRun) {
     console.log("  (dry run — skipped)");
   } else {
@@ -698,8 +741,8 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     }
   }
 
-  // 10. Remaining (non-deterministic) wiring → instructions for ANY harness
-  heading("10. Remaining wiring — instructions for your coding agent");
+  // 9. Remaining (non-deterministic) wiring → instructions for ANY harness
+  heading("9. Remaining wiring — instructions for your coding agent");
   const wiringTargets: WiringTarget[] = actionable.map((t) => {
     const inst = installOutcome.get(t.path);
     return {
@@ -714,6 +757,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
         t.recommendation.action === "install" && inst?.status !== "ran"
           ? (t.recommendation.install ?? null)
           : null,
+      installationDoc: installDocs.get(t.path) ?? null,
       envFile: envFileFor(t),
       envVars: persistedVars.get(t.path) ?? [],
       secretStoreMove: needsStoreMove(t.recommendation.secret_store)
@@ -723,12 +767,27 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     };
   });
 
-  const anythingToWire = wiringTargets.length > 0 || devtoolsAccepted || features.includes("ops");
+  const enabledFeatures = [
+    ...new Set([...features, ...(opsEnabled && !features.includes("ops") ? ["ops"] : [])]),
+  ];
+  const anythingToWire = wiringTargets.length > 0 || devtoolsAccepted || enabledFeatures.length > 0;
   if (!anythingToWire) {
     console.log("  • nothing left — the codebase needs no wiring changes.");
   } else if (dryRun) {
     console.log(`  (dry run — would write ${WIRING_FILENAME} with the remaining steps)`);
   } else {
+    // Fetch language-correct feature snippets for the primary SDK so the wiring
+    // doc embeds real calls, not framework-specific guesses.
+    const primarySdk = wiringTargets[0]?.sdk;
+    const featureDocs: { i18n?: string | null; errorReporting?: string | null } = {};
+    if (primarySdk && enabledFeatures.includes("i18n")) {
+      featureDocs.i18n =
+        (await fetchSdkDoc(primarySdk, "i18n")) ?? (await fetchSdkDoc(primarySdk, "translations"));
+    }
+    if (primarySdk && enabledFeatures.includes("ops")) {
+      featureDocs.errorReporting = await fetchSdkDoc(primarySdk, "error-reporting");
+    }
+
     const sampleBrowser = browserCandidates[0] ?? actionable.find((t) => browserTarget(t));
     const doc = buildWiringDoc({
       projectId,
@@ -740,7 +799,8 @@ async function runSetup(opts: SetupOpts): Promise<void> {
               projectIdVar: projectIdVar(sampleBrowser.frameworks),
             }
           : null,
-      enabledFeatures: [...features, ...(opsEnabled && !features.includes("ops") ? ["ops"] : [])],
+      enabledFeatures,
+      featureDocs,
       buildTargets: wiringTargets
         .filter((t) => t.language === "typescript" || t.language === "javascript")
         .map((t) => t.relPath),
@@ -778,7 +838,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   }
   console.log(
     "\nWhen the wiring is done, commit (setup never commits for you):\n" +
-      "  git add <each target>/.shipeasy .claude/skills/shipeasy-onboarded <manifests+lockfiles> <entry files>\n" +
+      "  git add <each target>/.shipeasy <manifests+lockfiles> <entry files>\n" +
       '  git commit -m "chore: onboard Shipeasy base (SDK + auth + bind)"\n' +
       "\nOptional: `shipeasy ops trigger prep` sets up the scheduled agent that burns down\n" +
       "the bug/feature/error queue as PRs on a cadence.",

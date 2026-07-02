@@ -13,6 +13,12 @@ devtools `<script>` tag), plus auto-filed **production-error** and **alert**
 tickets. The CLI mirrors the same admin API, so items can be filed, listed,
 triaged, and worked from a terminal or a CI script.
 
+> **Pull the SDK snippet for this product's language.** For error-reporting
+> code, fetch the exact, version-correct call from the SDK docs and use it
+> verbatim: `shipeasy docs get --sdk <lang> error-reporting`.
+> `shipeasy docs list --sdk <lang>` lists every page/snippet; `<lang>` defaults
+> from `.shipeasy`.
+
 **Prerequisites live in the `shipeasy-common` skill** — the MCP ⇄ CLI ⇄ API
 surfaces, updating on version drift, and the `.shipeasy` binding. Filing /
 listing / triage are plain tool calls (`ops_create`, `ops_list`, `ops_get`,

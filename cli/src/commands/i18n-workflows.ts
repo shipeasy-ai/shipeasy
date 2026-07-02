@@ -2,6 +2,8 @@ import { Command } from "commander";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { getApiClient, ApiError } from "../api/client";
+import { readProjectConfig } from "../util/project-config";
+import { fetchSdkDoc } from "../setup/sdk-docs";
 import { runI18nCodemod } from "./codemod";
 import { withExamples, withDetails } from "../util/examples";
 
@@ -20,10 +22,50 @@ import { withExamples, withDetails } from "../util/examples";
 
 type Keys = Array<{ key: string; value: string }>;
 
+// The AST codemod only exists for JS/TS. Everything else routes to the
+// docs-driven manual path with a clear message.
+const CODEMOD_LANGUAGES = new Set(["typescript", "javascript"]);
+
 // A project is "JS/TS" for codemod purposes when it has a package.json. Other
 // languages (python/ruby/php/go/…) have no codemod and route to the docs path.
 function isJsTsProject(cwd: string): boolean {
   return existsSync(join(cwd, "package.json"));
+}
+
+/**
+ * Verify the codemod can run against THIS project before doing any work. The
+ * source of truth is the nearest `.shipeasy` (its `language`/`frameworks`,
+ * written by `detect`/`setup`); we fall back to a package.json probe when the
+ * file predates that field. When the language has no codemod, we don't just
+ * bail — we fetch and print that language's i18n doc so this command carries
+ * everything the caller needs to wrap strings by hand, then exit non-zero.
+ */
+async function assertI18nCodemodSupported(cwd: string): Promise<void> {
+  const cfg = readProjectConfig(cwd);
+  const language = cfg.language ?? (isJsTsProject(cwd) ? "javascript" : undefined);
+  const supported = language ? CODEMOD_LANGUAGES.has(language) : isJsTsProject(cwd);
+  if (supported) return;
+
+  const sdk = cfg.sdk ?? language;
+  const langLabel = language ?? "this project";
+  const fwLabel = cfg.frameworks?.length ? ` (frameworks: ${cfg.frameworks.join(", ")})` : "";
+  console.error(
+    `\n  \`shipeasy i18n extract\`/\`migrate\` run the JS/TS AST codemod, but this\n` +
+      `  project's language is "${langLabel}"${fwLabel} — there is no codemod for it yet.\n` +
+      `  Wrap user-facing strings by hand with the SDK's i18n API (doc below), then push:\n` +
+      `    shipeasy i18n push <flat-keys.json> --profile <profile>\n`,
+  );
+  if (sdk) {
+    const doc = (await fetchSdkDoc(sdk, "i18n")) ?? (await fetchSdkDoc(sdk, "translations"));
+    if (doc) {
+      console.error(`\n  ── ${sdk} i18n doc (source of truth) ──\n`);
+      console.error(doc.trim());
+      console.error("");
+    } else {
+      console.error(`  Pull the language doc: shipeasy docs get --sdk ${sdk} i18n\n`);
+    }
+  }
+  process.exit(2);
 }
 
 // The codemod writes a flat keys file at src/i18n/en.json (or i18n/en.json when
@@ -124,15 +166,6 @@ async function pushAndPublish(
   if (failed.length > 0) process.exit(1);
 }
 
-const NON_JS_HINT =
-  "No package.json here — this looks like a non-JS/TS project, which has no\n" +
-  "codemod yet. Wrap strings using your language's i18n docs:\n" +
-  "  shipeasy docs list  --sdk <lang>\n" +
-  "  shipeasy docs get   --sdk <lang> i18n\n" +
-  "then push the keys with `shipeasy i18n push <file> --profile <profile>`.\n" +
-  "(Per-language SDK extractors are the planned bridge; until then the\n" +
-  "shipeasy-i18n-extract skill applies the docs for you.)";
-
 export function i18nWorkflowCommands(i18n: Command): void {
   // ── i18n extract ─────────────────────────────────────────────────────────
   const extract = i18n
@@ -155,10 +188,7 @@ export function i18nWorkflowCommands(i18n: Command): void {
         },
       ) => {
         const cwd = process.cwd();
-        if (!isJsTsProject(cwd)) {
-          console.log(NON_JS_HINT);
-          process.exit(2);
-        }
+        await assertI18nCodemodSupported(cwd);
         try {
           const scanned = await runI18nCodemod({ target, dryRun: opts.dryRun });
           if (opts.dryRun) {
@@ -182,9 +212,10 @@ export function i18nWorkflowCommands(i18n: Command): void {
     extract,
     "Runs the whole extraction pipeline as one command: the AST codemod wraps " +
       "translatable strings with i18n.t() and writes a flat keys file, then those " +
-      "keys are pushed (insert-only) and published. For non-JS/TS projects there " +
-      "is no codemod — the command points you at the per-language docs and the " +
-      "shipeasy-i18n-extract skill applies them.",
+      "keys are pushed (insert-only) and published. It first verifies this " +
+      "project's language/framework (from `.shipeasy`) has a codemod; for any " +
+      "other language it prints that language's i18n doc so you can wrap strings " +
+      "by hand, then push with `shipeasy i18n push`.",
   );
   withExamples(extract, [
     { note: "Extract under auto-detected dirs, push + publish", run: "shipeasy i18n extract" },
@@ -219,10 +250,7 @@ export function i18nWorkflowCommands(i18n: Command): void {
           process.exit(1);
         }
         const cwd = process.cwd();
-        if (!isJsTsProject(cwd)) {
-          console.log(NON_JS_HINT);
-          process.exit(2);
-        }
+        await assertI18nCodemodSupported(cwd);
         try {
           const scanned = await runI18nCodemod({ migrate: library, dryRun: opts.dryRun });
           if (opts.dryRun) {

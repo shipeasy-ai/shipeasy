@@ -7,12 +7,19 @@ user-invocable: true
 # Adding translatable text in a Shipeasy app
 
 This is the canonical i18n workflow. Use it whenever you change user-visible
-copy in a project that has `@shipeasy/sdk` installed.
+copy in a project that has the Shipeasy SDK installed.
+
+> **Pull the SDK snippet for this product's language.** Before wrapping copy,
+> fetch the exact, version-correct translate call/import from the SDK docs and
+> use it verbatim: `shipeasy docs get --sdk <lang> i18n`.
+> `shipeasy docs list --sdk <lang>` lists every page/snippet; `<lang>` defaults
+> from `.shipeasy`. For JS/TS, `shipeasy i18n extract` does the wrapping for you;
+> for other languages that same command prints the language-correct doc to follow.
 
 **Prerequisites live in the `shipeasy-common` skill** — the MCP ⇄ CLI ⇄ API
 surfaces, updating on version drift, and the `.shipeasy` binding. Enable the
 module with `shipeasy install i18n` (turns on `translations`, creates the
-`en:prod` profile, verifies the admin path); the `shipeasy-i18n-install` skill
+`en:prod` profile, verifies the admin path); the `shipeasy install i18n`
 wraps it and adds the loader-script judgment. The i18n surface has one
 topic-specific split, below.
 
@@ -83,8 +90,10 @@ publish) are driven by single CLI verbs:
   to Shipeasy) has no single CLI verb — orchestrate it via the i18n MCP tools
   (`i18n_profiles_create` → `i18n_drafts_list` → publish).
 
-The `shipeasy-i18n-extract`, `shipeasy-i18n-migrate`, and
-`shipeasy-i18n-translate` skills drive these same CLI/MCP paths end-to-end.
+The `shipeasy-i18n-migrate` and `shipeasy-i18n-translate` skills drive these
+same CLI/MCP paths end-to-end. For fresh extraction, run `shipeasy i18n extract`
+directly — it self-checks the project's language/framework and prints the
+language-correct doc when there's no codemod.
 
 ## The pattern
 

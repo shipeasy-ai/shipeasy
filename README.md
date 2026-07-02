@@ -93,18 +93,21 @@ formats live in **[`INSTALL.md`](./INSTALL.md)** (also published at
 Installing the plugin registers the skills and MCP tools — it does **not** run
 any shell commands. To go live:
 
-1. **The `shipeasy-setup` skill** (say *"set up shipeasy"*) — installs
-   `@shipeasy/sdk`, authenticates, binds the repo to a project, mints keys, and
-   wires the SDK into your root layout.
-2. **Turn on the modules you want** — there are exactly three install skills:
-   - **`shipeasy-flags-install`** — flags + configs + kill switches +
+1. **Run `shipeasy setup`** (or say *"set up shipeasy"* → the `shipeasy-setup`
+   skill) — one command detects your subprojects, installs `@shipeasy/sdk`,
+   authenticates, binds the repo to a project, mints keys, installs the SDK +
+   feature how-to skills into your agents, offers the modules + devtools overlay,
+   and emits `shipeasy-wiring.md` with the remaining code steps.
+2. **Turn on the modules you want** — `shipeasy setup` offers them, or enable one
+   directly with `shipeasy install <group>`:
+   - **`shipeasy install flags`** — flags + configs + kill switches +
      experiments + events (the whole decide-at-runtime platform, one pass).
-   - **`shipeasy-ops-install`** — feedback (bugs + feature requests) +
+   - **`shipeasy install ops`** — feedback (bugs + feature requests) +
      production errors + alerts.
-   - **`shipeasy-i18n-install`** — translations.
+   - **`shipeasy install i18n`** — translations.
 
-Each install skill toggles the matching per-project modules and verifies the
-wiring. After that, just talk to your agent.
+The matching per-area how-to skills (`shipeasy-flags`, `shipeasy-ops`,
+`shipeasy-i18n`) are installed alongside. After that, just talk to your agent.
 
 ```text
 You ▸ Ship a feature gate for the new pricing page, rolled out to 5% of users.

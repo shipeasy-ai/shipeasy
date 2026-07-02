@@ -11,11 +11,18 @@ experiment success criteria and standalone dashboards. They are defined
 by a lexical DSL that compiles to Analytics Engine SQL — Shipeasy
 materialises results on the daily analysis cron, not on read.
 
+> **Pull the SDK snippet for this product's language.** The metric DSL is
+> language-neutral; for the event-tracking call, fetch the exact, version-correct
+> snippet from the SDK docs and use it verbatim:
+> `shipeasy docs get --sdk <lang> release/experiments`.
+> `shipeasy docs list --sdk <lang>` lists every page/snippet; `<lang>` defaults
+> from `.shipeasy`.
+
 **Prerequisites live in the `shipeasy-common` skill** — the MCP ⇄ CLI ⇄ API
 surfaces (`metrics_*`, or `shipeasy metrics …`), updating on version drift, the
 `.shipeasy` binding, and enabling via the flags install. Events (the data
 metrics read) are enabled by `shipeasy install flags` (the
-`shipeasy-flags-install` skill).
+`shipeasy install flags` (or `shipeasy setup`)).
 
 ## Concepts
 

@@ -14,7 +14,7 @@ them with the `ops_list` MCP tool / `shipeasy ops` CLI, `--type alert`).
 
 Alert *rules* are **writable** here. The *raised alerts* themselves are
 read-only and belong to `shipeasy-ops`. Alert rules ride the flags platform
-install (`shipeasy install flags` — the `shipeasy-flags-install` skill) and sit
+install (`shipeasy install flags` — the `shipeasy install flags` (or `shipeasy setup`)) and sit
 on top of the `events` + `metrics` you already defined.
 
 **Prerequisites live in the `shipeasy-common` skill.** Create / list / update

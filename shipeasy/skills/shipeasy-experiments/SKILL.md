@@ -10,6 +10,12 @@ An **experiment** is a randomized assignment between two or more variants
 within a **universe**. The universe owns holdouts and mutual-exclusion;
 individual experiments do not.
 
+> **Pull the SDK snippet for this product's language.** Before writing any
+> assignment/tracking code, fetch the exact, version-correct call from the SDK
+> docs and use it verbatim: `shipeasy docs get --sdk <lang> release/experiments`.
+> `shipeasy docs list --sdk <lang>` lists every page/snippet; `<lang>` defaults
+> from `.shipeasy`. The fetched snippet is the source of truth.
+
 ## What a universe is
 
 A **universe** is the shared randomization space that a set of experiments
@@ -47,7 +53,7 @@ universes with the `release_experiments_universes_*` MCP tools (or
 **Prerequisites live in the `shipeasy-common` skill** — the MCP ⇄ CLI ⇄ API
 surfaces, updating on version drift, the `.shipeasy` binding, and
 archive-not-delete. Experiments aren't a separate module: they ride the flags
-install (`shipeasy install flags` — the `shipeasy-flags-install` skill). Read
+install (`shipeasy install flags` — the `shipeasy install flags` (or `shipeasy setup`)). Read
 parameter shapes from the tool (`--help` / MCP schema), not from here.
 
 ## Designing

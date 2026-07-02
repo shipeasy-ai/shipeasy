@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync, mkdirSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -13,7 +13,6 @@ import {
   needsStoreMove,
   persistEnv,
   projectIdVar,
-  writePointerSkill,
 } from "../setup/onboard";
 import { buildWiringDoc, type WiringDocInput } from "../setup/wiring-doc";
 import type { TargetRecommendation } from "../commands/scan";
@@ -175,23 +174,6 @@ describe("bindTargetDirs", () => {
   });
 });
 
-describe("writePointerSkill", () => {
-  it("writes the pointer skill and never overwrites an existing one", () => {
-    const dir = tmp();
-    try {
-      const r1 = writePointerSkill(dir);
-      expect(r1.action).toBe("wrote");
-      const content = readFileSync(r1.path, "utf8");
-      expect(content).toContain("name: shipeasy-onboarded");
-      writeFileSync(r1.path, "custom");
-      expect(writePointerSkill(dir).action).toBe("skipped");
-      expect(readFileSync(r1.path, "utf8")).toBe("custom");
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-});
-
 describe("needsStoreMove / envFileFor", () => {
   it("flags non-env secret stores", () => {
     expect(needsStoreMove("wrangler secret put SHIPEASY_SERVER_KEY")).toBe(true);
@@ -221,6 +203,7 @@ describe("buildWiringDoc", () => {
         entryPoints: ["src/app/layout.tsx"],
         sdkInstalled: true,
         installCmd: null,
+        installationDoc: "# Installation (typescript)\n\nCall `shipeasy({ serverKey })`.",
         envFile: ".env.local",
         envVars: ["SHIPEASY_SERVER_KEY", "NEXT_PUBLIC_SHIPEASY_CLIENT_KEY"],
         secretStoreMove: null,
@@ -235,6 +218,7 @@ describe("buildWiringDoc", () => {
         entryPoints: [],
         sdkInstalled: false,
         installCmd: 'add `gem "shipeasy-sdk"` then `bundle install`',
+        installationDoc: null,
         envFile: ".env",
         envVars: ["SHIPEASY_SERVER_KEY"],
         secretStoreMove: "rails credentials:edit → shipeasy_server_key (or .env if using dotenv)",
@@ -245,22 +229,35 @@ describe("buildWiringDoc", () => {
       clientKeyVar: "NEXT_PUBLIC_SHIPEASY_CLIENT_KEY",
       projectIdVar: "NEXT_PUBLIC_SHIPEASY_PROJECT_ID",
     },
-    enabledFeatures: ["flags", "ops"],
+    enabledFeatures: ["flags", "ops", "i18n"],
+    featureDocs: {
+      errorReporting: "# Error reporting\n\nUse `see(err)`.",
+      i18n: "# i18n\n\nUse `t('key')`.",
+    },
     buildTargets: ["apps/web"],
   };
 
-  it("is complete: rules, per-target steps, devtools, ops, verification, hand-off", () => {
+  it("is complete: rules, per-target steps, devtools, ops, i18n, verification, hand-off", () => {
     const doc = buildWiringDoc(input);
     expect(doc).toContain("## Operating rules");
     expect(doc).toContain("Never print, log, echo, or commit a key value");
     expect(doc).toContain("Target 1: `apps/web/`");
-    expect(doc).toContain("shipeasy docs get --sdk typescript installation");
+    // Target 1 has a fetched installation doc → embedded inline, not a docs-get line.
+    expect(doc).toContain("BEGIN installation doc (sdk: typescript)");
+    expect(doc).toContain("shipeasy({ serverKey })");
     expect(doc).toContain("Target 2: `services/api/`");
+    // Target 2 has no fetched doc → falls back to the docs-get instruction.
+    expect(doc).toContain("shipeasy docs get --sdk ruby installation");
     expect(doc).toContain('add `gem "shipeasy-sdk"`');
     expect(doc).toContain("rails credentials:edit");
     expect(doc).toContain("## Devtools overlay");
     expect(doc).toContain("cdn.shipeasy.ai/se-devtools.js");
     expect(doc).toContain("## Ops wiring");
+    expect(doc).toContain("see(err)"); // embedded error-reporting snippet
+    expect(doc).toContain("## Translations (i18n) wiring");
+    expect(doc).toContain("shipeasy i18n migrate");
+    expect(doc).toContain("shipeasy i18n extract");
+    expect(doc).toContain("t('key')"); // embedded i18n snippet
     expect(doc).toContain("## Final verification gate");
     expect(doc).toContain("( cd apps/web && (pnpm build || npm run build) )");
     expect(doc).toContain("Do not commit.");
@@ -279,9 +276,16 @@ describe("buildWiringDoc", () => {
     expect(doc).toContain("SHIPEASY_SERVER_KEY");
   });
 
-  it("omits devtools/ops sections when not selected", () => {
-    const doc = buildWiringDoc({ ...input, devtools: null, enabledFeatures: [] });
+  it("omits module sections that weren't selected", () => {
+    const doc = buildWiringDoc({ ...input, devtools: null, enabledFeatures: ["flags"] });
     expect(doc).not.toContain("## Devtools overlay");
     expect(doc).not.toContain("## Ops wiring");
+    expect(doc).not.toContain("## Translations (i18n) wiring");
+  });
+
+  it("falls back to a docs-get line when a feature doc wasn't fetched", () => {
+    const doc = buildWiringDoc({ ...input, featureDocs: {} });
+    expect(doc).toContain("shipeasy docs get --sdk typescript error-reporting");
+    expect(doc).toContain("shipeasy docs get --sdk typescript i18n");
   });
 });

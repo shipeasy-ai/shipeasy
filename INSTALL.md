@@ -11,10 +11,12 @@ Shipeasy ships two things to a coding agent:
      `shipeasy-flags` covers configs + kill switches, `shipeasy-ops` covers the
      bug/feature/error inbox). They **always delegate all CRUD to the
      `shipeasy` MCP server or the `shipeasy` CLI**.
-   - **8 workflow skills** — the multi-step flows: the three installs
-     (`shipeasy-flags-install`, `shipeasy-ops-install`, `shipeasy-i18n-install`),
-     the i18n codemods (`shipeasy-i18n-{extract,migrate,translate}`), the
-     `shipeasy-ops-work` queue loop, and its `shipeasy-ops-trigger` scheduler.
+   - **workflow skills** — the multi-step flows: `shipeasy-ops-install` (the one
+     install that still needs codebase wiring), the i18n codemods
+     (`shipeasy-i18n-{migrate,translate}`), the `shipeasy-ops-work` queue loop,
+     and its `shipeasy-ops-trigger` scheduler. (Flags/i18n installs are pure CLI
+     now — `shipeasy install <group>` / `shipeasy setup` — so their thin
+     onboarding skills were removed.)
      (Base onboarding is the `shipeasy-setup` area skill.) There is no separate
      `commands/` surface — every workflow is a skill and installs on **every**
      host.
@@ -220,10 +222,11 @@ commands. To wire Shipeasy into your app:
    root layout (all via the CLI). On a Tier-2 (skills-CLI) install it also
    **registers the `shipeasy` MCP server** if it's missing, then asks you to
    reload the agent so the tools load before step 2.
-2. **Enable the modules you want.** The `shipeasy-flags-install` (gates +
-   configs + kill switches + experiments + events), `shipeasy-ops-install`
-   (feedback + errors + alerts), and `shipeasy-i18n-install` (translations)
-   skills — ask for the one you want and it drives the whole pass.
+2. **Enable the modules you want.** `shipeasy setup` offers them, or run one
+   directly: `shipeasy install flags` (gates + configs + kill switches +
+   experiments + events), `shipeasy install ops` (feedback + errors + alerts),
+   or `shipeasy install i18n` (translations). The per-area how-to skills
+   (`shipeasy-flags`, `shipeasy-ops`, `shipeasy-i18n`) ride along.
 
 ---
 

@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import type { TargetRecommendation } from "../commands/scan";
 import { onPath } from "./agents";
@@ -244,35 +244,6 @@ export function runSdkInstall(target: TargetRecommendation): InstallOutcome {
 
   const res = spawnSync(argv[0]!, argv.slice(1), { cwd: target.path, stdio: "inherit" });
   return { status: res.status === 0 ? "ran" : "failed", cmd: argv.join(" ") };
-}
-
-// ── project pointer skill ────────────────────────────────────────────────────
-
-const POINTER_SKILL = `---
-name: shipeasy-onboarded
-description: Project pointer — Shipeasy is integrated here. Triggers on "set up shipeasy", "onboard shipeasy", "new contributor shipeasy".
----
-
-# Shipeasy is integrated in this repo
-
-Run the \`shipeasy-setup\` skill (plugin installed), or install it first:
-
-\`\`\`bash
-claude plugin marketplace add shipeasy-ai/shipeasy
-claude plugin install shipeasy@shipeasy        # Claude Code / Codex / Copilot
-npx skills add https://github.com/shipeasy-ai/shipeasy -a <agent>   # any other agent
-\`\`\`
-
-Feature add-ons: the \`shipeasy-flags-install\`, \`shipeasy-ops-install\`, and
-\`shipeasy-i18n-install\` skills.
-`;
-
-export function writePointerSkill(rootDir: string): { action: "wrote" | "skipped"; path: string } {
-  const path = join(rootDir, ".claude", "skills", "shipeasy-onboarded", "SKILL.md");
-  if (existsSync(path)) return { action: "skipped", path };
-  mkdirSync(join(rootDir, ".claude", "skills", "shipeasy-onboarded"), { recursive: true });
-  writeFileSync(path, POINTER_SKILL, "utf8");
-  return { action: "wrote", path };
 }
 
 // ── secret-store classification ──────────────────────────────────────────────

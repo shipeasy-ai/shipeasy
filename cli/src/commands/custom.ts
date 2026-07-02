@@ -65,7 +65,7 @@ export function customCommands(program: Command): void {
         // detection + placement to the `skills` CLI).
         if (op.name === "skill" && (opts.install === true || String(opts.install) === "true")) {
           const r = result as { content: string; sdk: string };
-          const res = installSkill(r.content, r.sdk, {
+          const res = await installSkill(r.content, r.sdk, {
             dir: opts.dir ? String(opts.dir) : undefined,
             global: opts.global === true,
             agent: opts.agent ? String(opts.agent) : undefined,

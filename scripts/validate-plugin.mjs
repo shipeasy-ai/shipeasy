@@ -17,18 +17,16 @@ import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 
 const ROOT = process.cwd();
-// ALL skills — 9 area guides + 8 workflow skills. They are the whole cross-host
-// surface (there is no separate commands/ dir); all CRUD is delegated to the
-// `shipeasy` MCP server or the `shipeasy` CLI.
+// ALL skills. They are the whole cross-host surface (there is no separate
+// commands/ dir); all CRUD is delegated to the `shipeasy` MCP server or CLI.
+// The thin `*-install` onboarding wrappers were removed — `shipeasy setup` /
+// `shipeasy install <group>` do the install; the per-area skills are how-to.
 const EXPECTED_SKILLS = [
   "shipeasy-alerts",
   "shipeasy-common",
   "shipeasy-experiments",
   "shipeasy-flags",
-  "shipeasy-flags-install",
   "shipeasy-i18n",
-  "shipeasy-i18n-extract",
-  "shipeasy-i18n-install",
   "shipeasy-i18n-migrate",
   "shipeasy-i18n-translate",
   "shipeasy-metrics",

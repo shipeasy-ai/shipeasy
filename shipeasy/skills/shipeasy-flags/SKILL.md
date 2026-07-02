@@ -15,8 +15,15 @@ same call shape, fed by `@shipeasy/sdk`.
 surfaces (`release_flags_*` / `release_configs_*` / `release_killswitch_*`, or
 `shipeasy release flags|configs|killswitch …`), updating on version drift, the
 `.shipeasy` binding, `shipeasy install flags` to enable (guided: the
-`shipeasy-flags-install` skill), and archive-not-delete.
+`shipeasy install flags` (or `shipeasy setup`)), and archive-not-delete.
 Read parameter shapes from the tool (`--help` / MCP schema), not from here.
+
+> **Pull the SDK snippet for this product's language.** Before writing any
+> gate/config evaluation code, fetch the exact, version-correct call from the
+> SDK docs and use it verbatim:
+> `shipeasy docs get --sdk <lang> release/flags` (and `release/configs`).
+> `shipeasy docs list --sdk <lang>` lists every page/snippet; `<lang>` defaults
+> from `.shipeasy`. The fetched snippet is the source of truth.
 
 ## Creating
 

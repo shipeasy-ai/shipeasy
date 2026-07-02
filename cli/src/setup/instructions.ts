@@ -13,28 +13,12 @@ const END = "<!-- shipeasy:end -->";
 export function instructionsBody(): string {
   return `## Shipeasy
 
-This project uses [Shipeasy](https://shipeasy.ai) for feature flags, A/B experiments,
-dynamic configs, kill switches, i18n, and in-app feedback + production-error tracking.
-The project is bound via the committed \`.shipeasy\` file.
-
-The Shipeasy MCP server (\`@shipeasy/mcp\`) is registered for this agent — use its tools
-to create/list/update gates, experiments, configs, metrics, and to manage feedback. If a
-tool reports it is not authenticated, run \`npx @shipeasy/cli login\` once in a terminal.
-
-Workflows:
-- Feature gates, dynamic configs, kill switches, experiments, event metrics — the \`shipeasy-flags-install\` skill or the \`exp_*\` MCP tools.
-- In-app bug reports, feature requests, production errors, alerts — the \`shipeasy-ops-install\` skill.
-- Translations (i18n) — the \`shipeasy-i18n-install\` skill.
-
-Read flags/experiments from the SDK (never re-fetch on the hot path — the SDK caches):
-
-\`\`\`ts
-import { gates, experiments } from "@shipeasy/sdk/server"; // or "@shipeasy/sdk/client"
-if (await gates.check("checkout_v2", { user_id })) { /* new path */ }
-\`\`\`
-
-Error handling: wrap meaningful \`catch\` blocks with \`see()\` from \`@shipeasy/sdk\` so
-failures are reported (see the \`shipeasy:see\` skill).`;
+Feature flags, experiments, configs, kill switches, i18n, and feedback. Project bound via
+\`.shipeasy\`; the \`@shipeasy/mcp\` server is registered for this agent (run
+\`npx @shipeasy/cli login\` if a tool reports it's unauthenticated). Read flags/experiments
+through the Shipeasy SDK (it caches — never re-fetch on the hot path) and report errors via
+its error primitive. The exact calls are language-specific — get them from the installed
+\`shipeasy-*\` skills or \`shipeasy docs get\`, never guess.`;
 }
 
 /** Insert or replace the marker-fenced Shipeasy block in shared markdown. */

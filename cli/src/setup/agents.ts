@@ -29,7 +29,19 @@ export const MCP_URL = "https://mcp.shipeasy.ai";
 /** The MCP server entry every assistant registers (streamable-HTTP remote). */
 export const SERVER_SPEC = { type: "http", url: MCP_URL };
 
-const MARKETPLACE_SLUG = "shipeasy-ai/shipeasy";
+export const MARKETPLACE_SLUG = "shipeasy-ai/shipeasy";
+
+/**
+ * How each agent is named to the `skills` CLI (`skills add … -a <name>`).
+ * Claude is intentionally absent: it receives skills via the native plugin
+ * (marketplace + `plugin install`), so we never double-install through `skills`.
+ * Jules is a cloud agent with no local skills dir.
+ */
+export const SKILLS_CLI_AGENT: Partial<Record<AgentId, string>> = {
+  cursor: "cursor",
+  codex: "codex",
+  copilot: "copilot",
+};
 
 /** Is `bin` resolvable on PATH? Cross-platform (honors PATHEXT on win32). */
 export function onPath(bin: string): boolean {

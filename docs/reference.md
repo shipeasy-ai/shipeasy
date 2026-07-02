@@ -5,10 +5,12 @@
 > unattended scheduled triggers see `shipeasy ops trigger create <provider>
 > --help` (also at <https://docs.shipeasy.ai/get-started/triggers>).
 
-The plugin ships exactly **17 skills** — **9 area skills** that auto-trigger on
-natural language and carry the guidance for each subsystem, plus **8 workflow
-skills** for the multi-step flows. Everything else — all day-to-day CRUD — runs
-through the generated `shipeasy` MCP tools or the `shipeasy` CLI.
+The plugin ships **14 skills** — **9 area skills** that auto-trigger on natural
+language and carry the guidance for each subsystem, plus **5 workflow skills**
+for the multi-step flows. Everything else — all day-to-day CRUD — runs through
+the generated `shipeasy` MCP tools or the `shipeasy` CLI. (The thin
+`*-install` onboarding wrappers for flags/i18n were removed: `shipeasy setup`
+and `shipeasy install <group>` do that work now.)
 
 Two cross-cutting rules shape the whole surface:
 
@@ -27,7 +29,7 @@ skill triggers from phrasing or the host's explicit skill invocation.
 
 ---
 
-## The 17 skills
+## The 14 skills
 
 ### Area skills (guidance; auto-trigger on phrasing)
 
@@ -47,10 +49,7 @@ skill triggers from phrasing or the host's explicit skill invocation.
 
 | Skill | Argument(s) | What it does |
 | --- | --- | --- |
-| `shipeasy-flags-install` | — | Enable the whole flags platform in one pass (`shipeasy install flags`) — gates + configs + kill switches + experiments + events + alert rules — and verify the read paths. |
 | `shipeasy-ops-install` | — | Enable `feedback` + production error collection, wire the devtools overlay and `see()` reporting per the project's language docs, and add the CLAUDE.md error-handling rule. |
-| `shipeasy-i18n-install` | — | Enable `translations`, create the `en:prod` profile, inject the loader script if needed. |
-| `shipeasy-i18n-extract` | `[target-dir]` | Run `shipeasy i18n extract` — codemod hardcoded strings into `i18n.t(...)`, push the keys, publish. |
 | `shipeasy-i18n-migrate` | `<library>` | Run `shipeasy i18n migrate <library>` — codemod react-i18next / react-intl / lingui / next-intl / raw-i18next call sites to Shipeasy, push, publish. |
 | `shipeasy-i18n-translate` | `<target-profile> [--from <source>] [--glossary <t=v,…>]` | Stand up a new locale: seed the target profile, machine-translate the draft (Anthropic key read locally), publish. |
 | `shipeasy-ops-work` | `[--type bug\|feature\|error\|alert\|all] [--priority high\|critical] [--limit <N>] [--pr] [--dry-run]` | The unified work loop over the operational queue — one atomic diff per item: bugs fix-first, features design-first, errors/alerts diagnose-first. `--pr` opens one PR per item (the mode the scheduled trigger runs). |
@@ -82,7 +81,7 @@ for checkout conversion"* and runs the analyze-and-suggest flow: find existing
 candidates via `AskUserQuestion`, instrument the chosen event if new, create
 the metric, verify with `shipeasy metrics list`.
 
-Prereqs: `events` module enabled (`shipeasy-flags-install`).
+Prereqs: `events` module enabled (`shipeasy install flags`).
 
 ### 3. Design + provision an A/B test from a vague ask
 
@@ -92,7 +91,7 @@ create the metric, draft the experiment (`release_experiments_create`), and
 edit the variation point to branch on the assignment call. Stops at the
 **draft** state — you decide when to start it.
 
-Prereqs: flags platform enabled (`shipeasy-flags-install`).
+Prereqs: flags platform enabled (`shipeasy install flags`).
 
 ### 4. Schedule the loop — `shipeasy-ops-trigger`
 
@@ -128,19 +127,21 @@ surface verb is `archive`.
 
 ---
 
-## The three install sections
+## Enabling modules
 
-- **`shipeasy-flags-install`** — enables gates, configs, events, experiments,
-  and alert rules in one pass (kill switches ride the same KV blob and need no
-  module).
-- **`shipeasy-ops-install`** — enables `feedback`, turns on production-error
-  collection and alerts, verifies the devtools overlay (`?se=1`), and drops the
-  project pointer skills.
-- **`shipeasy-i18n-install`** — enables `translations`, creates the `en:prod`
-  profile, injects the loader script when needed.
+Module enablement is a pure CLI verb — `shipeasy setup` offers it, or run one
+directly:
 
-Each wraps the matching `shipeasy install <section>` CLI verb and verifies the
-wiring.
+- **`shipeasy install flags`** — gates, configs, events, experiments, and alert
+  rules in one pass (kill switches ride the same KV blob and need no module).
+- **`shipeasy install ops`** — `feedback` + production-error collection + alerts.
+  Codebase wiring (devtools overlay, `see()` reporting) stays in the
+  `shipeasy-ops-install` skill.
+- **`shipeasy install i18n`** — `translations`, creates the `en:prod` profile.
+
+Each verb enables the modules and verifies the admin read paths. The per-area
+how-to skills (`shipeasy-flags`, `shipeasy-ops`, `shipeasy-i18n`) carry the
+usage guidance and are installed by `shipeasy setup`.
 
 ---
 
