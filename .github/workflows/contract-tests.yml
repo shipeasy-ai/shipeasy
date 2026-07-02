@@ -72,13 +72,14 @@ jobs:
 
       # Verify against THIS repo's openapi (the change under test), NOT the
       # version the app's submodule pins. Overlay this repo's openapi/ onto the
-      # app's @shipeasy/openapi workspace package so the whole monorepo resolves
-      # the incoming generated schemas.
+      # app's @shipeasy/openapi workspace package (marketplace/openapi — this
+      # repo checked out as the app's `marketplace` submodule) so the whole
+      # monorepo resolves the incoming generated schemas.
       - name: Swap in this repo's openapi (the spec under test)
         run: |
           rsync -a --delete \
             --exclude=.git --exclude=node_modules --exclude=dist \
-            spec-repo/openapi/ app/packages/openapi/
+            spec-repo/openapi/ app/marketplace/openapi/
 
       - name: Install monorepo deps
         working-directory: app
