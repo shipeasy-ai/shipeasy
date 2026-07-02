@@ -1413,6 +1413,30 @@ export const zApproveEventResponse = z.object({
 });
 
 /**
+ * Lifecycle status of a queue item. The working flow is `open` → `triaged` → `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`). Two human-gated holding states park an item OUT of the work queue until a human promotes it to `open` in the dashboard, so `GET /api/admin/ops` excludes them under `status=all`/default and returns them only when requested as an exact `status`: `pending_approval` is the pre-open approval gate for untriaged inbound (e.g. connector requests filed from a customer's connectors panel) so it never gets auto-implemented — approving = flipping the status to `open`; `triage` is the onboarding-help bucket — questions/errors submitted to the "Stuck in onboarding?" assistant are funnelled into the platform project as `triage` rows so the team can see where people get stuck and follow up, keeping onboarding chatter out of the work queue until a human moves real items to `open`.
+ */
+export const zOpsItemStatus = z.enum([
+    'open',
+    'pending_approval',
+    'triage',
+    'triaged',
+    'in_progress',
+    'ready_for_qa',
+    'resolved',
+    'wont_fix'
+]);
+
+/**
+ * Triage priority of a queue item. The lowest tier is `nice_to_have` (not `low`) — carried over from the feature-request "importance" scale this priority set replaced.
+ */
+export const zOpsItemPriority = z.enum([
+    'nice_to_have',
+    'medium',
+    'high',
+    'critical'
+]);
+
+/**
  * A page of queue items, newest first.
  */
 export const zListOpsItemsResponse = z.array(z.object({
@@ -1426,20 +1450,8 @@ export const zListOpsItemsResponse = z.array(z.object({
         'measure_plan'
     ]),
     title: z.string(),
-    status: z.enum([
-        'open',
-        'triaged',
-        'in_progress',
-        'ready_for_qa',
-        'resolved',
-        'wont_fix'
-    ]),
-    priority: z.enum([
-        'nice_to_have',
-        'medium',
-        'high',
-        'critical'
-    ]).nullable(),
+    status: zOpsItemStatus,
+    priority: zOpsItemPriority.nullable(),
     sourceRef: z.string().nullish(),
     createdAt: z.string()
 }));
@@ -1464,12 +1476,7 @@ export const zCreateBugRequest = z.object({
     stepsToReproduce: z.string().max(8000).optional().default(''),
     actualResult: z.string().max(8000).optional().default(''),
     expectedResult: z.string().max(8000).optional().default(''),
-    priority: z.enum([
-        'nice_to_have',
-        'medium',
-        'high',
-        'critical'
-    ]).nullish(),
+    priority: zOpsItemPriority.nullish(),
     reporterEmail: z.email().nullish(),
     pageUrl: z.url().nullish(),
     userAgent: z.string().max(500).nullish(),
@@ -1486,12 +1493,7 @@ export const zCreateFeatureRequestRequest = z.object({
     title: z.string().min(1).max(200).regex(/^\S(.*\S)?$/),
     description: z.string().max(8000).optional().default(''),
     useCase: z.string().max(8000).optional().default(''),
-    priority: z.enum([
-        'nice_to_have',
-        'medium',
-        'high',
-        'critical'
-    ]).nullish(),
+    priority: zOpsItemPriority.nullish(),
     reporterEmail: z.email().nullish(),
     pageUrl: z.url().nullish(),
     userAgent: z.string().max(500).nullish(),
@@ -1568,20 +1570,8 @@ export const zGetOpsItemResponse = z.object({
         'measure_plan'
     ]),
     title: z.string(),
-    status: z.enum([
-        'open',
-        'triaged',
-        'in_progress',
-        'ready_for_qa',
-        'resolved',
-        'wont_fix'
-    ]),
-    priority: z.enum([
-        'nice_to_have',
-        'medium',
-        'high',
-        'critical'
-    ]).nullable(),
+    status: zOpsItemStatus,
+    priority: zOpsItemPriority.nullable(),
     source: z.enum(['team', 'system']).optional(),
     sourceRef: z.string().nullish(),
     reporterEmail: z.string().nullish(),
@@ -1601,26 +1591,9 @@ export const zGetOpsItemResponse = z.object({
 });
 
 /**
- * Lifecycle status of a queue item.
+ * Triage priority, or `null` when not set (in an update, `null` clears it).
  */
-export const zOpsItemStatus = z.enum([
-    'open',
-    'triaged',
-    'in_progress',
-    'ready_for_qa',
-    'resolved',
-    'wont_fix'
-]);
-
-/**
- * Triage priority, or `null` to clear it.
- */
-export const zOpsItemPriorityOrNull = z.enum([
-    'nice_to_have',
-    'medium',
-    'high',
-    'critical'
-]).nullable();
+export const zOpsItemPriorityOrNull = zOpsItemPriority.nullable();
 
 /**
  * Where this item's completion notification lands, or `null`.
@@ -1695,7 +1668,7 @@ export const zLinkPrToOpsItemResponse = z.object({
 });
 
 /**
- * Body for `POST /api/admin/notifications`.
+ * Body for `POST /api/admin/notifications`. In `title`, `summary`, and each step, reference admin entities inline with tokens — `#42` (feedback item), `@gate:<name>` (alias `@flag:`), `@experiment:<name>` (`@exp:`), `@config:<name>`, `@killswitch:<name>` (`@ks:`), `@metric:<name>`, `@universe:<name>`, `@alert:<name>` — where `<name>` is the entity's immutable name/slug (e.g. `features.checkout`). The dashboard renders each token as a live hover chip deep-linking to the entity; tokens degrade to plain text elsewhere, so they're always safe to use.
  */
 export const zNotifyOpsRequest = z.object({
     title: z.string().min(1).max(200),
@@ -3308,14 +3281,7 @@ export const zListOpsItemsQuery = z.object({
         z.literal('all')
     ]).optional(),
     status: z.union([
-        z.enum([
-            'open',
-            'triaged',
-            'in_progress',
-            'ready_for_qa',
-            'resolved',
-            'wont_fix'
-        ]),
+        zOpsItemStatus,
         z.literal('all')
     ]).optional(),
     limit: z.coerce.number().int().gte(1).lte(500).optional()

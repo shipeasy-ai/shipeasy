@@ -28,18 +28,13 @@
       - name: status
         in: query
         required: false
-        description: Filter by lifecycle status, or `all`.
+        description: >-
+          Filter by lifecycle status, or `all`. The human-gated holding states
+          (`pending_approval`, `triage`) are excluded from `all`/default and
+          returned only when requested as the exact status.
         schema:
           anyOf:
-            - type: string
-              enum:
-                - open
-                - triaged
-                - in_progress
-                - ready_for_qa
-                - resolved
-                - wont_fix
-              description: Lifecycle status of a queue item.
+            - $ref: ../components/schemas/ops.yaml#/OpsItemStatus
             - type: string
               const: all
       - name: limit

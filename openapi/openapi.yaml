@@ -3944,18 +3944,10 @@ paths:
         - name: status
           in: query
           required: false
-          description: Filter by lifecycle status, or `all`.
+          description: Filter by lifecycle status, or `all`. The human-gated holding states (`pending_approval`, `triage`) are excluded from `all`/default and returned only when requested as the exact status.
           schema:
             anyOf:
-              - type: string
-                enum:
-                  - open
-                  - triaged
-                  - in_progress
-                  - ready_for_qa
-                  - resolved
-                  - wont_fix
-                description: Lifecycle status of a queue item.
+              - $ref: '#/components/schemas/OpsItemStatus'
               - type: string
                 const: all
         - name: limit
@@ -10468,6 +10460,26 @@ components:
         - id
       additionalProperties: false
       description: Result of updating or approving an event.
+    OpsItemStatus:
+      type: string
+      enum:
+        - open
+        - pending_approval
+        - triage
+        - triaged
+        - in_progress
+        - ready_for_qa
+        - resolved
+        - wont_fix
+      description: 'Lifecycle status of a queue item. The working flow is `open` → `triaged` → `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`). Two human-gated holding states park an item OUT of the work queue until a human promotes it to `open` in the dashboard, so `GET /api/admin/ops` excludes them under `status=all`/default and returns them only when requested as an exact `status`: `pending_approval` is the pre-open approval gate for untriaged inbound (e.g. connector requests filed from a customer''s connectors panel) so it never gets auto-implemented — approving = flipping the status to `open`; `triage` is the onboarding-help bucket — questions/errors submitted to the "Stuck in onboarding?" assistant are funnelled into the platform project as `triage` rows so the team can see where people get stuck and follow up, keeping onboarding chatter out of the work queue until a human moves real items to `open`.'
+    OpsItemPriority:
+      type: string
+      enum:
+        - nice_to_have
+        - medium
+        - high
+        - critical
+      description: Triage priority of a queue item. The lowest tier is `nice_to_have` (not `low`) — carried over from the feature-request "importance" scale this priority set replaced.
     ListOpsItemsResponse:
       type: array
       items:
@@ -10494,24 +10506,10 @@ components:
             type: string
             description: One-line item title.
           status:
-            type: string
-            enum:
-              - open
-              - triaged
-              - in_progress
-              - ready_for_qa
-              - resolved
-              - wont_fix
-            description: Lifecycle status of a queue item.
+            $ref: '#/components/schemas/OpsItemStatus'
           priority:
             anyOf:
-              - type: string
-                enum:
-                  - nice_to_have
-                  - medium
-                  - high
-                  - critical
-                description: Triage priority of a queue item.
+              - $ref: '#/components/schemas/OpsItemPriority'
               - type: 'null'
             description: Triage priority, or `null` if not yet set.
           sourceRef:
@@ -10591,12 +10589,7 @@ components:
           description: What was expected instead.
         priority:
           anyOf:
-            - type: string
-              enum:
-                - nice_to_have
-                - medium
-                - high
-                - critical
+            - $ref: '#/components/schemas/OpsItemPriority'
             - type: 'null'
           description: Initial triage priority, or `null`.
         reporterEmail:
@@ -10665,12 +10658,7 @@ components:
           description: Why it's needed / the use case.
         priority:
           anyOf:
-            - type: string
-              enum:
-                - nice_to_have
-                - medium
-                - high
-                - critical
+            - $ref: '#/components/schemas/OpsItemPriority'
             - type: 'null'
           description: Initial triage priority, or `null`.
         reporterEmail:
@@ -10843,24 +10831,10 @@ components:
           type: string
           description: One-line item title (all types).
         status:
-          type: string
-          enum:
-            - open
-            - triaged
-            - in_progress
-            - ready_for_qa
-            - resolved
-            - wont_fix
-          description: Lifecycle status of a queue item (all types).
+          $ref: '#/components/schemas/OpsItemStatus'
         priority:
           anyOf:
-            - type: string
-              enum:
-                - nice_to_have
-                - medium
-                - high
-                - critical
-              description: Triage priority of a queue item.
+            - $ref: '#/components/schemas/OpsItemPriority'
             - type: 'null'
           description: Triage priority, or `null` if not yet set (all types).
         source:
@@ -10941,26 +10915,11 @@ components:
         - createdAt
       additionalProperties: {}
       description: One queue item, any of the five types. Shared fields apply to all; `stepsToReproduce`/`actualResult`/`expectedResult`/`viewport` are bug-specific, `description`/`useCase` feature-specific, and `context` carries the per-type payload for auto-filed `error`/`alert`/`measure_plan` tickets.
-    OpsItemStatus:
-      type: string
-      enum:
-        - open
-        - triaged
-        - in_progress
-        - ready_for_qa
-        - resolved
-        - wont_fix
-      description: Lifecycle status of a queue item.
     OpsItemPriorityOrNull:
       anyOf:
-        - type: string
-          enum:
-            - nice_to_have
-            - medium
-            - high
-            - critical
+        - $ref: '#/components/schemas/OpsItemPriority'
         - type: 'null'
-      description: Triage priority, or `null` to clear it.
+      description: Triage priority, or `null` when not set (in an update, `null` clears it).
     OpsItemNotifyOrNull:
       anyOf:
         - $ref: '#/components/schemas/NotificationTarget'
@@ -11099,9 +11058,9 @@ components:
           type: string
           minLength: 1
           maxLength: 280
-          description: 'One sentence: why it can''t be fixed in code.'
+          description: 'One sentence: why it can''t be fixed in code. Renders markdown.'
         steps:
-          description: Ordered steps the human should take to unblock.
+          description: Ordered steps the human should take to unblock — self-contained (the human reads only this card, not the agent's transcript), 3–6 steps, each naming the exact file, command, env var, or dashboard page. Renders markdown.
           type: array
           items:
             type: string
@@ -11115,7 +11074,7 @@ components:
         - title
         - summary
       additionalProperties: false
-      description: Body for `POST /api/admin/notifications`.
+      description: Body for `POST /api/admin/notifications`. In `title`, `summary`, and each step, reference admin entities inline with tokens — `#42` (feedback item), `@gate:<name>` (alias `@flag:`), `@experiment:<name>` (`@exp:`), `@config:<name>`, `@killswitch:<name>` (`@ks:`), `@metric:<name>`, `@universe:<name>`, `@alert:<name>` — where `<name>` is the entity's immutable name/slug (e.g. `features.checkout`). The dashboard renders each token as a live hover chip deep-linking to the entity; tokens degrade to plain text elsewhere, so they're always safe to use.
     NotifyOpsResponse:
       type: object
       properties:

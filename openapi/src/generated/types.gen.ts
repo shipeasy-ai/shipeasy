@@ -2444,6 +2444,16 @@ export type ApproveEventResponse = {
 };
 
 /**
+ * Lifecycle status of a queue item. The working flow is `open` → `triaged` → `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`). Two human-gated holding states park an item OUT of the work queue until a human promotes it to `open` in the dashboard, so `GET /api/admin/ops` excludes them under `status=all`/default and returns them only when requested as an exact `status`: `pending_approval` is the pre-open approval gate for untriaged inbound (e.g. connector requests filed from a customer's connectors panel) so it never gets auto-implemented — approving = flipping the status to `open`; `triage` is the onboarding-help bucket — questions/errors submitted to the "Stuck in onboarding?" assistant are funnelled into the platform project as `triage` rows so the team can see where people get stuck and follow up, keeping onboarding chatter out of the work queue until a human moves real items to `open`.
+ */
+export type OpsItemStatus = 'open' | 'pending_approval' | 'triage' | 'triaged' | 'in_progress' | 'ready_for_qa' | 'resolved' | 'wont_fix';
+
+/**
+ * Triage priority of a queue item. The lowest tier is `nice_to_have` (not `low`) — carried over from the feature-request "importance" scale this priority set replaced.
+ */
+export type OpsItemPriority = 'nice_to_have' | 'medium' | 'high' | 'critical';
+
+/**
  * A page of queue items, newest first.
  */
 export type ListOpsItemsResponse = Array<{
@@ -2463,14 +2473,11 @@ export type ListOpsItemsResponse = Array<{
      * One-line item title.
      */
     title: string;
-    /**
-     * Lifecycle status of a queue item.
-     */
-    status: 'open' | 'triaged' | 'in_progress' | 'ready_for_qa' | 'resolved' | 'wont_fix';
+    status: OpsItemStatus;
     /**
      * Triage priority, or `null` if not yet set.
      */
-    priority: 'nice_to_have' | 'medium' | 'high' | 'critical' | null;
+    priority: OpsItemPriority | null;
     /**
      * Source reference for auto-filed tickets (e.g. an error fingerprint).
      */
@@ -2520,7 +2527,7 @@ export type CreateBugRequest = {
     /**
      * Initial triage priority, or `null`.
      */
-    priority?: 'nice_to_have' | 'medium' | 'high' | 'critical' | null;
+    priority?: OpsItemPriority | null;
     /**
      * Email of the reporter, or `null`.
      */
@@ -2572,7 +2579,7 @@ export type CreateFeatureRequestRequest = {
     /**
      * Initial triage priority, or `null`.
      */
-    priority?: 'nice_to_have' | 'medium' | 'high' | 'critical' | null;
+    priority?: OpsItemPriority | null;
     /**
      * Email of the reporter, or `null`.
      */
@@ -2733,14 +2740,11 @@ export type GetOpsItemResponse = {
      * One-line item title (all types).
      */
     title: string;
-    /**
-     * Lifecycle status of a queue item (all types).
-     */
-    status: 'open' | 'triaged' | 'in_progress' | 'ready_for_qa' | 'resolved' | 'wont_fix';
+    status: OpsItemStatus;
     /**
      * Triage priority, or `null` if not yet set (all types).
      */
-    priority: 'nice_to_have' | 'medium' | 'high' | 'critical' | null;
+    priority: OpsItemPriority | null;
     /**
      * How the item was filed: `team` (a human admin/teammate — bug/feature) or `system` (auto-filed — error/alert/measure_plan).
      */
@@ -2811,14 +2815,9 @@ export type GetOpsItemResponse = {
 };
 
 /**
- * Lifecycle status of a queue item.
+ * Triage priority, or `null` when not set (in an update, `null` clears it).
  */
-export type OpsItemStatus = 'open' | 'triaged' | 'in_progress' | 'ready_for_qa' | 'resolved' | 'wont_fix';
-
-/**
- * Triage priority, or `null` to clear it.
- */
-export type OpsItemPriorityOrNull = 'nice_to_have' | 'medium' | 'high' | 'critical' | null;
+export type OpsItemPriorityOrNull = OpsItemPriority | null;
 
 /**
  * Where this item's completion notification lands, or `null`.
@@ -2928,7 +2927,7 @@ export type LinkPrToOpsItemResponse = {
 };
 
 /**
- * Body for `POST /api/admin/notifications`.
+ * Body for `POST /api/admin/notifications`. In `title`, `summary`, and each step, reference admin entities inline with tokens — `#42` (feedback item), `@gate:<name>` (alias `@flag:`), `@experiment:<name>` (`@exp:`), `@config:<name>`, `@killswitch:<name>` (`@ks:`), `@metric:<name>`, `@universe:<name>`, `@alert:<name>` — where `<name>` is the entity's immutable name/slug (e.g. `features.checkout`). The dashboard renders each token as a live hover chip deep-linking to the entity; tokens degrade to plain text elsewhere, so they're always safe to use.
  */
 export type NotifyOpsRequest = {
     /**
@@ -2936,11 +2935,11 @@ export type NotifyOpsRequest = {
      */
     title: string;
     /**
-     * One sentence: why it can't be fixed in code.
+     * One sentence: why it can't be fixed in code. Renders markdown.
      */
     summary: string;
     /**
-     * Ordered steps the human should take to unblock.
+     * Ordered steps the human should take to unblock — self-contained (the human reads only this card, not the agent's transcript), 3–6 steps, each naming the exact file, command, env var, or dashboard page. Renders markdown.
      */
     steps?: Array<string>;
     /**
@@ -7561,9 +7560,9 @@ export type ListOpsItemsData = {
          */
         type?: 'bug' | 'feature_request' | 'error' | 'alert' | 'all';
         /**
-         * Filter by lifecycle status, or `all`.
+         * Filter by lifecycle status, or `all`. The human-gated holding states (`pending_approval`, `triage`) are excluded from `all`/default and returned only when requested as the exact status.
          */
-        status?: 'open' | 'triaged' | 'in_progress' | 'ready_for_qa' | 'resolved' | 'wont_fix' | 'all';
+        status?: OpsItemStatus | 'all';
         /**
          * Max items to return (1–500).
          */
