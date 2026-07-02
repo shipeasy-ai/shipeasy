@@ -1,9 +1,12 @@
 # Only the TS packages are workspace members. The plugin tree (shipeasy/) and
 # scripts/ are NOT npm packages — they're left out deliberately so pnpm never
 # tries to link or publish them. `skills-contract` is a private (never-published)
-# test package that scans the skill tree against the CLI/MCP surfaces.
+# test package that scans the skill tree against the CLI/MCP surfaces;
+# `skills-eval` is the private behavioural eval that drives headless `claude -p`
+# to check prompts actually route to the right skill + MCP tools.
 packages:
   - "openapi"
   - "mcp"
   - "cli"
   - "skills-contract"
+  - "skills-eval"

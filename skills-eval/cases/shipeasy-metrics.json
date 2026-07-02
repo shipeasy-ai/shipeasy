@@ -1,0 +1,80 @@
+[
+  {
+    "id": "shipeasy-metrics/create-metric",
+    "prompt": "create metric",
+    "expect_skill": "shipeasy-metrics",
+    "expect_tools": [
+      "metrics_create",
+      "metrics_grammar",
+      "metrics_list",
+      "metrics_show"
+    ],
+    "tools_match": "none",
+    "note": "auto-seeded from trigger phrase; refine prompt + expect_tools"
+  },
+  {
+    "id": "shipeasy-metrics/track-metric",
+    "prompt": "track metric",
+    "expect_skill": "shipeasy-metrics",
+    "expect_tools": [
+      "metrics_create",
+      "metrics_grammar",
+      "metrics_list",
+      "metrics_show"
+    ],
+    "tools_match": "none",
+    "note": "auto-seeded from trigger phrase; refine prompt + expect_tools"
+  },
+  {
+    "id": "shipeasy-metrics/metric-dsl",
+    "prompt": "metric DSL",
+    "expect_skill": "shipeasy-metrics",
+    "expect_tools": [
+      "metrics_create",
+      "metrics_grammar",
+      "metrics_list",
+      "metrics_show"
+    ],
+    "tools_match": "none",
+    "note": "auto-seeded from trigger phrase; refine prompt + expect_tools"
+  },
+  {
+    "id": "shipeasy-metrics/event-metric",
+    "prompt": "event metric",
+    "expect_skill": "shipeasy-metrics",
+    "expect_tools": [
+      "metrics_create",
+      "metrics_grammar",
+      "metrics_list",
+      "metrics_show"
+    ],
+    "tools_match": "none",
+    "note": "auto-seeded from trigger phrase; refine prompt + expect_tools"
+  },
+  {
+    "id": "shipeasy-metrics/success-metric-definition",
+    "prompt": "success metric definition",
+    "expect_skill": "shipeasy-metrics",
+    "expect_tools": [
+      "metrics_create",
+      "metrics_grammar",
+      "metrics_list",
+      "metrics_show"
+    ],
+    "tools_match": "none",
+    "note": "auto-seeded from trigger phrase; refine prompt + expect_tools"
+  },
+  {
+    "id": "shipeasy-metrics/what-metrics-do-we-have",
+    "prompt": "what metrics do we have",
+    "expect_skill": "shipeasy-metrics",
+    "expect_tools": [
+      "metrics_create",
+      "metrics_grammar",
+      "metrics_list",
+      "metrics_show"
+    ],
+    "tools_match": "none",
+    "note": "auto-seeded from trigger phrase; refine prompt + expect_tools"
+  }
+]

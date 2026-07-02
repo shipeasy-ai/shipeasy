@@ -1,0 +1,34 @@
+[
+  {
+    "id": "shipeasy-setup/set-up-shipeasy",
+    "prompt": "set up shipeasy",
+    "expect_skill": "shipeasy-setup",
+    "expect_tools": [],
+    "tools_match": "none",
+    "note": "auto-seeded from trigger phrase; refine prompt + expect_tools"
+  },
+  {
+    "id": "shipeasy-setup/install-shipeasy",
+    "prompt": "install shipeasy",
+    "expect_skill": "shipeasy-setup",
+    "expect_tools": [],
+    "tools_match": "none",
+    "note": "auto-seeded from trigger phrase; refine prompt + expect_tools"
+  },
+  {
+    "id": "shipeasy-setup/onboard-shipeasy",
+    "prompt": "onboard shipeasy",
+    "expect_skill": "shipeasy-setup",
+    "expect_tools": [],
+    "tools_match": "none",
+    "note": "auto-seeded from trigger phrase; refine prompt + expect_tools"
+  },
+  {
+    "id": "shipeasy-setup/first-time-integration",
+    "prompt": "first-time integration",
+    "expect_skill": "shipeasy-setup",
+    "expect_tools": [],
+    "tools_match": "none",
+    "note": "auto-seeded from trigger phrase; refine prompt + expect_tools"
+  }
+]

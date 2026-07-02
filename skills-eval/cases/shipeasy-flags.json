@@ -1,0 +1,48 @@
+[
+  {
+    "id": "shipeasy-flags/create-gate",
+    "prompt": "Create a feature flag called checkout_v2 that's on for 10% of users.",
+    "expect_skill": "shipeasy-flags",
+    "expect_tools": ["release_flags_create"],
+    "tools_match": "all",
+    "forbid_tools": ["release_flags_archive"],
+    "note": "canonical create path"
+  },
+  {
+    "id": "shipeasy-flags/rollout",
+    "prompt": "Bump the checkout_v2 flag rollout to 50%.",
+    "expect_skill": "shipeasy-flags",
+    "expect_tools": ["release_flags_rollout", "release_flags_update"],
+    "tools_match": "any",
+    "note": "either the dedicated rollout tool or a generic update is acceptable"
+  },
+  {
+    "id": "shipeasy-flags/kill-switch",
+    "prompt": "Set up a kill switch so we can instantly disable the payments integration.",
+    "expect_skill": "shipeasy-flags",
+    "expect_tools": ["release_killswitch_create"],
+    "tools_match": "all",
+    "note": "kill switch routes into the same skill, different tool family"
+  },
+  {
+    "id": "shipeasy-flags/dynamic-config",
+    "prompt": "Add a dynamic config named search.ranking holding a boost number and model string.",
+    "expect_skill": "shipeasy-flags",
+    "expect_tools": ["release_configs_create"],
+    "tools_match": "all",
+    "note": "config, not gate — should not create a flag"
+  },
+  {
+    "id": "shipeasy-flags/list-readonly",
+    "prompt": "What feature flags do we currently have?",
+    "expect_skill": "shipeasy-flags",
+    "expect_tools": ["release_flags_list"],
+    "tools_match": "any",
+    "forbid_tools": [
+      "release_flags_create",
+      "release_flags_archive",
+      "release_flags_update"
+    ],
+    "note": "read-only ask must not mutate anything"
+  }
+]

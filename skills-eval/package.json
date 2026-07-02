@@ -1,0 +1,22 @@
+{
+  "name": "@shipeasy/skills-eval",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Behavioural eval: drive headless `claude -p` with prompts seeded from each skill's trigger phrases and assert the right Skill fires and the right MCP tools get called. The runtime layer above @shipeasy/skills-contract (which only checks the skills are internally consistent).",
+  "type": "module",
+  "scripts": {
+    "seed": "tsx src/seed.ts",
+    "eval": "tsx src/run.ts",
+    "test": "vitest run",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.39",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.4",
+    "vitest": "^2.1.9"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,72 @@
+[
+  {
+    "id": "shipeasy-experiments/a-b-test",
+    "prompt": "A/B test",
+    "expect_skill": "shipeasy-experiments",
+    "expect_tools": [
+      "release_experiments_create",
+      "release_experiments_start",
+      "release_experiments_stop",
+      "release_experiments_universes_create",
+      "release_experiments_universes_update"
+    ],
+    "tools_match": "none",
+    "note": "auto-seeded from trigger phrase; refine prompt + expect_tools"
+  },
+  {
+    "id": "shipeasy-experiments/experiment",
+    "prompt": "experiment",
+    "expect_skill": "shipeasy-experiments",
+    "expect_tools": [
+      "release_experiments_create",
+      "release_experiments_start",
+      "release_experiments_stop",
+      "release_experiments_universes_create",
+      "release_experiments_universes_update"
+    ],
+    "tools_match": "none",
+    "note": "auto-seeded from trigger phrase; refine prompt + expect_tools"
+  },
+  {
+    "id": "shipeasy-experiments/split-test",
+    "prompt": "split test",
+    "expect_skill": "shipeasy-experiments",
+    "expect_tools": [
+      "release_experiments_create",
+      "release_experiments_start",
+      "release_experiments_stop",
+      "release_experiments_universes_create",
+      "release_experiments_universes_update"
+    ],
+    "tools_match": "none",
+    "note": "auto-seeded from trigger phrase; refine prompt + expect_tools"
+  },
+  {
+    "id": "shipeasy-experiments/holdout",
+    "prompt": "holdout",
+    "expect_skill": "shipeasy-experiments",
+    "expect_tools": [
+      "release_experiments_create",
+      "release_experiments_start",
+      "release_experiments_stop",
+      "release_experiments_universes_create",
+      "release_experiments_universes_update"
+    ],
+    "tools_match": "none",
+    "note": "auto-seeded from trigger phrase; refine prompt + expect_tools"
+  },
+  {
+    "id": "shipeasy-experiments/metric-significance",
+    "prompt": "metric significance",
+    "expect_skill": "shipeasy-experiments",
+    "expect_tools": [
+      "release_experiments_create",
+      "release_experiments_start",
+      "release_experiments_stop",
+      "release_experiments_universes_create",
+      "release_experiments_universes_update"
+    ],
+    "tools_match": "none",
+    "note": "auto-seeded from trigger phrase; refine prompt + expect_tools"
+  }
+]
