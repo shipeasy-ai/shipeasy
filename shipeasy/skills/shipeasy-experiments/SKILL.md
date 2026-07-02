@@ -10,12 +10,6 @@ An **experiment** is a randomized assignment between two or more variants
 within a **universe**. The universe owns holdouts and mutual-exclusion;
 individual experiments do not.
 
-> **Pull the SDK snippet for this product's language.** Before writing any
-> assignment/tracking code, fetch the exact, version-correct call from the SDK
-> docs and use it verbatim: `shipeasy docs get --sdk <lang> release/experiments`.
-> `shipeasy docs list --sdk <lang>` lists every page/snippet; `<lang>` defaults
-> from `.shipeasy`. The fetched snippet is the source of truth.
-
 ## What a universe is
 
 A **universe** is the shared randomization space that a set of experiments
@@ -155,23 +149,16 @@ Q: Which metric should decide this experiment?
 
 ### Phase 3 — provision (in order, halt on first failure)
 
-Pull the SDK call sites used below (`flags.track` for 3a, `experiments.assign`
-for 3d) from the `docs` surface for this project's language — see
-`shipeasy-common` → "Pulling SDK call sites": `docs_get { sdk: <lang>, path: "metrics" }` and
-`docs_get { sdk: <lang>, path: "experiments", name: "<name>" }`. The examples
-below are **shape only**.
+The SDK calls in 3a and 3d below are the exact, version-correct forms for this
+project's SDK language (see `shipeasy-common` → "Pulling SDK call sites"). Use
+them verbatim.
 
 For the chosen metric:
 
 **3a.** If the event isn't emitted yet, instrument it. Edit the call site (one
-Edit per file). Single import — the example below shows the shape, pull this
-project's language with `docs_get` as above:
+Edit per file):
 
-```ts
-// Example shape — fetch the exact call for this project's language via docs_get
-import { flags } from "@shipeasy/sdk/client"; // server: flags.track(userId, event, props)
-flags.track("checkout_completed", { /* labels referenced by the metric query */ });
-```
+{{SDK_SNIPPET:metrics/track}}
 
 Confirm labels in the payload match every `{label=...}`, `by (...)`,
 `value_label` referenced by the metric query — otherwise the metric returns
@@ -205,20 +192,10 @@ mcp tool: release_experiments_create {
 }
 ```
 
-**3d.** Edit the variation point so the runtime branches on the assignment call
-(the example below shows the shape — pull this project's language with
-`docs_get { sdk: <lang>, path: "experiments" }` as noted at the top of Phase 3):
+**3d.** Edit the variation point so the runtime branches on the assignment
+call — one group takes the new code path, everything else keeps the old one:
 
-```ts
-// Example shape — fetch the exact call for this project's language via docs_get
-import { flags } from "@shipeasy/sdk/server"; // client: flags.getExperiment(name, defaultParams)
-const { group } = flags.getExperiment("checkout_button_v2", { user_id }, { variant: "v1" });
-if (group === "treatment") {
-  /* new code path */
-} else {
-  /* old code path */
-}
-```
+{{SDK_SNIPPET:release/experiments}}
 
 ### Phase 4 — verify
 
@@ -280,20 +257,8 @@ run `shipeasy metrics grammar` (or see the `shipeasy-metrics` skill).
 
 ## Reading from the SDK
 
-Pull the assignment call site for this project's language from the `docs`
-surface (see `shipeasy-common` → "Pulling SDK call sites"):
-`docs_get { sdk: <lang>, path: "experiments", name: "checkout_button_v2" }`.
-The snippet below is **shape only** — the API differs per SDK.
-
-```ts
-// Example shape (TypeScript) — client omits the user arg
-import { flags } from "@shipeasy/sdk/server";
-const { group, params } = flags.getExperiment(
-  "checkout_button_v2",
-  { user_id, country },
-  { variant: "v1" },
-);
-```
+The assignment call (and the paired conversion `track`) for this project's SDK
+language is the snippet in Phase 3d above — use it verbatim.
 
 Assignment is **sticky** for the same user_id. Track conversion via your
 existing analytics — Shipeasy reads the metric from D1/AE on the next

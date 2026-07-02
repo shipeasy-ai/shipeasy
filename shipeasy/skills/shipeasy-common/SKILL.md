@@ -97,28 +97,38 @@ The base SDK install / auth / bind that precedes any of these is the
 ## Pulling SDK call sites from the docs
 
 The customer app may be in any SDK language (ts / python / ruby / go / php /
-java / kotlin / swift) — **never assume TypeScript/Next.js.** When a skill needs
-an SDK call site (`flags.track`, `flags.getExperiment`, `flags.get`,
-`i18n.t`, `see()`, …), pull the exact, version-correct form from the `docs`
-surface rather than hand-writing it — namespaces and method names differ per
-SDK, so never assume the TypeScript spelling:
+java / kotlin / swift) — **never assume TypeScript/Next.js.** SDK call sites
+(`flags.track`, `flags.getExperiment`, `flags.get`, `i18n.t`, `see()`, …)
+differ per SDK in namespaces and method names, so the exact form always comes
+from the `docs` surface, never hand-written from memory.
+
+**The feature skills carry these call sites as `SDK_SNIPPET` placeholders** —
+`{{SDK_SNIPPET:` + a handle + `}}`, with handles like `release/flags`,
+`release/experiments`, `metrics/track`, `i18n/render`, `ops/see`. The skill
+installer (`shipeasy setup` and the skills-CLI install path) bakes them in at
+install time — each placeholder is replaced with the fetched, version-correct
+snippet for the project's SDK language, so an installed skill already contains
+the exact code to use verbatim. If a skill you're reading still shows an
+**unresolved** placeholder (e.g. it shipped raw via the plugin), resolve it
+yourself — the handle is the docs path:
 
 1. Read the language from the nearest `.shipeasy` — its `sdk` field, written by
    `shipeasy detect` (run `detect` first if the file has no `sdk` yet). Fall back
    to the subproject's manifest (`package.json`, `pyproject.toml`, `Gemfile`,
    `go.mod`, `pom.xml`, `build.gradle*`, `composer.json`, `Package.swift`).
-2. Fetch the snippet: `docs_get { path: "<page>" }` — `sdk` defaults to the
+2. Fetch the snippet: `docs_get { path: "<handle>" }` — `sdk` defaults to the
    `.shipeasy` `sdk` when omitted, so you rarely pass it explicitly (run
-   `docs_list {}` to find the handle). Pass `sdk` only to override. CLI fallback:
-   `shipeasy docs get <page>` (add `--sdk <lang>` to override).
+   `docs_list {}` to see every page/snippet handle). Pass `sdk` only to
+   override. CLI fallback: `shipeasy docs get <handle>` (add `--sdk <lang>` to
+   override).
 
 For SDK-heavy tasks, you can also install that language's own skill so
 version-correct syntax + snippets stay on hand: `shipeasy docs skill --sdk
 <lang> --install` (MCP: `docs_skill`) delegates to the `skills` CLI and
 auto-detects the coding agents on the machine.
 
-Example shapes in the feature skills are **shape only** — the docs are the
-source of truth and win on any conflict.
+The docs are the source of truth: a baked/fetched snippet wins over any other
+example shape in a skill on any conflict.
 
 ## Archive, don't delete
 

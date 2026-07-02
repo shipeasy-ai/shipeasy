@@ -12,12 +12,6 @@ user-invocable: false
 
 # see: Shipeasy's Structured Error Reporter
 
-> **Pull the SDK snippet for this product's language.** The examples below are
-> TypeScript; for the exact, version-correct error-reporting call in this
-> product's language, fetch it from the SDK docs and use it verbatim:
-> `shipeasy docs get --sdk <lang> error-reporting` (`shipeasy docs list --sdk
-> <lang>` lists every page/snippet; `<lang>` defaults from `.shipeasy`).
-
 `see` (shipeasy error) is the required error reporting API in code instrumented
 with `@shipeasy/sdk` — server and client, vanilla JS, one import:
 
@@ -27,11 +21,11 @@ import { see } from "@shipeasy/sdk/client"; // or "@shipeasy/sdk/server"
 see(problem).causes_the(subject).to(outcome).extras({ ...debugging });
 ```
 
-> **Pull the exact `see()` call form for this repo's SDK language from the
-> `docs` surface** (see the `shipeasy-common` skill → "Pulling SDK call sites"):
-> `docs_get { sdk: <lang>, path: <errors-page> }`. The examples below show the
-> grammar — problem → consequence → extras; take the exact call form from those
-> docs.
+The exact, version-correct call form for this project's SDK language is below —
+use it verbatim; it wins over the TypeScript grammar examples in the rest of
+this skill on any conflict:
+
+{{SDK_SNIPPET:ops/see}}
 
 **Core Philosophy**: Every handled exception must document its impact. If you
 don't know the consequence, don't catch the exception. If catching an exception

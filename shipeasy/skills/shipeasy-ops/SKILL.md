@@ -13,12 +13,6 @@ devtools `<script>` tag), plus auto-filed **production-error** and **alert**
 tickets. The CLI mirrors the same admin API, so items can be filed, listed,
 triaged, and worked from a terminal or a CI script.
 
-> **Pull the SDK snippet for this product's language.** For error-reporting
-> code, fetch the exact, version-correct call from the SDK docs and use it
-> verbatim: `shipeasy docs get --sdk <lang> error-reporting`.
-> `shipeasy docs list --sdk <lang>` lists every page/snippet; `<lang>` defaults
-> from `.shipeasy`.
-
 **Prerequisites live in the `shipeasy-common` skill** — the MCP ⇄ CLI ⇄ API
 surfaces, updating on version drift, and the `.shipeasy` binding. Filing /
 listing / triage are plain tool calls (`ops_create`, `ops_list`, `ops_get`,
@@ -122,9 +116,10 @@ if you need a programmatic read path.
 The one SDK call site that feeds this queue is **`see()` error reporting** —
 auto-filed production-error tickets come from `see()` instrumentation in the
 app. When the `shipeasy-ops-work` loop fixes an error item and needs to add or
-adjust a `see()` call site, pull the error-reporting form for this project's
-language from the `docs` surface (see `shipeasy-common` → "Pulling SDK call
-sites"), and see the `shipeasy-see` skill for the grammar.
+adjust a `see()` call site, use the language-correct form below (the
+`shipeasy-see` skill has the consequence grammar):
+
+{{SDK_SNIPPET:ops/see}}
 
 ## When to use this skill
 

@@ -9,14 +9,9 @@ user-invocable: true
 A **metric** is a named query over collected events. Metrics power
 experiment success criteria and standalone dashboards. They are defined
 by a lexical DSL that compiles to Analytics Engine SQL — Shipeasy
-materialises results on the daily analysis cron, not on read.
-
-> **Pull the SDK snippet for this product's language.** The metric DSL is
-> language-neutral; for the event-tracking call, fetch the exact, version-correct
-> snippet from the SDK docs and use it verbatim:
-> `shipeasy docs get --sdk <lang> release/experiments`.
-> `shipeasy docs list --sdk <lang>` lists every page/snippet; `<lang>` defaults
-> from `.shipeasy`.
+materialises results on the daily analysis cron, not on read. The metric DSL
+is language-neutral; the event-tracking call is language-specific — the
+snippet in step 3 below is the version-correct form for this project's SDK.
 
 **Prerequisites live in the `shipeasy-common` skill** — the MCP ⇄ CLI ⇄ API
 surfaces (`metrics_*`, or `shipeasy metrics …`), updating on version drift, the
@@ -126,17 +121,11 @@ If the user picks option (3) — *new event* — propose the exact
 
 ### 3. Instrument (only if a new event was chosen)
 
-Pull the `flags.track` call site for this project's language from the `docs`
-surface (see `shipeasy-common` → "Pulling SDK call sites"):
-`docs_get { sdk: <lang>, path: "metrics" }`. The snippet below is **shape only**.
+Edit one file. The tracking call below is the exact, version-correct form for
+this project's SDK language (see `shipeasy-common` → "Pulling SDK call
+sites") — use it verbatim:
 
-Edit one file:
-
-```ts
-// Example shape — fetch the exact call for this project's language via docs_get
-import { flags } from "@shipeasy/sdk/client"; // server: flags.track(userId, event, props)
-flags.track("checkout_completed", { /* labels referenced by the query */ });
-```
+{{SDK_SNIPPET:metrics/track}}
 
 Confirm every label referenced by the metric query — in filters, the
 value position, `by (...)`, or `without (...)` — exists as a property

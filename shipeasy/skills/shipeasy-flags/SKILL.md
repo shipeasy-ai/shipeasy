@@ -18,13 +18,6 @@ surfaces (`release_flags_*` / `release_configs_*` / `release_killswitch_*`, or
 `shipeasy install flags` (or `shipeasy setup`)), and archive-not-delete.
 Read parameter shapes from the tool (`--help` / MCP schema), not from here.
 
-> **Pull the SDK snippet for this product's language.** Before writing any
-> gate/config evaluation code, fetch the exact, version-correct call from the
-> SDK docs and use it verbatim:
-> `shipeasy docs get --sdk <lang> release/flags` (and `release/configs`).
-> `shipeasy docs list --sdk <lang>` lists every page/snippet; `<lang>` defaults
-> from `.shipeasy`. The fetched snippet is the source of truth.
-
 ## Creating
 
 Shapes below are the ones people get wrong — everything else is in the tool:
@@ -55,30 +48,16 @@ mcp tool: release_configs_create {
 
 ## Reading from the SDK
 
-Pull the call site for this project's SDK language from the `docs` surface (see
-`shipeasy-common` → "Pulling SDK call sites"): `docs_get { sdk: <lang>, path:
-"release/flags", name: "checkout_v2" }` for gates,
-`docs_get { sdk: <lang>, path: "release/configs", name: "search_ranking" }` for
-configs. The snippet below is **shape only**.
+The calls below are the exact, version-correct forms for this project's SDK
+language (see `shipeasy-common` → "Pulling SDK call sites"). Use them verbatim.
 
-Gates and configs are both read off the one `flags` facade — `flags.get` for a
-gate, `flags.getConfig` for a config. Do not assume TS/Next.js; fetch the exact
-call for this project's language via `docs_get`.
+Reading a gate:
 
-```ts
-// Server — flags.get takes the User as its 2nd arg (configure() ran at startup).
-import { flags } from "@shipeasy/sdk/server";
-const user = { user_id: req.userId, country: req.country };
-const isOn = flags.get("checkout_v2", user); // boolean
-const ranking = flags.getConfig("search_ranking"); // typed config value
-```
+{{SDK_SNIPPET:release/flags}}
 
-```ts
-// Client — the user is set once via shipeasy({ clientKey }) / identify().
-import { flags } from "@shipeasy/sdk/client";
-const isOnClient = flags.get("checkout_v2"); // boolean
-const rankingClient = flags.getConfig("search_ranking");
-```
+Reading a config:
+
+{{SDK_SNIPPET:release/configs}}
 
 ## Rollout playbook
 
@@ -94,6 +73,11 @@ const rankingClient = flags.getConfig("search_ranking");
 
 For risky launches, create a separate `kill_<feature>` gate that defaults
 **on** and gates the old code path. Flip to off if the new path breaks.
+
+For a first-class kill switch (the `release_killswitch_*` surface), read it
+from the SDK like this:
+
+{{SDK_SNIPPET:release/killswitches}}
 
 ## Hard rules
 

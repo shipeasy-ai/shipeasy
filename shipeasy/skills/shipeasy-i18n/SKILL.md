@@ -7,14 +7,9 @@ user-invocable: true
 # Adding translatable text in a Shipeasy app
 
 This is the canonical i18n workflow. Use it whenever you change user-visible
-copy in a project that has the Shipeasy SDK installed.
-
-> **Pull the SDK snippet for this product's language.** Before wrapping copy,
-> fetch the exact, version-correct translate call/import from the SDK docs and
-> use it verbatim: `shipeasy docs get --sdk <lang> i18n`.
-> `shipeasy docs list --sdk <lang>` lists every page/snippet; `<lang>` defaults
-> from `.shipeasy`. For JS/TS, `shipeasy i18n extract` does the wrapping for you;
-> for other languages that same command prints the language-correct doc to follow.
+copy in a project that has the Shipeasy SDK installed. For JS/TS,
+`shipeasy i18n extract` does the wrapping for you; for other languages that
+same command prints the language-correct doc to follow.
 
 **Prerequisites live in the `shipeasy-common` skill** — the MCP ⇄ CLI ⇄ API
 surfaces, updating on version drift, and the `.shipeasy` binding. Enable the
@@ -97,22 +92,13 @@ language-correct doc when there's no codemod.
 
 ## The pattern
 
-Every user-facing string becomes an i18n translate call.
+Every user-facing string becomes an i18n translate call — e.g. in JSX,
+`<button>Install with Claude</button>` becomes
+`<button>{i18n.t("landing.nav.cta", "Install with Claude")}</button>`. The
+exact, version-correct call form for this project's SDK language (see
+`shipeasy-common` → "Pulling SDK call sites"):
 
-Pull the i18n call form for this project's language from the `docs` surface (see
-`shipeasy-common` → "Pulling SDK call sites"): `docs_get { sdk: <lang>, path: "i18n" }`.
-The snippet below is **shape only**.
-
-```tsx
-// Example shape — fetch the exact call for this project's language via docs_get
-import { i18n } from "@shipeasy/sdk/client";
-
-// Before:
-<button>Install with Claude</button>
-
-// After:
-<button>{i18n.t("landing.nav.cta", "Install with Claude")}</button>
-```
+{{SDK_SNIPPET:i18n/render}}
 
 ### Signature
 
@@ -147,7 +133,7 @@ Stored value: `"{{seconds}}s install"`. Curly braces are placeholders.
 
 > Applies to component/UI frameworks (React, Vue, Svelte, …). The trap is the
 > same in any language with module-level evaluation; the JSX below is the JS/TS
-> shape — use the `docs_get` snippet for your SDK.
+> shape — use the call form from "The pattern" above for your SDK.
 
 `i18n.t()` must run **during render**, not when a module is first imported.
 A call evaluated at import time bakes into a frozen string before translations
@@ -206,8 +192,8 @@ shipeasy i18n scan src --json
 
 ### 2. Wrap in code
 
-Edit each file. Import the i18n entrypoint for this project's SDK language
-(for JS/TS: `i18n` from `@shipeasy/sdk/client` — see the docs_get note above).
+Edit each file. Import the i18n entrypoint for this project's SDK language —
+the exact import/call is the snippet in "The pattern" above.
 
 ### 3. Push the keys to the backend
 
@@ -270,7 +256,7 @@ publishes — one command. (Guided: the `shipeasy-i18n-migrate` skill.)
 
 - Use the SDK's own i18n entrypoint for this project's language (for JS/TS:
   `i18n` from `@shipeasy/sdk/client`, never React hooks for the wrapping) —
-  fetch the exact call via `docs_get`.
+  the exact call is the snippet in "The pattern" above.
 - One `shipeasy()` configure call per runtime. Never add a separate
   `i18n.init()`, `fetchLabels()`, or a custom SDK-config wrapper.
 - One `publish` per chunk, after all keys are created — not once per key.
