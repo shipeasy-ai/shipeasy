@@ -175,10 +175,8 @@ export function buildProgram(): Command {
   triggerCommand(program);
 
   // ── Custom (non-spec) operations — the shared sugar registry ──────────────
-  // metrics grammar, docs list/get/skill, trigger guide. Same registry the MCP
-  // server projects, so the surfaces stay in sync (@shipeasy/openapi/custom).
-  // Mounted AFTER triggerCommand so `trigger guide` joins the existing
-  // hand-written `trigger` group instead of minting a duplicate.
+  // metrics grammar + docs list/get/skill. Same registry the MCP server
+  // projects, so the surfaces stay in sync (@shipeasy/openapi/custom).
   customCommands(program);
   detectCommand(program);
   mcpCommand(program);

@@ -7,9 +7,9 @@ import { customOperations, METRIC_GRAMMAR, opId } from "@shipeasy/openapi/custom
  * assert its shape + the pure ops here.
  */
 describe("custom-operations registry", () => {
-  it("exposes metrics grammar + docs list/get/skill + trigger guide", () => {
+  it("exposes metrics grammar + docs list/get/skill", () => {
     expect(customOperations.map(opId).sort()).toEqual(
-      ["docs.get", "docs.list", "docs.skill", "metrics.grammar", "trigger.guide"].sort(),
+      ["docs.get", "docs.list", "docs.skill", "metrics.grammar"].sort(),
     );
   });
 

@@ -183,6 +183,18 @@ tags:
       SDK + framework error sinks feed. Read-only list/get plus a status update
       (`open`/`resolved`/`ignored`), an auto-file-to-GitHub-issue action, and a
       time-series rollup. Errors are ingestion-only — there is no create route.
+  - name: Trigger
+    parent: Ops
+    description: |-
+      Recurring coding-agent triggers: the scheduled, unattended runs that burn
+      down the ops queue in `--pr` mode (one PR per fixed item; nothing
+      auto-merges). Shipeasy can fire four providers directly — Claude routines,
+      Cursor cloud agents, Copilot cloud agents, and Google Jules (the Gemini
+      path) — registered here as trigger connectors (idempotent per provider
+      key). Other platforms (Codex, Windsurf, Cline, OpenClaw, OpenCode,
+      Continue) schedule on their own surface — typically a GitHub Actions
+      `schedule:` cron running the platform's headless CLI with the shared
+      trigger prompt.
   - name: Connectors
     description: |-
       Outbound integrations: the per-project destinations feedback + trigger
@@ -307,6 +319,8 @@ paths:
     $ref: ./paths/connectors.yaml#/~1api~1admin~1connectors~1{id}~1test
   /api/admin/connectors/{id}/trigger:
     $ref: ./paths/connectors.yaml#/~1api~1admin~1connectors~1{id}~1trigger
+  /api/admin/connectors/trigger:
+    $ref: ./paths/connectors.yaml#/~1api~1admin~1connectors~1trigger
   /api/admin/keys:
     $ref: ./paths/keys.yaml#/~1api~1admin~1keys
   /api/admin/keys/{id}/revoke:

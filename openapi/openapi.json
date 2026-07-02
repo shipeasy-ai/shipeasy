@@ -121,6 +121,11 @@
       "description": "Tracked production errors: the deduplicated, fingerprinted error stream the\nSDK + framework error sinks feed. Read-only list/get plus a status update\n(`open`/`resolved`/`ignored`), an auto-file-to-GitHub-issue action, and a\ntime-series rollup. Errors are ingestion-only — there is no create route."
     },
     {
+      "name": "Trigger",
+      "parent": "Ops",
+      "description": "Recurring coding-agent triggers: the scheduled, unattended runs that burn\ndown the ops queue in `--pr` mode (one PR per fixed item; nothing\nauto-merges). Shipeasy can fire four providers directly — Claude routines,\nCursor cloud agents, Copilot cloud agents, and Google Jules (the Gemini\npath) — registered here as trigger connectors (idempotent per provider\nkey). Other platforms (Codex, Windsurf, Cline, OpenClaw, OpenCode,\nContinue) schedule on their own surface — typically a GitHub Actions\n`schedule:` cron running the platform's headless CLI with the shared\ntrigger prompt."
+    },
+    {
       "name": "Connectors",
       "description": "Outbound integrations: the per-project destinations feedback + trigger\nevents are dispatched to (GitHub, Google Sheets, Slack, and the\nClaude/Cursor/Copilot/Jules autopilot triggers). CRUD plus a manual\n`fire` (trigger-only) and a `test` payload."
     },
@@ -8551,6 +8556,140 @@
           "positional": [
             "id"
           ]
+        }
+      }
+    },
+    "/api/admin/connectors/trigger": {
+      "post": {
+        "operationId": "createTriggerConnector",
+        "summary": "Create a recurring coding-agent trigger",
+        "description": "Creates (or idempotently updates) a coding-agent **trigger** connector — the recurring, unattended run that burns down the ops queue in `--pr` mode. Discriminated on `provider`; only the four Shipeasy-fireable providers are accepted (`claude_trigger`, `cursor_trigger`, `copilot_trigger`, `jules_trigger`). Config + credential(s) arrive together; creates are idempotent by the provider's natural key, so re-creating updates the existing row.\n\nPlatforms without a fire endpoint (Codex, Windsurf, Cline, OpenClaw, OpenCode, Continue) cannot be created here — they are scheduled on their own platform (typically a GitHub Actions `schedule:` cron running the platform's headless CLI with the trigger prompt).\n\n**Use cases**\n\n- **Register a Claude routine** — after `RemoteTrigger {action:\"create\"}` returns `trig_…`, `{ \"provider\": \"claude_trigger\", \"config\": { \"routineId\": \"trig_…\" } }` (tokenless is fine; add the fire token later).\n- **Cold Cursor/Jules run** — repo coordinates + both keys; Shipeasy launches the run and the PR opens via the provider's GitHub App.\n- **Copilot cloud agent** — repo + a Copilot-licensed user PAT with the \"Agent tasks\" permission.",
+        "tags": [
+          "Trigger"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTriggerConnectorRequest"
+              },
+              "examples": {
+                "claude": {
+                  "summary": "Claude routine (tokenless)",
+                  "value": {
+                    "provider": "claude_trigger",
+                    "name": "Nightly ops sweep",
+                    "config": {
+                      "routineId": "trig_8fk20"
+                    }
+                  }
+                },
+                "cursor": {
+                  "summary": "Cursor cold cloud agent",
+                  "value": {
+                    "provider": "cursor_trigger",
+                    "name": "Cursor ops agent",
+                    "config": {
+                      "repoUrl": "https://github.com/acme/app",
+                      "projectId": "prj_01j7w7m9q4hxbf6npe6s9zr3vc"
+                    },
+                    "apiKey": "cur_live_…",
+                    "opsKey": "ops_…"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Trigger connector created (or idempotently updated)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateConnectorResponse"
+                },
+                "example": {
+                  "id": "9b0e7c2a-1f3d-4a8e-bf21-0c6a2e5d7f10"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "helpPreamble": "A trigger is an unattended, scheduled agent run: on a cron cadence it runs the\nshipeasy-ops-work loop in --pr mode against your project — one atomic diff and\nONE pull request per fixed item, nothing auto-merges.\n\nWhatever the provider, the scheduled run executes this trigger prompt (headless\nCLIs take it as the prompt; cloud agents as the task body):\n\n  You are an unattended Shipeasy maintenance run. Authenticate every `shipeasy`\n  call with these env vars (the CLI reads them directly — do NOT run\n  `shipeasy login`, never echo the token). Put them at the top of EVERY shell\n  invocation that calls `shipeasy`; each command runs in a fresh shell:\n\n  export SHIPEASY_CLI_TOKEN=\"<OPS_KEY>\"\n  export SHIPEASY_PROJECT_ID=\"<PROJECT_ID>\"\n\n  Ensure the repo is bound: test -f .shipeasy || printf '{\"project_id\":\"<PROJECT_ID>\"}\\n' > .shipeasy\n  (never commit .shipeasy).\n\n  Refresh to the latest plugin + CLI, then run the ops work loop in --pr mode:\n    <PLUGIN-INSTALL-FOR-THIS-HOST>       # plugin install for claude/copilot, or `npx -y skills add …`\n    npm install -g @shipeasy/cli@latest\n  Then follow the installed shipeasy-ops-work (--pr) workflow verbatim: burn down\n  the queue, one atomic diff per item, open ONE PR per item from a safe branch\n  prefix, flip each to ready_for_qa, add \"Closes #<issue>\" where an item has a\n  connected GitHub issue. If the queue is empty, exit cleanly. Never merge.\n\n<OPS_KEY> is a restricted `ops` key — mint with\n`npx -y @shipeasy/cli@latest keys create --type ops`. It reads the queue, flips\nstatus, links the PR it opens, and creates resources only; it can never edit or\ndelete existing resources, and auto-extends its 7-day expiry on each run.\n<PROJECT_ID> comes from the bound .shipeasy. Never print either value.\n\nSafety: auto-approve flags (--approval-mode=yolo, --dangerously-skip-permissions,\n…) remove the human gate — run only in an isolated env. Unattended loops spend\ntokens/credits on a cadence: start weekly/daily and watch the first runs.",
+          "commands": [
+            {
+              "name": "create claude",
+              "summary": "Register a Claude Code scheduled routine as the trigger connector",
+              "preset": {
+                "provider": "claude_trigger"
+              },
+              "help": "The reference implementation — a routine in Anthropic's cloud, no GitHub\nActions. The routines API is reachable only by the agent's in-process\nRemoteTrigger tool, so provisioning is a hybrid split:\n\n1. `shipeasy ops trigger prep --frequency <4h|6h|daily|weekdays|weekly|cron>`\n   mints the restricted ops key, resolves repo + cron, and writes the exact\n   RemoteTrigger create body to a 0600 temp file (the key is never printed).\n2. The agent picks an environment_id from its RemoteTrigger env list — the\n   environment's network access must allow shipeasy.ai + api.shipeasy.ai\n   (Custom network; new envs default to Trusted, which fails every shipeasy\n   call) — then calls RemoteTrigger {action:\"create\"} and captures trig_….\n   Verify with {action:\"run\"} (confirm first — it spends tokens and may open\n   a real PR).\n3. Register the connector (idempotent by routineId; tokenless is fine):\n\n     shipeasy ops trigger create claude --config '{\"routineId\":\"trig_…\"}'\n\nThe fire token (\"Fire now\" + event auto-fire) is web-UI-only: open\nhttps://claude.ai/code/routines → the routine → add an API trigger →\nGenerate token, then re-run the create with --token <token> and optionally\n--events '[\"bug.created\",\"feature_request.created\"]' — the same row is\nupgraded in place. GitHub access is connected once via /web-setup or the\nClaude GitHub App. Manage/pause the routine at claude.ai/code/routines."
+            },
+            {
+              "name": "create cursor",
+              "summary": "Register a Cursor cloud-agent trigger (cold-fire; Shipeasy launches the run)",
+              "preset": {
+                "provider": "cursor_trigger"
+              },
+              "help": "Cursor cloud agents are cold-fireable: one authenticated POST to\nhttps://api.cursor.com/v1/agents starts a run from nothing, and\nautoCreatePR opens the PR via Cursor's GitHub App. Registering the\nconnector stores both credentials, so Shipeasy can fire it on demand and\non subscribed events; the ops key rides the launch envVars (never the\nprompt):\n\n  shipeasy ops trigger create cursor \\\n    --config '{\"repoUrl\":\"https://github.com/<owner>/<repo>\",\"projectId\":\"<prj_…>\"}' \\\n    --api-key <CURSOR_API_KEY> --ops-key <ops_…>\n\nFor a fixed cadence (nightly runs without new feedback) add a Cursor\nAutomation (cursor.com/automations) with the same trigger prompt — cron +\n\"Pull request creation\" enabled. Note: Automations always run in Max Mode\n(billed on cloud-agent usage)."
+            },
+            {
+              "name": "create copilot",
+              "summary": "Register a GitHub Copilot cloud-agent trigger",
+              "preset": {
+                "provider": "copilot_trigger"
+              },
+              "help": "Copilot's cloud agent starts from one authenticated POST to\nhttps://api.github.com/agents/repos/<owner>/<repo>/tasks with\n{ prompt, create_pull_request: true }. Auth is a user-to-server token\nONLY: a fine-grained user PAT with the \"Agent tasks\" repo permission\n(read+write) for a Copilot-licensed account — the Actions GITHUB_TOKEN and\nGitHub App installation tokens are rejected. The agent reads\nSHIPEASY_CLI_TOKEN from the repo's own Agents secret store, so Shipeasy\nstores only the PAT:\n\n  shipeasy ops trigger create copilot \\\n    --config '{\"owner\":\"<owner>\",\"repo\":\"<repo>\"}' --token <fine-grained PAT>\n\nSet SHIPEASY_CLI_TOKEN (the restricted ops key) + SHIPEASY_PROJECT_ID in\nthe repo's Agents secrets first. For a fixed cadence use Copilot\nautomations (repo Agents tab; hourly/daily/weekly, private/internal repos\nonly) or a scheduled Actions job running `gh agent-task create`."
+            },
+            {
+              "name": "create jules",
+              "aliases": [
+                "gemini"
+              ],
+              "summary": "Register a Google Jules (Gemini) trigger",
+              "preset": {
+                "provider": "jules_trigger"
+              },
+              "help": "Jules — Google's async coding agent (the fireable Gemini path) — starts a\nsession from one POST to https://jules.googleapis.com/v1alpha/sessions\n(header X-Goog-Api-Key) with sourceContext.source =\nsources/github/<owner>/<repo> and automationMode: \"AUTO_CREATE_PR\". Jules\nexposes no env channel, so the restricted ops key is embedded in the\nsession prompt (safe — it is the limited ops key):\n\n  shipeasy ops trigger create jules \\\n    --config '{\"source\":\"sources/github/<owner>/<repo>\"}' \\\n    --api-key <JULES_API_KEY> --ops-key <ops_…>\n\nConnect the repo to Jules once (jules.google.com → connect GitHub). For a\nfixed cadence use Jules scheduled tasks (UI-only), or fall back to the\nGemini CLI in a GitHub Actions schedule: job\n(`gemini -p \"<TRIGGER PROMPT>\" --approval-mode=yolo`; auth GEMINI_API_KEY)."
+            }
+          ],
+          "fallback": {
+            "argument": "provider",
+            "platforms": [
+              "codex",
+              "windsurf",
+              "cline",
+              "openclaw",
+              "opencode",
+              "continue"
+            ],
+            "help": "Direct (Shipeasy-fired) triggers are not supported for this platform — it\nexposes no HTTP \"start a run\" endpoint our Worker can call. Supported here:\nclaude, cursor, copilot, jules (alias: gemini) — see\n`shipeasy ops trigger create <provider> --help`.\n\nPlatform-scheduled setup instead (the platform's own scheduler fires the\nrun; nothing to register in Shipeasy):\n\n1. Mint the restricted ops key (`shipeasy i18n keys create --type ops --json`)\n   and read the project id from .shipeasy. Never print either.\n2. Build the trigger prompt (run `shipeasy ops trigger create claude --help`\n   for the shared template) with the key, project id, and your platform's\n   install line substituted.\n3. Schedule a headless run with it — a GitHub Actions `schedule:` cron\n   (always-on; credentials as repo secrets incl. a GH_TOKEN/PAT with\n   contents:write + pull-requests:write) or a local cron/daemon (machine\n   must stay awake):\n\n     codex     GitHub Actions cron → `codex cloud exec --env <ENV_ID> \"<PROMPT>\"`\n               (submits a Codex Cloud task — machine-off; configure network +\n               SHIPEASY_* secrets once at chatgpt.com/codex/cloud/settings/environments)\n     windsurf  Devin Scheduled Sessions (cloud cron; WINDSURF/DEVIN API key)\n     cline     `cline schedule create --cron \"…\" --prompt \"<PROMPT>\"` (local daemon)\n     openclaw  `openclaw cron create \"…\" \"<PROMPT>\"` (local gateway; static API key)\n     opencode  `opencode run \"<PROMPT>\"` + external cron (permission: \"allow\")\n     continue  `cn -p --auto \"<PROMPT>\"` + external cron (CONTINUE_API_KEY)\n\n4. Verify one manual fire (expect a PR or a clean empty-queue exit) and\n   manage/pause it on that platform's scheduler."
+          }
         }
       }
     },
@@ -18466,6 +18605,32 @@
           }
         },
         "description": "Body for `PATCH /api/admin/connectors/{id}/trigger`, discriminated on `provider`. Edits an existing trigger connector: the non-secret `config` is always supplied and replaces the stored config wholesale; `name` and the credential secret(s) are optional (a supplied secret rotates just that key, a blank/omitted one leaves the stored cipher untouched)."
+      },
+      "CreateTriggerConnectorRequest": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/CreateClaudeTriggerRequest"
+          },
+          {
+            "$ref": "#/components/schemas/CreateCursorTriggerRequest"
+          },
+          {
+            "$ref": "#/components/schemas/CreateCopilotTriggerRequest"
+          },
+          {
+            "$ref": "#/components/schemas/CreateJulesTriggerRequest"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "provider",
+          "mapping": {
+            "claude_trigger": "#/components/schemas/CreateClaudeTriggerRequest",
+            "cursor_trigger": "#/components/schemas/CreateCursorTriggerRequest",
+            "copilot_trigger": "#/components/schemas/CreateCopilotTriggerRequest",
+            "jules_trigger": "#/components/schemas/CreateJulesTriggerRequest"
+          }
+        },
+        "description": "Body for `POST /api/admin/connectors/trigger`, discriminated on `provider` — the trigger-provider subset of `CreateConnectorRequest` (no OAuth stubs). Config + credentials arrive together and the connector is usable immediately; creates are idempotent by each provider's natural key (`config.routineId` / `config.repoUrl` / `config.owner`+`config.repo` / `config.source`)."
       },
       "KeyRecord": {
         "type": "object",

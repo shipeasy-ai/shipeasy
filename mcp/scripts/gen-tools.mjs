@@ -144,7 +144,14 @@ for (const [, item] of Object.entries(spec.paths)) {
     for (const v of verbs) {
       const preset = v.preset ?? {};
       const presetKeys = new Set(Object.keys(preset));
-      const name = [...segs, v.name].join("_").replace(/-/g, "_");
+      // Nested verb names ("create claude") become underscore segments; when the
+      // preset pins the body union's discriminator, scope the schema to that
+      // variant instead of the merged union.
+      const nameParts = String(v.name).trim().split(/\s+/);
+      const disc = bodySchema?.discriminator;
+      const variantRef = disc && preset[disc.propertyName] && disc.mapping?.[preset[disc.propertyName]];
+      const verbBodyProps = variantRef ? bodyPropsOf(deref({ $ref: variantRef })) : bodyProps;
+      const name = [...segs, ...nameParts].join("_").replace(/-/g, "_");
       if (OVERRIDDEN.has(name)) continue;
       const mutates = !op.operationId.startsWith("list") && !op.operationId.startsWith("get");
 
@@ -159,8 +166,8 @@ for (const [, item] of Object.entries(spec.paths)) {
         properties[qp.name] = withDesc(cleanSchema(qp.schema), qp.description);
         if (qp.required) required.push(qp.name);
       }
-      if (bodyProps) {
-        for (const bp of bodyProps) {
+      if (verbBodyProps) {
+        for (const bp of verbBodyProps) {
           if (presetKeys.has(bp.name)) continue;
           if (bp.schema?.["x-cli"]?.hidden) continue;
           properties[bp.name] = cleanSchema(bp.schema);
@@ -177,11 +184,11 @@ for (const [, item] of Object.entries(spec.paths)) {
         callParts.push(`path: { ${pathParams.map((p) => `${q(p.name)}: args[${q(p.name)}] as string`).join(", ")} }`);
       if (queryParams.length)
         callParts.push(`query: clean({ ${queryParams.map((p) => `${q(p.name)}: args[${q(p.name)}]`).join(", ")} })`);
-      if (!bodyProps && bodySchema) {
+      if (!verbBodyProps && bodySchema) {
         callParts.push(`body: args["body"] as never`);
-      } else if (bodyProps) {
+      } else if (verbBodyProps) {
         const fields = [
-          ...bodyProps.filter((bp) => !presetKeys.has(bp.name) && !bp.schema?.["x-cli"]?.hidden).map((bp) => `${q(bp.name)}: args[${q(bp.name)}]`),
+          ...verbBodyProps.filter((bp) => !presetKeys.has(bp.name) && !bp.schema?.["x-cli"]?.hidden).map((bp) => `${q(bp.name)}: args[${q(bp.name)}]`),
           ...Object.entries(preset).map(([k, val]) => `${q(k)}: ${q(val)}`),
         ];
         if (fields.length) callParts.push(`body: clean({ ${fields.join(", ")} })`);

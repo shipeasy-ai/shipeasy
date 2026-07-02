@@ -1,12 +1,12 @@
 # Moved
 
-The per-platform trigger install runbook is served by the CLI / MCP server so
-it always matches the shipped tooling:
+The per-platform trigger install runbook is the built-in help of the real
+create command, so it always matches the shipped tooling:
 
 ```bash
-shipeasy trigger guide [--provider <name>]   # MCP tool: trigger_guide
+shipeasy ops trigger create <provider> --help   # claude | cursor | copilot | jules (alias: gemini)
+shipeasy ops trigger create <anything-else>     # prints the platform-scheduled (GitHub Actions) setup
 ```
 
-Run with no flag to auto-detect the calling agent. Also published at
-<https://docs.shipeasy.ai/get-started/triggers>. The `shipeasy-ops-trigger`
-skill drives the full provisioning flow.
+Also published at <https://docs.shipeasy.ai/get-started/triggers>. The
+`shipeasy-ops-trigger` skill drives the full provisioning flow.

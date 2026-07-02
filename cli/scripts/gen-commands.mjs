@@ -48,6 +48,16 @@ function bodyPropsOf(bodySchema) {
     }
   return [...merged.entries()].map(([name, e]) => ({ name, schema: e.schema, required: e.reqCount === variants.length }));
 }
+// When a synthetic verb's preset pins the union's discriminator (e.g.
+// `preset: { provider: claude_trigger }`), scope its flags to THAT variant's
+// properties instead of the merged union.
+function variantFor(bodySchema, preset) {
+  const disc = bodySchema?.discriminator;
+  if (!disc || !preset) return null;
+  const val = preset[disc.propertyName];
+  const ref = val && disc.mapping?.[val];
+  return ref ? deref({ $ref: ref }) : null;
+}
 const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const kebab = (s) => s.replace(/_/g, "-").replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
 const camel = (s) => s.replace(/[-_]([a-z0-9])/g, (_, c) => c.toUpperCase());
@@ -147,16 +157,31 @@ for (const [path, item] of Object.entries(spec.paths)) {
     const verbs = xcli.commands ?? [{ name: xcli.name, summary: op.summary, preset: {} }];
 
     for (const v of verbs) {
+      const vPreset = v.preset ?? {};
+      // Nested verb name ("create claude") → a container subcommand `create`
+      // holding per-variant subcommands. The container's catch-all argument is
+      // driven by x-cli.fallback (unsupported values print its help text).
+      const nameParts = String(v.name).trim().split(/\s+/);
+      const variant = variantFor(bodySchema, vPreset);
       grp.commands.push({
         verb: v.name,
+        container: nameParts.length > 1 ? nameParts[0] : null,
+        sub: nameParts.length > 1 ? nameParts.slice(1).join("-") : v.name,
         summary: firstLine(v.summary || op.summary),
         description: firstLine(op.description),
         operationId: op.operationId,
         positional,
         pathParams,
         queryParams,
-        bodyProps,
-        preset: v.preset ?? {},
+        bodyProps: variant ? bodyPropsOf(variant) : bodyProps,
+        preset: vPreset,
+        // Long help: x-cli.helpPreamble (shared across verbs) + the verb's own
+        // x-cli help block, rendered via addHelpText on the command.
+        help: v.help ? [xcli.helpPreamble, v.help].filter(Boolean).join("\n\n") : undefined,
+        aliases: v.aliases ?? [],
+        containerSummary: firstLine(op.summary),
+        containerHelp: xcli.helpPreamble,
+        fallback: xcli.fallback,
         // Optional top-level alias (e.g. `whoami` for `projects current`). Only
         // for single-verb ops — synthetic-verb ops never carry one.
         topLevelAlias: xcli.commands ? undefined : xcli.topLevelAlias,
@@ -201,6 +226,7 @@ for (const grp of sortedGroups) {
 lines.push("");
 
 // command declarations
+const emittedContainers = new Set();
 for (const grp of sortedGroups) {
   for (const cmd of grp.commands) {
     const gv = groupVar(grp.segs);
@@ -258,18 +284,44 @@ for (const grp of sortedGroups) {
     }
     const call = `api.${cmd.operationId}({ client${callParts.length ? ", " + callParts.join(", ") : ""} })`;
 
+    // Nested verbs mount under a container subcommand (e.g. `ops trigger
+    // create <provider>`), emitted once per (group, container). The container's
+    // action handles the x-cli.fallback: no arg → help; an unmatched value →
+    // the fallback help text + non-zero exit.
+    let parentVar = gv;
+    if (cmd.container) {
+      const cv = `${gv}_${cmd.container.replace(/[^a-zA-Z0-9_]/g, "_")}`;
+      const ckey = groupKey(grp.segs) + "/" + cmd.container;
+      if (!emittedContainers.has(ckey)) {
+        emittedContainers.add(ckey);
+        lines.push(`  const ${cv} = defineGroup(${gv}, ${q(cmd.container)}, { summary: ${q(cmd.containerSummary)}, help: ${q(cmd.containerHelp ?? "")} });`);
+        if (cmd.fallback) {
+          const argName = (cmd.fallback.argument ?? "name").replace(/[^a-zA-Z0-9_]/g, "_");
+          lines.push(`  ${cv}.argument(${q("[" + argName + "]")}, "One of the subcommands below.");`);
+          lines.push(`  ${cv}.action((${argName}) => {`);
+          lines.push(`    if (!${argName}) return ${cv}.help();`);
+          lines.push(`    console.log(${q(cmd.fallback.help ?? "Unsupported value.")});`);
+          lines.push(`    process.exitCode = 1;`);
+          lines.push(`  });`);
+        }
+      }
+      parentVar = cv;
+    }
+
     // Emit one `.command()` on the given parent. Called for the normal command
     // under its group, and again on `program` for an optional top-level alias.
-    const emit = (parentVar, name) => {
-      lines.push(`  ${parentVar}.command(${q(name)})`);
+    const emit = (parentVar2, name) => {
+      lines.push(`  ${parentVar2}.command(${q(name)})`);
       if (cmd.summary) lines.push(`    .description(${q(cmd.summary)})`);
+      if (cmd.aliases.length) lines.push(`    .aliases(${JSON.stringify(cmd.aliases)})`);
       for (const p of posInfo) lines.push(`    .argument(${q("<" + p.name + ">")}, ${q(p.desc)})`);
       for (const o of opts) lines.push(`    .option(${q("--" + o.flag + " <value>")}, ${q(o.desc)})`);
+      if (cmd.help) lines.push(`    .addHelpText("after", ${q("\n" + cmd.help + "\n")})`);
       lines.push(`    .action(async (${actionArgs}) => {`);
       lines.push(`      await ctx.run({ mutates: ${mutates}, invoke: (client) => ${call} });`);
       lines.push(`    });`);
     };
-    emit(gv, cmd.verb);
+    emit(parentVar, cmd.container ? cmd.sub : cmd.verb);
     if (cmd.topLevelAlias) emit("program", cmd.topLevelAlias);
   }
 }

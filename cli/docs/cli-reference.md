@@ -418,6 +418,128 @@ shipeasy ops alerts archive [options] <id>
 | --- | --- | --- |
 | `--data <value>` | optional | Request body as a JSON object. |
 
+### `shipeasy ops trigger`
+
+Recurring coding-agent triggers: the scheduled, unattended runs that burn down the ops queue in `--pr` mode (one PR per fixed item; nothing auto-merges).
+
+```bash
+shipeasy ops trigger [options] [command]
+```
+
+#### `shipeasy ops trigger create`
+
+Create a recurring coding-agent trigger
+
+```bash
+shipeasy ops trigger create [options] [command] [provider]
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `provider` | optional | One of the subcommands below. |
+
+##### `shipeasy ops trigger create claude`
+
+Register a Claude Code scheduled routine as the trigger connector
+
+```bash
+shipeasy ops trigger create claude [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--name <value>` | optional | Human-readable connector label. |
+| `--events <value>` | optional | Events that auto-fire the routine. Defaults to empty so the trigger does not auto-fire paid runs until events are subscribed. |
+| `--config <value>` | optional | Non-secret config for a Claude trigger. |
+| `--token <value>` | optional | The routine's fire bearer token (secret). **Optional** — a tokenless trigger is recorded but not fireable until a token is added later. Encrypted into the credentials cipher; never persisted in `config` or returned. |
+| `--enabled <value>` | optional | Whether the trigger is active on create. |
+
+##### `shipeasy ops trigger create cursor`
+
+Register a Cursor cloud-agent trigger (cold-fire; Shipeasy launches the run)
+
+```bash
+shipeasy ops trigger create cursor [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--name <value>` | optional | Human-readable connector label. |
+| `--events <value>` | optional | Events that auto-fire a cold cloud-agent run. Defaults to empty. |
+| `--config <value>` | optional | Non-secret config for a Cursor trigger. |
+| `--api-key <value>` | optional | Cursor API key that launches the run (secret). Encrypted into the credentials cipher; never returned. |
+| `--ops-key <value>` | optional | Restricted Shipeasy ops key, injected into the run as `SHIPEASY_CLI_TOKEN` via the launch envVars (secret). Encrypted; never returned. |
+| `--enabled <value>` | optional | Whether the trigger is active on create. |
+
+##### `shipeasy ops trigger create copilot`
+
+Register a GitHub Copilot cloud-agent trigger
+
+```bash
+shipeasy ops trigger create copilot [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--name <value>` | optional | Human-readable connector label. |
+| `--events <value>` | optional | Events that auto-fire a Copilot agent task. Defaults to empty. |
+| `--config <value>` | optional | Non-secret config for a Copilot trigger. |
+| `--token <value>` | optional | Copilot-licensed user PAT (secret). The ops key lives in the repo's GitHub "Agents" secret store and is never sent through Shipeasy. Encrypted; never returned. |
+| `--enabled <value>` | optional | Whether the trigger is active on create. |
+
+##### `shipeasy ops trigger create jules`
+
+Register a Google Jules (Gemini) trigger
+
+```bash
+shipeasy ops trigger create jules [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--name <value>` | optional | Human-readable connector label. |
+| `--events <value>` | optional | Events that auto-fire a Jules session. Defaults to empty. |
+| `--config <value>` | optional | Non-secret config for a Jules trigger. |
+| `--api-key <value>` | optional | Jules API key that launches the session (secret). Encrypted into the credentials cipher; never returned. |
+| `--ops-key <value>` | optional | Restricted Shipeasy ops key, embedded in the prompt (Jules exposes no env channel) (secret). Encrypted; never returned. |
+| `--enabled <value>` | optional | Whether the trigger is active on create. |
+
+#### `shipeasy ops trigger prep`
+
+Mint the ops key + emit the RemoteTrigger create body for the agent to run
+
+Does the Shipeasy-side prep for a recurring trigger and emits the exact RemoteTrigger create body. It mints a restricted `ops` key (embedded in the routine prompt — the only hands-off channel, since routine env vars are UI-only), resolves the repo (origin remote) and cron (--frequency), and writes the body to a 0600 temp file (the key is never printed). It does NOT create the routine — the agent does, via the in-process RemoteTrigger tool, because the routines API token is not exposed to a standalone CLI.
+
+```bash
+shipeasy ops trigger prep [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--frequency <v>` | optional | Schedule: 4h \| 6h \| daily \| weekdays \| weekly \| <raw 5-field cron> (default: `"4h"`) |
+| `--repo <url>` | optional | GitHub repo the routine checks out (default: origin remote) |
+| `--model <id>` | optional | Model for the cloud session (default: `"claude-sonnet-4-6"`) |
+| `--name <name>` | optional | Routine name (default: `"Shipeasy ops:work"`) |
+| `--dry-run` | optional | Don't mint the ops key or write files — just print the plan |
+| `--json` | optional | Print the RemoteTrigger create body as JSON to stdout (contains the key) |
+| `--project <id>` | optional | Project ID override |
+
+Examples:
+
+```bash
+# Every 4h against the origin repo
+shipeasy ops trigger prep
+
+# Daily, explicit repo
+shipeasy ops trigger prep --frequency daily --repo https://github.com/acme/web
+
+# Preview without minting
+shipeasy ops trigger prep --dry-run
+
+# Emit body as JSON (for scripting)
+shipeasy ops trigger prep --json
+```
+
 ### `shipeasy ops list`
 
 List the operational queue
@@ -485,8 +607,6 @@ shipeasy ops bug [options] <title>
 | `--viewport <value>` | optional | Reporter's viewport (e.g. `1280x720`), or `null`. |
 | `--context <value>` | optional | Arbitrary capture context, or `null`. |
 | `--notify <value>` | optional | Where this bug's completion notification lands. |
-| `--description <value>` | optional | What the feature is. |
-| `--use-case <value>` | optional | Why it's needed / the use case. |
 
 ### `shipeasy ops feature`
 
@@ -498,22 +618,18 @@ shipeasy ops feature [options] <title>
 
 | Argument | | Description |
 | --- | --- | --- |
-| `title` | required | One-line bug title (no leading/trailing whitespace). |
+| `title` | required | One-line feature-request title (no leading/trailing whitespace). |
 
 | Option | | Description |
 | --- | --- | --- |
-| `--steps-to-reproduce <value>` | optional | How to reproduce the bug. |
-| `--actual-result <value>` | optional | What actually happened. |
-| `--expected-result <value>` | optional | What was expected instead. |
-| `--priority <value>` | optional | Initial triage priority, or `null`. |
-| `--reporter-email <value>` | optional | Email of the reporter, or `null`. |
-| `--page-url <value>` | optional | URL of the page the bug relates to, or `null`. |
-| `--user-agent <value>` | optional | Reporter's user-agent string, or `null`. |
-| `--viewport <value>` | optional | Reporter's viewport (e.g. `1280x720`), or `null`. |
-| `--context <value>` | optional | Arbitrary capture context, or `null`. |
-| `--notify <value>` | optional | Where this bug's completion notification lands. |
 | `--description <value>` | optional | What the feature is. |
 | `--use-case <value>` | optional | Why it's needed / the use case. |
+| `--priority <value>` | optional | Initial triage priority, or `null`. |
+| `--reporter-email <value>` | optional | Email of the reporter, or `null`. |
+| `--page-url <value>` | optional | URL of the page the request relates to, or `null`. |
+| `--user-agent <value>` | optional | Reporter's user-agent string, or `null`. |
+| `--context <value>` | optional | Arbitrary capture context, or `null`. |
+| `--notify <value>` | optional | Where this request's completion notification lands. |
 
 ### `shipeasy ops get`
 
@@ -1584,90 +1700,6 @@ shipeasy install i18n --profile en:staging
 # Enable the feedback / ops queue
 shipeasy install ops
 ```
-
-## `shipeasy trigger`
-
-Provision a recurring ops:work trigger (Shipeasy side of the hybrid split)
-
-```bash
-shipeasy trigger [options] [command]
-```
-
-### `shipeasy trigger create`
-
-Mint the ops key + emit the RemoteTrigger create body for the agent to run
-
-Does the Shipeasy-side prep for a recurring trigger and emits the exact RemoteTrigger create body. It mints a restricted `ops` key (embedded in the routine prompt — the only hands-off channel, since routine env vars are UI-only), resolves the repo (origin remote) and cron (--frequency), and writes the body to a 0600 temp file (the key is never printed). It does NOT create the routine — the agent does, via the in-process RemoteTrigger tool, because the routines API token is not exposed to a standalone CLI.
-
-```bash
-shipeasy trigger create [options]
-```
-
-| Option | | Description |
-| --- | --- | --- |
-| `--frequency <v>` | optional | Schedule: 4h \| 6h \| daily \| weekdays \| weekly \| <raw 5-field cron> (default: `"4h"`) |
-| `--repo <url>` | optional | GitHub repo the routine checks out (default: origin remote) |
-| `--model <id>` | optional | Model for the cloud session (default: `"claude-sonnet-4-6"`) |
-| `--name <name>` | optional | Routine name (default: `"Shipeasy ops:work"`) |
-| `--dry-run` | optional | Don't mint the ops key or write files — just print the plan |
-| `--json` | optional | Print the RemoteTrigger create body as JSON to stdout (contains the key) |
-| `--project <id>` | optional | Project ID override |
-
-Examples:
-
-```bash
-# Every 4h against the origin repo
-shipeasy trigger create
-
-# Daily, explicit repo
-shipeasy trigger create --frequency daily --repo https://github.com/acme/web
-
-# Preview without minting
-shipeasy trigger create --dry-run
-
-# Emit body as JSON (for scripting)
-shipeasy trigger create --json
-```
-
-### `shipeasy trigger link`
-
-Register a created routine as a Shipeasy connector (idempotent by routine id)
-
-```bash
-shipeasy trigger link [options]
-```
-
-| Option | | Description |
-| --- | --- | --- |
-| `--routine-id <id>` | required | The trig_… id RemoteTrigger create returned |
-| `--name <name>` | optional | Connector name (default: `"Claude trigger"`) |
-| `--token <token>` | optional | Routine fire token (optional — enables 'Fire now' + auto-fire) |
-| `--events <list>` | optional | Comma-separated auto-fire events (e.g. bug.created,feature_request.created) |
-| `--fire-text <text>` | optional | Default prompt sent when fired on demand |
-| `--json` | optional | Output as JSON |
-| `--project <id>` | optional | Project ID override |
-
-Examples:
-
-```bash
-# Tokenless (registered, not yet fireable)
-shipeasy trigger link --routine-id trig_abc123
-
-# With fire token + auto-fire on new bugs
-shipeasy trigger link --routine-id trig_abc123 --token … --events bug.created,feature_request.created
-```
-
-### `shipeasy trigger guide`
-
-Print the per-provider runbook for provisioning the recurring feedback trigger
-
-```bash
-shipeasy trigger guide [options]
-```
-
-| Option | | Description |
-| --- | --- | --- |
-| `--provider <value>` | optional | Platform that hosts the scheduled run. Omit to auto-detect the calling harness. |
 
 ## `shipeasy docs`
 

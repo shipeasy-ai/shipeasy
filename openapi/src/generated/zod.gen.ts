@@ -2608,6 +2608,16 @@ export const zUpdateTriggerConnectorRequest = z.discriminatedUnion('provider', [
 ]);
 
 /**
+ * Body for `POST /api/admin/connectors/trigger`, discriminated on `provider` — the trigger-provider subset of `CreateConnectorRequest` (no OAuth stubs). Config + credentials arrive together and the connector is usable immediately; creates are idempotent by each provider's natural key (`config.routineId` / `config.repoUrl` / `config.owner`+`config.repo` / `config.source`).
+ */
+export const zCreateTriggerConnectorRequest = z.discriminatedUnion('provider', [
+    zCreateClaudeTriggerRequest.extend({ provider: z.literal('claude_trigger') }),
+    zCreateCursorTriggerRequest.extend({ provider: z.literal('cursor_trigger') }),
+    zCreateCopilotTriggerRequest.extend({ provider: z.literal('copilot_trigger') }),
+    zCreateJulesTriggerRequest.extend({ provider: z.literal('jules_trigger') })
+]);
+
+/**
  * A single API key as returned by the list endpoint. Response fields are snake_case. The raw token is never returned here — only its `last4` tail. `last4` and the typed `scopes` may be `null` for keys minted before those columns existed.
  */
 export const zKeyRecord = z.object({
@@ -3951,6 +3961,17 @@ export const zUpdateTriggerConnectorPath = z.object({
  * Update a trigger connector
  */
 export const zUpdateTriggerConnectorResponse = zUpdateConnectorResponse;
+
+export const zCreateTriggerConnectorBody = zCreateTriggerConnectorRequest;
+
+export const zCreateTriggerConnectorHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+/**
+ * Trigger connector created (or idempotently updated)
+ */
+export const zCreateTriggerConnectorResponse = zCreateConnectorResponse;
 
 export const zListKeysHeaders = z.object({
     'X-Project-Id': z.string().optional()

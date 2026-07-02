@@ -369,6 +369,20 @@ JulesTriggerConfig:
     - projectId
   additionalProperties: false
   description: Non-secret config for a Jules trigger.
+CreateTriggerConnectorRequest:
+  oneOf:
+    - $ref: "#/CreateClaudeTriggerRequest"
+    - $ref: "#/CreateCursorTriggerRequest"
+    - $ref: "#/CreateCopilotTriggerRequest"
+    - $ref: "#/CreateJulesTriggerRequest"
+  discriminator:
+    propertyName: provider
+    mapping:
+      claude_trigger: "#/CreateClaudeTriggerRequest"
+      cursor_trigger: "#/CreateCursorTriggerRequest"
+      copilot_trigger: "#/CreateCopilotTriggerRequest"
+      jules_trigger: "#/CreateJulesTriggerRequest"
+  description: "Body for `POST /api/admin/connectors/trigger`, discriminated on `provider` — the trigger-provider subset of `CreateConnectorRequest` (no OAuth stubs). Config + credentials arrive together and the connector is usable immediately; creates are idempotent by each provider's natural key (`config.routineId` / `config.repoUrl` / `config.owner`+`config.repo` / `config.source`)."
 UpdateTriggerConnectorRequest:
   oneOf:
     - $ref: "#/UpdateClaudeTriggerRequest"

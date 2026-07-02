@@ -1,6 +1,6 @@
 ---
 name: shipeasy-ops-trigger
-description: Provision a recurring, unattended trigger that runs the shipeasy-ops-work loop in --pr mode on a schedule — one PR per fixed item. Provider-pluggable (--provider claude|cursor|copilot|windsurf|codex|cline|openclaw|opencode|continue|gemini); the per-platform runbook comes from `shipeasy trigger guide` (MCP: trigger_guide). Trigger on "recurring fix routine", "scheduled trigger", "unattended queue burn-down".
+description: Provision a recurring, unattended trigger that runs the shipeasy-ops-work loop in --pr mode on a schedule — one PR per fixed item. Provider-pluggable; the per-provider runbook is the built-in help of `shipeasy ops trigger create <provider>`. Trigger on "recurring fix routine", "scheduled trigger", "unattended queue burn-down".
 argument-hint: "[--provider claude|cursor|copilot|windsurf|codex|cline|openclaw|opencode|continue|gemini] [--frequency 4h|6h|daily|weekdays|weekly] [--dry-run]"
 user-invocable: true
 ---
@@ -11,20 +11,22 @@ This skill is **provider-pluggable**. Every provider schedules the **same
 work** (the `shipeasy-ops-work` `--pr` loop) — they differ only in **what
 schedules it**, **how the run is launched**, and **how it authenticates**.
 
-**The per-provider runbook is served by the CLI/MCP, not by this skill.**
-Resolve the provider, then pull that platform's full walkthrough:
+**The per-provider runbook is the built-in help of the real create command
+— not this skill.** Resolve the provider, then read that platform's full
+walkthrough:
 
 ```bash
-shipeasy trigger guide [--provider <name>]     # MCP tool: trigger_guide
+shipeasy ops trigger create <provider> --help   # claude | cursor | copilot | jules (alias: gemini)
+shipeasy ops trigger create <anything-else>     # prints the platform-scheduled (GitHub Actions) setup
 ```
 
-1. `--provider` in `$ARGUMENTS` wins — pass it through.
-2. Omitted → run `shipeasy trigger guide` with no flag: it **auto-detects the
-   calling harness** (over MCP from the client name; over the CLI from env
-   markers) and returns that provider's guide.
-3. It returns `provider: null` (undetectable) → it includes a `providers`
-   index (name, tier, scheduler, Shipeasy-fireable) — ask the user with
-   `AskUserQuestion`, then re-run with `--provider <name>`.
+1. `--provider` in `$ARGUMENTS` wins.
+2. Omitted → default to **the harness you are running in** (you know which
+   agent you are: Claude Code → `claude`, Cursor → `cursor`, Copilot →
+   `copilot`, Gemini → `jules`). A platform outside the four supported ones
+   stays as-is — the create command prints its platform-scheduled setup.
+3. Genuinely ambiguous → ask the user with `AskUserQuestion` (the four
+   supported providers + "other platform").
 
 **Dispatch on the resolved provider:**
 
@@ -32,24 +34,24 @@ shipeasy trigger guide [--provider <name>]     # MCP tool: trigger_guide
   below). It is the deepest, most automated flow and the only *routine*
   connector.
 - **Any other provider** → do **not** improvise. Do the shared prep, then
-  follow the guide's provider section **verbatim**:
+  follow the create command's printed instructions **verbatim**:
   1. **Schedule** — ask the user the cadence (step 1 below) → cron.
   2. **Mint the restricted `ops` key + read the project id** — provider-
      independent (`shipeasy i18n keys create --type ops --json` + the
      `.shipeasy` project id); the key is what the run authenticates with.
-     (For `claude`, `shipeasy trigger create` mints it for you — step 2 below.)
-  3. **Build the trigger prompt** — the guide output includes the shared
-     trigger-prompt template; substitute the `ops` key, project id, and the
-     host's install line.
-  4. **Provision the schedule on that platform** per the guide — create the
-     native automation (Tier A/B) or write the system-cron / GitHub Actions
-     `schedule:` job (Tier C). Use the **Bash tool** to run any CLI/API steps;
-     for UI-only steps (e.g. Cursor's PR toggle, a routine token) walk the
-     user through them.
+     (For `claude`, `shipeasy ops trigger prep` mints it for you — step 2 below.)
+  3. **Build the trigger prompt** — the create command's help includes the
+     shared trigger-prompt template; substitute the `ops` key, project id, and
+     the host's install line.
+  4. **Provision the schedule on that platform** per the printed
+     instructions — create the native automation or write the system-cron /
+     GitHub Actions `schedule:` job. Use the **Bash tool** to run any CLI/API
+     steps; for UI-only steps (e.g. Cursor's PR toggle, a routine token) walk
+     the user through them.
   5. **Verify** with one manual fire and confirm a PR (or empty-queue exit),
-     and hand off where to pause/inspect it. If the guide marks the provider
-     **Shipeasy-fireable**, register the connector with
-     `shipeasy trigger link`.
+     and hand off where to pause/inspect it. For the Shipeasy-fireable
+     providers, `shipeasy ops trigger create <provider> …` (step 4's runbook)
+     registers the connector itself.
   Respect `--dry-run` (print the plan + prompt, mint nothing) and the Hard
   rules below (restricted `ops` key, never print secrets, confirm before a
   paid fire).
@@ -62,14 +64,15 @@ over the **`/v1/code/triggers`** API. That API is reachable only by the agent's
 **in-process `RemoteTrigger` tool** (OAuth added automatically, never exposed) —
 **not** by a standalone CLI and **not** by `curl`. So this is a **hybrid split**:
 
-- **`shipeasy trigger create`** (Bash tool) does the Shipeasy side a binary can
-  own — mints the restricted `ops` key, resolves repo + cron, builds the routine
-  prompt, and **emits the exact `RemoteTrigger` create body** to a `0600` file.
+- **`shipeasy ops trigger prep`** (Bash tool) does the Shipeasy side a binary
+  can own — mints the restricted `ops` key, resolves repo + cron, builds the
+  routine prompt, and **emits the exact `RemoteTrigger` create body** to a
+  `0600` file.
 - **You (the agent)** read that body, pick an `environment_id` from your
   `RemoteTrigger` env list, and call **`RemoteTrigger {action:"create"}`**, then
   **`{action:"run"}`** to verify.
-- **`shipeasy trigger link --routine-id <id>`** registers the routine as a
-  Shipeasy connector.
+- **`shipeasy ops trigger create claude --config '{"routineId":"trig_…"}'`**
+  registers the routine as a Shipeasy connector.
 
 There is **no `/schedule` slash command, no GitHub Actions, no `.github/` file**
 in this flow.
@@ -78,7 +81,7 @@ in this flow.
 
 - **Use the Bash tool for every `shipeasy` command** — don't ask the user to run
   them.
-- **Restricted key, never your login token.** `shipeasy trigger create` mints a
+- **Restricted key, never your login token.** `shipeasy ops trigger prep` mints a
   dedicated `ops` key (queue reads + status flips + `feedback/:id/link-pr` +
   create-only dev ops; no edits/deletes; auto-extends its 7-day expiry on use).
   Say this to the user.
@@ -131,7 +134,7 @@ or a raw 5-field cron. (The routines API enforces a **1-hour minimum interval**.
 ## 2. Run the Shipeasy-side prep
 
 ```bash
-shipeasy trigger create --frequency <FREQ>        # add --repo <url> if origin isn't the target
+shipeasy ops trigger prep --frequency <FREQ>      # add --repo <url> if origin isn't the target
 ```
 
 (`--dry-run` prints the plan and mints nothing.) On success it mints the `ops`
@@ -167,7 +170,7 @@ flow did — now one tool call, no UI.)
 ## 5. Register the Shipeasy connector
 
 ```bash
-shipeasy trigger link --routine-id trig_<id>
+shipeasy ops trigger create claude --config '{"routineId":"trig_<id>"}'
 ```
 
 Idempotent by routine id; registers a **tokenless** connector (shows in
@@ -193,11 +196,11 @@ no API to mint or read it. To enable it: open
 **Generate token**, copy it, then:
 
 ```bash
-shipeasy trigger link --routine-id trig_<id> --token "<token>" \
-  --events bug.created,feature_request.created   # optional auto-fire
+shipeasy ops trigger create claude --config '{"routineId":"trig_<id>"}' \
+  --token "<token>" --events '["bug.created","feature_request.created"]'
 ```
 
-(Re-runs the idempotent link, upgrading the same connector in place.) Deferrable
+(Re-runs the idempotent create, upgrading the same connector in place.) Deferrable
 — the schedule already fires without it.
 
 ## 8. Hand-off

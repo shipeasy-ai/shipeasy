@@ -15,7 +15,6 @@ import { PROMPTS, PROMPT_BODIES } from "./prompts/schema.js";
 import { RESOURCE_TEMPLATES } from "./resources/schema.js";
 import { handleAuthCheck, handleAuthLogout } from "./tools/shared/auth.js";
 import { handleUpsertProject } from "./tools/projects/upsert.js";
-import { providerFromClientName } from "@shipeasy/openapi/custom";
 import { GENERATED_DISPATCH, GENERATED_MUTATES, CUSTOM_DISPATCH } from "./tools/registry.js";
 import { getGeneratedClient } from "./tools/_gen-runtime.js";
 import { notAuthenticated, notBound, ok, apiErr } from "./util/api-client.js";
@@ -66,20 +65,12 @@ export async function startStdioServer(): Promise<void> {
       }
     }
 
-    // Custom (non-endpoint) tools — `metrics_grammar`, `docs_*`,
-    // `trigger_guide`. Auth-free (pure / outbound fetch over GitHub Pages);
-    // no client, no binding.
+    // Custom (non-endpoint) tools — `metrics_grammar`, `docs_*`. Auth-free
+    // (pure / outbound fetch over GitHub Pages); no client, no binding.
     const customDispatch = CUSTOM_DISPATCH[toolName];
     if (customDispatch) {
-      let args = params.arguments ?? {};
-      // `trigger_guide` defaults its provider to the calling harness — over
-      // MCP the client's `clientInfo.name` identifies it exactly.
-      if (toolName === "trigger_guide" && !(args as Record<string, unknown>).provider) {
-        const provider = providerFromClientName(server.getClientVersion()?.name);
-        if (provider) args = { ...args, provider };
-      }
       try {
-        return ok(await customDispatch(args));
+        return ok(await customDispatch(params.arguments ?? {}));
       } catch (e) {
         return apiErr(e);
       }

@@ -4649,6 +4649,19 @@ export type UpdateTriggerConnectorRequest = ({
 } & UpdateJulesTriggerRequest);
 
 /**
+ * Body for `POST /api/admin/connectors/trigger`, discriminated on `provider` — the trigger-provider subset of `CreateConnectorRequest` (no OAuth stubs). Config + credentials arrive together and the connector is usable immediately; creates are idempotent by each provider's natural key (`config.routineId` / `config.repoUrl` / `config.owner`+`config.repo` / `config.source`).
+ */
+export type CreateTriggerConnectorRequest = ({
+    provider: 'claude_trigger';
+} & CreateClaudeTriggerRequest) | ({
+    provider: 'cursor_trigger';
+} & CreateCursorTriggerRequest) | ({
+    provider: 'copilot_trigger';
+} & CreateCopilotTriggerRequest) | ({
+    provider: 'jules_trigger';
+} & CreateJulesTriggerRequest);
+
+/**
  * A single API key as returned by the list endpoint. Response fields are snake_case. The raw token is never returned here — only its `last4` tail. `last4` and the typed `scopes` may be `null` for keys minted before those columns existed.
  */
 export type KeyRecord = {
@@ -9841,6 +9854,49 @@ export type UpdateTriggerConnectorResponses = {
 };
 
 export type UpdateTriggerConnectorResponse = UpdateTriggerConnectorResponses[keyof UpdateTriggerConnectorResponses];
+
+export type CreateTriggerConnectorData = {
+    body: CreateTriggerConnectorRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/admin/connectors/trigger';
+};
+
+export type CreateTriggerConnectorErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type CreateTriggerConnectorError = CreateTriggerConnectorErrors[keyof CreateTriggerConnectorErrors];
+
+export type CreateTriggerConnectorResponses = {
+    /**
+     * Trigger connector created (or idempotently updated)
+     */
+    201: CreateConnectorResponse;
+};
+
+export type CreateTriggerConnectorResponse = CreateTriggerConnectorResponses[keyof CreateTriggerConnectorResponses];
 
 export type ListKeysData = {
     body?: never;

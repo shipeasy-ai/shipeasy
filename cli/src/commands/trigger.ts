@@ -9,22 +9,24 @@ import { printJson } from "../util/output";
 import { withExamples, withDetails } from "../util/examples";
 
 /**
- * `shipeasy trigger …` — the Shipeasy half of the recurring-trigger setup.
+ * `shipeasy ops trigger prep` — the hand-written, fs-side half of the Claude
+ * trigger flow, mounted into the spec-generated `ops trigger` group.
  *
  * The Claude-Code routine that actually runs the schedule lives in Anthropic's
  * cloud and is created over the `/v1/code/triggers` API — which is reachable
  * only by the agent's in-process `RemoteTrigger` tool, never by a standalone
  * CLI (no exposed OAuth token). So this is a **hybrid split**:
  *
- *   - `trigger create` does everything Shipeasy-side a binary can own — mint
+ *   - `ops trigger prep` does everything Shipeasy-side a binary can own — mint
  *     the restricted ops key, resolve repo + cron, build the routine prompt,
  *     and EMIT the exact `RemoteTrigger` create body (+ instructions). It does
  *     NOT call the routines API.
- *   - the agent (the create_trigger skill) reads that body, picks an
+ *   - the agent (the shipeasy-ops-trigger skill) reads that body, picks an
  *     `environment_id` from its RemoteTrigger env list, calls
  *     `RemoteTrigger {action:"create"}` then `{action:"run"}` to verify.
- *   - `trigger link --routine-id <id>` registers the resulting routine as a
- *     Shipeasy connector (idempotent by routine id; tokenless by default).
+ *   - the spec-generated `ops trigger create claude --config
+ *     '{"routineId":"trig_…"}'` registers the routine as a Shipeasy connector
+ *     (idempotent by routine id; tokenless by default).
  */
 
 const ALLOWED_TOOLS = ["Bash", "Read", "Write", "Edit", "Glob", "Grep", "WebFetch", "WebSearch"];
@@ -110,13 +112,16 @@ interface CreatedKey {
 }
 
 export function triggerCommand(parent: Command): Command {
-  const trigger = parent
-    .command("trigger")
-    .description("Provision a recurring ops:work trigger (Shipeasy side of the hybrid split)");
+  // The `ops trigger` group (and its `create <provider>` subcommands) is
+  // spec-generated; this attaches the one fs-side verb a binary must own.
+  // Mounted AFTER registerGeneratedCommands, so both groups already exist.
+  const ops = parent.commands.find((c) => c.name() === "ops");
+  const trigger = ops?.commands.find((c) => c.name() === "trigger");
+  if (!trigger) throw new Error("generated `ops trigger` group missing — run pnpm gen:cli");
 
-  // ── trigger create ─────────────────────────────────────────────────────────
+  // ── ops trigger prep ───────────────────────────────────────────────────────
   const create = trigger
-    .command("create")
+    .command("prep")
     .description("Mint the ops key + emit the RemoteTrigger create body for the agent to run")
     .option(
       "--frequency <v>",
@@ -226,7 +231,8 @@ export function triggerCommand(parent: Command): Command {
           console.log("  2. RemoteTrigger { action:\"create\", body:<the body> } → capture trig_<id>.");
           console.log("  3. (confirm with user — spends tokens, may open a PR)");
           console.log("     RemoteTrigger { action:\"run\", trigger_id:\"trig_<id>\" } to verify.");
-          console.log("  4. shipeasy trigger link --routine-id trig_<id>   (register the connector)");
+          console.log("  4. shipeasy ops trigger create claude --config '{\"routineId\":\"trig_<id>\"}'");
+          console.log("     (registers the connector; idempotent, tokenless is fine)");
           console.log("  Portal: https://claude.ai/code/routines");
         } catch (e) {
           if (e instanceof ApiError) console.error(`Error (${e.status}): ${e.message}`);
@@ -247,70 +253,10 @@ export function triggerCommand(parent: Command): Command {
       "because the routines API token is not exposed to a standalone CLI.",
   );
   withExamples(create, [
-    { note: "Every 4h against the origin repo", run: "shipeasy trigger create" },
-    { note: "Daily, explicit repo", run: "shipeasy trigger create --frequency daily --repo https://github.com/acme/web" },
-    { note: "Preview without minting", run: "shipeasy trigger create --dry-run" },
-    { note: "Emit body as JSON (for scripting)", run: "shipeasy trigger create --json" },
-  ]);
-
-  // ── trigger link ─────────────────────────────────────────────────────────
-  const link = trigger
-    .command("link")
-    .description("Register a created routine as a Shipeasy connector (idempotent by routine id)")
-    .requiredOption("--routine-id <id>", "The trig_… id RemoteTrigger create returned")
-    .option("--name <name>", "Connector name", "Claude trigger")
-    .option("--token <token>", "Routine fire token (optional — enables 'Fire now' + auto-fire)")
-    .option(
-      "--events <list>",
-      "Comma-separated auto-fire events (e.g. bug.created,feature_request.created)",
-      (v: string) => v.split(",").map((s) => s.trim()).filter(Boolean),
-    )
-    .option("--fire-text <text>", "Default prompt sent when fired on demand")
-    .option("--json", "Output as JSON")
-    .option("--project <id>", "Project ID override")
-    .action(
-      async (opts: {
-        routineId: string;
-        name: string;
-        token?: string;
-        events?: string[];
-        fireText?: string;
-        json?: boolean;
-        project?: string;
-      }) => {
-        try {
-          const client = getApiClient(opts.project, { requireBinding: true });
-          const result = await client.request<{ id: string }>("POST", "/api/admin/connectors", {
-            provider: "claude_trigger",
-            name: opts.name,
-            ...(opts.events ? { events: opts.events } : {}),
-            ...(opts.token ? { token: opts.token } : {}),
-            config: {
-              routineId: opts.routineId,
-              ...(opts.fireText ? { fireText: opts.fireText } : {}),
-            },
-          });
-          if (opts.json) return printJson(result);
-          console.log(
-            `✅ Connector registered for routine ${opts.routineId}` +
-              (opts.token ? " (fireable)" : " (tokenless — add --token later to enable 'Fire now')") +
-              ".",
-          );
-          console.log("   Manage in Shipeasy → Feedback → Connectors.");
-        } catch (e) {
-          if (e instanceof ApiError) console.error(`Error (${e.status}): ${e.message}`);
-          else console.error(String(e));
-          process.exit(1);
-        }
-      },
-    );
-
-  withExamples(link, [
-    { note: "Tokenless (registered, not yet fireable)", run: "shipeasy trigger link --routine-id trig_abc123" },
-    {
-      note: "With fire token + auto-fire on new bugs",
-      run: "shipeasy trigger link --routine-id trig_abc123 --token … --events bug.created,feature_request.created",
-    },
+    { note: "Every 4h against the origin repo", run: "shipeasy ops trigger prep" },
+    { note: "Daily, explicit repo", run: "shipeasy ops trigger prep --frequency daily --repo https://github.com/acme/web" },
+    { note: "Preview without minting", run: "shipeasy ops trigger prep --dry-run" },
+    { note: "Emit body as JSON (for scripting)", run: "shipeasy ops trigger prep --json" },
   ]);
 
   return trigger;
