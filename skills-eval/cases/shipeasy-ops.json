@@ -1,93 +1,19 @@
 [
   {
-    "id": "shipeasy-ops/bug-report",
-    "prompt": "bug report",
+    "id": "shipeasy-ops/file-bug",
+    "prompt": "File a bug report: the CSV export button returns a 500 for accounts with more than 10k rows.",
     "expect_skill": "shipeasy-ops",
-    "expect_tools": [
-      "ops_get",
-      "ops_list",
-      "ops_notify",
-      "ops_update"
-    ],
-    "tools_match": "none",
-    "note": "auto-seeded from trigger phrase; refine prompt + expect_tools"
+    "expect_tools": ["ops_create"],
+    "tools_match": "all",
+    "note": "file a new item into the operational queue"
   },
   {
-    "id": "shipeasy-ops/feature-request",
-    "prompt": "feature request",
+    "id": "shipeasy-ops/triage-readonly",
+    "prompt": "Show me the open items in the ops queue.",
     "expect_skill": "shipeasy-ops",
-    "expect_tools": [
-      "ops_get",
-      "ops_list",
-      "ops_notify",
-      "ops_update"
-    ],
-    "tools_match": "none",
-    "note": "auto-seeded from trigger phrase; refine prompt + expect_tools"
-  },
-  {
-    "id": "shipeasy-ops/feedback",
-    "prompt": "feedback",
-    "expect_skill": "shipeasy-ops",
-    "expect_tools": [
-      "ops_get",
-      "ops_list",
-      "ops_notify",
-      "ops_update"
-    ],
-    "tools_match": "none",
-    "note": "auto-seeded from trigger phrase; refine prompt + expect_tools"
-  },
-  {
-    "id": "shipeasy-ops/ops-inbox",
-    "prompt": "ops inbox",
-    "expect_skill": "shipeasy-ops",
-    "expect_tools": [
-      "ops_get",
-      "ops_list",
-      "ops_notify",
-      "ops_update"
-    ],
-    "tools_match": "none",
-    "note": "auto-seeded from trigger phrase; refine prompt + expect_tools"
-  },
-  {
-    "id": "shipeasy-ops/operational-queue",
-    "prompt": "operational queue",
-    "expect_skill": "shipeasy-ops",
-    "expect_tools": [
-      "ops_get",
-      "ops_list",
-      "ops_notify",
-      "ops_update"
-    ],
-    "tools_match": "none",
-    "note": "auto-seeded from trigger phrase; refine prompt + expect_tools"
-  },
-  {
-    "id": "shipeasy-ops/fix-open-bugs",
-    "prompt": "fix open bugs",
-    "expect_skill": "shipeasy-ops",
-    "expect_tools": [
-      "ops_get",
-      "ops_list",
-      "ops_notify",
-      "ops_update"
-    ],
-    "tools_match": "none",
-    "note": "auto-seeded from trigger phrase; refine prompt + expect_tools"
-  },
-  {
-    "id": "shipeasy-ops/burn-down-the-queue",
-    "prompt": "burn down the queue",
-    "expect_skill": "shipeasy-ops",
-    "expect_tools": [
-      "ops_get",
-      "ops_list",
-      "ops_notify",
-      "ops_update"
-    ],
-    "tools_match": "none",
-    "note": "auto-seeded from trigger phrase; refine prompt + expect_tools"
+    "expect_tools": ["ops_list"],
+    "tools_match": "any",
+    "forbid_tools": ["ops_create", "ops_update"],
+    "note": "read-only triage view must not file or edit items"
   }
 ]

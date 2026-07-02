@@ -1,80 +1,20 @@
 [
   {
-    "id": "shipeasy-metrics/create-metric",
-    "prompt": "create metric",
+    "id": "shipeasy-metrics/create",
+    "prompt": "Create a metric called checkout_completed that counts the checkout_complete event, so we can use it as an experiment success metric.",
     "expect_skill": "shipeasy-metrics",
-    "expect_tools": [
-      "metrics_create",
-      "metrics_grammar",
-      "metrics_list",
-      "metrics_show"
-    ],
-    "tools_match": "none",
-    "note": "auto-seeded from trigger phrase; refine prompt + expect_tools"
+    "expect_tools": ["metrics_create"],
+    "tools_match": "all",
+    "forbid_tools": ["metrics_archive"],
+    "note": "define a custom event metric"
   },
   {
-    "id": "shipeasy-metrics/track-metric",
-    "prompt": "track metric",
+    "id": "shipeasy-metrics/list-readonly",
+    "prompt": "What custom metrics do we already track?",
     "expect_skill": "shipeasy-metrics",
-    "expect_tools": [
-      "metrics_create",
-      "metrics_grammar",
-      "metrics_list",
-      "metrics_show"
-    ],
-    "tools_match": "none",
-    "note": "auto-seeded from trigger phrase; refine prompt + expect_tools"
-  },
-  {
-    "id": "shipeasy-metrics/metric-dsl",
-    "prompt": "metric DSL",
-    "expect_skill": "shipeasy-metrics",
-    "expect_tools": [
-      "metrics_create",
-      "metrics_grammar",
-      "metrics_list",
-      "metrics_show"
-    ],
-    "tools_match": "none",
-    "note": "auto-seeded from trigger phrase; refine prompt + expect_tools"
-  },
-  {
-    "id": "shipeasy-metrics/event-metric",
-    "prompt": "event metric",
-    "expect_skill": "shipeasy-metrics",
-    "expect_tools": [
-      "metrics_create",
-      "metrics_grammar",
-      "metrics_list",
-      "metrics_show"
-    ],
-    "tools_match": "none",
-    "note": "auto-seeded from trigger phrase; refine prompt + expect_tools"
-  },
-  {
-    "id": "shipeasy-metrics/success-metric-definition",
-    "prompt": "success metric definition",
-    "expect_skill": "shipeasy-metrics",
-    "expect_tools": [
-      "metrics_create",
-      "metrics_grammar",
-      "metrics_list",
-      "metrics_show"
-    ],
-    "tools_match": "none",
-    "note": "auto-seeded from trigger phrase; refine prompt + expect_tools"
-  },
-  {
-    "id": "shipeasy-metrics/what-metrics-do-we-have",
-    "prompt": "what metrics do we have",
-    "expect_skill": "shipeasy-metrics",
-    "expect_tools": [
-      "metrics_create",
-      "metrics_grammar",
-      "metrics_list",
-      "metrics_show"
-    ],
-    "tools_match": "none",
-    "note": "auto-seeded from trigger phrase; refine prompt + expect_tools"
+    "expect_tools": ["metrics_list"],
+    "tools_match": "any",
+    "forbid_tools": ["metrics_create", "metrics_archive"],
+    "note": "read-only ask must not create a metric"
   }
 ]

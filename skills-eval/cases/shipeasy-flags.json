@@ -1,47 +1,32 @@
 [
   {
-    "id": "shipeasy-flags/create-gate",
-    "prompt": "Create a feature flag called checkout_v2 that's on for 10% of users.",
+    "id": "shipeasy-flags/create-then-ramp",
+    "prompt": "Create a feature flag called checkout_v2 that's on for 10% of users, then ramp its rollout up to 50%.",
     "expect_skill": "shipeasy-flags",
-    "expect_tools": ["release_flags_create"],
+    "expect_tools": ["release_flags_create", "release_flags_rollout"],
     "tools_match": "all",
     "forbid_tools": ["release_flags_archive"],
-    "note": "canonical create path"
-  },
-  {
-    "id": "shipeasy-flags/rollout",
-    "prompt": "Bump the checkout_v2 flag rollout to 50%.",
-    "expect_skill": "shipeasy-flags",
-    "expect_tools": ["release_flags_rollout", "release_flags_update"],
-    "tools_match": "any",
-    "note": "either the dedicated rollout tool or a generic update is acceptable"
+    "note": "full flow: create a gate, then increase its rollout"
   },
   {
     "id": "shipeasy-flags/kill-switch",
-    "prompt": "Set up a kill switch so we can instantly disable the payments integration.",
+    "prompt": "Set up a kill switch so we can instantly disable the payments integration if it starts failing.",
     "expect_skill": "shipeasy-flags",
     "expect_tools": ["release_killswitch_create"],
     "tools_match": "all",
-    "note": "kill switch routes into the same skill, different tool family"
-  },
-  {
-    "id": "shipeasy-flags/dynamic-config",
-    "prompt": "Add a dynamic config named search.ranking holding a boost number and model string.",
-    "expect_skill": "shipeasy-flags",
-    "expect_tools": ["release_configs_create"],
-    "tools_match": "all",
-    "note": "config, not gate — should not create a flag"
+    "forbid_tools": ["release_flags_create"],
+    "note": "kill switch routes to the killswitch tool family, not a plain gate"
   },
   {
     "id": "shipeasy-flags/list-readonly",
-    "prompt": "What feature flags do we currently have?",
+    "prompt": "What feature flags do we currently have and which are enabled?",
     "expect_skill": "shipeasy-flags",
     "expect_tools": ["release_flags_list"],
     "tools_match": "any",
     "forbid_tools": [
       "release_flags_create",
-      "release_flags_archive",
-      "release_flags_update"
+      "release_flags_update",
+      "release_flags_archive"
     ],
     "note": "read-only ask must not mutate anything"
   }

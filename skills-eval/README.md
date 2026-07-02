@@ -27,14 +27,17 @@ processes against a **local** backend and costs tokens — run it on demand.
 ## The loop
 
 ```bash
-# 1. Seed draft cases from every skill's `Trigger on "…"` phrases.
+# 1. Seed one draft flow-stub per skill from its `Trigger on "…"` phrases.
 pnpm --filter @shipeasy/skills-eval seed          # all skills (won't clobber edits)
 pnpm --filter @shipeasy/skills-eval seed -- flags --force   # regenerate one
 
-# 2. Refine cases/*.json by hand (see "Case format"). Drafts land as
-#    tools_match:"none" (nothing asserted) — turn a trigger phrase into a natural
-#    request and promote the real tool(s) to "all"/"any". cases/shipeasy-flags.json
-#    and cases/shipeasy-alerts.json are worked examples.
+# 2. Write the real cases by hand. These are INTEGRATION tests, not unit tests:
+#    a handful of realistic, full-flow prompts per skill — "Create an experiment
+#    that splits 50/50 on the checkout_conversion metric and start it" — each
+#    asserting the WHOLE tool sequence (release_experiments_create +
+#    release_experiments_start) with tools_match:"all", plus forbid_tools guards.
+#    Prefer few, focused flows over many thin one-liners. cases/shipeasy-experiments.json
+#    and cases/shipeasy-flags.json are the worked examples.
 
 # 3. Run the eval (see prerequisites below).
 pnpm --filter @shipeasy/skills-eval eval          # all cases

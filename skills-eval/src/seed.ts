@@ -1,10 +1,12 @@
 /**
- * Seed `cases/<skill>.json` from every shipped SKILL.md: each trigger phrase
- * becomes a draft prompt, and the skill's documented MCP tools become the
- * candidate `expect_tools`. The output is a STARTING POINT — cases land with
- * `tools_match: "none"` (informational) so nothing is falsely asserted; you then
- * refine each prompt into a natural request and promote the right tool(s) to
- * `"all"`/`"any"`.
+ * Seed `cases/<skill>.json` from every shipped SKILL.md: ONE consolidated draft
+ * flow per skill. The trigger phrases are collapsed into a single stub (listed in
+ * `note` for inspiration) and the skill's documented MCP tools become the
+ * candidate `expect_tools`. This is deliberately a STARTING POINT, not the final
+ * suite — cases land with `tools_match: "none"` (nothing asserted) so you then
+ * write a few realistic, FULL-FLOW prompts ("Create an experiment that … and
+ * start it") that read like integration tests, each asserting the whole tool
+ * sequence with `"all"`/`"any"`. See cases/shipeasy-flags.json for the shape.
  *
  *   pnpm --filter @shipeasy/skills-eval seed          # all skills
  *   pnpm --filter @shipeasy/skills-eval seed -- flags # one skill (suffix match)
@@ -36,14 +38,18 @@ for (const dir of skillDirs) {
     console.warn(`· ${dir}: no trigger phrases found, skipped`);
     continue;
   }
-  const cases: EvalCase[] = parsed.triggers.map((phrase) => ({
-    id: `${dir}/${slug(phrase)}`,
-    prompt: phrase, // DRAFT: refine into a natural user request
-    expect_skill: dir,
-    expect_tools: parsed.tools,
-    tools_match: "none", // promote to "all"/"any" once you pick the real tool(s)
-    note: "auto-seeded from trigger phrase; refine prompt + expect_tools",
-  }));
+  // One consolidated stub per skill — the human expands it into a few full-flow
+  // cases. The trigger phrases ride along in the note as raw material.
+  const cases: EvalCase[] = [
+    {
+      id: `${dir}/flow`,
+      prompt: parsed.triggers[0] ?? "", // DRAFT: rewrite as a full-flow request
+      expect_skill: dir,
+      expect_tools: parsed.tools,
+      tools_match: "none", // promote to "all"/"any" once you pick the real tool(s)
+      note: `DRAFT — write full-flow prompts. triggers: ${parsed.triggers.join(", ")}`,
+    },
+  ];
 
   const out = join(CASES_DIR, `${dir}.json`);
   if (existsSync(out) && !force) {
@@ -55,7 +61,3 @@ for (const dir of skillDirs) {
   wrote++;
 }
 console.log(`\nSeeded ${wrote} skill file(s). Edit cases/*.json before running \`pnpm eval\`.`);
-
-function slug(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32);
-}

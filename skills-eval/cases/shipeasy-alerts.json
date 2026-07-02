@@ -9,17 +9,8 @@
     "note": "canonical 'alert me when <metric> exceeds' path"
   },
   {
-    "id": "shipeasy-alerts/list-readonly",
-    "prompt": "List the alert rules we have configured.",
-    "expect_skill": "shipeasy-alerts",
-    "expect_tools": ["ops_alerts_list"],
-    "tools_match": "any",
-    "forbid_tools": ["ops_alerts_create", "ops_alerts_update", "ops_alerts_archive"],
-    "note": "read-only ask must not create or edit a rule"
-  },
-  {
     "id": "shipeasy-alerts/pause",
-    "prompt": "Pause the alert rule on signup conversion for now.",
+    "prompt": "Pause the alert rule on signup conversion for now — don't delete it.",
     "expect_skill": "shipeasy-alerts",
     "expect_tools": ["ops_alerts_update"],
     "tools_match": "all",
