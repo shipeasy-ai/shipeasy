@@ -1,12 +1,12 @@
 [
   {
     "id": "shipeasy-metrics/measure-checkouts",
-    "prompt": "I want to measure how many checkouts actually get completed. Can you set that up so we can use it as a success metric later?",
+    "prompt": "I want to measure how many checkouts actually get completed.",
     "expect_skill": "shipeasy-metrics",
-    "expect_tools": ["metrics_create"],
+    "expect_tools": ["metrics_events_list", "metrics_list", "metrics_create"],
     "tools_match": "all",
     "forbid_tools": ["metrics_archive"],
-    "note": "human phrasing of 'create a conversion metric on the checkout-complete event'"
+    "note": "before creating: list events (does one already track this?) and list metrics (does the metric already exist?), then create"
   },
   {
     "id": "shipeasy-metrics/list-readonly",

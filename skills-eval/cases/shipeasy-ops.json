@@ -9,7 +9,7 @@
   },
   {
     "id": "shipeasy-ops/file-bug-from-context",
-    "prompt": "I just spent an hour debugging this: on the billing page, changing a subscription's seat count from 5 to 3 charges the customer for the OLD count until the next page refresh — the proration preview is stale. Ugh. Anyway, file a bug for that.",
+    "prompt": "Dropping a subscription from 5 to 3 seats still charges for 5 until refresh — stale proration preview. File a bug.",
     "expect_skill": "shipeasy-ops",
     "expect_tools": ["ops_create", "ops_bug"],
     "tools_match": "any",

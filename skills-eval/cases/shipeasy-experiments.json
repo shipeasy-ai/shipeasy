@@ -1,7 +1,7 @@
 [
   {
-    "id": "shipeasy-experiments/event-metric-experiment",
-    "prompt": "We're not tracking checkout completions at all yet, but I want to A/B test a new green checkout button against the current one. Can you set up the event tracking, a conversion metric off it, and draft the experiment splitting traffic evenly? Don't start it — I'll review the diff first.",
+    "id": "shipeasy-experiments/ab-test-checkout-button",
+    "prompt": "A/B test a new green checkout button against the current one.",
     "expect_skill": "shipeasy-experiments",
     "expect_tools": ["metrics_events_create", "metrics_create", "release_experiments_create"],
     "tools_match": "all",
@@ -9,20 +9,20 @@
     "assert_args": [
       { "tool": "release_experiments_create", "contains": ["control"] }
     ],
-    "note": "the real chain: register event -> define metric on it -> draft experiment referencing it. Stays a DRAFT (skill rule: never auto-start)."
+    "note": "a bare 'A/B test X' must drive the whole chain — event, metric, experiment — and stay a DRAFT (skill rule: never auto-start)"
   },
   {
     "id": "shipeasy-experiments/start",
-    "prompt": "The checkout-button experiment looks good — go ahead and start it.",
+    "prompt": "Start the checkout-button experiment.",
     "expect_skill": "shipeasy-experiments",
     "expect_tools": ["release_experiments_start"],
     "tools_match": "all",
     "forbid_tools": ["release_experiments_archive"],
-    "note": "start is the explicit, separate step after review"
+    "note": "explicit start, the separate step after review"
   },
   {
     "id": "shipeasy-experiments/results-readonly",
-    "prompt": "How's the checkout-button experiment doing — has the difference reached significance yet?",
+    "prompt": "Is the checkout-button experiment significant yet?",
     "expect_skill": "shipeasy-experiments",
     "expect_tools": ["release_experiments_results"],
     "tools_match": "any",

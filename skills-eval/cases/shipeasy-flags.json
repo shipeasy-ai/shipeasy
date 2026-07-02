@@ -1,7 +1,7 @@
 [
   {
     "id": "shipeasy-flags/ship-then-ramp",
-    "prompt": "Put the new checkout page behind a feature flag and start it at 10% of users. Once that's in, bump it up to half of everyone.",
+    "prompt": "Put the new checkout behind a flag at 10%, then ramp it to 50%.",
     "expect_skill": "shipeasy-flags",
     "expect_tools": ["release_flags_create", "release_flags_update"],
     "tools_match": "all",
@@ -10,36 +10,44 @@
   },
   {
     "id": "shipeasy-flags/rich-targeting",
-    "prompt": "Roll the new checkout out to half of our US users. Also always let a couple of teammates in no matter what — alice@acme.com and bob@acme.com — and open it up to anyone on the internal team.",
+    "prompt": "Roll new checkout out to 50% of US users, always allow alice@acme.com and bob@acme.com, plus the internal team.",
     "expect_skill": "shipeasy-flags",
     "expect_tools": ["release_flags_create"],
     "tools_match": "all",
     "forbid_tools": ["release_flags_archive"],
     "assert_args": [
-      {
-        "tool": "release_flags_create",
-        "contains": ["US", "alice@acme.com", "bob@acme.com"]
-      }
+      { "tool": "release_flags_create", "contains": ["US", "alice@acme.com", "bob@acme.com"] }
     ],
-    "note": "one gate, several gatekeeper steps: US 50% rollout + email whitelist + team access. Args must carry the country and the whitelisted emails."
+    "note": "one gate, several gatekeeper steps: US 50% + email whitelist + team access. Args must carry country + whitelisted emails"
   },
   {
-    "id": "shipeasy-flags/kill-switch-then-offer-alert",
-    "prompt": "Set up a kill switch so we can instantly disable the payments integration if it starts failing.",
+    "id": "shipeasy-flags/release-india",
+    "prompt": "Release payments in India.",
     "expect_skill": "shipeasy-flags",
-    "expect_tools": ["release_killswitch_create"],
-    "tools_match": "all",
-    "expect_ask": true,
-    "forbid_tools": ["release_flags_create"],
-    "note": "ASPIRATIONAL: after creating the kill switch, the agent should ask (AskUserQuestion) whether to also add a failure metric + alert so we know WHEN to flip it. Fails until the flags/ops skills nudge that follow-up."
+    "expect_tools": ["release_flags_create", "release_flags_enable"],
+    "tools_match": "any",
+    "assert_args": [
+      { "tool": "release_flags_create", "contains": ["india"] }
+    ],
+    "note": "terse ask must still geo-target India (create the gate, or enable an existing one)"
   },
   {
-    "id": "shipeasy-flags/list-readonly",
-    "prompt": "Which feature flags do we have right now, and which ones are on?",
+    "id": "shipeasy-flags/gated-list",
+    "prompt": "Which features are gated currently?",
     "expect_skill": "shipeasy-flags",
     "expect_tools": ["release_flags_list"],
     "tools_match": "any",
     "forbid_tools": ["release_flags_create", "release_flags_update", "release_flags_archive"],
     "note": "read-only ask must not mutate anything"
+  },
+  {
+    "id": "shipeasy-flags/kill-switch-then-offer-alert",
+    "prompt": "Set up a kill switch to disable the payments integration if it fails.",
+    "expect_skill": "shipeasy-flags",
+    "expect_tools": ["release_killswitch_create"],
+    "tools_match": "all",
+    "expect_ask": true,
+    "forbid_tools": ["release_flags_create"],
+    "note": "ASPIRATIONAL: after the kill switch, the agent should ask (AskUserQuestion) whether to add a failure metric + alert so we know WHEN to flip it"
   }
 ]
