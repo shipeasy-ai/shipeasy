@@ -1,33 +1,45 @@
 [
   {
-    "id": "shipeasy-flags/create-then-ramp",
-    "prompt": "Create a feature flag called checkout_v2 that's on for 10% of users, then ramp its rollout up to 50%.",
+    "id": "shipeasy-flags/ship-then-ramp",
+    "prompt": "Put the new checkout page behind a feature flag and start it at 10% of users. Once that's in, bump it up to half of everyone.",
     "expect_skill": "shipeasy-flags",
-    "expect_tools": ["release_flags_create", "release_flags_rollout"],
+    "expect_tools": ["release_flags_create", "release_flags_update"],
     "tools_match": "all",
     "forbid_tools": ["release_flags_archive"],
-    "note": "full flow: create a gate, then increase its rollout"
+    "note": "create the gate, then widen the rollout (ramp = update; there is no separate rollout tool)"
   },
   {
-    "id": "shipeasy-flags/kill-switch",
+    "id": "shipeasy-flags/rich-targeting",
+    "prompt": "Roll the new checkout out to half of our US users. Also always let a couple of teammates in no matter what — alice@acme.com and bob@acme.com — and open it up to anyone on the internal team.",
+    "expect_skill": "shipeasy-flags",
+    "expect_tools": ["release_flags_create"],
+    "tools_match": "all",
+    "forbid_tools": ["release_flags_archive"],
+    "assert_args": [
+      {
+        "tool": "release_flags_create",
+        "contains": ["US", "alice@acme.com", "bob@acme.com"]
+      }
+    ],
+    "note": "one gate, several gatekeeper steps: US 50% rollout + email whitelist + team access. Args must carry the country and the whitelisted emails."
+  },
+  {
+    "id": "shipeasy-flags/kill-switch-then-offer-alert",
     "prompt": "Set up a kill switch so we can instantly disable the payments integration if it starts failing.",
     "expect_skill": "shipeasy-flags",
     "expect_tools": ["release_killswitch_create"],
     "tools_match": "all",
+    "expect_ask": true,
     "forbid_tools": ["release_flags_create"],
-    "note": "kill switch routes to the killswitch tool family, not a plain gate"
+    "note": "ASPIRATIONAL: after creating the kill switch, the agent should ask (AskUserQuestion) whether to also add a failure metric + alert so we know WHEN to flip it. Fails until the flags/ops skills nudge that follow-up."
   },
   {
     "id": "shipeasy-flags/list-readonly",
-    "prompt": "What feature flags do we currently have and which are enabled?",
+    "prompt": "Which feature flags do we have right now, and which ones are on?",
     "expect_skill": "shipeasy-flags",
     "expect_tools": ["release_flags_list"],
     "tools_match": "any",
-    "forbid_tools": [
-      "release_flags_create",
-      "release_flags_update",
-      "release_flags_archive"
-    ],
+    "forbid_tools": ["release_flags_create", "release_flags_update", "release_flags_archive"],
     "note": "read-only ask must not mutate anything"
   }
 ]

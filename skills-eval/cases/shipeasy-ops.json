@@ -1,15 +1,27 @@
 [
   {
     "id": "shipeasy-ops/file-bug",
-    "prompt": "File a bug report: the CSV export button returns a 500 for accounts with more than 10k rows.",
+    "prompt": "The CSV export button throws a 500 for accounts with more than 10k rows. Can you log that as a bug?",
     "expect_skill": "shipeasy-ops",
-    "expect_tools": ["ops_create"],
-    "tools_match": "all",
-    "note": "file a new item into the operational queue"
+    "expect_tools": ["ops_create", "ops_bug"],
+    "tools_match": "any",
+    "note": "file a new item into the operational queue (either the generic create or the bug sugar)"
+  },
+  {
+    "id": "shipeasy-ops/file-bug-from-context",
+    "prompt": "I just spent an hour debugging this: on the billing page, changing a subscription's seat count from 5 to 3 charges the customer for the OLD count until the next page refresh — the proration preview is stale. Ugh. Anyway, file a bug for that.",
+    "expect_skill": "shipeasy-ops",
+    "expect_tools": ["ops_create", "ops_bug"],
+    "tools_match": "any",
+    "assert_args": [
+      { "contains": ["proration"] },
+      { "contains": ["seat"] }
+    ],
+    "note": "context-pickup: 'file a bug for that' must synthesise a complete report from the preceding description, not file an empty stub"
   },
   {
     "id": "shipeasy-ops/triage-readonly",
-    "prompt": "Show me the open items in the ops queue.",
+    "prompt": "What's open in our bug and feature queue right now?",
     "expect_skill": "shipeasy-ops",
     "expect_tools": ["ops_list"],
     "tools_match": "any",

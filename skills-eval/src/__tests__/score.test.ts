@@ -10,10 +10,17 @@ const base: EvalCase = {
   tools_match: "all",
 };
 
-const run = (skills: string[], tools: string[]): Observation => ({
+const run = (
+  skills: string[],
+  tools: string[],
+  extra: Partial<Observation> = {},
+): Observation => ({
   skills,
   tools,
+  toolCalls: tools.map((name) => ({ name, inputText: "{}" })),
   otherTools: [],
+  askedUser: false,
+  ...extra,
 });
 
 describe("scoreCase", () => {
@@ -68,5 +75,58 @@ describe("scoreCase", () => {
     expect(r.pass).toBe(false);
     expect(r.cleanRate).toBe(0);
     expect(r.misses.join(" ")).toContain("forbidden");
+  });
+
+  it("expect_skills: every listed skill must fire in the run", () => {
+    const c: EvalCase = {
+      id: "x/multi",
+      prompt: "p",
+      expect_skills: ["shipeasy-flags", "shipeasy-alerts"],
+      expect_tools: [],
+      tools_match: "none",
+    };
+    expect(scoreCase(c, [run(["shipeasy-flags"], [])], 0.67).pass).toBe(false);
+    expect(
+      scoreCase(c, [run(["shipeasy-flags", "shipeasy-alerts"], [])], 0.67).pass,
+    ).toBe(true);
+  });
+
+  it("expect_ask: requires AskUserQuestion", () => {
+    const c: EvalCase = { ...base, expect_ask: true };
+    expect(scoreCase(c, [run(["shipeasy-flags"], ["release_flags_create"])], 0.67).pass).toBe(false);
+    const asked = run(["shipeasy-flags"], ["release_flags_create"], { askedUser: true });
+    expect(scoreCase(c, [asked], 0.67).pass).toBe(true);
+  });
+
+  it("assert_args: substrings must appear in the tool input", () => {
+    const c: EvalCase = {
+      ...base,
+      assert_args: [{ tool: "release_flags_create", contains: ["US", "alice@acme.com"] }],
+    };
+    const good = run(["shipeasy-flags"], ["release_flags_create"], {
+      toolCalls: [{ name: "release_flags_create", inputText: '{"rules":["US"],"whitelist":["alice@acme.com"]}' }],
+    });
+    const bad = run(["shipeasy-flags"], ["release_flags_create"], {
+      toolCalls: [{ name: "release_flags_create", inputText: '{"rules":["US"]}' }],
+    });
+    expect(scoreCase(c, [good], 0.67).pass).toBe(true);
+    const r = scoreCase(c, [bad], 0.67);
+    expect(r.pass).toBe(false);
+    expect(r.misses.join(" ")).toContain("alice@acme.com");
+  });
+
+  it("assert_args with no tool matches across any call (ops_create OR ops_bug)", () => {
+    const c: EvalCase = {
+      id: "ops/ctx",
+      prompt: "p",
+      expect_skill: "shipeasy-ops",
+      expect_tools: ["ops_create", "ops_bug"],
+      tools_match: "any",
+      assert_args: [{ contains: ["proration"] }],
+    };
+    const viaBug = run(["shipeasy-ops"], ["ops_bug"], {
+      toolCalls: [{ name: "ops_bug", inputText: '{"body":"stale proration preview"}' }],
+    });
+    expect(scoreCase(c, [viaBug], 0.67).pass).toBe(true);
   });
 });

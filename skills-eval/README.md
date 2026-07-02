@@ -100,21 +100,49 @@ to diagnose (`SHIPEASY_EVAL_MODEL=sonnet`).
 
 ## Case format
 
+Write prompts the way a **human actually speaks** ("I want to measure how many
+checkouts get completed", not "call metrics_create"), and prefer a few realistic
+FULL-FLOW cases over many thin ones.
+
 ```jsonc
 {
-  "id": "shipeasy-flags/create-gate",
-  "prompt": "Create a feature flag called checkout_v2 that's on for 10% of users.",
-  "expect_skill": "shipeasy-flags",       // bare skill name that must fire
-  "expect_tools": ["release_flags_create"],
-  "tools_match": "all",                    // "all" | "any" | "none" (informational)
-  "forbid_tools": ["release_flags_archive"], // must NOT be called
-  "note": "canonical create path"
+  "id": "shipeasy-experiments/event-metric-experiment",
+  "prompt": "We don't track checkout completions yet, but I want to A/B test a new green checkout button. Set up the event, a conversion metric, and draft the experiment — don't start it, I'll review first.",
+  "expect_skill": "shipeasy-experiments",   // OR expect_skills: ["a","b"] — all must fire
+  "expect_tools": ["metrics_events_create", "metrics_create", "release_experiments_create"],
+  "tools_match": "all",                      // "all" | "any" | "none" (informational)
+  "forbid_tools": ["release_experiments_start"], // must NOT be called (draft only)
+  "assert_args": [                            // param-level: input must contain substrings
+    { "tool": "release_experiments_create", "contains": ["control"] }
+  ],
+  "expect_ask": false,                        // true → agent must call AskUserQuestion
+  "note": "the real dependency chain: event -> metric -> experiment"
 }
 ```
 
+Fields:
+
+- **`expect_skill` / `expect_skills`** — the Skill(s) that must fire. Use the plural
+  for cross-skill flows (e.g. flags → alerts); every listed skill must appear.
+- **`expect_tools` + `tools_match`** — `"all"` (every tool), `"any"` (at least one),
+  `"none"` (candidates, not asserted — the seed default).
+- **`forbid_tools`** — must not be called. Powers the read-only guards ("what flags
+  do we have?" must not create) and safety rules ("pause" is an update, not an archive).
+- **`assert_args`** — param-level checks: `{ tool?, contains: [] }`. The named tool's
+  call (or, if `tool` is omitted, **any** call) must have a JSON-stringified input
+  containing every substring. This verifies the agent passed the country/emails/event
+  the prompt described — and that a "file a bug for that" actually carries the context.
+- **`expect_ask`** — the agent must clarify via AskUserQuestion (e.g. after a kill
+  switch, offer to add a failure metric + alert).
+
 Tool names are the **suffix** (no `mcp__…__` prefix) — the harness namespaces the
 server as `shipeasy`, so `release_flags_create` is matched as
-`mcp__shipeasy__release_flags_create` in the transcript.
+`mcp__shipeasy__release_flags_create` in the transcript. The valid names are
+snapshotted in `src/catalog.ts` and drift-checked by `catalog.test.ts`.
+
+Some committed cases are **aspirational** (marked in `note`) — they encode desired
+behaviour the skills don't guide yet (e.g. offer an alert after a kill switch). A
+red result there is a to-do for the *skill*, not a harness bug.
 
 ## ⚠️ Version-sensitive flags
 

@@ -27,7 +27,7 @@ import { prepareEnv, readEnvConfigFromEnv } from "./prepare-env.js";
 import { parseTranscript } from "./transcript.js";
 import { scoreCase } from "./score.js";
 import { renderReport } from "./report.js";
-import type { CaseResult, EvalCase, Observation } from "./types.js";
+import { expectedSkills, type CaseResult, type EvalCase, type Observation } from "./types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const filter = process.argv.slice(2).find((a) => !a.startsWith("--"));
@@ -44,7 +44,7 @@ if (cases.length === 0) {
   console.error(`No cases found${filter ? ` matching "${filter}"` : ""}. Run \`pnpm seed\` first.`);
   process.exit(2);
 }
-const skillNames = [...new Set(cases.map((c) => c.expect_skill))];
+const skillNames = [...new Set(cases.flatMap((c) => expectedSkills(c)))];
 
 const workdir = resolve(__dirname, "../.eval-workdir");
 const env = prepareEnv(readEnvConfigFromEnv(), workdir);
@@ -61,7 +61,8 @@ for (const c of cases) {
   for (let i = 0; i < K; i++) {
     const obs = runOnce(c, i, env.mcpConfigPath, workdir, transcriptsDir);
     runs.push(obs);
-    process.stdout.write(obs.error ? "E" : obs.skills.includes(c.expect_skill) ? "." : "x");
+    const skillOk = expectedSkills(c).every((s) => obs.skills.includes(s));
+    process.stdout.write(obs.error ? "E" : skillOk ? "." : "x");
   }
   process.stdout.write(` ${c.id}\n`);
   results.push(scoreCase(c, runs, THRESHOLD));
@@ -92,9 +93,10 @@ function runOnce(
   });
   const ndjson = res.stdout ?? "";
   writeFileSync(join(outDir, `${c.id.replace(/\//g, "__")}.${i}.jsonl`), ndjson);
-  if (res.error) return { skills: [], tools: [], otherTools: [], error: String(res.error) };
+  const empty = { skills: [], tools: [], toolCalls: [], otherTools: [], askedUser: false };
+  if (res.error) return { ...empty, error: String(res.error) };
   if (!ndjson.trim())
-    return { skills: [], tools: [], otherTools: [], error: `empty output (stderr: ${(res.stderr ?? "").slice(0, 300)})` };
+    return { ...empty, error: `empty output (stderr: ${(res.stderr ?? "").slice(0, 300)})` };
   return parseTranscript(ndjson, skillNames);
 }
 

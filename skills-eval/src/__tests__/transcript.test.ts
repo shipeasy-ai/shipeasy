@@ -68,8 +68,33 @@ describe("parseTranscript", () => {
     expect(obs.otherTools).toEqual(["Bash"]);
   });
 
+  it("captures tool inputs as stringified text for arg assertions", () => {
+    const obs = parseTranscript(
+      assistant([
+        {
+          name: "mcp__shipeasy__release_flags_create",
+          input: { name: "checkout", rules: [{ attr: "country", value: ["US"] }] },
+        },
+      ]),
+      KNOWN,
+    );
+    expect(obs.toolCalls).toHaveLength(1);
+    expect(obs.toolCalls[0]!.name).toBe("release_flags_create");
+    expect(obs.toolCalls[0]!.inputText).toContain("US");
+  });
+
+  it("flags AskUserQuestion via askedUser", () => {
+    const without = parseTranscript(assistant([{ name: "Bash", input: {} }]), KNOWN);
+    expect(without.askedUser).toBe(false);
+    const withAsk = parseTranscript(
+      assistant([{ name: "AskUserQuestion", input: { questions: [] } }]),
+      KNOWN,
+    );
+    expect(withAsk.askedUser).toBe(true);
+  });
+
   it("tolerates non-JSON lines and empty input", () => {
     const obs = parseTranscript("not json\n\n{bad}\n", KNOWN);
-    expect(obs).toEqual({ skills: [], tools: [], otherTools: [] });
+    expect(obs).toEqual({ skills: [], tools: [], toolCalls: [], otherTools: [], askedUser: false });
   });
 });

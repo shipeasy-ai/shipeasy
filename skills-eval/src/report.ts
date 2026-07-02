@@ -7,12 +7,12 @@ export function renderReport(results: CaseResult[], threshold: number, k: number
 
   const idW = Math.max(4, ...results.map((r) => r.case.id.length));
   lines.push(
-    `${"case".padEnd(idW)}  skill  tools  clean  result`,
+    `${"case".padEnd(idW)}  skill  tools  args   ask    clean  result`,
   );
-  lines.push(`${"-".repeat(idW)}  -----  -----  -----  ------`);
+  lines.push(`${"-".repeat(idW)}  -----  -----  -----  -----  -----  ------`);
   for (const r of results) {
     lines.push(
-      `${r.case.id.padEnd(idW)}  ${cell(r.skillHitRate)}  ${toolCell(r)}  ${cell(r.cleanRate)}  ${r.pass ? "PASS" : "FAIL"}`,
+      `${r.case.id.padEnd(idW)}  ${cell(r.skillHitRate)}  ${toolCell(r)}  ${optCell(r.argHitRate, (r.case.assert_args ?? []).length > 0)}  ${optCell(r.askHitRate, !!r.case.expect_ask)}  ${cell(r.cleanRate)}  ${r.pass ? "PASS" : "FAIL"}`,
     );
   }
 
@@ -36,6 +36,9 @@ function toolCell(r: CaseResult): string {
     return "  —  ";
   return cell(r.toolHitRate);
 }
+
+/** A rate cell that shows "—" when the dimension isn't asserted for this case. */
+const optCell = (x: number, asserted: boolean) => (asserted ? cell(x) : "  —  ");
 
 const cell = (x: number) => `${Math.round(x * 100)}`.padStart(3) + "% ";
 const pct = (x: number) => `${Math.round(x * 100)}%`;

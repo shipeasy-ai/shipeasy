@@ -23,7 +23,9 @@ const MCP_PREFIX = `mcp__${MCP_SERVER_NAME}__`;
 export function parseTranscript(ndjson: string, knownSkills: Iterable<string>): Observation {
   const skills: string[] = [];
   const tools: string[] = [];
+  const toolCalls: Observation["toolCalls"] = [];
   const otherTools: string[] = [];
+  let askedUser = false;
   const skillNames = [...knownSkills];
 
   const lines = ndjson.split("\n").map((l) => l.trim()).filter(Boolean);
@@ -40,13 +42,16 @@ export function parseTranscript(ndjson: string, knownSkills: Iterable<string>): 
         if (hit) skills.push(hit);
         else otherTools.push("Skill(?)");
       } else if (block.name.startsWith(MCP_PREFIX)) {
-        tools.push(block.name.slice(MCP_PREFIX.length));
+        const suffix = block.name.slice(MCP_PREFIX.length);
+        tools.push(suffix);
+        toolCalls.push({ name: suffix, inputText: JSON.stringify(block.input ?? "") });
       } else {
+        if (block.name === "AskUserQuestion") askedUser = true;
         otherTools.push(block.name);
       }
     }
   }
-  return { skills, tools, otherTools };
+  return { skills, tools, toolCalls, otherTools, askedUser };
 }
 
 interface ToolUse {

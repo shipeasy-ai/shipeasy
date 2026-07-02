@@ -1,7 +1,7 @@
 [
   {
-    "id": "shipeasy-alerts/create-threshold",
-    "prompt": "Alert me when the checkout error-rate metric goes above 5%.",
+    "id": "shipeasy-alerts/notify-on-error-rate",
+    "prompt": "Ping me if our checkout error rate ever climbs above 5%.",
     "expect_skill": "shipeasy-alerts",
     "expect_tools": ["ops_alerts_create"],
     "tools_match": "all",
@@ -10,7 +10,7 @@
   },
   {
     "id": "shipeasy-alerts/pause",
-    "prompt": "Pause the alert rule on signup conversion for now — don't delete it.",
+    "prompt": "Mute the signup-conversion alert for now — don't delete it, I'll want it back later.",
     "expect_skill": "shipeasy-alerts",
     "expect_tools": ["ops_alerts_update"],
     "tools_match": "all",
