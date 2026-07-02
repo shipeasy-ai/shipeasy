@@ -27,9 +27,8 @@ metrics read) are enabled by `shipeasy install flags` (the
 - **Aggregation.** How rows roll up — counts, sums, averages, percentiles,
   retention. The full list ships with the DSL grammar: `shipeasy metrics
   grammar` / the `metrics_grammar` MCP tool.
-- **Label.** A property on the event payload. Any label referenced in
-  filters, value position, `by`, or `without` MUST exist on the event,
-  otherwise the metric returns empty.
+- **Label.** A property on the event payload. Queries can only reference
+  labels the event actually carries (details in the `metrics_create` schema).
 
 ## DSL
 
@@ -137,9 +136,9 @@ on this call.
 shipeasy metrics create <name> --event-name <event_name> --query '<dsl>'
 ```
 
-Optional knobs (winsorization, min detectable effect, direction, folder) are in
-`--help` / the `metrics_create` MCP schema. The one trap: the event inside
-`--query` must equal `--event-name` — they reference the same source event.
+Optional knobs (winsorization, min detectable effect, direction, folder) and
+all constraints are in `--help` / the `metrics_create` MCP schema — the API
+validates them and returns instructive errors.
 
 ### 5. Verify
 
@@ -168,8 +167,7 @@ Listing, showing, and the DSL grammar run through the `metrics_list` /
 `metrics_events_create` to register a new event) — the analyze → propose →
 instrument → create flow above is what this skill drives on an ask.
 
-Deletion is **UI-only** (see `shipeasy-common`). The dashboard additionally refuses while
-the metric is referenced by a running experiment — stop the experiment first.
+Deletion is **UI-only** (see `shipeasy-common`).
 
 ## Relationship to experiments
 

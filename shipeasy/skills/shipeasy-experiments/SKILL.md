@@ -173,8 +173,8 @@ shipeasy metrics create "<metric_name>" \
 ```
 
 **3c.** Create the experiment draft. Default groups are an even `control` +
-`treatment` split — `weight: 5000` each (basis points; all groups' weights must
-sum to exactly 10000) — unless the user asked otherwise. The decision metric goes
+`treatment` split — `weight: 5000` each (basis points) — unless the user asked
+otherwise. The decision metric goes
 in `goal_metric` (inline: an `event` + `aggregation`, or a DSL `query`); it
 auto-creates the event if missing, so the metric you created in 3b can also be
 referenced by its query here. Use MCP for typed errors:
@@ -226,8 +226,6 @@ Do **not** start the experiment automatically — the user reviews the diff firs
 
 Workflow-specific rules (on top of the "Hard rules" below):
 
-- Don't restart an experiment under the same name once stopped (the assignment
-  hash changes, re-randomising users). New attempts use `<old>_v2`.
 - Don't add multiple success metrics. Pre-register one.
 - Don't gate eligibility inside the experiment groups — push restrictions to a
   `targeting_gate` (a separate feature gate) so the universe stays clean.
@@ -235,21 +233,11 @@ Workflow-specific rules (on top of the "Hard rules" below):
 ## Creating
 
 The call is `release_experiments_create` (CLI: `shipeasy release experiments
-create`) — the payload shape is in Phase 3c above and the full param list is in
-the tool schema / `--help`. Add `targeting_gate: "<gate>"` to restrict
+create`) — the payload shape is in Phase 3c above and the full param list,
+field semantics (weights, allocation, goal vs guardrail metrics), and
+constraints are in the tool schema / `--help`; the API enforces them and
+returns instructive errors. Add `targeting_gate: "<gate>"` to restrict
 eligibility.
-
-Gotchas (the ones people get wrong — the rest is in the tool schema / `--help`):
-
-- `groups[].weight` is in **basis points** and must sum to **exactly 10000**
-  (a 50/50 split is `5000` + `5000`, not `50` + `50`). There is no
-  `groups[].allocation`.
-- `allocation_percent` (0–100 friendly alias; `allocation_pct` is basis points)
-  is the share of the *targeted* audience enrolled at all — distinct from the
-  per-group `weight` split.
-- `goal_metric` is the decision metric and is **required before start** (there
-  is no `success_metric` field). Provide it inline as a DSL `query` or an
-  `event` + `aggregation`. Extra guardrail metrics go in `guardrail_metrics`.
 
 This creates a **draft**. Start it with `release_experiments_start { "id": … }`
 (CLI: `shipeasy release experiments start <name>`). For the metric query DSL,
@@ -269,8 +257,7 @@ analysis cron.
 `release_experiments_results { "id": … }` returns the latest per-metric /
 per-group result — enrolled count, lift, p-value, significance flag. Use
 `release_experiments_timeseries` for the full per-day history, or
-`release_experiments_get` for current state. There is no
-`release_experiments_status`.
+`release_experiments_get` for current state.
 
 Stop with `release_experiments_stop { "id": … }` — it halts allocation; the
 winner is a *reading* of the results, not a stored field. (Every `id` param
@@ -278,14 +265,12 @@ accepts the experiment's `name` or its `exp_…` id; see the tool schema.)
 
 ## Holdouts
 
-Holdouts live on the **universe**, not on individual experiments. The
-universe's `holdout_range` is an inclusive `[lo, hi]` bucket range over
-0–9999 — callers hashed into that slice are excluded from every experiment
-in the universe (`null` disables it). To hold out 1% of users, reserve a
-100-bucket slice, e.g. `holdout_range: [0, 99]`. Set it at create
-(`release_experiments_universes_create`) or update it later
-(`release_experiments_universes_update`). Per-experiment holdouts are not a
-feature — by design. (Holdouts require Pro plan or higher.)
+Holdouts live on the **universe**, not on individual experiments — per-experiment
+holdouts are not a feature, by design. Set the universe's `holdout_range` at
+create (`release_experiments_universes_create`) or update it later
+(`release_experiments_universes_update`); the range shape and plan requirements
+are in the tool schema. To hold out 1% of users, reserve a 100-bucket slice,
+e.g. `holdout_range: [0, 99]`.
 
 ## Hard rules
 

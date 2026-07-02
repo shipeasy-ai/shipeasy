@@ -14,24 +14,16 @@ them with the `ops_list` MCP tool / `shipeasy ops` CLI, `--type alert`).
 
 Alert *rules* are **writable** here. The *raised alerts* themselves are
 read-only and belong to `shipeasy-ops`. Alert rules ride the flags platform
-install (`shipeasy install flags` — the `shipeasy install flags` (or `shipeasy setup`)) and sit
-on top of the `events` + `metrics` you already defined.
+install (`shipeasy install flags` or `shipeasy setup`) and sit on top of the
+`events` + `metrics` you already defined.
 
 **Prerequisites live in the `shipeasy-common` skill.** Create / list / update
 alert rules through the `ops_alerts_create` / `ops_alerts_list` /
 `ops_alerts_update` MCP tools or the `shipeasy ops alerts …` CLI (same on every
-host; see `shipeasy-common` → surfaces). Read parameter shapes from the tool
-(`--help` / MCP schema).
-
-## Key constraint: the metric is immutable
-
-A rule's metric pins **both** what is measured and how it is aggregated, so
-neither can change after create. There is no way to repoint a rule at a
-different metric — tune everything else with an update, or delete + recreate to
-change the metric. Deletion is **UI-only** (no delete command ships).
-
-Defaults and the full param list live in the tool schema / `--help` — read
-them there, not here.
+host; see `shipeasy-common` → surfaces). Parameter shapes, defaults, ranges,
+and constraints (e.g. which fields are immutable) live in the tool schema /
+`--help` and the API docs — the API enforces them and returns instructive
+errors, so don't restate them from memory.
 
 ## Create
 
@@ -41,9 +33,6 @@ them there, not here.
    `shipeasy ops alerts create --name … --metric-id <id|name> --comparator gt
    --threshold 50`).
 
-Gotcha: **sub-hour windows aren't representable.** If the user asks for "last 30
-minutes", use `windowHours: 1` and call out the rounding.
-
 ## List & update
 
 `ops_alerts_list` (or `shipeasy ops alerts list`) returns the rule
@@ -51,9 +40,8 @@ minutes", use `windowHours: 1` and call out the rounding.
 For the alerts these rules have *raised*, use the `shipeasy-ops` skill (`ops_list` /
 `shipeasy ops`, `--type alert`).
 
-`ops_alerts_update { "id": …, … }` retunes threshold / comparator / window /
-severity / name / enabled. There is **no `--metric-id`** (immutable);
-`enabled: false` pauses evaluation without deleting.
+`ops_alerts_update { "id": …, … }` retunes a rule; `enabled: false` pauses
+evaluation without deleting.
 
 ## When to use this skill
 

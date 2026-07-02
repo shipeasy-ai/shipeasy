@@ -31,11 +31,14 @@ There are **no per-verb workflow skills** for CRUD; dedicated workflow skills
 are reserved for multi-step flows (the `shipeasy-*-install` skills, the i18n
 codemods, `shipeasy-ops-work`).
 
-**Read parameter shapes from the tool, not from a skill.** The exact params,
-enums, ranges, and id-vs-name rules for any operation live in the tool itself —
-`shipeasy <command> --help`, the MCP tool's schema, or `docs_get`. The feature
-skills call out only the non-obvious traps; for everything else, consult the
-tool. This keeps guidance from going stale when the tools change.
+**Read parameter shapes and constraints from the tool, not from a skill.** The
+exact params, enums, ranges, id-vs-name rules, immutable fields, lifecycle
+transitions, and plan gates for any operation live in the tool itself —
+`shipeasy <command> --help`, the MCP tool's schema, or `docs_get` — and are
+enforced by the API: a violated constraint returns a structured error
+(`code` + `instructions`) that says how to fix the call. Feature skills carry
+workflow, not parameter docs. This keeps guidance from going stale when the
+tools change.
 
 ## First fix: update before you debug
 

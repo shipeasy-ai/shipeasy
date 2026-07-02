@@ -66,17 +66,14 @@ shipeasy ops list --type feature_request
 `list` returns the most-recent rows and prints JSON (no flag needed). A
 queue item is addressed by its per-project `number` (e.g. `7`) or its full id.
 
-**Deletion is UI-only.** Spam/duplicate removal is a human call made in
-the dashboard — the plugin ships no delete command, and the loops never
-delete a record (terminal state is `resolved` / `shipped`).
+**Deletion is UI-only** (see `shipeasy-common` → archive-not-delete).
 
 ### Status lifecycle
 
-`open` → `triaged` → `in_progress` → `ready_for_qa` → `resolved` (or
-`wont_fix` as a terminal state from any earlier stage). `ready_for_qa`
-is set by the developer after a fix lands; QA flips it to `resolved`
-after verification in the dashboard. Do **not** skip straight to
-`resolved` from code — that's a QA-only transition.
+The status flow and each state's meaning are documented on the `status`
+field in the tool schema / API docs. The working rule: set `ready_for_qa`
+after a fix lands and leave `resolved` for QA sign-off in the dashboard —
+set it directly only when the fix is verified end-to-end.
 
 ## Auto-fixing the queue
 

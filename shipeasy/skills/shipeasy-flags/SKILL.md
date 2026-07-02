@@ -20,7 +20,8 @@ Read parameter shapes from the tool (`--help` / MCP schema), not from here.
 
 ## Creating
 
-Shapes below are the ones people get wrong — everything else is in the tool:
+Minimal call shapes — field semantics, aliases, and constraints are documented
+in the tool schema / `--help` and enforced by the API with instructive errors:
 
 ```
 mcp tool: release_flags_create {
@@ -29,8 +30,6 @@ mcp tool: release_flags_create {
   "rollout_percent": 10,
   "rules": [{ "attr": "country", "op": "in", "value": ["US","CA"] }]
 }
-// Gotcha: rollout_percent is the friendly 0–100 alias; rollout_pct is basis
-// points (0–10000). rules are AND-combined.
 ```
 
 ```
@@ -41,9 +40,6 @@ mcp tool: release_configs_create {
     "required": ["boost", "model"] },
   "value": { "boost": 1.0, "model": "v3" }
 }
-// Gotcha: configs are JSON-Schema-first — `schema` (draft 2020-12, top-level
-// type:object) + `value` (one object for all envs, or a { env: value } map).
-// Per-env edits go through the draft → publish path, not a flat update.
 ```
 
 ## Reading from the SDK
