@@ -168,8 +168,12 @@ export function triggerCommand(parent: Command): Command {
 
           // Mint the restricted ops key (read-only queue + status flips + link-pr
           // + create-only dev ops; auto-extends its 7-day expiry on each run).
+          // `env` is required by the create-key schema; ops keys are env-agnostic
+          // (the server pins them to "prod" regardless), but it must be sent or
+          // the strict body validation 422s.
           const created = await client.request<CreatedKey>("POST", "/api/admin/keys", {
             type: "ops",
+            env: "prod",
           });
           const opsKey = created.key;
 
