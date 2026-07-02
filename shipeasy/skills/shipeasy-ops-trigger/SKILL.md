@@ -41,16 +41,22 @@ git rev-parse --is-inside-work-tree >/dev/null 2>&1 && git remote -v | grep -q g
 
 1. `--provider` in `$ARGUMENTS` wins.
 2. Omitted → default to **the harness you are running in** (Claude Code →
-   `claude`, Cursor → `cursor`, Copilot → `copilot`, Gemini → `jules`). A
-   platform outside the four supported ones stays as-is.
-3. Genuinely ambiguous → ask the user (the four supported providers +
+   `claude`, Codex → `codex`, Cursor → `cursor`, Copilot → `copilot`, Gemini →
+   `gemini`/`jules`). A platform outside the guided ones stays as-is.
+3. Genuinely ambiguous → ask the user (the five guided providers below +
    "other platform").
 
 ## 4. Dispatch to the provider reference
 
-| Resolved provider | Follow |
-| --- | --- |
-| `claude` | [`references/claude.md`](references/claude.md) — the hybrid-split cloud-routine flow (deepest, most automated; the only *routine* connector) |
-| anything else (`cursor`, `copilot`, `jules`/`gemini`, GitHub Actions / system cron, …) | [`references/other-providers.md`](references/other-providers.md) — shared prep + the create command's printed runbook, followed verbatim |
+Each guided provider mirrors its flow on the dashboard triggers page
+(`apps/ui/src/components/triggers/trigger-setup.tsx`) — keep the reference in
+sync with that page. Read the matching reference and follow it end-to-end.
 
-Read the matching reference and follow it end-to-end.
+| Resolved provider | Mechanism | Follow |
+| --- | --- | --- |
+| `claude` | Anthropic cloud **routine** (hybrid split via `RemoteTrigger`) | [`references/claude.md`](references/claude.md) |
+| `codex` | **GitHub Actions** cron → Codex Cloud task | [`references/codex.md`](references/codex.md) |
+| `cursor` | **cold-fire** connector (Shipeasy launches a Cursor cloud agent) | [`references/cursor.md`](references/cursor.md) |
+| `copilot` | **cold-fire** connector (GitHub agent-tasks API) | [`references/copilot.md`](references/copilot.md) |
+| `gemini` / `jules` | **cold-fire** connector (Jules session) | [`references/gemini.md`](references/gemini.md) |
+| anything else (Windsurf, Cline, OpenClaw, OpenCode, Continue, raw cron / GitHub Actions) | docs long-tail / platform-scheduled | [`references/other-platforms.md`](references/other-platforms.md) |
