@@ -3,28 +3,35 @@
     "id": "shipeasy-alerts/error-rate-threshold",
     "prompt": "Ping me if our checkout error rate climbs above 5%.",
     "expect_skill": "shipeasy-alerts",
-    "expect_tools": ["metrics_events_create", "metrics_create", "ops_alerts_create"],
+    "expect_tools": [
+      "metrics_events_list",
+      "metrics_events_create",
+      "metrics_list",
+      "metrics_create",
+      "ops_alerts_list",
+      "ops_alerts_create"
+    ],
     "tools_match": "all",
     "forbid_tools": ["ops_alerts_archive"],
-    "note": "full chain: an alert fires on a metric, a metric rolls up an event — so instrument the event, define the metric, then create the alert"
+    "note": "full chain: an alert fires on a metric, a metric rolls up an event. List events, metrics AND alerts first to check none already exist, then create what's missing"
   },
   {
     "id": "shipeasy-alerts/pause",
     "prompt": "Mute the signup-conversion alert for now.",
     "expect_skill": "shipeasy-alerts",
-    "expect_tools": ["ops_alerts_update"],
+    "expect_tools": ["ops_alerts_list", "ops_alerts_update"],
     "tools_match": "all",
     "forbid_tools": ["ops_alerts_archive"],
-    "note": "pause = update enabled:false"
+    "note": "referenced by name — list to resolve its id, then pause (update enabled:false)"
   },
   {
     "id": "shipeasy-alerts/retune",
     "prompt": "Bump the checkout error-rate alert to fire at 10% instead.",
     "expect_skill": "shipeasy-alerts",
-    "expect_tools": ["ops_alerts_update"],
+    "expect_tools": ["ops_alerts_list", "ops_alerts_update"],
     "tools_match": "all",
     "forbid_tools": ["ops_alerts_create", "ops_alerts_archive"],
-    "note": "retune an existing rule's threshold — update, not a new rule"
+    "note": "referenced by name — list to resolve its id, then update the threshold (not a new rule)"
   },
   {
     "id": "shipeasy-alerts/list-readonly",

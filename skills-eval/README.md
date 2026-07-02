@@ -144,6 +144,21 @@ Some committed cases are **aspirational** (marked in `note`) — they encode des
 behaviour the skills don't guide yet (e.g. offer an alert after a kill switch). A
 red result there is a to-do for the *skill*, not a harness bug.
 
+### Convention: defensive listing
+
+The cases encode the agent behaviour we *want*, so most flows assert defensive
+`*_list` calls:
+
+- **List to dedup before any create.** "A/B test a green checkout button" lists
+  events, metrics and experiments before creating each — don't create a second
+  metric that already exists. Same for flags, kill switches, alerts.
+- **List to resolve an id before acting on a named resource.** "Start the
+  checkout-button experiment" / "Mute the signup-conversion alert" must list to
+  find the id first, then start / update it.
+
+The exception is **ops bug/feature filing** — a new free-text report is additive,
+with no id to resolve or natural dedup key, so those cases stay create-only.
+
 ## ⚠️ Version-sensitive flags
 
 The headless invocation lives in **one place** — `buildClaudeArgs()` in

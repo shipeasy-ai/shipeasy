@@ -3,16 +3,16 @@
     "id": "shipeasy-flags/ship-then-ramp",
     "prompt": "Put the new checkout behind a flag at 10%, then ramp it to 50%.",
     "expect_skill": "shipeasy-flags",
-    "expect_tools": ["release_flags_create", "release_flags_update"],
+    "expect_tools": ["release_flags_list", "release_flags_create", "release_flags_update"],
     "tools_match": "all",
     "forbid_tools": ["release_flags_archive"],
-    "note": "create the gate, then widen the rollout (ramp = update; there is no separate rollout tool)"
+    "note": "list to dedup, create the gate, then widen the rollout (ramp = update; there is no separate rollout tool)"
   },
   {
     "id": "shipeasy-flags/rich-targeting",
     "prompt": "Roll new checkout out to 50% of US users, always allow alice@acme.com and bob@acme.com, plus the internal team.",
     "expect_skill": "shipeasy-flags",
-    "expect_tools": ["release_flags_create"],
+    "expect_tools": ["release_flags_list", "release_flags_create"],
     "tools_match": "all",
     "forbid_tools": ["release_flags_archive"],
     "assert_args": [
@@ -24,12 +24,12 @@
     "id": "shipeasy-flags/release-india",
     "prompt": "Release payments in India.",
     "expect_skill": "shipeasy-flags",
-    "expect_tools": ["release_flags_create", "release_flags_enable"],
-    "tools_match": "any",
+    "expect_tools": ["release_flags_list", "release_flags_create"],
+    "tools_match": "all",
     "assert_args": [
       { "tool": "release_flags_create", "contains": ["india"] }
     ],
-    "note": "terse ask must still geo-target India (create the gate, or enable an existing one)"
+    "note": "terse ask must still geo-target India — list first to see if a payments gate exists, then create one scoped to India"
   },
   {
     "id": "shipeasy-flags/gated-list",
@@ -44,7 +44,7 @@
     "id": "shipeasy-flags/kill-switch-then-offer-alert",
     "prompt": "Set up a kill switch to disable the payments integration if it fails.",
     "expect_skill": "shipeasy-flags",
-    "expect_tools": ["release_killswitch_create"],
+    "expect_tools": ["release_killswitch_list", "release_killswitch_create"],
     "tools_match": "all",
     "expect_ask": true,
     "forbid_tools": ["release_flags_create"],
