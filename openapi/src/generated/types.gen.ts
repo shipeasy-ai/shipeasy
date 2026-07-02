@@ -1852,234 +1852,6 @@ export type UpdateAttributeResponse = {
 };
 
 /**
- * Every metric in the project (the list endpoint is not paginated).
- */
-export type ListMetricsResponse = Array<{
-    /**
-     * Stable opaque metric id.
-     */
-    id: string;
-    /**
-     * Metric key.
-     */
-    name: string;
-    /**
-     * Folder grouping the metric, or `null`.
-     */
-    folder: string | null;
-    /**
-     * Source event name (camelCase in response).
-     */
-    eventName: string;
-    /**
-     * Legacy aggregation enum derived from the IR (`count_users`, `sum`, `ratio`, …).
-     */
-    aggregation: string;
-    /**
-     * Numeric value label for sum/avg metrics, or `null`.
-     */
-    valuePath: string | null;
-    /**
-     * Rendered DSL text form of the query, or `null` if it could not be rendered.
-     */
-    query?: string | null;
-    /**
-     * Typed query IR stored for the metric.
-     */
-    queryIr?: {
-        /**
-         * Aggregation function applied to the source event.
-         */
-        agg: {
-            kind: 'count_users';
-        } | {
-            kind: 'count_events';
-        } | {
-            kind: 'sum';
-        } | {
-            kind: 'avg';
-        } | {
-            kind: 'min';
-        } | {
-            kind: 'max';
-        } | {
-            kind: 'unique';
-        } | {
-            kind: 'quantile';
-            /**
-             * Quantile fraction (0.5 = p50 … 0.999 = p999).
-             */
-            p: 0.5 | 0.75 | 0.9 | 0.95 | 0.99 | 0.999;
-        } | {
-            kind: 'retention_Nd';
-            /**
-             * Retention window in days (1–90).
-             */
-            n: number;
-        } | {
-            kind: 'ratio';
-            /**
-             * Numerator or denominator arm of a `ratio` aggregation.
-             */
-            numerator: {
-                /**
-                 * Counting mode for this ratio arm.
-                 */
-                agg: 'count_users' | 'count_events';
-                /**
-                 * Source event name for this ratio arm.
-                 */
-                metric: string;
-                /**
-                 * Optional label filters.
-                 */
-                filters?: Array<{
-                    /**
-                     * Event property / label identifier.
-                     */
-                    label: string;
-                    /**
-                     * Match operator (`=~`/`!~` are regex).
-                     */
-                    op: '=' | '!=' | '=~' | '!~';
-                    /**
-                     * Quoted filter value (coerced for numeric labels).
-                     */
-                    value: string;
-                }>;
-            };
-            /**
-             * Numerator or denominator arm of a `ratio` aggregation.
-             */
-            denominator: {
-                /**
-                 * Counting mode for this ratio arm.
-                 */
-                agg: 'count_users' | 'count_events';
-                /**
-                 * Source event name for this ratio arm.
-                 */
-                metric: string;
-                /**
-                 * Optional label filters.
-                 */
-                filters?: Array<{
-                    /**
-                     * Event property / label identifier.
-                     */
-                    label: string;
-                    /**
-                     * Match operator (`=~`/`!~` are regex).
-                     */
-                    op: '=' | '!=' | '=~' | '!~';
-                    /**
-                     * Quoted filter value (coerced for numeric labels).
-                     */
-                    value: string;
-                }>;
-            };
-        };
-        /**
-         * Source event name (must equal `event_name`).
-         */
-        metric: string;
-        /**
-         * Numeric property summed/averaged for `sum`/`avg`/quantile aggregations.
-         */
-        valueLabel?: string;
-        /**
-         * Label filters on the event.
-         */
-        filters?: Array<{
-            /**
-             * Event property / label identifier.
-             */
-            label: string;
-            /**
-             * Match operator (`=~`/`!~` are regex).
-             */
-            op: '=' | '!=' | '=~' | '!~';
-            /**
-             * Quoted filter value (coerced for numeric labels).
-             */
-            value: string;
-        }>;
-        /**
-         * Optional group-by clause (ignored for experiment analysis).
-         */
-        groupBy?: {
-            /**
-             * `by` keeps the listed labels; `without` drops them.
-             */
-            op: 'by' | 'without';
-            /**
-             * Labels to group by (max 5).
-             */
-            labels: Array<string>;
-        };
-    };
-    /**
-     * Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).
-     */
-    direction?: 'higher_better' | 'lower_better' | 'neutral';
-    /**
-     * Winsorise percentile applied to the metric.
-     */
-    winsorizePct?: number;
-    /**
-     * Configured MDE, or `null`.
-     */
-    minDetectableEffect?: number | null;
-    /**
-     * ISO-8601 creation timestamp.
-     */
-    createdAt?: string;
-    /**
-     * ISO-8601 last-update timestamp.
-     */
-    updatedAt?: string;
-    [key: string]: unknown;
-}>;
-
-/**
- * Source event the query reads from.
- */
-export type MetricEventName = string;
-
-/**
- * Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`.
- */
-export type MetricQueryDsl = string;
-
-/**
- * Winsorise percentile (1–99) to clamp outliers. Defaults to 99.
- */
-export type MetricWinsorizePct = number;
-
-/**
- * Minimum detectable effect (relative, 0–1) for power planning. `null` to omit.
- */
-export type MetricMinDetectableEffect = number | null;
-
-/**
- * Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).
- */
-export type MetricDirection = 'higher_better' | 'lower_better' | 'neutral';
-
-/**
- * Create a metric, supplying the query as a `query` DSL string.
- */
-export type CreateMetricWithQuery = {
-    name: MetricName;
-    folder?: Folder;
-    event_name: MetricEventName;
-    query: MetricQueryDsl;
-    winsorize_pct?: MetricWinsorizePct;
-    min_detectable_effect?: MetricMinDetectableEffect;
-    direction?: MetricDirection;
-};
-
-/**
  * Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body.
  */
 export type QueryIr = {
@@ -2216,6 +1988,92 @@ export type QueryIr = {
 };
 
 /**
+ * Every metric in the project (the list endpoint is not paginated).
+ */
+export type ListMetricsResponse = Array<{
+    /**
+     * Stable opaque metric id.
+     */
+    id: string;
+    /**
+     * Metric key.
+     */
+    name: string;
+    /**
+     * Folder grouping the metric, or `null`.
+     */
+    folder: string | null;
+    /**
+     * Source event name (camelCase in response).
+     */
+    eventName: string;
+    /**
+     * Rendered DSL text form of the query, or `null` if it could not be rendered.
+     */
+    query: string | null;
+    queryIr: QueryIr;
+    /**
+     * Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).
+     */
+    direction?: 'higher_better' | 'lower_better' | 'neutral';
+    /**
+     * Winsorise percentile applied to the metric.
+     */
+    winsorizePct?: number;
+    /**
+     * Configured MDE, or `null`.
+     */
+    minDetectableEffect?: number | null;
+    /**
+     * ISO-8601 creation timestamp.
+     */
+    createdAt?: string;
+    /**
+     * ISO-8601 last-update timestamp.
+     */
+    updatedAt?: string;
+    [key: string]: unknown;
+}>;
+
+/**
+ * Source event the query reads from.
+ */
+export type MetricEventName = string;
+
+/**
+ * Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`.
+ */
+export type MetricQueryDsl = string;
+
+/**
+ * Winsorise percentile (1–99) to clamp outliers. Defaults to 99.
+ */
+export type MetricWinsorizePct = number;
+
+/**
+ * Minimum detectable effect (relative, 0–1) for power planning. `null` to omit.
+ */
+export type MetricMinDetectableEffect = number | null;
+
+/**
+ * Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).
+ */
+export type MetricDirection = 'higher_better' | 'lower_better' | 'neutral';
+
+/**
+ * Create a metric, supplying the query as a `query` DSL string.
+ */
+export type CreateMetricWithQuery = {
+    name: MetricName;
+    folder?: Folder;
+    event_name: MetricEventName;
+    query: MetricQueryDsl;
+    winsorize_pct?: MetricWinsorizePct;
+    min_detectable_effect?: MetricMinDetectableEffect;
+    direction?: MetricDirection;
+};
+
+/**
  * Create a metric, supplying the query as a typed `query_ir`.
  */
 export type CreateMetricWithQueryIr = {
@@ -2268,152 +2126,10 @@ export type GetMetricResponse = {
      */
     eventName: string;
     /**
-     * Legacy aggregation enum derived from the IR (`count_users`, `sum`, `ratio`, …).
-     */
-    aggregation: string;
-    /**
-     * Numeric value label for sum/avg metrics, or `null`.
-     */
-    valuePath: string | null;
-    /**
      * Rendered DSL text form of the query, or `null` if it could not be rendered.
      */
-    query?: string | null;
-    /**
-     * Typed query IR stored for the metric.
-     */
-    queryIr?: {
-        /**
-         * Aggregation function applied to the source event.
-         */
-        agg: {
-            kind: 'count_users';
-        } | {
-            kind: 'count_events';
-        } | {
-            kind: 'sum';
-        } | {
-            kind: 'avg';
-        } | {
-            kind: 'min';
-        } | {
-            kind: 'max';
-        } | {
-            kind: 'unique';
-        } | {
-            kind: 'quantile';
-            /**
-             * Quantile fraction (0.5 = p50 … 0.999 = p999).
-             */
-            p: 0.5 | 0.75 | 0.9 | 0.95 | 0.99 | 0.999;
-        } | {
-            kind: 'retention_Nd';
-            /**
-             * Retention window in days (1–90).
-             */
-            n: number;
-        } | {
-            kind: 'ratio';
-            /**
-             * Numerator or denominator arm of a `ratio` aggregation.
-             */
-            numerator: {
-                /**
-                 * Counting mode for this ratio arm.
-                 */
-                agg: 'count_users' | 'count_events';
-                /**
-                 * Source event name for this ratio arm.
-                 */
-                metric: string;
-                /**
-                 * Optional label filters.
-                 */
-                filters?: Array<{
-                    /**
-                     * Event property / label identifier.
-                     */
-                    label: string;
-                    /**
-                     * Match operator (`=~`/`!~` are regex).
-                     */
-                    op: '=' | '!=' | '=~' | '!~';
-                    /**
-                     * Quoted filter value (coerced for numeric labels).
-                     */
-                    value: string;
-                }>;
-            };
-            /**
-             * Numerator or denominator arm of a `ratio` aggregation.
-             */
-            denominator: {
-                /**
-                 * Counting mode for this ratio arm.
-                 */
-                agg: 'count_users' | 'count_events';
-                /**
-                 * Source event name for this ratio arm.
-                 */
-                metric: string;
-                /**
-                 * Optional label filters.
-                 */
-                filters?: Array<{
-                    /**
-                     * Event property / label identifier.
-                     */
-                    label: string;
-                    /**
-                     * Match operator (`=~`/`!~` are regex).
-                     */
-                    op: '=' | '!=' | '=~' | '!~';
-                    /**
-                     * Quoted filter value (coerced for numeric labels).
-                     */
-                    value: string;
-                }>;
-            };
-        };
-        /**
-         * Source event name (must equal `event_name`).
-         */
-        metric: string;
-        /**
-         * Numeric property summed/averaged for `sum`/`avg`/quantile aggregations.
-         */
-        valueLabel?: string;
-        /**
-         * Label filters on the event.
-         */
-        filters?: Array<{
-            /**
-             * Event property / label identifier.
-             */
-            label: string;
-            /**
-             * Match operator (`=~`/`!~` are regex).
-             */
-            op: '=' | '!=' | '=~' | '!~';
-            /**
-             * Quoted filter value (coerced for numeric labels).
-             */
-            value: string;
-        }>;
-        /**
-         * Optional group-by clause (ignored for experiment analysis).
-         */
-        groupBy?: {
-            /**
-             * `by` keeps the listed labels; `without` drops them.
-             */
-            op: 'by' | 'without';
-            /**
-             * Labels to group by (max 5).
-             */
-            labels: Array<string>;
-        };
-    };
+    query: string | null;
+    queryIr: QueryIr;
     /**
      * Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).
      */

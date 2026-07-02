@@ -766,7 +766,7 @@ export const updateAttribute = <ThrowOnError extends boolean = false>(options: O
 /**
  * List metrics
  *
- * Returns every metric in the project (not paginated) — name, folder, source event, aggregation, and the rendered query.
+ * Returns every metric in the project (not paginated) — name, folder, source event, the typed `queryIr`, and the rendered query.
  *
  * **Use case:** Audit every metric defined in the project — for example to find the metric id to attach as an experiment's success metric.
  */

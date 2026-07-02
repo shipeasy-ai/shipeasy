@@ -3,7 +3,7 @@
     operationId: listMetrics
     summary: List metrics
     description: |-
-      Returns every metric in the project (not paginated) — name, folder, source event, aggregation, and the rendered query.
+      Returns every metric in the project (not paginated) — name, folder, source event, the typed `queryIr`, and the rendered query.
 
       **Use case:** Audit every metric defined in the project — for example to find the metric id to attach as an experiment's success metric.
     tags:
@@ -22,9 +22,11 @@
                 name: checkouts
                 folder: null
                 eventName: checkout_completed
-                aggregation: count_users
-                valuePath: null
                 query: count_users(checkout_completed)
+                queryIr:
+                  agg: { kind: count_users }
+                  metric: checkout_completed
+                  filters: []
                 direction: higher_better
       "400":
         $ref: ../components/responses.yaml#/BadRequest
@@ -162,9 +164,12 @@
               name: revenue
               folder: checkout
               eventName: purchase
-              aggregation: sum
-              valuePath: amount
               query: sum(purchase, amount)
+              queryIr:
+                agg: { kind: sum }
+                metric: purchase
+                valueLabel: amount
+                filters: []
               direction: higher_better
               winsorizePct: 99
       "400":

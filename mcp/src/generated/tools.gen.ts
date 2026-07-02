@@ -99,7 +99,7 @@ export const GENERATED_TOOLS: Tool[] = [
   },
   {
     name: "metrics_list",
-    description: "List metrics. Returns every metric in the project (not paginated) — name, folder, source event, aggregation, and the rendered query.",
+    description: "List metrics. Returns every metric in the project (not paginated) — name, folder, source event, the typed `queryIr`, and the rendered query.",
     inputSchema: {"type":"object","properties":{},"required":[]},
   },
   {

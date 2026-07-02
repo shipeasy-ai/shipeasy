@@ -1030,157 +1030,6 @@ export const zUpdateAttributeResponse = z.object({
 });
 
 /**
- * Every metric in the project (the list endpoint is not paginated).
- */
-export const zListMetricsResponse = z.array(z.object({
-    id: z.string(),
-    name: z.string(),
-    folder: z.string().nullable(),
-    eventName: z.string(),
-    aggregation: z.string(),
-    valuePath: z.string().nullable(),
-    query: z.string().nullish(),
-    queryIr: z.object({
-        agg: z.union([
-            z.object({
-                kind: z.literal('count_users')
-            }),
-            z.object({
-                kind: z.literal('count_events')
-            }),
-            z.object({
-                kind: z.literal('sum')
-            }),
-            z.object({
-                kind: z.literal('avg')
-            }),
-            z.object({
-                kind: z.literal('min')
-            }),
-            z.object({
-                kind: z.literal('max')
-            }),
-            z.object({
-                kind: z.literal('unique')
-            }),
-            z.object({
-                kind: z.literal('quantile'),
-                p: z.union([
-                    z.literal(0.5),
-                    z.literal(0.75),
-                    z.literal(0.9),
-                    z.literal(0.95),
-                    z.literal(0.99),
-                    z.literal(0.999)
-                ])
-            }),
-            z.object({
-                kind: z.literal('retention_Nd'),
-                n: z.coerce.number().int().gte(1).lte(90)
-            }),
-            z.object({
-                kind: z.literal('ratio'),
-                numerator: z.object({
-                    agg: z.enum(['count_users', 'count_events']),
-                    metric: z.string().min(1).max(128),
-                    filters: z.array(z.object({
-                        label: z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/),
-                        op: z.enum([
-                            '=',
-                            '!=',
-                            '=~',
-                            '!~'
-                        ]),
-                        value: z.string().max(512)
-                    })).max(16).optional()
-                }),
-                denominator: z.object({
-                    agg: z.enum(['count_users', 'count_events']),
-                    metric: z.string().min(1).max(128),
-                    filters: z.array(z.object({
-                        label: z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/),
-                        op: z.enum([
-                            '=',
-                            '!=',
-                            '=~',
-                            '!~'
-                        ]),
-                        value: z.string().max(512)
-                    })).max(16).optional()
-                })
-            })
-        ]),
-        metric: z.string().min(1).max(128),
-        valueLabel: z.string().min(1).max(128).optional(),
-        filters: z.array(z.object({
-            label: z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/),
-            op: z.enum([
-                '=',
-                '!=',
-                '=~',
-                '!~'
-            ]),
-            value: z.string().max(512)
-        })).max(16).optional().default([]),
-        groupBy: z.object({
-            op: z.enum(['by', 'without']),
-            labels: z.array(z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/)).max(5)
-        }).optional()
-    }).optional(),
-    direction: z.enum([
-        'higher_better',
-        'lower_better',
-        'neutral'
-    ]).optional(),
-    winsorizePct: z.coerce.number().optional(),
-    minDetectableEffect: z.coerce.number().nullish(),
-    createdAt: z.string().optional(),
-    updatedAt: z.string().optional()
-}));
-
-/**
- * Source event the query reads from.
- */
-export const zMetricEventName = z.string().min(1);
-
-/**
- * Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`.
- */
-export const zMetricQueryDsl = z.string().min(1).max(4096);
-
-/**
- * Winsorise percentile (1–99) to clamp outliers. Defaults to 99.
- */
-export const zMetricWinsorizePct = z.coerce.number().int().gte(1).lte(99).default(99);
-
-/**
- * Minimum detectable effect (relative, 0–1) for power planning. `null` to omit.
- */
-export const zMetricMinDetectableEffect = z.coerce.number().nullable().default(null);
-
-/**
- * Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).
- */
-export const zMetricDirection = z.enum([
-    'higher_better',
-    'lower_better',
-    'neutral'
-]).default('higher_better');
-
-/**
- * Create a metric, supplying the query as a `query` DSL string.
- */
-export const zCreateMetricWithQuery = z.object({
-    name: zMetricName,
-    folder: zFolder.optional(),
-    event_name: zMetricEventName,
-    query: zMetricQueryDsl,
-    winsorize_pct: zMetricWinsorizePct.optional(),
-    min_detectable_effect: zMetricMinDetectableEffect.optional(),
-    direction: zMetricDirection.optional()
-});
-
-/**
  * Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body.
  */
 export const zQueryIr = z.object({
@@ -1272,6 +1121,69 @@ export const zQueryIr = z.object({
 });
 
 /**
+ * Every metric in the project (the list endpoint is not paginated).
+ */
+export const zListMetricsResponse = z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    folder: z.string().nullable(),
+    eventName: z.string(),
+    query: z.string().nullable(),
+    queryIr: zQueryIr,
+    direction: z.enum([
+        'higher_better',
+        'lower_better',
+        'neutral'
+    ]).optional(),
+    winsorizePct: z.coerce.number().optional(),
+    minDetectableEffect: z.coerce.number().nullish(),
+    createdAt: z.string().optional(),
+    updatedAt: z.string().optional()
+}));
+
+/**
+ * Source event the query reads from.
+ */
+export const zMetricEventName = z.string().min(1);
+
+/**
+ * Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`.
+ */
+export const zMetricQueryDsl = z.string().min(1).max(4096);
+
+/**
+ * Winsorise percentile (1–99) to clamp outliers. Defaults to 99.
+ */
+export const zMetricWinsorizePct = z.coerce.number().int().gte(1).lte(99).default(99);
+
+/**
+ * Minimum detectable effect (relative, 0–1) for power planning. `null` to omit.
+ */
+export const zMetricMinDetectableEffect = z.coerce.number().nullable().default(null);
+
+/**
+ * Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).
+ */
+export const zMetricDirection = z.enum([
+    'higher_better',
+    'lower_better',
+    'neutral'
+]).default('higher_better');
+
+/**
+ * Create a metric, supplying the query as a `query` DSL string.
+ */
+export const zCreateMetricWithQuery = z.object({
+    name: zMetricName,
+    folder: zFolder.optional(),
+    event_name: zMetricEventName,
+    query: zMetricQueryDsl,
+    winsorize_pct: zMetricWinsorizePct.optional(),
+    min_detectable_effect: zMetricMinDetectableEffect.optional(),
+    direction: zMetricDirection.optional()
+});
+
+/**
  * Create a metric, supplying the query as a typed `query_ir`.
  */
 export const zCreateMetricWithQueryIr = z.object({
@@ -1308,96 +1220,8 @@ export const zGetMetricResponse = z.object({
     name: z.string(),
     folder: z.string().nullable(),
     eventName: z.string(),
-    aggregation: z.string(),
-    valuePath: z.string().nullable(),
-    query: z.string().nullish(),
-    queryIr: z.object({
-        agg: z.union([
-            z.object({
-                kind: z.literal('count_users')
-            }),
-            z.object({
-                kind: z.literal('count_events')
-            }),
-            z.object({
-                kind: z.literal('sum')
-            }),
-            z.object({
-                kind: z.literal('avg')
-            }),
-            z.object({
-                kind: z.literal('min')
-            }),
-            z.object({
-                kind: z.literal('max')
-            }),
-            z.object({
-                kind: z.literal('unique')
-            }),
-            z.object({
-                kind: z.literal('quantile'),
-                p: z.union([
-                    z.literal(0.5),
-                    z.literal(0.75),
-                    z.literal(0.9),
-                    z.literal(0.95),
-                    z.literal(0.99),
-                    z.literal(0.999)
-                ])
-            }),
-            z.object({
-                kind: z.literal('retention_Nd'),
-                n: z.coerce.number().int().gte(1).lte(90)
-            }),
-            z.object({
-                kind: z.literal('ratio'),
-                numerator: z.object({
-                    agg: z.enum(['count_users', 'count_events']),
-                    metric: z.string().min(1).max(128),
-                    filters: z.array(z.object({
-                        label: z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/),
-                        op: z.enum([
-                            '=',
-                            '!=',
-                            '=~',
-                            '!~'
-                        ]),
-                        value: z.string().max(512)
-                    })).max(16).optional()
-                }),
-                denominator: z.object({
-                    agg: z.enum(['count_users', 'count_events']),
-                    metric: z.string().min(1).max(128),
-                    filters: z.array(z.object({
-                        label: z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/),
-                        op: z.enum([
-                            '=',
-                            '!=',
-                            '=~',
-                            '!~'
-                        ]),
-                        value: z.string().max(512)
-                    })).max(16).optional()
-                })
-            })
-        ]),
-        metric: z.string().min(1).max(128),
-        valueLabel: z.string().min(1).max(128).optional(),
-        filters: z.array(z.object({
-            label: z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/),
-            op: z.enum([
-                '=',
-                '!=',
-                '=~',
-                '!~'
-            ]),
-            value: z.string().max(512)
-        })).max(16).optional().default([]),
-        groupBy: z.object({
-            op: z.enum(['by', 'without']),
-            labels: z.array(z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/)).max(5)
-        }).optional()
-    }).optional(),
+    query: z.string().nullable(),
+    queryIr: zQueryIr,
     direction: z.enum([
         'higher_better',
         'lower_better',
