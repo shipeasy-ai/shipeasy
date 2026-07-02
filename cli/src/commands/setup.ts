@@ -797,6 +797,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
           ? {
               clientKeyVar: clientKeyVar(sampleBrowser.frameworks),
               projectIdVar: projectIdVar(sampleBrowser.frameworks),
+              clientKey: clientKey?.key ?? null,
             }
           : null,
       enabledFeatures,

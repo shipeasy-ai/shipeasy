@@ -38,7 +38,13 @@ export interface WiringTarget {
 export interface WiringDocInput {
   projectId: string;
   targets: WiringTarget[];
-  devtools: { clientKeyVar: string; projectIdVar: string } | null;
+  devtools: {
+    clientKeyVar: string;
+    projectIdVar: string;
+    /** Literal client key minted this run — null if the target was already
+     * onboarded and the key wasn't re-minted (fall back to the env var name). */
+    clientKey: string | null;
+  } | null;
   /** Module groups already enabled server-side by the CLI (flags/i18n/ops). */
   enabledFeatures: string[];
   /**
@@ -164,7 +170,12 @@ function buildHint(t: WiringTarget): string {
   return "the project's build/test command";
 }
 
-function devtoolsSection(d: NonNullable<WiringDocInput["devtools"]>): string {
+function devtoolsSection(
+  d: NonNullable<WiringDocInput["devtools"]>,
+  projectId: string,
+): string {
+  const clientVal = d.clientKey ?? `<value of ${d.clientKeyVar} in env>`;
+  const idVal = projectId || `<value of ${d.projectIdVar} in env>`;
   return `## Devtools overlay (user accepted — wire it)
 
 A platform-agnostic \`<script>\` tag: an in-page panel (\`?se=1\` or Shift+Alt+S)
@@ -172,17 +183,20 @@ listing every gate/config/experiment/translation with per-session overrides;
 it is also the end-user bug/feature report surface.
 Docs: https://docs.shipeasy.ai/feedback/devtools
 
-- [ ] Add to every browser target's HTML shell / root layout:
+- [ ] Add to every browser target's HTML shell / root layout — both attribute
+  values below are already minted for this project and are **public
+  identifiers** (the client key is public by design, the project id is not a
+  secret), so paste them in directly:
 
   \`\`\`html
   <script src="https://cdn.shipeasy.ai/se-devtools.js"
-    data-client-api-key="<value of ${d.clientKeyVar}>" data-project-id="<value of ${d.projectIdVar}>"></script>
+    data-client-api-key="${clientVal}" data-project-id="${idVal}"></script>
   \`\`\`
 
-  Read both attributes from env (\`${d.clientKeyVar}\`, \`${d.projectIdVar}\`) —
-  never hardcode them. Serve the script however this app injects markup into its
-  HTML shell (source it locally in dev, the CDN URL in prod). The client key is
-  public by design; this is not a secret leak.
+  Serve the script however this app injects markup into its HTML shell (source
+  it locally in dev, the CDN URL in prod). The same values also live in each
+  target's env file as \`${d.clientKeyVar}\` / \`${d.projectIdVar}\` if you'd
+  rather read them from env instead of inlining.
 - [ ] Gate: load the app with \`?se=1\` and confirm the overlay mounts.
 `;
 }
@@ -249,7 +263,7 @@ delete this file once everything passes.`,
   // Module-dependent sections — only what was actually enabled. `sdk` for the
   // doc handles comes from the first target (falls back to a placeholder).
   const primarySdk = input.targets[0]?.sdk ?? "<lang>";
-  if (input.devtools) sections.push(devtoolsSection(input.devtools));
+  if (input.devtools) sections.push(devtoolsSection(input.devtools, input.projectId));
   if (input.enabledFeatures.includes("ops"))
     sections.push(opsSection(primarySdk, input.featureDocs?.errorReporting));
   if (input.enabledFeatures.includes("i18n"))

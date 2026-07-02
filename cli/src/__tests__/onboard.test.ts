@@ -228,6 +228,7 @@ describe("buildWiringDoc", () => {
     devtools: {
       clientKeyVar: "NEXT_PUBLIC_SHIPEASY_CLIENT_KEY",
       projectIdVar: "NEXT_PUBLIC_SHIPEASY_PROJECT_ID",
+      clientKey: "sdk_client_devtools_val",
     },
     enabledFeatures: ["flags", "ops", "i18n"],
     featureDocs: {
@@ -252,6 +253,10 @@ describe("buildWiringDoc", () => {
     expect(doc).toContain("rails credentials:edit");
     expect(doc).toContain("## Devtools overlay");
     expect(doc).toContain("cdn.shipeasy.ai/se-devtools.js");
+    // Public identifiers are inlined as literal values, not "<value of …>" placeholders.
+    expect(doc).toContain('data-client-api-key="sdk_client_devtools_val"');
+    expect(doc).toContain('data-project-id="proj_123"');
+    expect(doc).not.toContain("<value of NEXT_PUBLIC_SHIPEASY_CLIENT_KEY");
     expect(doc).toContain("## Ops wiring");
     expect(doc).toContain("see(err)"); // embedded error-reporting snippet
     expect(doc).toContain("## Translations (i18n) wiring");
@@ -274,6 +279,16 @@ describe("buildWiringDoc", () => {
     const doc = buildWiringDoc(input);
     expect(doc).not.toMatch(/sdk_server_[a-z0-9]/i);
     expect(doc).toContain("SHIPEASY_SERVER_KEY");
+  });
+
+  it("falls back to the env var name when the client key wasn't re-minted", () => {
+    const doc = buildWiringDoc({
+      ...input,
+      devtools: { ...input.devtools!, clientKey: null },
+    });
+    expect(doc).toContain("<value of NEXT_PUBLIC_SHIPEASY_CLIENT_KEY in env>");
+    // The project id is always known, so it stays inlined even in the fallback.
+    expect(doc).toContain('data-project-id="proj_123"');
   });
 
   it("omits module sections that weren't selected", () => {
