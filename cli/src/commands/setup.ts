@@ -43,6 +43,7 @@ import {
   SERVER_KEY_VAR,
 } from "../setup/onboard";
 import { buildWiringDoc, type WiringTarget } from "../setup/wiring-doc";
+import { runTriggerStep, type TriggerStepResult } from "../setup/triggers";
 import { BROWSER_FRAMEWORKS, detectTargets, type TargetRecommendation } from "./scan";
 import { recordDetection } from "./detect";
 import { enableModuleGroup, type EnableResult } from "./install";
@@ -66,6 +67,13 @@ interface SetupOpts {
   dryRun?: boolean;
   agentRun?: boolean; // commander --no-agent-run → false
   claudeRun?: boolean; // legacy alias of --no-agent-run
+  triggers?: boolean; // commander --triggers → true, --no-triggers → false, unset → ask
+  triggerPlatform?: string;
+}
+
+/** App base URL of the admin dashboard we route the trigger wizard to. */
+function appBaseUrl(): string {
+  return loadCredentials()?.app_base_url?.replace(/\/$/, "") ?? "https://app.shipeasy.ai";
 }
 
 // ── small print helpers (no chalk — the CLI avoids ESM-only deps) ───────────
@@ -812,6 +820,26 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     await wiringHandoff(root, opts, interactive);
   }
 
+  // 10. Automation trigger (unattended auto-apply — the queue burn-down loop)
+  heading("10. Automation trigger");
+  let triggerResult: TriggerStepResult = { enabled: false };
+  if (dryRun) {
+    console.log("  (dry run — would offer the automation trigger + open the hosted setup)");
+  } else if (!projectId) {
+    console.log("  • no bound project — skipping");
+  } else if (opts.triggers === false) {
+    console.log("  • declined (--no-triggers)");
+  } else {
+    triggerResult = await runTriggerStep({
+      projectId,
+      appBaseUrl: appBaseUrl(),
+      interactive,
+      ask: opts.triggers !== true, // --triggers opts in and skips the yes/no gate
+      platform: opts.triggerPlatform,
+      dryRun,
+    });
+  }
+
   // Summary
   heading("Done");
   console.log(`Project:   ${projectId || "(dry run)"}${projectName ? ` (${projectName})` : ""}`);
@@ -830,6 +858,13 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   );
   console.log(`Devtools:  ${devtoolsAccepted ? "enabled (wire the script tag — see wiring steps)" : "declined"}`);
   console.log(`Features:  ${features.length ? features.join(", ") : "none enabled"}`);
+  console.log(
+    `Trigger:   ${
+      triggerResult.enabled
+        ? `finish setup in the browser${triggerResult.platform ? ` (${triggerResult.platform})` : ""}`
+        : "not set up — run `shipeasy setup triggers` later"
+    }`,
+  );
   if (anythingToWire && !dryRun) {
     console.log(`Wiring:    ${WIRING_FILENAME} — hand it to any coding agent to finish`);
   }
@@ -841,10 +876,37 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     "\nWhen the wiring is done, commit (setup never commits for you):\n" +
       "  git add <each target>/.shipeasy <manifests+lockfiles> <entry files>\n" +
       '  git commit -m "chore: onboard Shipeasy base (SDK + auth + bind)"\n' +
-      "\nOptional: `shipeasy ops trigger prep` sets up the scheduled agent that burns down\n" +
-      "the bug/feature/error queue as PRs on a cadence.",
+      "\nAutomation trigger: the scheduled agent that burns down the bug/feature/error\n" +
+      "queue as PRs on a cadence. Set it up any time with `shipeasy setup triggers`.",
   );
   if (dryRun) console.log("\n(dry run — no files were written, nothing was minted.)");
+}
+
+/**
+ * `shipeasy setup triggers` — the automation-trigger step run on its own.
+ * Resolves the bound project from `.shipeasy` (or the active session) and opens
+ * the hosted, guided setup wizard preselected to the chosen platform.
+ */
+async function runSetupTriggers(opts: { platform?: string; dryRun?: boolean }): Promise<void> {
+  const cwd = process.cwd();
+  const creds = loadCredentials();
+  const projectId = getBoundProjectId(cwd) ?? creds?.project_id;
+  if (!projectId) {
+    console.error(
+      "Not bound to a Shipeasy project. Run `shipeasy setup` (or `shipeasy login`) first.",
+    );
+    process.exit(1);
+  }
+
+  console.log("Shipeasy — automation trigger setup\n");
+  await runTriggerStep({
+    projectId,
+    appBaseUrl: appBaseUrl(),
+    interactive: Boolean(process.stdin.isTTY),
+    ask: false, // running this command IS the opt-in
+    platform: opts.platform,
+    dryRun: opts.dryRun,
+  });
 }
 
 export function setupCommand(parent: Command): void {
@@ -866,6 +928,12 @@ export function setupCommand(parent: Command): void {
     .option("--skip-install", "Don't run SDK package installs (they go into the wiring steps)")
     .option("--no-agent-run", "Don't offer to launch a coding agent on the wiring steps")
     .addOption(new Option("--no-claude-run", "(deprecated) alias of --no-agent-run").hideHelp())
+    .option("--triggers", "Set up the automation trigger without asking (skips the yes/no gate)")
+    .option("--no-triggers", "Skip the automation trigger step")
+    .option(
+      "--trigger-platform <id>",
+      "Preselect the trigger platform (claude|codex|cursor|copilot|gemini|jules)",
+    )
     .option("--dry-run", "Show what would change without writing files or calling the API")
     .action(async (opts: SetupOpts) => {
       await runSetup(opts).catch((err: unknown) => {
@@ -873,6 +941,43 @@ export function setupCommand(parent: Command): void {
         process.exit(1);
       });
     });
+
+  // `shipeasy setup triggers` — the automation-trigger step on its own, for
+  // returning users who skipped it (or want a different platform). Replaces the
+  // deprecated `shipeasy-ops-trigger` skill's entry point.
+  const triggers = setup
+    .command("triggers")
+    .description(
+      "Set up an automation trigger — a scheduled agent that fixes queue items as " +
+        "PRs, unattended. Opens the hosted, guided setup for your platform.",
+    )
+    .option(
+      "--platform <id>",
+      "Preselect the platform (claude|codex|cursor|copilot|gemini|jules)",
+    )
+    .option("--dry-run", "Print the URL without opening a browser")
+    .action(async (opts: { platform?: string; dryRun?: boolean }) => {
+      await runSetupTriggers(opts).catch((err: unknown) => {
+        console.error(`\nTrigger setup failed: ${err instanceof Error ? err.message : String(err)}`);
+        process.exit(1);
+      });
+    });
+
+  withDetails(
+    triggers,
+    "A trigger is a scheduled agent run that burns down your feedback queue " +
+      "(bugs, feature requests, auto-filed error/alert tickets) and opens one pull " +
+      "request per fixed item — nothing merges without you. This command explains " +
+      "it, has you pick the platform you code with (Claude Code, Codex, Cursor, " +
+      "Copilot, or Gemini/Jules), then opens the hosted, guided setup wizard " +
+      "preselected to that platform, which walks you through the platform-specific " +
+      "fields and secrets. `shipeasy setup` offers this same step inline.",
+  );
+  withExamples(triggers, [
+    { run: "shipeasy setup triggers", note: "interactive: pick a platform, open the wizard" },
+    { run: "shipeasy setup triggers --platform claude", note: "preselect Claude Code" },
+    { run: "shipeasy setup triggers --dry-run", note: "just print the URL" },
+  ]);
 
   withDetails(
     setup,

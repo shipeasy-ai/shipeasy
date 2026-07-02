@@ -195,7 +195,7 @@ escalation produces no branch, commit, or PR.
 
 Only when `--pr` is passed. This is what turns the interactive loop into
 self-contained, reviewable units of work — and it's the mode the scheduled
-trigger (the `shipeasy-ops-trigger` skill) runs unattended. Deltas to the loop
+trigger (set up via `shipeasy setup triggers`) runs unattended. Deltas to the loop
 above:
 
 1. **One branch + one PR per item.** Right after an item is fixed **and

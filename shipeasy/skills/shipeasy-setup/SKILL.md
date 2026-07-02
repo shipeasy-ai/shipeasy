@@ -111,4 +111,6 @@ enabled yet, and the automated feedback trigger:
 - **Flags & experiments** — `shipeasy install flags`; how-to: the `shipeasy-flags` skill
 - **Feedback, errors & alerts** — `shipeasy install ops`; how-to: the `shipeasy-ops` skill
 - **Translations (i18n)** — `shipeasy install i18n`; how-to: the `shipeasy-i18n` skill
-- **Scheduled fix trigger** — `shipeasy-ops-trigger` (or `shipeasy ops trigger prep`)
+- **Automation trigger** — `shipeasy setup triggers` (a scheduled agent that
+  fixes queue items as PRs, unattended). `shipeasy setup` also offers it inline;
+  the command opens the hosted, guided setup wizard for the chosen platform.

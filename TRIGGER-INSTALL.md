@@ -1,12 +1,18 @@
 # Moved
 
-The per-platform trigger install runbook is the built-in help of the real
-create command, so it always matches the shipped tooling:
+Trigger setup now lives in the CLI. Run:
 
 ```bash
-shipeasy ops trigger create <provider> --help   # claude | cursor | copilot | jules (alias: gemini)
-shipeasy ops trigger create <anything-else>     # prints the platform-scheduled (GitHub Actions) setup
+shipeasy setup triggers                     # pick a platform, opens the hosted guided wizard
+shipeasy setup triggers --platform claude   # preselect (claude|codex|cursor|copilot|gemini|jules)
 ```
 
-Also published at <https://docs.shipeasy.ai/get-started/triggers>. The
-`shipeasy-ops-trigger` skill drives the full provisioning flow.
+`shipeasy setup` also offers it as an inline step. The command opens the hosted,
+guided setup wizard (`/dashboard/<projectId>/triggers?provider=<platform>`),
+which walks you through the platform-specific fields and secrets.
+
+The low-level connector plumbing is still available under
+`shipeasy ops trigger create <provider> --help` and `shipeasy ops trigger prep`,
+and the reference is published at <https://docs.shipeasy.ai/get-started/triggers>.
+The `shipeasy-ops-trigger` skill is deprecated — it now just redirects to
+`shipeasy setup triggers`.

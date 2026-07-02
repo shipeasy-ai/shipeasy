@@ -122,7 +122,7 @@ function resultHtml(ok: boolean, message?: string): string {
 </div></body></html>`;
 }
 
-function tryOpenBrowser(url: string): void {
+export function tryOpenBrowser(url: string): void {
   const platform = process.platform;
   const [cmd, ...args] =
     platform === "darwin"

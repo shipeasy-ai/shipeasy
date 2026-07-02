@@ -1,7 +1,7 @@
 {
   "name": "shipeasy",
   "version": "3.11.0",
-  "description": "Shipeasy — feature flags, A/B experiments, event metrics, translations, alert rules, and the in-app feedback/ops inbox, in a single plugin. Ships 11 skills (9 area guides + 2 multi-step workflows: the shipeasy-ops-work loop and its shipeasy-ops-trigger scheduler); larger skills route from a thin SKILL.md into per-topic references/. Bundles the shipeasy MCP server; all day-to-day CRUD is delegated to the MCP tools or the shipeasy CLI, and deletions are UI-only.",
+  "description": "Shipeasy — feature flags, A/B experiments, event metrics, translations, alert rules, and the in-app feedback/ops inbox, in a single plugin. Ships 11 skills (9 area guides + the shipeasy-ops-work loop; shipeasy-ops-trigger is a deprecated shim that redirects to the `shipeasy setup triggers` CLI command); larger skills route from a thin SKILL.md into per-topic references/. Bundles the shipeasy MCP server; all day-to-day CRUD is delegated to the MCP tools or the shipeasy CLI, and deletions are UI-only.",
   "author": { "name": "Shipeasy", "url": "https://shipeasy.ai" },
   "homepage": "https://shipeasy.ai",
   "license": "MIT"
