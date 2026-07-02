@@ -7,6 +7,7 @@ import {
   type InstallCtx,
   codexTomlSnippet,
   detectAgents,
+  detectHarness,
   onPath,
   registerMcp,
 } from "../setup/agents";
@@ -16,7 +17,7 @@ import {
   writeCopilotInstructions,
   writeCursorRule,
 } from "../setup/instructions";
-import { applyAgent } from "../commands/setup";
+import { applyAgent, agentDirective } from "../commands/setup";
 
 function tmp(): string {
   return mkdtempSync(join(tmpdir(), "se-setup-"));
@@ -63,6 +64,24 @@ describe("detectAgents", () => {
     expect(agents.map((a) => a.id)).toEqual(["claude", "cursor", "codex", "copilot", "jules"]);
     expect(agents.find((a) => a.id === "jules")!.detected).toBe(false);
     for (const a of agents) expect(typeof a.reason).toBe("string");
+  });
+});
+
+describe("detectHarness", () => {
+  it("is human (not inside) in a clean env", () => {
+    expect(detectHarness({})).toEqual({ inside: false, label: null });
+  });
+
+  it("detects known coding-agent env markers", () => {
+    expect(detectHarness({ CLAUDECODE: "1" })).toEqual({ inside: true, label: "Claude Code" });
+    expect(detectHarness({ CURSOR_AGENT: "1" }).inside).toBe(true);
+    expect(detectHarness({ CODEX_SANDBOX: "seatbelt" }).label).toBe("OpenAI Codex");
+  });
+
+  it("honours the SHIPEASY_AGENT override both ways", () => {
+    expect(detectHarness({ SHIPEASY_AGENT: "1" }).inside).toBe(true);
+    // override wins even when a real marker is present
+    expect(detectHarness({ SHIPEASY_AGENT: "0", CLAUDECODE: "1" }).inside).toBe(false);
   });
 });
 
@@ -189,6 +208,17 @@ describe("registerMcp", () => {
 
   it("jules is a manual step", () => {
     expect(registerMcp("jules", ctx(tmp())).action).toBe("manual");
+  });
+});
+
+describe("agentDirective", () => {
+  it("is an actionable directive naming the wiring file + its key rules", () => {
+    const d = agentDirective("/repo");
+    expect(d).toContain("CODING AGENT");
+    expect(d).toContain("/repo/shipeasy-wiring.md");
+    expect(d).toContain("Never print, log, or commit a key value");
+    expect(d).toContain("don't commit");
+    expect(d).toContain("Delete shipeasy-wiring.md");
   });
 });
 

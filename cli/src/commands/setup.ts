@@ -12,6 +12,7 @@ import {
   type InstallCtx,
   type McpResult,
   detectAgents,
+  detectHarness,
   installClaudePlugin,
   onPath,
   registerMcp,
@@ -268,12 +269,6 @@ const RUNNABLE_AGENTS: Array<{ label: string; bin: string; argv: (p: string) => 
   { label: "GitHub Copilot", bin: "copilot", argv: (p) => ["-p", p] },
 ];
 
-function insideAgentSession(): boolean {
-  return Boolean(
-    process.env.CLAUDECODE || process.env.CLAUDE_CODE || process.env.CLAUDE_CODE_ENTRYPOINT,
-  );
-}
-
 function spawnAgent(bin: string, args: string[]): Promise<number> {
   return new Promise((resolve) => {
     const child = spawn(bin, args, { stdio: "inherit" });
@@ -283,27 +278,51 @@ function spawnAgent(bin: string, args: string[]): Promise<number> {
 }
 
 /**
- * Hand the wiring file to a coding agent — WITHOUT assuming which one. Print
- * copy-paste invocations for every agent CLI we know, and (interactively)
- * offer to launch one that's on PATH. The instructions themselves are
- * harness-neutral markdown, so "paste it into any assistant" always works.
+ * The hand-off block addressed to a coding agent that is CURRENTLY driving the
+ * CLI: a self-contained, actionable prompt (not "here's how to launch one").
+ * The agent reads this on stdout and acts on it directly. Kept in sync with
+ * the wiring doc's own rules but condensed — the file is the full spec.
  */
-async function agentHandoff(opts: SetupOpts, interactive: boolean): Promise<void> {
-  if (insideAgentSession()) {
-    console.log(
-      `  You're already inside a coding-agent session — just tell it:\n\n` +
-        `    ${WIRING_PROMPT}\n`,
-    );
-    return;
-  }
+export function agentDirective(root: string): string {
+  return [
+    "════════════════════════════════════════════════════════════════",
+    "▶ CODING AGENT — finish the onboarding now.",
+    "",
+    `The remaining, judgement-requiring steps are written to:`,
+    `  ${join(root, WIRING_FILENAME)}`,
+    "",
+    "Read that file and complete EVERY unchecked item, in order, following",
+    "its operating rules. In brief:",
+    "  • Do the work yourself — run the shell commands; don't delegate to the user.",
+    "  • Never print, log, or commit a key value (sdk_server_* / sdk_client_*).",
+    "  • Exactly one configure(...) per runtime at the entry point; no wrapper files.",
+    "  • Pull version-correct wiring with `shipeasy docs get --sdk <lang> <page>`.",
+    "  • Honour every verification gate; self-heal once, then stop and report.",
+    "  • Stop at 'ready to commit' — hand the user the `git add` list, don't commit.",
+    `  • Delete ${WIRING_FILENAME} once all gates pass.`,
+    "════════════════════════════════════════════════════════════════",
+  ].join("\n");
+}
 
+/**
+ * The hand-off addressed to a HUMAN at a terminal: plain instructions. The
+ * code edits are best done by an assistant, so we show how to hand the file
+ * off — and (interactively) offer to launch one that's on PATH.
+ */
+async function humanHandoff(root: string, opts: SetupOpts, interactive: boolean): Promise<void> {
   const available = RUNNABLE_AGENTS.filter((a) => onPath(a.bin));
   console.log(
-    `  Hand ${WIRING_FILENAME} to any coding agent or AI assistant. Examples:\n` +
+    `  The remaining steps edit your code (entry-point SDK init, etc.), so they're\n` +
+      `  best handed to a coding assistant. Either open ${WIRING_FILENAME} and follow\n` +
+      `  the checklist yourself, or pass it to an assistant, e.g.:\n\n` +
       RUNNABLE_AGENTS.map(
-        (a) => `    ${a.bin} ${a.argv(WIRING_PROMPT).map((s) => (s.startsWith("-") ? s : JSON.stringify(s))).join(" ")}`,
+        (a) =>
+          `    ${a.bin} ${a
+            .argv(WIRING_PROMPT)
+            .map((s) => (s.startsWith("-") ? s : JSON.stringify(s)))
+            .join(" ")}`,
       ).join("\n") +
-      `\n  (or open the file and paste it into your IDE's assistant)`,
+      `\n\n  (or paste ${WIRING_FILENAME} into your IDE's assistant)`,
   );
 
   const noRun = opts.agentRun === false || opts.claudeRun === false || opts.dryRun;
@@ -327,6 +346,19 @@ async function agentHandoff(opts: SetupOpts, interactive: boolean): Promise<void
   if (code !== 0) {
     console.log(`\n${chosen.bin} exited with code ${code}. You can re-run it anytime.`);
   }
+}
+
+/**
+ * Branch the wiring hand-off on WHO is reading stdout: a coding agent driving
+ * the CLI gets an actionable directive it can execute; a human at a terminal
+ * gets plain instructions plus an optional launch picker.
+ */
+async function wiringHandoff(root: string, opts: SetupOpts, interactive: boolean): Promise<void> {
+  if (detectHarness().inside) {
+    console.log(agentDirective(root));
+    return;
+  }
+  await humanHandoff(root, opts, interactive);
 }
 
 // ── command ─────────────────────────────────────────────────────────────────
@@ -716,7 +748,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     const wiringPath = join(root, WIRING_FILENAME);
     writeFileSync(wiringPath, doc, "utf8");
     console.log(`  ✓ wrote ${wiringPath}\n`);
-    await agentHandoff(opts, interactive);
+    await wiringHandoff(root, opts, interactive);
   }
 
   // Summary

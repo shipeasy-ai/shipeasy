@@ -115,6 +115,42 @@ export function detectAgents(cwd: string): AgentInfo[] {
   ];
 }
 
+/**
+ * Env markers that mean "a coding agent / AI harness is driving this shell",
+ * not a human at an interactive terminal. Used to decide whether `shipeasy
+ * setup` should address its final hand-off to a machine (an actionable prompt)
+ * or a person (plain instructions). Set `SHIPEASY_AGENT=1` to force the agent
+ * path in a harness we don't yet recognise; `SHIPEASY_AGENT=0` to force human.
+ */
+const HARNESS_ENV: Array<[string, string]> = [
+  ["CLAUDECODE", "Claude Code"],
+  ["CLAUDE_CODE_ENTRYPOINT", "Claude Code"],
+  ["CURSOR_AGENT", "Cursor"],
+  ["CURSOR_TRACE_ID", "Cursor"],
+  ["CODEX_SANDBOX", "OpenAI Codex"],
+  ["GITHUB_COPILOT_CLI", "GitHub Copilot"],
+  ["AIDER_CHAT", "Aider"],
+  ["REPL_ID", "Replit Agent"],
+];
+
+export interface HarnessInfo {
+  /** True when a coding agent (not a human terminal) is running the CLI. */
+  inside: boolean;
+  /** The detected agent's name, or null when unknown/human. */
+  label: string | null;
+}
+
+/** Detect whether an AI coding agent is driving this invocation. */
+export function detectHarness(env: NodeJS.ProcessEnv = process.env): HarnessInfo {
+  const override = env.SHIPEASY_AGENT;
+  if (override === "0" || override === "false") return { inside: false, label: null };
+  if (override === "1" || override === "true") return { inside: true, label: "coding agent" };
+  for (const [key, label] of HARNESS_ENV) {
+    if (env[key]) return { inside: true, label };
+  }
+  return { inside: false, label: null };
+}
+
 export interface InstallCtx {
   cwd: string;
   scope: "user" | "project";
