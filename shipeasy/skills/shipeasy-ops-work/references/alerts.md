@@ -6,11 +6,16 @@ Not every alert is a code bug — triage the source first. Shared mechanics
 (atomic diff, gate, status lifecycle) are in SKILL.md §1a; this is the
 alert-specific flow.
 
-1. The ticket's `description` carries the alert detail, observed value, and
-   dashboard link; **`context.alert.source` decides the path**:
-   - `metric_rule` — a user-defined threshold tripped. Open the metric
-     (`shipeasy metrics list`), confirm the breach is real (not a bad
-     threshold), and fix the underlying regression if there is one.
+1. `context.alert` is hydrated: `source`, `severity`, `observedValue`,
+   `status`/`activeSince`/`resolvedAt` (live alert state), `rule`
+   (`comparator`/`threshold`/`windowHours` — the exact condition that tripped),
+   and `metric` (`{id, name, events[]}` — the metric and the event name(s) it
+   aggregates). **`context.alert.source` decides the path**:
+   - `metric_rule` — a user-defined threshold tripped. Confirm the breach is
+     real against `rule` + `observedValue` (not a bad threshold), then **grep
+     for `track('<event>')` for each name in `context.alert.metric.events`** —
+     that's the instrumentation feeding the metric; fix the regression behind
+     the move.
    - `experiment_srm` / `experiment_peek` — a sample-ratio mismatch or an
      early-peek warning on a running experiment. Usually an assignment or
      instrumentation bug — investigate (see the `shipeasy-experiments` skill),

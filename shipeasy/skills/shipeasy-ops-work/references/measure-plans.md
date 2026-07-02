@@ -12,8 +12,13 @@ Read `context.measurePlan`:
 - `created[]` — resources already live (`{kind,id,name}`); don't recreate them.
 - `pending[]` — resources it couldn't make yet (usually a metric whose backing
   event isn't emitted); create these **after** you add the instrumentation.
-- `instrumentation[]` — the code work: for each, emit the `event` at the place
-  `detail` describes (follow the `flags`/`experiments` skills for the SDK call).
+- `instrumentation[]` — the code work. Each step has `event` (the name to
+  emit), `description` (conceptually **what** user moment to capture and
+  **why** — the assistant has no repo access, so it never names files; you
+  locate the call site), and `properties[]` (the event properties the metric
+  needs attached). Some steps carry `attribute` instead — a new user attribute
+  to start sending on the identify/evaluate context. Follow the
+  `flags`/`experiments` skills for the SDK call.
 
 Order matters — the `pending[]` metric can't bind to an event that doesn't
 exist yet:

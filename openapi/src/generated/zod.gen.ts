@@ -1518,6 +1518,158 @@ export const zCreateOpsItemResponse = z.object({
 });
 
 /**
+ * Auto-collected browser environment for a `bug`/`feature_request`, captured at file time.
+ */
+export const zOpsBrowserContext = z.object({
+    pageUrl: z.string().nullish(),
+    userAgent: z.string().nullish(),
+    viewport: z.string().nullish()
+});
+
+/**
+ * Hydrated detail for an auto-filed `error` ticket, read from the tracked `errors` row at request time (so `count`/`lastSeenAt` reflect the latest state).
+ */
+export const zOpsErrorContext = z.object({
+    id: z.string(),
+    fingerprint: z.string(),
+    causedByFingerprint: z.string().nullish(),
+    errorType: z.string().nullish(),
+    message: z.string(),
+    subject: z.string().nullish(),
+    outcome: z.string().nullish(),
+    kind: z.string().nullish(),
+    side: z.string().nullish(),
+    env: z.string().nullish(),
+    count: z.coerce.number(),
+    firstSeenAt: z.string(),
+    lastSeenAt: z.string(),
+    seenUrls: z.array(z.string()),
+    sdkVersion: z.string().nullish()
+});
+
+/**
+ * The condition of a metric-rule alert.
+ */
+export const zOpsAlertRuleSummary = z.object({
+    id: z.string(),
+    name: z.string(),
+    comparator: z.enum([
+        'gt',
+        'gte',
+        'lt',
+        'lte'
+    ]),
+    threshold: z.coerce.number(),
+    windowHours: z.coerce.number()
+});
+
+/**
+ * The metric an alert watches, with its backing events.
+ */
+export const zOpsAlertMetricSummary = z.object({
+    id: z.string(),
+    name: z.string(),
+    events: z.array(z.string())
+});
+
+/**
+ * Hydrated detail for an auto-filed `alert` ticket, resolving the rule → metric → event chain at request time.
+ */
+export const zOpsAlertContext = z.object({
+    source: z.enum([
+        'metric_rule',
+        'experiment_srm',
+        'experiment_peek',
+        'guardrail'
+    ]),
+    dedupeKey: z.string(),
+    severity: z.enum([
+        'danger',
+        'warn',
+        'info'
+    ]),
+    observedValue: z.coerce.number().nullish(),
+    href: z.string().nullish(),
+    status: z.enum([
+        'active',
+        'resolved',
+        'dismissed'
+    ]).nullish(),
+    activeSince: z.string().nullish(),
+    resolvedAt: z.string().nullish(),
+    rule: zOpsAlertRuleSummary.nullish(),
+    metric: zOpsAlertMetricSummary.nullish()
+});
+
+/**
+ * A resource referenced by a measurement plan.
+ */
+export const zMeasurePlanResource = z.object({
+    kind: z.enum([
+        'metric',
+        'experiment',
+        'alert_rule',
+        'event'
+    ]),
+    id: z.string().nullish(),
+    name: z.string()
+});
+
+/**
+ * One piece of code instrumentation a measurement plan still needs.
+ */
+export const zMeasurePlanStep = z.object({
+    event: z.string().nullish(),
+    attribute: z.string().nullish(),
+    label: z.string(),
+    description: z.string().nullish(),
+    properties: z.array(z.string()).optional()
+});
+
+/**
+ * An assistant-proposed measurement plan: what it already built, what it still needs, and the event instrumentation you implement.
+ */
+export const zOpsMeasurePlanContext = z.object({
+    created: z.array(zMeasurePlanResource),
+    pending: z.array(zMeasurePlanResource).optional(),
+    instrumentation: z.array(zMeasurePlanStep)
+});
+
+/**
+ * Per-type capture context on a queue item. Exactly one of `browser` (bug/feature), `error`, `alert`, or `measurePlan` is populated depending on `type`; other keys (e.g. the AI dedupe block on bugs) may also be present.
+ */
+export const zOpsItemContext = z.object({
+    browser: zOpsBrowserContext.optional(),
+    error: zOpsErrorContext.optional(),
+    alert: zOpsAlertContext.optional(),
+    measurePlan: zOpsMeasurePlanContext.optional()
+});
+
+/**
+ * A file uploaded with a bug/feature report.
+ */
+export const zOpsItemAttachment = z.object({
+    id: z.string(),
+    kind: z.string(),
+    filename: z.string(),
+    mimeType: z.string(),
+    sizeBytes: z.coerce.number(),
+    fetchUrl: z.string()
+});
+
+/**
+ * Deep links to the resources behind this item — every value is either a dashboard-relative path or an admin-API path fetchable with the same key.
+ */
+export const zOpsItemRelated = z.object({
+    dashboard: z.string().optional(),
+    error: z.string().optional(),
+    alertRule: z.string().optional(),
+    metric: z.string().optional(),
+    githubIssue: z.string().optional(),
+    githubPr: z.string().optional()
+});
+
+/**
  * GitHub connector trace — the issue it opened and, once linked, the pull request.
  */
 export const zGithubConnectorData = z.object({
@@ -1557,7 +1709,7 @@ export const zConnectorData = z.object({
 });
 
 /**
- * One queue item, any of the five types. Shared fields apply to all; `stepsToReproduce`/`actualResult`/`expectedResult`/`viewport` are bug-specific, `description`/`useCase` feature-specific, and `context` carries the per-type payload for auto-filed `error`/`alert`/`measure_plan` tickets.
+ * One queue item, any of the five types. Shared fields apply to all; `stepsToReproduce`/`actualResult`/`expectedResult` are bug-specific, `description`/`useCase` feature-specific. The auto-collected browser fields (page URL, user-agent, viewport) live under `context.browser` for bug/feature. `context` also carries the hydrated per-type payload for auto-filed `error`/`alert`/`measure_plan` tickets, `attachments` lists any uploaded files, and `related` gives deep links to the underlying resources.
  */
 export const zGetOpsItemResponse = z.object({
     id: z.string(),
@@ -1575,15 +1727,14 @@ export const zGetOpsItemResponse = z.object({
     source: z.enum(['team', 'system']).optional(),
     sourceRef: z.string().nullish(),
     reporterEmail: z.string().nullish(),
-    pageUrl: z.string().nullish(),
-    userAgent: z.string().nullish(),
     stepsToReproduce: z.string().optional(),
     actualResult: z.string().optional(),
     expectedResult: z.string().optional(),
-    viewport: z.string().nullish(),
     description: z.string().optional(),
     useCase: z.string().optional(),
-    context: z.record(z.string(), z.unknown()).nullish(),
+    context: zOpsItemContext.nullable(),
+    attachments: z.array(zOpsItemAttachment),
+    related: zOpsItemRelated,
     connectorData: zConnectorData.nullish(),
     notify: zNotificationTarget.nullish(),
     createdAt: z.string(),

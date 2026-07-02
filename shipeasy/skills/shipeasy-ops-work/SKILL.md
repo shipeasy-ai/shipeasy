@@ -16,10 +16,13 @@ project's unified `feedback` queue — holding five item types:
 | `alert`           | **the platform** (auto-filed)                            | an alert transitioned to active (metric rule, SRM/peek, guardrail) | <references/alerts.md> |
 | `measure_plan`    | **the website assistant** (auto-filed)                   | a measurement plan: instant resources already created; the event instrumentation it depends on is code you implement | <references/measure-plans.md> |
 
-Error/alert tickets arrive with the investigation context baked into
-`description` + `context` (`context.error.{id,fingerprint}` /
-`context.alert.{source,dedupeKey,…}`) — the raw `errors`/`alerts` sources are
-for *diagnosis* while working a ticket, not for building the queue.
+`ops get` returns a hydrated item: bug/feature carry `context.browser` +
+`attachments[]` (each with a `fetchUrl`), error tickets carry a full
+`context.error` (consequence `subject`/`outcome`, `count`, `seenUrls`, …),
+alert tickets a full `context.alert` (the tripped `rule` + the `metric` and
+its backing `events[]`), and every item a `related{}` block of deep links.
+The per-type runbook says which fields to read and how to pivot from them into
+the code.
 
 **Loop, do not batch.** Each item is its own mini-investigation + fix;
 finishing one before starting the next keeps every diff reviewable and avoids

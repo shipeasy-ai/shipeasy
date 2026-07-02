@@ -2628,6 +2628,323 @@ export type CreateOpsItemResponse = {
 };
 
 /**
+ * Auto-collected browser environment for a `bug`/`feature_request`, captured at file time.
+ */
+export type OpsBrowserContext = {
+    /**
+     * URL of the page the report was filed from, or `null`.
+     */
+    pageUrl?: string | null;
+    /**
+     * Reporter's user-agent string, or `null`.
+     */
+    userAgent?: string | null;
+    /**
+     * Reporter's viewport (e.g. `1280x720`), or `null`.
+     */
+    viewport?: string | null;
+    [key: string]: unknown;
+};
+
+/**
+ * Hydrated detail for an auto-filed `error` ticket, read from the tracked `errors` row at request time (so `count`/`lastSeenAt` reflect the latest state).
+ */
+export type OpsErrorContext = {
+    /**
+     * The tracked `errors` row id (fetch full detail via `related.error`).
+     */
+    id: string;
+    /**
+     * Stable dedupe key of the tracked error.
+     */
+    fingerprint: string;
+    /**
+     * Fingerprint of the upstream issue this error descends from (set when the same error was reported at an inner boundary first), or `null` for a root issue.
+     */
+    causedByFingerprint?: string | null;
+    /**
+     * Error class/name, e.g. `TypeError`, or `null` when the source didn't supply one.
+     */
+    errorType?: string | null;
+    /**
+     * The error message.
+     */
+    message: string;
+    /**
+     * The `see()` consequence subject — the `causes_the(<subject>)` value. Grep the codebase for this to find the throw site. `null` if the error was never instrumented.
+     */
+    subject?: string | null;
+    /**
+     * The `see()` consequence outcome — the `.to(<outcome>)` value. `null` if uninstrumented.
+     */
+    outcome?: string | null;
+    /**
+     * `see()` error kind: `caught` | `uncaught` | `unhandled_rejection` | `network` | `violation`.
+     */
+    kind?: string | null;
+    /**
+     * Which SDK side reported it: `client` | `server`.
+     */
+    side?: string | null;
+    /**
+     * Published env the reporting SDK ran against (dev/staging/prod).
+     */
+    env?: string | null;
+    /**
+     * Folded occurrence count for this fingerprint.
+     */
+    count: number;
+    /**
+     * ISO-8601 timestamp of the first occurrence.
+     */
+    firstSeenAt: string;
+    /**
+     * ISO-8601 timestamp of the most recent occurrence.
+     */
+    lastSeenAt: string;
+    /**
+     * Distinct, id-normalized routes this error has surfaced on (UUIDs/ids collapsed to `#`).
+     */
+    seenUrls: Array<string>;
+    /**
+     * @shipeasy/sdk version of the latest occurrence, or `null`.
+     */
+    sdkVersion?: string | null;
+    [key: string]: unknown;
+};
+
+/**
+ * The condition of a metric-rule alert.
+ */
+export type OpsAlertRuleSummary = {
+    /**
+     * Alert-rule id.
+     */
+    id: string;
+    /**
+     * Alert-rule name.
+     */
+    name: string;
+    /**
+     * How `observedValue` is compared to `threshold`.
+     */
+    comparator: 'gt' | 'gte' | 'lt' | 'lte';
+    /**
+     * The threshold value the rule fires on.
+     */
+    threshold: number;
+    /**
+     * Rolling evaluation window in hours.
+     */
+    windowHours: number;
+    [key: string]: unknown;
+};
+
+/**
+ * The metric an alert watches, with its backing events.
+ */
+export type OpsAlertMetricSummary = {
+    /**
+     * Metric id (fetch full detail via `related.metric`).
+     */
+    id: string;
+    /**
+     * Metric name.
+     */
+    name: string;
+    /**
+     * The event name(s) the metric aggregates over — one for count metrics, numerator + denominator for ratio metrics. Grep the codebase for `track('<event>')` on each to find the instrumentation feeding the metric.
+     */
+    events: Array<string>;
+    [key: string]: unknown;
+};
+
+/**
+ * Hydrated detail for an auto-filed `alert` ticket, resolving the rule → metric → event chain at request time.
+ */
+export type OpsAlertContext = {
+    /**
+     * What kind of alert transitioned to active.
+     */
+    source: 'metric_rule' | 'experiment_srm' | 'experiment_peek' | 'guardrail';
+    /**
+     * Stable per-condition key; with `source` forms the ticket's `sourceRef`.
+     */
+    dedupeKey: string;
+    /**
+     * Alert severity.
+     */
+    severity: 'danger' | 'warn' | 'info';
+    /**
+     * The metric value that tripped the rule, or `null`.
+     */
+    observedValue?: number | null;
+    /**
+     * Dashboard deep link to the alert, or `null`.
+     */
+    href?: string | null;
+    /**
+     * Current status of the underlying alert (`active` while the condition holds), or `null` if the alert row is gone.
+     */
+    status?: 'active' | 'resolved' | 'dismissed' | null;
+    /**
+     * ISO-8601 timestamp the alert became active, or `null`.
+     */
+    activeSince?: string | null;
+    /**
+     * ISO-8601 timestamp the alert cleared, or `null` while still active.
+     */
+    resolvedAt?: string | null;
+    /**
+     * The alert rule condition that tripped (metric-rule alerts only); `null` for SRM/peek/guardrail alerts with no rule.
+     */
+    rule?: OpsAlertRuleSummary | null;
+    /**
+     * The metric the alert watches, hydrated with its backing event(s); `null` if not resolvable.
+     */
+    metric?: OpsAlertMetricSummary | null;
+    [key: string]: unknown;
+};
+
+/**
+ * A resource referenced by a measurement plan.
+ */
+export type MeasurePlanResource = {
+    /**
+     * Resource kind.
+     */
+    kind: 'metric' | 'experiment' | 'alert_rule' | 'event';
+    /**
+     * Resource id when it was created; absent/`null` for resources still to be made.
+     */
+    id?: string | null;
+    /**
+     * Resource name.
+     */
+    name: string;
+    [key: string]: unknown;
+};
+
+/**
+ * One piece of code instrumentation a measurement plan still needs.
+ */
+export type MeasurePlanStep = {
+    /**
+     * The event name the instrumentation should emit, when known.
+     */
+    event?: string | null;
+    /**
+     * A new user attribute the project must start sending on its identify/evaluate context (when a gate's targeting needs a field that doesn't exist yet).
+     */
+    attribute?: string | null;
+    /**
+     * Short human-readable name for the moment being instrumented.
+     */
+    label: string;
+    /**
+     * What to track and why, described conceptually — which user moment/action to capture and what it enables. Deliberately NOT a file path (the assistant has no repo access and can't name real files); you locate the call site yourself.
+     */
+    description?: string | null;
+    /**
+     * Event properties the downstream metric needs attached (e.g. `method`, `plan`).
+     */
+    properties?: Array<string>;
+    [key: string]: unknown;
+};
+
+/**
+ * An assistant-proposed measurement plan: what it already built, what it still needs, and the event instrumentation you implement.
+ */
+export type OpsMeasurePlanContext = {
+    /**
+     * Resources the assistant already created on approval (live now) — don't recreate them.
+     */
+    created: Array<MeasurePlanResource>;
+    /**
+     * Resources the assistant couldn't create yet (usually a metric whose backing event isn't emitted); create these after the instrumentation lands.
+     */
+    pending?: Array<MeasurePlanResource>;
+    /**
+     * The code instrumentation to implement before the metrics can collect data.
+     */
+    instrumentation: Array<MeasurePlanStep>;
+    [key: string]: unknown;
+};
+
+/**
+ * Per-type capture context on a queue item. Exactly one of `browser` (bug/feature), `error`, `alert`, or `measurePlan` is populated depending on `type`; other keys (e.g. the AI dedupe block on bugs) may also be present.
+ */
+export type OpsItemContext = {
+    browser?: OpsBrowserContext;
+    error?: OpsErrorContext;
+    alert?: OpsAlertContext;
+    measurePlan?: OpsMeasurePlanContext;
+    [key: string]: unknown;
+};
+
+/**
+ * A file uploaded with a bug/feature report.
+ */
+export type OpsItemAttachment = {
+    /**
+     * Attachment id.
+     */
+    id: string;
+    /**
+     * `screenshot` | `video` | `log`.
+     */
+    kind: string;
+    /**
+     * Sanitized original filename.
+     */
+    filename: string;
+    /**
+     * MIME type, e.g. `image/png`.
+     */
+    mimeType: string;
+    /**
+     * Upload size in bytes.
+     */
+    sizeBytes: number;
+    /**
+     * Admin-API path to download the file (`GET` with the admin/ops key — screenshots render inline; recordings can't be watched).
+     */
+    fetchUrl: string;
+    [key: string]: unknown;
+};
+
+/**
+ * Deep links to the resources behind this item — every value is either a dashboard-relative path or an admin-API path fetchable with the same key.
+ */
+export type OpsItemRelated = {
+    /**
+     * Dashboard-relative deep link to this item.
+     */
+    dashboard?: string;
+    /**
+     * Admin-API path to the tracked error (error tickets only).
+     */
+    error?: string;
+    /**
+     * Admin-API path to the alert rule (metric-rule alerts only).
+     */
+    alertRule?: string;
+    /**
+     * Admin-API path to the metric the alert watches (alert tickets only).
+     */
+    metric?: string;
+    /**
+     * HTML URL of the connected GitHub issue, if any.
+     */
+    githubIssue?: string;
+    /**
+     * HTML URL of the linked GitHub pull request, if any.
+     */
+    githubPr?: string;
+    [key: string]: unknown;
+};
+
+/**
  * GitHub connector trace — the issue it opened and, once linked, the pull request.
  */
 export type GithubConnectorData = {
@@ -2721,7 +3038,7 @@ export type ConnectorData = {
 };
 
 /**
- * One queue item, any of the five types. Shared fields apply to all; `stepsToReproduce`/`actualResult`/`expectedResult`/`viewport` are bug-specific, `description`/`useCase` feature-specific, and `context` carries the per-type payload for auto-filed `error`/`alert`/`measure_plan` tickets.
+ * One queue item, any of the five types. Shared fields apply to all; `stepsToReproduce`/`actualResult`/`expectedResult` are bug-specific, `description`/`useCase` feature-specific. The auto-collected browser fields (page URL, user-agent, viewport) live under `context.browser` for bug/feature. `context` also carries the hydrated per-type payload for auto-filed `error`/`alert`/`measure_plan` tickets, `attachments` lists any uploaded files, and `related` gives deep links to the underlying resources.
  */
 export type GetOpsItemResponse = {
     /**
@@ -2758,14 +3075,6 @@ export type GetOpsItemResponse = {
      */
     reporterEmail?: string | null;
     /**
-     * URL the item relates to (bug/feature), or `null`.
-     */
-    pageUrl?: string | null;
-    /**
-     * Reporter user-agent (bug/feature), or `null`.
-     */
-    userAgent?: string | null;
-    /**
      * Reproduction steps — populated for `bug`, empty string otherwise.
      */
     stepsToReproduce?: string;
@@ -2778,10 +3087,6 @@ export type GetOpsItemResponse = {
      */
     expectedResult?: string;
     /**
-     * Reporter viewport — `bug` only, else `null`.
-     */
-    viewport?: string | null;
-    /**
      * Feature description — populated for `feature_request`, empty string otherwise.
      */
     description?: string;
@@ -2790,11 +3095,14 @@ export type GetOpsItemResponse = {
      */
     useCase?: string;
     /**
-     * Type-specific capture context (e.g. the error/alert/measure_plan details for auto-filed tickets), or `null`.
+     * Type-specific capture context. For `bug`/`feature_request` it carries `browser` (the auto-collected page URL / user-agent / viewport). For auto-filed tickets it carries the hydrated `error`, `alert`, or `measurePlan` block. `null` only for legacy rows with nothing captured.
      */
-    context?: {
-        [key: string]: unknown;
-    } | null;
+    context: OpsItemContext | null;
+    /**
+     * Files attached to the report — screenshots, recordings, logs. Populated for `bug`/`feature_request`; always an empty array for auto-filed `error`/`alert`/`measure_plan` tickets. Fetch each via its `fetchUrl` with the same admin/ops key (the download route is ops-key allow-listed).
+     */
+    attachments: Array<OpsItemAttachment>;
+    related: OpsItemRelated;
     /**
      * Per-connector linkage recorded for this item, keyed by connector provider. Populated as connectors act on the item (e.g. GitHub opens an issue, Slack posts a message); more than one provider can be present at once. `null` if no connector has touched the item.
      */
