@@ -70,7 +70,13 @@ export async function startStdioServer(): Promise<void> {
     const customDispatch = CUSTOM_DISPATCH[toolName];
     if (customDispatch) {
       try {
-        return ok(await customDispatch(params.arguments ?? {}));
+        const result = await customDispatch(params.arguments ?? {});
+        // `metrics_grammar` is a reference document meant to be read as-is —
+        // return the raw text, not a JSON-escaped `{ "grammar": "...\n..." }`.
+        if (toolName === "metrics_grammar") {
+          return { content: [{ type: "text" as const, text: (result as { grammar: string }).grammar }] };
+        }
+        return ok(result);
       } catch (e) {
         return apiErr(e);
       }

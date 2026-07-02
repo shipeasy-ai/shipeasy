@@ -1,12 +1,9 @@
 import type { Command } from "commander";
-import { writeFileSync, mkdirSync, mkdtempSync } from "node:fs";
-import { spawnSync } from "node:child_process";
-import { homedir, tmpdir } from "node:os";
-import { join, resolve } from "node:path";
 import { customOperations, CustomOpError, type CustomOp } from "@shipeasy/openapi/custom";
 import { defineGroup, num, bool, str } from "./_gen-runtime";
 import { printJson } from "../util/output";
 import { getBoundSdk } from "../util/project-config";
+import { installSkill } from "../setup/sdk-docs";
 
 /**
  * CLI adapter for the shared custom-operations registry (`@shipeasy/openapi/custom`)
@@ -28,61 +25,6 @@ function coerce(op: CustomOp, positionals: string[], opts: Record<string, unknow
   return args;
 }
 const camel = (s: string) => s.replace(/[-_]([a-z0-9])/g, (_, c) => c.toUpperCase());
-
-/** Direct write of a SKILL.md into a skills dir (the fallback / `--dir` path). */
-function writeSkillDir(content: string, sdk: string, base: string): string {
-  const dir = join(base, `shipeasy-${sdk}`);
-  mkdirSync(dir, { recursive: true });
-  const path = join(dir, "SKILL.md");
-  writeFileSync(path, content, "utf8");
-  return path;
-}
-
-/**
- * Install the fetched SDK skill. Skill discovery is per coding agent, so we
- * delegate placement to the `skills` CLI (vercel-labs/skills) — it auto-detects
- * the agents installed on the machine and (no `--agent`) lets the user pick
- * which to install into; `--global` and `--agent` pass straight through. We
- * write the fetched skill to a temp source dir and hand that to `skills add`.
- *
- * `--dir` skips delegation and writes that exact dir. If the `skills` CLI can't
- * run (offline, no npx), we fall back to writing `.claude/skills/` (read by
- * Claude Code + OpenCode) or `~/.claude/skills/` with `--global`.
- */
-function installSkill(
-  content: string,
-  sdk: string,
-  opts: { dir?: unknown; global?: unknown; agent?: unknown },
-): void {
-  // Explicit dir → direct write, no delegation.
-  if (opts.dir) {
-    const path = writeSkillDir(content, sdk, resolve(String(opts.dir)));
-    console.log(`Installed skill → ${path}`);
-    return;
-  }
-
-  // Delegate to the `skills` CLI for harness auto-detect + pick + placement.
-  const src = mkdtempSync(join(tmpdir(), "se-skill-"));
-  writeSkillDir(content, sdk, src);
-  const args = ["-y", "skills", "add", src];
-  if (opts.global) args.push("-g");
-  if (opts.agent) args.push("-a", String(opts.agent));
-  const res = spawnSync("npx", args, { stdio: "inherit" });
-  if (res.status === 0) {
-    console.log(`Installed skill shipeasy-${sdk} via \`skills\` (pick your agents above).`);
-    return;
-  }
-
-  // Fallback: skills CLI unavailable — write a location Claude Code & OpenCode read.
-  const base = opts.global
-    ? join(homedir(), ".claude", "skills")
-    : join(process.cwd(), ".claude", "skills");
-  const path = writeSkillDir(content, sdk, base);
-  console.log(
-    `\`skills\` CLI unavailable — wrote ${path} directly ` +
-      "(read by Claude Code & OpenCode; pass --dir <agent skills dir> for another agent).",
-  );
-}
 
 export function customCommands(program: Command): void {
   for (const op of customOperations) {
@@ -123,7 +65,22 @@ export function customCommands(program: Command): void {
         // detection + placement to the `skills` CLI).
         if (op.name === "skill" && (opts.install === true || String(opts.install) === "true")) {
           const r = result as { content: string; sdk: string };
-          installSkill(r.content, r.sdk, { dir: opts.dir, global: opts.global, agent: opts.agent });
+          const res = installSkill(r.content, r.sdk, {
+            dir: opts.dir ? String(opts.dir) : undefined,
+            global: opts.global === true,
+            agent: opts.agent ? String(opts.agent) : undefined,
+          });
+          console.log(
+            res.action === "wrote"
+              ? `Installed skill → ${res.detail}`
+              : `Installed skill shipeasy-${r.sdk} (${res.detail}).`,
+          );
+          return;
+        }
+        // `metrics grammar` is a human/agent-facing reference document — print it
+        // as raw text, not a JSON-escaped `{ "grammar": "...\n..." }` blob.
+        if (op.group[0] === "metrics" && op.name === "grammar") {
+          console.log((result as { grammar: string }).grammar);
           return;
         }
         printJson(result);

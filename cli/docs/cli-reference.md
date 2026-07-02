@@ -1836,9 +1836,9 @@ Returns (with --json):
         "secret_store": "<dir>/.env.local (gitignored)",
         "docs": "shipeasy docs get --sdk typescript installation",
         "next_skills": [
-          "shipeasy-flags-install",
-          "shipeasy-ops-install",
-          "shipeasy-i18n-install"
+          "shipeasy-flags",
+          "shipeasy-ops",
+          "shipeasy-i18n"
         ]
       }
     }
@@ -2289,7 +2289,7 @@ shipeasy i18n codemod i18n --migrate react-i18next
 
 Extract hardcoded strings → wrap with i18n.t() → push + publish keys (JS/TS)
 
-Runs the whole extraction pipeline as one command: the AST codemod wraps translatable strings with i18n.t() and writes a flat keys file, then those keys are pushed (insert-only) and published. For non-JS/TS projects there is no codemod — the command points you at the per-language docs and the shipeasy-i18n-extract skill applies them.
+Runs the whole extraction pipeline as one command: the AST codemod wraps translatable strings with i18n.t() and writes a flat keys file, then those keys are pushed (insert-only) and published. It first verifies this project's language/framework (from `.shipeasy`) has a codemod; for any other language it prints that language's i18n doc so you can wrap strings by hand, then push with `shipeasy i18n push`.
 
 ```bash
 shipeasy i18n extract [options] [target]

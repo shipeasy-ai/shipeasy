@@ -26,6 +26,10 @@ describe("custom-operations registry", () => {
     const out = (await grammar.run({})) as { grammar: string };
     expect(out.grammar).toBe(METRIC_GRAMMAR);
     expect(out.grammar).toContain("count_users(checkout_completed)");
+    // Locks in the concepts the parser/IR encode but the old text omitted.
+    expect(out.grammar).toContain("Value label"); // required/forbidden rules
+    expect(out.grammar).toMatch(/approx.*avg/); // experiment reducer approximation
+    expect(out.grammar).toContain("NOT SUPPORTED"); // no formulas/subqueries
   });
 
   it("docs get rejects an unknown SDK before any fetch", async () => {
