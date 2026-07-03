@@ -12,10 +12,10 @@ Shipeasy ships two things to a coding agent:
      bug/feature/error inbox). They **always delegate all CRUD to the
      `shipeasy` MCP server or the `shipeasy` CLI**.
    - **workflow skills** — the multi-step flows: the `shipeasy-ops-work` queue
-     loop and its `shipeasy-ops-trigger` scheduler. (Installs are pure CLI now —
-     `shipeasy install <group>` / `shipeasy setup` — so the thin `*-install`
-     onboarding skills were removed; the i18n codemods live as references inside
-     `shipeasy-i18n`.)
+     loop. (Installs are pure CLI now — `shipeasy install <group>` /
+     `shipeasy setup` — so the thin `*-install` onboarding skills were removed,
+     and scheduling the ops loop is the `shipeasy setup triggers` CLI command;
+     the i18n codemods live as references inside `shipeasy-i18n`.)
      (Base onboarding is the `shipeasy-setup` area skill.) There is no separate
      `commands/` surface — every workflow is a skill and installs on **every**
      host.

@@ -883,9 +883,10 @@ async function runSetup(opts: SetupOpts): Promise<void> {
 }
 
 /**
- * `shipeasy setup triggers` — the automation-trigger step run on its own.
- * Resolves the bound project from `.shipeasy` (or the active session) and opens
- * the hosted, guided setup wizard preselected to the chosen platform.
+ * `shipeasy setup triggers` — the automation-trigger step run on its own (it
+ * replaces the removed `shipeasy-ops-trigger` skill). Resolves the bound project
+ * from `.shipeasy` (or the active session) and opens the hosted, guided setup
+ * wizard preselected to the chosen platform.
  */
 async function runSetupTriggers(opts: { platform?: string; dryRun?: boolean }): Promise<void> {
   const cwd = process.cwd();

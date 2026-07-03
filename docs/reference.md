@@ -2,12 +2,12 @@
 
 > Full reference for the Shipeasy plugin surface. For installation see
 > [`../README.md`](../README.md) and [`../INSTALL.md`](../INSTALL.md); for
-> unattended scheduled triggers see `shipeasy ops trigger create <provider>
-> --help` (also at <https://docs.shipeasy.ai/get-started/triggers>).
+> unattended scheduled triggers run `shipeasy setup triggers` (reference also at
+> <https://docs.shipeasy.ai/get-started/triggers>).
 
-The plugin ships **11 skills** — **9 area skills** that auto-trigger on natural
-language and carry the guidance for each subsystem, plus **2 workflow skills**
-for the multi-step flows. Everything else — all day-to-day CRUD — runs through
+The plugin ships **10 skills** — **9 area skills** that auto-trigger on natural
+language and carry the guidance for each subsystem, plus **1 workflow skill**
+for the multi-step ops loop. Everything else — all day-to-day CRUD — runs through
 the generated `shipeasy` MCP tools or the `shipeasy` CLI. (The thin
 `*-install` onboarding wrappers were removed — `shipeasy setup`
 and `shipeasy install <group>` do that work now — and the i18n
@@ -36,7 +36,7 @@ skill triggers from phrasing or the host's explicit skill invocation.
 
 ---
 
-## The 11 skills
+## The 10 skills
 
 ### Area skills (guidance; auto-trigger on phrasing)
 
@@ -56,8 +56,7 @@ skill triggers from phrasing or the host's explicit skill invocation.
 
 | Skill | Argument(s) | What it does |
 | --- | --- | --- |
-| `shipeasy-ops-work` | `[--type bug\|feature\|error\|alert\|measure_plan\|all] [--priority high\|critical] [--limit <N>] [--pr] [--dry-run]` | The unified work loop over the operational queue — one atomic diff per item, each type worked per its `references/` runbook. `--pr` opens one PR per item (the mode the scheduled trigger runs). |
-| `shipeasy-ops-trigger` | `[--provider claude\|cursor\|copilot\|…] [--frequency 4h\|6h\|daily\|weekdays\|weekly] [--dry-run]` | Provision a recurring, unattended trigger that runs the `shipeasy-ops-work` loop in `--pr` mode on a schedule. Provider-pluggable; the per-platform runbook is the built-in help of `shipeasy ops trigger create <provider>` (spec-generated; MCP: `ops_trigger_create_*`). |
+| `shipeasy-ops-work` | `[--type bug\|feature\|error\|alert\|measure_plan\|all] [--priority high\|critical] [--limit <N>] [--pr] [--dry-run]` | The unified work loop over the operational queue — one atomic diff per item, each type worked per its `references/` runbook. `--pr` opens one PR per item (the mode the scheduled trigger runs). Schedule it unattended with `shipeasy setup triggers`. |
 
 (The former `shipeasy-i18n-migrate` / `shipeasy-i18n-translate` workflow
 skills are now references inside `shipeasy-i18n` — same flows, routed from
@@ -102,12 +101,14 @@ edit the variation point to branch on the assignment call. Stops at the
 
 Prereqs: flags platform enabled (`shipeasy install flags`).
 
-### 4. Schedule the loop — `shipeasy-ops-trigger`
+### 4. Schedule the loop — `shipeasy setup triggers`
 
-Provisions the unattended trigger that runs `shipeasy-ops-work --pr` on a
-cadence. `--provider claude` (default) backs it with a scheduled Claude Code
-routine in Anthropic's cloud (no GitHub Actions) and registers a Shipeasy
-connector; other providers per `shipeasy ops trigger create <provider> --help`.
+Provisioning the unattended trigger that runs `shipeasy-ops-work --pr` on a
+cadence is a CLI command, not a skill: `shipeasy setup triggers` explains the
+trigger, has the user pick a platform (Claude Code / Codex / Cursor / Copilot /
+Gemini-Jules), and opens the hosted, guided setup wizard preselected to it.
+`shipeasy setup` also offers it inline. The low-level connector plumbing stays at
+`shipeasy ops trigger create <provider> --help` and `shipeasy ops trigger prep`.
 
 ---
 
@@ -172,11 +173,10 @@ marketplace/
     ├── .plugin/plugin.json             # Copilot manifest → SAME ./skills/ + ./.mcp.copilot.json
     ├── .mcp.json                        # MCP registration (mcpServers wrapper; Claude + Codex)
     ├── .mcp.copilot.json               # MCP registration with type:"local" (Copilot requires it)
-    └── skills/                          # ALL 11 skills — router SKILL.md + optional references/
+    └── skills/                          # ALL 10 skills — router SKILL.md + optional references/
         ├── shipeasy-{setup,common,flags,experiments,metrics,alerts,ops,see}/SKILL.md
         ├── shipeasy-i18n/{SKILL.md,references/}      # wrapping, admin-keys, migrate, translate
-        ├── shipeasy-ops-work/{SKILL.md,references/}  # per-item-type runbooks
-        └── shipeasy-ops-trigger/SKILL.md
+        └── shipeasy-ops-work/{SKILL.md,references/}  # per-item-type runbooks
 ```
 
 Skills and MCP are *referenced, never copied*: each host's manifest points its
@@ -196,7 +196,7 @@ per-plugin job:
 
 1. **Validates wiring deterministically** — `node scripts/validate-plugin.mjs <host>`
    parses that host's marketplace + plugin manifests, asserts the marketplace
-   `source` resolves to `./shipeasy`, that all 11 skills are present with a
+   `source` resolves to `./shipeasy`, that all 10 skills are present with a
    valid `name`/`description` matching their directory, and that the MCP file
    registers `shipeasy` (Copilot additionally requires `type: "local"`).
 2. **Installs the host CLI** and prints its version.

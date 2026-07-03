@@ -29,7 +29,6 @@ const EXPECTED_SKILLS = [
   "shipeasy-i18n",
   "shipeasy-metrics",
   "shipeasy-ops",
-  "shipeasy-ops-trigger",
   "shipeasy-ops-work",
   "shipeasy-see",
   "shipeasy-setup",

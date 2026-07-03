@@ -14,5 +14,5 @@ which walks you through the platform-specific fields and secrets.
 The low-level connector plumbing is still available under
 `shipeasy ops trigger create <provider> --help` and `shipeasy ops trigger prep`,
 and the reference is published at <https://docs.shipeasy.ai/get-started/triggers>.
-The `shipeasy-ops-trigger` skill is deprecated — it now just redirects to
-`shipeasy setup triggers`.
+(The old `shipeasy-ops-trigger` skill has been removed — `shipeasy setup triggers`
+replaces it.)

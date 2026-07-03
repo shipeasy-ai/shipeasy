@@ -2,8 +2,8 @@ import prompts from "prompts";
 import { tryOpenBrowser } from "../auth/login";
 
 /**
- * The automation-trigger step of onboarding — the deprecated `shipeasy-ops-trigger`
- * skill's front door, now owned by the CLI. It explains what a trigger is, asks
+ * The automation-trigger step of onboarding — now owned by the CLI (it replaces
+ * the removed `shipeasy-ops-trigger` skill). It explains what a trigger is, asks
  * whether to set one up, has the user pick a platform, and opens the hosted,
  * guided setup wizard (`/dashboard/<projectId>/triggers?provider=<platform>`)
  * preselected to that platform. The wizard itself (apps/ui trigger-setup.tsx)

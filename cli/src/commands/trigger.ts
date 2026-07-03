@@ -21,7 +21,7 @@ import { withExamples, withDetails } from "../util/examples";
  *     the restricted ops key, resolve repo + cron, build the routine prompt,
  *     and EMIT the exact `RemoteTrigger` create body (+ instructions). It does
  *     NOT call the routines API.
- *   - the agent (the shipeasy-ops-trigger skill) reads that body, picks an
+ *   - the agent driving the Claude routine flow reads that body, picks an
  *     `environment_id` from its RemoteTrigger env list, calls
  *     `RemoteTrigger {action:"create"}` then `{action:"run"}` to verify.
  *   - the spec-generated `ops trigger create claude --config
