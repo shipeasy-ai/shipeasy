@@ -18,14 +18,29 @@ import { defineConfig, type UserConfig } from "@hey-api/openapi-ts";
 
 /**
  * `zod` `$resolvers.number` that emits `z.coerce.number()` instead of
- * `z.number()`/`z.int()` globally. HTTP delivers query params as strings;
- * `z.coerce.number()` handles `"50" → 50` transparently, and for JSON bodies
- * the coercion is a no-op (already a number). For integers we chain `.int()`
- * to keep the "no fractional values" constraint. Trade-off: plain `z.int()`
- * integer-type narrowing is lost, acceptable for an admin API where query
- * params are the only string-sourced numbers.
+ * `z.number()`/`z.int()` for schemas that back an `in: query` / `in: path`
+ * **parameter** — HTTP delivers those as strings, so `z.coerce.number()`
+ * handles `"50" → 50` transparently. Every other number (request/response
+ * body fields, however deeply nested) keeps the default strict
+ * `z.number()`/`z.int()` — coercion there is NOT a no-op: `z.coerce.number()`
+ * calls `Number(value)`, so a JSON body field wrongly typed as a boolean or
+ * string (`rolloutPct: false`) silently becomes `0` and sails through
+ * `.int().gte(0)` instead of being rejected, which is what let the admin API
+ * accept a schema-violating `PATCH .../gates/{id}` body (contract-tests
+ * fuzzing caught it: `stack[].rolloutPct` accepted `false`).
+ *
+ * Distinguish the two by `ctx.path`: hey-api's IR ref path is
+ * `["components", "parameters", <name>]` for a reusable parameter component
+ * (e.g. `PaginationLimit`) and `["components", "schemas", ...]` for anything
+ * reachable from a body/response schema — checked once at `path[1]`, so it
+ * doesn't matter how deeply the number is nested inside the schema.
  */
 export function coerceNumberResolver(ctx: any) {
+  // Not a parameter schema (body/response field, however deeply nested):
+  // returning nothing here falls through to hey-api's own default resolver,
+  // i.e. strict `z.number()`/`z.int()` with no coercion.
+  const isParameter = ctx.path?.["~ref"]?.[1] === "parameters";
+  if (!isParameter) return undefined;
   // BigInt schemas (format int64 in some configs): keep default behavior.
   if (ctx.utils.shouldCoerceToBigInt(ctx.schema.format)) return ctx.nodes.base(ctx);
   // Const literal (e.g. type:integer, const:0): delegate to default.
