@@ -89,6 +89,7 @@ function runOnce(
     cwd,
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
+    timeout: int(process.env.SHIPEASY_EVAL_TIMEOUT_MS, 240000),
     env: process.env,
   });
   const ndjson = res.stdout ?? "";
@@ -114,8 +115,14 @@ function buildClaudeArgs(c: EvalCase, mcpConfig: string): string[] {
     "--mcp-config", mcpConfig,
     "--strict-mcp-config",
     "--permission-mode", MODE === "plan" ? "plan" : "bypassPermissions",
+    // MCP-only lockdown. Removing these tools (a) stops the agent editing the
+    // real repo, (b) removes the interchangeable `shipeasy` CLI (no shell), so
+    // it must use the MCP surface we assert on, and (c) blocks subagents whose
+    // tool calls would escape the top-level stream we parse. ToolSearch stays
+    // (deferred MCP tools surface through it); Read/Glob/Grep are read-only.
+    "--disallowedTools", "Bash,Edit,Write,NotebookEdit,Agent,Task,SendMessage",
     "--append-system-prompt",
-    "You are being evaluated. Carry out the user's request directly using the available skills and MCP tools; do not ask clarifying questions. Perform the single requested action, then stop.",
+    "You are being evaluated. Carry out the user's request directly using the available skills and MCP tools, then stop. Only ask the user a question if you genuinely cannot proceed without a decision that is theirs to make.",
   ];
   args.push("--model", MODEL);
   return args;
