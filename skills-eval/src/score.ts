@@ -16,6 +16,7 @@ export function scoreCase(
   c: EvalCase,
   runs: Observation[],
   threshold: number,
+  state?: { pass: boolean; detail: string },
 ): CaseResult {
   const n = runs.length || 1;
   const wantSkills = expectedSkills(c);
@@ -66,6 +67,10 @@ export function scoreCase(
   if (cleanRate < 1)
     misses.push(`forbidden tool called in ${pct(1 - cleanRate)} of runs`);
 
+  const statePass = c.expect_state ? (state?.pass ?? false) : null;
+  if (statePass === false)
+    misses.push(`server state wrong after run — ${state?.detail || "resource not found"}`);
+
   return {
     case: c,
     runs,
@@ -74,6 +79,8 @@ export function scoreCase(
     argHitRate,
     askHitRate,
     cleanRate,
+    statePass,
+    stateDetail: state?.detail ?? "",
     pass: misses.length === 0,
     misses,
   };

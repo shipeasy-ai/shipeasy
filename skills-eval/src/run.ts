@@ -24,6 +24,7 @@ import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { CASES_DIR } from "./catalog.js";
 import { prepareEnv, readEnvConfigFromEnv } from "./prepare-env.js";
+import { snapshotState, verifyState } from "./verify-state.js";
 import { parseTranscript } from "./transcript.js";
 import { scoreCase } from "./score.js";
 import { renderReport } from "./report.js";
@@ -56,8 +57,11 @@ console.log(
     `\nsandbox app: ${env.appDir ? env.appDir.replace(/.*\/packages\//, "packages/") : "(none)"}\n`,
 );
 
+const stateCfg = readEnvConfigFromEnv();
 const results: CaseResult[] = [];
 for (const c of cases) {
+  // Snapshot server state before the run so we can flag new vs pre-existing.
+  const before = c.expect_state ? await snapshotState(stateCfg, c.expect_state) : {};
   const runs: Observation[] = [];
   for (let i = 0; i < K; i++) {
     const obs = runOnce(c, i, env.mcpConfigPath, workdir, transcriptsDir);
@@ -66,7 +70,10 @@ for (const c of cases) {
     process.stdout.write(obs.error ? "E" : skillOk ? "." : "x");
   }
   process.stdout.write(` ${c.id}\n`);
-  results.push(scoreCase(c, runs, THRESHOLD));
+  const state = c.expect_state
+    ? await verifyState(stateCfg, c.expect_state, before)
+    : undefined;
+  results.push(scoreCase(c, runs, THRESHOLD, state));
 }
 
 const report = renderReport(results, THRESHOLD, K);

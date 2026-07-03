@@ -16,7 +16,12 @@
     "assert_args": [
       { "tool": "release_experiments_create", "contains": ["control"] }
     ],
-    "note": "a bare 'A/B test X' must drive the whole chain — list events, metrics AND experiments to dedup, create what's missing, draft the experiment — and stay a DRAFT (skill rule: never auto-start)"
+    "expect_state": {
+      "events": ["checkout"],
+      "metrics": ["checkout"],
+      "experiments": ["checkout"]
+    },
+    "note": "a bare 'A/B test X' must drive the whole chain — list events, metrics AND experiments to dedup, create what's missing, draft the experiment — and stay a DRAFT (skill rule: never auto-start). expect_state confirms the event, metric AND experiment actually landed on the server."
   },
   {
     "id": "shipeasy-experiments/start",

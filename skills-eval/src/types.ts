@@ -51,8 +51,24 @@ export interface EvalCase {
   expect_ask?: boolean;
   /** Param-level assertions on specific tool calls. */
   assert_args?: ArgAssertion[];
+  /**
+   * Outcome check: resource names (by substring) that must exist on the server
+   * after the run. The authoritative "did it actually get created" signal.
+   *   "expect_state": { "events": ["checkout"], "experiments": ["checkout"] }
+   */
+  expect_state?: ExpectState;
   /** Free-form note carried through to the report. */
   note?: string;
+}
+
+/** Per resource type, name-substrings that must exist post-run. */
+export interface ExpectState {
+  events?: string[];
+  metrics?: string[];
+  experiments?: string[];
+  flags?: string[];
+  killswitches?: string[];
+  alerts?: string[];
 }
 
 /** One MCP tool call: suffix name + its stringified input (for arg checks). */
@@ -90,6 +106,10 @@ export interface CaseResult {
   askHitRate: number;
   /** Fraction of runs with zero forbidden-tool calls. */
   cleanRate: number;
+  /** null = no expect_state; else whether the resources exist post-run. */
+  statePass: boolean | null;
+  /** Human-readable post-run state (new vs pre-existing resources). */
+  stateDetail: string;
   /** True when every asserted rate meets `threshold`. */
   pass: boolean;
   /** Human-readable reasons a case failed (empty when pass). */

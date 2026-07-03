@@ -30,6 +30,12 @@ const REPO_ROOT = resolve(__dirname, "../../..");
 const DEFAULT_APP_DIR = resolve(REPO_ROOT, "packages/server-sdks/sdk-ts/examples/guide");
 /** Never copy these into the sandbox (huge / irrelevant). */
 const SKIP_COPY = /(^|\/)(node_modules|\.next|\.git|dist|\.turbo|coverage)(\/|$)|\.tsbuildinfo$/;
+/**
+ * A checkout-page fixture overlaid on top of the example app, so flows like
+ * "A/B test the checkout button" have a concrete, instrument-able target the
+ * agent can read (the guide examples are card demos with no checkout button).
+ */
+const FIXTURE_DIR = resolve(__dirname, "../fixture-overlay");
 
 export interface EnvConfig {
   /** Admin SDK key minted against the local backend (X-SDK-Key). */
@@ -76,6 +82,9 @@ export function prepareEnv(cfg: EnvConfig, workdir: string): PreparedEnv {
       filter: (src) => !SKIP_COPY.test(src.slice(appDir.length)),
     });
   }
+  // Overlay the checkout fixture (adds app/checkout/page.tsx) so experiment
+  // flows have a real button to reason about.
+  if (existsSync(FIXTURE_DIR)) cpSync(FIXTURE_DIR, workdir, { recursive: true });
 
   // 1. Project binding — unblocks mutating tools (the GENERATED_MUTATES guard).
   writeFileSync(

@@ -77,6 +77,28 @@ describe("scoreCase", () => {
     expect(r.pass).toBe(true);
   });
 
+  it("expect_state: server-state result gates the case", () => {
+    const c: EvalCase = { ...base, expect_state: { experiments: ["checkout"] } };
+    const good = scoreCase(c, [run(["shipeasy-flags"], ["release_flags_create"])], 0.67, {
+      pass: true,
+      detail: "experiments:checkout-button (new)",
+    });
+    expect(good.statePass).toBe(true);
+    expect(good.pass).toBe(true);
+    const bad = scoreCase(c, [run(["shipeasy-flags"], ["release_flags_create"])], 0.67, {
+      pass: false,
+      detail: 'experiments:"checkout" MISSING',
+    });
+    expect(bad.statePass).toBe(false);
+    expect(bad.pass).toBe(false);
+    expect(bad.misses.join(" ")).toContain("server state wrong");
+  });
+
+  it("statePass is null when no expect_state", () => {
+    const r = scoreCase(base, [run(["shipeasy-flags"], ["release_flags_create"])], 0.67);
+    expect(r.statePass).toBeNull();
+  });
+
   it("'none' semantics: tools are informational, not asserted", () => {
     const c: EvalCase = { ...base, tools_match: "none" };
     const r = scoreCase(c, [run(["shipeasy-flags"], [])], 0.67);
