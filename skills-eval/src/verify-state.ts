@@ -35,9 +35,12 @@ export interface StateResult {
 
 async function fetchNames(cfg: EnvConfig, type: StateType): Promise<string[]> {
   const url = `${cfg.baseUrl.replace(/\/$/, "")}/api/admin/${ENDPOINT[type]}`;
-  const res = await fetch(url, {
-    headers: { "X-SDK-Key": cfg.token, "X-Project-Id": cfg.projectId },
-  });
+  // Retry transient failures — a local Next.js dev server recompiling under the
+  // load of a just-finished agent run drops the odd connection (TypeError:
+  // fetch failed). A read this cheap should not fail the whole outcome check.
+  const res = await withRetry(() =>
+    fetch(url, { headers: { "X-SDK-Key": cfg.token, "X-Project-Id": cfg.projectId } }),
+  );
   if (!res.ok) return [];
   const body: unknown = await res.json();
   const arr: unknown[] = Array.isArray(body)
@@ -48,6 +51,20 @@ async function fetchNames(cfg: EnvConfig, type: StateType): Promise<string[]> {
   return arr
     .map((x) => String((x as { name?: unknown })?.name ?? ""))
     .filter(Boolean);
+}
+
+/** Retry a fetch a few times with short backoff on transient network errors. */
+async function withRetry(fn: () => Promise<Response>, attempts = 3): Promise<Response> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      await new Promise((r) => setTimeout(r, 300 * (i + 1)));
+    }
+  }
+  throw lastErr;
 }
 
 /** Names present before a case runs — lets the report flag new vs pre-existing. */
