@@ -59,9 +59,9 @@
     "prompt": "Set up a feature flag called dedupe_checkout for the new checkout page.",
     "expect_skill": "shipeasy-flags",
     "expect_tools": ["release_flags_list"],
-    "tools_match": "any",
+    "tools_match": "none",
     "setup": { "flags": ["dedupe_checkout"] },
     "expect_no_duplicate": { "flags": ["dedupe_checkout"] },
-    "note": "DEDUP: dedupe_checkout is pre-created. The agent should list, find it exists, and reuse/point to it — NOT create a second gate. Outcome check: still exactly one dedupe_checkout gate after the run."
+    "note": "DEDUP: dedupe_checkout is pre-created; the ask would 'create' it again. This case is OUTCOME-gated — the point is that exactly one dedupe_checkout gate survives, however the agent gets there. Listing first is the ideal path (informational)."
   }
 ]

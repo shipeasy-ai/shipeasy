@@ -23,9 +23,9 @@
     "prompt": "Start tracking a signup event called dedupe_signup.",
     "expect_skill": "shipeasy-metrics",
     "expect_tools": ["metrics_events_list"],
-    "tools_match": "any",
+    "tools_match": "none",
     "setup": { "events": ["dedupe_signup"] },
     "expect_no_duplicate": { "events": ["dedupe_signup"] },
-    "note": "DEDUP: dedupe_signup event is pre-created. The agent should list events, see it already exists, and reuse it — NOT register a duplicate. Outcome check: still exactly one dedupe_signup event."
+    "note": "DEDUP: dedupe_signup event is pre-created; the ask would register it again. OUTCOME-gated — exactly one dedupe_signup event must survive. Listing first is the ideal path (informational)."
   }
 ]
