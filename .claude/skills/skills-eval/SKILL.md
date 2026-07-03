@@ -137,8 +137,9 @@ pnpm --filter @shipeasy/skills-eval eval -- experiments
 SHIPEASY_EVAL_K=5 pnpm --filter @shipeasy/skills-eval eval -- flags
 
 # A/B whether a skill is load-bearing: run once normally, once without it, compare
-# (this is how shipeasy-common was shown to be non-essential and then removed)
-SHIPEASY_EVAL_EXCLUDE_SKILLS=shipeasy-setup pnpm --filter @shipeasy/skills-eval eval -- flags
+# (this is how shipeasy-common, then shipeasy-setup, were shown to be
+#  non-essential and removed — the excluded run routed equal-or-better)
+SHIPEASY_EVAL_EXCLUDE_SKILLS=shipeasy-see pnpm --filter @shipeasy/skills-eval eval -- flags
 
 # Capture intended tool_use without executing (no server side effects)
 SHIPEASY_EVAL_MODE=plan pnpm --filter @shipeasy/skills-eval eval -- flags

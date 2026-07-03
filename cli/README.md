@@ -27,7 +27,7 @@ npx @shipeasy/cli setup
    per-agent rules (`.cursor/rules/shipeasy.mdc`,
    `.github/copilot-instructions.md`). For Claude Code it installs the
    marketplace plugin (commands + skills + MCP).
-4. **Finish the SDK wiring** — hands off to Claude (the `shipeasy-setup` skill) to install
+4. **Finish the SDK wiring** — hands off to Claude to install
    `@shipeasy/sdk`, wire your entry points, and persist keys.
 
 ### Flags
@@ -36,7 +36,7 @@ npx @shipeasy/cli setup
 | ----------------------- | ----------------------------------------------------------------------------------- |
 | `--yes`                 | Non-interactive: bind the current session's project and wire all _detected_ agents. |
 | `--agents <list>`       | Comma list to wire explicitly: `claude,cursor,codex,copilot,jules`.                 |
-| `--domain <domain>`     | Production domain, passed to the Claude `shipeasy-setup` skill step.                |
+| `--domain <domain>`     | Production domain, passed to the Claude SDK-wiring step.                            |
 | `--scope user\|project` | MCP config scope (default `project`).                                               |
 | `--no-claude-run`       | Don't launch Claude Code for the in-repo wiring step.                               |
 | `--dry-run`             | Show what would change without writing files or launching anything.                 |

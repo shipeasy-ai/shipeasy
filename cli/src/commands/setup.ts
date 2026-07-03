@@ -982,8 +982,8 @@ export function setupCommand(parent: Command): void {
 
   withDetails(
     setup,
-    "`setup` now runs the whole deterministic half of onboarding itself — the same " +
-      "flow as the `shipeasy-setup` skill, without needing an AI to drive it:\n\n" +
+    "`setup` now runs the whole deterministic half of onboarding itself, " +
+      "without needing an AI to drive it:\n\n" +
       "0. Preconditions (Node >= 20, git repo — offers `git init`).\n" +
       "1. `detect`-powered monorepo scan; every target gets its own `.shipeasy`.\n" +
       "2. Browser login, then binds the repo root AND each install target.\n" +

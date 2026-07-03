@@ -36,13 +36,12 @@ skill triggers from phrasing or the host's explicit skill invocation.
 
 ---
 
-## The 10 skills
+## The 8 skills
 
 ### Area skills (guidance; auto-trigger on phrasing)
 
 | Skill | Covers | Auto-triggers on phrasing like… |
 | --- | --- | --- |
-| `shipeasy-setup` | Base onboarding: detect subprojects, install SDK, login, bind, keys, wiring | "set up shipeasy", "install shipeasy", "onboard shipeasy" |
 | `shipeasy-flags` | Feature gates, dynamic configs, kill switches | "feature flag", "rollout", "kill switch", "dynamic config" |
 | `shipeasy-experiments` | A/B experiments, universes, holdouts | "A/B test", "experiment", "split test", "holdout" |
 | `shipeasy-metrics` | Event metrics + the query DSL | "create metric", "track metric", "metric DSL" |

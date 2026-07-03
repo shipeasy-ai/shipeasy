@@ -4,9 +4,9 @@ Shipeasy ships two things to a coding agent:
 
 1. **Skills** — `SKILL.md` files that auto-trigger on natural-language phrasing
    (and are user-invocable as commands on hosts that support it):
-   - **8 area skills** (`shipeasy-flags`, `shipeasy-experiments`,
+   - **7 area skills** (`shipeasy-flags`, `shipeasy-experiments`,
      `shipeasy-metrics`, `shipeasy-i18n`, `shipeasy-ops`, `shipeasy-alerts`,
-     `shipeasy-see`, `shipeasy-setup`) — the umbrella
+     `shipeasy-see`) — the umbrella
      guides, one per subsystem. These cover *every* feature (e.g.
      `shipeasy-flags` covers configs + kill switches, `shipeasy-ops` covers the
      bug/feature/error inbox). They **always delegate all CRUD to the
@@ -16,7 +16,7 @@ Shipeasy ships two things to a coding agent:
      `shipeasy setup` — so the thin `*-install` onboarding skills were removed,
      and scheduling the ops loop is the `shipeasy setup triggers` CLI command;
      the i18n codemods live as references inside `shipeasy-i18n`.)
-     (Base onboarding is the `shipeasy-setup` area skill.) There is no separate
+     (Base onboarding is the `shipeasy setup` CLI command.) There is no separate
      `commands/` surface — every workflow is a skill and installs on **every**
      host.
 2. **The `shipeasy` MCP server** — `npx -y @shipeasy/mcp@latest`, the tool
@@ -43,9 +43,9 @@ There are two install tiers:
   Gemini CLI, Continue, and 60+ other agents supported by
   [`vercel-labs/skills`](https://github.com/vercel-labs/skills).
 
-After installing in **any** host, run the onboarding once: ask the agent to
-*"set up shipeasy"* (or invoke the `shipeasy-setup` skill directly) — it drives
-`shipeasy login` + key minting through the CLI/MCP).
+After installing in **any** host, run the onboarding once: `shipeasy setup`
+(or ask the agent to *"set up shipeasy"*) — it drives `shipeasy login` + key
+minting through the CLI/MCP).
 
 ---
 
@@ -68,8 +68,8 @@ claude plugin marketplace add shipeasy-ai/shipeasy
 claude plugin install shipeasy@shipeasy
 ```
 
-Gets all 11 skills (each user-invocable as `/shipeasy:<skill-name>`) + MCP.
-Then run the `shipeasy-setup` skill.
+Gets all 10 skills (each user-invocable as `/shipeasy:<skill-name>`) + MCP.
+Then run `shipeasy setup`.
 
 ### Codex
 
@@ -215,8 +215,8 @@ mcpServers:
 Plugin/skill install only *registers* the skills + MCP — it runs no shell
 commands. To wire Shipeasy into your app:
 
-1. **Authenticate + bind.** Tell the agent *"set up shipeasy in this repo"*
-   (or invoke the `shipeasy-setup` skill) — it runs `shipeasy login`, binds the
+1. **Authenticate + bind.** Run `shipeasy setup` (or tell the agent *"set up
+   shipeasy in this repo"*) — it runs `shipeasy login`, binds the
    repo to a project, mints server + client keys, and wires the SDK into the
    root layout (all via the CLI). On a Tier-2 (skills-CLI) install it also
    **registers the `shipeasy` MCP server** if it's missing, then asks you to

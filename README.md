@@ -93,8 +93,8 @@ formats live in **[`INSTALL.md`](./INSTALL.md)** (also published at
 Installing the plugin registers the skills and MCP tools — it does **not** run
 any shell commands. To go live:
 
-1. **Run `shipeasy setup`** (or say *"set up shipeasy"* → the `shipeasy-setup`
-   skill) — one command detects your subprojects, installs `@shipeasy/sdk`,
+1. **Run `shipeasy setup`** (or say *"set up shipeasy"*) — one command detects
+   your subprojects, installs `@shipeasy/sdk`,
    authenticates, binds the repo to a project, mints keys, installs the SDK +
    feature how-to skills into your agents, offers the modules + devtools overlay,
    and emits `shipeasy-wiring.md` with the remaining code steps.

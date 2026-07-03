@@ -23,7 +23,6 @@ const ROOT = process.cwd();
 // `shipeasy install <group>` do the install; the per-area skills are how-to.
 const EXPECTED_SKILLS = [
   "shipeasy-alerts",
-  "shipeasy-common",
   "shipeasy-experiments",
   "shipeasy-flags",
   "shipeasy-i18n",
@@ -31,7 +30,6 @@ const EXPECTED_SKILLS = [
   "shipeasy-ops",
   "shipeasy-ops-work",
   "shipeasy-see",
-  "shipeasy-setup",
 ];
 
 const HOSTS = {

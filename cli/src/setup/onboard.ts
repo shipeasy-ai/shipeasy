@@ -5,7 +5,7 @@ import type { TargetRecommendation } from "../commands/scan";
 import { onPath } from "./agents";
 
 /**
- * The deterministic half of the `shipeasy-setup` skill, as plain functions the
+ * The deterministic half of onboarding, as plain functions the
  * `setup` command orchestrates: preconditions, per-target binding, key
  * persistence, SDK package installs, the pointer skill, and small shared
  * helpers. Everything here is mechanical — no judgement calls, no codebase

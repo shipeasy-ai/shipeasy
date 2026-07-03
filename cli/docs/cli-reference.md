@@ -1622,7 +1622,7 @@ shipeasy whoami [options]
 
 Full onboarding: preconditions, monorepo target detection, login + per-target project bind, agent/MCP wiring, SDK keys, package installs, module enables — then emits harness-agnostic wiring instructions for the code changes.
 
-`setup` now runs the whole deterministic half of onboarding itself — the same flow as the `shipeasy-setup` skill, without needing an AI to drive it:
+`setup` now runs the whole deterministic half of onboarding itself, without needing an AI to drive it:
 
 0. Preconditions (Node >= 20, git repo — offers `git init`).
 1. `detect`-powered monorepo scan; every target gets its own `.shipeasy`.
