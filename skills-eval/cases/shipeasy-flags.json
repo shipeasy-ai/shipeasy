@@ -6,6 +6,7 @@
     "expect_tools": ["release_flags_list", "release_flags_create", "release_flags_update"],
     "tools_match": "all",
     "forbid_tools": ["release_flags_archive"],
+    "expect_state": { "flags": ["checkout"] },
     "note": "list to dedup, create the gate, then widen the rollout (ramp = update; there is no separate rollout tool)"
   },
   {
@@ -18,6 +19,7 @@
     "assert_args": [
       { "tool": "release_flags_create", "contains": ["US", "alice@acme.com", "bob@acme.com"] }
     ],
+    "expect_state": { "flags": ["checkout"] },
     "note": "one gate, several gatekeeper steps: US 50% + email whitelist + team access. Args must carry country + whitelisted emails"
   },
   {
@@ -29,6 +31,7 @@
     "assert_args": [
       { "tool": "release_flags_create", "contains": ["india"] }
     ],
+    "expect_state": { "flags": ["payment"] },
     "note": "terse ask must still geo-target India — list first to see if a payments gate exists, then create one (or enable/update the existing gate) scoped to India"
   },
   {
@@ -48,6 +51,7 @@
     "tools_match": "all",
     "expect_ask": true,
     "forbid_tools": ["release_flags_create"],
+    "expect_state": { "killswitches": ["payment"] },
     "note": "ASPIRATIONAL: after the kill switch, the agent should ask (AskUserQuestion) whether to add a failure metric + alert so we know WHEN to flip it"
   }
 ]

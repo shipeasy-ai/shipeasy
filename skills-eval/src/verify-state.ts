@@ -9,7 +9,7 @@ import type { EnvConfig } from "./prepare-env.js";
  * what we ultimately care about.
  */
 export type StateType =
-  | "events" | "metrics" | "experiments" | "flags" | "killswitches" | "alerts";
+  | "events" | "metrics" | "experiments" | "flags" | "killswitches" | "alerts" | "ops";
 
 /** admin API list endpoint per resource type (flags are "gates" internally). */
 const ENDPOINT: Record<StateType, string> = {
@@ -19,6 +19,7 @@ const ENDPOINT: Record<StateType, string> = {
   flags: "gates",
   killswitches: "killswitches",
   alerts: "alert-rules",
+  ops: "ops",
 };
 
 /** Per type, name-substrings that must exist after the run (case-insensitive). */
@@ -49,7 +50,11 @@ async function fetchNames(cfg: EnvConfig, type: StateType): Promise<string[]> {
       ? (body as { data: unknown[] }).data
       : [];
   return arr
-    .map((x) => String((x as { name?: unknown })?.name ?? ""))
+    .map((x) => {
+      // Most resources have `name`; ops items (bugs/features) use title/summary.
+      const o = x as { name?: unknown; title?: unknown; summary?: unknown };
+      return String(o?.name ?? o?.title ?? o?.summary ?? "");
+    })
     .filter(Boolean);
 }
 

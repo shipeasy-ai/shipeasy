@@ -69,6 +69,8 @@ export interface ExpectState {
   flags?: string[];
   killswitches?: string[];
   alerts?: string[];
+  /** ops queue items (bugs/features) — matched on title/summary. */
+  ops?: string[];
 }
 
 /** One MCP tool call: suffix name + its stringified input (for arg checks). */

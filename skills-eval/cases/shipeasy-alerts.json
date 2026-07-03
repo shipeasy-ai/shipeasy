@@ -13,7 +13,8 @@
     ],
     "tools_match": "all",
     "forbid_tools": ["ops_alerts_archive"],
-    "note": "full chain: an alert fires on a metric, a metric rolls up an event. List events, metrics AND alerts first to check none already exist, then create what's missing"
+    "expect_state": { "metrics": ["checkout"], "alerts": ["checkout"] },
+    "note": "full chain: an alert fires on a metric, a metric rolls up an event. List events, metrics AND alerts first to check none already exist, then create what's missing. expect_state confirms the metric + alert landed"
   },
   {
     "id": "shipeasy-alerts/pause",

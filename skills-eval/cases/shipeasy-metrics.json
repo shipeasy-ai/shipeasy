@@ -6,7 +6,8 @@
     "expect_tools": ["metrics_events_list", "metrics_list", "metrics_create"],
     "tools_match": "all",
     "forbid_tools": ["metrics_archive"],
-    "note": "before creating: list events (does one already track this?) and list metrics (does the metric already exist?), then create"
+    "expect_state": { "events": ["checkout"], "metrics": ["checkout"] },
+    "note": "before creating: list events (does one already track this?) and list metrics (does the metric already exist?), then create. expect_state confirms the event + metric landed"
   },
   {
     "id": "shipeasy-metrics/list-readonly",

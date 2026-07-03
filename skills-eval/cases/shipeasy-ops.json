@@ -5,7 +5,8 @@
     "expect_skill": "shipeasy-ops",
     "expect_tools": ["ops_list", ["ops_create", "ops_bug"]],
     "tools_match": "all",
-    "note": "list first to check the same bug isn't already filed, then create (or the ops_bug sugar)"
+    "expect_state": { "ops": ["export"] },
+    "note": "list first to check the same bug isn't already filed, then create (or the ops_bug sugar). expect_state confirms the bug item landed"
   },
   {
     "id": "shipeasy-ops/file-bug-from-context",
@@ -17,7 +18,8 @@
       { "contains": ["proration"] },
       { "contains": ["seat"] }
     ],
-    "note": "context-pickup: list to dedup, then synthesise a complete report from the preceding description (not an empty stub)"
+    "expect_state": { "ops": ["proration"] },
+    "note": "context-pickup: list to dedup, then synthesise a complete report from the preceding description (not an empty stub). expect_state confirms a bug mentioning the context landed"
   },
   {
     "id": "shipeasy-ops/triage-readonly",
