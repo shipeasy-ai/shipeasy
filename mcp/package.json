@@ -40,7 +40,8 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/shipeasy-ai/mcp.git"
+    "url": "git+https://github.com/shipeasy-ai/shipeasy.git",
+    "directory": "mcp"
   },
   "bin": {
     "shipeasy-mcp": "./bin/mcp.js"

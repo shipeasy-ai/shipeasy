@@ -10,7 +10,8 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/shipeasy-ai/openapi.git"
+    "url": "git+https://github.com/shipeasy-ai/shipeasy.git",
+    "directory": "openapi"
   },
   "license": "MIT",
   "exports": {
