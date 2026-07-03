@@ -52,6 +52,16 @@ export interface EvalCase {
   /** Param-level assertions on specific tool calls. */
   assert_args?: ArgAssertion[];
   /**
+   * Text-output assertion: case-insensitive substrings, AT LEAST ONE of which
+   * must appear in the agent's assistant prose (not a tool call). This is how
+   * we assert a *recommendation* the sandbox can't otherwise observe — e.g.
+   * onboarding cases where the MCP-locked agent can't run the `shipeasy setup`
+   * CLI itself (Bash is disallowed) but should tell the user to run it:
+   *   "expect_text_contains": ["shipeasy setup"]
+   * A case may assert text INSTEAD of a skill (onboarding has no skill to fire).
+   */
+  expect_text_contains?: string[];
+  /**
    * Outcome check: resource names (by substring) that must exist on the server
    * after the run. The authoritative "did it actually get created" signal.
    *   "expect_state": { "events": ["checkout"], "experiments": ["checkout"] }
@@ -104,6 +114,8 @@ export interface Observation {
   otherTools: string[];
   /** True if the agent invoked AskUserQuestion. */
   askedUser: boolean;
+  /** Concatenated assistant prose (all text blocks), for `expect_text_contains`. */
+  text?: string;
   /** Raw parse error, if the transcript couldn't be read. */
   error?: string;
 }
@@ -117,6 +129,8 @@ export interface CaseResult {
   toolHitRate: number;
   /** Fraction of runs where every arg assertion held. */
   argHitRate: number;
+  /** Fraction of runs where the agent's text contained an expected substring. */
+  textHitRate: number;
   /** Fraction of runs where the agent asked (only meaningful if expect_ask). */
   askHitRate: number;
   /** Fraction of runs with zero forbidden-tool calls. */

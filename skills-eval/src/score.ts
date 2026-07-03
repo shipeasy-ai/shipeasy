@@ -25,9 +25,11 @@ export function scoreCase(
   let skillHits = 0;
   let toolHits = 0;
   let argHits = 0;
+  let textHits = 0;
   let askHits = 0;
   let clean = 0;
 
+  const wantText = c.expect_text_contains ?? [];
   for (const run of runs) {
     if (wantSkills.every((s) => run.skills.includes(s))) skillHits++;
 
@@ -39,6 +41,7 @@ export function scoreCase(
     if (toolOk) toolHits++;
 
     if ((c.assert_args ?? []).every((a) => argHolds(a, run))) argHits++;
+    if (textHolds(wantText, run)) textHits++;
     if (run.askedUser) askHits++;
     if (!(c.forbid_tools ?? []).some((t) => called.has(t))) clean++;
   }
@@ -46,6 +49,7 @@ export function scoreCase(
   const skillHitRate = skillHits / n;
   const toolHitRate = toolHits / n;
   const argHitRate = argHits / n;
+  const textHitRate = textHits / n;
   const askHitRate = askHits / n;
   const cleanRate = clean / n;
 
@@ -61,6 +65,10 @@ export function scoreCase(
   if ((c.assert_args ?? []).length && argHitRate < threshold)
     misses.push(
       `arg checks held ${pct(argHitRate)} (< ${pct(threshold)}); ${describeArgs(c, runs)}`,
+    );
+  if (wantText.length && textHitRate < threshold)
+    misses.push(
+      `text never recommended any of [${wantText.join(", ")}] in ${pct(1 - textHitRate)} of runs (held ${pct(textHitRate)} < ${pct(threshold)})`,
     );
   if (c.expect_ask && askHitRate < threshold)
     misses.push(`expected the agent to ask (AskUserQuestion) — did so ${pct(askHitRate)} (< ${pct(threshold)})`);
@@ -78,6 +86,7 @@ export function scoreCase(
     skillHitRate,
     toolHitRate,
     argHitRate,
+    textHitRate,
     askHitRate,
     cleanRate,
     statePass,
@@ -95,6 +104,13 @@ function argHolds(a: { tool?: string; contains: string[] }, run: Observation): b
     const hay = tc.inputText.toLowerCase();
     return a.contains.every((s) => hay.includes(s.toLowerCase()));
   });
+}
+
+/** Did the agent's prose contain at least one of the expected substrings? */
+function textHolds(want: string[], run: Observation): boolean {
+  if (!want.length) return true; // dimension not asserted
+  const hay = (run.text ?? "").toLowerCase();
+  return want.some((s) => hay.includes(s.toLowerCase()));
 }
 
 /** For the report: which substrings went missing, across runs. */

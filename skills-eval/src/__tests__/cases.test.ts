@@ -24,10 +24,14 @@ describe("committed cases are well-formed", () => {
     expect(long, `prompts over ${MAX_PROMPT_LEN} chars — tighten them: ${long.join("; ")}`).toEqual([]);
   });
 
-  it("every case names a skill and has a unique id", () => {
+  it("every case asserts a skill or text, and has a unique id", () => {
     const ids = new Set<string>();
     for (const c of cases) {
-      expect(expectedSkills(c).length, `${c.id} has no expect_skill`).toBeGreaterThan(0);
+      // Most cases name a skill; onboarding cases have no skill to fire (the
+      // setup skill was removed — onboarding delegates to the `shipeasy setup`
+      // CLI), so they assert on text instead. One of the two must be present.
+      const asserts = expectedSkills(c).length > 0 || (c.expect_text_contains?.length ?? 0) > 0;
+      expect(asserts, `${c.id} asserts neither a skill nor expect_text_contains`).toBe(true);
       expect(ids.has(c.id), `duplicate id ${c.id}`).toBe(false);
       ids.add(c.id);
     }

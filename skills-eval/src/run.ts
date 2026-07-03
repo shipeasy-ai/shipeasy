@@ -75,7 +75,12 @@ for (const c of cases) {
     const obs = runOnce(c, i, env.mcpConfigPath, workdir, transcriptsDir);
     runs.push(obs);
     const skillOk = expectedSkills(c).every((s) => obs.skills.includes(s));
-    process.stdout.write(obs.error ? "E" : skillOk ? "." : "x");
+    const textOk =
+      !(c.expect_text_contains?.length) ||
+      (c.expect_text_contains ?? []).some((s) =>
+        (obs.text ?? "").toLowerCase().includes(s.toLowerCase()),
+      );
+    process.stdout.write(obs.error ? "E" : skillOk && textOk ? "." : "x");
   }
   process.stdout.write(` ${c.id}\n`);
 
@@ -126,7 +131,7 @@ function runOnce(
   });
   const ndjson = res.stdout ?? "";
   writeFileSync(join(outDir, `${c.id.replace(/\//g, "__")}.${i}.jsonl`), ndjson);
-  const empty = { skills: [], tools: [], toolCalls: [], otherTools: [], askedUser: false };
+  const empty = { skills: [], tools: [], toolCalls: [], otherTools: [], askedUser: false, text: "" };
   if (res.error) return { ...empty, error: String(res.error) };
   if (!ndjson.trim())
     return { ...empty, error: `empty output (stderr: ${(res.stderr ?? "").slice(0, 300)})` };

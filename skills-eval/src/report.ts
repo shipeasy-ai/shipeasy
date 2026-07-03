@@ -7,12 +7,12 @@ export function renderReport(results: CaseResult[], threshold: number, k: number
 
   const idW = Math.max(4, ...results.map((r) => r.case.id.length));
   lines.push(
-    `${"case".padEnd(idW)}  skill  tools  args   ask    state  clean  result`,
+    `${"case".padEnd(idW)}  skill  tools  args   text   ask    state  clean  result`,
   );
-  lines.push(`${"-".repeat(idW)}  -----  -----  -----  -----  -----  -----  ------`);
+  lines.push(`${"-".repeat(idW)}  -----  -----  -----  -----  -----  -----  -----  ------`);
   for (const r of results) {
     lines.push(
-      `${r.case.id.padEnd(idW)}  ${cell(r.skillHitRate)}  ${toolCell(r)}  ${optCell(r.argHitRate, (r.case.assert_args ?? []).length > 0)}  ${optCell(r.askHitRate, !!r.case.expect_ask)}  ${stateCell(r.statePass)}  ${cell(r.cleanRate)}  ${r.pass ? "PASS" : "FAIL"}`,
+      `${r.case.id.padEnd(idW)}  ${skillCell(r)}  ${toolCell(r)}  ${optCell(r.argHitRate, (r.case.assert_args ?? []).length > 0)}  ${optCell(r.textHitRate, (r.case.expect_text_contains ?? []).length > 0)}  ${optCell(r.askHitRate, !!r.case.expect_ask)}  ${stateCell(r.statePass)}  ${cell(r.cleanRate)}  ${r.pass ? "PASS" : "FAIL"}`,
     );
   }
 
@@ -36,6 +36,12 @@ export function renderReport(results: CaseResult[], threshold: number, k: number
   const passed = results.filter((r) => r.pass).length;
   lines.push(`\n${passed}/${results.length} cases passed.\n`);
   return lines.join("\n");
+}
+
+/** Skill column shows "—" for a skill-less case (e.g. onboarding → CLI). */
+function skillCell(r: CaseResult): string {
+  const hasSkill = !!r.case.expect_skill || !!r.case.expect_skills?.length;
+  return hasSkill ? cell(r.skillHitRate) : "  —  ";
 }
 
 function toolCell(r: CaseResult): string {

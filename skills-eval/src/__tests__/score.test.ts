@@ -153,6 +153,23 @@ describe("scoreCase", () => {
     expect(r.misses.join(" ")).toContain("alice@acme.com");
   });
 
+  it("expect_text_contains: passes when prose recommends the CLI, no skill needed", () => {
+    const c: EvalCase = {
+      id: "onboarding/set-up",
+      prompt: "set up shipeasy",
+      expect_tools: [],
+      tools_match: "none",
+      expect_text_contains: ["shipeasy setup"],
+    };
+    const good = run([], [], { text: "You should run `shipeasy setup` to get started." });
+    const bad = run([], [], { text: "Let me create a flag for you." });
+    expect(scoreCase(c, [good], 0.67).pass).toBe(true);
+    const r = scoreCase(c, [bad], 0.67);
+    expect(r.pass).toBe(false);
+    expect(r.textHitRate).toBe(0);
+    expect(r.misses.join(" ")).toContain("shipeasy setup");
+  });
+
   it("assert_args with no tool matches across any call (ops_create OR ops_bug)", () => {
     const c: EvalCase = {
       id: "ops/ctx",

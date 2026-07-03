@@ -1,0 +1,88 @@
+[
+  {
+    "id": "onboarding/set-up-shipeasy",
+    "prompt": "Set up shipeasy in this repo so I can start shipping feature flags.",
+    "expect_tools": [],
+    "tools_match": "none",
+    "forbid_tools": ["release_flags_create", "release_experiments_create", "metrics_create"],
+    "expect_text_contains": ["shipeasy setup"],
+    "note": "No setup skill anymore — onboarding must delegate to the `shipeasy setup` CLI, not start creating resources. Bash is disallowed in the sandbox, so the agent can only recommend running it (text assertion)."
+  },
+  {
+    "id": "onboarding/install-fresh",
+    "prompt": "I've never used shipeasy. How do I install it and wire it into my Next.js app?",
+    "expect_tools": [],
+    "tools_match": "none",
+    "forbid_tools": ["release_flags_create", "release_experiments_create"],
+    "expect_text_contains": ["shipeasy setup"],
+    "note": "First-time install → point at the one-command CLI installer."
+  },
+  {
+    "id": "onboarding/get-started",
+    "prompt": "How do I get started with shipeasy in this project?",
+    "expect_tools": [],
+    "tools_match": "none",
+    "expect_text_contains": ["shipeasy setup"],
+    "note": "Open-ended getting-started → the CLI is the entry point."
+  },
+  {
+    "id": "onboarding/set-up-error-reporting",
+    "prompt": "Set up shipeasy error reporting with see() in this project from scratch.",
+    "expect_tools": [],
+    "tools_match": "none",
+    "expect_text_contains": ["shipeasy setup", "shipeasy install"],
+    "note": "ASPIRATIONAL: \"set up error reporting\" from scratch is an install step the `shipeasy setup` CLI owns (offers the error module + devtools). Observed: often routes to `shipeasy-see` (the see() error-handling skill) instead of delegating to the CLI — a real routing ambiguity between installing the module and using it. Accept either the setup or install CLI command."
+  },
+  {
+    "id": "onboarding/devtools-panel",
+    "prompt": "I want the shipeasy devtools side panel / admin panel in my app. How do I add it?",
+    "expect_tools": [],
+    "tools_match": "none",
+    "expect_text_contains": ["shipeasy setup"],
+    "note": "The devtools overlay is offered by the `shipeasy setup` CLI (module + overlay step) — delegate there, don't hand-roll it."
+  },
+  {
+    "id": "onboarding/translate-i18n",
+    "prompt": "I want to translate my website using shipeasy i18n. How do I set that up?",
+    "expect_skill": "shipeasy-i18n",
+    "expect_tools": [],
+    "tools_match": "none",
+    "note": "\"Translate the website\" should still route to the i18n skill (which owns the setup-i18n flow) after the setup skill's removal. First-time i18n also needs `shipeasy setup` to enable the i18n module — mentioning it is the ideal."
+  },
+  {
+    "id": "onboarding/setup-feature-flags-generic",
+    "prompt": "Set up feature flags for my project.",
+    "expect_tools": [],
+    "tools_match": "none",
+    "forbid_tools": ["release_flags_create"],
+    "expect_text_contains": ["create"],
+    "note": "ASPIRATIONAL: a bare \"set up feature flags\" (no flag named) should NOT create a flag — base setup is already done, so the agent should say so and OFFER to create the first flag. Contrast shipeasy-flags/dedupe-existing-gate, which names a flag and does create."
+  },
+  {
+    "id": "onboarding/setup-experiments-generic",
+    "prompt": "Set up A/B experiments for my project.",
+    "expect_tools": [],
+    "tools_match": "none",
+    "forbid_tools": ["release_experiments_create"],
+    "expect_text_contains": ["create"],
+    "note": "ASPIRATIONAL: bare \"set up experiments\" → don't create one; report setup done and offer to create the first experiment."
+  },
+  {
+    "id": "onboarding/setup-metrics-generic",
+    "prompt": "Set up metrics for my project.",
+    "expect_tools": [],
+    "tools_match": "none",
+    "forbid_tools": ["metrics_create"],
+    "expect_text_contains": ["create"],
+    "note": "ASPIRATIONAL: bare \"set up metrics\" → don't create one; report setup done and offer to create the first metric."
+  },
+  {
+    "id": "onboarding/setup-alerting-generic",
+    "prompt": "Set up alerting for my project.",
+    "expect_tools": [],
+    "tools_match": "none",
+    "forbid_tools": ["ops_alerts_create"],
+    "expect_text_contains": ["create"],
+    "note": "ASPIRATIONAL: bare \"set up alerting\" → don't create an alert rule; report setup done and offer to create the first alert."
+  }
+]

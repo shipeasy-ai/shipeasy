@@ -4,9 +4,9 @@ Shipeasy ships two things to a coding agent:
 
 1. **Skills** — `SKILL.md` files that auto-trigger on natural-language phrasing
    (and are user-invocable as commands on hosts that support it):
-   - **7 area skills** (`shipeasy-flags`, `shipeasy-experiments`,
+   - **8 area skills** (`shipeasy-flags`, `shipeasy-experiments`,
      `shipeasy-metrics`, `shipeasy-i18n`, `shipeasy-ops`, `shipeasy-alerts`,
-     `shipeasy-see`) — the umbrella
+     `shipeasy-see`, `shipeasy-setup`) — the umbrella
      guides, one per subsystem. These cover *every* feature (e.g.
      `shipeasy-flags` covers configs + kill switches, `shipeasy-ops` covers the
      bug/feature/error inbox). They **always delegate all CRUD to the
@@ -68,7 +68,7 @@ claude plugin marketplace add shipeasy-ai/shipeasy
 claude plugin install shipeasy@shipeasy
 ```
 
-Gets all 10 skills (each user-invocable as `/shipeasy:<skill-name>`) + MCP.
+Gets all 11 skills (each user-invocable as `/shipeasy:<skill-name>`) + MCP.
 Then run `shipeasy setup`.
 
 ### Codex

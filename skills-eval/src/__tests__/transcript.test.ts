@@ -95,6 +95,21 @@ describe("parseTranscript", () => {
 
   it("tolerates non-JSON lines and empty input", () => {
     const obs = parseTranscript("not json\n\n{bad}\n", KNOWN);
-    expect(obs).toEqual({ skills: [], tools: [], toolCalls: [], otherTools: [], askedUser: false });
+    expect(obs).toEqual({
+      skills: [], tools: [], toolCalls: [], otherTools: [], askedUser: false, text: "",
+    });
+  });
+
+  it("captures assistant text blocks and the final result for text assertions", () => {
+    const ndjson = [
+      JSON.stringify({
+        type: "assistant",
+        message: { role: "assistant", content: [{ type: "text", text: "Run `shipeasy setup` to onboard." }] },
+      }),
+      JSON.stringify({ type: "result", subtype: "success", result: "Done — I recommended shipeasy setup." }),
+    ].join("\n");
+    const obs = parseTranscript(ndjson, KNOWN);
+    expect(obs.text).toContain("shipeasy setup");
+    expect(obs.text).toContain("Done —");
   });
 });

@@ -914,9 +914,13 @@ export function setupCommand(parent: Command): void {
   const setup = parent
     .command("setup")
     .description(
-      "Full onboarding: preconditions, monorepo target detection, login + per-target project " +
-        "bind, agent/MCP wiring, SDK keys, package installs, module enables — then emits " +
-        "harness-agnostic wiring instructions for the code changes.",
+      "One-command onboarding for this repo. Logs you in and binds a project, detects and " +
+        "wires your coding agents (Claude Code plugin, or MCP + instruction files for " +
+        "Cursor/Codex/Copilot/Jules), mints SDK keys, installs @shipeasy/sdk, and offers the " +
+        "devtools overlay + feature modules — then writes self-contained SDK-wiring steps to " +
+        "shipeasy-wiring.md for your agent to finish. Monorepo-aware and idempotent (safe to " +
+        "re-run). Run `shipeasy setup --help` for every flag; `shipeasy setup triggers` sets up " +
+        "the scheduled queue-fixing automation on its own.",
     )
     .option("--yes", "Non-interactive: accept defaults everywhere (bind, prod keys, run installs)")
     .option("--agents <list>", "Comma list to wire (claude,cursor,codex,copilot,jules)")

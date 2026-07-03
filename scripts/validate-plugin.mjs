@@ -30,6 +30,7 @@ const EXPECTED_SKILLS = [
   "shipeasy-ops",
   "shipeasy-ops-work",
   "shipeasy-see",
+  "shipeasy-setup",
 ];
 
 const HOSTS = {

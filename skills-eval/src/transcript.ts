@@ -25,6 +25,7 @@ export function parseTranscript(ndjson: string, knownSkills: Iterable<string>): 
   const tools: string[] = [];
   const toolCalls: Observation["toolCalls"] = [];
   const otherTools: string[] = [];
+  const textParts: string[] = [];
   let askedUser = false;
   const skillNames = [...knownSkills];
 
@@ -36,6 +37,7 @@ export function parseTranscript(ndjson: string, knownSkills: Iterable<string>): 
     } catch {
       continue; // non-JSON noise (shouldn't happen with --output-format stream-json)
     }
+    textParts.push(...textBlocks(evt));
     for (const block of toolUseBlocks(evt)) {
       if (block.name === "Skill") {
         const hit = matchSkill(block.input, skillNames);
@@ -51,12 +53,37 @@ export function parseTranscript(ndjson: string, knownSkills: Iterable<string>): 
       }
     }
   }
-  return { skills, tools, toolCalls, otherTools, askedUser };
+  return { skills, tools, toolCalls, otherTools, askedUser, text: textParts.join("\n") };
 }
 
 interface ToolUse {
   name: string;
   input: unknown;
+}
+
+/**
+ * Pull the AGENT'S OWN prose out of one stream-json event: the `text` of every
+ * `{type:"text"}` block in an *assistant* message, plus the final
+ * `{type:"result", result:"…"}` summary. We deliberately IGNORE user / system /
+ * tool_result messages — a Skill invocation injects that skill's whole SKILL.md
+ * body back as tool-result text, so capturing those would let `expect_text_contains`
+ * match the skill's *documentation* ("…the guided `shipeasy setup`") instead of the
+ * model's own recommendation. Assistant text is the model speaking; that's what we score.
+ */
+function textBlocks(evt: unknown): string[] {
+  if (!isObject(evt)) return [];
+  if (evt.type === "result" && typeof evt.result === "string") return [evt.result];
+  if (evt.type !== "assistant") return [];
+  const message = isObject(evt.message) ? evt.message : undefined;
+  const content = message && Array.isArray(message.content) ? message.content : undefined;
+  if (!content) return [];
+  const out: string[] = [];
+  for (const block of content) {
+    if (isObject(block) && block.type === "text" && typeof block.text === "string") {
+      out.push(block.text);
+    }
+  }
+  return out;
 }
 
 /** Pull `tool_use` content blocks out of one stream-json event, if any. */
