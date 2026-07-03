@@ -290,13 +290,15 @@ export interface ClaudePluginResult {
 
 /**
  * Install the Shipeasy Claude Code plugin (marketplace + plugin) when the
- * `claude` binary is available — this is the native path that brings the MCP
- * server, skills, and slash commands in one step. Falls back to registering the
- * project `.mcp.json` and printing the manual commands when it isn't.
+ * `claude` binary is available — this is the native, user-global path that
+ * brings the MCP server, skills, and slash commands in one step. Reached only at
+ * user scope (project scope keeps Claude in-repo via `.mcp.json`, see
+ * `applyAgent`). Falls back to registering the scope's MCP config and printing
+ * the manual commands when the `claude` binary isn't present.
  */
 export function installClaudePlugin(ctx: InstallCtx): ClaudePluginResult {
   if (!onPath("claude")) {
-    const mcp = registerMcp("claude", { ...ctx, scope: "project" });
+    const mcp = registerMcp("claude", ctx);
     return {
       action: "manual",
       lines: [

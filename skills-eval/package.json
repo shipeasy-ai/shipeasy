@@ -7,6 +7,7 @@
   "scripts": {
     "seed": "tsx src/seed.ts",
     "eval": "tsx src/run.ts",
+    "eval:fresh": "bash scripts/fresh-eval.sh",
     "test": "vitest run",
     "type-check": "tsc --noEmit"
   },

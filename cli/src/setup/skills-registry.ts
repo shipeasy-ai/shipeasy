@@ -67,6 +67,16 @@ export function skillsForFeatures(features: string[]): string[] {
   return [...out];
 }
 
+/**
+ * The full base how-to skill set (deduped) — mirrors what the Claude plugin
+ * bundles. `shipeasy setup` installs these into every non-plugin agent (via the
+ * `skills` CLI) so no wired agent is left without the workflow skills, regardless
+ * of which feature modules the user enables.
+ */
+export function baseSkillNames(): string[] {
+  return skillsForFeatures(Object.keys(FEATURE_SKILLS));
+}
+
 export interface SkillsCliResult {
   source: string;
   agent: string | null;

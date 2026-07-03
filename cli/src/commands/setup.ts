@@ -19,7 +19,7 @@ import {
   registerMcp,
 } from "../setup/agents";
 import { fetchSdkDoc, fetchSdkSkill, installMarketplaceSkill, installSkill } from "../setup/sdk-docs";
-import { skillsForFeatures } from "../setup/skills-registry";
+import { baseSkillNames } from "../setup/skills-registry";
 import {
   type FileResult,
   writeAgentsMd,
@@ -115,6 +115,17 @@ function formatFile(label: string, r: FileResult): string {
 export function applyAgent(agent: AgentId, ctx: InstallCtx): string[] {
   const lines: string[] = [];
   if (agent === "claude") {
+    // Project scope keeps Claude fully in-repo: a committable `.mcp.json` for the
+    // MCP server, with its skills installed into `./.claude/skills` by the skills
+    // step (no global plugin). User scope takes the native plugin (global
+    // `~/.claude`), which bundles MCP + skills + slash commands in one step.
+    if (ctx.scope === "project") {
+      lines.push(formatMcp(registerMcp("claude", ctx)));
+      lines.push(
+        "  • skills → ./.claude/skills in the skills step (no global plugin at project scope)",
+      );
+      return lines;
+    }
     const r = installClaudePlugin(ctx);
     lines.push(
       ...r.lines.map(
@@ -231,6 +242,37 @@ async function selectAgents(opts: SetupOpts, interactive: boolean): Promise<Agen
     instructions: false,
   });
   return (picked as AgentId[] | undefined) ?? [];
+}
+
+// ── scope selection (MCP + skills: in-repo vs user-global) ──────────────────
+
+/**
+ * Resolve where MCP config + skills land. An explicit `--scope` wins; otherwise
+ * we default to in-repo `project` scope and, when interactive, confirm it and
+ * offer user-global. Project scope keeps every artifact committable and drives
+ * Claude down the `.mcp.json` + `./.claude/skills` path (no global plugin).
+ */
+async function resolveScope(
+  opts: SetupOpts,
+  interactive: boolean,
+  dryRun: boolean,
+): Promise<"user" | "project"> {
+  if (opts.scope && opts.scope !== "user" && opts.scope !== "project") {
+    throw new Error(`Invalid --scope '${opts.scope}'. Must be 'project' or 'user'.`);
+  }
+  if (opts.scope === "user" || opts.scope === "project") return opts.scope;
+  if (!interactive || dryRun) return "project";
+  const { scope } = await prompts({
+    type: "select",
+    name: "scope",
+    message: "Where should the MCP server + skills be installed?",
+    choices: [
+      { title: "This project — in-repo, committable (recommended)", value: "project" },
+      { title: "User-level — global, applies to all your repos", value: "user" },
+    ],
+    initial: 0,
+  });
+  return (scope as "user" | "project" | undefined) ?? "project";
 }
 
 // ── key minting ─────────────────────────────────────────────────────────────
@@ -375,7 +417,6 @@ async function wiringHandoff(root: string, opts: SetupOpts, interactive: boolean
 
 async function runSetup(opts: SetupOpts): Promise<void> {
   const interactive = Boolean(process.stdin.isTTY) && !opts.yes;
-  const scope: "user" | "project" = opts.scope === "user" ? "user" : "project";
   const dryRun = Boolean(opts.dryRun);
   const cwd = process.cwd();
 
@@ -452,10 +493,22 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   // 3. Wire coding agents (MCP + instruction files)
   heading("3. Wire coding agents");
   const selected = await selectAgents(opts, interactive);
+  const scope: "user" | "project" = selected.length
+    ? await resolveScope(opts, interactive, dryRun)
+    : "project";
   const ctx: InstallCtx = { cwd, scope, force: false, dryRun };
+  // The `skills` CLI names for the agents that take skills via `npx skills add`
+  // (not the plugin): cursor/codex/copilot always; Claude only at project scope
+  // (user scope gets skills from its global plugin instead).
+  const skillsCliAgents = selected
+    .map((a) =>
+      a === "claude" ? (scope === "project" ? "claude" : null) : (SKILLS_CLI_AGENT[a] ?? null),
+    )
+    .filter(Boolean) as string[];
   if (selected.length === 0) {
     console.log("  (no agents selected — skipping)");
   } else {
+    console.log(`  scope: ${scope === "project" ? "this project (in-repo)" : "user-level (global)"}`);
     for (const agent of selected) {
       console.log(`\n  ${agent}:`);
       for (const line of applyAgent(agent, ctx)) console.log(line);
@@ -571,29 +624,45 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     }
   }
 
-  // 5b. Install the SDK how-to skill into the wired agents (runs `npx skills`).
-  heading("5b. Install SDK skills");
-  const skillsCliAgents = selected.map((a) => SKILLS_CLI_AGENT[a]).filter(Boolean) as string[];
+  // 5b. Install skills into the wired agents (runs `npx skills`). Claude at user
+  // scope gets them from its plugin; every other agent — and Claude at project
+  // scope — gets the SDK how-to plus the full base workflow set here, mirroring
+  // the plugin bundle so no wired agent is left without the skills. User scope
+  // installs globally (`-g`); project scope keeps them in-repo.
+  heading("5b. Install skills");
   const uniqueSdks = [...new Set(actionable.map((t) => t.recommendation.sdk).filter(Boolean))] as string[];
+  const skillsGlobal = scope === "user";
   if (dryRun) {
-    console.log(`  (dry run — would fetch + \`npx skills add\` the SDK skill for: ${uniqueSdks.join(", ") || "—"})`);
-  } else if (!uniqueSdks.length) {
-    console.log("  • no SDKs to document — skipping");
-  } else if (!selected.length) {
-    console.log("  • no agents selected — skipping (install later: shipeasy docs skill --sdk <lang> --install)");
+    console.log(
+      `  (dry run — would \`npx skills add\` the SDK + base skills into: ${skillsCliAgents.join(", ") || "—"})`,
+    );
+  } else if (!skillsCliAgents.length) {
+    console.log(
+      selected.includes("claude")
+        ? "  • Claude gets its skills from the plugin (user scope) — nothing else to install"
+        : "  • no skills-CLI agents — skipping (install later: shipeasy docs skill --sdk <lang> --install)",
+    );
   } else {
+    // SDK how-to skill(s) — one per distinct SDK in the tree. Snippets are baked
+    // in for that SDK's language at install.
     for (const sdk of uniqueSdks) {
       const content = await fetchSdkSkill(sdk);
       if (!content) {
         console.log(`  • ${sdk}: no published skill — skipped`);
         continue;
       }
-      // Claude gets marketplace/SDK skills via its plugin; other agents via the
-      // `skills` CLI. Install the SDK skill for the skills-CLI agents; if none
-      // (e.g. only Claude), write it to .claude/skills so Claude Code sees it.
-      // Snippets are baked in for this SDK's language at install.
-      const res = await installSkill(content, sdk, skillsCliAgents.length ? { agents: skillsCliAgents } : {});
+      const res = await installSkill(content, sdk, { agents: skillsCliAgents, global: skillsGlobal });
       console.log(`  ${res.action === "failed" ? "✗" : "✓"} ${sdk}: ${res.detail}`);
+    }
+    // Base workflow skills (flags/i18n/ops/see) — parity with the Claude plugin,
+    // installed regardless of which feature modules are enabled below.
+    const baseSdk = uniqueSdks[0] ?? actionable[0]?.language ?? "typescript";
+    for (const name of baseSkillNames()) {
+      const res = await installMarketplaceSkill(name, baseSdk, {
+        agents: skillsCliAgents,
+        global: skillsGlobal,
+      });
+      console.log(`  ${res.action === "failed" ? "✗" : "✓"} ${name}: ${res.detail}`);
     }
   }
 
@@ -697,24 +766,12 @@ async function runSetup(opts: SetupOpts): Promise<void> {
       }
     }
 
-    // Install each enabled feature's marketplace how-to skill into the
-    // skills-CLI agents, with its `{{SDK_SNIPPET:…}}` placeholders baked in for
-    // the primary SDK's language. Claude already has them via its plugin.
-    const enabledForSkills = [
-      ...new Set([...features, ...(opsEnabled && !features.includes("ops") ? ["ops"] : [])]),
-    ];
-    const featureSkillNames = skillsForFeatures(enabledForSkills);
-    const featureSdk = actionable[0]?.recommendation.sdk ?? actionable[0]?.language;
-    if (featureSkillNames.length && skillsCliAgents.length && featureSdk) {
-      for (const name of featureSkillNames) {
-        const res = await installMarketplaceSkill(name, featureSdk, { agents: skillsCliAgents });
-        console.log(
-          `  ${res.action === "failed" ? "✗" : "✓"} ${name}: ${res.detail}` +
-            (res.action === "failed" ? " (install later)" : ""),
-        );
-      }
-    } else if (featureSkillNames.length) {
-      console.log("  • feature skills: Claude gets them via its plugin; no other agents to install into");
+    // How-to skills for these modules were already installed in step 5b (the
+    // full base set, for parity with the Claude plugin) — enabling a module
+    // server-side doesn't change the skill set on disk, so there's nothing
+    // feature-specific to add here.
+    if (features.length && skillsCliAgents.length) {
+      console.log("  • how-to skills for these modules were installed in step 5b");
     }
   }
 
@@ -856,6 +913,9 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   console.log(
     `Targets:   ${actionable.length ? actionable.map((t) => relPath(root, t.path) + "/").join(", ") : "none needed work"}`,
   );
+  console.log(
+    `Agents:    ${selected.length ? `${selected.join(", ")} (${scope} scope)` : "none wired"}`,
+  );
   console.log(`Devtools:  ${devtoolsAccepted ? "enabled (wire the script tag — see wiring steps)" : "declined"}`);
   console.log(`Features:  ${features.length ? features.join(", ") : "none enabled"}`);
   console.log(
@@ -925,7 +985,10 @@ export function setupCommand(parent: Command): void {
     .option("--yes", "Non-interactive: accept defaults everywhere (bind, prod keys, run installs)")
     .option("--agents <list>", "Comma list to wire (claude,cursor,codex,copilot,jules)")
     .option("--domain <domain>", "Production domain (used when creating a new project at login)")
-    .option("--scope <scope>", "user | project (MCP config scope)", "project")
+    .option(
+      "--scope <scope>",
+      "MCP + skills scope: project (in-repo, default) | user (global). Omit to be asked.",
+    )
     .option("--env <env>", "Environment the minted SDK keys read: dev | staging | prod")
     .option("--devtools", "Enable the devtools overlay without asking")
     .option("--no-devtools", "Skip the devtools overlay without asking")
@@ -991,8 +1054,11 @@ export function setupCommand(parent: Command): void {
       "0. Preconditions (Node >= 20, git repo — offers `git init`).\n" +
       "1. `detect`-powered monorepo scan; every target gets its own `.shipeasy`.\n" +
       "2. Browser login, then binds the repo root AND each install target.\n" +
-      "3. Wires your coding agents (Claude Code plugin, Cursor/Codex/Copilot/Jules " +
-      "MCP + instruction files, universal AGENTS.md).\n" +
+      "3. Wires your coding agents — MCP + instruction files + universal AGENTS.md, " +
+      "installed in-repo by default (confirms interactively; offers user-global). At " +
+      "project scope even Claude stays in-repo (.mcp.json + ./.claude/skills); user " +
+      "scope takes the native Claude plugin. Base workflow skills go to every " +
+      "non-plugin agent via `npx skills add`.\n" +
       "4. Mints env-locked server/client SDK keys.\n" +
       "5. Runs the SDK package install per target and persists the keys to each " +
       "target's gitignored env file.\n" +
