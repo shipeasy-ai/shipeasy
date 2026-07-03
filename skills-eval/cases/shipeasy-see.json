@@ -14,5 +14,21 @@
     "expect_tools": [],
     "tools_match": "none",
     "note": "routing-only: confirms a console.error→see() migration ask routes to the see skill"
+  },
+  {
+    "id": "shipeasy-see/log-this-error",
+    "prompt": "The payment capture call can throw a CardError when the bank declines and right now we just swallow it in the catch. Log this error.",
+    "expect_skill": "shipeasy-see",
+    "expect_tools": [],
+    "tools_match": "none",
+    "note": "routing-only: given error context + a terse 'log this error', the agent should reach for the see() error primitive (the actual code edit isn't observable under the MCP-only lockdown)."
+  },
+  {
+    "id": "shipeasy-see/error-frequency-24h",
+    "prompt": "How many times does this checkout charge error actually fail in the last 24h?",
+    "expect_skill": "shipeasy-see",
+    "expect_tools": ["ops_list"],
+    "tools_match": "any",
+    "note": "see() occurrences land in the ops queue / Errors dashboard as error-type items — a frequency question should pull them via ops_list (filtered --type error / by window), i.e. read the analytics rather than guess."
   }
 ]

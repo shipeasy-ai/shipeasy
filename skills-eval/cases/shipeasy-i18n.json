@@ -14,5 +14,13 @@
     "expect_tools": [["i18n_keys_set", "i18n_keys_push"]],
     "tools_match": "any",
     "note": "wrapping a string is a code edit (not observable under the lockdown); the observable half is registering the key via MCP"
+  },
+  {
+    "id": "shipeasy-i18n/change-existing-copy",
+    "prompt": "Change \"Welcome back\" to say \"Welcome\" on the landing page.",
+    "expect_skill": "shipeasy-i18n",
+    "expect_tools": ["i18n_keys_list", ["i18n_keys_set", "i18n_keys_update"]],
+    "tools_match": "all",
+    "note": "editing existing copy: LIST keys filtered by the current value to find which key holds \"Welcome back\", then set/update it to \"Welcome\" — find-before-mutate. (The set step needs the key to already exist in the project.)"
   }
 ]
