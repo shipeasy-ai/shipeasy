@@ -3,8 +3,7 @@ GateTemplateRule:
   properties:
     attr:
       type: string
-      minLength: 1
-      description: Attribute key on the evaluation context (e.g. `country`, `plan`, `email`). Matched case-sensitively against `Shipeasy.checkGate(user, name)` input.
+      description: Attribute key on the evaluation context (e.g. `country`, `plan`, `email`). Matched case-sensitively against `Shipeasy.checkGate(user, name)` input. May be empty on a built-in template whose attribute is supplied at substitution time (e.g. the `exp_in` "in any experiment" preset — you fill in the experiment name).
     op:
       type: string
       enum:

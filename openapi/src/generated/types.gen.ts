@@ -192,7 +192,7 @@ export type ListGatesResponse = {
 /**
  * Stable, machine-readable error code. Mirrors the `ErrorCode` catalogue in `@shipeasy/core`. Each operation lists the subset it can return under `x-error-codes`.
  */
-export type ErrorCode = 'BAD_REQUEST' | 'UNAUTHORIZED' | 'FORBIDDEN' | 'PLAN_REQUIRED' | 'NOT_FOUND' | 'ALREADY_EXISTS' | 'INVALID_TRANSITION' | 'IMMUTABLE_FIELD' | 'REFERENCED_IN_USE' | 'VALIDATION' | 'REFERENCED_NOT_FOUND' | 'GROUPS_WEIGHT_SUM' | 'EVENT_PENDING' | 'INTERNAL';
+export type ErrorCode = 'BAD_REQUEST' | 'UNAUTHORIZED' | 'FORBIDDEN' | 'PLAN_REQUIRED' | 'NOT_FOUND' | 'ALREADY_EXISTS' | 'INVALID_TRANSITION' | 'IMMUTABLE_FIELD' | 'READ_ONLY' | 'REFERENCED_IN_USE' | 'VALIDATION' | 'REFERENCED_NOT_FOUND' | 'GROUPS_WEIGHT_SUM' | 'EVENT_PENDING' | 'INTERNAL';
 
 /**
  * Uniform error envelope returned by every admin endpoint on a non-2xx status. `error` is the human-readable message; `code` is the stable machine code (present whenever the failure maps to a catalogued `ErrorCode`); `detail` carries extra context (validation paths, conflicting field); `instructions` is optional actionable guidance for resolving the error.
@@ -1716,7 +1716,7 @@ export type UpdateUniverseResponse = {
  */
 export type GateTemplateRule = {
     /**
-     * Attribute key on the evaluation context (e.g. `country`, `plan`, `email`). Matched case-sensitively against `Shipeasy.checkGate(user, name)` input.
+     * Attribute key on the evaluation context (e.g. `country`, `plan`, `email`). Matched case-sensitively against `Shipeasy.checkGate(user, name)` input. May be empty on a built-in template whose attribute is supplied at substitution time (e.g. the `exp_in` "in any experiment" preset — you fill in the experiment name).
      */
     attr: string;
     /**
@@ -7125,14 +7125,6 @@ export type ListGateTemplatesData = {
          * Case-insensitive substring filter over each template's `name` + `description`. Omit to return the whole catalog.
          */
         query?: string;
-        /**
-         * Page size (1–500). Defaults to 100.
-         */
-        limit?: number;
-        /**
-         * Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page.
-         */
-        cursor?: string;
     };
     url: '/api/admin/gates/templates';
 };

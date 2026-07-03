@@ -10,6 +10,7 @@ ErrorCode:
     - ALREADY_EXISTS
     - INVALID_TRANSITION
     - IMMUTABLE_FIELD
+    - READ_ONLY
     - REFERENCED_IN_USE
     - VALIDATION
     - REFERENCED_NOT_FOUND
@@ -25,6 +26,7 @@ ErrorCode:
     ALREADY_EXISTS: A resource with this name already exists in the project.
     INVALID_TRANSITION: The requested lifecycle transition is not allowed from the current state.
     IMMUTABLE_FIELD: A field that is immutable in the current state was modified (e.g. editing allocation while running).
+    READ_ONLY: The resource is a read-only built-in (e.g. a built-in gate-rule template) and cannot be modified or deleted.
     REFERENCED_IN_USE: The resource cannot be archived/deleted while another resource still references it.
     VALIDATION: The request body failed structural (schema) validation.
     REFERENCED_NOT_FOUND: A referenced entity (universe, metric, gate, event) does not exist.

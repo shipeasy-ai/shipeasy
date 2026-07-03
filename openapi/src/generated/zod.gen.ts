@@ -110,6 +110,7 @@ export const zErrorCode = z.enum([
     'ALREADY_EXISTS',
     'INVALID_TRANSITION',
     'IMMUTABLE_FIELD',
+    'READ_ONLY',
     'REFERENCED_IN_USE',
     'VALIDATION',
     'REFERENCED_NOT_FOUND',
@@ -955,7 +956,7 @@ export const zUpdateUniverseResponse = z.object({
  * Single targeting predicate. Copy a template's rules, substitute the concrete `value`(s), and pass them as the `rules` arg of `release_flags_create`.
  */
 export const zGateTemplateRule = z.object({
-    attr: z.string().min(1),
+    attr: z.string(),
     op: z.enum([
         'eq',
         'neq',
@@ -3308,9 +3309,7 @@ export const zListGateTemplatesHeaders = z.object({
 });
 
 export const zListGateTemplatesQuery = z.object({
-    query: z.string().optional(),
-    limit: z.int().gte(1).lte(500).optional().default(100),
-    cursor: z.string().optional()
+    query: z.string().optional()
 });
 
 /**

@@ -3000,7 +3000,7 @@ paths:
 
         **Turn "launch X in country Y" into a gated flag:** list templates (optionally with `query`), take the matching template's `rules`, substitute the concrete value(s), and pass them as the `rules` arg of `release_flags_create`.
 
-        The catalog is small and bounded, so the full merged set is returned in one page (`next_cursor` is always `null`).
+        The catalog is small and bounded, so the full merged set is returned in one page — this endpoint is **not** paginated (`next_cursor` is always `null`; there are no `limit`/`cursor` params).
       tags:
         - Templates
       parameters:
@@ -3011,8 +3011,6 @@ paths:
           description: Case-insensitive substring filter over each template's `name` + `description`. Omit to return the whole catalog.
           schema:
             type: string
-        - $ref: '#/components/parameters/PaginationLimit'
-        - $ref: '#/components/parameters/PaginationCursor'
       responses:
         '200':
           description: List gate templates
@@ -7352,6 +7350,7 @@ components:
         - ALREADY_EXISTS
         - INVALID_TRANSITION
         - IMMUTABLE_FIELD
+        - READ_ONLY
         - REFERENCED_IN_USE
         - VALIDATION
         - REFERENCED_NOT_FOUND
@@ -7367,6 +7366,7 @@ components:
         ALREADY_EXISTS: A resource with this name already exists in the project.
         INVALID_TRANSITION: The requested lifecycle transition is not allowed from the current state.
         IMMUTABLE_FIELD: A field that is immutable in the current state was modified (e.g. editing allocation while running).
+        READ_ONLY: The resource is a read-only built-in (e.g. a built-in gate-rule template) and cannot be modified or deleted.
         REFERENCED_IN_USE: The resource cannot be archived/deleted while another resource still references it.
         VALIDATION: The request body failed structural (schema) validation.
         REFERENCED_NOT_FOUND: A referenced entity (universe, metric, gate, event) does not exist.
@@ -9734,8 +9734,7 @@ components:
       properties:
         attr:
           type: string
-          minLength: 1
-          description: Attribute key on the evaluation context (e.g. `country`, `plan`, `email`). Matched case-sensitively against `Shipeasy.checkGate(user, name)` input.
+          description: Attribute key on the evaluation context (e.g. `country`, `plan`, `email`). Matched case-sensitively against `Shipeasy.checkGate(user, name)` input. May be empty on a built-in template whose attribute is supplied at substitution time (e.g. the `exp_in` "in any experiment" preset — you fill in the experiment name).
         op:
           type: string
           enum:

@@ -759,11 +759,9 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   g_release_flags_templates.command("list")
     .description("List gate templates")
     .option("--query <value>", "Case-insensitive substring filter over each template's `name` + `description`. Omit to return the whole catalog.")
-    .option("--limit <value>", "Page size (1–500). Defaults to 100.")
-    .option("--cursor <value>", "Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page.")
     .option("--data <value>", "Request body as a JSON object.")
     .action(async (opts) => {
-      await ctx.run({ mutates: false, invoke: (client) => api.listGateTemplates({ client, query: clean({ query: str(opts.query), limit: num(opts.limit), cursor: str(opts.cursor) }), body: json(opts.data) as never }) });
+      await ctx.run({ mutates: false, invoke: (client) => api.listGateTemplates({ client, query: clean({ query: str(opts.query) }), body: json(opts.data) as never }) });
     });
   g_release_flags_templates.command("create")
     .description("Create a gate template")

@@ -697,7 +697,7 @@ export const updateUniverse = <ThrowOnError extends boolean = false>(options: Op
  *
  * **Turn "launch X in country Y" into a gated flag:** list templates (optionally with `query`), take the matching template's `rules`, substitute the concrete value(s), and pass them as the `rules` arg of `release_flags_create`.
  *
- * The catalog is small and bounded, so the full merged set is returned in one page (`next_cursor` is always `null`).
+ * The catalog is small and bounded, so the full merged set is returned in one page — this endpoint is **not** paginated (`next_cursor` is always `null`; there are no `limit`/`cursor` params).
  */
 export const listGateTemplates = <ThrowOnError extends boolean = false>(options?: Options<ListGateTemplatesData, ThrowOnError>): RequestResult<ListGateTemplatesResponses, ListGateTemplatesErrors, ThrowOnError> => (options?.client ?? client).get<ListGateTemplatesResponses, ListGateTemplatesErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

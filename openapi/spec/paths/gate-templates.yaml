@@ -7,7 +7,7 @@
 
       **Turn "launch X in country Y" into a gated flag:** list templates (optionally with `query`), take the matching template's `rules`, substitute the concrete value(s), and pass them as the `rules` arg of `release_flags_create`.
 
-      The catalog is small and bounded, so the full merged set is returned in one page (`next_cursor` is always `null`).
+      The catalog is small and bounded, so the full merged set is returned in one page — this endpoint is **not** paginated (`next_cursor` is always `null`; there are no `limit`/`cursor` params).
     tags:
       - Templates
     parameters:
@@ -18,8 +18,6 @@
         description: Case-insensitive substring filter over each template's `name` + `description`. Omit to return the whole catalog.
         schema:
           type: string
-      - $ref: ../components/parameters.yaml#/PaginationLimit
-      - $ref: ../components/parameters.yaml#/PaginationCursor
     responses:
       "200":
         description: List gate templates
