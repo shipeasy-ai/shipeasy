@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -8,6 +8,7 @@ import {
   clientKeyVar,
   ensureGitignored,
   envFileFor,
+  frameworkSetupArgv,
   installArgv,
   maskKey,
   needsStoreMove,
@@ -132,8 +133,8 @@ describe("installArgv", () => {
   });
 
   it("defers manifest-edit-first ecosystems to the wiring doc", () => {
-    expect(installArgv("ruby", "bundler", [])).toBeNull();
     expect(installArgv("java", "maven", [])).toBeNull();
+    expect(installArgv("kotlin", "gradle", [])).toBeNull();
     expect(installArgv("swift", "swiftpm", [])).toBeNull();
     expect(installArgv("python", "pip", [])).toBeNull(); // bare pip isn't durable
   });
@@ -146,6 +147,68 @@ describe("installArgv", () => {
       "shipeasy/shipeasy",
     ]);
     expect(installArgv("python", "poetry", [])).toEqual(["poetry", "add", "shipeasy"]);
+  });
+
+  it("runs `bundle add` for Ruby (records in the Gemfile)", () => {
+    expect(installArgv("ruby", "bundler", [])).toEqual(["bundle", "add", "shipeasy-sdk"]);
+    expect(installArgv("ruby", "bundler", ["rails"])).toEqual(["bundle", "add", "shipeasy-sdk"]);
+  });
+
+  it("runs the manifest-recording Python manager, with the django extra", () => {
+    expect(installArgv("python", "uv", [])).toEqual(["uv", "add", "shipeasy"]);
+    expect(installArgv("python", "pipenv", [])).toEqual(["pipenv", "install", "shipeasy"]);
+    expect(installArgv("python", "pdm", [])).toEqual(["pdm", "add", "shipeasy"]);
+    expect(installArgv("python", "uv", ["django"])).toEqual(["uv", "add", "shipeasy[django]"]);
+    expect(installArgv("python", "poetry", ["django"])).toEqual([
+      "poetry",
+      "add",
+      "shipeasy[django]",
+    ]);
+  });
+});
+
+describe("frameworkSetupArgv", () => {
+  it("runs the Rails generator only with a real rails signal file", () => {
+    const dir = tmp();
+    try {
+      expect(frameworkSetupArgv("ruby", ["rails"], dir)).toBeNull(); // no signal yet
+      mkdirSync(join(dir, "config"), { recursive: true });
+      writeFileSync(join(dir, "config", "application.rb"), "");
+      expect(frameworkSetupArgv("ruby", ["rails"], dir)).toEqual([
+        "bundle",
+        "exec",
+        "rails",
+        "generate",
+        "shipeasy:install",
+      ]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("returns the Laravel generator when artisan is present, null otherwise", () => {
+    const dir = tmp();
+    try {
+      expect(frameworkSetupArgv("php", ["laravel"], dir)).toBeNull();
+      writeFileSync(join(dir, "artisan"), "#!/usr/bin/env php");
+      expect(frameworkSetupArgv("php", ["laravel"], dir)).toEqual([
+        "php",
+        "artisan",
+        "shipeasy:install",
+      ]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("returns null for frameworks without a generator", () => {
+    const dir = tmp();
+    try {
+      expect(frameworkSetupArgv("python", ["django"], dir)).toBeNull();
+      expect(frameworkSetupArgv("go", [], dir)).toBeNull();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

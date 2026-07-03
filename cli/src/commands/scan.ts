@@ -311,15 +311,31 @@ function detectNonJs(
   if (fs.existsSync(path.join(root, "go.mod"))) {
     return { language: "go", package_manager: "go", frameworks: [] };
   }
+  const hasPyproject = fs.existsSync(path.join(root, "pyproject.toml"));
   if (
-    fs.existsSync(path.join(root, "pyproject.toml")) ||
+    hasPyproject ||
     fs.existsSync(path.join(root, "setup.py")) ||
-    fs.existsSync(path.join(root, "requirements.txt"))
+    fs.existsSync(path.join(root, "requirements.txt")) ||
+    fs.existsSync(path.join(root, "Pipfile"))
   ) {
-    const pm = fs.existsSync(path.join(root, "pyproject.toml")) ? "poetry" : "pip";
+    const pyproject = safeReadFile(path.join(root, "pyproject.toml"), root) ?? "";
+    // Prefer the manager the project actually uses (lockfile or pyproject table),
+    // so we can auto-run the right `add`/`install`. Bare pip has no manifest-
+    // recording command, so it stays deferred to the wiring instructions.
+    const has = (f: string): boolean => fs.existsSync(path.join(root, f));
+    const pm = has("Pipfile")
+      ? "pipenv"
+      : has("uv.lock") || /\[tool\.uv\]/.test(pyproject)
+        ? "uv"
+        : has("pdm.lock") || /\[tool\.pdm\]/.test(pyproject)
+          ? "pdm"
+          : has("poetry.lock") || /\[tool\.poetry\]/.test(pyproject)
+            ? "poetry"
+            : hasPyproject
+              ? "poetry"
+              : "pip";
     const frameworks: string[] = [];
     const req = safeReadFile(path.join(root, "requirements.txt"), root) ?? "";
-    const pyproject = safeReadFile(path.join(root, "pyproject.toml"), root) ?? "";
     const combined = req + pyproject;
     if (/django/i.test(combined)) frameworks.push("django");
     if (/flask/i.test(combined)) frameworks.push("flask");
@@ -423,6 +439,7 @@ const TARGET_MANIFESTS = [
   "pyproject.toml",
   "setup.py",
   "requirements.txt",
+  "Pipfile",
   "Gemfile",
   "go.mod",
   "pom.xml",
@@ -501,14 +518,34 @@ function installHint(language: string, pm: string, frameworks: string[]): string
       const react = frameworks.includes("react") || frameworks.includes("nextjs");
       return `${mgr} ${verb} @shipeasy/sdk${react ? " @shipeasy/react" : ""}`;
     }
-    case "python":
-      return "pip install shipeasy (or add `shipeasy` to pyproject/requirements)";
+    case "python": {
+      const pkg = frameworks.includes("django") ? "shipeasy[django]" : "shipeasy";
+      const django = frameworks.includes("django")
+        ? " then `python manage.py shipeasy_install`"
+        : "";
+      switch (pm) {
+        case "poetry":
+          return `poetry add ${pkg}${django}`;
+        case "uv":
+          return `uv add ${pkg}${django}`;
+        case "pipenv":
+          return `pipenv install ${pkg}${django}`;
+        case "pdm":
+          return `pdm add ${pkg}${django}`;
+        default:
+          return `pip install ${pkg} (bare pip won't record it — also add to requirements.txt/pyproject)${django}`;
+      }
+    }
     case "ruby":
-      return 'add `gem "shipeasy-sdk"` then `bundle install`';
+      return frameworks.includes("rails")
+        ? "bundle add shipeasy-sdk then `bundle exec rails generate shipeasy:install`"
+        : "bundle add shipeasy-sdk";
     case "go":
       return "go get github.com/shipeasy-ai/sdk-go";
     case "php":
-      return "composer require shipeasy/shipeasy";
+      return frameworks.includes("laravel")
+        ? "composer require shipeasy/shipeasy then `php artisan shipeasy:install`"
+        : "composer require shipeasy/shipeasy";
     case "java":
       return "add dependency `ai.shipeasy:shipeasy:<latest>` (Maven/Gradle)";
     case "kotlin":

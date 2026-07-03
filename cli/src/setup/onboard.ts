@@ -203,8 +203,9 @@ export function maskKey(key: string): string {
 /**
  * The argv for installs a CLI can safely run itself: ones that both fetch the
  * package AND record it in the project's manifest/lockfile. Manifest-edit-first
- * ecosystems (Gemfile, pom.xml, build.gradle, Package.swift, bare pip) return
- * null — those go into the wiring instructions instead.
+ * ecosystems — Java/Kotlin (pom.xml, build.gradle) and Swift (Package.swift),
+ * plus bare pip (no manifest write) — return null and go into the wiring
+ * instructions instead.
  */
 export function installArgv(
   language: string,
@@ -219,8 +220,27 @@ export function installArgv(
       const react = frameworks.includes("react") || frameworks.includes("nextjs");
       return [mgr, verb, "@shipeasy/sdk", ...(react ? ["@shipeasy/react"] : [])];
     }
-    case "python":
-      return packageManager === "poetry" ? ["poetry", "add", "shipeasy"] : null;
+    case "ruby":
+      // `bundle add` fetches AND records in the Gemfile (unlike hand-editing it).
+      return ["bundle", "add", "shipeasy-sdk"];
+    case "python": {
+      // Django needs the `shipeasy[django]` extra (management command + AppConfig).
+      // Only managers that record the dep in the manifest can be auto-run; bare
+      // pip (no manifest write) is deferred to the wiring instructions.
+      const pkg = frameworks.includes("django") ? "shipeasy[django]" : "shipeasy";
+      switch (packageManager) {
+        case "poetry":
+          return ["poetry", "add", pkg];
+        case "uv":
+          return ["uv", "add", pkg];
+        case "pipenv":
+          return ["pipenv", "install", pkg];
+        case "pdm":
+          return ["pdm", "add", pkg];
+        default:
+          return null; // bare pip
+      }
+    }
     case "go":
       return ["go", "get", "github.com/shipeasy-ai/sdk-go"];
     case "php":
@@ -230,20 +250,65 @@ export function installArgv(
   }
 }
 
+/**
+ * A framework's own "install into this app" generator, run AFTER the package is
+ * added — the idiomatic way to scaffold the config an SDK ships a generator for.
+ * Only frameworks whose generator is reachable immediately after the package
+ * install qualify: Rails (auto-loaded Railtie) and Laravel (auto-discovered
+ * service provider). Django's `manage.py shipeasy_install` needs the app in
+ * INSTALLED_APPS first — a bootstrap it can't do itself — so it stays in the
+ * wiring instructions. Guarded on a real framework signal file so a mis-tagged
+ * target (the scanner assumes rails/laravel) never runs a bogus command.
+ */
+export function frameworkSetupArgv(
+  language: string,
+  frameworks: string[],
+  root: string,
+): string[] | null {
+  if (
+    language === "ruby" &&
+    frameworks.includes("rails") &&
+    (existsSync(join(root, "bin", "rails")) || existsSync(join(root, "config", "application.rb")))
+  ) {
+    return ["bundle", "exec", "rails", "generate", "shipeasy:install"];
+  }
+  if (language === "php" && frameworks.includes("laravel") && existsSync(join(root, "artisan"))) {
+    return ["php", "artisan", "shipeasy:install"];
+  }
+  return null;
+}
+
 export interface InstallOutcome {
   /** ran = we executed it; deferred = left for the wiring instructions. */
   status: "ran" | "failed" | "deferred";
   cmd: string;
+  /** The framework generator run after a successful package install, if any. */
+  frameworkStep?: { status: "ran" | "failed"; cmd: string };
 }
 
-/** Run the SDK install in the target dir (streaming output to the terminal). */
+/** Run the SDK install in the target dir (streaming output to the terminal),
+ *  then the framework's own generator (rails/laravel) when it ships one. */
 export function runSdkInstall(target: TargetRecommendation): InstallOutcome {
   const argv = installArgv(target.language, target.package_manager, target.frameworks);
   const fallback = target.recommendation.install ?? "(see wiring instructions)";
   if (!argv || !onPath(argv[0]!)) return { status: "deferred", cmd: fallback };
 
   const res = spawnSync(argv[0]!, argv.slice(1), { cwd: target.path, stdio: "inherit" });
-  return { status: res.status === 0 ? "ran" : "failed", cmd: argv.join(" ") };
+  if (res.status !== 0) return { status: "failed", cmd: argv.join(" ") };
+
+  // Package recorded — run the framework's own generator if it ships one and its
+  // tool is available. Best-effort: a failure here doesn't fail the install (the
+  // wiring instructions still cover finishing it).
+  const fw = frameworkSetupArgv(target.language, target.frameworks, target.path);
+  if (fw && onPath(fw[0]!)) {
+    const fwRes = spawnSync(fw[0]!, fw.slice(1), { cwd: target.path, stdio: "inherit" });
+    return {
+      status: "ran",
+      cmd: argv.join(" "),
+      frameworkStep: { status: fwRes.status === 0 ? "ran" : "failed", cmd: fw.join(" ") },
+    };
+  }
+  return { status: "ran", cmd: argv.join(" ") };
 }
 
 // ── secret-store classification ──────────────────────────────────────────────

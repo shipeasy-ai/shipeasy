@@ -585,6 +585,13 @@ async function runSetup(opts: SetupOpts): Promise<void> {
                 ? `    ✗ install failed (${r.cmd}) — added to the wiring steps`
                 : `    → install deferred to the wiring steps: ${r.cmd}`,
           );
+          if (r.frameworkStep) {
+            console.log(
+              r.frameworkStep.status === "ran"
+                ? `    ✓ framework setup (${r.frameworkStep.cmd})`
+                : `    ✗ framework setup failed (${r.frameworkStep.cmd}) — finish it from the wiring steps`,
+            );
+          }
         } else {
           installOutcome.set(t.path, {
             status: "deferred",
