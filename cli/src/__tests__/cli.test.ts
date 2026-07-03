@@ -35,6 +35,21 @@ describe("shipeasy CLI", () => {
     expect(() => buildProgram()).not.toThrow();
   });
 
+  // Both `-v` and `--version` print the package version and exit via the
+  // silent `commander.version` path (commander only supports one flag string,
+  // so registering `-v, --version` intentionally drops the default `-V`).
+  it.each(["-v", "--version"])("`%s` prints the version", async (flag) => {
+    const { buildProgram } = await import("../index");
+    const program = buildProgram();
+    program.exitOverride();
+    let printed = "";
+    program.configureOutput({ writeOut: (s) => (printed += s) });
+    expect(() => program.parse(["node", "shipeasy", flag])).toThrow(
+      expect.objectContaining({ code: "commander.version" }),
+    );
+    expect(printed.trim()).toMatch(/^\d+\.\d+\.\d+/);
+  });
+
   it("logout runs without throwing", async () => {
     const { run } = await import("../index");
     await expect(run(["node", "shipeasy", "logout"])).resolves.toBeUndefined();

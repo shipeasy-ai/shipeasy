@@ -52,7 +52,10 @@ export function buildProgram(): Command {
 
   const version = readOwnVersion();
 
-  program.name("shipeasy").description("CLI for the ShipEasy experiment platform").version(version);
+  program
+    .name("shipeasy")
+    .description("CLI for the ShipEasy experiment platform")
+    .version(version, "-v, --version", "Output the CLI version");
 
   const loginCmd = program
     .command("login")
