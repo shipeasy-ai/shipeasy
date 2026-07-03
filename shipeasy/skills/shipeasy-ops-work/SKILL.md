@@ -28,9 +28,9 @@ the code.
 finishing one before starting the next keeps every diff reviewable and avoids
 cross-item contamination. Follow the `shipeasy-ops` skill for triage semantics.
 
-Binding, auth (interactive and unattended), CLI updates, and module enablement
-are the `shipeasy-common` skill (module install: `shipeasy install ops`) — not
-restated here.
+This flow needs a `.shipeasy` binding, auth (interactive and unattended), and
+the feedback module enabled (`shipeasy install ops`) — those prerequisites are
+not restated here.
 
 The commands named below (`ops list/get/update/link-pr/notify`, MCP twins
 `ops_list`/`ops_get`/`ops_update`/`ops_link-pr`/`ops_notify`) are
@@ -272,11 +272,11 @@ push straight to the default branch.
 - **One item at a time.** Loop, never parallelise.
 - **One PR per item in `--pr` mode.** Never bundle two items into one PR.
 - **Never delete anything.** Resolving / fixing-in-code are the terminal
-  states; deletion is a human call made in the UI (see `shipeasy-common`).
+  states; deletion is a human call made in the UI.
 - **Never flip `wont_fix` without asking** — product decision.
 - **Recordings need human acknowledgement** — don't claim a bug fixed if you
   skipped its recording.
 - **Stop the loop on the first auth/permission error.** A `401`/`403` means
-  the binding or feedback module is wrong (`shipeasy-common` /
-  `shipeasy install ops`) — don't burn the whole queue reproducing the same
+  the binding or feedback module is wrong (`shipeasy install ops`) — don't burn
+  the whole queue reproducing the same
   failure.

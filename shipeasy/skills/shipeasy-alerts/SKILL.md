@@ -17,13 +17,13 @@ read-only and belong to `shipeasy-ops`. Alert rules ride the flags platform
 install (`shipeasy install flags` or `shipeasy setup`) and sit on top of the
 `events` + `metrics` you already defined.
 
-**Prerequisites live in the `shipeasy-common` skill.** Create / list / update
-alert rules through the `ops_alerts_create` / `ops_alerts_list` /
-`ops_alerts_update` MCP tools or the `shipeasy ops alerts …` CLI (same on every
-host; see `shipeasy-common` → surfaces). Parameter shapes, defaults, ranges,
-and constraints (e.g. which fields are immutable) live in the tool schema /
-`--help` and the API docs — the API enforces them and returns instructive
-errors, so don't restate them from memory.
+Create / list / update alert rules through the `ops_alerts_create` /
+`ops_alerts_list` / `ops_alerts_update` MCP tools or the `shipeasy ops alerts …`
+CLI (same on every host). Prerequisites: a `.shipeasy` binding and the flags
+platform install above. Parameter shapes, defaults, ranges, and constraints
+(e.g. which fields are immutable) live in the tool schema / `--help` and the API
+docs — the API enforces them and returns instructive errors, so don't restate
+them from memory.
 
 ## Create
 

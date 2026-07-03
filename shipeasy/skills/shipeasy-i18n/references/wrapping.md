@@ -3,8 +3,7 @@
 Every user-facing string becomes an i18n translate call — e.g. in JSX,
 `<button>Install with Claude</button>` becomes
 `<button>{i18n.t("landing.nav.cta", "Install with Claude")}</button>`. The
-exact, version-correct call form for this project's SDK language (see
-`shipeasy-common` → "Pulling SDK call sites"):
+exact, version-correct call form for this project's SDK language:
 
 {{SDK_SNIPPET:i18n/render}}
 

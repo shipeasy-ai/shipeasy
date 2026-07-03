@@ -13,11 +13,11 @@ materialises results on the daily analysis cron, not on read. The metric DSL
 is language-neutral; the event-tracking call is language-specific — the
 snippet in step 3 below is the version-correct form for this project's SDK.
 
-**Prerequisites live in the `shipeasy-common` skill** — the MCP ⇄ CLI ⇄ API
-surfaces (`metrics_*`, or `shipeasy metrics …`), updating on version drift, the
-`.shipeasy` binding, and enabling via the flags install. Events (the data
-metrics read) are enabled by `shipeasy install flags` (the
-`shipeasy install flags` (or `shipeasy setup`)).
+CRUD runs through the `metrics_*` MCP tools or the `shipeasy metrics …` CLI.
+Prerequisites: a `.shipeasy` binding and the flags module enabled — events (the
+data metrics read) come with the flags install (`shipeasy install flags`, or the
+guided `shipeasy setup`). Read parameter shapes from the tool (`--help` / MCP
+schema), not from here.
 
 ## Concepts
 
@@ -125,8 +125,7 @@ If the user picks option (3) — *new event* — propose the exact
 ### 3. Instrument (only if a new event was chosen)
 
 Edit one file. The tracking call below is the exact, version-correct form for
-this project's SDK language (see `shipeasy-common` → "Pulling SDK call
-sites") — use it verbatim:
+this project's SDK language — use it verbatim:
 
 {{SDK_SNIPPET:metrics/track}}
 
@@ -166,12 +165,12 @@ metrics over the wrong event are the most common avoidable mistake.
 ## Other operations
 
 Listing, showing, and the DSL grammar run through the `metrics_list` /
-`metrics_show` / `metrics_grammar` MCP tools or the `shipeasy metrics …` CLI
-(see `shipeasy-common` → surfaces). Creating goes through `metrics_create` (plus
+`metrics_show` / `metrics_grammar` MCP tools or the `shipeasy metrics …` CLI.
+Creating goes through `metrics_create` (plus
 `metrics_events_create` to register a new event) — the analyze → propose →
 instrument → create flow above is what this skill drives on an ask.
 
-Deletion is **UI-only** (see `shipeasy-common`).
+Deletion is **UI-only**.
 
 ## Relationship to experiments
 

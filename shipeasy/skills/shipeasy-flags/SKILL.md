@@ -11,12 +11,12 @@ A **gate** is a boolean (on/off, percentage rollout, targeting). A
 share the same KV blob and the same evaluation semantics — same SDK key,
 same call shape, fed by `@shipeasy/sdk`.
 
-**Prerequisites live in the `shipeasy-common` skill** — the MCP ⇄ CLI ⇄ API
-surfaces (`release_flags_*` / `release_configs_*` / `release_killswitch_*`, or
-`shipeasy release flags|configs|killswitch …`), updating on version drift, the
-`.shipeasy` binding, `shipeasy install flags` to enable (guided: the
-`shipeasy install flags` (or `shipeasy setup`)), and archive-not-delete.
-Read parameter shapes from the tool (`--help` / MCP schema), not from here.
+CRUD runs through the `release_flags_*` / `release_configs_*` /
+`release_killswitch_*` MCP tools or the `shipeasy release flags|configs|killswitch …`
+CLI. Prerequisites: a `.shipeasy` binding and the flags module enabled
+(`shipeasy install flags`, or the guided `shipeasy setup`). The destructive verb is
+**archive**, never delete. Read parameter shapes from the tool (`--help` / MCP
+schema), not from here.
 
 ## Creating
 
@@ -50,7 +50,7 @@ mcp tool: release_configs_create {
 ## Reading from the SDK
 
 The calls below are the exact, version-correct forms for this project's SDK
-language (see `shipeasy-common` → "Pulling SDK call sites"). Use them verbatim.
+language. Use them verbatim.
 
 Reading a gate:
 

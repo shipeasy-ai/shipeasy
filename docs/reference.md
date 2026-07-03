@@ -43,7 +43,6 @@ skill triggers from phrasing or the host's explicit skill invocation.
 | Skill | Covers | Auto-triggers on phrasing like… |
 | --- | --- | --- |
 | `shipeasy-setup` | Base onboarding: detect subprojects, install SDK, login, bind, keys, wiring | "set up shipeasy", "install shipeasy", "onboard shipeasy" |
-| `shipeasy-common` | Shared prerequisites: `.shipeasy` binding, MCP ⇄ CLI ⇄ API surfaces, version-drift updates, `docs_get` lookups, archive-not-delete | "shipeasy not working", "update shipeasy CLI/MCP", ".shipeasy file" |
 | `shipeasy-flags` | Feature gates, dynamic configs, kill switches | "feature flag", "rollout", "kill switch", "dynamic config" |
 | `shipeasy-experiments` | A/B experiments, universes, holdouts | "A/B test", "experiment", "split test", "holdout" |
 | `shipeasy-metrics` | Event metrics + the query DSL | "create metric", "track metric", "metric DSL" |

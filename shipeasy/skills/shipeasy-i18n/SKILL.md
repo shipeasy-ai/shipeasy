@@ -11,8 +11,8 @@ The canonical i18n surface. Use it whenever you change user-visible copy in a
 project that has the Shipeasy SDK installed, port another i18n library to
 Shipeasy, or stand up a new locale.
 
-**Prerequisites live in the `shipeasy-common` skill** — the MCP ⇄ CLI ⇄ API
-surfaces, updating on version drift, and the `.shipeasy` binding. Enable the
+The i18n API parts run through the `i18n_*` MCP tools or the `shipeasy i18n …`
+CLI. Prerequisites: a `.shipeasy` binding and the i18n module enabled. Enable the
 module with `shipeasy install i18n` (turns on `translations`, creates the
 `en:prod` profile, verifies the admin path, adds the loader-script judgment).
 
@@ -78,4 +78,4 @@ The i18n surface splits in two:
   locally and never sent to Shipeasy for translating —
   <references/translate.md>.
 - No deletion anywhere on this surface — removing keys/profiles is a
-  dashboard action (see `shipeasy-common`).
+  dashboard action.

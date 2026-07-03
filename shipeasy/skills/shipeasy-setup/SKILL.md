@@ -76,9 +76,10 @@ These mirror the doc's own rules — hold them even if you improvise:
 ## First fix: update before you debug
 
 `unknown command/option`, an unexpected `400`/`404`, or a regression is usually
-**version drift** — update and retry once before treating it as a bug:
-`npm i -g @shipeasy/cli@latest` (+ restart the MCP server). See the
-`shipeasy-common` skill for the per-surface update commands.
+**version drift** — update and retry once before treating it as a bug. Update per
+surface: the CLI with `npm i -g @shipeasy/cli@latest`, the MCP server with
+`npx -y @shipeasy/mcp@latest` (then restart it), and the plugin by re-installing
+it from its marketplace.
 
 ## If `shipeasy setup` isn't available or you need to drive it by hand
 

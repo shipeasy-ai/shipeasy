@@ -44,11 +44,12 @@ run on the same users independently of what's already running. Manage
 universes with the `release_experiments_universes_*` MCP tools (or
 `shipeasy release experiments universes …` on the CLI).
 
-**Prerequisites live in the `shipeasy-common` skill** — the MCP ⇄ CLI ⇄ API
-surfaces, updating on version drift, the `.shipeasy` binding, and
-archive-not-delete. Experiments aren't a separate module: they ride the flags
-install (`shipeasy install flags` — the `shipeasy install flags` (or `shipeasy setup`)). Read
-parameter shapes from the tool (`--help` / MCP schema), not from here.
+CRUD runs through the `release_experiments_*` /
+`release_experiments_universes_*` MCP tools or the `shipeasy release experiments …`
+CLI. Prerequisites: a `.shipeasy` binding and the module enabled — experiments
+aren't a separate module, they ride the flags install (`shipeasy install flags`, or
+the guided `shipeasy setup`). The destructive verb is **archive**, never delete.
+Read parameter shapes from the tool (`--help` / MCP schema), not from here.
 
 ## Designing
 
@@ -73,7 +74,7 @@ Before creating, decide:
 Lifecycle CRUD (list / start / stop / results / update / archive) and universe
 management run through the `release_experiments_*` /
 `release_experiments_universes_*` MCP tools or the `shipeasy release experiments
-…` CLI (see `shipeasy-common` → surfaces).
+…` CLI.
 
 When the design is already pinned down (you know the variation point, the
 groups, and the goal metric), jump straight to "Creating" below and call the
@@ -150,8 +151,7 @@ Q: Which metric should decide this experiment?
 ### Phase 3 — provision (in order, halt on first failure)
 
 The SDK calls in 3a and 3d below are the exact, version-correct forms for this
-project's SDK language (see `shipeasy-common` → "Pulling SDK call sites"). Use
-them verbatim.
+project's SDK language. Use them verbatim.
 
 For the chosen metric:
 
