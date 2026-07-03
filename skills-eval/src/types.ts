@@ -57,6 +57,19 @@ export interface EvalCase {
    *   "expect_state": { "events": ["checkout"], "experiments": ["checkout"] }
    */
   expect_state?: ExpectState;
+  /**
+   * Resources to pre-create via the admin API BEFORE the run, so a dedup case
+   * has an existing resource to (not) duplicate. Only flags + events supported.
+   *   "setup": { "flags": ["dedupe_checkout"] }
+   */
+  setup?: ExpectState;
+  /**
+   * Dedup outcome check: each named resource must still exist AND not have been
+   * duplicated — its match-count after the run is ≤ the count before (the agent
+   * reused the existing one rather than creating a second).
+   *   "expect_no_duplicate": { "flags": ["dedupe_checkout"] }
+   */
+  expect_no_duplicate?: ExpectState;
   /** Free-form note carried through to the report. */
   note?: string;
 }

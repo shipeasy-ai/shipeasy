@@ -17,5 +17,15 @@
     "tools_match": "any",
     "forbid_tools": ["metrics_create", "metrics_archive"],
     "note": "read-only ask must not create a metric"
+  },
+  {
+    "id": "shipeasy-metrics/dedupe-existing-event",
+    "prompt": "Start tracking a signup event called dedupe_signup.",
+    "expect_skill": "shipeasy-metrics",
+    "expect_tools": ["metrics_events_list"],
+    "tools_match": "any",
+    "setup": { "events": ["dedupe_signup"] },
+    "expect_no_duplicate": { "events": ["dedupe_signup"] },
+    "note": "DEDUP: dedupe_signup event is pre-created. The agent should list events, see it already exists, and reuse it — NOT register a duplicate. Outcome check: still exactly one dedupe_signup event."
   }
 ]

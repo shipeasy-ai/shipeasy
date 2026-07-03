@@ -24,7 +24,7 @@ import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { CASES_DIR } from "./catalog.js";
 import { prepareEnv, readEnvConfigFromEnv } from "./prepare-env.js";
-import { snapshotState, verifyState } from "./verify-state.js";
+import { setupState, snapshotState, verifyState, verifyNoDuplicate } from "./verify-state.js";
 import { parseTranscript } from "./transcript.js";
 import { scoreCase } from "./score.js";
 import { renderReport } from "./report.js";
@@ -60,8 +60,13 @@ console.log(
 const stateCfg = readEnvConfigFromEnv();
 const results: CaseResult[] = [];
 for (const c of cases) {
-  // Snapshot server state before the run so we can flag new vs pre-existing.
-  const before = c.expect_state ? await snapshotState(stateCfg, c.expect_state) : {};
+  // Pre-create any dedup fixtures, THEN snapshot (so they read as pre-existing).
+  if (c.setup) await setupState(stateCfg, c.setup);
+  const checksState = !!(c.expect_state || c.expect_no_duplicate);
+  const before = checksState
+    ? await snapshotState(stateCfg, c.expect_state ?? {}, c.expect_no_duplicate ?? {})
+    : {};
+
   const runs: Observation[] = [];
   for (let i = 0; i < K; i++) {
     const obs = runOnce(c, i, env.mcpConfigPath, workdir, transcriptsDir);
@@ -70,10 +75,26 @@ for (const c of cases) {
     process.stdout.write(obs.error ? "E" : skillOk ? "." : "x");
   }
   process.stdout.write(` ${c.id}\n`);
-  const state = c.expect_state
-    ? await verifyState(stateCfg, c.expect_state, before)
-    : undefined;
+
+  const state = checksState ? await mergeState(c, before) : undefined;
   results.push(scoreCase(c, runs, THRESHOLD, state));
+}
+
+/** Combine the existence + no-duplicate outcome checks into one state result. */
+async function mergeState(c: EvalCase, before: Awaited<ReturnType<typeof snapshotState>>) {
+  const parts: string[] = [];
+  let pass = true;
+  if (c.expect_state) {
+    const r = await verifyState(stateCfg, c.expect_state, before);
+    pass = pass && r.pass;
+    if (r.detail) parts.push(r.detail);
+  }
+  if (c.expect_no_duplicate) {
+    const r = await verifyNoDuplicate(stateCfg, c.expect_no_duplicate, before);
+    pass = pass && r.pass;
+    if (r.detail) parts.push(r.detail);
+  }
+  return { pass, detail: parts.join(" | ") };
 }
 
 const report = renderReport(results, THRESHOLD, K);

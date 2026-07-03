@@ -53,5 +53,15 @@
     "forbid_tools": ["release_flags_create"],
     "expect_state": { "killswitches": ["payment"] },
     "note": "ASPIRATIONAL: after the kill switch, the agent should ask (AskUserQuestion) whether to add a failure metric + alert so we know WHEN to flip it"
+  },
+  {
+    "id": "shipeasy-flags/dedupe-existing-gate",
+    "prompt": "Set up a feature flag called dedupe_checkout for the new checkout page.",
+    "expect_skill": "shipeasy-flags",
+    "expect_tools": ["release_flags_list"],
+    "tools_match": "any",
+    "setup": { "flags": ["dedupe_checkout"] },
+    "expect_no_duplicate": { "flags": ["dedupe_checkout"] },
+    "note": "DEDUP: dedupe_checkout is pre-created. The agent should list, find it exists, and reuse/point to it — NOT create a second gate. Outcome check: still exactly one dedupe_checkout gate after the run."
   }
 ]

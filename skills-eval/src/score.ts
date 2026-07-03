@@ -67,7 +67,8 @@ export function scoreCase(
   if (cleanRate < 1)
     misses.push(`forbidden tool called in ${pct(1 - cleanRate)} of runs`);
 
-  const statePass = c.expect_state ? (state?.pass ?? false) : null;
+  const checksState = !!(c.expect_state || c.expect_no_duplicate);
+  const statePass = checksState ? (state?.pass ?? false) : null;
   if (statePass === false)
     misses.push(`server state wrong after run — ${state?.detail || "resource not found"}`);
 
