@@ -18,6 +18,10 @@
     "./program": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./sdk-docs": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     }
   },
   "files": [

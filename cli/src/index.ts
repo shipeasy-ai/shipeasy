@@ -23,6 +23,12 @@ import { reportCliError } from "./util/error-reporter";
 import { withExamples, withDetails, withTreeHelp } from "./util/examples";
 import { checkForUpdate } from "./util/update-check";
 
+// Re-exported (not just used internally) so `@shipeasy/skills-contract` can
+// bake the same real, latest-published SDK snippets a `shipeasy setup` run
+// would write, instead of re-implementing the fetch+substitute logic. See
+// the `./sdk-docs` export below.
+export { fetchSdkDoc, substituteSdkSnippets } from "./setup/sdk-docs";
+
 /**
  * Source the version from package.json so it never drifts from the published
  * package. `__dirname` is `dist/` in the bundled build and `src/` in `tsx`

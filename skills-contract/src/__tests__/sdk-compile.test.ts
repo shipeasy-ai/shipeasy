@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join, relative } from "node:path";
 import { describe, it, expect, beforeAll } from "vitest";
 import ts from "typescript";
+import { substituteSdkSnippets } from "@shipeasy/cli/sdk-docs";
 
 import { type SdkSnippet, extractSdkSnippets } from "../scan.js";
 
@@ -11,6 +12,19 @@ import { type SdkSnippet, extractSdkSnippets } from "../scan.js";
 // (`.d.ts` from the installed package). A renamed facade, a dropped method, a
 // wrong argument shape — anything that would make the copied example fail to
 // compile in a user's project — fails CI instead of shipping.
+//
+// Skills carry a language-neutral body: SDK call sites are baked at install
+// time from `{{SDK_SNIPPET:handle}}` placeholders (see
+// `cli/src/setup/sdk-docs.ts`), not embedded as literal code. So this test
+// runs the SAME `substituteSdkSnippets` a real `shipeasy setup` uses — against
+// the real, latest-published `typescript` SDK docs (network fetch) — before
+// scanning for ```ts / ```tsx blocks. That reproduces exactly what a user's
+// installed skill would contain, including any snippet the SDK repo has since
+// renamed or dropped (a 404 degrades to a `docs get` pointer, which then
+// legitimately contains no `@shipeasy/sdk` import and is skipped here — not a
+// false failure, but also not a claim the handle exists; `skills.test.ts`'s
+// CLI/MCP surface checks are the analogous "does this reference still exist"
+// guard for commands/tools).
 //
 // Fragments are illustrative: they reference placeholder identifiers (`req`,
 // `user_id`, …) that aren't declared. Those surface as TS2304 ("cannot find
@@ -37,11 +51,15 @@ interface Prepared extends SdkSnippet {
   wrapped: string;
 }
 
+// Top-level await: baking is a network fetch (per distinct `{{SDK_SNIPPET:…}}`
+// handle, fetched once), so it has to happen before `describe`/`it.each` below
+// build their (synchronous) list of test cases.
 const snippets: Prepared[] = [];
 for (const file of skillFiles) {
   const rel = relative(REPO, file);
   const raw = readFileSync(file, "utf8");
-  for (const s of extractSdkSnippets(rel, raw)) {
+  const baked = await substituteSdkSnippets(raw, "typescript");
+  for (const s of extractSdkSnippets(rel, baked)) {
     const base = rel.replace(/[^a-z0-9]+/gi, "_") + "_" + s.index;
     const fileName = `${base}.${s.lang}`;
     // Hoisted imports at module scope; the rest inside an async fn so the
