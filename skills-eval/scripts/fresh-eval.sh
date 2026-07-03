@@ -105,6 +105,18 @@ BEARER="$(cd "$UI_DIR" && \
   node contract-tests/bootstrap.mjs)"
 if [[ -z "$BEARER" ]]; then echo "[fresh-eval] mint failed"; exit 1; fi
 
+# Warm the admin routes the MCP tools hit. `next dev` compiles each route on
+# first request; a cold route under an agent run returns a slow/transient error,
+# so the agent gives up and the transcript shows no tool calls ("saw [none]").
+# One serial GET per route forces compilation up front (status is irrelevant) —
+# same fix contract-tests/run.sh uses before its fuzz.
+echo "[fresh-eval] warming admin routes (compiling next dev handlers)..."
+for route in gates gates/templates killswitches configs experiments universes metrics events alert-rules ops attributes; do
+  curl -s -o /dev/null --max-time 60 \
+    -H "Authorization: Bearer $BEARER" -H "X-Project-Id: e2e-project-id" \
+    "$BASE_URL/api/admin/$route" || true
+done
+
 echo "[fresh-eval] running eval${FILTER:+ (filter: $FILTER)}..."
 cd "$EVAL_DIR"
 SHIPEASY_EVAL_TOKEN="$BEARER" \
