@@ -1,3 +1,6 @@
+/** A tool expectation: an exact tool name, or an OR-group (any-of). */
+export type ToolExpectation = string | string[];
+
 /** A param-level check: a tool call whose input must contain given substrings. */
 export interface ArgAssertion {
   /**
@@ -26,13 +29,18 @@ export interface EvalCase {
   /** Skills we expect to fire — ALL must appear (for cross-skill flows). */
   expect_skills?: string[];
   /**
-   * MCP tool suffixes we expect (e.g. "release_flags_create"). Semantics via
-   * `tools_match`:
-   *  - "all" (default when non-empty): every listed tool called at least once.
-   *  - "any": at least one listed tool called.
+   * Expected MCP tool suffixes. An entry is either a tool name (that exact tool
+   * must be called) or an array of names meaning "any one of these is
+   * acceptable" (an OR-group). This lets a flow require, say, a `*_list` dedup
+   * check AND one of several terminal actions:
+   *   ["ops_list", ["ops_create", "ops_bug"]]   // list, then create OR bug
+   * Semantics via `tools_match`:
+   *  - "all" (default when non-empty): every entry satisfied (each name called;
+   *    each OR-group has at least one member called).
+   *  - "any": at least one entry satisfied.
    *  - "none": candidates only, not asserted (seed default — promote them).
    */
-  expect_tools: string[];
+  expect_tools: ToolExpectation[];
   tools_match?: "all" | "any" | "none";
   /** Tool suffixes that must NOT be called (e.g. "release_flags_archive"). */
   forbid_tools?: string[];
@@ -92,4 +100,19 @@ export interface CaseResult {
 export function expectedSkills(c: EvalCase): string[] {
   if (c.expect_skills?.length) return c.expect_skills;
   return c.expect_skill ? [c.expect_skill] : [];
+}
+
+/** Is one expectation entry satisfied by the set of called tools? */
+export function expectationMet(entry: ToolExpectation, called: ReadonlySet<string>): boolean {
+  return Array.isArray(entry) ? entry.some((t) => called.has(t)) : called.has(entry);
+}
+
+/** Flatten expectations to a plain name list (for validation / display). */
+export function flattenTools(expect: ToolExpectation[]): string[] {
+  return expect.flatMap((e) => (Array.isArray(e) ? e : [e]));
+}
+
+/** Render one expectation entry for the report. */
+export function labelExpectation(entry: ToolExpectation): string {
+  return Array.isArray(entry) ? `(${entry.join(" | ")})` : entry;
 }

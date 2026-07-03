@@ -50,6 +50,22 @@ describe("scoreCase", () => {
     expect(r.misses.join(" ")).toContain("shipeasy-metrics");
   });
 
+  it("OR-group entry: any member satisfies that entry (list AND one-of-terminal)", () => {
+    const c: EvalCase = {
+      id: "ops/file",
+      prompt: "p",
+      expect_skill: "shipeasy-ops",
+      expect_tools: ["ops_list", ["ops_create", "ops_bug"]],
+      tools_match: "all",
+    };
+    // list + bug satisfies (bug is a member of the OR-group)
+    expect(scoreCase(c, [run(["shipeasy-ops"], ["ops_list", "ops_bug"])], 0.67).pass).toBe(true);
+    // list alone does not (the terminal OR-group is unmet)
+    const r = scoreCase(c, [run(["shipeasy-ops"], ["ops_list"])], 0.67);
+    expect(r.pass).toBe(false);
+    expect(r.misses.join(" ")).toContain("ops_create | ops_bug");
+  });
+
   it("'any' semantics: one of the listed tools suffices", () => {
     const c: EvalCase = {
       ...base,

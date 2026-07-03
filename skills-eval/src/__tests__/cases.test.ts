@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { CASES_DIR, KNOWN_TOOLS_SET } from "../catalog.js";
-import { expectedSkills, type EvalCase } from "../types.js";
+import { expectedSkills, flattenTools, type EvalCase } from "../types.js";
 
 /** Longest a prompt may be. Prompts must read like a quick human utterance. */
 const MAX_PROMPT_LEN = 140;
@@ -37,7 +37,7 @@ describe("committed cases are well-formed", () => {
     const bad: string[] = [];
     for (const c of cases) {
       const refs = [
-        ...c.expect_tools,
+        ...flattenTools(c.expect_tools),
         ...(c.forbid_tools ?? []),
         ...(c.assert_args ?? []).map((a) => a.tool).filter((t): t is string => !!t),
       ];

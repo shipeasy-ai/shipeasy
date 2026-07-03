@@ -1,4 +1,11 @@
-import { expectedSkills, type CaseResult, type EvalCase, type Observation } from "./types.js";
+import {
+  expectationMet,
+  expectedSkills,
+  labelExpectation,
+  type CaseResult,
+  type EvalCase,
+  type Observation,
+} from "./types.js";
 
 /**
  * Score one case's K runs into pass-rates. Routing is probabilistic, so a case
@@ -26,8 +33,8 @@ export function scoreCase(
     const called = new Set(run.tools);
     let toolOk: boolean;
     if (match === "none" || c.expect_tools.length === 0) toolOk = true;
-    else if (match === "any") toolOk = c.expect_tools.some((t) => called.has(t));
-    else toolOk = c.expect_tools.every((t) => called.has(t));
+    else if (match === "any") toolOk = c.expect_tools.some((e) => expectationMet(e, called));
+    else toolOk = c.expect_tools.every((e) => expectationMet(e, called));
     if (toolOk) toolHits++;
 
     if ((c.assert_args ?? []).every((a) => argHolds(a, run))) argHits++;
@@ -48,7 +55,7 @@ export function scoreCase(
     );
   if (match !== "none" && c.expect_tools.length && toolHitRate < threshold)
     misses.push(
-      `tools ${match}[${c.expect_tools.join(", ")}] satisfied ${pct(toolHitRate)} (< ${pct(threshold)}); saw [${uniq(runs.flatMap((r) => r.tools)).join(", ") || "none"}]`,
+      `tools ${match}[${c.expect_tools.map(labelExpectation).join(", ")}] satisfied ${pct(toolHitRate)} (< ${pct(threshold)}); saw [${uniq(runs.flatMap((r) => r.tools)).join(", ") || "none"}]`,
     );
   if ((c.assert_args ?? []).length && argHitRate < threshold)
     misses.push(

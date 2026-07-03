@@ -24,12 +24,12 @@
     "id": "shipeasy-flags/release-india",
     "prompt": "Release payments in India.",
     "expect_skill": "shipeasy-flags",
-    "expect_tools": ["release_flags_list", "release_flags_create"],
+    "expect_tools": ["release_flags_list", ["release_flags_create", "release_flags_enable"]],
     "tools_match": "all",
     "assert_args": [
       { "tool": "release_flags_create", "contains": ["india"] }
     ],
-    "note": "terse ask must still geo-target India — list first to see if a payments gate exists, then create one scoped to India"
+    "note": "terse ask must still geo-target India — list first to see if a payments gate exists, then create one (or enable/update the existing gate) scoped to India"
   },
   {
     "id": "shipeasy-flags/gated-list",

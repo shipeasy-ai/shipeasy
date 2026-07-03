@@ -3,21 +3,21 @@
     "id": "shipeasy-ops/file-bug",
     "prompt": "The CSV export button throws a 500 for accounts with more than 10k rows. Can you log that as a bug?",
     "expect_skill": "shipeasy-ops",
-    "expect_tools": ["ops_create", "ops_bug"],
-    "tools_match": "any",
-    "note": "file a new item into the operational queue (either the generic create or the bug sugar)"
+    "expect_tools": ["ops_list", ["ops_create", "ops_bug"]],
+    "tools_match": "all",
+    "note": "list first to check the same bug isn't already filed, then create (or the ops_bug sugar)"
   },
   {
     "id": "shipeasy-ops/file-bug-from-context",
     "prompt": "Dropping a subscription from 5 to 3 seats still charges for 5 until refresh — stale proration preview. File a bug.",
     "expect_skill": "shipeasy-ops",
-    "expect_tools": ["ops_create", "ops_bug"],
-    "tools_match": "any",
+    "expect_tools": ["ops_list", ["ops_create", "ops_bug"]],
+    "tools_match": "all",
     "assert_args": [
       { "contains": ["proration"] },
       { "contains": ["seat"] }
     ],
-    "note": "context-pickup: 'file a bug for that' must synthesise a complete report from the preceding description, not file an empty stub"
+    "note": "context-pickup: list to dedup, then synthesise a complete report from the preceding description (not an empty stub)"
   },
   {
     "id": "shipeasy-ops/triage-readonly",

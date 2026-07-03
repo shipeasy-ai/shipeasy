@@ -52,7 +52,8 @@ const transcriptsDir = join(workdir, "transcripts");
 mkdirSync(transcriptsDir, { recursive: true });
 
 console.log(
-  `skills-eval: ${cases.length} cases × ${K} runs, mode=${MODE}, model=${MODEL}\n`,
+  `skills-eval: ${cases.length} cases × ${K} runs, mode=${MODE}, model=${MODEL}` +
+    `\nsandbox app: ${env.appDir ? env.appDir.replace(/.*\/packages\//, "packages/") : "(none)"}\n`,
 );
 
 const results: CaseResult[] = [];
