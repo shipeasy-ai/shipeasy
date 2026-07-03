@@ -181,8 +181,17 @@ export function codexTomlSnippet(): string {
   return ["[mcp_servers.shipeasy]", `url = "${MCP_URL}"`].join("\n");
 }
 
-/** Resolve the JSON MCP config path + wrapper key for the file-based agents. */
-function jsonMcpTarget(
+/** Where Codex keeps its (TOML) config — no JSON helper covers this one. */
+export function codexConfigPath(): string {
+  return join(homedir(), ".codex", "config.toml");
+}
+
+/**
+ * Resolve the JSON MCP config path + wrapper key for the file-based agents.
+ * Exported so `shipeasy mcp status`/`uninstall` can check the same paths
+ * `registerMcp` writes, instead of re-deriving them independently.
+ */
+export function jsonMcpTarget(
   agent: AgentId,
   ctx: InstallCtx,
 ): { path: string; key: "mcpServers" | "servers" } | null {

@@ -1,45 +1,69 @@
 import { Command } from "commander";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { loadCredentials } from "../auth/storage";
-import { MCP_URL, SERVER_SPEC } from "../setup/agents";
-import { mergeMcpServer, readJsonConfig, writeJsonConfig } from "../util/json-config";
+import {
+  type AgentId,
+  type InstallCtx,
+  type McpResult,
+  MCP_URL,
+  codexConfigPath,
+  installClaudePlugin,
+  jsonMcpTarget,
+  registerMcp,
+} from "../setup/agents";
+import { readJsonConfig, writeJsonConfig } from "../util/json-config";
 import { withExamples } from "../util/examples";
-
-type ClientName = "claude" | "claude-project" | "cursor" | "cursor-project" | "windsurf";
-
-interface ClientTarget {
-  name: ClientName;
-  label: string;
-  path: string;
-}
 
 // The registered entry is the hosted, remote MCP server (mcp.shipeasy.ai) —
 // defined once in ../setup/agents so `shipeasy setup` and `shipeasy mcp install`
-// register the exact same thing.
+// register the exact same thing, through the exact same per-agent path (native
+// `claude plugin install` / `codex mcp add` where one exists, JSON-config merge
+// otherwise). This file must never re-derive that wiring independently.
 
-function targetsForScope(scope: "user" | "project", cwd: string): ClientTarget[] {
-  if (scope === "user") {
-    return [
-      {
-        name: "claude",
-        label: "Claude Code (user)",
-        path: join(homedir(), ".claude", "settings.json"),
-      },
-      { name: "cursor", label: "Cursor (user)", path: join(homedir(), ".cursor", "mcp.json") },
-    ];
-  }
-  return [
-    { name: "claude-project", label: "Claude Code (project)", path: join(cwd, ".mcp.json") },
-    { name: "cursor-project", label: "Cursor (project)", path: join(cwd, ".cursor", "mcp.json") },
-    { name: "windsurf", label: "Windsurf (project)", path: join(cwd, ".windsurf", "mcp.json") },
-  ];
+const ALL_AGENTS: AgentId[] = ["claude", "cursor", "codex", "copilot", "jules"];
+
+const AGENT_LABEL: Record<AgentId, string> = {
+  claude: "Claude Code",
+  cursor: "Cursor",
+  codex: "OpenAI Codex",
+  copilot: "GitHub Copilot",
+  jules: "Google Jules",
+};
+
+function resolveAgents(client: string | undefined): AgentId[] {
+  if (!client || client === "all") return ALL_AGENTS;
+  return ALL_AGENTS.filter((a) => a === client);
 }
 
-function filterByClient(targets: ClientTarget[], client: string | undefined): ClientTarget[] {
-  if (!client || client === "all") return targets;
-  return targets.filter((t) => t.name === client || t.name.startsWith(client + "-"));
+type McpConfigFile = { mcpServers?: Record<string, unknown>; servers?: Record<string, unknown> };
+
+/** Read + parse an assistant's MCP config file, tolerating "doesn't exist yet". */
+function readMcpConfig(path: string): McpConfigFile | null {
+  try {
+    return readJsonConfig<McpConfigFile>(path);
+  } catch {
+    return null;
+  }
+}
+
+function formatMcp(agent: AgentId, r: McpResult): string {
+  const label = AGENT_LABEL[agent];
+  switch (r.action) {
+    case "wrote":
+      return `✓ ${label}: wrote ${r.detail}`;
+    case "updated":
+      return `✓ ${label}: updated ${r.detail}`;
+    case "shell":
+      return `✓ ${label}: ${r.detail}`;
+    case "skipped":
+      return `• ${label}: ${r.detail}`;
+    case "manual":
+      return `• ${label} (manual): ${r.detail}`;
+    case "error":
+      return `✗ ${label}: ${r.detail}`;
+  }
 }
 
 export function mcpCommand(parent: Command): void {
@@ -50,7 +74,7 @@ export function mcpCommand(parent: Command): void {
   const installMcp = mcp
     .command("install")
     .description(`Register the hosted Shipeasy MCP server (${MCP_URL}) with installed AI assistants`)
-    .option("--client <name>", "Restrict to one client (claude | cursor | windsurf | all)", "all")
+    .option("--client <name>", "Restrict to one agent (claude | cursor | codex | copilot | jules | all)", "all")
     .option("--scope <scope>", "user | project", "user")
     .option("--force", "Replace an existing 'shipeasy' MCP entry without prompting")
     .option("--dry-run", "Print what would change without writing files")
@@ -62,50 +86,36 @@ export function mcpCommand(parent: Command): void {
         dryRun?: boolean;
       }) => {
         const scope = opts.scope === "project" ? "project" : "user";
-        const targets = filterByClient(targetsForScope(scope, process.cwd()), opts.client);
-        if (targets.length === 0) {
+        const agents = resolveAgents(opts.client);
+        if (opts.client && opts.client !== "all" && agents.length === 0) {
           console.error(
-            `No matching client targets for --client=${opts.client ?? "all"} --scope=${scope}`,
+            `Unknown --client=${opts.client}. Choose from: claude, cursor, codex, copilot, jules, all`,
           );
           process.exit(1);
         }
 
+        const ctx: InstallCtx = {
+          cwd: process.cwd(),
+          scope,
+          force: !!opts.force,
+          dryRun: !!opts.dryRun,
+        };
+
         let wrote = 0;
         let skipped = 0;
-        for (const t of targets) {
-          const existing = readJsonConfig(t.path);
-          if (existing === null && scope === "user") {
-            // For user-scope, only write to clients whose config dir exists.
-            const dir = t.path.replace(/\/[^/]+$/, "");
-            if (!existsSync(dir)) {
-              console.log(
-                `• ${t.label}: skipped (${dir} does not exist — assistant not installed?)`,
-              );
-              skipped++;
-              continue;
-            }
-          }
-          const { config, replaced } = mergeMcpServer(
-            existing,
-            "shipeasy",
-            SERVER_SPEC,
-            !!opts.force,
-          );
-          if (replaced && !opts.force) {
-            console.log(
-              `• ${t.label}: ${t.path} already has a 'shipeasy' entry — pass --force to replace.`,
-            );
-            skipped++;
+        for (const agent of agents) {
+          if (agent === "claude") {
+            const r = installClaudePlugin(ctx);
+            const icon = r.action === "error" ? "✗" : r.action === "manual" ? "•" : "✓";
+            for (const line of r.lines) console.log(`${icon} ${line}`);
+            if (r.action === "installed") wrote++;
+            else skipped++;
             continue;
           }
-          if (opts.dryRun) {
-            console.log(`• ${t.label}: would write ${t.path}`);
-            wrote++;
-            continue;
-          }
-          writeJsonConfig(t.path, config);
-          console.log(`✓ ${t.label}: ${replaced ? "updated" : "added"} ${t.path}`);
-          wrote++;
+          const r = registerMcp(agent, ctx);
+          console.log(formatMcp(agent, r));
+          if (r.action === "wrote" || r.action === "updated" || r.action === "shell") wrote++;
+          else skipped++;
         }
 
         console.log(`\nDone. ${wrote} written, ${skipped} skipped.`);
@@ -121,6 +131,7 @@ export function mcpCommand(parent: Command): void {
   withExamples(installMcp, [
     { run: "shipeasy mcp install" },
     { run: "shipeasy mcp install --client claude --scope project", note: "only Claude, project config" },
+    { run: "shipeasy mcp install --client codex", note: "shells out to `codex mcp add`" },
     { run: "shipeasy mcp install --force --dry-run", note: "preview a forced replace" },
   ]);
 
@@ -131,25 +142,18 @@ export function mcpCommand(parent: Command): void {
       console.log(`Scope:`);
       console.log(`  user    = $HOME (${homedir()})`);
       console.log(`  project = cwd  (${process.cwd()})\n`);
-      const targets = [
-        ...targetsForScope("user", process.cwd()),
-        ...targetsForScope("project", process.cwd()),
-      ];
-      const rows: { label: string; path: string; present: string }[] = [];
-      for (const t of targets) {
-        const cfg = (() => {
-          try {
-            return readJsonConfig<{ mcpServers?: Record<string, unknown> }>(t.path);
-          } catch {
-            return null;
-          }
-        })();
-        const present =
-          cfg && cfg.mcpServers && "shipeasy" in cfg.mcpServers ? "yes" : cfg ? "no" : "—";
-        rows.push({ label: t.label, path: t.path, present });
+
+      const cwd = process.cwd();
+      for (const scope of ["user", "project"] as const) {
+        const ctx: InstallCtx = { cwd, scope, force: false, dryRun: false };
+        for (const agent of ALL_AGENTS) {
+          // Codex and Jules aren't scoped per-project — report them once, on the user pass.
+          if ((agent === "codex" || agent === "jules") && scope === "project") continue;
+          const row = describeAgentStatus(agent, ctx);
+          if (row) console.log(`  ${row.present.padEnd(4)}  ${row.label.padEnd(30)}  ${row.detail}`);
+        }
       }
-      for (const r of rows)
-        console.log(`  ${r.present.padEnd(4)}  ${r.label.padEnd(28)}  ${r.path}`);
+
       const creds = loadCredentials();
       console.log(
         `\nAuth: ${creds ? `OK (project ${creds.project_id})` : "not logged in — run `shipeasy login`"}`,
@@ -165,33 +169,39 @@ export function mcpCommand(parent: Command): void {
   const uninstallMcp = mcp
     .command("uninstall")
     .description("Remove the 'shipeasy' MCP entry from AI-assistant configs")
-    .option("--client <name>", "Restrict to one client", "all")
+    .option("--client <name>", "Restrict to one agent", "all")
     .option("--scope <scope>", "user | project | both", "both")
     .action((opts: { client?: string; scope?: "user" | "project" | "both" }) => {
       const scopes: ("user" | "project")[] =
-        opts.scope === "user"
-          ? ["user"]
-          : opts.scope === "project"
-            ? ["project"]
-            : ["user", "project"];
-      const targets = scopes.flatMap((s) =>
-        filterByClient(targetsForScope(s, process.cwd()), opts.client),
-      );
+        opts.scope === "user" ? ["user"] : opts.scope === "project" ? ["project"] : ["user", "project"];
+      const agents = resolveAgents(opts.client);
+
       let removed = 0;
-      for (const t of targets) {
-        const cfg = (() => {
-          try {
-            return readJsonConfig<{ mcpServers?: Record<string, unknown> }>(t.path);
-          } catch {
-            return null;
-          }
-        })();
-        if (!cfg || !cfg.mcpServers || !("shipeasy" in cfg.mcpServers)) continue;
-        delete cfg.mcpServers.shipeasy;
-        writeJsonConfig(t.path, cfg);
-        console.log(`✓ removed shipeasy entry from ${resolve(t.path)}`);
-        removed++;
+      for (const scope of scopes) {
+        const ctx: InstallCtx = { cwd: process.cwd(), scope, force: false, dryRun: false };
+        for (const agent of agents) {
+          if (agent === "codex" || agent === "jules") continue; // no safe JSON path to edit
+          const target = jsonMcpTarget(agent, ctx);
+          if (!target) continue;
+          const cfg = readMcpConfig(target.path);
+          const servers = cfg?.[target.key];
+          if (!cfg || !servers || !("shipeasy" in servers)) continue;
+          delete servers.shipeasy;
+          writeJsonConfig(target.path, cfg);
+          console.log(`✓ removed shipeasy entry from ${target.path} (${AGENT_LABEL[agent]}, ${scope})`);
+          removed++;
+        }
       }
+
+      if (agents.includes("claude")) {
+        console.log(
+          "• Claude Code plugin: run `claude plugin uninstall shipeasy@shipeasy` to remove the native plugin install.",
+        );
+      }
+      if (agents.includes("codex")) {
+        console.log(`• OpenAI Codex: run \`codex mcp remove shipeasy\` (or edit ${codexConfigPath()}).`);
+      }
+
       console.log(`\nDone. ${removed} removed.`);
     });
 
@@ -199,4 +209,43 @@ export function mcpCommand(parent: Command): void {
     { run: "shipeasy mcp uninstall" },
     { run: "shipeasy mcp uninstall --client cursor --scope user" },
   ]);
+}
+
+interface StatusRow {
+  label: string;
+  present: string;
+  detail: string;
+}
+
+/** Best-effort "is shipeasy registered" check per agent, matching how `registerMcp` writes it. */
+function describeAgentStatus(agent: AgentId, ctx: InstallCtx): StatusRow | null {
+  const scoped = agent !== "codex" && agent !== "jules";
+  const label = scoped ? `${AGENT_LABEL[agent]} (${ctx.scope})` : AGENT_LABEL[agent];
+
+  if (agent === "claude" && ctx.scope === "user") {
+    const settings = readJsonConfig<{ enabledPlugins?: Record<string, boolean> }>(
+      join(homedir(), ".claude", "settings.json"),
+    );
+    const pluginInstalled = !!settings?.enabledPlugins?.["shipeasy@shipeasy"];
+    if (pluginInstalled) return { label, present: "yes", detail: "plugin installed (marketplace)" };
+    // fall through to the JSON-config check below for the non-plugin fallback path
+  }
+
+  if (agent === "codex") {
+    const path = codexConfigPath();
+    if (!existsSync(path)) return { label, present: "—", detail: `${path} (not found)` };
+    const present = readFileSync(path, "utf8").includes("[mcp_servers.shipeasy]");
+    return { label, present: present ? "yes" : "no", detail: path };
+  }
+
+  if (agent === "jules") {
+    return { label, present: "—", detail: "connected from Jules Settings (cloud, no local file)" };
+  }
+
+  const target = jsonMcpTarget(agent, ctx);
+  if (!target) return null;
+  const cfg = readMcpConfig(target.path);
+  const servers = cfg?.[target.key];
+  const present = servers && "shipeasy" in servers ? "yes" : cfg ? "no" : "—";
+  return { label, present, detail: target.path };
 }
