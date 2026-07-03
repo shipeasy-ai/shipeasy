@@ -232,6 +232,12 @@ Workflow-specific rules (on top of the "Hard rules" below):
 
 ## Creating
 
+**List before you create.** First `release_experiments_list` and check whether
+an experiment already covers this test — reuse or update it rather than creating
+a duplicate. Likewise list events + metrics before creating those (Phase 3), so
+you reuse an existing event/metric instead of duplicating it. Only create what's
+genuinely missing.
+
 The call is `release_experiments_create` (CLI: `shipeasy release experiments
 create`) — the payload shape is in Phase 3c above and the full param list,
 field semantics (weights, allocation, goal vs guardrail metrics), and

@@ -73,9 +73,13 @@ Two parallel searches:
 grep -rnE 'flags\.track\(\s*["'"'"']' --include='*.ts' --include='*.tsx' \
   --include='*.js' --include='*.jsx' src apps packages 2>/dev/null | head -50
 
-# (b) Existing metrics, in case the user really just wants a tweak.
-shipeasy metrics list            # generated module commands print JSON
+# (b) Already-registered events + existing metrics (reuse before creating).
+shipeasy metrics events list     # MCP: metrics_events_list — don't re-register an event
+shipeasy metrics list            # MCP: metrics_list — don't duplicate an existing metric
 ```
+
+Always check both lists first: reuse an existing event/metric when one fits
+rather than creating a duplicate.
 
 Then heuristically find *uninstrumented* candidates — places where a
 new `flags.track(...)` call would naturally belong:

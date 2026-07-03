@@ -20,6 +20,11 @@ Read parameter shapes from the tool (`--help` / MCP schema), not from here.
 
 ## Creating
 
+**Always list before you create.** First call `release_flags_list` (or
+`release_configs_list` / `release_killswitch_list`) and check whether a gate,
+config, or kill switch already covers this. If one matches, **reuse or update it
+— never create a duplicate**. Only create when nothing existing fits.
+
 Minimal call shapes — field semantics, aliases, and constraints are documented
 in the tool schema / `--help` and enforced by the API with instructive errors:
 
