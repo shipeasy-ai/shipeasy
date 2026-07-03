@@ -1,6 +1,6 @@
 ---
 name: skills-eval
-description: How to run the behavioural skills-eval — drive headless `claude -p` with prompts and assert the right Shipeasy skill fires, the right MCP tools get called, and the resulting server state is correct. Covers prerequisites (local backend + token), the seed/eval/test commands, every SHIPEASY_EVAL_* option, the report columns, the case format, and common recipes (run one skill, A/B a skill removal, outcome + dedup checks). Trigger on "run the skills eval", "run skills-eval", "eval the skills", "test the shipeasy skills", "does the skill route", "skill routing eval", "check the eval".
+description: How to run the behavioural skills-eval — drive headless `claude -p` with prompts and assert the right Shipeasy skill fires, the right MCP tools get called, and the resulting server state is correct. Covers the self-contained `eval:fresh` run (wipes + seeds its own isolated DB per run), the manual-backend `eval`, the seed/test commands, every SHIPEASY_EVAL_* option, the report columns, the case format, and common recipes (run one skill, A/B a skill removal, outcome + dedup checks). Trigger on "run the skills eval", "run skills-eval", "eval the skills", "test the shipeasy skills", "does the skill route", "skill routing eval", "check the eval".
 user-invocable: true
 ---
 
@@ -18,17 +18,51 @@ scores the tool-call transcript on several dimensions:
 - **clean** — did it avoid forbidden tools (a read-only ask never mutates)?
 
 It is the runtime layer above `@shipeasy/skills-contract` (which is static — "every
-tool a skill *mentions* exists"). Two speeds:
+tool a skill *mentions* exists"). Three ways to run:
 
-| command | checks | needs a model? | live backend? |
+| command | checks | needs a model? | backend |
 | --- | --- | --- | --- |
-| `pnpm --filter @shipeasy/skills-eval test` | the parser/scorer logic (unit tests) | no | no |
-| `pnpm --filter @shipeasy/skills-eval eval` | prompt → skill → tools → **server state** | **yes** (Haiku) | **yes** (`:3100`) |
+| `pnpm --filter @shipeasy/skills-eval test` | the parser/scorer logic (unit tests) | no | none |
+| `pnpm --filter @shipeasy/skills-eval eval:fresh` | prompt → skill → tools → **server state**, against a **freshly-wiped isolated DB it stands up itself** | **yes** (Haiku) | self-managed (`:3111`) |
+| `pnpm --filter @shipeasy/skills-eval eval` | same, but against a backend **you** already have running | **yes** (Haiku) | bring-your-own (`:3100`) |
 
-`test` is free and runs in CI. `eval` spawns real `claude` processes against a
-local backend, costs tokens, and takes ~2–4 min per case — run it on demand.
+`test` is free and runs in CI. **`eval:fresh` is the deterministic way to run** —
+it wipes + migrates + seeds its own DB per run so results don't depend on
+leftover state (see below). Plain `eval` points at a backend you manage. Both
+spawn real `claude` processes, cost tokens, and take ~10–20s per run (K runs per
+case, sequential — 42 runs at K=3 ≈ 15–20 min).
 
-## Prerequisites for `pnpm eval`
+## Fresh, isolated run (`eval:fresh`) — recommended
+
+`pnpm --filter @shipeasy/skills-eval eval:fresh [filter]` is self-contained. Per
+invocation it: **wipes** a dedicated persist dir (its own D1/KV, separate from
+your shared `.wrangler/state`) → **migrates** a fresh D1 → **boots** `next dev`
+on `:3111` pointed at it (via `SE_EVAL_PERSIST`, honoured by
+`apps/ui/next.config.ts`) → **seeds** the fixture project + **mints** an admin key
+(to a scratch file, so your `.contract-env.json` is untouched) → **warms** the
+admin routes → **runs** the eval → **tears the server down**.
+
+You only need `claude` on PATH and the MCP built (`pnpm --filter @shipeasy/mcp
+build`). No manual backend, token export, or state cleanup — the DB is pristine
+every run, so create-cases always create `new` (no leftover-dedup skew).
+
+```bash
+pnpm --filter @shipeasy/skills-eval eval:fresh flags        # one skill, K defaults to 3
+SHIPEASY_EVAL_K=1 pnpm --filter @shipeasy/skills-eval eval:fresh gated-list  # quick smoke
+```
+
+Extra env for `eval:fresh`: `SE_EVAL_PORT` (default `3111`), `SE_EVAL_PERSIST`
+(default `apps/ui/.wrangler/eval-state`). Any other `SHIPEASY_EVAL_*` var is
+passed through. Caveat: it uses `next dev`, which allows **one instance per
+project dir** — stop a parallel `apps/ui` `next dev` (e.g. your e2e server) first,
+or it hits Next's single-instance lock.
+
+## Manual backend (`pnpm eval`)
+
+Use plain `eval` to target a backend you already have up (e.g. a long-running
+`:3100` e2e server) — faster iteration when you don't need a wiped DB, at the
+cost of leftover-state skew (clear resources yourself, or just use `eval:fresh`).
+Prerequisites:
 
 1. **`claude` on PATH**, authenticated (macOS keychain works; else `ANTHROPIC_API_KEY`).
 2. **The local MCP built**: `pnpm --filter @shipeasy/mcp build` (the run launches
@@ -55,7 +89,9 @@ pnpm --filter @shipeasy/skills-eval seed
 pnpm --filter @shipeasy/skills-eval seed -- flags --force   # regenerate one skill
 
 # 2. Run the eval.
-pnpm --filter @shipeasy/skills-eval eval                 # all cases
+pnpm --filter @shipeasy/skills-eval eval:fresh           # RECOMMENDED: isolated fresh DB, all cases
+pnpm --filter @shipeasy/skills-eval eval:fresh flags     # isolated fresh DB, one skill
+pnpm --filter @shipeasy/skills-eval eval                 # against your own backend, all cases
 pnpm --filter @shipeasy/skills-eval eval -- flags        # cases whose file/id matches "flags"
 pnpm --filter @shipeasy/skills-eval eval -- ab-test      # a single case by id substring
 
@@ -158,8 +194,19 @@ SHIPEASY_EVAL_APP_DIR=$PWD/../packages/server-sdks/sdk-go/examples/guide \
   the authoritative "did it work"; the tool column measures *how*.
 - **Dedup cases are outcome-gated** (`tools_match: "none"`): the point is that no
   duplicate is created, however the agent gets there.
-- **`state` shows `new` vs `existing`** — a resource created by a prior run reads as
-  "existing". Clear test resources via the admin API for a clean "new" signal.
-- **Backend hang** — many heavy runs back-to-back can hang the `:3100` dev server; if
-  `curl localhost:3100/api/admin/gates` stops responding, restart it, then re-run.
-- **Never run concurrent `eval` invocations** — they overload the one backend. Sequence them.
+- **`state` shows `new` vs `existing`** — with plain `eval`, a resource a prior run
+  created reads as "existing" and a create-case then (correctly) dedups instead of
+  creating, scoring `tools ✗` for the wrong reason. **`eval:fresh` avoids this
+  entirely** — it wipes the DB per run, so create-cases always read `new`. On plain
+  `eval`, clear resources via the admin API for a clean signal.
+- **Cold routes → `saw [none]`** — `next dev` compiles each admin route on first hit;
+  a cold route stalls an agent run so its transcript has no tool calls. `eval:fresh`
+  warms the routes before running; if you roll your own backend, warm it first (one
+  GET per `/api/admin/*` route), as `apps/ui/contract-tests/run.sh` does.
+- **Backend hang / OOM** — a single `next dev` under many back-to-back runs can hang or
+  OOM (it carries a ~10 GB footprint: Next dev compiler + in-process miniflare/workerd).
+  `eval:fresh` runs against a fresh, isolated, uncontended server which survives best;
+  on a shared `:3100`, close browser tabs / stop parallel e2e and restart it if it stops
+  responding.
+- **Never run concurrent `eval` invocations** — they overload the one backend, and two
+  `next dev` in `apps/ui` trip Next's single-instance lock. Sequence them.
