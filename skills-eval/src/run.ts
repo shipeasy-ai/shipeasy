@@ -52,9 +52,12 @@ const env = prepareEnv(readEnvConfigFromEnv(), workdir);
 const transcriptsDir = join(workdir, "transcripts");
 mkdirSync(transcriptsDir, { recursive: true });
 
+const excluded = readEnvConfigFromEnv().excludeSkills ?? [];
 console.log(
   `skills-eval: ${cases.length} cases × ${K} runs, mode=${MODE}, model=${MODEL}` +
-    `\nsandbox app: ${env.appDir ? env.appDir.replace(/.*\/packages\//, "packages/") : "(none)"}\n`,
+    `\nsandbox app: ${env.appDir ? env.appDir.replace(/.*\/packages\//, "packages/") : "(none)"}` +
+    (excluded.length ? `\nexcluded skills: ${excluded.join(", ")}` : "") +
+    `\n`,
 );
 
 const stateCfg = readEnvConfigFromEnv();

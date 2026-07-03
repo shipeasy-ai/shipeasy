@@ -1,0 +1,18 @@
+[
+  {
+    "id": "shipeasy-see/wrap-error-handling",
+    "prompt": "Add proper error handling to the checkout charge code using the see() error framework.",
+    "expect_skill": "shipeasy-see",
+    "expect_tools": [],
+    "tools_match": "none",
+    "note": "ROUTING-ONLY: see() is a code pattern, not a backend resource, and code edits aren't observable under the MCP-only lockdown. This case just confirms an error-handling ask routes to the see skill."
+  },
+  {
+    "id": "shipeasy-see/migrate-console-error",
+    "prompt": "Migrate these console.error calls to the shipeasy see() error primitive.",
+    "expect_skill": "shipeasy-see",
+    "expect_tools": [],
+    "tools_match": "none",
+    "note": "routing-only: confirms a console.error→see() migration ask routes to the see skill"
+  }
+]

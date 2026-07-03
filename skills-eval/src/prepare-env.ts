@@ -51,6 +51,8 @@ export interface EnvConfig {
    * Absolute path; "" for a bare sandbox. Defaults to the sdk-ts guide example.
    */
   appDir?: string;
+  /** Skill directory names to NOT copy into the sandbox (A/B a skill's value). */
+  excludeSkills?: string[];
 }
 
 export interface PreparedEnv {
@@ -66,7 +68,11 @@ export function readEnvConfigFromEnv(): EnvConfig {
   const projectId = req("SHIPEASY_EVAL_PROJECT_ID");
   const baseUrl = process.env.SHIPEASY_EVAL_BASE_URL ?? "http://localhost:3100";
   const appDir = process.env.SHIPEASY_EVAL_APP_DIR ?? DEFAULT_APP_DIR;
-  return { token, projectId, baseUrl, appDir };
+  const excludeSkills = (process.env.SHIPEASY_EVAL_EXCLUDE_SKILLS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return { token, projectId, baseUrl, appDir, excludeSkills };
 }
 
 export function prepareEnv(cfg: EnvConfig, workdir: string): PreparedEnv {
@@ -93,9 +99,12 @@ export function prepareEnv(cfg: EnvConfig, workdir: string): PreparedEnv {
   );
 
   // 2. Skills — copy each shipped skill so headless `-p` can discover + route.
+  //    `exclude` drops named skills, to A/B whether one is load-bearing.
   const skillsDest = join(workdir, ".claude", "skills");
   mkdirSync(skillsDest, { recursive: true });
+  const exclude = new Set(cfg.excludeSkills ?? []);
   for (const name of readdirSync(SKILLS_DIR)) {
+    if (exclude.has(name)) continue;
     const src = join(SKILLS_DIR, name);
     try {
       cpSync(src, join(skillsDest, name), { recursive: true });

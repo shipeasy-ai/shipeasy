@@ -1,0 +1,18 @@
+[
+  {
+    "id": "shipeasy-i18n/add-key",
+    "prompt": "Add a translation key called welcome.title with the text \"Welcome back\".",
+    "expect_skill": "shipeasy-i18n",
+    "expect_tools": [["i18n_keys_set", "i18n_keys_push"]],
+    "tools_match": "any",
+    "note": "create/push an i18n key via MCP. May need i18n enabled + a profile on the project; if so the tool call surfaces the setup gap."
+  },
+  {
+    "id": "shipeasy-i18n/make-translatable",
+    "prompt": "Make the \"Add to cart\" button label on the checkout page translatable.",
+    "expect_skill": "shipeasy-i18n",
+    "expect_tools": [["i18n_keys_set", "i18n_keys_push"]],
+    "tools_match": "any",
+    "note": "wrapping a string is a code edit (not observable under the lockdown); the observable half is registering the key via MCP"
+  }
+]

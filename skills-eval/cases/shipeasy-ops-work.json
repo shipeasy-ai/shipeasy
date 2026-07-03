@@ -1,0 +1,18 @@
+[
+  {
+    "id": "shipeasy-ops-work/burn-down-queue",
+    "prompt": "Burn down the ops queue — start working the open bugs.",
+    "expect_skill": "shipeasy-ops-work",
+    "expect_tools": ["ops_list"],
+    "tools_match": "any",
+    "note": "the burn-down loop starts by listing the queue. Actually fixing an item needs code edits + git (not observable under the MCP-only lockdown), so this asserts the entry point: route to ops-work and pull the queue."
+  },
+  {
+    "id": "shipeasy-ops-work/work-top-item",
+    "prompt": "Pick up the highest-priority open item in the ops queue and look at what it needs.",
+    "expect_skill": "shipeasy-ops-work",
+    "expect_tools": ["ops_list", ["ops_get"]],
+    "tools_match": "any",
+    "note": "list the queue, then read an item's detail — the read half of the burn-down loop"
+  }
+]
