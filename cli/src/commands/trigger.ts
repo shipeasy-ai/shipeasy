@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { getApiClient, ApiError } from "../api/client";
+import { getApiClient, printApiError } from "../api/client";
 import { printJson } from "../util/output";
 import { withExamples, withDetails } from "../util/examples";
 
@@ -239,8 +239,7 @@ export function triggerCommand(parent: Command): Command {
           console.log("     (registers the connector; idempotent, tokenless is fine)");
           console.log("  Portal: https://claude.ai/code/routines");
         } catch (e) {
-          if (e instanceof ApiError) console.error(`Error (${e.status}): ${e.message}`);
-          else console.error(String(e));
+          printApiError(e);
           process.exit(1);
         }
       },

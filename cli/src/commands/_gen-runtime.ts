@@ -1,5 +1,5 @@
 import type { Command } from "commander";
-import { ApiError } from "../api/client";
+import { ApiError, printApiError } from "../api/client";
 import { getGeneratedClient } from "../api/client";
 import { printJson } from "../util/output";
 
@@ -38,8 +38,7 @@ export const genCtx: GenCtx = {
       }
       (print ?? printJson)(data);
     } catch (e) {
-      if (e instanceof ApiError) console.error(`Error (${e.status}): ${e.message}`);
-      else console.error(String(e));
+      printApiError(e);
       process.exit(1);
     }
   },

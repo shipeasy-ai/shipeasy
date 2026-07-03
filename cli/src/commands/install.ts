@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { getApiClient, ApiError } from "../api/client";
+import { getApiClient, ApiError, printApiError } from "../api/client";
 import { printJson } from "../util/output";
 import { withExamples, withDetails } from "../util/examples";
 
@@ -234,8 +234,7 @@ export function installCommand(parent: Command): Command {
             );
           }
         } catch (e) {
-          if (e instanceof ApiError) console.error(`Error (${e.status}): ${e.message}`);
-          else console.error(String(e));
+          printApiError(e);
           process.exit(1);
         }
       },

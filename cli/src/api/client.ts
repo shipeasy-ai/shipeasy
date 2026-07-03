@@ -1,5 +1,6 @@
 import { createClient, createClientConfig, type Client } from "@shipeasy/openapi/client";
-import { loadCredentials } from "../auth/storage";
+import { formatAuthFailure } from "@shipeasy/openapi";
+import { loadCredentials, diagnoseMissingCredentials } from "../auth/storage";
 import { getBoundProjectId } from "../util/project-config";
 
 /**
@@ -17,6 +18,20 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The one place every CLI command (generated + hand-written) should print a
+ * caught error. Auth failures (401/403) get structured, actionable
+ * remediation via `formatAuthFailure`; everything else falls back to the
+ * plain `Error (<status>): <message>` form. Callers still own `process.exit`.
+ */
+export function printApiError(e: unknown): void {
+  if (e instanceof ApiError) {
+    console.error(formatAuthFailure("cli", e.status, e.message) ?? `Error (${e.status}): ${e.message}`);
+  } else {
+    console.error(String(e));
+  }
+}
+
 export interface ApiClientOptions {
   /**
    * When true (default for any mutating subcommand), refuse to run unless the
@@ -29,18 +44,31 @@ export interface ApiClientOptions {
 function resolveContext(projectOverride: string | undefined, opts: ApiClientOptions) {
   const creds = loadCredentials();
   if (!creds) {
-    console.error("Not logged in. Run: shipeasy login");
+    console.error(
+      [
+        `AUTH_REQUIRED: no valid Shipeasy credentials found for this CLI.`,
+        ``,
+        `Cause: ${diagnoseMissingCredentials()}`,
+        `Fix:`,
+        `  1. Run: shipeasy login`,
+        `     (or set both SHIPEASY_CLI_TOKEN and SHIPEASY_PROJECT_ID)`,
+        `  2. Retry the command that failed.`,
+      ].join("\n"),
+    );
     process.exit(1);
   }
   const bound = getBoundProjectId(process.cwd());
   if (opts.requireBinding && !projectOverride && !bound) {
     console.error(
       [
-        `This command writes to a Shipeasy project, but no project is bound to`,
-        `this directory.`,
+        `PROJECT_NOT_BOUND: this command writes to a Shipeasy project, but no`,
+        `project is bound to this directory.`,
         ``,
-        `Bind it with:   shipeasy bind ${creds.project_id}`,
-        `Or pass:        --project <project_id>`,
+        `Cause: no .shipeasy file found walking up from the working directory.`,
+        `Fix:`,
+        `  1. Run: shipeasy bind ${creds.project_id}`,
+        `     Or pass: --project <project_id>`,
+        `  2. Retry the command that failed.`,
         ``,
         `(.shipeasy is searched up the directory tree, like .git.)`,
       ].join("\n"),

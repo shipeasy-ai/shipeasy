@@ -26,6 +26,8 @@ export {
   ERROR_CODES,
   isApiErrorBody,
   errorCodeOf,
+  formatAuthFailure,
   type ErrorCode,
   type ApiErrorBody,
+  type AuthSurface,
 } from "./errors.js";

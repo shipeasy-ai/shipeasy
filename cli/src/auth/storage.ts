@@ -52,6 +52,37 @@ export function loadCredentials(): ShipeasyConfig | null {
   }
 }
 
+/**
+ * Explain *why* `loadCredentials()` returned `null`, so the auth-failure
+ * message can point at the actual gap (e.g. one of the two env vars is set
+ * but not the other, or the config file is missing just `project_id`)
+ * instead of a blanket "not logged in" that's wrong advice for those cases.
+ */
+export function diagnoseMissingCredentials(): string {
+  const token = process.env.SHIPEASY_CLI_TOKEN?.trim();
+  const projectId = process.env.SHIPEASY_PROJECT_ID?.trim();
+  if (token && !projectId) {
+    return "SHIPEASY_CLI_TOKEN is set but SHIPEASY_PROJECT_ID is missing — both env vars are required together.";
+  }
+  if (!token && projectId) {
+    return "SHIPEASY_PROJECT_ID is set but SHIPEASY_CLI_TOKEN is missing — both env vars are required together.";
+  }
+  const p = configPath();
+  try {
+    const raw = fs.readFileSync(p, "utf-8");
+    const parsed = JSON.parse(raw) as Partial<ShipeasyConfig>;
+    if (parsed.cli_token && !parsed.project_id) {
+      return `${p} has a cli_token but no project_id — the config file is corrupt or from an old format.`;
+    }
+    if (!parsed.cli_token && parsed.project_id) {
+      return `${p} has a project_id but no cli_token — the config file is corrupt or from an old format.`;
+    }
+  } catch {
+    // file missing/unreadable — the generic message below covers this
+  }
+  return `no ${p} and no SHIPEASY_CLI_TOKEN / SHIPEASY_PROJECT_ID env vars.`;
+}
+
 export function saveCredentials(creds: ShipeasyConfig): void {
   const p = configPath();
   fs.mkdirSync(path.dirname(p), { recursive: true });

@@ -48,6 +48,12 @@ async function main(): Promise<number> {
     return 0;
   }
 
+  {
+    const { default: pkg } = await import("../package.json", { with: { type: "json" } });
+    const { checkForUpdate } = await import("./util/update-check.js");
+    await checkForUpdate(pkg.version);
+  }
+
   switch (cmd) {
     case undefined:
     case "":

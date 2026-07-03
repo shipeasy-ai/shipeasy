@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { Command, CommanderError } from "commander";
 import { login } from "./auth/login";
 import { clearCredentials, loadCredentials } from "./auth/storage";
+import { ApiError, printApiError } from "./api/client";
 import { registerGeneratedCommands } from "./generated/commands.gen";
 import { genCtx } from "./commands/_gen-runtime";
 import { customCommands } from "./commands/custom";
@@ -20,6 +21,19 @@ import { bindProject, findProjectConfigDir, readProjectConfig } from "./util/pro
 import { printJson } from "./util/output";
 import { reportCliError } from "./util/error-reporter";
 import { withExamples, withDetails, withTreeHelp } from "./util/examples";
+import { checkForUpdate } from "./util/update-check";
+
+/**
+ * Source the version from package.json so it never drifts from the published
+ * package. `__dirname` is `dist/` in the bundled build and `src/` in `tsx`
+ * dev — both resolve `../package.json` to the package root.
+ */
+function readOwnVersion(): string {
+  const { version } = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf8")) as {
+    version: string;
+  };
+  return version;
+}
 
 /**
  * Construct the fully-wired command tree without parsing argv or registering
@@ -30,12 +44,7 @@ import { withExamples, withDetails, withTreeHelp } from "./util/examples";
 export function buildProgram(): Command {
   const program = new Command();
 
-  // Source the version from package.json so `--version` never drifts from the
-  // published package. `__dirname` is `dist/` in the bundled build and `src/` in
-  // `tsx` dev — both resolve `../package.json` to the package root.
-  const { version } = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf8")) as {
-    version: string;
-  };
+  const version = readOwnVersion();
 
   program.name("shipeasy").description("CLI for the ShipEasy experiment platform").version(version);
 
@@ -219,6 +228,10 @@ function applyExitOverride(cmd: Command): void {
  * tests never trigger a parse or `process.exit`.
  */
 export async function run(argv: string[] = process.argv): Promise<void> {
+  // Runs before dispatch (not after) because most command failures call
+  // `process.exit()` directly from inside their action handler and never
+  // return control here — this is the one place guaranteed to run either way.
+  await checkForUpdate(readOwnVersion());
   const program = buildProgram();
   try {
     await program.parseAsync(argv);
@@ -239,7 +252,8 @@ export async function run(argv: string[] = process.argv): Promise<void> {
       });
       process.exit(err.exitCode ?? 1);
     }
-    console.error(err instanceof Error ? err.message : String(err));
+    if (err instanceof ApiError) printApiError(err);
+    else console.error(err instanceof Error ? err.message : String(err));
     process.exit(1);
   }
 }

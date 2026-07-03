@@ -1,5 +1,6 @@
+import { formatAuthFailure } from "@shipeasy/openapi";
 import { ApiError } from "../tools/_gen-runtime.js";
-import { readConfig, type ShipeasyConfig } from "../auth/config.js";
+import { readConfig, diagnoseMissingConfig, type ShipeasyConfig } from "../auth/config.js";
 import { getBoundProjectIdSync } from "./project-config.js";
 
 export { ApiError };
@@ -61,13 +62,21 @@ export async function getApiClient(): Promise<ApiClient | null> {
   };
 }
 
-export function notAuthenticated() {
+export async function notAuthenticated() {
   return {
     isError: true,
     content: [
       {
         type: "text" as const,
-        text: "Not authenticated. Run `shipeasy auth login` in the terminal first.",
+        text: [
+          `AUTH_REQUIRED: no valid Shipeasy credentials found for this MCP server.`,
+          ``,
+          `Cause: ${await diagnoseMissingConfig()}`,
+          `Fix:`,
+          `  1. Run in a terminal: shipeasy-mcp install`,
+          `  2. Complete the browser login it opens.`,
+          `  3. Retry the tool call that failed.`,
+        ].join("\n"),
       },
     ],
   };
@@ -85,20 +94,30 @@ export function notBound(client: { cfg: ShipeasyConfig }) {
     content: [
       {
         type: "text" as const,
-        text:
-          `This MCP tool writes to a Shipeasy project, but the working directory ` +
-          `is not bound to one. Run \`shipeasy bind ${client.cfg.project_id}\` ` +
-          `in the project root to bind it (writes a .shipeasy file). ` +
+        text: [
+          `PROJECT_NOT_BOUND: this MCP tool writes to a Shipeasy project, but the`,
+          `working directory is not bound to one.`,
+          ``,
+          `Cause: no .shipeasy file found walking up from the working directory.`,
+          `Fix:`,
+          `  1. Run in the project root: shipeasy bind ${client.cfg.project_id}`,
+          `  2. Retry the tool call that failed.`,
+          ``,
           `Reads continue to work without binding.`,
+        ].join("\n"),
       },
     ],
   };
 }
 
 export function apiErr(err: unknown) {
+  const text =
+    err instanceof ApiError
+      ? (formatAuthFailure("mcp", err.status, err.message) ?? `Error (${err.status}): ${err.message}`)
+      : String(err);
   return {
     isError: true,
-    content: [{ type: "text" as const, text: String(err) }],
+    content: [{ type: "text" as const, text }],
   };
 }
 

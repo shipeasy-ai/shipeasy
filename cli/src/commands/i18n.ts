@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve, join } from "node:path";
-import { getApiClient, ApiError } from "../api/client";
+import { getApiClient, ApiError, printApiError } from "../api/client";
 import { printJson, printTable } from "../util/output";
 import { getI18nClientKey, saveI18nClientKey } from "../util/project-config";
 import { API_BASE_URL } from "../auth/storage";
@@ -212,11 +212,7 @@ export function i18nCommand(parent: Command): Command {
               );
           }
         } catch (e) {
-          if (e instanceof ApiError) {
-            console.error(`Error (${e.status}): ${e.message}`);
-          } else {
-            console.error(String(e));
-          }
+          printApiError(e);
           process.exit(1);
         }
       },
@@ -262,11 +258,7 @@ export function i18nCommand(parent: Command): Command {
           console.log(`\nShowing first 200 of ${candidates.length}. Use --json for the full list.`);
         }
       } catch (e) {
-        if (e instanceof ApiError) {
-          console.error(`Error (${e.status}): ${e.message}`);
-        } else {
-          console.error(String(e));
-        }
+        printApiError(e);
         process.exit(1);
       }
     });
@@ -389,11 +381,7 @@ export function i18nCommand(parent: Command): Command {
             process.exit(1);
           }
         } catch (e) {
-          if (e instanceof ApiError) {
-            console.error(`Error (${e.status}): ${e.message}`);
-          } else {
-            console.error(String(e));
-          }
+          printApiError(e);
           process.exit(1);
         }
       },
@@ -466,8 +454,7 @@ export function i18nCommand(parent: Command): Command {
           if (opts.json) return printJson(result);
           console.log(`Updated '${key}' in profile '${opts.profile}'.`);
         } catch (e) {
-          if (e instanceof ApiError) console.error(`Error (${e.status}): ${e.message}`);
-          else console.error(String(e));
+          printApiError(e);
           process.exit(1);
         }
       },
@@ -513,8 +500,7 @@ export function i18nCommand(parent: Command): Command {
         if (opts.json) return printJson(result);
         console.log(`Published profile '${opts.profile}' chunk '${opts.chunk}'.`);
       } catch (e) {
-        if (e instanceof ApiError) console.error(`Error (${e.status}): ${e.message}`);
-        else console.error(String(e));
+        printApiError(e);
         process.exit(1);
       }
     });
@@ -588,8 +574,7 @@ export function i18nCommand(parent: Command): Command {
             process.exit(1);
           }
         } catch (e) {
-          if (e instanceof ApiError) console.error(`Error (${e.status}): ${e.message}`);
-          else console.error(String(e));
+          printApiError(e);
           process.exit(1);
         }
       },
@@ -629,8 +614,7 @@ export function i18nCommand(parent: Command): Command {
           ]),
         );
       } catch (e) {
-        if (e instanceof ApiError) console.error(`Error (${e.status}): ${e.message}`);
-        else console.error(String(e));
+        printApiError(e);
         process.exit(1);
       }
     });
@@ -672,8 +656,7 @@ export function i18nCommand(parent: Command): Command {
           if (opts.json) return printJson(created);
           console.log(`Created profile '${created.name}' (id ${created.id.slice(0, 8)})`);
         } catch (e) {
-          if (e instanceof ApiError) console.error(`Error (${e.status}): ${e.message}`);
-          else console.error(String(e));
+          printApiError(e);
           process.exit(1);
         }
       },
