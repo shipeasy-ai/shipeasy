@@ -19,6 +19,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   const g_release_killswitch = defineGroup(g_release, "killswitch", { summary: "Killswitches: per-env boolean overrides for kill-style operational toggles.", help: "Killswitches: per-env boolean overrides for kill-style operational toggles. Optimised for incident response — no rules, no rollout, just a flat boolean (plus optional per-key overrides) versioned per environment.\n\n**Identity.** Each killswitch is keyed by `name` in `folder.name` form (e.g. `payments.checkout`). Immutable after create.\n\n**Per-env values.** Every killswitch stores one version stream per env (`dev`, `stage`, `prod`). A `PATCH` with `value`/`switches` applies to **every** env in one shot (publishes a new version per env). To touch a single env, use `PUT /{id}/switch` and friends.\n\n**Switches map.** Optional `switches: { key: bool }` overrides the flat `value` for specific named call sites — useful for region/feature-scoped kills.\n\n**Versioning.** Each publish (create, update, set-switch, unset-switch) bumps the per-env `version` monotonically. SDKs deliver the latest published version.", aliases: ["ks"] });
   const g_release_experiments_universes = defineGroup(g_release_experiments, "universes", { summary: "Universes: the shared bucketing space all experiments draw from.", help: "Universes: the shared bucketing space all experiments draw from.\n\n**Identity.** Each universe is keyed by a stable `name` (a-z, 0-9, `_`/`-`, max 64 chars). Experiments reference it via `universe: '<name>'`. The name is immutable.\n\n**Unit of randomisation.** `unit_type` selects the attribute hashed into a 0–9999 bucket — default `user_id` for per-user randomisation, `account_id` to keep a whole account in the same group.\n\n**Holdout.** `holdout_range` is an inclusive `[lo, hi]` bucket range (0–9999) reserved for measurement — callers hashed into the holdout are excluded from every experiment in the universe. Pro plan or higher.\n\n**Deletion.** Blocked while any non-archived experiment references the universe — archive those first.", aliases: [] });
   const g_release_flags_attributes = defineGroup(g_release_flags, "attributes", { summary: "Targeting attributes: the auto-inferred schema of user-context keys the platform has observed in evaluation calls.", help: "Targeting attributes: the auto-inferred schema of user-context keys the\nplatform has observed in evaluation calls. Read-only — populated by the\nSDK hot path, surfaced here so you can see which keys (and value types)\nare available when writing gate/experiment targeting rules.", aliases: [] });
+  const g_release_flags_templates = defineGroup(g_release_flags, "templates", { summary: "Targeting-rule templates: reusable `{ attr, op, value }` rule definitions (country, email-domain, region presets, …).", help: "Targeting-rule templates: reusable `{ attr, op, value }` rule definitions\n(country, email-domain, region presets, …). Read-only built-ins ship with\nthe platform; each project can also save its own. To target by\ncountry/plan/region, list templates, copy the matching template's `rules`,\nsubstitute the concrete value(s), and pass them to `release flags create`.", aliases: [] });
 
   g_metrics.command("list")
     .description("List metrics")
@@ -31,7 +32,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .argument("<name>", "Stable metric key. Single segment or `folder.name`; lowercase letters, digits, `_`/`-`; max 128 chars.")
     .option("--folder <value>", "Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).")
     .option("--event-name <value>", "Source event the query reads from.")
-    .option("--query <value>", "Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`.")
+    .option("--query <value>", "Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`. Every label the query references — in filters, the value position, `by (…)`, or `without (…)` — must exist as a property on the tracked event's payload; a query over a label the event never carries validates fine but returns empty results.")
     .option("--winsorize-pct <value>", "Winsorise percentile (1–99) to clamp outliers. Defaults to 99.")
     .option("--min-detectable-effect <value>", "Minimum detectable effect (relative, 0–1) for power planning. `null` to omit.")
     .option("--direction <value>", "Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).")
@@ -51,7 +52,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .argument("<id>", "Stable opaque metric id (`met_…`) or the metric's `name`.")
     .option("--folder <value>", "Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).")
     .option("--event-name <value>", "Source event the query reads from.")
-    .option("--query <value>", "Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`.")
+    .option("--query <value>", "Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`. Every label the query references — in filters, the value position, `by (…)`, or `without (…)` — must exist as a property on the tracked event's payload; a query over a label the event never carries validates fine but returns empty results.")
     .option("--winsorize-pct <value>", "Winsorise percentile (1–99) to clamp outliers. Defaults to 99.")
     .option("--min-detectable-effect <value>", "Minimum detectable effect (relative, 0–1) for power planning. `null` to omit.")
     .option("--direction <value>", "Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).")
@@ -138,7 +139,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--steps-to-reproduce <value>", "Updated reproduction steps.")
     .option("--actual-result <value>", "Updated actual result.")
     .option("--expected-result <value>", "Updated expected result.")
-    .option("--status <value>", "Lifecycle status of a queue item. The working flow is `open` → `triaged` → `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`). Two human-gated holding states park an item OUT of the work queue until a human promotes it to `open` in the dashboard, so `GET /api/admin/ops` excludes them under `status=all`/default and returns them only when requested as an exact `status`: `pending_approval` is the pre-open approval gate for untriaged inbound (e.g. connector requests filed from a customer's connectors panel) so it never gets auto-implemented — approving = flipping the status to `open`; `triage` is the onboarding-help bucket — questions/errors submitted to the \"Stuck in onboarding?\" assistant are funnelled into the platform project as `triage` rows so the team can see where people get stuck and follow up, keeping onboarding chatter out of the work queue until a human moves real items to `open`.")
+    .option("--status <value>", "Lifecycle status of a queue item. The working flow is `open` → `triaged` → `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`, terminal from any earlier stage). `ready_for_qa` is what a developer sets once a fix lands; `resolved` is the QA sign-off, normally flipped in the dashboard after verification — set it directly from code only when the fix has been verified end-to-end. Two human-gated holding states park an item OUT of the work queue until a human promotes it to `open` in the dashboard, so `GET /api/admin/ops` excludes them under `status=all`/default and returns them only when requested as an exact `status`: `pending_approval` is the pre-open approval gate for untriaged inbound (e.g. connector requests filed from a customer's connectors panel) so it never gets auto-implemented — approving = flipping the status to `open`; `triage` is the onboarding-help bucket — questions/errors submitted to the \"Stuck in onboarding?\" assistant are funnelled into the platform project as `triage` rows so the team can see where people get stuck and follow up, keeping onboarding chatter out of the work queue until a human moves real items to `open`.")
     .option("--priority <value>", "Triage priority, or `null` when not set (in an update, `null` clears it).")
     .option("--github-pr-number <value>", "Link (or, when `null`, unlink) a GitHub pull request to this bug.")
     .option("--notify <value>", "Where this item's completion notification lands, or `null`.")
@@ -754,5 +755,51 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--data <value>", "Request body as a JSON object.")
     .action(async (id, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.deleteAttribute({ client, path: { id: id }, body: json(opts.data) as never }) });
+    });
+  g_release_flags_templates.command("list")
+    .description("List gate templates")
+    .option("--query <value>", "Case-insensitive substring filter over each template's `name` + `description`. Omit to return the whole catalog.")
+    .option("--limit <value>", "Page size (1–500). Defaults to 100.")
+    .option("--cursor <value>", "Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.listGateTemplates({ client, query: clean({ query: str(opts.query), limit: num(opts.limit), cursor: str(opts.cursor) }), body: json(opts.data) as never }) });
+    });
+  g_release_flags_templates.command("create")
+    .description("Create a gate template")
+    .argument("<name>", "Human label. Unique per project.")
+    .option("--description <value>", "One-liner shown in pickers and matched by the list `query` filter.")
+    .option("--category <value>", "")
+    .option("--icon-key <value>", "Display-only icon hint.")
+    .option("--auto <value>", "Mark the attribute as request-derived (resolved at the SDK edge).")
+    .option("--rules <value>", "The rule definition captured by the template.")
+    .action(async (name, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.createGateTemplate({ client, body: clean({ name: name, description: str(opts.description), category: str(opts.category), icon_key: str(opts.iconKey), auto: bool(opts.auto), rules: json(opts.rules) }) }) });
+    });
+  g_release_flags_templates.command("get")
+    .description("Get one gate template")
+    .argument("<id>", "Built-in slug (`country`) or customer template id (`gtpl_…`).")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (id, opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.getGateTemplate({ client, path: { id: id }, body: json(opts.data) as never }) });
+    });
+  g_release_flags_templates.command("update")
+    .description("Update a gate template")
+    .argument("<id>", "Customer template id (`gtpl_…`) or its `name`.")
+    .option("--name <value>", "")
+    .option("--description <value>", "")
+    .option("--category <value>", "")
+    .option("--icon-key <value>", "")
+    .option("--auto <value>", "")
+    .option("--rules <value>", "")
+    .action(async (id, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.updateGateTemplate({ client, path: { id: id }, body: clean({ name: str(opts.name), description: str(opts.description), category: str(opts.category), icon_key: str(opts.iconKey), auto: bool(opts.auto), rules: json(opts.rules) }) }) });
+    });
+  g_release_flags_templates.command("archive")
+    .description("Delete a gate template")
+    .argument("<id>", "Customer template id (`gtpl_…`) or its `name`.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (id, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.deleteGateTemplate({ client, path: { id: id }, body: json(opts.data) as never }) });
     });
 }

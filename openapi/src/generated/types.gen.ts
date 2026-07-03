@@ -1712,6 +1712,130 @@ export type UpdateUniverseResponse = {
 };
 
 /**
+ * Single targeting predicate. Copy a template's rules, substitute the concrete `value`(s), and pass them as the `rules` arg of `release_flags_create`.
+ */
+export type GateTemplateRule = {
+    /**
+     * Attribute key on the evaluation context (e.g. `country`, `plan`, `email`). Matched case-sensitively against `Shipeasy.checkGate(user, name)` input.
+     */
+    attr: string;
+    /**
+     * Comparison operator. Equality: `eq`/`neq`. Set membership: `in`/`not_in` (value is an array). Numeric order: `gt`/`gte`/`lt`/`lte`. Semver order: `semver_gt`/`semver_gte`/`semver_lt`/`semver_lte`. String: `contains` (substring), `regex` (JS-flavour pattern). Cross-resource: `gate_pass` (value is another gate's name), `exp_in` (attr is an experiment name, value is a variant / `"$holdout"` / `"$any"`).
+     */
+    op: 'eq' | 'neq' | 'in' | 'not_in' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains' | 'regex' | 'semver_gt' | 'semver_gte' | 'semver_lt' | 'semver_lte' | 'gate_pass' | 'exp_in';
+    /**
+     * Operand. Shape depends on `op`: scalar for `eq/neq/gt/gte/lt/lte/contains/semver_*`; array of scalars for `in/not_in`; string pattern for `regex`; referenced gate name for `gate_pass`; variant selector for `exp_in`.
+     */
+    value: unknown;
+};
+
+/**
+ * A reusable targeting-rule template. Built-ins are read-only (`builtin: true`, stable slug `id`); per-project customer templates are `builtin: false` with a `gtpl_…` id.
+ */
+export type GateTemplate = {
+    /**
+     * Stable slug for built-ins (`country`), `gtpl_…` for customer templates.
+     */
+    id: string;
+    /**
+     * Human label shown in pickers (`Country is`).
+     */
+    name: string;
+    /**
+     * One-liner — feeds the list `query` filter.
+     */
+    description: string;
+    /**
+     * `condition` = rule-based predicate, `rollout` = percentage bucket.
+     */
+    category: 'condition' | 'rollout';
+    /**
+     * True when the attribute is request-derived (country/browser/…) and resolved at the SDK edge, so the caller need not pass it.
+     */
+    auto: boolean;
+    /**
+     * Read-only built-in (`true`) vs editable customer template (`false`).
+     */
+    builtin: boolean;
+    /**
+     * Display-only icon hint.
+     */
+    iconKey?: string | null;
+    /**
+     * The rule definition — copy, substitute the value(s), pass as `rules`.
+     */
+    rules: Array<GateTemplateRule>;
+    /**
+     * ISO-8601 creation timestamp; `null` for built-ins.
+     */
+    createdAt?: string | null;
+    /**
+     * ISO-8601 last-mutation timestamp; `null` for built-ins.
+     */
+    updatedAt?: string | null;
+};
+
+export type ListGateTemplatesResponse = {
+    data: Array<GateTemplate>;
+    next_cursor: string | null;
+};
+
+/**
+ * Body for `POST /api/admin/gate-templates`. Creates a per-project (customer) template. At minimum supply `name` + `rules`.
+ */
+export type CreateGateTemplateRequest = {
+    /**
+     * Human label. Unique per project.
+     */
+    name: string;
+    /**
+     * One-liner shown in pickers and matched by the list `query` filter.
+     */
+    description?: string;
+    category?: 'condition' | 'rollout';
+    /**
+     * Display-only icon hint.
+     */
+    icon_key?: string;
+    /**
+     * Mark the attribute as request-derived (resolved at the SDK edge).
+     */
+    auto?: boolean;
+    /**
+     * The rule definition captured by the template.
+     */
+    rules: Array<GateTemplateRule>;
+};
+
+export type CreateGateTemplateResponse = {
+    /**
+     * Newly assigned template id (`gtpl_…`).
+     */
+    id: string;
+    name: string;
+};
+
+export type DeleteGateTemplateResponse = {
+    ok: true;
+};
+
+/**
+ * Body for `PATCH /api/admin/gate-templates/{id}`. Partial — only supplied fields change. `rules` replaces wholesale. Built-in templates are read-only (409).
+ */
+export type UpdateGateTemplateRequest = {
+    name?: string;
+    description?: string;
+    category?: 'condition' | 'rollout';
+    icon_key?: string | null;
+    auto?: boolean;
+    rules?: Array<GateTemplateRule>;
+};
+
+export type UpdateGateTemplateResponse = {
+    id: string;
+};
+
+/**
  * Every auto-inferred targeting attribute in the project.
  */
 export type ListAttributesResponse = Array<{
@@ -6986,6 +7110,265 @@ export type UpdateUniverseResponses = {
 };
 
 export type UpdateUniverseResponse2 = UpdateUniverseResponses[keyof UpdateUniverseResponses];
+
+export type ListGateTemplatesData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Case-insensitive substring filter over each template's `name` + `description`. Omit to return the whole catalog.
+         */
+        query?: string;
+        /**
+         * Page size (1–500). Defaults to 100.
+         */
+        limit?: number;
+        /**
+         * Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page.
+         */
+        cursor?: string;
+    };
+    url: '/api/admin/gates/templates';
+};
+
+export type ListGateTemplatesErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type ListGateTemplatesError = ListGateTemplatesErrors[keyof ListGateTemplatesErrors];
+
+export type ListGateTemplatesResponses = {
+    /**
+     * List gate templates
+     */
+    200: ListGateTemplatesResponse;
+};
+
+export type ListGateTemplatesResponse2 = ListGateTemplatesResponses[keyof ListGateTemplatesResponses];
+
+export type CreateGateTemplateData = {
+    body: CreateGateTemplateRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/admin/gates/templates';
+};
+
+export type CreateGateTemplateErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type CreateGateTemplateError = CreateGateTemplateErrors[keyof CreateGateTemplateErrors];
+
+export type CreateGateTemplateResponses = {
+    /**
+     * Create a gate template
+     */
+    201: CreateGateTemplateResponse;
+};
+
+export type CreateGateTemplateResponse2 = CreateGateTemplateResponses[keyof CreateGateTemplateResponses];
+
+export type DeleteGateTemplateData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Customer template id (`gtpl_…`) or its `name`.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/gates/templates/{id}';
+};
+
+export type DeleteGateTemplateErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+};
+
+export type DeleteGateTemplateError = DeleteGateTemplateErrors[keyof DeleteGateTemplateErrors];
+
+export type DeleteGateTemplateResponses = {
+    /**
+     * Delete a gate template
+     */
+    200: DeleteGateTemplateResponse;
+};
+
+export type DeleteGateTemplateResponse2 = DeleteGateTemplateResponses[keyof DeleteGateTemplateResponses];
+
+export type GetGateTemplateData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Built-in slug (`country`) or customer template id (`gtpl_…`).
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/gates/templates/{id}';
+};
+
+export type GetGateTemplateErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+};
+
+export type GetGateTemplateError = GetGateTemplateErrors[keyof GetGateTemplateErrors];
+
+export type GetGateTemplateResponses = {
+    /**
+     * Get one gate template
+     */
+    200: GateTemplate;
+};
+
+export type GetGateTemplateResponse = GetGateTemplateResponses[keyof GetGateTemplateResponses];
+
+export type UpdateGateTemplateData = {
+    body: UpdateGateTemplateRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Customer template id (`gtpl_…`) or its `name`.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/gates/templates/{id}';
+};
+
+export type UpdateGateTemplateErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type UpdateGateTemplateError = UpdateGateTemplateErrors[keyof UpdateGateTemplateErrors];
+
+export type UpdateGateTemplateResponses = {
+    /**
+     * Update a gate template
+     */
+    200: UpdateGateTemplateResponse;
+};
+
+export type UpdateGateTemplateResponse2 = UpdateGateTemplateResponses[keyof UpdateGateTemplateResponses];
 
 export type ListAttributesData = {
     body?: never;

@@ -41,6 +41,9 @@ export const KNOWN_TOOLS: readonly string[] = [
   "release_flags_attributes_create", "release_flags_attributes_list",
   "release_flags_attributes_get", "release_flags_attributes_update",
   "release_flags_attributes_archive",
+  "release_flags_templates_list", "release_flags_templates_get",
+  "release_flags_templates_create", "release_flags_templates_update",
+  "release_flags_templates_archive",
   // release / configs
   "release_configs_create", "release_configs_list", "release_configs_get",
   "release_configs_update", "release_configs_update_schema", "release_configs_draft",

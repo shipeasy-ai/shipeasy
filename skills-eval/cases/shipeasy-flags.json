@@ -3,65 +3,333 @@
     "id": "shipeasy-flags/ship-then-ramp",
     "prompt": "Put the new checkout behind a flag at 10%, then ramp it to 50%.",
     "expect_skill": "shipeasy-flags",
-    "expect_tools": ["release_flags_list", "release_flags_create", "release_flags_update"],
+    "expect_tools": [
+      "release_flags_list",
+      "release_flags_create",
+      "release_flags_update"
+    ],
     "tools_match": "all",
-    "forbid_tools": ["release_flags_archive"],
-    "expect_state": { "flags": ["checkout"] },
+    "forbid_tools": [
+      "release_flags_archive"
+    ],
+    "expect_state": {
+      "flags": [
+        "checkout"
+      ]
+    },
     "note": "list to dedup, create the gate, then widen the rollout (ramp = update; there is no separate rollout tool)"
   },
   {
     "id": "shipeasy-flags/rich-targeting",
     "prompt": "Roll new checkout out to 50% of US users, always allow alice@acme.com and bob@acme.com, plus the internal team.",
     "expect_skill": "shipeasy-flags",
-    "expect_tools": ["release_flags_list", "release_flags_create"],
-    "tools_match": "all",
-    "forbid_tools": ["release_flags_archive"],
-    "assert_args": [
-      { "tool": "release_flags_create", "contains": ["US", "alice@acme.com", "bob@acme.com"] }
+    "expect_tools": [
+      "release_flags_list",
+      "release_flags_create"
     ],
-    "expect_state": { "flags": ["checkout"] },
+    "tools_match": "all",
+    "forbid_tools": [
+      "release_flags_archive"
+    ],
+    "assert_args": [
+      {
+        "tool": "release_flags_create",
+        "contains": [
+          "US",
+          "alice@acme.com",
+          "bob@acme.com"
+        ]
+      }
+    ],
+    "expect_state": {
+      "flags": [
+        "checkout"
+      ]
+    },
     "note": "one gate, several gatekeeper steps: US 50% + email whitelist + team access. Args must carry country + whitelisted emails"
   },
   {
     "id": "shipeasy-flags/release-india",
     "prompt": "Release payments in India.",
     "expect_skill": "shipeasy-flags",
-    "expect_tools": ["release_flags_list", ["release_flags_create", "release_flags_enable"]],
+    "expect_tools": [
+      "release_flags_list",
+      [
+        "release_flags_create",
+        "release_flags_enable"
+      ]
+    ],
     "tools_match": "all",
     "assert_args": [
-      { "tool": "release_flags_create", "contains": ["india"] }
+      {
+        "tool": "release_flags_create",
+        "contains": [
+          "india"
+        ]
+      }
     ],
-    "expect_state": { "flags": ["payment"] },
+    "expect_state": {
+      "flags": [
+        "payment"
+      ]
+    },
     "note": "terse ask must still geo-target India — list first to see if a payments gate exists, then create one (or enable/update the existing gate) scoped to India"
   },
   {
     "id": "shipeasy-flags/gated-list",
     "prompt": "Which features are gated currently?",
     "expect_skill": "shipeasy-flags",
-    "expect_tools": ["release_flags_list"],
+    "expect_tools": [
+      "release_flags_list"
+    ],
     "tools_match": "any",
-    "forbid_tools": ["release_flags_create", "release_flags_update", "release_flags_archive"],
+    "forbid_tools": [
+      "release_flags_create",
+      "release_flags_update",
+      "release_flags_archive"
+    ],
     "note": "read-only ask must not mutate anything"
   },
   {
     "id": "shipeasy-flags/kill-switch-then-offer-alert",
     "prompt": "Set up a kill switch to disable the payments integration if it fails.",
     "expect_skill": "shipeasy-flags",
-    "expect_tools": ["release_killswitch_list", "release_killswitch_create"],
+    "expect_tools": [
+      "release_killswitch_list",
+      "release_killswitch_create"
+    ],
     "tools_match": "all",
     "expect_ask": true,
-    "forbid_tools": ["release_flags_create"],
-    "expect_state": { "killswitches": ["payment"] },
+    "forbid_tools": [
+      "release_flags_create"
+    ],
+    "expect_state": {
+      "killswitches": [
+        "payment"
+      ]
+    },
     "note": "ASPIRATIONAL: after the kill switch, the agent should ask (AskUserQuestion) whether to add a failure metric + alert so we know WHEN to flip it"
+  },
+  {
+    "id": "shipeasy-flags/geo-launch-brazil",
+    "prompt": "Turn on the new pricing page only for users in Brazil.",
+    "expect_skill": "shipeasy-flags",
+    "expect_tools": [
+      "release_flags_list",
+      "release_flags_templates_list",
+      "release_flags_create"
+    ],
+    "tools_match": "all",
+    "forbid_tools": [
+      "release_flags_archive"
+    ],
+    "assert_args": [
+      {
+        "tool": "release_flags_create",
+        "contains": [
+          "country",
+          "BR"
+        ]
+      },
+      {
+        "tool": "release_flags_templates_list",
+        "contains": [
+          "country"
+        ]
+      }
+    ],
+    "expect_state": {
+      "flags": [
+        "pricing"
+      ]
+    },
+    "note": "geo targeting — the agent must PULL the Country template (release_flags_templates_list) to get country in [<ISO>], then create a pricing gate scoped to BR."
+  },
+  {
+    "id": "shipeasy-flags/geo-multi-eu",
+    "prompt": "Roll out the redesigned dashboard to Germany and France only.",
+    "expect_skill": "shipeasy-flags",
+    "expect_tools": [
+      "release_flags_list",
+      "release_flags_templates_list",
+      "release_flags_create"
+    ],
+    "tools_match": "all",
+    "forbid_tools": [
+      "release_flags_archive"
+    ],
+    "assert_args": [
+      {
+        "tool": "release_flags_create",
+        "contains": [
+          "DE",
+          "FR"
+        ]
+      },
+      {
+        "tool": "release_flags_templates_list",
+        "contains": [
+          "country"
+        ]
+      }
+    ],
+    "expect_state": {
+      "flags": [
+        "dashboard"
+      ]
+    },
+    "note": "multi-country geo targeting — pull the Country template first, then country in [DE, FR]. Args must carry both ISO codes."
+  },
+  {
+    "id": "shipeasy-flags/templates-list",
+    "prompt": "What flag targeting templates do we have?",
+    "expect_skill": "shipeasy-flags",
+    "expect_tools": [
+      "release_flags_templates_list"
+    ],
+    "tools_match": "any",
+    "forbid_tools": [
+      "release_flags_templates_create",
+      "release_flags_templates_update",
+      "release_flags_templates_archive",
+      "release_flags_create"
+    ],
+    "note": "read-only ask about the template catalog must route to the templates list tool and mutate nothing"
+  },
+  {
+    "id": "shipeasy-flags/team-only-rollout",
+    "prompt": "Roll out the new billing page to just our team first.",
+    "expect_skill": "shipeasy-flags",
+    "expect_tools": [
+      "release_flags_list",
+      "release_flags_templates_list",
+      "release_flags_create"
+    ],
+    "tools_match": "all",
+    "forbid_tools": [
+      "release_flags_archive"
+    ],
+    "assert_args": [
+      {
+        "tool": "release_flags_create",
+        "contains": [
+          "@team"
+        ]
+      },
+      {
+        "tool": "release_flags_templates_list",
+        "contains": [
+          "team"
+        ]
+      }
+    ],
+    "expect_state": {
+      "flags": [
+        "billing"
+      ]
+    },
+    "note": "team-only rollout — the agent must PULL the @team template (release_flags_templates_list), which gives `email in [\"@team\"]`; the create args must carry the @team symbol (expands to the team's emails at rebuild)."
+  },
+  {
+    "id": "shipeasy-flags/gradual-rollout",
+    "prompt": "Gradually roll out the new search experience — 5% now, then ramp to 100%.",
+    "expect_skill": "shipeasy-flags",
+    "expect_tools": [
+      "release_flags_list",
+      "release_flags_create",
+      "release_flags_update"
+    ],
+    "tools_match": "all",
+    "forbid_tools": [
+      "release_flags_archive"
+    ],
+    "assert_args": [
+      {
+        "tool": "release_flags_create",
+        "contains": [
+          "search"
+        ]
+      }
+    ],
+    "expect_state": {
+      "flags": [
+        "search"
+      ]
+    },
+    "note": "gradual/staged rollout — create the gate at a low rollout_percent then widen it (ramp = release_flags_update; there is no separate rollout tool)."
+  },
+  {
+    "id": "shipeasy-flags/killswitch-feature-switch",
+    "prompt": "Set up a payments kill switch with a separate toggle to kill just the EU checkout.",
+    "expect_skill": "shipeasy-flags",
+    "expect_tools": [
+      "release_killswitch_list",
+      "release_killswitch_create"
+    ],
+    "tools_match": "all",
+    "forbid_tools": [
+      "release_flags_create"
+    ],
+    "assert_args": [
+      {
+        "tool": "release_killswitch_create",
+        "contains": [
+          "switches"
+        ]
+      }
+    ],
+    "expect_state": {
+      "killswitches": [
+        "payment"
+      ]
+    },
+    "note": "killswitch with a named switch — the switches map ({ eu_checkout: false }) gates one call site independent of the flat value; define it on create (or release_killswitch_set the switchKey after)."
+  },
+  {
+    "id": "shipeasy-flags/killswitch-feature-toggle",
+    "prompt": "Add a notifications kill switch with an independent off-switch for the SMS channel.",
+    "expect_skill": "shipeasy-flags",
+    "expect_tools": [
+      "release_killswitch_list",
+      "release_killswitch_create"
+    ],
+    "tools_match": "all",
+    "forbid_tools": [
+      "release_flags_create"
+    ],
+    "assert_args": [
+      {
+        "tool": "release_killswitch_create",
+        "contains": [
+          "switches"
+        ]
+      }
+    ],
+    "expect_state": {
+      "killswitches": [
+        "notification"
+      ]
+    },
+    "note": "per-feature switch — the switches map ({ sms: false }) is a named override that kills the SMS channel while the flat killswitch stays as-is; set it on create."
   },
   {
     "id": "shipeasy-flags/dedupe-existing-gate",
     "prompt": "Set up a feature flag called dedupe_checkout for the new checkout page.",
     "expect_skill": "shipeasy-flags",
-    "expect_tools": ["release_flags_list"],
+    "expect_tools": [
+      "release_flags_list"
+    ],
     "tools_match": "none",
-    "setup": { "flags": ["dedupe_checkout"] },
-    "expect_no_duplicate": { "flags": ["dedupe_checkout"] },
+    "setup": {
+      "flags": [
+        "dedupe_checkout"
+      ]
+    },
+    "expect_no_duplicate": {
+      "flags": [
+        "dedupe_checkout"
+      ]
+    },
     "note": "DEDUP: dedupe_checkout is pre-created; the ask would 'create' it again. This case is OUTCOME-gated — the point is that exactly one dedupe_checkout gate survives, however the agent gets there. Listing first is the ideal path (informational)."
   }
 ]

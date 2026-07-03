@@ -952,6 +952,90 @@ export const zUpdateUniverseResponse = z.object({
 });
 
 /**
+ * Single targeting predicate. Copy a template's rules, substitute the concrete `value`(s), and pass them as the `rules` arg of `release_flags_create`.
+ */
+export const zGateTemplateRule = z.object({
+    attr: z.string().min(1),
+    op: z.enum([
+        'eq',
+        'neq',
+        'in',
+        'not_in',
+        'gt',
+        'gte',
+        'lt',
+        'lte',
+        'contains',
+        'regex',
+        'semver_gt',
+        'semver_gte',
+        'semver_lt',
+        'semver_lte',
+        'gate_pass',
+        'exp_in'
+    ]),
+    value: z.unknown()
+});
+
+/**
+ * A reusable targeting-rule template. Built-ins are read-only (`builtin: true`, stable slug `id`); per-project customer templates are `builtin: false` with a `gtpl_…` id.
+ */
+export const zGateTemplate = z.object({
+    id: z.string(),
+    name: z.string(),
+    description: z.string(),
+    category: z.enum(['condition', 'rollout']),
+    auto: z.boolean(),
+    builtin: z.boolean(),
+    iconKey: z.string().nullish(),
+    rules: z.array(zGateTemplateRule),
+    createdAt: z.string().nullish(),
+    updatedAt: z.string().nullish()
+});
+
+export const zListGateTemplatesResponse = z.object({
+    data: z.array(zGateTemplate),
+    next_cursor: z.string().nullable()
+});
+
+/**
+ * Body for `POST /api/admin/gate-templates`. Creates a per-project (customer) template. At minimum supply `name` + `rules`.
+ */
+export const zCreateGateTemplateRequest = z.object({
+    name: z.string().min(1).max(140),
+    description: z.string().max(2000).optional().default(''),
+    category: z.enum(['condition', 'rollout']).optional().default('condition'),
+    icon_key: z.string().max(64).optional(),
+    auto: z.boolean().optional().default(false),
+    rules: z.array(zGateTemplateRule).min(1)
+});
+
+export const zCreateGateTemplateResponse = z.object({
+    id: z.string(),
+    name: z.string()
+});
+
+export const zDeleteGateTemplateResponse = z.object({
+    ok: z.literal(true)
+});
+
+/**
+ * Body for `PATCH /api/admin/gate-templates/{id}`. Partial — only supplied fields change. `rules` replaces wholesale. Built-in templates are read-only (409).
+ */
+export const zUpdateGateTemplateRequest = z.object({
+    name: z.string().min(1).max(140).optional(),
+    description: z.string().max(2000).optional(),
+    category: z.enum(['condition', 'rollout']).optional(),
+    icon_key: z.string().nullish(),
+    auto: z.boolean().optional(),
+    rules: z.array(zGateTemplateRule).min(1).optional()
+});
+
+export const zUpdateGateTemplateResponse = z.object({
+    id: z.string()
+});
+
+/**
  * Every auto-inferred targeting attribute in the project.
  */
 export const zListAttributesResponse = z.array(z.object({
@@ -3218,6 +3302,73 @@ export const zUpdateUniversePath = z.object({
  * Update a universe
  */
 export const zUpdateUniverseResponse2 = zUpdateUniverseResponse;
+
+export const zListGateTemplatesHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zListGateTemplatesQuery = z.object({
+    query: z.string().optional(),
+    limit: z.int().gte(1).lte(500).optional().default(100),
+    cursor: z.string().optional()
+});
+
+/**
+ * List gate templates
+ */
+export const zListGateTemplatesResponse2 = zListGateTemplatesResponse;
+
+export const zCreateGateTemplateBody = zCreateGateTemplateRequest;
+
+export const zCreateGateTemplateHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+/**
+ * Create a gate template
+ */
+export const zCreateGateTemplateResponse2 = zCreateGateTemplateResponse;
+
+export const zDeleteGateTemplateHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zDeleteGateTemplatePath = z.object({
+    id: z.string()
+});
+
+/**
+ * Delete a gate template
+ */
+export const zDeleteGateTemplateResponse2 = zDeleteGateTemplateResponse;
+
+export const zGetGateTemplateHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zGetGateTemplatePath = z.object({
+    id: z.string()
+});
+
+/**
+ * Get one gate template
+ */
+export const zGetGateTemplateResponse = zGateTemplate;
+
+export const zUpdateGateTemplateBody = zUpdateGateTemplateRequest;
+
+export const zUpdateGateTemplateHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zUpdateGateTemplatePath = z.object({
+    id: z.string()
+});
+
+/**
+ * Update a gate template
+ */
+export const zUpdateGateTemplateResponse2 = zUpdateGateTemplateResponse;
 
 export const zListAttributesHeaders = z.object({
     'X-Project-Id': z.string().optional()

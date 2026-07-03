@@ -95,6 +95,14 @@ tags:
       **Holdout.** `holdout_range` is an inclusive `[lo, hi]` bucket range (0–9999) reserved for measurement — callers hashed into the holdout are excluded from every experiment in the universe. Pro plan or higher.
 
       **Deletion.** Blocked while any non-archived experiment references the universe — archive those first.
+  - name: Templates
+    parent: Flags
+    description: |-
+      Targeting-rule templates: reusable `{ attr, op, value }` rule definitions
+      (country, email-domain, region presets, …). Read-only built-ins ship with
+      the platform; each project can also save its own. To target by
+      country/plan/region, list templates, copy the matching template's `rules`,
+      substitute the concrete value(s), and pass them to `release flags create`.
   - name: Attributes
     parent: Flags
     description: |-
@@ -2979,6 +2987,268 @@ paths:
         - FORBIDDEN
         - NOT_FOUND
         - REFERENCED_IN_USE
+      x-cli:
+        name: archive
+        positional:
+          - id
+  /api/admin/gates/templates:
+    get:
+      operationId: listGateTemplates
+      summary: List gate templates
+      description: |-
+        Returns the merged targeting-rule template catalog — read-only **built-ins first** (the `@team`/`@owner` audience aliases, country, email-domain, region presets, …), then this project's **customer** templates. Each item carries a `rules: [{ attr, op, value }]` definition; the alias templates carry a symbol value (`email in ["@team"]`) that the SDK expands to the resolved email list at rebuild.
+
+        **Turn "launch X in country Y" into a gated flag:** list templates (optionally with `query`), take the matching template's `rules`, substitute the concrete value(s), and pass them as the `rules` arg of `release_flags_create`.
+
+        The catalog is small and bounded, so the full merged set is returned in one page (`next_cursor` is always `null`).
+      tags:
+        - Templates
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: query
+          in: query
+          required: false
+          description: Case-insensitive substring filter over each template's `name` + `description`. Omit to return the whole catalog.
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PaginationLimit'
+        - $ref: '#/components/parameters/PaginationCursor'
+      responses:
+        '200':
+          description: List gate templates
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListGateTemplatesResponse'
+              example:
+                data:
+                  - id: country
+                    name: Country is
+                    description: Target by ISO country code (resolve from GeoIP at the SDK edge before evaluating).
+                    category: condition
+                    auto: true
+                    builtin: true
+                    iconKey: globe
+                    rules:
+                      - attr: country
+                        op: in
+                        value:
+                          - DE
+                          - FR
+                          - IT
+                    createdAt: null
+                    updatedAt: null
+                next_cursor: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+      x-cli:
+        name: list
+    post:
+      operationId: createGateTemplate
+      summary: Create a gate template
+      description: Creates a per-project (customer) targeting-rule template. Built-ins are read-only and cannot be created here. Returns `409` if a template with this `name` already exists in the project.
+      tags:
+        - Templates
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGateTemplateRequest'
+            examples:
+              enterpriseBeta:
+                summary: Save an "enterprise plan" condition
+                value:
+                  name: Enterprise beta
+                  description: Our enterprise plan on the beta ring.
+                  category: condition
+                  rules:
+                    - attr: plan
+                      op: eq
+                      value: enterprise
+      responses:
+        '201':
+          description: Create a gate template
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateGateTemplateResponse'
+              example:
+                id: gtpl_01j7w8a1b2c3d4e5f6g7h8i9j0
+                name: Enterprise beta
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - ALREADY_EXISTS
+        - VALIDATION
+      x-cli:
+        name: create
+        positional:
+          - name
+  /api/admin/gates/templates/{id}:
+    get:
+      operationId: getGateTemplate
+      summary: Get one gate template
+      description: Returns a single template by its `id` — a built-in slug (`country`) or a customer `gtpl_…` id.
+      tags:
+        - Templates
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: id
+          in: path
+          required: true
+          description: Built-in slug (`country`) or customer template id (`gtpl_…`).
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Get one gate template
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GateTemplate'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+      x-cli:
+        name: get
+        positional:
+          - id
+    patch:
+      operationId: updateGateTemplate
+      summary: Update a gate template
+      description: Partial update of a **customer** template. `rules` replaces the list wholesale. Returns `409` if `id` names a read-only built-in template.
+      tags:
+        - Templates
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: id
+          in: path
+          required: true
+          description: Customer template id (`gtpl_…`) or its `name`.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateGateTemplateRequest'
+            examples:
+              rename:
+                summary: Rename + retarget
+                value:
+                  name: Enterprise GA
+                  rules:
+                    - attr: plan
+                      op: in
+                      value:
+                        - enterprise
+                        - enterprise_trial
+      responses:
+        '200':
+          description: Update a gate template
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateGateTemplateResponse'
+              example:
+                id: gtpl_01j7w8a1b2c3d4e5f6g7h8i9j0
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+        - READ_ONLY
+        - VALIDATION
+      x-cli:
+        name: update
+        positional:
+          - id
+    delete:
+      operationId: deleteGateTemplate
+      summary: Delete a gate template
+      description: Soft-deletes (archives) a **customer** template. Returns `409` if `id` names a read-only built-in template.
+      tags:
+        - Templates
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: id
+          in: path
+          required: true
+          description: Customer template id (`gtpl_…`) or its `name`.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Delete a gate template
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteGateTemplateResponse'
+              example:
+                ok: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+        - READ_ONLY
       x-cli:
         name: archive
         positional:
@@ -9456,6 +9726,205 @@ components:
         id:
           type: string
           description: Universe id that was updated.
+      required:
+        - id
+      additionalProperties: false
+    GateTemplateRule:
+      type: object
+      properties:
+        attr:
+          type: string
+          minLength: 1
+          description: Attribute key on the evaluation context (e.g. `country`, `plan`, `email`). Matched case-sensitively against `Shipeasy.checkGate(user, name)` input.
+        op:
+          type: string
+          enum:
+            - eq
+            - neq
+            - in
+            - not_in
+            - gt
+            - gte
+            - lt
+            - lte
+            - contains
+            - regex
+            - semver_gt
+            - semver_gte
+            - semver_lt
+            - semver_lte
+            - gate_pass
+            - exp_in
+          description: 'Comparison operator. Equality: `eq`/`neq`. Set membership: `in`/`not_in` (value is an array). Numeric order: `gt`/`gte`/`lt`/`lte`. Semver order: `semver_gt`/`semver_gte`/`semver_lt`/`semver_lte`. String: `contains` (substring), `regex` (JS-flavour pattern). Cross-resource: `gate_pass` (value is another gate''s name), `exp_in` (attr is an experiment name, value is a variant / `"$holdout"` / `"$any"`).'
+        value:
+          description: 'Operand. Shape depends on `op`: scalar for `eq/neq/gt/gte/lt/lte/contains/semver_*`; array of scalars for `in/not_in`; string pattern for `regex`; referenced gate name for `gate_pass`; variant selector for `exp_in`.'
+      required:
+        - attr
+        - op
+        - value
+      additionalProperties: false
+      description: Single targeting predicate. Copy a template's rules, substitute the concrete `value`(s), and pass them as the `rules` arg of `release_flags_create`.
+    GateTemplate:
+      type: object
+      description: 'A reusable targeting-rule template. Built-ins are read-only (`builtin: true`, stable slug `id`); per-project customer templates are `builtin: false` with a `gtpl_…` id.'
+      properties:
+        id:
+          type: string
+          description: Stable slug for built-ins (`country`), `gtpl_…` for customer templates.
+        name:
+          type: string
+          description: Human label shown in pickers (`Country is`).
+        description:
+          type: string
+          description: One-liner — feeds the list `query` filter.
+        category:
+          type: string
+          enum:
+            - condition
+            - rollout
+          description: '`condition` = rule-based predicate, `rollout` = percentage bucket.'
+        auto:
+          type: boolean
+          description: True when the attribute is request-derived (country/browser/…) and resolved at the SDK edge, so the caller need not pass it.
+        builtin:
+          type: boolean
+          description: Read-only built-in (`true`) vs editable customer template (`false`).
+        iconKey:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: Display-only icon hint.
+        rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/GateTemplateRule'
+          description: The rule definition — copy, substitute the value(s), pass as `rules`.
+        createdAt:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: ISO-8601 creation timestamp; `null` for built-ins.
+        updatedAt:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: ISO-8601 last-mutation timestamp; `null` for built-ins.
+      required:
+        - id
+        - name
+        - description
+        - category
+        - auto
+        - builtin
+        - rules
+      additionalProperties: false
+    ListGateTemplatesResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/GateTemplate'
+        next_cursor:
+          anyOf:
+            - type: string
+            - type: 'null'
+      required:
+        - data
+        - next_cursor
+      additionalProperties: false
+    CreateGateTemplateRequest:
+      type: object
+      description: Body for `POST /api/admin/gate-templates`. Creates a per-project (customer) template. At minimum supply `name` + `rules`.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 140
+          description: Human label. Unique per project.
+        description:
+          type: string
+          maxLength: 2000
+          default: ''
+          description: One-liner shown in pickers and matched by the list `query` filter.
+        category:
+          type: string
+          enum:
+            - condition
+            - rollout
+          default: condition
+        icon_key:
+          type: string
+          maxLength: 64
+          description: Display-only icon hint.
+        auto:
+          type: boolean
+          default: false
+          description: Mark the attribute as request-derived (resolved at the SDK edge).
+        rules:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/GateTemplateRule'
+          description: The rule definition captured by the template.
+      required:
+        - name
+        - rules
+      additionalProperties: false
+    CreateGateTemplateResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Newly assigned template id (`gtpl_…`).
+        name:
+          type: string
+      required:
+        - id
+        - name
+      additionalProperties: false
+    DeleteGateTemplateResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          const: true
+      required:
+        - ok
+      additionalProperties: false
+    UpdateGateTemplateRequest:
+      type: object
+      description: Body for `PATCH /api/admin/gate-templates/{id}`. Partial — only supplied fields change. `rules` replaces wholesale. Built-in templates are read-only (409).
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 140
+        description:
+          type: string
+          maxLength: 2000
+        category:
+          type: string
+          enum:
+            - condition
+            - rollout
+        icon_key:
+          anyOf:
+            - type: string
+            - type: 'null'
+        auto:
+          type: boolean
+        rules:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/GateTemplateRule'
+      additionalProperties: false
+    UpdateGateTemplateResponse:
+      type: object
+      properties:
+        id:
+          type: string
       required:
         - id
       additionalProperties: false

@@ -95,6 +95,14 @@ tags:
       **Holdout.** `holdout_range` is an inclusive `[lo, hi]` bucket range (0–9999) reserved for measurement — callers hashed into the holdout are excluded from every experiment in the universe. Pro plan or higher.
 
       **Deletion.** Blocked while any non-archived experiment references the universe — archive those first.
+  - name: Templates
+    parent: Flags
+    description: |-
+      Targeting-rule templates: reusable `{ attr, op, value }` rule definitions
+      (country, email-domain, region presets, …). Read-only built-ins ship with
+      the platform; each project can also save its own. To target by
+      country/plan/region, list templates, copy the matching template's `rules`,
+      substitute the concrete value(s), and pass them to `release flags create`.
   - name: Attributes
     parent: Flags
     description: |-
@@ -253,6 +261,10 @@ paths:
     $ref: ./paths/universes.yaml#/~1api~1admin~1universes
   /api/admin/universes/{id}:
     $ref: ./paths/universes.yaml#/~1api~1admin~1universes~1{id}
+  /api/admin/gates/templates:
+    $ref: ./paths/gate-templates.yaml#/~1api~1admin~1gates~1templates
+  /api/admin/gates/templates/{id}:
+    $ref: ./paths/gate-templates.yaml#/~1api~1admin~1gates~1templates~1{id}
   /api/admin/attributes:
     $ref: ./paths/attributes.yaml#/~1api~1admin~1attributes
   /api/admin/attributes/{id}:

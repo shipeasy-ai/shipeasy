@@ -1,0 +1,199 @@
+GateTemplateRule:
+  type: object
+  properties:
+    attr:
+      type: string
+      minLength: 1
+      description: Attribute key on the evaluation context (e.g. `country`, `plan`, `email`). Matched case-sensitively against `Shipeasy.checkGate(user, name)` input.
+    op:
+      type: string
+      enum:
+        - eq
+        - neq
+        - in
+        - not_in
+        - gt
+        - gte
+        - lt
+        - lte
+        - contains
+        - regex
+        - semver_gt
+        - semver_gte
+        - semver_lt
+        - semver_lte
+        - gate_pass
+        - exp_in
+      description: "Comparison operator. Equality: `eq`/`neq`. Set membership: `in`/`not_in` (value is an array). Numeric order: `gt`/`gte`/`lt`/`lte`. Semver order: `semver_gt`/`semver_gte`/`semver_lt`/`semver_lte`. String: `contains` (substring), `regex` (JS-flavour pattern). Cross-resource: `gate_pass` (value is another gate's name), `exp_in` (attr is an experiment name, value is a variant / `\"$holdout\"` / `\"$any\"`)."
+    value:
+      description: 'Operand. Shape depends on `op`: scalar for `eq/neq/gt/gte/lt/lte/contains/semver_*`; array of scalars for `in/not_in`; string pattern for `regex`; referenced gate name for `gate_pass`; variant selector for `exp_in`.'
+  required:
+    - attr
+    - op
+    - value
+  additionalProperties: false
+  description: Single targeting predicate. Copy a template's rules, substitute the concrete `value`(s), and pass them as the `rules` arg of `release_flags_create`.
+GateTemplate:
+  type: object
+  description: "A reusable targeting-rule template. Built-ins are read-only (`builtin: true`, stable slug `id`); per-project customer templates are `builtin: false` with a `gtpl_…` id."
+  properties:
+    id:
+      type: string
+      description: Stable slug for built-ins (`country`), `gtpl_…` for customer templates.
+    name:
+      type: string
+      description: Human label shown in pickers (`Country is`).
+    description:
+      type: string
+      description: One-liner — feeds the list `query` filter.
+    category:
+      type: string
+      enum:
+        - condition
+        - rollout
+      description: "`condition` = rule-based predicate, `rollout` = percentage bucket."
+    auto:
+      type: boolean
+      description: True when the attribute is request-derived (country/browser/…) and resolved at the SDK edge, so the caller need not pass it.
+    builtin:
+      type: boolean
+      description: Read-only built-in (`true`) vs editable customer template (`false`).
+    iconKey:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Display-only icon hint.
+    rules:
+      type: array
+      items:
+        $ref: "#/GateTemplateRule"
+      description: The rule definition — copy, substitute the value(s), pass as `rules`.
+    createdAt:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: ISO-8601 creation timestamp; `null` for built-ins.
+    updatedAt:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: ISO-8601 last-mutation timestamp; `null` for built-ins.
+  required:
+    - id
+    - name
+    - description
+    - category
+    - auto
+    - builtin
+    - rules
+  additionalProperties: false
+ListGateTemplatesResponse:
+  type: object
+  properties:
+    data:
+      type: array
+      items:
+        $ref: "#/GateTemplate"
+    next_cursor:
+      anyOf:
+        - type: string
+        - type: "null"
+  required:
+    - data
+    - next_cursor
+  additionalProperties: false
+CreateGateTemplateRequest:
+  type: object
+  description: Body for `POST /api/admin/gate-templates`. Creates a per-project (customer) template. At minimum supply `name` + `rules`.
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 140
+      description: Human label. Unique per project.
+    description:
+      type: string
+      maxLength: 2000
+      default: ""
+      description: One-liner shown in pickers and matched by the list `query` filter.
+    category:
+      type: string
+      enum:
+        - condition
+        - rollout
+      default: condition
+    icon_key:
+      type: string
+      maxLength: 64
+      description: Display-only icon hint.
+    auto:
+      type: boolean
+      default: false
+      description: Mark the attribute as request-derived (resolved at the SDK edge).
+    rules:
+      type: array
+      minItems: 1
+      items:
+        $ref: "#/GateTemplateRule"
+      description: The rule definition captured by the template.
+  required:
+    - name
+    - rules
+  additionalProperties: false
+CreateGateTemplateResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Newly assigned template id (`gtpl_…`).
+    name:
+      type: string
+  required:
+    - id
+    - name
+  additionalProperties: false
+UpdateGateTemplateRequest:
+  type: object
+  description: Body for `PATCH /api/admin/gate-templates/{id}`. Partial — only supplied fields change. `rules` replaces wholesale. Built-in templates are read-only (409).
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 140
+    description:
+      type: string
+      maxLength: 2000
+    category:
+      type: string
+      enum:
+        - condition
+        - rollout
+    icon_key:
+      anyOf:
+        - type: string
+        - type: "null"
+    auto:
+      type: boolean
+    rules:
+      type: array
+      minItems: 1
+      items:
+        $ref: "#/GateTemplateRule"
+  additionalProperties: false
+UpdateGateTemplateResponse:
+  type: object
+  properties:
+    id:
+      type: string
+  required:
+    - id
+  additionalProperties: false
+DeleteGateTemplateResponse:
+  type: object
+  properties:
+    ok:
+      type: boolean
+      const: true
+  required:
+    - ok
+  additionalProperties: false
