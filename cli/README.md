@@ -21,7 +21,8 @@ npx @shipeasy/cli setup
    server, and CI all agree on the project.
 2. **Detect coding agents** — finds the agents installed in your environment and
    lets you choose which to wire up: **Claude Code**, **Cursor**, **OpenAI
-   Codex**, **GitHub Copilot**, and **Google Jules**.
+   Codex**, **GitHub Copilot**, and **Jules** (locally powered by Google
+   Antigravity, the `agy` binary).
 3. **Wire each agent** — registers the Shipeasy MCP server (`@shipeasy/mcp`) in
    the right config for each agent and drops a universal `AGENTS.md` plus
    per-agent rules (`.cursor/rules/shipeasy.mdc`,
@@ -53,7 +54,7 @@ non-interactively; provide credentials via `SHIPEASY_CLI_TOKEN` +
 | Cursor         | `.cursor/mcp.json`                                                                | `.cursor/rules/shipeasy.mdc` + `AGENTS.md`      |
 | OpenAI Codex   | `codex mcp add` → else `~/.codex/config.toml` snippet                             | `AGENTS.md`                                     |
 | GitHub Copilot | `.vscode/mcp.json` (`servers`)                                                    | `.github/copilot-instructions.md` + `AGENTS.md` |
-| Google Jules   | connect `@shipeasy/mcp` in Jules settings (cloud)                                 | `AGENTS.md`                                     |
+| Jules (Antigravity) | connect `@shipeasy/mcp` from Antigravity's (`agy`) MCP settings          | `AGENTS.md`                                     |
 
 ## Other commands
 

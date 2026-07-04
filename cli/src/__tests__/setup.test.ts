@@ -8,6 +8,7 @@ import {
   codexTomlSnippet,
   detectAgents,
   detectHarness,
+  homePathExists,
   onPath,
   registerMcp,
 } from "../setup/agents";
@@ -59,10 +60,14 @@ describe("mergeMcpServer wrapper key", () => {
 });
 
 describe("detectAgents", () => {
-  it("returns all five agents with jules never auto-detected", () => {
+  it("returns all five agents; jules detects the local Antigravity (agy) signal", () => {
     const agents = detectAgents(process.cwd());
     expect(agents.map((a) => a.id)).toEqual(["claude", "cursor", "codex", "copilot", "jules"]);
-    expect(agents.find((a) => a.id === "jules")!.detected).toBe(false);
+    // Jules is now locally powered by Antigravity — detected iff `agy` is on
+    // PATH or ~/.antigravity exists (no longer hard-coded to false).
+    expect(agents.find((a) => a.id === "jules")!.detected).toBe(
+      onPath("agy") || homePathExists(".antigravity"),
+    );
     for (const a of agents) expect(typeof a.reason).toBe("string");
   });
 });

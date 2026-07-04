@@ -7,8 +7,9 @@ import { mergeMcpServer, readJsonConfig, writeJsonConfig } from "../util/json-co
 /**
  * The coding agents `shipeasy setup` knows how to wire up. Detection mirrors
  * what wrangler does — look for the agent's binary on PATH and/or its
- * well-known config directory. Jules is a cloud agent with no local install,
- * so it is never auto-detected but is still offered in the picker.
+ * well-known config directory. Jules is now locally powered by Google
+ * Antigravity (the `agy` binary), so it is auto-detected like the other local
+ * agents (`agy` on PATH / `~/.antigravity`) instead of being cloud-only.
  */
 export type AgentId = "claude" | "cursor" | "codex" | "copilot" | "jules";
 
@@ -35,7 +36,8 @@ export const MARKETPLACE_SLUG = "shipeasy-ai/shipeasy";
  * How each agent is named to the `skills` CLI (`skills add … -a <name>`).
  * Claude is intentionally absent: it receives skills via the native plugin
  * (marketplace + `plugin install`), so we never double-install through `skills`.
- * Jules is a cloud agent with no local skills dir.
+ * Jules (Antigravity) receives skills via its own Gemini/`agy` channel, not the
+ * `skills` CLI, so it stays absent here too.
  */
 export const SKILLS_CLI_AGENT: Partial<Record<AgentId, string>> = {
   cursor: "cursor",
@@ -75,6 +77,8 @@ export function detectAgents(cwd: string): AgentInfo[] {
   const cursorBin = onPath("cursor");
   const codexBin = onPath("codex");
   const copilotBin = onPath("copilot");
+  // Jules is now locally powered by Google Antigravity — its binary is `agy`.
+  const julesBin = onPath("agy");
 
   return [
     {
@@ -119,12 +123,17 @@ export function detectAgents(cwd: string): AgentInfo[] {
     },
     {
       id: "jules",
-      label: "Google Jules",
-      // Cloud agent — no reliable local signal. Offered, never pre-checked.
-      detected: false,
-      reason: existsSync(join(cwd, "AGENTS.md"))
-        ? "AGENTS.md present (cloud agent)"
-        : "cloud agent — connect MCP in Jules settings",
+      label: "Jules (Antigravity)",
+      // Jules is locally powered by Google Antigravity (the `agy` binary), so we
+      // detect it like the other local agents — `agy` on PATH or ~/.antigravity.
+      detected: julesBin || homePathExists(".antigravity"),
+      reason: julesBin
+        ? "`agy` on PATH (Antigravity)"
+        : homePathExists(".antigravity")
+          ? "~/.antigravity present"
+          : existsSync(join(cwd, "AGENTS.md"))
+            ? "AGENTS.md present — install Antigravity (`agy`) to run Jules locally"
+            : "Antigravity (`agy`) not found",
     },
   ];
 }
@@ -244,7 +253,8 @@ function registerJsonMcp(
 /**
  * Register the Shipeasy MCP server for one agent. JSON-config agents are merged
  * idempotently; Codex shells out to `codex mcp add` when the binary is present
- * (else returns the TOML snippet to paste); Jules is connected in its UI.
+ * (else returns the TOML snippet to paste); Jules is connected from Antigravity's
+ * (`agy`) MCP settings.
  */
 export function registerMcp(agent: AgentId, ctx: InstallCtx): McpResult {
   const jsonTarget = jsonMcpTarget(agent, ctx);
@@ -278,7 +288,7 @@ export function registerMcp(agent: AgentId, ctx: InstallCtx): McpResult {
   if (agent === "jules") {
     return {
       action: "manual",
-      detail: `Jules connects MCP servers from its Settings page (cloud) — point it at ${MCP_URL}. AGENTS.md covers the workflows in the meantime.`,
+      detail: `Jules runs locally in Google Antigravity (\`agy\`) — add the MCP server from Antigravity's settings pointing at ${MCP_URL}. AGENTS.md covers the workflows in the meantime.`,
     };
   }
 

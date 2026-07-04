@@ -137,6 +137,7 @@ shipeasy metrics events list [options]
 
 | Option | | Description |
 | --- | --- | --- |
+| `--q <value>` | optional | Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything. |
 | `--data <value>` | optional | Request body as a JSON object. |
 
 #### `shipeasy metrics events create`
@@ -235,6 +236,7 @@ shipeasy metrics list [options]
 
 | Option | | Description |
 | --- | --- | --- |
+| `--q <value>` | optional | Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything. |
 | `--data <value>` | optional | Request body as a JSON object. |
 
 ### `shipeasy metrics create`
@@ -253,7 +255,7 @@ shipeasy metrics create [options] <name>
 | --- | --- | --- |
 | `--folder <value>` | optional | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `--event-name <value>` | optional | Source event the query reads from. |
-| `--query <value>` | optional | Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`. |
+| `--query <value>` | optional | Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`. Every label the query references — in filters, the value position, `by (…)`, or `without (…)` — must exist as a property on the tracked event's payload; a query over a label the event never carries validates fine but returns empty results. |
 | `--winsorize-pct <value>` | optional | Winsorise percentile (1–99) to clamp outliers. Defaults to 99. |
 | `--min-detectable-effect <value>` | optional | Minimum detectable effect (relative, 0–1) for power planning. `null` to omit. |
 | `--direction <value>` | optional | Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail). |
@@ -291,7 +293,7 @@ shipeasy metrics update [options] <id>
 | --- | --- | --- |
 | `--folder <value>` | optional | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `--event-name <value>` | optional | Source event the query reads from. |
-| `--query <value>` | optional | Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`. |
+| `--query <value>` | optional | Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`. Every label the query references — in filters, the value position, `by (…)`, or `without (…)` — must exist as a property on the tracked event's payload; a query over a label the event never carries validates fine but returns empty results. |
 | `--winsorize-pct <value>` | optional | Winsorise percentile (1–99) to clamp outliers. Defaults to 99. |
 | `--min-detectable-effect <value>` | optional | Minimum detectable effect (relative, 0–1) for power planning. `null` to omit. |
 | `--direction <value>` | optional | Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail). |
@@ -359,6 +361,7 @@ shipeasy ops alerts list [options]
 
 | Option | | Description |
 | --- | --- | --- |
+| `--q <value>` | optional | Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything. |
 | `--data <value>` | optional | Request body as a JSON object. |
 
 #### `shipeasy ops alerts create`
@@ -665,7 +668,7 @@ shipeasy ops update [options] <handle>
 | `--steps-to-reproduce <value>` | optional | Updated reproduction steps. |
 | `--actual-result <value>` | optional | Updated actual result. |
 | `--expected-result <value>` | optional | Updated expected result. |
-| `--status <value>` | optional | Lifecycle status of a queue item. The working flow is `open` → `triaged` → `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`). Two human-gated holding states park an item OUT of the work queue until a human promotes it to `open` in the dashboard, so `GET /api/admin/ops` excludes them under `status=all`/default and returns them only when requested as an exact `status`: `pending_approval` is the pre-open approval gate for untriaged inbound (e.g. connector requests filed from a customer's connectors panel) so it never gets auto-implemented — approving = flipping the status to `open`; `triage` is the onboarding-help bucket — questions/errors submitted to the "Stuck in onboarding?" assistant are funnelled into the platform project as `triage` rows so the team can see where people get stuck and follow up, keeping onboarding chatter out of the work queue until a human moves real items to `open`. |
+| `--status <value>` | optional | Lifecycle status of a queue item. The working flow is `open` → `triaged` → `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`, terminal from any earlier stage). `ready_for_qa` is what a developer sets once a fix lands; `resolved` is the QA sign-off, normally flipped in the dashboard after verification — set it directly from code only when the fix has been verified end-to-end. Two human-gated holding states park an item OUT of the work queue until a human promotes it to `open` in the dashboard, so `GET /api/admin/ops` excludes them under `status=all`/default and returns them only when requested as an exact `status`: `pending_approval` is the pre-open approval gate for untriaged inbound (e.g. connector requests filed from a customer's connectors panel) so it never gets auto-implemented — approving = flipping the status to `open`; `triage` is the onboarding-help bucket — questions/errors submitted to the "Stuck in onboarding?" assistant are funnelled into the platform project as `triage` rows so the team can see where people get stuck and follow up, keeping onboarding chatter out of the work queue until a human moves real items to `open`. |
 | `--priority <value>` | optional | Triage priority, or `null` when not set (in an update, `null` clears it). |
 | `--github-pr-number <value>` | optional | Link (or, when `null`, unlink) a GitHub pull request to this bug. |
 | `--notify <value>` | optional | Where this item's completion notification lands, or `null`. |
@@ -702,7 +705,7 @@ shipeasy ops notify [options]
 | `--title <value>` | optional | One-line headline of what's blocked. |
 | `--summary <value>` | optional | One sentence: why it can't be fixed in code. Renders markdown. |
 | `--steps <value>` | optional | Ordered steps the human should take to unblock — self-contained (the human reads only this card, not the agent's transcript), 3–6 steps, each naming the exact file, command, env var, or dashboard page. Renders markdown. |
-| `--href <value>` | optional | Dashboard-relative deep link to the related item. |
+| `--href <value>` | optional | Dashboard-relative deep link to the related item. `null` is accepted and treated as "no link". |
 | `--dedupe-key <value>` | optional | Stable per-escalation key (e.g. `feedback:7`) so re-runs dedupe to one row. |
 
 ## `shipeasy projects`
@@ -771,7 +774,7 @@ shipeasy projects update [options] <id>
 
 ## `shipeasy release`
 
-Feature delivery
+Feature delivery — flags, kill switches, dynamic configs, A/B experiments, and the universes they bucket in.
 
 ```bash
 shipeasy release [options] [command]
@@ -797,6 +800,7 @@ shipeasy release configs list [options]
 | --- | --- | --- |
 | `--limit <value>` | optional | Page size (1–500). Defaults to 100. |
 | `--cursor <value>` | optional | Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page. |
+| `--q <value>` | optional | Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything. |
 | `--data <value>` | optional | Request body as a JSON object. |
 
 #### `shipeasy release configs create`
@@ -978,6 +982,7 @@ shipeasy release experiments universes list [options]
 | --- | --- | --- |
 | `--limit <value>` | optional | Page size (1–500). Defaults to 100. |
 | `--cursor <value>` | optional | Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page. |
+| `--q <value>` | optional | Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything. |
 | `--data <value>` | optional | Request body as a JSON object. |
 
 ##### `shipeasy release experiments universes create`
@@ -1043,6 +1048,8 @@ shipeasy release experiments list [options]
 | --- | --- | --- |
 | `--limit <value>` | optional | Page size (1–500). Defaults to 100. |
 | `--cursor <value>` | optional | Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page. |
+| `--status <value>` | optional | Filter by lifecycle status. Pass `archived` to return the archive tab; any other value (or omitting it) returns the non-archived experiments. |
+| `--q <value>` | optional | Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything. |
 | `--data <value>` | optional | Request body as a JSON object. |
 
 #### `shipeasy release experiments create`
@@ -1275,6 +1282,7 @@ shipeasy release flags attributes list [options]
 
 | Option | | Description |
 | --- | --- | --- |
+| `--q <value>` | optional | Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything. |
 | `--data <value>` | optional | Request body as a JSON object. |
 
 ##### `shipeasy release flags attributes create`
@@ -1349,6 +1357,101 @@ shipeasy release flags attributes archive [options] <id>
 | --- | --- | --- |
 | `--data <value>` | optional | Request body as a JSON object. |
 
+#### `shipeasy release flags templates`
+
+Targeting-rule templates: reusable `{ attr, op, value }` rule definitions (country, email-domain, region presets, …).
+
+```bash
+shipeasy release flags templates [options] [command]
+```
+
+##### `shipeasy release flags templates list`
+
+List gate templates
+
+```bash
+shipeasy release flags templates list [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--q <value>` | optional | Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything. |
+| `--query <value>` | optional | Deprecated alias for `q`, kept working for one release. Prefer `q`. |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+##### `shipeasy release flags templates create`
+
+Create a gate template
+
+```bash
+shipeasy release flags templates create [options] <name>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `name` | required | Human label. Unique per project. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--description <value>` | optional | One-liner shown in pickers and matched by the list `query` filter. |
+| `--category <value>` | optional | — |
+| `--icon-key <value>` | optional | Display-only icon hint. |
+| `--auto <value>` | optional | Mark the attribute as request-derived (resolved at the SDK edge). |
+| `--rules <value>` | optional | The rule definition captured by the template. |
+
+##### `shipeasy release flags templates get`
+
+Get one gate template
+
+```bash
+shipeasy release flags templates get [options] <id>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `id` | required | Built-in slug (`country`) or customer template id (`gtpl_…`). |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+##### `shipeasy release flags templates update`
+
+Update a gate template
+
+```bash
+shipeasy release flags templates update [options] <id>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `id` | required | Customer template id (`gtpl_…`) or its `name`. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--name <value>` | optional | — |
+| `--description <value>` | optional | — |
+| `--category <value>` | optional | — |
+| `--icon-key <value>` | optional | — |
+| `--auto <value>` | optional | — |
+| `--rules <value>` | optional | — |
+
+##### `shipeasy release flags templates archive`
+
+Delete a gate template
+
+```bash
+shipeasy release flags templates archive [options] <id>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `id` | required | Customer template id (`gtpl_…`) or its `name`. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
 #### `shipeasy release flags list`
 
 List feature gates
@@ -1361,6 +1464,7 @@ shipeasy release flags list [options]
 | --- | --- | --- |
 | `--limit <value>` | optional | Page size (1–500). Defaults to 100. |
 | `--cursor <value>` | optional | Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page. |
+| `--q <value>` | optional | Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything. |
 | `--data <value>` | optional | Request body as a JSON object. |
 
 #### `shipeasy release flags create`
@@ -1482,6 +1586,7 @@ shipeasy release killswitch list [options]
 | --- | --- | --- |
 | `--limit <value>` | optional | Page size (1–500). Defaults to 100. |
 | `--cursor <value>` | optional | Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page. |
+| `--q <value>` | optional | Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything. |
 | `--data <value>` | optional | Request body as a JSON object. |
 
 #### `shipeasy release killswitch create`
@@ -1620,14 +1725,14 @@ shipeasy whoami [options]
 
 ## `shipeasy setup`
 
-Full onboarding: preconditions, monorepo target detection, login + per-target project bind, agent/MCP wiring, SDK keys, package installs, module enables — then emits harness-agnostic wiring instructions for the code changes.
+One-command onboarding for this repo. Logs you in and binds a project, detects and wires your coding agents (Claude Code plugin, or MCP + instruction files for Cursor/Codex/Copilot/Jules), mints SDK keys, installs @shipeasy/sdk, and offers the devtools overlay + feature modules — then writes self-contained SDK-wiring steps to shipeasy-wiring.md for your agent to finish. Monorepo-aware and idempotent (safe to re-run). Run `shipeasy setup --help` for every flag; `shipeasy setup triggers` sets up the scheduled queue-fixing automation on its own.
 
 `setup` now runs the whole deterministic half of onboarding itself, without needing an AI to drive it:
 
 0. Preconditions (Node >= 20, git repo — offers `git init`).
 1. `detect`-powered monorepo scan; every target gets its own `.shipeasy`.
 2. Browser login, then binds the repo root AND each install target.
-3. Wires your coding agents (Claude Code plugin, Cursor/Codex/Copilot/Jules MCP + instruction files, universal AGENTS.md).
+3. Wires your coding agents — MCP + instruction files + universal AGENTS.md, installed in-repo by default (confirms interactively; offers user-global). At project scope even Claude stays in-repo (.mcp.json + ./.claude/skills); user scope takes the native Claude plugin. Base workflow skills go to every non-plugin agent via `npx skills add`.
 4. Mints env-locked server/client SDK keys.
 5. Runs the SDK package install per target and persists the keys to each target's gitignored env file.
 6-7. Offers the devtools overlay + feature module enables (flags/i18n/ops).
@@ -1637,7 +1742,7 @@ Full onboarding: preconditions, monorepo target detection, login + per-target pr
 Idempotent — safe to re-run. In CI (non-TTY) it runs non-interactively with `SHIPEASY_CLI_TOKEN` + `SHIPEASY_PROJECT_ID`.
 
 ```bash
-shipeasy setup [options]
+shipeasy setup [options] [command]
 ```
 
 | Option | | Description |
@@ -1645,7 +1750,7 @@ shipeasy setup [options]
 | `--yes` | optional | Non-interactive: accept defaults everywhere (bind, prod keys, run installs) |
 | `--agents <list>` | optional | Comma list to wire (claude,cursor,codex,copilot,jules) |
 | `--domain <domain>` | optional | Production domain (used when creating a new project at login) |
-| `--scope <scope>` | optional | user \| project (MCP config scope) (default: `"project"`) |
+| `--scope <scope>` | optional | MCP + skills scope: project (in-repo, default) \| user (global). Omit to be asked. |
 | `--env <env>` | optional | Environment the minted SDK keys read: dev \| staging \| prod |
 | `--devtools` | optional | Enable the devtools overlay without asking |
 | `--no-devtools` | optional | Skip the devtools overlay without asking |
@@ -1653,6 +1758,9 @@ shipeasy setup [options]
 | `--skip-install` | optional | Don't run SDK package installs (they go into the wiring steps) |
 | `--no-agent-run` | optional | Don't offer to launch a coding agent on the wiring steps |
 | `--no-claude-run` | optional | (deprecated) alias of --no-agent-run |
+| `--triggers` | optional | Set up the automation trigger without asking (skips the yes/no gate) |
+| `--no-triggers` | optional | Skip the automation trigger step |
+| `--trigger-platform <id>` | optional | Preselect the trigger platform (claude\|codex\|cursor\|copilot\|gemini\|jules) |
 | `--dry-run` | optional | Show what would change without writing files or calling the API |
 
 Examples:
@@ -1669,6 +1777,34 @@ shipeasy setup --dry-run --no-agent-run
 
 # subset, skip overlay
 shipeasy setup --agents claude,cursor --no-devtools
+```
+
+### `shipeasy setup triggers`
+
+Set up an automation trigger — a scheduled agent that fixes queue items as PRs, unattended. Opens the hosted, guided setup for your platform.
+
+A trigger is a scheduled agent run that burns down your feedback queue (bugs, feature requests, auto-filed error/alert tickets) and opens one pull request per fixed item — nothing merges without you. This command explains it, has you pick the platform you code with (Claude Code, Codex, Cursor, Copilot, or Gemini/Jules), then opens the hosted, guided setup wizard preselected to that platform, which walks you through the platform-specific fields and secrets. `shipeasy setup` offers this same step inline.
+
+```bash
+shipeasy setup triggers [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--platform <id>` | optional | Preselect the platform (claude\|codex\|cursor\|copilot\|gemini\|jules) |
+| `--dry-run` | optional | Print the URL without opening a browser |
+
+Examples:
+
+```bash
+# interactive: pick a platform, open the wizard
+shipeasy setup triggers
+
+# preselect Claude Code
+shipeasy setup triggers --platform claude
+
+# just print the URL
+shipeasy setup triggers --dry-run
 ```
 
 ## `shipeasy install`
@@ -1719,7 +1855,7 @@ shipeasy install ops
 
 ## `shipeasy docs`
 
-docs commands
+SDK docs: fetch a language SDK's published docs — its page tree, feature pages, code snippets, and installable agent skill.
 
 ```bash
 shipeasy docs [options] [command]
@@ -1867,7 +2003,7 @@ shipeasy mcp install [options]
 
 | Option | | Description |
 | --- | --- | --- |
-| `--client <name>` | optional | Restrict to one client (claude \| cursor \| windsurf \| all) (default: `"all"`) |
+| `--client <name>` | optional | Restrict to one agent (claude \| cursor \| codex \| copilot \| jules \| all) (default: `"all"`) |
 | `--scope <scope>` | optional | user \| project (default: `"user"`) |
 | `--force` | optional | Replace an existing 'shipeasy' MCP entry without prompting |
 | `--dry-run` | optional | Print what would change without writing files |
@@ -1879,6 +2015,9 @@ shipeasy mcp install
 
 # only Claude, project config
 shipeasy mcp install --client claude --scope project
+
+# shells out to `codex mcp add`
+shipeasy mcp install --client codex
 
 # preview a forced replace
 shipeasy mcp install --force --dry-run
@@ -1908,7 +2047,7 @@ shipeasy mcp uninstall [options]
 
 | Option | | Description |
 | --- | --- | --- |
-| `--client <name>` | optional | Restrict to one client (default: `"all"`) |
+| `--client <name>` | optional | Restrict to one agent (default: `"all"`) |
 | `--scope <scope>` | optional | user \| project \| both (default: `"both"`) |
 
 Examples:
@@ -2014,7 +2153,7 @@ shipeasy sdk keys revoke 7f3a9c10
 
 ## `shipeasy i18n`
 
-String Manager (i18n) tools
+String Manager (i18n): extract UI copy into managed keys, push/publish translations to the CDN, and keep code in sync.
 
 ```bash
 shipeasy i18n [options] [command]

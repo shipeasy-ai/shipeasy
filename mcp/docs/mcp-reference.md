@@ -33,6 +33,7 @@ All error codes:
 | `ALREADY_EXISTS` | A resource with this name already exists in the project. |
 | `INVALID_TRANSITION` | The requested lifecycle transition is not allowed from the current state. |
 | `IMMUTABLE_FIELD` | A field that is immutable in the current state was modified (e.g. editing allocation while running). |
+| `READ_ONLY` | The resource is a read-only built-in (e.g. a built-in gate-rule template) and cannot be modified or deleted. |
 | `REFERENCED_IN_USE` | The resource cannot be archived/deleted while another resource still references it. |
 | `VALIDATION` | The request body failed structural (schema) validation. |
 | `REFERENCED_NOT_FOUND` | A referenced entity (universe, metric, gate, event) does not exist. |
@@ -44,7 +45,7 @@ Hand-written tools (`projects_upsert` and auth) layer the `.shipeasy` bind or th
 
 ## Release
 
-Feature delivery
+Feature delivery — flags, kill switches, dynamic configs, A/B experiments, and the universes they bucket in.
 
 ### Flags
 
@@ -177,6 +178,7 @@ _Parameters_
 | --- | --- | --- | --- |
 | `limit` | optional | `integer` | Page size (1–500). Defaults to 100. _(default `100`; 1–500)_ |
 | `cursor` | optional | `string` | Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page. |
+| `q` | optional | `string` | Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything. _(length 0–100)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -219,6 +221,118 @@ _Errors_ — beyond the [common errors](#errors):
 
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+#### Templates
+
+Targeting-rule templates: reusable `{ attr, op, value }` rule definitions
+(country, email-domain, region presets, …). Read-only built-ins ship with
+the platform; each project can also save its own. To target by
+country/plan/region, list templates, copy the matching template's `rules`,
+substitute the concrete value(s), and pass them to `release flags create`.
+
+##### `release_flags_templates_archive`
+
+**Delete a gate template**
+
+Soft-deletes (archives) a **customer** template. Returns `409` if `id` names a read-only built-in template.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `id` | required | `string` | Customer template id (`gtpl_…`) or its `name`. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `READ_ONLY` — The resource is a read-only built-in (e.g. a built-in gate-rule template) and cannot be modified or deleted.
+
+##### `release_flags_templates_create`
+
+**Create a gate template**
+
+Creates a per-project (customer) targeting-rule template. Built-ins are read-only and cannot be created here. Returns `409` if a template with this `name` already exists in the project.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `name` | required | `string` | Human label. Unique per project. _(length 1–140)_ |
+| `description` | optional | `string` | One-liner shown in pickers and matched by the list `query` filter. _(default `""`; length 0–2000)_ |
+| `category` | optional | `"condition" \| "rollout"` | — _(default `"condition"`)_ |
+| `icon_key` | optional | `string` | Display-only icon hint. _(length 0–64)_ |
+| `auto` | optional | `boolean` | Mark the attribute as request-derived (resolved at the SDK edge). _(default `false`)_ |
+| `rules` | required | `object[]` | The rule definition captured by the template. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `ALREADY_EXISTS` — A resource with this name already exists in the project.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+##### `release_flags_templates_get`
+
+**Get one gate template**
+
+Returns a single template by its `id` — a built-in slug (`country`) or a customer `gtpl_…` id.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `id` | required | `string` | Built-in slug (`country`) or customer template id (`gtpl_…`). |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
+##### `release_flags_templates_list`
+
+**List gate templates**
+
+Returns the merged targeting-rule template catalog — read-only **built-ins first** (the `@team`/`@owner` audience aliases, country, email-domain, region presets, …), then this project's **customer** templates. Each item carries a `rules: [{ attr, op, value }]` definition; the alias templates carry a symbol value (`email in ["@team"]`) that the SDK expands to the resolved email list at rebuild.
+
+**Turn "launch X in country Y" into a gated flag:** list templates (optionally with `q`), take the matching template's `rules`, substitute the concrete value(s), and pass them as the `rules` arg of `release_flags_create`.
+
+The catalog is small and bounded, so the full merged set is returned in one page — this endpoint is **not** paginated (`next_cursor` is always `null`; there are no `limit`/`cursor` params).
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `q` | optional | `string` | Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything. _(length 0–100)_ |
+| `query` | optional | `string` | Deprecated alias for `q`, kept working for one release. Prefer `q`. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+
+##### `release_flags_templates_update`
+
+**Update a gate template**
+
+Partial update of a **customer** template. `rules` replaces the list wholesale. Returns `409` if `id` names a read-only built-in template.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `id` | required | `string` | Customer template id (`gtpl_…`) or its `name`. |
+| `name` | optional | `string` | — _(length 1–140)_ |
+| `description` | optional | `string` | — _(length 0–2000)_ |
+| `category` | optional | `"condition" \| "rollout"` | — |
+| `icon_key` | optional | `any` | — |
+| `auto` | optional | `boolean` | — |
+| `rules` | optional | `object[]` | — |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `READ_ONLY` — The resource is a read-only built-in (e.g. a built-in gate-rule template) and cannot be modified or deleted.
 - `VALIDATION` — The request body failed structural (schema) validation.
 
 #### Attributes
@@ -301,7 +415,9 @@ Returns every auto-inferred targeting attribute in the project — the `name` an
 
 _Parameters_
 
-_No parameters._
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `q` | optional | `string` | Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything. _(length 0–100)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -426,6 +542,7 @@ _Parameters_
 | --- | --- | --- | --- |
 | `limit` | optional | `integer` | Page size (1–500). Defaults to 100. _(default `100`; 1–500)_ |
 | `cursor` | optional | `string` | Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page. |
+| `q` | optional | `string` | Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything. _(length 0–100)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -698,6 +815,7 @@ _Parameters_
 | --- | --- | --- | --- |
 | `limit` | optional | `integer` | Page size (1–500). Defaults to 100. _(default `100`; 1–500)_ |
 | `cursor` | optional | `string` | Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page. |
+| `q` | optional | `string` | Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything. _(length 0–100)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -901,6 +1019,8 @@ _Parameters_
 | --- | --- | --- | --- |
 | `limit` | optional | `integer` | Page size (1–500). Defaults to 100. _(default `100`; 1–500)_ |
 | `cursor` | optional | `string` | Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page. |
+| `status` | optional | `string` | Filter by lifecycle status. Pass `archived` to return the archive tab; any other value (or omitting it) returns the non-archived experiments. |
+| `q` | optional | `string` | Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything. _(length 0–100)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1226,6 +1346,7 @@ _Parameters_
 | --- | --- | --- | --- |
 | `limit` | optional | `integer` | Page size (1–500). Defaults to 100. _(default `100`; 1–500)_ |
 | `cursor` | optional | `string` | Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page. |
+| `q` | optional | `string` | Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything. _(length 0–100)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1319,7 +1440,7 @@ _Parameters_
 | `name` | required | `string` | Stable metric key. Single segment or `folder.name`; lowercase letters, digits, `_`/`-`; max 128 chars. _(length 0–128; pattern `^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$`)_ |
 | `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `event_name` | required | `string` | Source event the query reads from. _(length 1–∞)_ |
-| `query` | optional | `string` | Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`. _(length 1–4096)_ |
+| `query` | optional | `string` | Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`. Every label the query references — in filters, the value position, `by (…)`, or `without (…)` — must exist as a property on the tracked event's payload; a query over a label the event never carries validates fine but returns empty results. _(length 1–4096)_ |
 | `winsorize_pct` | optional | `integer` | Winsorise percentile (1–99) to clamp outliers. Defaults to 99. _(default `99`; 1–99)_ |
 | `min_detectable_effect` | optional | `any` | Minimum detectable effect (relative, 0–1) for power planning. `null` to omit. _(default `null`)_ |
 | `direction` | optional | `"higher_better" \| "lower_better" \| "neutral"` | Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail). _(default `"higher_better"`)_ |
@@ -1360,7 +1481,9 @@ Returns every metric in the project (not paginated) — name, folder, source eve
 
 _Parameters_
 
-_No parameters._
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `q` | optional | `string` | Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything. _(length 0–100)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1400,7 +1523,7 @@ _Parameters_
 | `id` | required | `string` | Stable opaque metric id (`met_…`) or the metric's `name`. |
 | `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `event_name` | optional | `string` | Source event the query reads from. _(length 1–∞)_ |
-| `query` | optional | `string` | Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`. _(length 1–4096)_ |
+| `query` | optional | `string` | Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`. Every label the query references — in filters, the value position, `by (…)`, or `without (…)` — must exist as a property on the tracked event's payload; a query over a label the event never carries validates fine but returns empty results. _(length 1–4096)_ |
 | `winsorize_pct` | optional | `integer` | Winsorise percentile (1–99) to clamp outliers. Defaults to 99. _(default `99`; 1–99)_ |
 | `min_detectable_effect` | optional | `any` | Minimum detectable effect (relative, 0–1) for power planning. `null` to omit. _(default `null`)_ |
 | `direction` | optional | `"higher_better" \| "lower_better" \| "neutral"` | Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail). _(default `"higher_better"`)_ |
@@ -1533,7 +1656,9 @@ Returns every catalogued event in the project, including pending auto-discovered
 
 _Parameters_
 
-_No parameters._
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `q` | optional | `string` | Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything. _(length 0–100)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1752,7 +1877,7 @@ _Parameters_
 | `title` | required | `string` | One-line headline of what's blocked. _(length 1–200)_ |
 | `summary` | required | `string` | One sentence: why it can't be fixed in code. Renders markdown. _(length 1–280)_ |
 | `steps` | optional | `string[]` | Ordered steps the human should take to unblock — self-contained (the human reads only this card, not the agent's transcript), 3–6 steps, each naming the exact file, command, env var, or dashboard page. Renders markdown. |
-| `href` | optional | `string` | Dashboard-relative deep link to the related item. |
+| `href` | optional | `any` | Dashboard-relative deep link to the related item. `null` is accepted and treated as "no link". |
 | `dedupeKey` | optional | `string` | Stable per-escalation key (e.g. `feedback:7`) so re-runs dedupe to one row. |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -1783,7 +1908,7 @@ _Parameters_
 | `stepsToReproduce` | optional | `string` | Updated reproduction steps. _(length 0–8000)_ |
 | `actualResult` | optional | `string` | Updated actual result. _(length 0–8000)_ |
 | `expectedResult` | optional | `string` | Updated expected result. _(length 0–8000)_ |
-| `status` | optional | `"open" \| "pending_approval" \| "triage" \| "triaged" \| "in_progress" \| "ready_for_qa" \| "resolved" \| "wont_fix"` | Lifecycle status of a queue item. The working flow is `open` → `triaged` → `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`). Two human-gated holding states park an item OUT of the work queue until a human promotes it to `open` in the dashboard, so `GET /api/admin/ops` excludes them under `status=all`/default and returns them only when requested as an exact `status`: `pending_approval` is the pre-open approval gate for untriaged inbound (e.g. connector requests filed from a customer's connectors panel) so it never gets auto-implemented — approving = flipping the status to `open`; `triage` is the onboarding-help bucket — questions/errors submitted to the "Stuck in onboarding?" assistant are funnelled into the platform project as `triage` rows so the team can see where people get stuck and follow up, keeping onboarding chatter out of the work queue until a human moves real items to `open`. |
+| `status` | optional | `"open" \| "pending_approval" \| "triage" \| "triaged" \| "in_progress" \| "ready_for_qa" \| "resolved" \| "wont_fix"` | Lifecycle status of a queue item. The working flow is `open` → `triaged` → `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`, terminal from any earlier stage). `ready_for_qa` is what a developer sets once a fix lands; `resolved` is the QA sign-off, normally flipped in the dashboard after verification — set it directly from code only when the fix has been verified end-to-end. Two human-gated holding states park an item OUT of the work queue until a human promotes it to `open` in the dashboard, so `GET /api/admin/ops` excludes them under `status=all`/default and returns them only when requested as an exact `status`: `pending_approval` is the pre-open approval gate for untriaged inbound (e.g. connector requests filed from a customer's connectors panel) so it never gets auto-implemented — approving = flipping the status to `open`; `triage` is the onboarding-help bucket — questions/errors submitted to the "Stuck in onboarding?" assistant are funnelled into the platform project as `triage` rows so the team can see where people get stuck and follow up, keeping onboarding chatter out of the work queue until a human moves real items to `open`. |
 | `priority` | optional | `any` | Triage priority, or `null` when not set (in an update, `null` clears it). |
 | `githubPrNumber` | optional | `any` | Link (or, when `null`, unlink) a GitHub pull request to this bug. |
 | `notify` | optional | `any` | Where this item's completion notification lands, or `null`. |
@@ -1884,7 +2009,9 @@ Returns every alert rule in the project (not paginated). Each rule carries its b
 
 _Parameters_
 
-_No parameters._
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `q` | optional | `string` | Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything. _(length 0–100)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1894,7 +2021,7 @@ _Errors_ — beyond the [common errors](#errors):
 
 **Update an alert rule**
 
-Partial update of a rule's tunable knobs. `metricId` is immutable — it is rejected by the schema (the metric also pins the aggregation), so delete + recreate to repoint a rule.
+Partial update of a rule's tunable knobs. `metricId` is immutable — the metric also pins the aggregation, so a body carrying `metricId` is rejected with `409 IMMUTABLE_FIELD`; create a new rule bound to the other metric instead (rule deletion is dashboard-only).
 
 Pass `"notify": null` to revert the rule's delivery target back to the project default.
 
@@ -1920,6 +2047,7 @@ _Errors_ — beyond the [common errors](#errors):
 
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `IMMUTABLE_FIELD` — A field that is immutable in the current state was modified (e.g. editing allocation while running).
 - `VALIDATION` — The request body failed structural (schema) validation.
 
 ### Trigger
@@ -2151,8 +2279,9 @@ _Parameters_
 | --- | --- | --- | --- |
 | `profile_id` | optional | `string` | Profile id to list keys for. |
 | `prefix` | optional | `string` | Only keys whose name starts with this. |
-| `q` | optional | `string` | Free-text search — matches keys whose name OR value contains this substring (case-insensitive). Use it to find the key behind a piece of on-screen copy. |
+| `q` | optional | `string` | Free-text search — matches keys whose name, value, OR description contains this substring (case-insensitive). Use it to find the key behind a piece of on-screen copy. _(length 0–100)_ |
 | `limit` | optional | `integer` | Max keys to return (1–500). _(1–500)_ |
+| `offset` | optional | `integer` | Number of keys to skip before returning `limit` rows (offset pagination). _(default `0`; ≥ 0)_ |
 
 #### `i18n_keys_push`
 
@@ -2226,6 +2355,75 @@ _Parameters_
 | --- | --- | --- | --- |
 | `draftId` | required | `string` | The draft id to update. |
 | `status` | optional | `"open" \| "merged" \| "abandoned"` | New lifecycle state for the draft. |
+
+## Errors
+
+Tracked production errors: the deduplicated, fingerprinted error stream the
+SDK + framework error sinks feed. Read-only list/get plus a status update
+(`open`/`resolved`/`ignored`), an auto-file-to-GitHub-issue action, and a
+time-series rollup. Errors are ingestion-only — there is no create route.
+
+### `errors_get`
+
+**Get a tracked error**
+
+Returns a single tracked error by its id, including the latest occurrence's stack, extras, and consequence. Returns `404` if no such error exists in the project.
+
+**Use case:** Drill into one issue — fetch its full stack and `seenUrls` to investigate, or to render the detail panel behind a row in the errors list.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `id` | required | `string` | Stable opaque error id (`err_…`). |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
+### `errors_list`
+
+**List tracked errors**
+
+Returns a single page of tracked production errors as a **bare JSON array** (no pagination envelope), ordered by `lastSeenAt desc`. Filter with `status`, free-text-search with `q`, and cap the page with `limit`.
+
+Tracked errors are never filed by hand — an ingestion path (worker log drain / the `see()` SDK reporter) folds each occurrence into a row keyed by `fingerprint`, bumping `count` and `lastSeenAt`. This surface only reads them and (via PATCH) flips their `status`.
+
+**Use case:** Snapshot the project's open issues for a triage dashboard, or drive a CI gate that fails the build when any `open` error of `kind: uncaught` exists in `prod`.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `status` | optional | `"open" \| "resolved" \| "ignored" \| "all"` | Filter by triage state. `all` (the default) returns every status. _(default `"all"`)_ |
+| `q` | optional | `string` | Case-insensitive substring match against `message`, `errorType`, and `subject`. _(length 0–200)_ |
+| `limit` | optional | `integer` | Maximum number of rows to return (1–500). Defaults to 200. _(default `200`; 1–500)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+
+### `errors_series`
+
+**Get an error's occurrence series**
+
+Returns a bucketed occurrence timeseries for one tracked error (by its fingerprint), read from the `shipeasy_errors` Analytics Engine dataset (near-real-time; ingest lag is seconds). The window bounds are epoch **seconds**; `to` must be strictly greater than `from`. The response echoes the SQL that produced the rows.
+
+**Use case:** Render the trend sparkline / occurrence chart on the error detail panel, or pull the raw bucketed counts to alert when an issue's rate spikes.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `id` | required | `string` | Stable opaque error id (`err_…`). |
+| `from` | required | `integer` | Window start, epoch seconds (inclusive). _(≥ 0)_ |
+| `to` | required | `integer` | Window end, epoch seconds (exclusive). Must be greater than `from`. _(≥ 0)_ |
+| `bucket` | optional | `integer` | Bucket width in seconds (60s–86400s/1d). Defaults to `3600` (hourly). Each returned point is floor-aligned to this width. _(default `3600`; 60–86400)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 
 ## Auth
 
