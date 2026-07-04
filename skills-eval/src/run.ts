@@ -1,7 +1,7 @@
 /**
- * Run the skill-routing eval: for every case, drive headless `claude -p` K times
- * against the LOCAL shipeasy MCP server, parse the tool-call transcript, and
- * score how often the expected skill fired and the expected tools were called.
+ * Run the skill-routing eval: for every case, drive headless `claude -p` once
+ * (K=1, enforced) against the LOCAL shipeasy MCP server, parse the tool-call
+ * transcript, and check the expected skill fired and the expected tools ran.
  *
  *   pnpm --filter @shipeasy/skills-eval eval               # all cases
  *   pnpm --filter @shipeasy/skills-eval eval -- flags      # cases whose id/file matches "flags"
@@ -10,7 +10,7 @@
  *   SHIPEASY_EVAL_TOKEN         admin SDK key minted vs local backend  (required)
  *   SHIPEASY_EVAL_PROJECT_ID    project id for the binding + config     (required)
  *   SHIPEASY_EVAL_BASE_URL      local admin API base (default :3100)
- *   SHIPEASY_EVAL_K             runs per case (default 3)
+ *   SHIPEASY_EVAL_K             runs per case (must be 1 — higher is rejected)
  *   SHIPEASY_EVAL_THRESHOLD     pass threshold 0..1 (default 0.67)
  *   SHIPEASY_EVAL_MODE          "execute" (default, real calls) | "plan" (no side effects)
  *   SHIPEASY_EVAL_MODEL         --model (default "haiku": cases must route on the cheapest model)
@@ -32,7 +32,17 @@ import { expectedSkills, type CaseResult, type EvalCase, type Observation } from
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const filter = process.argv.slice(2).find((a) => !a.startsWith("--"));
-const K = int(process.env.SHIPEASY_EVAL_K, 3);
+// HARD RULE: the eval always runs at K=1. A skill that only routes when its
+// result is averaged over multiple runs is not fixed — every case must pass
+// deterministically on a single run. Refuse any attempt to raise K.
+const K = int(process.env.SHIPEASY_EVAL_K, 1);
+if (K !== 1) {
+  console.error(
+    `SHIPEASY_EVAL_K=${K} is not allowed — this eval only runs at K=1. ` +
+      `Fix the skill's routing until it passes on a single run; do not average more runs.`,
+  );
+  process.exit(2);
+}
 const THRESHOLD = num(process.env.SHIPEASY_EVAL_THRESHOLD, 0.67);
 const MODE = process.env.SHIPEASY_EVAL_MODE === "plan" ? "plan" : "execute";
 const CLAUDE = process.env.SHIPEASY_EVAL_CLAUDE_BIN ?? "claude";

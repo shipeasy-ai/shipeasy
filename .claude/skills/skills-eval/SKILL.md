@@ -29,8 +29,13 @@ tool a skill *mentions* exists"). Three ways to run:
 `test` is free and runs in CI. **`eval:fresh` is the deterministic way to run** —
 it wipes + migrates + seeds its own DB per run so results don't depend on
 leftover state (see below). Plain `eval` points at a backend you manage. Both
-spawn real `claude` processes, cost tokens, and take ~10–20s per run (K runs per
-case, sequential — 42 runs at K=3 ≈ 15–20 min).
+spawn real `claude` processes, cost tokens, and take ~10–20s per run (one run per
+case, sequential — 42 cases ≈ 8–12 min).
+
+**HARD RULE: always run at K=1. Never set `SHIPEASY_EVAL_K` above 1.** A skill that
+only routes at higher K is not fixed — every case must pass deterministically on a
+single run. If a case is red at K=1, improve the skill (its routing description /
+triggers) until it is green at K=1; do not paper over it by averaging more runs.
 
 ## Fresh, isolated run (`eval:fresh`) — recommended
 
@@ -111,7 +116,7 @@ and the report land in `skills-eval/.eval-workdir/` (git-ignored).
 | `SHIPEASY_EVAL_TOKEN` | — (**required**) | admin SDK key (`X-SDK-Key`) minted vs the local backend |
 | `SHIPEASY_EVAL_PROJECT_ID` | — (**required**) | project id for the `.shipeasy` binding + admin calls |
 | `SHIPEASY_EVAL_BASE_URL` | `http://localhost:3100` | local admin API base |
-| `SHIPEASY_EVAL_K` | `3` | runs per case |
+| `SHIPEASY_EVAL_K` | `1` | runs per case — **must stay 1; never raise it** |
 | `SHIPEASY_EVAL_THRESHOLD` | `0.67` | pass fraction (0..1) per asserted dimension |
 | `SHIPEASY_EVAL_MODE` | `execute` | `execute` = real MCP calls; `plan` = capture intended tool_use, no side effects |
 | `SHIPEASY_EVAL_MODEL` | `haiku` | `--model`; routing must survive the cheapest model |
@@ -168,9 +173,6 @@ or clobbers your real `~/.config/shipeasy` prod session.
 ```bash
 # Just one skill's cases
 pnpm --filter @shipeasy/skills-eval eval -- experiments
-
-# Raise K for more samples per case
-SHIPEASY_EVAL_K=3 pnpm --filter @shipeasy/skills-eval eval -- flags
 
 # A/B whether a skill is load-bearing: run once normally, once without it, compare
 # (this is how shipeasy-common, then shipeasy-setup, were shown to be

@@ -8,9 +8,9 @@ import {
 } from "./types.js";
 
 /**
- * Score one case's K runs into pass-rates. Routing is probabilistic, so a case
- * passes on a *threshold* of runs, not a single boolean — e.g. threshold 0.8
- * means each asserted dimension must hold in ≥4 of 5 runs.
+ * Score one case's run(s) into pass-rates. The eval runs at K=1, so each
+ * asserted dimension is effectively a single boolean per case; the threshold
+ * machinery is retained only for the pass-fraction plumbing.
  */
 export function scoreCase(
   c: EvalCase,
