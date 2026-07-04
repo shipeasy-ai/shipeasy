@@ -2,7 +2,7 @@
 
 > Looking for the tool-by-tool reference? See
 > [mcp-reference.md](./mcp-reference.md) — auto-generated from the live tool
-> catalog by `pnpm docs` (also published to docs.shipeasy.ai/get-started/mcp-reference).
+> catalog by `pnpm run docs` (also published to docs.shipeasy.ai/get-started/mcp-reference).
 
 How the tool surface is built: nearly the whole CRUD/read/docs surface is
 **generated from `@shipeasy/openapi`'s bundled spec** — `scripts/gen-tools.mjs`
@@ -20,9 +20,9 @@ this server.
         │  openapi.yaml (tags + x-cli)
         ▼  pnpm gen:tools
 src/generated/tools.gen.ts  ─┐
-src/tools/*.ts (hand-written) ┴─▶  src/tools/schema.ts  TOOLS[]  ─▶  pnpm docs ─▶ mcp-reference.md
+src/tools/*.ts (hand-written) ┴─▶  src/tools/schema.ts  TOOLS[]  ─▶  pnpm run docs ─▶ mcp-reference.md
 ```
 
 Regenerate the tool surface with `pnpm gen:tools` (run **after**
-`@shipeasy/openapi`'s `pnpm gen`); regenerate this reference with `pnpm docs`.
+`@shipeasy/openapi`'s `pnpm gen`); regenerate this reference with `pnpm run docs`.
 Never hand-edit `tools.gen.ts` or `mcp-reference.md`.

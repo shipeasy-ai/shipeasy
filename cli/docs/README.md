@@ -2,7 +2,7 @@
 
 > Looking for the command-by-command reference? See
 > [cli-reference.md](./cli-reference.md) — auto-generated from the live command
-> tree by `pnpm docs` (also published to docs.shipeasy.ai/get-started/cli-reference).
+> tree by `pnpm run docs` (also published to docs.shipeasy.ai/get-started/cli-reference).
 
 How the CLI is built. The command surface is **three layers**, two of them
 projected from the OpenAPI spec and one hand-written:

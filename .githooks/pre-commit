@@ -27,8 +27,11 @@ if [ -z "$triggers" ]; then
   exit 0
 fi
 
-echo "pre-commit: openapi/cli/mcp changed — regenerating reference docs (pnpm docs)"
-pnpm docs
+echo "pre-commit: openapi/cli/mcp changed — regenerating reference docs (pnpm run docs)"
+# NB: `pnpm run docs`, never bare `pnpm docs` — pnpm forwards the bare `docs`
+# subcommand to `npm docs`, which opens this package's npmjs page in a browser
+# instead of running the `docs` script (`turbo run docs`).
+pnpm run docs
 
 # Re-stage the in-repo generated copies (paths inside this submodule only).
 in_repo_docs="cli/docs/cli-reference.md mcp/docs/mcp-reference.md"
