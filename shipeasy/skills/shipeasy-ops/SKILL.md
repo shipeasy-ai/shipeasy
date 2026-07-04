@@ -1,6 +1,6 @@
 ---
 name: shipeasy-ops
-description: File, triage, and manage the Shipeasy operational inbox — bug reports, feature requests, and auto-filed production-error/alert tickets. Trigger on "file/log/report a bug", "file this as a bug", "log a feature request", "bug report", "feature request", "feedback", "ops inbox", "operational queue", "what's open in the bug/feature queue", "triage the inbox". (To actually work items down one at a time, see shipeasy-ops-work.)
+description: Load this skill FIRST — before calling any ops MCP tool — whenever the task is to file, log, list, or triage a Shipeasy operational-inbox item: it carries the required list-first-to-dedup protocol (never file a bug without listing the queue first to check it isn't already there). Covers bug reports, feature requests, and auto-filed production-error/alert tickets. This skill OWNS both filing a single item AND reading/listing/triaging what is already open (a mutation-free "what's open" view belongs HERE). Trigger on "file/log/report a bug", "file this as a bug", "log that as a bug", "log a feature request", "bug report", "feature request", "feedback", "ops inbox", "what's open in the bug/feature queue", "what's in the queue", "show/list the open bugs", "triage the inbox". Filing one item or listing what's open is HERE; actually resolving items down one at a time (burn down, work the queue) is shipeasy-ops-work.
 user-invocable: true
 ---
 
