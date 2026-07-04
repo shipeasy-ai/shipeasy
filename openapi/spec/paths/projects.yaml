@@ -22,7 +22,7 @@
               name: Acme
               domain: acme.com
               ownerEmail: owner@acme.com
-              plan: paid
+              plan: pro
               status: active
               subscriptionStatus: active
               billingInterval: monthly
@@ -172,7 +172,7 @@
               name: Acme Rockets
               domain: acme.com
               ownerEmail: owner@acme.com
-              plan: paid
+              plan: pro
               status: active
               subscriptionStatus: active
               billingInterval: monthly

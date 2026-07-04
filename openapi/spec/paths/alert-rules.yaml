@@ -128,6 +128,7 @@
       - UNAUTHORIZED
       - FORBIDDEN
       - ALREADY_EXISTS
+      - METRIC_NOT_FOUND
       - REFERENCED_NOT_FOUND
       - VALIDATION
     x-cli:

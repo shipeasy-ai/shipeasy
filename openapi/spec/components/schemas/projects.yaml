@@ -19,7 +19,9 @@ GetCurrentProjectResponse:
       type: string
       enum:
         - free
-        - paid
+        - pro
+        - business
+        - enterprise
       description: Billing plan tier.
     status:
       type: string

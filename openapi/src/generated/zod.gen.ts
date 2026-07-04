@@ -116,7 +116,20 @@ export const zErrorCode = z.enum([
     'REFERENCED_NOT_FOUND',
     'GROUPS_WEIGHT_SUM',
     'EVENT_PENDING',
-    'INTERNAL'
+    'INTERNAL',
+    'CONFLICT',
+    'PLAN_LIMIT',
+    'FEATURE_REQUIRES_UPGRADE',
+    'INVALID_JSON',
+    'EXPERIMENT_NOT_FOUND',
+    'EXPERIMENT_NO_GOAL_METRIC',
+    'EXPERIMENT_ARCHIVED_RESTART',
+    'EXPERIMENT_RESTORE_INVALID',
+    'EXPERIMENT_NOT_RUNNING',
+    'EXPERIMENT_RUNNING_ARCHIVE',
+    'EXPERIMENT_IMMUTABLE_FIELD',
+    'METRIC_NOT_FOUND',
+    'METRIC_UNKNOWN_ID'
 ]);
 
 /**
@@ -2053,7 +2066,12 @@ export const zGetCurrentProjectResponse = z.object({
     name: z.string(),
     domain: z.string().nullable(),
     ownerEmail: z.string(),
-    plan: z.enum(['free', 'paid']),
+    plan: z.enum([
+        'free',
+        'pro',
+        'business',
+        'enterprise'
+    ]),
     status: z.enum(['active', 'inactive']),
     subscriptionStatus: z.string(),
     billingInterval: z.enum(['monthly', 'annual']),

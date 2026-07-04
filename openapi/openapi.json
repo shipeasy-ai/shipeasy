@@ -6791,6 +6791,7 @@
           "UNAUTHORIZED",
           "FORBIDDEN",
           "ALREADY_EXISTS",
+          "METRIC_NOT_FOUND",
           "REFERENCED_NOT_FOUND",
           "VALIDATION"
         ],
@@ -6996,7 +6997,7 @@
                   "name": "Acme",
                   "domain": "acme.com",
                   "ownerEmail": "owner@acme.com",
-                  "plan": "paid",
+                  "plan": "pro",
                   "status": "active",
                   "subscriptionStatus": "active",
                   "billingInterval": "monthly",
@@ -7191,7 +7192,7 @@
                   "name": "Acme Rockets",
                   "domain": "acme.com",
                   "ownerEmail": "owner@acme.com",
-                  "plan": "paid",
+                  "plan": "pro",
                   "status": "active",
                   "subscriptionStatus": "active",
                   "billingInterval": "monthly",
@@ -10287,7 +10288,20 @@
           "REFERENCED_NOT_FOUND",
           "GROUPS_WEIGHT_SUM",
           "EVENT_PENDING",
-          "INTERNAL"
+          "INTERNAL",
+          "CONFLICT",
+          "PLAN_LIMIT",
+          "FEATURE_REQUIRES_UPGRADE",
+          "INVALID_JSON",
+          "EXPERIMENT_NOT_FOUND",
+          "EXPERIMENT_NO_GOAL_METRIC",
+          "EXPERIMENT_ARCHIVED_RESTART",
+          "EXPERIMENT_RESTORE_INVALID",
+          "EXPERIMENT_NOT_RUNNING",
+          "EXPERIMENT_RUNNING_ARCHIVE",
+          "EXPERIMENT_IMMUTABLE_FIELD",
+          "METRIC_NOT_FOUND",
+          "METRIC_UNKNOWN_ID"
         ],
         "x-enum-descriptions": {
           "BAD_REQUEST": "Malformed request (bad JSON, missing project scope).",
@@ -10304,7 +10318,20 @@
           "REFERENCED_NOT_FOUND": "A referenced entity (universe, metric, gate, event) does not exist.",
           "GROUPS_WEIGHT_SUM": "Experiment group weights must sum to 10000 (basis points).",
           "EVENT_PENDING": "The referenced event is still pending review and cannot back a metric yet.",
-          "INTERNAL": "Unexpected server error."
+          "INTERNAL": "Unexpected server error.",
+          "CONFLICT": "The write conflicts with the current state of the resource (concurrent update or duplicate).",
+          "PLAN_LIMIT": "The action would exceed a plan quota (e.g. the tier's maximum flags or experiments).",
+          "FEATURE_REQUIRES_UPGRADE": "The requested capability is not available on the current plan tier.",
+          "INVALID_JSON": "The request body was not valid JSON.",
+          "EXPERIMENT_NOT_FOUND": "The referenced experiment does not exist or is not visible to the caller.",
+          "EXPERIMENT_NO_GOAL_METRIC": "The experiment has no goal metric set, which the requested action requires.",
+          "EXPERIMENT_ARCHIVED_RESTART": "An archived experiment cannot be restarted.",
+          "EXPERIMENT_RESTORE_INVALID": "The experiment cannot be restored from its current state.",
+          "EXPERIMENT_NOT_RUNNING": "The action requires the experiment to be running.",
+          "EXPERIMENT_RUNNING_ARCHIVE": "A running experiment cannot be archived — stop it first.",
+          "EXPERIMENT_IMMUTABLE_FIELD": "A field that is immutable while the experiment is running was modified.",
+          "METRIC_NOT_FOUND": "The referenced metric does not exist or is not visible to the caller.",
+          "METRIC_UNKNOWN_ID": "The supplied metric id is malformed or not recognised."
         }
       },
       "Error": {
@@ -17367,7 +17394,9 @@
             "type": "string",
             "enum": [
               "free",
-              "paid"
+              "pro",
+              "business",
+              "enterprise"
             ],
             "description": "Billing plan tier."
           },

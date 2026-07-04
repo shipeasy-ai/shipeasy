@@ -40,6 +40,19 @@ All error codes:
 | `GROUPS_WEIGHT_SUM` | Experiment group weights must sum to 10000 (basis points). |
 | `EVENT_PENDING` | The referenced event is still pending review and cannot back a metric yet. |
 | `INTERNAL` | Unexpected server error. |
+| `CONFLICT` | The write conflicts with the current state of the resource (concurrent update or duplicate). |
+| `PLAN_LIMIT` | The action would exceed a plan quota (e.g. the tier's maximum flags or experiments). |
+| `FEATURE_REQUIRES_UPGRADE` | The requested capability is not available on the current plan tier. |
+| `INVALID_JSON` | The request body was not valid JSON. |
+| `EXPERIMENT_NOT_FOUND` | The referenced experiment does not exist or is not visible to the caller. |
+| `EXPERIMENT_NO_GOAL_METRIC` | The experiment has no goal metric set, which the requested action requires. |
+| `EXPERIMENT_ARCHIVED_RESTART` | An archived experiment cannot be restarted. |
+| `EXPERIMENT_RESTORE_INVALID` | The experiment cannot be restored from its current state. |
+| `EXPERIMENT_NOT_RUNNING` | The action requires the experiment to be running. |
+| `EXPERIMENT_RUNNING_ARCHIVE` | A running experiment cannot be archived — stop it first. |
+| `EXPERIMENT_IMMUTABLE_FIELD` | A field that is immutable while the experiment is running was modified. |
+| `METRIC_NOT_FOUND` | The referenced metric does not exist or is not visible to the caller. |
+| `METRIC_UNKNOWN_ID` | The supplied metric id is malformed or not recognised. |
 
 Hand-written tools (`projects_upsert` and auth) layer the `.shipeasy` bind or the device-auth flow on top of the admin API rather than being plain spec calls, so they don't use this envelope. All filesystem / AST tooling (project detection, i18n source scanners / codemods / loader install) now lives in the `shipeasy` CLI, not this MCP server.
 
@@ -2007,6 +2020,7 @@ _Errors_ — beyond the [common errors](#errors):
 
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `ALREADY_EXISTS` — A resource with this name already exists in the project.
+- `METRIC_NOT_FOUND` — The referenced metric does not exist or is not visible to the caller.
 - `REFERENCED_NOT_FOUND` — A referenced entity (universe, metric, gate, event) does not exist.
 - `VALIDATION` — The request body failed structural (schema) validation.
 
