@@ -25,12 +25,66 @@ import { GENERATED_TOOLS } from "../generated/tools.gen.js";
 export const LIST_TOKEN_PARAM = "listToken";
 
 /**
- * Token freshness window. A token is accepted in the bucket it was minted in
- * plus the previous one, so effective validity is WINDOW..2×WINDOW (10–20 min).
- * Long enough to survive a real list→inspect→create flow; short enough that a
- * token from earlier in the session goes stale and forces a re-list.
+ * Default token freshness window. A token is accepted in the bucket it was
+ * minted in plus the previous one, so effective validity is WINDOW..2×WINDOW
+ * (10–20 min). Long enough to survive a real list→inspect→create flow; short
+ * enough that a token from earlier in the session goes stale and forces a
+ * re-list. Overridable per deployment via `SHIPEASY_MCP_LIST_GUARD_WINDOW_MINUTES`.
  */
-const WINDOW_MS = 10 * 60 * 1000;
+const DEFAULT_WINDOW_MS = 10 * 60 * 1000;
+
+// ── configuration (env, so it flows straight from an mcp.json `env` block) ────
+
+/**
+ * Guard knobs read from the process environment — the portable config surface
+ * every MCP client exposes (`mcp.json` / `settings.json` `env`). Read once and
+ * memoized: an MCP server's env is fixed for its whole lifetime, and reading it
+ * once keeps the schema advertisement and the runtime enforcement in lock-step.
+ *
+ *   SHIPEASY_MCP_LIST_GUARD            on|off|1|0|true|false   (default: on)
+ *   SHIPEASY_MCP_LIST_GUARD_WINDOW_MINUTES   positive number   (default: 10)
+ */
+export interface GuardConfig {
+  enabled: boolean;
+  windowMs: number;
+}
+
+function parseBool(v: string | undefined, dflt: boolean): boolean {
+  if (v == null || v.trim() === "") return dflt;
+  const s = v.trim().toLowerCase();
+  if (["off", "0", "false", "no", "disable", "disabled"].includes(s)) return false;
+  if (["on", "1", "true", "yes", "enable", "enabled"].includes(s)) return true;
+  return dflt;
+}
+
+function parseWindowMs(v: string | undefined, dfltMs: number): number {
+  if (v == null || v.trim() === "") return dfltMs;
+  const minutes = Number(v);
+  if (!Number.isFinite(minutes) || minutes <= 0) return dfltMs;
+  return Math.round(minutes * 60 * 1000);
+}
+
+let _cfg: GuardConfig | null = null;
+
+export function guardConfig(): GuardConfig {
+  if (!_cfg) {
+    _cfg = {
+      enabled: parseBool(process.env.SHIPEASY_MCP_LIST_GUARD, true),
+      windowMs: parseWindowMs(process.env.SHIPEASY_MCP_LIST_GUARD_WINDOW_MINUTES, DEFAULT_WINDOW_MS),
+    };
+  }
+  return _cfg;
+}
+
+/** True when the list-before-create guard is switched on for this process. */
+export function guardEnabled(): boolean {
+  return guardConfig().enabled;
+}
+
+/** Test-only: drop the memoized config so a later `guardConfig()` re-reads env. */
+export function __resetGuardConfigForTests(): void {
+  _cfg = null;
+}
 
 /**
  * Per-process signing secret. Never persisted and never leaves the process — a
@@ -40,8 +94,8 @@ const WINDOW_MS = 10 * 60 * 1000;
 const SECRET = randomBytes(32);
 
 /** The coarse time bucket `now` falls into. Exported for tests. */
-export function bucketAt(now: number): number {
-  return Math.floor(now / WINDOW_MS);
+export function bucketAt(now: number, windowMs: number = guardConfig().windowMs): number {
+  return Math.floor(now / windowMs);
 }
 
 function sign(family: string, bucket: number): string {
@@ -87,16 +141,21 @@ export function listMintsToken(toolName: string): boolean {
 
 // ── mint / verify ───────────────────────────────────────────────────────────
 
-export function mintListToken(family: string, now: number): string {
-  return sign(family, bucketAt(now));
+export function mintListToken(family: string, now: number, windowMs: number = guardConfig().windowMs): string {
+  return sign(family, bucketAt(now, windowMs));
 }
 
 export type TokenVerdict = "ok" | "missing" | "invalid";
 
 /** Accept the token if it matches the current or previous bucket for this family. */
-export function verifyToken(family: string, token: unknown, now: number): TokenVerdict {
+export function verifyToken(
+  family: string,
+  token: unknown,
+  now: number,
+  windowMs: number = guardConfig().windowMs,
+): TokenVerdict {
   if (typeof token !== "string" || token.length === 0) return "missing";
-  const b = bucketAt(now);
+  const b = bucketAt(now, windowMs);
   return token === sign(family, b) || token === sign(family, b - 1) ? "ok" : "invalid";
 }
 
@@ -104,6 +163,10 @@ export function verifyToken(family: string, token: unknown, now: number): TokenV
 
 function familyLabel(family: string): string {
   return family.replaceAll("_", " ");
+}
+
+function windowMinutes(): number {
+  return Math.max(1, Math.round(guardConfig().windowMs / 60_000));
 }
 
 /**
@@ -117,7 +180,7 @@ export function listTokenBlock(family: string, token: string): { type: "text"; t
       `listToken: ${token}\n` +
       `To create a NEW ${familyLabel(family)}, first confirm above that it doesn't already ` +
       `exist, then pass this exact value as \`${LIST_TOKEN_PARAM}\` to \`${family}_create\`. ` +
-      `It expires in ~10 minutes — re-run this list to refresh it.`,
+      `It expires in ~${windowMinutes()} minutes — re-run this list to refresh it.`,
   };
 }
 
@@ -162,6 +225,7 @@ export function listGuardError(family: string, verdict: Exclude<TokenVerdict, "o
  * untouched.
  */
 export function withListTokenParam(tools: Tool[]): Tool[] {
+  if (!guardEnabled()) return tools;
   return tools.map((t) => {
     const family = guardedCreateFamily(t.name);
     if (!family) return t;

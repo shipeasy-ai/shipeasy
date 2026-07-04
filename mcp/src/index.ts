@@ -25,6 +25,9 @@ Install flags:
 
 Env:
   XDG_CONFIG_HOME             Overrides the config file location
+  SHIPEASY_MCP_LIST_GUARD             on|off — require a fresh listToken from *_list
+                                      before any *_create (default: on)
+  SHIPEASY_MCP_LIST_GUARD_WINDOW_MINUTES  listToken freshness window (default: 10)
 `;
 
 function parseFlag<T>(args: string[], name: string, withValue = true): T | undefined {

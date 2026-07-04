@@ -1,8 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { REGISTRY_TOOLS } from "../tools/registry.js";
 import {
   LIST_TOKEN_PARAM,
+  __resetGuardConfigForTests,
   bucketAt,
+  guardConfig,
+  guardEnabled,
   guardedCreateFamily,
   listFamily,
   listMintsToken,
@@ -106,5 +109,60 @@ describe("schema advertisement", () => {
     expect(
       (out[0].inputSchema as { properties: Record<string, unknown> }).properties[LIST_TOKEN_PARAM],
     ).toBeDefined();
+  });
+});
+
+describe("env configuration", () => {
+  afterEach(() => {
+    delete process.env.SHIPEASY_MCP_LIST_GUARD;
+    delete process.env.SHIPEASY_MCP_LIST_GUARD_WINDOW_MINUTES;
+    __resetGuardConfigForTests();
+  });
+
+  it("is enabled by default", () => {
+    __resetGuardConfigForTests();
+    expect(guardEnabled()).toBe(true);
+    expect(guardConfig().windowMs).toBe(10 * 60 * 1000);
+  });
+
+  it("can be switched off via SHIPEASY_MCP_LIST_GUARD", () => {
+    for (const off of ["off", "0", "false", "no"]) {
+      process.env.SHIPEASY_MCP_LIST_GUARD = off;
+      __resetGuardConfigForTests();
+      expect(guardEnabled()).toBe(false);
+    }
+    process.env.SHIPEASY_MCP_LIST_GUARD = "on";
+    __resetGuardConfigForTests();
+    expect(guardEnabled()).toBe(true);
+  });
+
+  it("stops advertising `listToken` when disabled", () => {
+    process.env.SHIPEASY_MCP_LIST_GUARD = "off";
+    __resetGuardConfigForTests();
+    const create = {
+      name: "release_flags_create",
+      description: "",
+      inputSchema: { type: "object", properties: {} },
+    };
+    const out = withListTokenParam([create] as never);
+    const props = (out[0].inputSchema as { properties: Record<string, unknown> }).properties;
+    expect(props[LIST_TOKEN_PARAM]).toBeUndefined();
+  });
+
+  it("honours a custom window and rejects garbage / non-positive values", () => {
+    process.env.SHIPEASY_MCP_LIST_GUARD_WINDOW_MINUTES = "30";
+    __resetGuardConfigForTests();
+    expect(guardConfig().windowMs).toBe(30 * 60 * 1000);
+    // a token minted `now` is still valid 45 min later (within window + slop)…
+    const tok = mintListToken("metrics", NOW);
+    expect(verifyToken("metrics", tok, NOW + 45 * 60 * 1000)).toBe("ok");
+    // …but not after 61 min (two 30-min windows have passed)
+    expect(verifyToken("metrics", tok, NOW + 61 * 60 * 1000)).toBe("invalid");
+
+    for (const bad of ["0", "-5", "abc", ""]) {
+      process.env.SHIPEASY_MCP_LIST_GUARD_WINDOW_MINUTES = bad;
+      __resetGuardConfigForTests();
+      expect(guardConfig().windowMs).toBe(10 * 60 * 1000);
+    }
   });
 });

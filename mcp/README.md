@@ -58,6 +58,32 @@ shipeasy mcp install     # auto-writes ~/.claude/settings.json + .cursor/mcp.jso
 shipeasy mcp start       # run stdio server (same binary, different entry)
 ```
 
+#### Configuration (`env`)
+
+The server is configured through environment variables, so every setting flows
+straight from your `mcp.json` / `settings.json` `env` block:
+
+```json
+{
+  "mcpServers": {
+    "shipeasy": {
+      "command": "npx",
+      "args": ["-y", "@shipeasy/mcp@latest"],
+      "env": {
+        "SHIPEASY_MCP_LIST_GUARD": "on",
+        "SHIPEASY_MCP_LIST_GUARD_WINDOW_MINUTES": "10"
+      }
+    }
+  }
+}
+```
+
+| Variable                                 | Default | Effect                                                                                                                                                                                                                                                                             |
+| ---------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `XDG_CONFIG_HOME`                        | —       | Overrides the token/config file location.                                                                                                                                                                                                                                          |
+| `SHIPEASY_MCP_LIST_GUARD`                | `on`    | **List-before-create guard.** When on, every `*_create` that has a `*_list` sibling refuses to run unless it carries a fresh `listToken` that the sibling `*_list` just returned — a forcing-function so the assistant checks for an existing resource before creating a duplicate. Set `off` to disable. |
+| `SHIPEASY_MCP_LIST_GUARD_WINDOW_MINUTES` | `10`    | How long a minted `listToken` stays valid (effective validity is 1×–2× this, since the previous window is also accepted). A token also dies with the server process, so it can never be replayed across sessions.                                                                    |
+
 ### Step 2 — authenticate
 
 Run this once per machine:

@@ -20,6 +20,7 @@ import { getGeneratedClient } from "./tools/_gen-runtime.js";
 import { notAuthenticated, notBound, ok, apiErr } from "./util/api-client.js";
 import {
   LIST_TOKEN_PARAM,
+  guardEnabled,
   guardedCreateFamily,
   listFamily,
   listMintsToken,
@@ -70,11 +71,12 @@ export async function startStdioServer(): Promise<void> {
       if (GENERATED_MUTATES[toolName] && !handle.bound) return notBound(handle);
       const args = params.arguments ?? {};
 
-      // List-before-create guard (MCP-only): a guarded create must carry a fresh
-      // `listToken` minted by its sibling `*_list` — proof the caller checked for
-      // an existing match. The token is never read by the generated dispatch
-      // (which picks only the named body/query args), so it can't reach the wire.
-      const createFamily = guardedCreateFamily(toolName);
+      // List-before-create guard (MCP-only; toggle with SHIPEASY_MCP_LIST_GUARD):
+      // a guarded create must carry a fresh `listToken` minted by its sibling
+      // `*_list` — proof the caller checked for an existing match. The token is
+      // never read by the generated dispatch (which picks only the named
+      // body/query args), so it can't reach the wire.
+      const createFamily = guardEnabled() ? guardedCreateFamily(toolName) : null;
       if (createFamily) {
         const verdict = verifyToken(createFamily, args[LIST_TOKEN_PARAM], Date.now());
         if (verdict !== "ok") return listGuardError(createFamily, verdict);
@@ -84,7 +86,7 @@ export async function startStdioServer(): Promise<void> {
         const data = await genDispatch(handle.client, args);
         // A token-minting list appends the fresh `listToken` for its family so
         // the model can spend it on the matching create.
-        if (listMintsToken(toolName)) {
+        if (guardEnabled() && listMintsToken(toolName)) {
           const family = listFamily(toolName) as string;
           const base = ok(data);
           return { content: [...base.content, listTokenBlock(family, mintListToken(family, Date.now()))] };
