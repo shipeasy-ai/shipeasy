@@ -51,8 +51,13 @@ export function triggerSetupUrl(
 
 export interface TriggerStepResult {
   enabled: boolean;
+  /** First platform opened this run (kept for the one-line summary). */
   platform?: TriggerPlatform;
+  /** Every platform whose wizard the user opened this run. */
+  platforms?: TriggerPlatform[];
   url?: string;
+  /** True when the user finished with "Done" (vs "I'll do it later"/cancel). */
+  completed?: boolean;
 }
 
 export interface TriggerStepOpts {
@@ -111,6 +116,23 @@ export function orderTriggerPlatforms(preferredAgents: string[] = []): OrderedPl
   ];
 }
 
+/** Open (or print) the hosted wizard for one platform — shared by every path. */
+function openWizard(
+  appBaseUrl: string,
+  projectId: string,
+  platform: TriggerPlatform | null,
+  dryRun?: boolean,
+): string {
+  const url = triggerSetupUrl(appBaseUrl, projectId, platform);
+  const picked = platform ? TRIGGER_PLATFORMS.find((p) => p.id === platform)?.label : "the picker";
+  console.log(
+    `\n  Opening the hosted trigger setup${platform ? ` for ${picked}` : ""}:\n\n    ${url}\n`,
+  );
+  console.log("  Paste the URL above if the browser doesn't open.");
+  if (!dryRun) tryOpenBrowser(url);
+  return url;
+}
+
 function printWhatItIs(): void {
   console.log(
     "  A trigger is a scheduled agent that applies changes for you — unattended.\n" +
@@ -148,40 +170,91 @@ export async function runTriggerStep(opts: TriggerStepOpts): Promise<TriggerStep
     }
   }
 
-  // Resolve the platform. An explicit flag wins; otherwise the user must pick
-  // one (the guided five, or "other" → the picker page with no preselect).
-  let platform = normalizePlatform(opts.platform);
-  if (!platform && !opts.platform) {
-    if (opts.interactive) {
-      // Float the platforms the user wired in step 3 to the top, tagged
-      // "recommended"; keep the rest below so any platform is still reachable.
-      const ordered = orderTriggerPlatforms(opts.preferredAgents);
-      const { pick } = await prompts({
-        type: "select",
-        name: "pick",
-        message: "Which coding platform should run your trigger?",
-        choices: [
-          ...ordered.map((p) => ({
-            title: `${p.label} — ${p.sub}${p.recommended ? "  (recommended — wired above)" : ""}`,
-            value: p.id,
-          })),
-          { title: "Other / not sure — show me every option", value: "" },
-        ],
-        initial: 0,
-      });
-      platform = normalizePlatform(pick as string);
-    } else {
-      console.log(
-        "  • no platform given — opening the picker (pass --trigger-platform to preselect).",
-      );
-    }
+  // An explicit --trigger-platform flag is one-shot: open that platform (or the
+  // picker page for an unknown value) and return — no interactive loop.
+  if (opts.platform !== undefined) {
+    const platform = normalizePlatform(opts.platform);
+    const url = openWizard(opts.appBaseUrl, opts.projectId, platform, opts.dryRun);
+    return {
+      enabled: true,
+      platform: platform ?? undefined,
+      platforms: platform ? [platform] : [],
+      url,
+      completed: false,
+    };
   }
 
-  const url = triggerSetupUrl(opts.appBaseUrl, opts.projectId, platform);
-  const picked = platform ? TRIGGER_PLATFORMS.find((p) => p.id === platform)?.label : "the picker";
-  console.log(`\n  Opening the hosted trigger setup${platform ? ` for ${picked}` : ""}:\n\n    ${url}\n`);
-  console.log("  Paste the URL above if the browser doesn't open.");
-  if (!opts.dryRun) tryOpenBrowser(url);
+  // Non-interactive with no flag: open the picker page and return.
+  if (!opts.interactive) {
+    console.log(
+      "  • no platform given — opening the picker (pass --trigger-platform to preselect).",
+    );
+    const url = openWizard(opts.appBaseUrl, opts.projectId, null, opts.dryRun);
+    return { enabled: true, platforms: [], url };
+  }
 
-  return { enabled: true, platform: platform ?? undefined, url };
+  // Interactive: loop so the user can open several platforms in turn. The CLI
+  // stays open the whole time — the browser wizard runs alongside it — until the
+  // user picks "Done" or "I'll do it later". Each platform can be revisited; the
+  // picker floats step-3-wired platforms to the top and marks opened ones.
+  const opened: TriggerPlatform[] = [];
+  let lastUrl: string | undefined;
+  let completed = false;
+  for (;;) {
+    const ordered = orderTriggerPlatforms(opts.preferredAgents);
+    const { pick } = await prompts({
+      type: "select",
+      name: "pick",
+      message: opened.length
+        ? "Open another platform's setup, or finish?"
+        : "Which coding platform should run your trigger?",
+      choices: [
+        ...ordered.map((p) => ({
+          title:
+            `${p.label} — ${p.sub}` +
+            (opened.includes(p.id)
+              ? "  (opened ✓)"
+              : p.recommended
+                ? "  (recommended — wired above)"
+                : ""),
+          value: p.id as string,
+        })),
+        { title: "Other / not sure — show me every option", value: "__other" },
+        { title: "✓ Done — my trigger(s) are set up", value: "__done" },
+        { title: "I'll do it later", value: "__later" },
+      ],
+      initial: 0,
+    });
+
+    // Ctrl-C / Esc closes the picker → treat as "I'll do it later".
+    if (pick === undefined || pick === "__later") break;
+    if (pick === "__done") {
+      completed = true;
+      break;
+    }
+
+    const platform = pick === "__other" ? null : normalizePlatform(pick as string);
+    lastUrl = openWizard(opts.appBaseUrl, opts.projectId, platform, opts.dryRun);
+    if (platform && !opened.includes(platform)) opened.push(platform);
+    console.log(
+      "  The CLI is still running — finish the wizard in your browser, then come back\n" +
+        "  here to set up another platform or wrap up.\n",
+    );
+  }
+
+  console.log(
+    completed
+      ? opened.length
+        ? `  ✓ Done — trigger setup opened for: ${opened.join(", ")}. Finish any open wizard tabs.`
+        : "  ✓ Done — no trigger opened. Set one up any time with `shipeasy setup triggers`."
+      : "  • Wrap up later — rerun `shipeasy setup triggers` whenever you're ready.",
+  );
+
+  return {
+    enabled: opened.length > 0,
+    platform: opened[0],
+    platforms: opened,
+    url: lastUrl,
+    completed,
+  };
 }

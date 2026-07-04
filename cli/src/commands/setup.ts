@@ -990,9 +990,13 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   console.log(`Features:  ${features.length ? features.join(", ") : "none enabled"}`);
   console.log(
     `Trigger:   ${
-      triggerResult.enabled
-        ? `finish setup in the browser${triggerResult.platform ? ` (${triggerResult.platform})` : ""}`
-        : "not set up — run `shipeasy setup triggers` later"
+      triggerResult.platforms?.length
+        ? `${triggerResult.platforms.join(", ")} — ${
+            triggerResult.completed ? "done (finish any open wizard tabs)" : "finish setup in the browser"
+          }`
+        : triggerResult.completed
+          ? "done — none opened"
+          : "not set up — run `shipeasy setup triggers` later"
     }`,
   );
   if (anythingToWire && !dryRun) {
