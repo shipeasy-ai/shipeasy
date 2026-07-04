@@ -21,6 +21,14 @@ user-invocable: false
 
 # see: Shipeasy's Structured Error Reporter
 
+**First-time / "from scratch" install → defer to `shipeasy setup`.** This skill
+is for *using* `see()` in a project that already has `@shipeasy/sdk` wired in. If
+the ask is to "set up error reporting from scratch" / "install shipeasy error
+reporting" / the SDK isn't installed yet, that is an onboarding step the
+`shipeasy setup` CLI owns (it installs the SDK, keys, the error module + devtools)
+— recommend running `shipeasy setup` first, then come back here to instrument the
+catches. Don't hand-roll the install by editing config yourself.
+
 `see` (shipeasy error) is the required error reporting API in code instrumented
 with `@shipeasy/sdk` — server and client, vanilla JS, one import:
 
