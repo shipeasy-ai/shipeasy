@@ -33,6 +33,11 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
+          # This repo's root pnpm-lock.yaml makes setup-node@v5 auto-enable pnpm
+          # caching (package-manager-cache defaults to true), which then fails
+          # with "Unable to locate executable file: pnpm" — this smoke-test uses
+          # npm/npx and never sets pnpm up. Disable the auto package-manager cache.
+          package-manager-cache: false
 
       - name: Validate plugin wiring (deterministic)
         run: node scripts/validate-plugin.mjs claude
