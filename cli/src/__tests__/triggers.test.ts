@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   TRIGGER_PLATFORMS,
   normalizePlatform,
+  orderTriggerPlatforms,
   triggerSetupUrl,
 } from "../setup/triggers";
 
@@ -20,6 +21,35 @@ describe("normalizePlatform", () => {
     expect(normalizePlatform("")).toBeNull();
     expect(normalizePlatform(null)).toBeNull();
     expect(normalizePlatform(undefined)).toBeNull();
+  });
+});
+
+describe("orderTriggerPlatforms", () => {
+  it("keeps canonical order and recommends nothing when no agents wired", () => {
+    const ordered = orderTriggerPlatforms([]);
+    expect(ordered.map((p) => p.id)).toEqual(TRIGGER_PLATFORMS.map((p) => p.id));
+    expect(ordered.every((p) => !p.recommended)).toBe(true);
+  });
+
+  it("floats wired agents to the top, tagged recommended, rest below", () => {
+    const ordered = orderTriggerPlatforms(["copilot", "cursor"]);
+    // recommended first (in canonical order: cursor precedes copilot)
+    expect(ordered.slice(0, 2).map((p) => p.id)).toEqual(["cursor", "copilot"]);
+    expect(ordered.slice(0, 2).every((p) => p.recommended)).toBe(true);
+    // the rest stay below and are not recommended
+    expect(ordered.slice(2).map((p) => p.id)).toEqual(["claude", "codex", "gemini"]);
+    expect(ordered.slice(2).every((p) => !p.recommended)).toBe(true);
+  });
+
+  it("maps the jules agent id to the gemini platform", () => {
+    const ordered = orderTriggerPlatforms(["jules"]);
+    expect(ordered[0]).toMatchObject({ id: "gemini", recommended: true });
+  });
+
+  it("ignores unknown agent ids", () => {
+    const ordered = orderTriggerPlatforms(["windsurf", "claude"]);
+    expect(ordered[0]).toMatchObject({ id: "claude", recommended: true });
+    expect(ordered.filter((p) => p.recommended)).toHaveLength(1);
   });
 });
 

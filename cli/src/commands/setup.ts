@@ -695,49 +695,91 @@ async function runSetup(opts: SetupOpts): Promise<void> {
 
   // 6. Devtools overlay (in-page panel + end-user feedback surface)
   heading("6. Devtools overlay");
-  // All real browser-facing targets — including already-onboarded ones, which
-  // may still want the overlay (recommendation.keys is empty for those).
-  const browserCandidates = detected.targets.filter(
-    (t) =>
-      !t.recommendation.action.startsWith("skip") &&
-      t.frameworks.some((f) => BROWSER_FRAMEWORKS.has(f)),
+  // Non-skip targets (includes already-onboarded ones, which may still want the
+  // overlay even though their recommendation.keys is empty).
+  const nonSkipTargets = detected.targets.filter(
+    (t) => !t.recommendation.action.startsWith("skip"),
   );
+  // Targets whose framework we recognise as browser-facing. This drives the
+  // *default* answer only — the overlay just needs an HTML surface to inject
+  // its <script> into, which is broader than the frameworks we pattern-match,
+  // so we ask rather than hard-gate on detection.
+  const frameworkBrowser = nonSkipTargets.filter((t) =>
+    t.frameworks.some((f) => BROWSER_FRAMEWORKS.has(f)),
+  );
+  let browserCandidates = frameworkBrowser;
   let devtoolsAccepted = false;
   let opsEnabled: EnableResult | null = null;
-  if (!browserCandidates.length) {
-    console.log("  • no browser targets — skipping");
-  } else if (dryRun) {
-    console.log("  (dry run — would offer the overlay + enable the ops module)");
+
+  if (dryRun) {
+    console.log("  (dry run — would confirm the HTML surface, then offer the overlay + ops module)");
   } else {
-    devtoolsAccepted = opts.devtools ?? false;
-    if (opts.devtools === undefined && interactive) {
-      const { yes } = await prompts({
+    // Does the project render HTML in a browser? Default from detection; an
+    // explicit --devtools / --no-devtools flag skips the question outright.
+    let servesHtml = frameworkBrowser.length > 0;
+    if (opts.devtools !== undefined) {
+      servesHtml = opts.devtools;
+    } else if (interactive) {
+      const detectedFw = [
+        ...new Set(
+          frameworkBrowser.flatMap((t) => t.frameworks.filter((f) => BROWSER_FRAMEWORKS.has(f))),
+        ),
+      ];
+      console.log(
+        detectedFw.length
+          ? `  Detected ${detectedFw.join(", ")} — renders pages in a browser, so the overlay can mount.`
+          : "  No browser framework detected — looks like a backend/API. The overlay still works in\n" +
+              "  any HTML you serve (server-rendered templates, an embedded SPA, a static frontend).",
+      );
+      const { html } = await prompts({
         type: "confirm",
-        name: "yes",
+        name: "html",
         message:
-          "Add the Shipeasy devtools overlay? (in-page flag/experiment panel via ?se=1 + end-user bug reports)",
-        initial: true,
+          "Does your project serve HTML to a browser? (yes → offer the in-page devtools overlay + end-user bug reports; no → headless service, skip it)",
+        initial: servesHtml,
       });
-      devtoolsAccepted = Boolean(yes);
+      servesHtml = Boolean(html);
     }
-    if (devtoolsAccepted) {
-      try {
-        opsEnabled = await enableModuleGroup("ops");
-        console.log(`  ✓ ops module enabled (${opsEnabled.enabled_modules.join(", ")})`);
-      } catch (e) {
-        console.log(`  ✗ ops module enable failed: ${e instanceof Error ? e.message : String(e)}`);
-      }
-      // The overlay script reads the project id from public env — persist it now.
-      for (const t of browserCandidates) {
-        const w = persistEnv(t.path, envFileFor(t), {
-          [projectIdVar(t.frameworks)]: projectId,
-        });
-        if (w.added.length)
-          console.log(`  ✓ ${relPath(root, t.path)}/${w.file}: added ${w.added.join(", ")}`);
-      }
-      console.log("  → the <script> tag injection is in the wiring steps (needs your layout)");
+
+    if (!servesHtml) {
+      console.log("  • headless / no browser surface — skipping the overlay");
     } else {
-      console.log("  • declined — add later with `shipeasy install ops` (see the shipeasy-ops skill)");
+      // Affirmed an HTML surface we didn't pattern-match → host it on every
+      // actionable target rather than skipping.
+      if (!browserCandidates.length) browserCandidates = nonSkipTargets;
+
+      if (opts.devtools !== undefined) {
+        devtoolsAccepted = opts.devtools;
+      } else if (interactive) {
+        const { yes } = await prompts({
+          type: "confirm",
+          name: "yes",
+          message:
+            "Add the Shipeasy devtools overlay? (in-page flag/experiment panel via ?se=1 + end-user bug reports)",
+          initial: true,
+        });
+        devtoolsAccepted = Boolean(yes);
+      }
+
+      if (devtoolsAccepted) {
+        try {
+          opsEnabled = await enableModuleGroup("ops");
+          console.log(`  ✓ ops module enabled (${opsEnabled.enabled_modules.join(", ")})`);
+        } catch (e) {
+          console.log(`  ✗ ops module enable failed: ${e instanceof Error ? e.message : String(e)}`);
+        }
+        // The overlay script reads the project id from public env — persist it now.
+        for (const t of browserCandidates) {
+          const w = persistEnv(t.path, envFileFor(t), {
+            [projectIdVar(t.frameworks)]: projectId,
+          });
+          if (w.added.length)
+            console.log(`  ✓ ${relPath(root, t.path)}/${w.file}: added ${w.added.join(", ")}`);
+        }
+        console.log("  → the <script> tag injection is in the wiring steps (needs your layout)");
+      } else {
+        console.log("  • declined — add later with `shipeasy install ops` (see the shipeasy-ops skill)");
+      }
     }
   }
 
@@ -920,6 +962,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
       interactive,
       ask: opts.triggers !== true, // --triggers opts in and skips the yes/no gate
       platform: opts.triggerPlatform,
+      preferredAgents: selected,
       dryRun,
     });
   }

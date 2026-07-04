@@ -67,8 +67,48 @@ export interface TriggerStepOpts {
   ask: boolean;
   /** Preselected platform (from `--trigger-platform` / `--platform`). */
   platform?: string;
+  /**
+   * Agent ids the user wired in step 3 (`AgentId[]`). In the picker these are
+   * floated to the top and tagged "recommended"; the rest still show below.
+   * `jules` maps to the `gemini` trigger platform (same as the deep link).
+   */
+  preferredAgents?: string[];
   /** Don't open a browser (dry run / tests) — just print the URL. */
   dryRun?: boolean;
+}
+
+/** Map a step-3 `AgentId` to its trigger platform id (`jules` → `gemini`). */
+function agentToPlatform(id: string): TriggerPlatform | null {
+  const v = id === "jules" ? "gemini" : id.toLowerCase();
+  return PLATFORM_IDS.includes(v) ? (v as TriggerPlatform) : null;
+}
+
+export interface OrderedPlatform {
+  id: TriggerPlatform;
+  label: string;
+  sub: string;
+  /** True when the user wired this platform's agent in step 3. */
+  recommended: boolean;
+}
+
+/**
+ * Order the trigger platforms for the picker: the ones whose agent the user
+ * wired in step 3 float to the top flagged `recommended`, in their original
+ * canonical order; every other platform stays below. `preferredAgents` are
+ * step-3 `AgentId`s (`jules` maps to `gemini`); unknown ids are ignored.
+ */
+export function orderTriggerPlatforms(preferredAgents: string[] = []): OrderedPlatform[] {
+  const preferred = new Set(
+    preferredAgents.map(agentToPlatform).filter((p): p is TriggerPlatform => p !== null),
+  );
+  const tag = (p: (typeof TRIGGER_PLATFORMS)[number]): OrderedPlatform => ({
+    ...p,
+    recommended: preferred.has(p.id),
+  });
+  return [
+    ...TRIGGER_PLATFORMS.filter((p) => preferred.has(p.id)).map(tag),
+    ...TRIGGER_PLATFORMS.filter((p) => !preferred.has(p.id)).map(tag),
+  ];
 }
 
 function printWhatItIs(): void {
@@ -113,12 +153,18 @@ export async function runTriggerStep(opts: TriggerStepOpts): Promise<TriggerStep
   let platform = normalizePlatform(opts.platform);
   if (!platform && !opts.platform) {
     if (opts.interactive) {
+      // Float the platforms the user wired in step 3 to the top, tagged
+      // "recommended"; keep the rest below so any platform is still reachable.
+      const ordered = orderTriggerPlatforms(opts.preferredAgents);
       const { pick } = await prompts({
         type: "select",
         name: "pick",
         message: "Which coding platform should run your trigger?",
         choices: [
-          ...TRIGGER_PLATFORMS.map((p) => ({ title: `${p.label} — ${p.sub}`, value: p.id })),
+          ...ordered.map((p) => ({
+            title: `${p.label} — ${p.sub}${p.recommended ? "  (recommended — wired above)" : ""}`,
+            value: p.id,
+          })),
           { title: "Other / not sure — show me every option", value: "" },
         ],
         initial: 0,
