@@ -253,6 +253,8 @@
         $ref: ../components/responses.yaml#/NotFound
       "409":
         $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
     x-error-codes:
       - BAD_REQUEST
       - UNAUTHORIZED

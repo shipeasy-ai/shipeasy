@@ -7295,6 +7295,10 @@ export type DeleteGateTemplateErrors = {
      * The mutation conflicts with current state.
      */
     409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
 };
 
 export type DeleteGateTemplateError = DeleteGateTemplateErrors[keyof DeleteGateTemplateErrors];
