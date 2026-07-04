@@ -49,9 +49,10 @@ final `ops_alerts_create` call:
    error-rate metric) — see the `shipeasy-metrics` skill for the DSL.
 2. **Analyze existing rules — always.** Call `ops_alerts_list` **before** you
    create, every time (even when you just created the metric): it's the required
-   dedup check and it's what a duplicate rule would collide with. Reuse or retune
-   a rule that already watches this metric+threshold when one is found; only call
-   `ops_alerts_create` after this list comes back clean.
+   dedup check. The list will usually contain other, unrelated rules — that's
+   fine; you're only looking for one that *already watches this same
+   metric+threshold*. If one matches, reuse or retune it instead of creating a
+   duplicate; otherwise proceed to create the new rule.
 3. **Create the rule.** `ops_alerts_create { name, metricId, comparator,
    threshold, … }` (or `shipeasy ops alerts create --name … --metric-id <id|name>
    --comparator gt --threshold 50`). This call is the culmination of the ask.
