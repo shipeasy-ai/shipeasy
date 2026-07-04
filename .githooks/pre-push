@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Native git hook (core.hooksPath=.githooks). No husky.
+#
+# Keeps a *dev-linked* global `shipeasy` CLI in sync with local source.
+#
+# The CLI ships as a dev-link (`npm link` / `npm i -g` off this working tree):
+#   $(npm root -g)/@shipeasy/cli -> marketplace/cli
+# The bin runs `cli/dist/index.js`, so bumping cli/package.json's version
+# without rebuilding leaves the global `shipeasy --version` stale. This hook
+# rebuilds dist on push whenever the source version differs from the last
+# built one, so the linked binary always reflects the latest local version.
+#
+# It is a NO-OP unless the global @shipeasy/cli is actually linked to THIS
+# working tree — teammates who never linked the CLI pay nothing. dist/ (and
+# the .built-version stamp) is gitignored, so nothing here gets committed.
+set -euo pipefail
+
+root=$(git rev-parse --show-toplevel)
+cli_dir="$root/cli"
+
+# --- Guard: only act when the global CLI is dev-linked to this working tree.
+global_link="$( { cd "$(npm root -g 2>/dev/null)/@shipeasy/cli" 2>/dev/null && pwd -P; } || true )"
+this_cli="$(cd "$cli_dir" && pwd -P)"
+if [ -z "$global_link" ] || [ "$global_link" != "$this_cli" ]; then
+  exit 0
+fi
+
+# --- Rebuild only when the version actually changed since the last build.
+src_ver="$(node -p "require('$cli_dir/package.json').version")"
+stamp="$cli_dir/dist/.built-version"
+built_ver="$(cat "$stamp" 2>/dev/null || echo "")"
+
+if [ "$src_ver" = "$built_ver" ]; then
+  exit 0
+fi
+
+echo "pre-push: dev-linked @shipeasy/cli ${built_ver:-<none>} -> $src_ver — rebuilding dist"
+if pnpm --filter @shipeasy/cli build; then
+  echo "$src_ver" > "$stamp"
+  echo "pre-push: global \`shipeasy\` now at $src_ver"
+else
+  # A failed local rebuild must never block the push to the remote.
+  echo "pre-push: WARN — CLI rebuild failed; global binary left stale (run 'pnpm --filter @shipeasy/cli build' manually)" >&2
+fi
+exit 0
