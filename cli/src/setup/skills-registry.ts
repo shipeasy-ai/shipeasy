@@ -5,18 +5,36 @@ import { MARKETPLACE_SLUG } from "./agents";
  * The single source of truth mapping a Shipeasy feature to the marketplace
  * skill(s) that document it. `shipeasy setup` installs these (via the `skills`
  * CLI) into the coding agents it wired, so every selected feature ships with
- * its own how-to skill.
+ * ALL the how-to skills that its workflow spans — overlap across features is
+ * intentional (e.g. both `flags` and `ops` want `shipeasy-metrics`).
  *
  * **Scalability:** this is the ONE place to edit when skills are added, renamed,
- * or split — setup reads the map, it hardcodes nothing. Each feature points at
- * its how-to skill(s); ops also ships `shipeasy-see` so the error-reporting
- * grammar rides along whenever the feedback module is enabled.
+ * or split — setup reads the map, it hardcodes nothing. `shipeasy-setup` is not
+ * listed here because it rides along with EVERY setup regardless of features
+ * (see {@link ALWAYS_SKILLS}).
+ *
+ * The `flags` key is the setup/`--features` name for the release module (flags,
+ * configs, kill switches, experiments, metrics); it maps to that whole skill set.
  */
 export const FEATURE_SKILLS: Record<string, string[]> = {
-  flags: ["shipeasy-flags"],
-  ops: ["shipeasy-ops", "shipeasy-see"],
+  // release (flags/configs/killswitches/experiments/metrics)
+  flags: ["shipeasy-experiments", "shipeasy-flags", "shipeasy-metrics"],
+  // ops queue + feedback/errors/alerts + the see() reporting grammar
+  ops: [
+    "shipeasy-ops",
+    "shipeasy-ops-work",
+    "shipeasy-see",
+    "shipeasy-alerts",
+    "shipeasy-metrics",
+  ],
   i18n: ["shipeasy-i18n"],
 };
+
+/**
+ * Skills installed for EVERY `shipeasy setup` run, whatever features are chosen.
+ * `shipeasy-setup` documents the onboarding/wiring surface, so it always ships.
+ */
+export const ALWAYS_SKILLS: string[] = ["shipeasy-setup"];
 
 /** Repo-relative dir holding the marketplace skills (the plugin root). */
 export const SKILLS_SUBDIR = "shipeasy/skills";
@@ -68,13 +86,22 @@ export function skillsForFeatures(features: string[]): string[] {
 }
 
 /**
- * The full base how-to skill set (deduped) — mirrors what the Claude plugin
- * bundles. `shipeasy setup` installs these into every non-plugin agent (via the
- * `skills` CLI) so no wired agent is left without the workflow skills, regardless
- * of which feature modules the user enables.
+ * The how-to skills `shipeasy setup` installs for a chosen feature set: the
+ * always-on {@link ALWAYS_SKILLS} plus every selected feature's skills, deduped.
+ * Feature-scoped — an agent only gets the skills for what the user turned on
+ * (plus `shipeasy-setup`), never the whole catalogue.
+ */
+export function setupSkillNames(features: string[]): string[] {
+  return [...new Set([...ALWAYS_SKILLS, ...skillsForFeatures(features)])];
+}
+
+/**
+ * The full how-to skill set (deduped) across every feature — `shipeasy-setup`
+ * plus all feature skills. The non-interactive / no-feature fallback so no wired
+ * agent is left without workflow skills when nothing specific was selected.
  */
 export function baseSkillNames(): string[] {
-  return skillsForFeatures(Object.keys(FEATURE_SKILLS));
+  return setupSkillNames(Object.keys(FEATURE_SKILLS));
 }
 
 export interface SkillsCliResult {

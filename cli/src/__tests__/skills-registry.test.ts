@@ -1,31 +1,78 @@
 import { describe, it, expect } from "vitest";
 import {
+  ALWAYS_SKILLS,
   FEATURE_SKILLS,
+  baseSkillNames,
   marketplaceSkillRawUrl,
   marketplaceSkillSource,
+  setupSkillNames,
   skillsForFeatures,
 } from "../setup/skills-registry";
 import { SKILLS_CLI_AGENT } from "../setup/agents";
 import { substituteSdkSnippets } from "../setup/sdk-docs";
 
 describe("skills registry", () => {
-  it("maps each feature to its marketplace usage skill (not the removed *-install)", () => {
-    expect(FEATURE_SKILLS.flags).toEqual(["shipeasy-flags"]);
-    expect(FEATURE_SKILLS.ops).toEqual(["shipeasy-ops", "shipeasy-see"]);
+  it("maps each feature to its full marketplace skill set (not the removed *-install)", () => {
+    expect(FEATURE_SKILLS.flags).toEqual([
+      "shipeasy-experiments",
+      "shipeasy-flags",
+      "shipeasy-metrics",
+    ]);
+    expect(FEATURE_SKILLS.ops).toEqual([
+      "shipeasy-ops",
+      "shipeasy-ops-work",
+      "shipeasy-see",
+      "shipeasy-alerts",
+      "shipeasy-metrics",
+    ]);
     expect(FEATURE_SKILLS.i18n).toEqual(["shipeasy-i18n"]);
     for (const names of Object.values(FEATURE_SKILLS)) {
       for (const n of names) expect(n).not.toMatch(/-install$/);
     }
+    // shipeasy-setup rides along with every setup, not with any one feature.
+    expect(ALWAYS_SKILLS).toEqual(["shipeasy-setup"]);
+    for (const names of Object.values(FEATURE_SKILLS)) {
+      expect(names).not.toContain("shipeasy-setup");
+    }
   });
 
   it("de-duplicates skills across selected features and ignores unknowns", () => {
-    expect(skillsForFeatures(["flags", "ops"]).sort()).toEqual([
+    expect(skillsForFeatures(["flags", "ops"])).toEqual([
+      "shipeasy-experiments",
       "shipeasy-flags",
+      "shipeasy-metrics",
       "shipeasy-ops",
+      "shipeasy-ops-work",
       "shipeasy-see",
+      "shipeasy-alerts",
     ]);
-    expect(skillsForFeatures(["flags", "flags"])).toEqual(["shipeasy-flags"]);
+    expect(skillsForFeatures(["flags", "flags"])).toEqual([
+      "shipeasy-experiments",
+      "shipeasy-flags",
+      "shipeasy-metrics",
+    ]);
     expect(skillsForFeatures(["nope"])).toEqual([]);
+  });
+
+  it("setupSkillNames always includes shipeasy-setup, plus the feature skills", () => {
+    // No features → just the always-on setup skill.
+    expect(setupSkillNames([])).toEqual(["shipeasy-setup"]);
+    // i18n + setup, deduped and setup-first.
+    expect(setupSkillNames(["i18n"])).toEqual(["shipeasy-setup", "shipeasy-i18n"]);
+    // shipeasy-metrics shared by flags + ops appears once; setup once.
+    const all = setupSkillNames(["flags", "ops"]);
+    expect(all[0]).toBe("shipeasy-setup");
+    expect(all.filter((n) => n === "shipeasy-metrics")).toHaveLength(1);
+    expect(all.filter((n) => n === "shipeasy-setup")).toHaveLength(1);
+  });
+
+  it("baseSkillNames is the full deduped catalogue including shipeasy-setup", () => {
+    const names = baseSkillNames();
+    expect(names).toContain("shipeasy-setup");
+    expect(new Set(names).size).toBe(names.length); // deduped
+    for (const n of ["shipeasy-flags", "shipeasy-ops", "shipeasy-i18n", "shipeasy-alerts"]) {
+      expect(names).toContain(n);
+    }
   });
 
   it("builds a GitHub tree-path source under the marketplace repo", () => {
