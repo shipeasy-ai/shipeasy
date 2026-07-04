@@ -12,7 +12,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   const g_metrics_events = defineGroup(g_metrics, "events", { summary: "Events: the catalog of event names (and their typed properties) that metric queries reference.", help: "Events: the catalog of event names (and their typed properties) that metric queries reference.\n\n**Auto-discovery.** The SDK's `/collect` ingest path records any unknown event name it receives as a `pending` row (`pending: 1`) so you can review it. Metrics defined on a pending event fail until it is approved.\n\n**Approval.** `POST /{id}/approve` promotes a pending event to usable (`pending: 0`), optionally declaring its folder/description/properties in the same call. Registering a brand-new event via `POST` that matches a pending name approves it instead of failing with a conflict.\n\n**Properties.** Each event can declare typed properties (`name`, `type` of `string|number|boolean`, `required`). On update/approve the `properties` array replaces the full set — there is no merge.\n\n**Deletion.** Soft-delete (the user-facing verb is `archive`). Blocked while any metric still references the event — delete those metrics first.", aliases: [] });
   const g_ops_alerts = defineGroup(g_ops, "alerts", { summary: "Alert rules: the metric-threshold definitions the analysis cron evaluates each run.", help: "Alert rules: the metric-threshold definitions the analysis cron evaluates each run.\n\n**What fires.** Each rule binds a `metricId`, a `comparator` (`gt`/`gte`/`lt`/`lte`), and a `threshold`. On every cron pass the cron aggregates the metric over the trailing `windowHours` and raises an alert at `severity` when `value comparator threshold` holds.\n\n**Immutable metric.** The bound metric (and its aggregation) is fixed at create time — there is no update path for `metricId`. Tune `threshold`/`comparator`/`windowHours`/`severity`/`name`/`enabled` instead, or delete + recreate to repoint the rule at a different metric.\n\n**Delivery.** `notify` optionally targets a Slack channel and/or email for this rule; `null` falls back to the project's default notification settings. Slack targets require a connected Slack connector.", aliases: ["ar"] });
   const g_ops_trigger = defineGroup(g_ops, "trigger", { summary: "Recurring coding-agent triggers: the scheduled, unattended runs that burn down the ops queue in `--pr` mode (one PR per fixed item; nothing auto-merges).", help: "Recurring coding-agent triggers: the scheduled, unattended runs that burn\ndown the ops queue in `--pr` mode (one PR per fixed item; nothing\nauto-merges). Shipeasy can fire four providers directly — Claude routines,\nCursor cloud agents, Copilot cloud agents, and Google Jules (the Gemini\npath) — registered here as trigger connectors (idempotent per provider\nkey). Other platforms (Codex, Windsurf, Cline, OpenClaw, OpenCode,\nContinue) schedule on their own surface — typically a GitHub Actions\n`schedule:` cron running the platform's headless CLI with the shared\ntrigger prompt.", aliases: [] });
-  const g_release = defineGroup(program, "release", { summary: "Feature delivery", help: "Flags, kill switches, dynamic configs, experiments, and the universes they bucket in — the feature-delivery surface.", aliases: [] });
+  const g_release = defineGroup(program, "release", { summary: "Feature delivery — flags, kill switches, dynamic configs, A/B experiments, and the universes they bucket in.", help: "Release: the feature-delivery surface. One roof over the five resources\nthat decide which code path a user gets — feature gates (flags), kill\nswitches, dynamic configs, A/B/n experiments, and the universes that bucket\nthem — each exposed as its own subcommand group.\n\n**Groups.**\n- `flags` — boolean feature gates: AND-combined targeting rules + a percentage rollout (basis points), evaluated on the SDK hot path.\n- `killswitch` (`ks`) — per-env boolean overrides for incident response; no rules, no rollout, versioned per environment.\n- `configs` — JSON-Schema-validated structured values with a draft → publish workflow, delivered per environment.\n- `experiments` — randomised A/B/n assignment plus the analysis pipeline (t-test, sequential testing, SRM detection); `universes` hold the shared bucketing space and holdouts the experiments draw from.\n\n**Delivery model.** Every write rebuilds the project's KV blob and purges\nthe CDN — SDKs poll at the plan interval and never touch the database on\nthe hot path. The destructive verb is `archive` (soft-delete), never\n`delete`.\n\nRun `shipeasy release <group> --help` for the full contract of each group.", aliases: [] });
   const g_release_configs = defineGroup(g_release, "configs", { summary: "Dynamic configs: JSON-Schema-validated structured values delivered to SDKs and editable per environment with a draft/publish workflow.", help: "Dynamic configs: JSON-Schema-validated structured values delivered to SDKs and editable per environment with a draft/publish workflow.\n\n**Identity.** Each config is keyed by `name` in `folder.name` form (e.g. `pricing.tiers`). Immutable after create.\n\n**Schema-first.** Every config carries a JSON Schema (draft 2020-12, top-level `type: 'object'`). Every published value is validated against it.\n\n**Drafts → publish.** Per-env edits go through `PUT /{id}/drafts` (stages a value) then `POST /{id}/publish` (promotes to a new version). The flat `PATCH /{id}` republishes on **every** env in one shot — bypassing drafts.\n\n**Versioning.** Each publish bumps the per-env `version` monotonically. SDKs deliver the latest published version for each env.", aliases: [] });
   const g_release_experiments = defineGroup(g_release, "experiments", { summary: "A/B/n experiments: randomised group assignment plus the analysis pipeline (t-test, sequential testing, SRM detection) on top of a universe.", help: "A/B/n experiments: randomised group assignment plus the analysis pipeline (t-test, sequential testing, SRM detection) on top of a universe.\n\n**Identity.** Stable `name` (a-z, 0-9, `_`/`-`, max 64 chars). Immutable after create.\n\n**Lifecycle.** `draft → running → stopped → archived`. Transition via `POST /{id}/status`. An archived experiment that never started can be restored with `archived → draft`; restarting an archived experiment directly is not allowed.\n\n**Allocation.** `allocation_pct` (basis points, 0–10000) is the share of the targeted audience enrolled; `groups[].weight` (must sum to 10000) splits the enrolled audience. `targeting_gate` narrows the eligible audience before allocation.\n\n**Immutable while running.** `allocation_pct`, `groups`, `salt`, `universe`, `params` cannot be edited on a running experiment — stop it first.\n\n**Metrics.** Attach via `POST /{id}/metrics`. Each metric has a role: `goal` drives the decision, `guardrail` blocks ship on regression, `secondary` is informational.\n\n**Analysis.** Daily cron writes results to D1. Read via `GET /{id}/results` (latest per metric/group/day) or `GET /{id}/timeseries` (full history). `POST /{id}/reanalyze` requeues the analysis pass.", aliases: [] });
   const g_release_flags = defineGroup(g_release, "flags", { summary: "Feature gates: boolean flags evaluated at runtime against project rules + a percentage rollout.", help: "Feature gates: boolean flags evaluated at runtime against project rules + a percentage rollout.\n\n**Identity.** Each gate is keyed by a stable `name` (a-z, 0-9, `_`/`-`, max 64 chars) which is what SDKs pass to `Shipeasy.checkGate(user, '<name>')`. The `name` is immutable — rename means delete + recreate.\n\n**Evaluation model.** A gate returns `true` when (a) `enabled` is true, and (b) the caller satisfies the gate's rules. There are two evaluation shapes:\n- **Flat** — `rules` (AND-combined predicates) gate the caller, then `rollout_pct` (basis points, 0–10000) hashes them into a bucket. Used for simple `is in X% rollout` gates.\n- **Gatekeeper stack** — an ordered array of `condition` and `rollout` sub-gates, evaluated top-to-bottom; first match wins. Used to express `internal-only ∪ 1% beta ∪ 50% public` in one gate. When `stack` is present it takes precedence over the flat fields.\n\n**Rules.** Each rule is `{ attr, op, value }`. Supported ops: `eq`, `neq`, `in`, `not_in`, `gt`, `gte`, `lt`, `lte`, `contains`, `regex`. Attribute names match the keys on the SDK evaluation context (e.g. `country`, `plan`, `email`).\n\n**Rollout basis points.** `rollout_pct` is in **basis points**, not percent. `0` = 0%, `100` = 1%, `5000` = 50%, `10000` = 100%. This allows sub-1% precision (e.g. `7` = 0.07%).\n\n**Lifecycle.** Create dark (`rollout_pct: 0`) → attach rules → ramp via PATCH → flip kill-switch via `disable`/`enable` → delete once retired. Deletion is blocked while a running experiment references the gate as a targeting gate.", aliases: [] });
@@ -23,9 +23,10 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
 
   g_metrics.command("list")
     .description("List metrics")
+    .option("--q <value>", "Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything.")
     .option("--data <value>", "Request body as a JSON object.")
     .action(async (opts) => {
-      await ctx.run({ mutates: false, invoke: (client) => api.listMetrics({ client, body: json(opts.data) as never }) });
+      await ctx.run({ mutates: false, invoke: (client) => api.listMetrics({ client, query: clean({ q: str(opts.q) }), body: json(opts.data) as never }) });
     });
   g_metrics.command("create")
     .description("Create a metric")
@@ -161,7 +162,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--title <value>", "One-line headline of what's blocked.")
     .option("--summary <value>", "One sentence: why it can't be fixed in code. Renders markdown.")
     .option("--steps <value>", "Ordered steps the human should take to unblock — self-contained (the human reads only this card, not the agent's transcript), 3–6 steps, each naming the exact file, command, env var, or dashboard page. Renders markdown.")
-    .option("--href <value>", "Dashboard-relative deep link to the related item.")
+    .option("--href <value>", "Dashboard-relative deep link to the related item. `null` is accepted and treated as \"no link\".")
     .option("--dedupe-key <value>", "Stable per-escalation key (e.g. `feedback:7`) so re-runs dedupe to one row.")
     .action(async (opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.notifyOps({ client, body: clean({ title: str(opts.title), summary: str(opts.summary), steps: json(opts.steps), href: str(opts.href), dedupeKey: str(opts.dedupeKey) }) }) });
@@ -209,9 +210,10 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     });
   g_metrics_events.command("list")
     .description("List events")
+    .option("--q <value>", "Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything.")
     .option("--data <value>", "Request body as a JSON object.")
     .action(async (opts) => {
-      await ctx.run({ mutates: false, invoke: (client) => api.listEvents({ client, body: json(opts.data) as never }) });
+      await ctx.run({ mutates: false, invoke: (client) => api.listEvents({ client, query: clean({ q: str(opts.q) }), body: json(opts.data) as never }) });
     });
   g_metrics_events.command("create")
     .description("Register an event")
@@ -262,9 +264,10 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     });
   g_ops_alerts.command("list")
     .description("List alert rules")
+    .option("--q <value>", "Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything.")
     .option("--data <value>", "Request body as a JSON object.")
     .action(async (opts) => {
-      await ctx.run({ mutates: false, invoke: (client) => api.listAlertRules({ client, body: json(opts.data) as never }) });
+      await ctx.run({ mutates: false, invoke: (client) => api.listAlertRules({ client, query: clean({ q: str(opts.q) }), body: json(opts.data) as never }) });
     });
   g_ops_alerts.command("create")
     .description("Create an alert rule")
@@ -357,9 +360,10 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .description("List dynamic configs")
     .option("--limit <value>", "Page size (1–500). Defaults to 100.")
     .option("--cursor <value>", "Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page.")
+    .option("--q <value>", "Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything.")
     .option("--data <value>", "Request body as a JSON object.")
     .action(async (opts) => {
-      await ctx.run({ mutates: false, invoke: (client) => api.listConfigs({ client, query: clean({ limit: num(opts.limit), cursor: str(opts.cursor) }), body: json(opts.data) as never }) });
+      await ctx.run({ mutates: false, invoke: (client) => api.listConfigs({ client, query: clean({ limit: num(opts.limit), cursor: str(opts.cursor), q: str(opts.q) }), body: json(opts.data) as never }) });
     });
   g_release_configs.command("create")
     .description("Create a dynamic config")
@@ -435,9 +439,11 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .description("List experiments")
     .option("--limit <value>", "Page size (1–500). Defaults to 100.")
     .option("--cursor <value>", "Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page.")
+    .option("--status <value>", "Filter by lifecycle status. Pass `archived` to return the archive tab; any other value (or omitting it) returns the non-archived experiments.")
+    .option("--q <value>", "Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything.")
     .option("--data <value>", "Request body as a JSON object.")
     .action(async (opts) => {
-      await ctx.run({ mutates: false, invoke: (client) => api.listExperiments({ client, query: clean({ limit: num(opts.limit), cursor: str(opts.cursor) }), body: json(opts.data) as never }) });
+      await ctx.run({ mutates: false, invoke: (client) => api.listExperiments({ client, query: clean({ limit: num(opts.limit), cursor: str(opts.cursor), status: str(opts.status), q: str(opts.q) }), body: json(opts.data) as never }) });
     });
   g_release_experiments.command("create")
     .description("Create an experiment")
@@ -557,9 +563,10 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .description("List feature gates")
     .option("--limit <value>", "Page size (1–500). Defaults to 100.")
     .option("--cursor <value>", "Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page.")
+    .option("--q <value>", "Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything.")
     .option("--data <value>", "Request body as a JSON object.")
     .action(async (opts) => {
-      await ctx.run({ mutates: false, invoke: (client) => api.listGates({ client, query: clean({ limit: num(opts.limit), cursor: str(opts.cursor) }), body: json(opts.data) as never }) });
+      await ctx.run({ mutates: false, invoke: (client) => api.listGates({ client, query: clean({ limit: num(opts.limit), cursor: str(opts.cursor), q: str(opts.q) }), body: json(opts.data) as never }) });
     });
   g_release_flags.command("create")
     .description("Create a feature gate")
@@ -619,9 +626,10 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .description("List killswitches")
     .option("--limit <value>", "Page size (1–500). Defaults to 100.")
     .option("--cursor <value>", "Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page.")
+    .option("--q <value>", "Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything.")
     .option("--data <value>", "Request body as a JSON object.")
     .action(async (opts) => {
-      await ctx.run({ mutates: false, invoke: (client) => api.listKillswitches({ client, query: clean({ limit: num(opts.limit), cursor: str(opts.cursor) }), body: json(opts.data) as never }) });
+      await ctx.run({ mutates: false, invoke: (client) => api.listKillswitches({ client, query: clean({ limit: num(opts.limit), cursor: str(opts.cursor), q: str(opts.q) }), body: json(opts.data) as never }) });
     });
   g_release_killswitch.command("create")
     .description("Create a killswitch")
@@ -686,9 +694,10 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .description("List universes")
     .option("--limit <value>", "Page size (1–500). Defaults to 100.")
     .option("--cursor <value>", "Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page.")
+    .option("--q <value>", "Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything.")
     .option("--data <value>", "Request body as a JSON object.")
     .action(async (opts) => {
-      await ctx.run({ mutates: false, invoke: (client) => api.listUniverses({ client, query: clean({ limit: num(opts.limit), cursor: str(opts.cursor) }), body: json(opts.data) as never }) });
+      await ctx.run({ mutates: false, invoke: (client) => api.listUniverses({ client, query: clean({ limit: num(opts.limit), cursor: str(opts.cursor), q: str(opts.q) }), body: json(opts.data) as never }) });
     });
   g_release_experiments_universes.command("create")
     .description("Create a universe")
@@ -716,9 +725,10 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     });
   g_release_flags_attributes.command("list")
     .description("List targeting attributes")
+    .option("--q <value>", "Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything.")
     .option("--data <value>", "Request body as a JSON object.")
     .action(async (opts) => {
-      await ctx.run({ mutates: false, invoke: (client) => api.listAttributes({ client, body: json(opts.data) as never }) });
+      await ctx.run({ mutates: false, invoke: (client) => api.listAttributes({ client, query: clean({ q: str(opts.q) }), body: json(opts.data) as never }) });
     });
   g_release_flags_attributes.command("create")
     .description("Declare a targeting attribute")
@@ -758,10 +768,11 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     });
   g_release_flags_templates.command("list")
     .description("List gate templates")
-    .option("--query <value>", "Case-insensitive substring filter over each template's `name` + `description`. Omit to return the whole catalog.")
+    .option("--q <value>", "Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything.")
+    .option("--query <value>", "Deprecated alias for `q`, kept working for one release. Prefer `q`.")
     .option("--data <value>", "Request body as a JSON object.")
     .action(async (opts) => {
-      await ctx.run({ mutates: false, invoke: (client) => api.listGateTemplates({ client, query: clean({ query: str(opts.query) }), body: json(opts.data) as never }) });
+      await ctx.run({ mutates: false, invoke: (client) => api.listGateTemplates({ client, query: clean({ q: str(opts.q), query: str(opts.query) }), body: json(opts.data) as never }) });
     });
   g_release_flags_templates.command("create")
     .description("Create a gate template")

@@ -99,7 +99,29 @@ interface CreatedKey {
 }
 
 export function i18nCommand(parent: Command): Command {
-  const i18n = parent.command("i18n").description("String Manager (i18n) tools");
+  const i18n = parent
+    .command("i18n")
+    .description(
+      "String Manager (i18n): extract UI copy into managed keys, push/publish translations to the CDN, and keep code in sync.",
+    );
+  i18n.addHelpText(
+    "after",
+    "\nString Manager (i18n) — the localization surface. Turns hard-coded UI copy into\n" +
+      "managed translation keys served to the SDK, and keeps your source and the\n" +
+      "server in sync.\n\n" +
+      "**Authoring flow.**\n" +
+      "- `scan` — find translatable strings in your source.\n" +
+      "- `codemod` / `extract` / `migrate` — rewrite literals to `t('key')` calls and register the keys (extract/migrate run scan → codemod → push → publish in one shot).\n" +
+      "- `push <file>` — insert new keys (insert-only; never overwrites an existing value).\n" +
+      "- `update <key> <value>` — overwrite a single key's value.\n" +
+      "- `publish` — publish a profile's chunk to the CDN (rebuilds the KV manifest, purges cache).\n" +
+      "- `validate` — check every `t('key')` in code still exists on the server.\n\n" +
+      "**Profiles & loader.**\n" +
+      "- `profiles list/create` — manage locale profiles (e.g. `default`, `en:prod`).\n" +
+      "- `install-loader` — inject the SDK i18n loader script into your project.\n\n" +
+      "Unlike the API-backed groups, these commands run locally over your filesystem\n" +
+      "and AST — they read and rewrite source files.\n",
+  );
 
   const installLoader = i18n
     .command("install-loader")

@@ -1,5 +1,5 @@
 import type { Command } from "commander";
-import { customOperations, CustomOpError, type CustomOp } from "@shipeasy/openapi/custom";
+import { customOperations, customGroups, CustomOpError, type CustomOp } from "@shipeasy/openapi/custom";
 import { defineGroup, num, bool, str } from "./_gen-runtime";
 import { printJson } from "../util/output";
 import { getBoundSdk } from "../util/project-config";
@@ -27,10 +27,22 @@ function coerce(op: CustomOp, positionals: string[], opts: Record<string, unknow
 const camel = (s: string) => s.replace(/[-_]([a-z0-9])/g, (_, c) => c.toUpperCase());
 
 export function customCommands(program: Command): void {
+  // Group-level help keyed by path (e.g. `docs`) so a custom group reads as
+  // richly as a spec-backed one instead of the bare `"<name> commands"`.
+  const groupMeta = new Map(customGroups.map((g) => [g.group.join("\0"), g]));
   for (const op of customOperations) {
     // resolve / create the group chain (reuses generated-command grouping)
     let node = program;
-    for (const seg of op.group) node = defineGroup(node, seg, { summary: `${seg} commands` });
+    for (let i = 0; i < op.group.length; i++) {
+      const meta = groupMeta.get(op.group.slice(0, i + 1).join("\0"));
+      node = defineGroup(
+        node,
+        op.group[i],
+        meta
+          ? { summary: meta.summary, help: meta.description, aliases: meta.aliases }
+          : { summary: `${op.group[i]} commands` },
+      );
+    }
 
     const cmd = node.command(op.name).description(op.summary);
     if (op.description) cmd.addHelpText("after", `\n${op.description}\n`);

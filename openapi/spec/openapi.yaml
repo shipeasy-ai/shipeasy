@@ -21,9 +21,28 @@ security:
   - bearerSdkKey: []
 tags:
   - name: Release
-    summary: Feature delivery
+    summary: >-
+      Feature delivery — flags, kill switches, dynamic configs, A/B experiments,
+      and the universes they bucket in.
     kind: nav
-    description: Flags, kill switches, dynamic configs, experiments, and the universes they bucket in — the feature-delivery surface.
+    description: |-
+      Release: the feature-delivery surface. One roof over the five resources
+      that decide which code path a user gets — feature gates (flags), kill
+      switches, dynamic configs, A/B/n experiments, and the universes that bucket
+      them — each exposed as its own subcommand group.
+
+      **Groups.**
+      - `flags` — boolean feature gates: AND-combined targeting rules + a percentage rollout (basis points), evaluated on the SDK hot path.
+      - `killswitch` (`ks`) — per-env boolean overrides for incident response; no rules, no rollout, versioned per environment.
+      - `configs` — JSON-Schema-validated structured values with a draft → publish workflow, delivered per environment.
+      - `experiments` — randomised A/B/n assignment plus the analysis pipeline (t-test, sequential testing, SRM detection); `universes` hold the shared bucketing space and holdouts the experiments draw from.
+
+      **Delivery model.** Every write rebuilds the project's KV blob and purges
+      the CDN — SDKs poll at the plan interval and never touch the database on
+      the hot path. The destructive verb is `archive` (soft-delete), never
+      `delete`.
+
+      Run `shipeasy release <group> --help` for the full contract of each group.
   - name: Flags
     parent: Release
     description: |-

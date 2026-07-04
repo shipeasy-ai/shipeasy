@@ -34,6 +34,22 @@ export interface CustomOp {
   run: (args: Record<string, unknown>) => Promise<unknown> | unknown;
 }
 
+/**
+ * Group-level help for a custom-op command group (e.g. `docs`). Mirrors what an
+ * OpenAPI tag carries for the generated tree — a short `summary` (shown in the
+ * parent `--help` list) and a long `description` (shown on the group's own
+ * `--help`). Consumers look this up by `group` path when creating the group so a
+ * custom group reads as richly as a spec-backed one, instead of the bare
+ * `"<name> commands"` fallback.
+ */
+export interface CustomGroup {
+  /** Group path, e.g. `["docs"]`. */
+  group: string[];
+  summary: string;
+  description?: string;
+  aliases?: string[];
+}
+
 /** Thrown by a custom op for a user-facing error with an HTTP-ish status. */
 export class CustomOpError extends Error {
   constructor(
