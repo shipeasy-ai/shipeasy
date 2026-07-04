@@ -160,6 +160,19 @@
             example:
               id: cfg_01j7wae5h6j7k8l9m0n1p2q3r4
               name: pricing.tiers
+        links:
+          GetConfig:
+            operationId: getConfig
+            parameters: { id: $response.body#/id }
+          UpdateConfig:
+            operationId: updateConfig
+            parameters: { id: $response.body#/id }
+          PublishConfigDraft:
+            operationId: publishConfigDraft
+            parameters: { id: $response.body#/id }
+          DeleteConfig:
+            operationId: deleteConfig
+            parameters: { id: $response.body#/id }
       "400":
         $ref: ../components/responses.yaml#/BadRequest
       "401":
@@ -576,7 +589,7 @@
               value:
                 env: prod
     responses:
-      "201":
+      "200":
         description: Publish a draft
         content:
           application/json:

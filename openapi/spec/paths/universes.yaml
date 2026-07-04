@@ -100,6 +100,13 @@
             example:
               id: uni_01j7w8a1b2c3d4e5f6g7h8i9j0
               name: primary_users
+        links:
+          UpdateUniverse:
+            operationId: updateUniverse
+            parameters: { id: $response.body#/id }
+          DeleteUniverse:
+            operationId: deleteUniverse
+            parameters: { id: $response.body#/id }
       "400":
         $ref: ../components/responses.yaml#/BadRequest
       "401":

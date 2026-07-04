@@ -163,6 +163,19 @@
             example:
               id: gat_01j7w7m9q4hxbf6npe6s9zr3vc
               name: checkout_v2
+        links:
+          UpdateGate:
+            operationId: updateGate
+            parameters: { id: $response.body#/id }
+          EnableGate:
+            operationId: enableGate
+            parameters: { id: $response.body#/id }
+          DisableGate:
+            operationId: disableGate
+            parameters: { id: $response.body#/id }
+          DeleteGate:
+            operationId: deleteGate
+            parameters: { id: $response.body#/id }
       "400":
         $ref: ../components/responses.yaml#/BadRequest
       "401":
@@ -368,7 +381,7 @@
         schema:
           type: string
     responses:
-      "201":
+      "200":
         description: Enable a gate
         content:
           application/json:
@@ -418,7 +431,7 @@
         schema:
           type: string
     responses:
-      "201":
+      "200":
         description: Disable a gate
         content:
           application/json:

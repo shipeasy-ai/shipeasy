@@ -564,30 +564,24 @@ FireConnectorResponse:
   properties:
     ok:
       type: boolean
-      description: "`true` when the trigger run was successfully kicked off; `false` when the dispatch itself failed (still HTTP 200, with `error` set)."
-    error:
-      type: string
-      description: "Failure reason. Present only when `ok` is `false` — the fire reached the handler but the underlying dispatch to the provider failed."
+      description: "Always `true` — a successful fire returns HTTP 200. A dispatch failure returns HTTP 502 with the `Error` envelope, not this body."
   required:
     - ok
   additionalProperties: false
-  description: "Result of firing a trigger connector. `{ ok: true }` on success; `{ ok: false, error }` when the dispatch fails (the request still returns HTTP 200)."
+  description: "Result of a successful trigger fire: `{ ok: true }`. When the downstream dispatch fails the endpoint returns HTTP 502 (see the `Error` response), never `ok: false`."
 TestConnectorResponse:
   type: object
   properties:
     ok:
       type: boolean
-      description: "`true` when the test dispatch reached the destination; `false` when the dispatch itself failed (still HTTP 200, with `error` set)."
+      description: "Always `true` — a successful test returns HTTP 200. A dispatch failure returns HTTP 502 with the `Error` envelope, not this body."
     issueUrl:
       anyOf:
         - type: string
         - type: "null"
-      description: "URL of the artifact the test produced (e.g. the GitHub Issue created by a `github` connector), or `null` when the provider produces no linkable artifact (or the dispatch failed)."
-    error:
-      type: string
-      description: "Failure reason. Present only when `ok` is `false` — the test reached the handler but the underlying dispatch to the provider failed."
+      description: "URL of the artifact the test produced (e.g. the GitHub Issue created by a `github` connector), or `null` when the provider produces no linkable artifact."
   required:
     - ok
     - issueUrl
   additionalProperties: false
-  description: "Result of testing a connector. `{ ok: true, issueUrl }` on success; `{ ok: false, issueUrl: null, error }` when the dispatch fails (the request still returns HTTP 200)."
+  description: "Result of a successful connector test: `{ ok: true, issueUrl }`. When the downstream dispatch fails the endpoint returns HTTP 502 (see the `Error` response), never `ok: false`."

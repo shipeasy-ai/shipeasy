@@ -380,6 +380,23 @@ paths:
               example:
                 id: gat_01j7w7m9q4hxbf6npe6s9zr3vc
                 name: checkout_v2
+          links:
+            UpdateGate:
+              operationId: updateGate
+              parameters:
+                id: $response.body#/id
+            EnableGate:
+              operationId: enableGate
+              parameters:
+                id: $response.body#/id
+            DisableGate:
+              operationId: disableGate
+              parameters:
+                id: $response.body#/id
+            DeleteGate:
+              operationId: deleteGate
+              parameters:
+                id: $response.body#/id
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -585,7 +602,7 @@ paths:
           schema:
             type: string
       responses:
-        '201':
+        '200':
           description: Enable a gate
           content:
             application/json:
@@ -635,7 +652,7 @@ paths:
           schema:
             type: string
       responses:
-        '201':
+        '200':
           description: Disable a gate
           content:
             application/json:
@@ -827,6 +844,31 @@ paths:
               example:
                 id: exp_01j7wb12c3d4e5f6g7h8j9k0l1
                 name: checkout_button_color
+          links:
+            GetExperiment:
+              operationId: getExperiment
+              parameters:
+                id: $response.body#/id
+            UpdateExperiment:
+              operationId: updateExperiment
+              parameters:
+                id: $response.body#/id
+            SetExperimentMetrics:
+              operationId: setExperimentMetrics
+              parameters:
+                id: $response.body#/id
+            SetExperimentStatus:
+              operationId: setExperimentStatus
+              parameters:
+                id: $response.body#/id
+            ReanalyzeExperiment:
+              operationId: reanalyzeExperiment
+              parameters:
+                id: $response.body#/id
+            DeleteExperiment:
+              operationId: deleteExperiment
+              parameters:
+                id: $response.body#/id
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -1124,7 +1166,7 @@ paths:
                 value:
                   status: draft
       responses:
-        '201':
+        '200':
           description: Transition experiment status
           content:
             application/json:
@@ -1213,7 +1255,7 @@ paths:
                 value:
                   metrics: []
       responses:
-        '201':
+        '200':
           description: Attach metrics
           content:
             application/json:
@@ -1412,7 +1454,7 @@ paths:
           schema:
             type: string
       responses:
-        '201':
+        '200':
           description: Re-queue analysis
           content:
             application/json:
@@ -1605,6 +1647,23 @@ paths:
               example:
                 id: cfg_01j7wae5h6j7k8l9m0n1p2q3r4
                 name: pricing.tiers
+          links:
+            GetConfig:
+              operationId: getConfig
+              parameters:
+                id: $response.body#/id
+            UpdateConfig:
+              operationId: updateConfig
+              parameters:
+                id: $response.body#/id
+            PublishConfigDraft:
+              operationId: publishConfigDraft
+              parameters:
+                id: $response.body#/id
+            DeleteConfig:
+              operationId: deleteConfig
+              parameters:
+                id: $response.body#/id
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -2021,7 +2080,7 @@ paths:
                 value:
                   env: prod
       responses:
-        '201':
+        '200':
           description: Publish a draft
           content:
             application/json:
@@ -2303,6 +2362,27 @@ paths:
               example:
                 id: ksw_01j7w9d8h2k4m6n8p0q2r4s6t8
                 name: payments.checkout
+          links:
+            GetKillswitch:
+              operationId: getKillswitch
+              parameters:
+                id: $response.body#/id
+            UpdateKillswitch:
+              operationId: updateKillswitch
+              parameters:
+                id: $response.body#/id
+            SetKillswitchSwitch:
+              operationId: setKillswitchSwitch
+              parameters:
+                id: $response.body#/id
+            SetKillswitchValue:
+              operationId: setKillswitchValue
+              parameters:
+                id: $response.body#/id
+            DeleteKillswitch:
+              operationId: deleteKillswitch
+              parameters:
+                id: $response.body#/id
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -2846,6 +2926,15 @@ paths:
               example:
                 id: uni_01j7w8a1b2c3d4e5f6g7h8i9j0
                 name: primary_users
+          links:
+            UpdateUniverse:
+              operationId: updateUniverse
+              parameters:
+                id: $response.body#/id
+            DeleteUniverse:
+              operationId: deleteUniverse
+              parameters:
+                id: $response.body#/id
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -3329,6 +3418,19 @@ paths:
               example:
                 id: attr_01j7w8a1b2c3
                 name: plan
+          links:
+            GetAttribute:
+              operationId: getAttribute
+              parameters:
+                id: $response.body#/id
+            UpdateAttribute:
+              operationId: updateAttribute
+              parameters:
+                id: $response.body#/id
+            DeleteAttribute:
+              operationId: deleteAttribute
+              parameters:
+                id: $response.body#/id
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -3625,6 +3727,19 @@ paths:
               example:
                 id: met_01j7w8a1b2c3d4e5f6g7h8i9j0
                 name: checkouts
+          links:
+            GetMetric:
+              operationId: getMetric
+              parameters:
+                id: $response.body#/id
+            UpdateMetric:
+              operationId: updateMetric
+              parameters:
+                id: $response.body#/id
+            DeleteMetric:
+              operationId: deleteMetric
+              parameters:
+                id: $response.body#/id
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -3913,6 +4028,23 @@ paths:
               example:
                 id: evt_01j7w8a1b2c3d4e5f6g7h8i9j0
                 name: checkout_completed
+          links:
+            GetEvent:
+              operationId: getEvent
+              parameters:
+                id: $response.body#/id
+            UpdateEvent:
+              operationId: updateEvent
+              parameters:
+                id: $response.body#/id
+            ApproveEvent:
+              operationId: approveEvent
+              parameters:
+                id: $response.body#/id
+            DeleteEvent:
+              operationId: deleteEvent
+              parameters:
+                id: $response.body#/id
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -4730,6 +4862,15 @@ paths:
                 $ref: '#/components/schemas/CreateAlertRuleResponse'
               example:
                 id: ar_01j7w8a1b2c3d4e5f6g7h8i9j0
+          links:
+            UpdateAlertRule:
+              operationId: updateAlertRule
+              parameters:
+                id: $response.body#/id
+            DeleteAlertRule:
+              operationId: deleteAlertRule
+              parameters:
+                id: $response.body#/id
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -5157,6 +5298,11 @@ paths:
               example:
                 id: i18n_01j7w8a1b2c4
                 name: fr:prod
+          links:
+            PublishI18nProfile:
+              operationId: publishI18nProfile
+              parameters:
+                profileId: $response.body#/id
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -5535,7 +5681,7 @@ paths:
             example:
               chunk: default
       responses:
-        '201':
+        '200':
           description: Publish a profile chunk
           content:
             application/json:
@@ -6140,6 +6286,23 @@ paths:
                 $ref: '#/components/schemas/CreateConnectorResponse'
               example:
                 id: 9b0e7c2a-1f3d-4a8e-bf21-0c6a2e5d7f10
+          links:
+            GetConnector:
+              operationId: getConnector
+              parameters:
+                id: $response.body#/id
+            UpdateConnector:
+              operationId: updateConnector
+              parameters:
+                id: $response.body#/id
+            TestConnector:
+              operationId: testConnector
+              parameters:
+                id: $response.body#/id
+            DeleteConnector:
+              operationId: deleteConnector
+              parameters:
+                id: $response.body#/id
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -6383,7 +6546,7 @@ paths:
                   text: Triage only the P0 bugs reported in the last 24h.
       responses:
         '200':
-          description: Fire a trigger connector
+          description: The trigger run was successfully kicked off.
           content:
             application/json:
               schema:
@@ -6402,6 +6565,8 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
+        '502':
+          $ref: '#/components/responses/BadGateway'
       x-error-codes:
         - UNAUTHORIZED
         - FORBIDDEN
@@ -6432,7 +6597,7 @@ paths:
             type: string
       responses:
         '200':
-          description: Test a connector
+          description: The test dispatch reached the destination.
           content:
             application/json:
               schema:
@@ -6452,6 +6617,8 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
+        '502':
+          $ref: '#/components/responses/BadGateway'
       x-error-codes:
         - UNAUTHORIZED
         - FORBIDDEN
@@ -6587,6 +6754,27 @@ paths:
                 $ref: '#/components/schemas/CreateConnectorResponse'
               example:
                 id: 9b0e7c2a-1f3d-4a8e-bf21-0c6a2e5d7f10
+          links:
+            FireConnector:
+              operationId: fireConnector
+              parameters:
+                id: $response.body#/id
+            TestConnector:
+              operationId: testConnector
+              parameters:
+                id: $response.body#/id
+            GetConnector:
+              operationId: getConnector
+              parameters:
+                id: $response.body#/id
+            UpdateTriggerConnector:
+              operationId: updateTriggerConnector
+              parameters:
+                id: $response.body#/id
+            DeleteConnector:
+              operationId: deleteConnector
+              parameters:
+                id: $response.body#/id
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -13478,33 +13666,27 @@ components:
       properties:
         ok:
           type: boolean
-          description: '`true` when the trigger run was successfully kicked off; `false` when the dispatch itself failed (still HTTP 200, with `error` set).'
-        error:
-          type: string
-          description: Failure reason. Present only when `ok` is `false` — the fire reached the handler but the underlying dispatch to the provider failed.
+          description: Always `true` — a successful fire returns HTTP 200. A dispatch failure returns HTTP 502 with the `Error` envelope, not this body.
       required:
         - ok
       additionalProperties: false
-      description: 'Result of firing a trigger connector. `{ ok: true }` on success; `{ ok: false, error }` when the dispatch fails (the request still returns HTTP 200).'
+      description: 'Result of a successful trigger fire: `{ ok: true }`. When the downstream dispatch fails the endpoint returns HTTP 502 (see the `Error` response), never `ok: false`.'
     TestConnectorResponse:
       type: object
       properties:
         ok:
           type: boolean
-          description: '`true` when the test dispatch reached the destination; `false` when the dispatch itself failed (still HTTP 200, with `error` set).'
+          description: Always `true` — a successful test returns HTTP 200. A dispatch failure returns HTTP 502 with the `Error` envelope, not this body.
         issueUrl:
           anyOf:
             - type: string
             - type: 'null'
-          description: URL of the artifact the test produced (e.g. the GitHub Issue created by a `github` connector), or `null` when the provider produces no linkable artifact (or the dispatch failed).
-        error:
-          type: string
-          description: Failure reason. Present only when `ok` is `false` — the test reached the handler but the underlying dispatch to the provider failed.
+          description: URL of the artifact the test produced (e.g. the GitHub Issue created by a `github` connector), or `null` when the provider produces no linkable artifact.
       required:
         - ok
         - issueUrl
       additionalProperties: false
-      description: 'Result of testing a connector. `{ ok: true, issueUrl }` on success; `{ ok: false, issueUrl: null, error }` when the dispatch fails (the request still returns HTTP 200).'
+      description: 'Result of a successful connector test: `{ ok: true, issueUrl }`. When the downstream dispatch fails the endpoint returns HTTP 502 (see the `Error` response), never `ok: false`.'
     UpdateClaudeTriggerRequest:
       type: object
       properties:
@@ -13977,3 +14159,18 @@ components:
               value:
                 error: The referenced event is still pending review and cannot back a metric yet.
                 code: EVENT_PENDING
+    BadGateway:
+      description: |-
+        The request was well-formed and the resource exists, but a downstream provider
+        the endpoint delegates to (e.g. a connector's Slack/GitHub/cloud-agent dispatch)
+        failed. The failure is upstream of this API, not a client error. No stable
+        `ErrorCode` is assigned to upstream failures, so `code` is omitted.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            UPSTREAM_FAILURE:
+              summary: Downstream provider dispatch failed
+              value:
+                error: 'GitHub API responded 403: resource not accessible by integration.'

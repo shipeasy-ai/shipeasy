@@ -76,6 +76,16 @@
             example:
               id: attr_01j7w8a1b2c3
               name: plan
+        links:
+          GetAttribute:
+            operationId: getAttribute
+            parameters: { id: $response.body#/id }
+          UpdateAttribute:
+            operationId: updateAttribute
+            parameters: { id: $response.body#/id }
+          DeleteAttribute:
+            operationId: deleteAttribute
+            parameters: { id: $response.body#/id }
       "400":
         $ref: ../components/responses.yaml#/BadRequest
       "401":

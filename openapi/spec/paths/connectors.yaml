@@ -130,6 +130,19 @@
               $ref: ../components/schemas/connectors.yaml#/CreateConnectorResponse
             example:
               id: 9b0e7c2a-1f3d-4a8e-bf21-0c6a2e5d7f10
+        links:
+          GetConnector:
+            operationId: getConnector
+            parameters: { id: $response.body#/id }
+          UpdateConnector:
+            operationId: updateConnector
+            parameters: { id: $response.body#/id }
+          TestConnector:
+            operationId: testConnector
+            parameters: { id: $response.body#/id }
+          DeleteConnector:
+            operationId: deleteConnector
+            parameters: { id: $response.body#/id }
       "400":
         $ref: ../components/responses.yaml#/BadRequest
       "401":
@@ -373,7 +386,7 @@
                 text: Triage only the P0 bugs reported in the last 24h.
     responses:
       "200":
-        description: Fire a trigger connector
+        description: The trigger run was successfully kicked off.
         content:
           application/json:
             schema:
@@ -392,6 +405,8 @@
         $ref: ../components/responses.yaml#/Conflict
       "422":
         $ref: ../components/responses.yaml#/UnprocessableEntity
+      "502":
+        $ref: ../components/responses.yaml#/BadGateway
     x-error-codes:
       - UNAUTHORIZED
       - FORBIDDEN
@@ -422,7 +437,7 @@
           type: string
     responses:
       "200":
-        description: Test a connector
+        description: The test dispatch reached the destination.
         content:
           application/json:
             schema:
@@ -442,6 +457,8 @@
         $ref: ../components/responses.yaml#/Conflict
       "422":
         $ref: ../components/responses.yaml#/UnprocessableEntity
+      "502":
+        $ref: ../components/responses.yaml#/BadGateway
     x-error-codes:
       - UNAUTHORIZED
       - FORBIDDEN
@@ -577,6 +594,22 @@
               $ref: ../components/schemas/connectors.yaml#/CreateConnectorResponse
             example:
               id: 9b0e7c2a-1f3d-4a8e-bf21-0c6a2e5d7f10
+        links:
+          FireConnector:
+            operationId: fireConnector
+            parameters: { id: $response.body#/id }
+          TestConnector:
+            operationId: testConnector
+            parameters: { id: $response.body#/id }
+          GetConnector:
+            operationId: getConnector
+            parameters: { id: $response.body#/id }
+          UpdateTriggerConnector:
+            operationId: updateTriggerConnector
+            parameters: { id: $response.body#/id }
+          DeleteConnector:
+            operationId: deleteConnector
+            parameters: { id: $response.body#/id }
       "400":
         $ref: ../components/responses.yaml#/BadRequest
       "401":

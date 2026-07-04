@@ -105,3 +105,18 @@ UnprocessableEntity:
           value:
             error: The referenced event is still pending review and cannot back a metric yet.
             code: EVENT_PENDING
+BadGateway:
+  description: |-
+    The request was well-formed and the resource exists, but a downstream provider
+    the endpoint delegates to (e.g. a connector's Slack/GitHub/cloud-agent dispatch)
+    failed. The failure is upstream of this API, not a client error. No stable
+    `ErrorCode` is assigned to upstream failures, so `code` is omitted.
+  content:
+    application/json:
+      schema:
+        $ref: ./errors.yaml#/Error
+      examples:
+        UPSTREAM_FAILURE:
+          summary: Downstream provider dispatch failed
+          value:
+            error: "GitHub API responded 403: resource not accessible by integration."

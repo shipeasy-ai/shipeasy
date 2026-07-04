@@ -73,6 +73,10 @@
             example:
               id: i18n_01j7w8a1b2c4
               name: fr:prod
+        links:
+          PublishI18nProfile:
+            operationId: publishI18nProfile
+            parameters: { profileId: $response.body#/id }
       "400":
         $ref: ../components/responses.yaml#/BadRequest
       "401":
@@ -451,7 +455,7 @@
           example:
             chunk: default
     responses:
-      "201":
+      "200":
         description: Publish a profile chunk
         content:
           application/json:

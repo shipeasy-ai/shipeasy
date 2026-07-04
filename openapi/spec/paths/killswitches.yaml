@@ -114,6 +114,22 @@
             example:
               id: ksw_01j7w9d8h2k4m6n8p0q2r4s6t8
               name: payments.checkout
+        links:
+          GetKillswitch:
+            operationId: getKillswitch
+            parameters: { id: $response.body#/id }
+          UpdateKillswitch:
+            operationId: updateKillswitch
+            parameters: { id: $response.body#/id }
+          SetKillswitchSwitch:
+            operationId: setKillswitchSwitch
+            parameters: { id: $response.body#/id }
+          SetKillswitchValue:
+            operationId: setKillswitchValue
+            parameters: { id: $response.body#/id }
+          DeleteKillswitch:
+            operationId: deleteKillswitch
+            parameters: { id: $response.body#/id }
       "400":
         $ref: ../components/responses.yaml#/BadRequest
       "401":
