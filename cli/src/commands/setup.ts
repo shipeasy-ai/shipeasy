@@ -616,18 +616,29 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   if (!actionable.length) {
     console.log("  • nothing to do");
   } else {
-    let runInstalls = !opts.skipInstall && !dryRun;
-    if (runInstalls && interactive) {
-      const needing = actionable.filter((t) => t.recommendation.action === "install");
-      if (needing.length) {
-        const { go } = await prompts({
-          type: "confirm",
-          name: "go",
-          message: `Run the SDK package install in ${needing.length} target(s) now?`,
-          initial: true,
-        });
-        runInstalls = Boolean(go);
-      }
+    const runInstalls = !opts.skipInstall && !dryRun;
+    // Which targets to actually install into now. By default every target that
+    // needs an install; interactively the user picks a subset (same multiselect
+    // as the agent picker). Unpicked targets fall through to the deferred path.
+    const needing = actionable.filter((t) => t.recommendation.action === "install");
+    const installTargets = new Set(needing.map((t) => t.path));
+    if (runInstalls && interactive && needing.length) {
+      const { picked } = await prompts({
+        type: "multiselect",
+        name: "picked",
+        message: `Run the SDK package install in which of ${needing.length} target(s)?`,
+        choices: needing.map((t) => ({
+          title: `${relPath(root, t.path)}/  →  ${t.recommendation.sdk ?? t.language}${
+            t.recommendation.install ? `  (${t.recommendation.install})` : ""
+          }`,
+          value: t.path,
+          selected: true,
+        })),
+        hint: "space to toggle, enter to confirm",
+        instructions: false,
+      });
+      installTargets.clear();
+      for (const p of (picked as string[] | undefined) ?? []) installTargets.add(p);
     }
 
     for (const t of actionable) {
@@ -635,7 +646,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
       console.log(`\n  ${rp}/:`);
 
       if (t.recommendation.action === "install") {
-        if (runInstalls) {
+        if (runInstalls && installTargets.has(t.path)) {
           const r = runSdkInstall(t);
           installOutcome.set(t.path, r);
           console.log(
