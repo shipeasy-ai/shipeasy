@@ -71,6 +71,8 @@ export const KNOWN_TOOLS: readonly string[] = [
   "ops_alerts_channels",
   "ops_trigger_create_claude", "ops_trigger_create_copilot",
   "ops_trigger_create_cursor", "ops_trigger_create_jules",
+  // errors (tracked-error read surface — MCP-only projection of the Errors tag)
+  "errors_list", "errors_get", "errors_series",
   // i18n
   "i18n_keys_list", "i18n_keys_push", "i18n_keys_set", "i18n_keys_update",
   "i18n_drafts_create", "i18n_drafts_list", "i18n_drafts_update",

@@ -120,6 +120,10 @@ describe("generated tool catalog", () => {
     expect(names).toContain("release_experiments_results");
     expect(names).toContain("release_killswitch_get");
     expect(names).toContain("release_configs_activity");
+    // Errors tag — MCP-only read projection (CLI still skips it) so agent skills
+    // can read tracked-error analytics; the two mutating error ops stay hidden.
+    expect(names).toContain("errors_list");
+    expect(names).toContain("errors_series");
     // custom (non-spec) sugar
     expect(names).toContain("metrics_grammar");
     expect(names).toContain("docs_get");
@@ -133,6 +137,8 @@ describe("generated tool catalog", () => {
       "get_resource",
       "file_bug",
       "file_feature",
+      "errors_update", // updateErrorStatus stays a dashboard concern (SKIP_OPS)
+      "errors_file", // fileErrorTicket stays unprojected (SKIP_OPS)
     ]) {
       expect(names).not.toContain(gone);
     }

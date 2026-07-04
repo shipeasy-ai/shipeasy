@@ -8,6 +8,21 @@ import { clean, unwrap } from "../tools/_gen-runtime.js";
 
 export const GENERATED_TOOLS: Tool[] = [
   {
+    name: "errors_get",
+    description: "Get a tracked error. Returns a single tracked error by its id, including the latest occurrence's stack, extras, and consequence. Returns `404` if no such error exists in the project.",
+    inputSchema: {"type":"object","properties":{"id":{"type":"string","description":"Stable opaque error id (`err_…`)."}},"required":["id"]},
+  },
+  {
+    name: "errors_list",
+    description: "List tracked errors. Returns a single page of tracked production errors as a **bare JSON array** (no pagination envelope), ordered by `lastSeenAt desc`. Filter with `status`, free-text-search with `q`, and cap the page with `limit`.",
+    inputSchema: {"type":"object","properties":{"status":{"type":"string","enum":["open","resolved","ignored","all"],"default":"all","description":"Filter by triage state. `all` (the default) returns every status."},"q":{"type":"string","maxLength":200,"description":"Case-insensitive substring match against `message`, `errorType`, and `subject`."},"limit":{"type":"integer","minimum":1,"maximum":500,"default":200,"description":"Maximum number of rows to return (1–500). Defaults to 200."}},"required":[]},
+  },
+  {
+    name: "errors_series",
+    description: "Get an error's occurrence series. Returns a bucketed occurrence timeseries for one tracked error (by its fingerprint), read from the `shipeasy_errors` Analytics Engine dataset (near-real-time; ingest lag is seconds). The window bounds are epoch **seconds**; `to` must be strictly greater than `from`. The respon…",
+    inputSchema: {"type":"object","properties":{"id":{"type":"string","description":"Stable opaque error id (`err_…`)."},"from":{"type":"integer","minimum":0,"description":"Window start, epoch seconds (inclusive)."},"to":{"type":"integer","minimum":0,"description":"Window end, epoch seconds (exclusive). Must be greater than `from`."},"bucket":{"type":"integer","minimum":60,"maximum":86400,"default":3600,"description":"Bucket width in seconds (60s–86400s/1d). Defaults to `3600` (hourly). Each returned point is floor-aligned to this width."}},"required":["id","from","to"]},
+  },
+  {
     name: "i18n_drafts_create",
     description: "Create a translation draft. Stage a new translation draft against a target profile, optionally seeding its keys from a source profile.",
     inputSchema: {"type":"object","properties":{"name":{"type":"string","minLength":1,"maxLength":64,"description":"Draft name, e.g. the target locale being staged."},"profile_id":{"type":"string","format":"uuid","description":"Profile the draft targets."},"source_profile_id":{"type":"string","format":"uuid","description":"Optional profile to seed the draft's keys from."}},"required":["name","profile_id"]},
@@ -466,6 +481,9 @@ export const GENERATED_TOOLS: Tool[] = [
 
 /** tool name → whether it mutates (drives the server's binding guard). */
 export const GENERATED_MUTATES: Record<string, boolean> = {
+  "errors_get": false,
+  "errors_list": false,
+  "errors_series": false,
   "i18n_drafts_create": true,
   "i18n_drafts_list": false,
   "i18n_drafts_update": true,
@@ -561,6 +579,9 @@ export const GENERATED_MUTATES: Record<string, boolean> = {
 
 /** tool name → (client, args) → unwrapped sdk result. */
 export const GENERATED_DISPATCH: Record<string, (client: Client, args: Record<string, unknown>) => Promise<unknown>> = {
+  "errors_get": (client, args) => api.getError({ client, path: { "id": args["id"] as string } }).then(unwrap) as Promise<unknown>,
+  "errors_list": (client, args) => api.listErrors({ client, query: clean({ "status": args["status"], "q": args["q"], "limit": args["limit"] }) }).then(unwrap) as Promise<unknown>,
+  "errors_series": (client, args) => api.getErrorSeries({ client, path: { "id": args["id"] as string }, body: clean({ "from": args["from"], "to": args["to"], "bucket": args["bucket"] }) }).then(unwrap) as Promise<unknown>,
   "i18n_drafts_create": (client, args) => api.createI18nDraft({ client, body: clean({ "name": args["name"], "profile_id": args["profile_id"], "source_profile_id": args["source_profile_id"] }) }).then(unwrap) as Promise<unknown>,
   "i18n_drafts_list": (client, args) => api.listI18nDrafts({ client }).then(unwrap) as Promise<unknown>,
   "i18n_drafts_update": (client, args) => api.updateI18nDraft({ client, path: { "draftId": args["draftId"] as string }, body: clean({ "status": args["status"] }) }).then(unwrap) as Promise<unknown>,

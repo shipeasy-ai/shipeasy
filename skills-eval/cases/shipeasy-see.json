@@ -27,8 +27,8 @@
     "id": "shipeasy-see/error-frequency-24h",
     "prompt": "How many times does this checkout charge error actually fail in the last 24h?",
     "expect_skill": "shipeasy-see",
-    "expect_tools": ["ops_list"],
+    "expect_tools": [["errors_list", "errors_series"]],
     "tools_match": "any",
-    "note": "see() occurrences land in the ops queue / Errors dashboard as error-type items — a frequency question should pull them via ops_list (filtered --type error / by window), i.e. read the analytics rather than guess."
+    "note": "see() occurrences fold into tracked-error rows in the errors primitive — a frequency question reads them via the dedicated errors tools (errors_list for the running count, errors_series for a 24h/by-hour breakdown), NOT the ops queue. Reads the analytics rather than guessing."
   }
 ]

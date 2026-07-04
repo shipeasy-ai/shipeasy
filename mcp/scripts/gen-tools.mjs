@@ -103,16 +103,22 @@ function tagChain(name) {
 // every other resource — only the fs/AST i18n tools (scan/codemod/loader/…)
 // stay hand-written in the fs-having consumers, and those carry no spec op.
 //
-// API Keys / Connectors / Errors are documented in the spec (API reference +
-// contract tests) but NOT projected to the CLI/MCP surface — they carry `x-cli`
-// only for the doc pipeline. Same for `searchResources` (tagged Projects, so
-// skipped by id, not tag). Kept in sync with the CLI generator's skip lists.
+// API Keys / Connectors are documented in the spec (API reference + contract
+// tests) but NOT projected to the CLI/MCP surface — they carry `x-cli` only for
+// the doc pipeline. Same for `searchResources` (tagged Projects, so skipped by
+// id, not tag). Kept in sync with the CLI generator's skip lists.
+//
+// The **Errors** tag is a deliberate MCP-only divergence: the read ops
+// (`errors_list`/`errors_get`/`errors_series`) are projected here so agent
+// skills (e.g. shipeasy-see answering "how often does this error fire") can read
+// the tracked-error analytics over MCP. The CLI still skips Errors wholesale.
+// The two mutating error ops stay unprojected — status flips + ticket-filing are
+// dashboard/ops-queue concerns (`updateErrorStatus`, `fileErrorTicket`).
 const SKIP_TAGS = new Set([
   "API Keys",
   "Connectors",
-  "Errors",
 ]);
-const SKIP_OPS = new Set(["searchResources"]);
+const SKIP_OPS = new Set(["searchResources", "updateErrorStatus", "fileErrorTicket"]);
 // Tools that have a richer hand-written version in src/tools/ which the
 // generated one must NOT shadow. `projects_upsert` layers a `.shipeasy` fs bind
 // on top of the shared upsert call, so MCP keeps the hand-written tool.
