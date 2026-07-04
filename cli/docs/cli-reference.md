@@ -2036,7 +2036,7 @@ Returns (with --json):
         "sdk": "typescript",
         "action": "install",
         "reason": "No Shipeasy SDK installed — install it, mint keys, wire the entry point.",
-        "install": "pnpm add @shipeasy/sdk @shipeasy/react",
+        "install": "pnpm add @shipeasy/sdk",
         "keys": [
           "server",
           "client"

@@ -63,7 +63,8 @@ describe("detect (detectTargets / discoverTargets)", () => {
     expect(web.recommendation.action).toBe("install");
     expect(web.recommendation.sdk).toBe("typescript");
     expect(web.recommendation.keys).toEqual(["server", "client"]);
-    expect(web.recommendation.install).toContain("@shipeasy/react");
+    expect(web.recommendation.install).toContain("@shipeasy/sdk");
+    expect(web.recommendation.install).not.toContain("@shipeasy/react");
     expect(web.recommendation.docs).toBe("shipeasy docs get --sdk typescript installation");
   });
 

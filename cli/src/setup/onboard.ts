@@ -217,8 +217,9 @@ export function installArgv(
     case "javascript": {
       const mgr = packageManager && packageManager !== "unknown" ? packageManager : "npm";
       const verb = mgr === "npm" ? "install" : "add";
-      const react = frameworks.includes("react") || frameworks.includes("nextjs");
-      return [mgr, verb, "@shipeasy/sdk", ...(react ? ["@shipeasy/react"] : [])];
+      // React/Next targets need no separate package — the browser build ships in
+      // @shipeasy/sdk (the `@shipeasy/sdk/client` export). @shipeasy/react is sunset.
+      return [mgr, verb, "@shipeasy/sdk"];
     }
     case "ruby":
       // `bundle add` fetches AND records in the Gemfile (unlike hand-editing it).

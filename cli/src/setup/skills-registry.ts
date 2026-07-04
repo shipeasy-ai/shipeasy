@@ -118,13 +118,16 @@ export interface SkillsCliResult {
  */
 export function runSkillsAdd(
   source: string,
-  opts: { agents?: string[]; global?: boolean } = {},
+  opts: { agents?: string[]; global?: boolean; skills?: string[] } = {},
 ): SkillsCliResult[] {
   const runs = opts.agents && opts.agents.length ? opts.agents : [null];
   return runs.map((agent) => {
     const args = ["-y", "skills", "add", source];
     if (opts.global) args.push("-g");
     if (agent) args.push("-a", agent);
+    // Variadic `--skill a b c` installs several named skills from one source in a
+    // single invocation. Keep it LAST so it doesn't swallow the flags above.
+    if (opts.skills?.length) args.push("--skill", ...opts.skills);
     const res = spawnSync("npx", args, { stdio: "inherit" });
     return { source, agent, ok: res.status === 0 };
   });

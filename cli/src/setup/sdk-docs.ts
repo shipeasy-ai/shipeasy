@@ -184,3 +184,93 @@ export async function installMarketplaceSkill(
   }
   return placeSkill(files, name, { agents: opts.agents, global: opts.global });
 }
+
+/** Parse the `description:` out of a SKILL.md YAML frontmatter (empty if none). */
+export function parseSkillDescription(md: string): string {
+  const fm = md.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!fm) return "";
+  const line = fm[1].match(/^description:[ \t]*(.+)$/m);
+  if (!line) return "";
+  let d = line[1].trim();
+  if ((d.startsWith('"') && d.endsWith('"')) || (d.startsWith("'") && d.endsWith("'"))) {
+    d = d.slice(1, -1);
+  }
+  return d.trim();
+}
+
+export interface BatchSkillInstallResult {
+  /** Fetched + staged skills, each with its frontmatter description. */
+  skills: { name: string; description: string }[];
+  /** Skills whose SKILL.md couldn't be fetched (offline / renamed). */
+  missing: string[];
+  /** Outcome of handing the staged skills to the `skills` CLI. */
+  result: SkillInstallResult;
+}
+
+/**
+ * Install several marketplace how-to skills in ONE `skills add <dir> --skill …`
+ * invocation per agent, instead of spawning `skills` once per skill. Every skill
+ * is fetched, snippet-baked for `sdk`, and staged into a single temp source dir,
+ * then the whole set is handed to the `skills` CLI at once. Returns each staged
+ * skill's frontmatter description (so the caller can tell the customer what each
+ * skill is for) plus any names that couldn't be fetched. Falls back to writing
+ * every staged skill into `.claude/skills/` when `npx`/`skills` can't run.
+ */
+export async function installMarketplaceSkills(
+  names: string[],
+  sdk: string,
+  opts: { agents?: string[]; global?: boolean; ref?: string } = {},
+): Promise<BatchSkillInstallResult> {
+  const ref = opts.ref ?? "main";
+  const parent = mkdtempSync(join(tmpdir(), "se-skills-"));
+  const skills: { name: string; description: string }[] = [];
+  const staged: Record<string, Record<string, string>> = {};
+  const missing: string[] = [];
+  for (const name of names) {
+    const raw = await fetchText(marketplaceSkillRawUrl(name, ref));
+    if (!raw) {
+      missing.push(name);
+      continue;
+    }
+    const files: Record<string, string> = { "SKILL.md": raw };
+    for (const rel of await listMarketplaceSkillReferences(name, ref)) {
+      const content = await fetchText(marketplaceSkillFileRawUrl(name, rel, ref));
+      if (content) files[rel] = content;
+    }
+    for (const [rel, content] of Object.entries(files)) {
+      files[rel] = await substituteSdkSnippets(content, sdk);
+    }
+    writeSkillDir(files, name, parent);
+    staged[name] = files;
+    skills.push({ name, description: parseSkillDescription(raw) });
+  }
+  if (!skills.length) {
+    return { skills, missing, result: { action: "failed", detail: "no skills could be fetched" } };
+  }
+  const results = runSkillsAdd(parent, {
+    agents: opts.agents,
+    global: opts.global,
+    skills: skills.map((s) => s.name),
+  });
+  const done = results.filter((r) => r.ok && r.agent).map((r) => r.agent as string);
+  if (results.some((r) => r.ok)) {
+    return {
+      skills,
+      missing,
+      result: {
+        action: "delegated",
+        detail: done.length ? `skills add → ${done.join(", ")}` : "skills add (auto-detected)",
+      },
+    };
+  }
+  // `skills` CLI unavailable → write each staged skill straight to .claude/skills.
+  const base = opts.global
+    ? join(homedir(), ".claude", "skills")
+    : join(process.cwd(), ".claude", "skills");
+  for (const [name, files] of Object.entries(staged)) writeSkillDir(files, name, base);
+  return {
+    skills,
+    missing,
+    result: { action: "wrote", detail: `wrote ${skills.length} skill(s) to ${base}` },
+  };
+}

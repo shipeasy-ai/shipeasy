@@ -61,12 +61,11 @@ describe("sdkUpdateArgv", () => {
     ]);
   });
 
-  it("adds @shipeasy/react@latest for react/next targets", () => {
+  it("installs only @shipeasy/sdk@latest for react/next targets (no separate react pkg)", () => {
     expect(sdkUpdateArgv(target({ package_manager: "npm", frameworks: ["nextjs"] }))).toEqual([
       "npm",
       "install",
       "@shipeasy/sdk@latest",
-      "@shipeasy/react@latest",
     ]);
   });
 

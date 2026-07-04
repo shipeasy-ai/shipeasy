@@ -523,8 +523,8 @@ function installHint(language: string, pm: string, frameworks: string[]): string
     case "javascript": {
       const mgr = pm && pm !== "unknown" ? pm : "npm";
       const verb = mgr === "npm" ? "install" : "add"; // npm uses `install`, pnpm/yarn/bun use `add`
-      const react = frameworks.includes("react") || frameworks.includes("nextjs");
-      return `${mgr} ${verb} @shipeasy/sdk${react ? " @shipeasy/react" : ""}`;
+      // No separate React package — the browser build lives in @shipeasy/sdk/client.
+      return `${mgr} ${verb} @shipeasy/sdk`;
     }
     case "python": {
       const pkg = frameworks.includes("django") ? "shipeasy[django]" : "shipeasy";

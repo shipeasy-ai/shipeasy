@@ -18,7 +18,7 @@ import {
   onPath,
   registerMcp,
 } from "../setup/agents";
-import { fetchSdkDoc, fetchSdkSkill, installMarketplaceSkill, installSkill } from "../setup/sdk-docs";
+import { fetchSdkDoc, fetchSdkSkill, installMarketplaceSkills, installSkill } from "../setup/sdk-docs";
 import { setupSkillNames } from "../setup/skills-registry";
 import {
   type FileResult,
@@ -80,6 +80,13 @@ function appBaseUrl(): string {
 
 function heading(title: string): void {
   console.log(`\n${title}\n${"─".repeat(title.length)}`);
+}
+
+/** First sentence of a skill description, capped so the install list stays scannable. */
+function summarize(desc: string, max = 160): string {
+  const firstSentence = desc.split(/(?<=[.!?])\s/)[0].trim();
+  const s = firstSentence || desc.trim();
+  return s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s;
 }
 
 function formatMcp(r: McpResult): string {
@@ -548,10 +555,11 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   const ctx: InstallCtx = { cwd, scope, force: false, dryRun };
   // The `skills` CLI names for the agents that take skills via `npx skills add`
   // (not the plugin): cursor/codex/copilot always; Claude only at project scope
-  // (user scope gets skills from its global plugin instead).
+  // (user scope gets skills from its global plugin instead). The skills CLI names
+  // Claude Code `claude-code` — bare `claude` errors "Invalid agents: claude".
   const skillsCliAgents = selected
     .map((a) =>
-      a === "claude" ? (scope === "project" ? "claude" : null) : (SKILLS_CLI_AGENT[a] ?? null),
+      a === "claude" ? (scope === "project" ? "claude-code" : null) : (SKILLS_CLI_AGENT[a] ?? null),
     )
     .filter(Boolean) as string[];
   if (selected.length === 0) {
@@ -740,6 +748,14 @@ async function runSetup(opts: SetupOpts): Promise<void> {
 
   // 6. Devtools overlay (in-page panel + end-user feedback surface)
   heading("6. Devtools overlay");
+  // Lead with what it is so the customer can decide before we ask anything.
+  console.log(
+    "  What it is: a tiny in-page panel your team opens with `?se=1` to see and toggle the\n" +
+      "  live flags/experiments the current user is getting, plus a widget end users can use to\n" +
+      "  file bug reports straight into your ops queue. It's a single opt-in <script> tag — it\n" +
+      "  loads only when invoked, so there's no impact on your normal bundle.\n" +
+      "  Docs: https://docs.shipeasy.ai/feedback/devtools\n",
+  );
   // Non-skip targets (includes already-onboarded ones, which may still want the
   // overlay even though their recommendation.keys is empty).
   const nonSkipTargets = detected.targets.filter(
@@ -850,11 +866,32 @@ async function runSetup(opts: SetupOpts): Promise<void> {
       const { picked } = await prompts({
         type: "multiselect",
         name: "picked",
-        message: "Enable feature modules now?",
+        message: "Enable feature modules now? (all preselected — space to deselect any you don't want)",
         choices: [
-          { title: "Flags & experiments — gates, configs, kill switches, A/B, metrics", value: "flags" },
-          { title: "Feedback, errors & alerts (ops)", value: "ops", selected: devtoolsAccepted },
-          { title: "Translations (i18n)", value: "i18n" },
+          {
+            title: "Flags & experiments — gates, configs, kill switches, A/B, metrics",
+            value: "flags",
+            description:
+              "Ship features behind flags, roll out by %/country/attribute, run A/B experiments with" +
+              " stats, plus remote configs and one-flip kill switches. Docs: https://docs.shipeasy.ai/flags-experiments",
+            selected: true,
+          },
+          {
+            title: "Feedback, errors & alerts (ops)",
+            value: "ops",
+            description:
+              "One queue for end-user bug reports and auto-captured production errors, plus" +
+              " metric-threshold alerts that ping you when something moves. Docs: https://docs.shipeasy.ai/feedback",
+            selected: true,
+          },
+          {
+            title: "Translations (i18n)",
+            value: "i18n",
+            description:
+              "Manage every user-facing string as a translatable key, publish to the CDN, and" +
+              " machine-translate into new locales without a redeploy. Docs: https://docs.shipeasy.ai/translations",
+            selected: true,
+          },
         ],
         hint: "space to toggle, enter to confirm",
         instructions: false,
@@ -897,12 +934,19 @@ async function runSetup(opts: SetupOpts): Promise<void> {
           : `  • no skills-CLI agents — install later: ${featureSkills.join(", ")}`,
       );
     } else {
-      for (const name of featureSkills) {
-        const res = await installMarketplaceSkill(name, skillSdk, {
-          agents: skillsCliAgents,
-          global: skillsGlobal,
-        });
-        console.log(`  ${res.action === "failed" ? "✗" : "✓"} ${name}: ${res.detail}`);
+      // One `skills add <dir> --skill …` for the whole set. List each skill with
+      // its description first so the customer can see what each one is for.
+      console.log(`  installing ${featureSkills.length} how-to skill(s):`);
+      const batch = await installMarketplaceSkills(featureSkills, skillSdk, {
+        agents: skillsCliAgents,
+        global: skillsGlobal,
+      });
+      for (const s of batch.skills) {
+        console.log(`  • ${s.name}${s.description ? ` — ${summarize(s.description)}` : ""}`);
+      }
+      for (const name of batch.missing) console.log(`  ✗ ${name}: could not fetch skill`);
+      if (batch.skills.length) {
+        console.log(`  ${batch.result.action === "failed" ? "✗" : "✓"} ${batch.result.detail}`);
       }
     }
   }

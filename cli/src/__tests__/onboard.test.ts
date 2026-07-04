@@ -123,7 +123,6 @@ describe("installArgv", () => {
       "pnpm",
       "add",
       "@shipeasy/sdk",
-      "@shipeasy/react",
     ]);
     expect(installArgv("javascript", "npm", ["express"])).toEqual([
       "npm",

@@ -9,7 +9,7 @@ import {
   skillsForFeatures,
 } from "../setup/skills-registry";
 import { SKILLS_CLI_AGENT } from "../setup/agents";
-import { substituteSdkSnippets } from "../setup/sdk-docs";
+import { parseSkillDescription, substituteSdkSnippets } from "../setup/sdk-docs";
 
 describe("skills registry", () => {
   it("maps each feature to its full marketplace skill set (not the removed *-install)", () => {
@@ -101,5 +101,20 @@ describe("substituteSdkSnippets", () => {
     expect(SKILLS_CLI_AGENT.cursor).toBe("cursor");
     expect(SKILLS_CLI_AGENT.codex).toBe("codex");
     expect(SKILLS_CLI_AGENT.copilot).toBe("github-copilot");
+  });
+});
+
+describe("parseSkillDescription", () => {
+  it("pulls the description out of YAML frontmatter, stripping quotes", () => {
+    const md = `---\nname: shipeasy-flags\ndescription: "Create and roll out feature gates."\n---\n\n# Body\n`;
+    expect(parseSkillDescription(md)).toBe("Create and roll out feature gates.");
+  });
+
+  it("handles unquoted descriptions and returns empty when absent", () => {
+    expect(parseSkillDescription("---\ndescription: Manage translatable copy\n---\n")).toBe(
+      "Manage translatable copy",
+    );
+    expect(parseSkillDescription("# No frontmatter here\n")).toBe("");
+    expect(parseSkillDescription("---\nname: x\n---\n")).toBe("");
   });
 });

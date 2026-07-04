@@ -117,6 +117,7 @@ _Parameters_
 | `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `group` | optional | `string` | Group label for dashboard organisation (e.g. team or product area). _(length 0–64)_ |
 | `owner_email` | optional | `string` | Owner contact. Displayed verbatim; not used for auth. _(length 0–190)_ |
+| `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `release_flags_list` call. It proves you listed existing release flags and confirmed this one doesn't already exist before creating it. Call `release_flags_list` first if you don't have a fresh token. |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -265,6 +266,7 @@ _Parameters_
 | `icon_key` | optional | `string` | Display-only icon hint. _(length 0–64)_ |
 | `auto` | optional | `boolean` | Mark the attribute as request-derived (resolved at the SDK edge). _(default `false`)_ |
 | `rules` | required | `object[]` | The rule definition captured by the template. |
+| `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `release_flags_templates_list` call. It proves you listed existing release flags templates and confirmed this one doesn't already exist before creating it. Call `release_flags_templates_list` first if you don't have a fresh token. |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -379,6 +381,7 @@ _Parameters_
 | `required` | optional | `boolean` | Whether the attribute must be present on the evaluation context. _(default `false`)_ |
 | `description` | optional | `string` | Optional human note shown in the dashboard. |
 | `sdk_path` | optional | `string` | Optional dotted path the SDK reads the value from. |
+| `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `release_flags_attributes_list` call. It proves you listed existing release flags attributes and confirmed this one doesn't already exist before creating it. Call `release_flags_attributes_list` first if you don't have a fresh token. |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -502,6 +505,7 @@ _Parameters_
 | `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `value` | optional | `boolean` | Default value applied to every env at creation. Defaults to `false`. Use `true` to ship the killswitch pre-tripped. |
 | `switches` | optional | `object` | Initial per-switch overrides applied to every env. Empty/omitted leaves the killswitch with only the flat `value`. |
+| `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `release_killswitch_list` call. It proves you listed existing release killswitch and confirmed this one doesn't already exist before creating it. Call `release_killswitch_list` first if you don't have a fresh token. |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -731,6 +735,7 @@ _Parameters_
 | `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `schema` | required | `object` | JSON Schema (draft 2020-12) describing the shape of the config value. Top-level `type` must be `'object'`; every published value is validated against this schema. |
 | `value` | optional | `any` | Initial config value. Either a single JSON object applied to every env, or a `{ env: value }` map seeding per-env values. Must match `schema`. Defaults to `{}` on every env when omitted. |
+| `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `release_configs_list` call. It proves you listed existing release configs and confirmed this one doesn't already exist before creating it. Call `release_configs_list` first if you don't have a fresh token. |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -976,6 +981,7 @@ _Parameters_
 | `goal_metric.aggregation` | optional | `"count_users" \| "count_events" \| "retention_7d" \| "retention_30d" \| "sum" \| "avg"` | Reducer for the `event` form. Defaults to `count_users`. |
 | `goal_metric.value` | optional | `string` | Numeric event property for `sum`/`avg` (with `event`). _(length 1–256)_ |
 | `guardrail_metrics` | optional | `object[]` | Up to 10 guardrail metrics defined inline. Each is upserted (event + metric) and attached with role=guardrail. _(default `[]`)_ |
+| `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `release_experiments_list` call. It proves you listed existing release experiments and confirmed this one doesn't already exist before creating it. Call `release_experiments_list` first if you don't have a fresh token. |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1324,6 +1330,7 @@ _Parameters_
 | `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `unit_type` | optional | `string` | Unit of randomisation. Typically `user_id`. Use `account_id` to keep whole accounts in the same group across an experiment. _(default `"user_id"`)_ |
 | `holdout_range` | optional | `any` | Inclusive `[lo, hi]` bucket range (0–9999) reserved as the **holdout** — callers hashed into this slice are excluded from every experiment in the universe. `null` disables the holdout. Pro plan or higher required. _(default `null`)_ |
+| `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `release_experiments_universes_list` call. It proves you listed existing release experiments universes and confirmed this one doesn't already exist before creating it. Call `release_experiments_universes_list` first if you don't have a fresh token. |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1452,6 +1459,7 @@ _Parameters_
 | `query_ir.groupBy` | optional | `object` | Optional group-by clause (ignored for experiment analysis). |
 | `query_ir.groupBy.op` | required | `"by" \| "without"` | `by` keeps the listed labels; `without` drops them. |
 | `query_ir.groupBy.labels` | required | `string[]` | Labels to group by (max 5). |
+| `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `metrics_list` call. It proves you listed existing metrics and confirmed this one doesn't already exist before creating it. Call `metrics_list` first if you don't have a fresh token. |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1620,6 +1628,7 @@ _Parameters_
 | `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `description` | optional | `string` | Optional human-readable description of the event. |
 | `properties` | optional | `object[]` | Typed properties declared on the event. Defaults to an empty list. _(default `[]`)_ |
+| `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `metrics_events_list` call. It proves you listed existing metrics events and confirmed this one doesn't already exist before creating it. Call `metrics_events_list` first if you don't have a fresh token. |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1763,6 +1772,7 @@ _Parameters_
 | `notify` | optional | `any` | Where this bug's completion notification lands. |
 | `description` | optional | `string` | What the feature is. _(default `""`; length 0–8000)_ |
 | `useCase` | optional | `string` | Why it's needed / the use case. _(default `""`; length 0–8000)_ |
+| `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `ops_list` call. It proves you listed existing ops and confirmed this one doesn't already exist before creating it. Call `ops_list` first if you don't have a fresh token. |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1991,6 +2001,7 @@ _Parameters_
 | `severity` | optional | `"danger" \| "warn" \| "info"` | Severity of the raised alert. _(default `"warn"`)_ |
 | `enabled` | optional | `boolean` | Whether the rule is evaluated by the cron. _(default `true`)_ |
 | `notify` | optional | `any` | Delivery target for a notification; `null` = use the project default. |
+| `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `ops_alerts_list` call. It proves you listed existing ops alerts and confirmed this one doesn't already exist before creating it. Call `ops_alerts_list` first if you don't have a fresh token. |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -2245,6 +2256,7 @@ _Parameters_
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
 | `name` | required | `string` | Profile handle to create, e.g. `en:prod` or `fr:prod`. Lowercase alphanumeric start, then letters/digits/`_`/`:`/`.`/`-`; max 64 chars. The locale is encoded in the handle, so no separate locale fields are accepted. _(length 1–64; pattern `^[a-z0-9][a-z0-9_:.-]*$`)_ |
+| `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `i18n_profiles_list` call. It proves you listed existing i18n profiles and confirmed this one doesn't already exist before creating it. Call `i18n_profiles_list` first if you don't have a fresh token. |
 
 #### `i18n_profiles_list`
 
@@ -2336,6 +2348,7 @@ _Parameters_
 | `name` | required | `string` | Draft name, e.g. the target locale being staged. _(length 1–64)_ |
 | `profile_id` | required | `string` | Profile the draft targets. _(format: uuid)_ |
 | `source_profile_id` | optional | `string` | Optional profile to seed the draft's keys from. _(format: uuid)_ |
+| `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `i18n_drafts_list` call. It proves you listed existing i18n drafts and confirmed this one doesn't already exist before creating it. Call `i18n_drafts_list` first if you don't have a fresh token. |
 
 #### `i18n_drafts_list`
 

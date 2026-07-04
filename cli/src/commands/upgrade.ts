@@ -14,7 +14,7 @@ import {
   onPath,
   registerMcp,
 } from "../setup/agents";
-import { fetchSdkSkill, installMarketplaceSkill, installSkill } from "../setup/sdk-docs";
+import { fetchSdkSkill, installMarketplaceSkills, installSkill } from "../setup/sdk-docs";
 import { baseSkillNames } from "../setup/skills-registry";
 import { getBoundSdk } from "../util/project-config";
 import { listDirs } from "../util/assets";
@@ -56,6 +56,12 @@ interface UpgradeOpts {
 
 function heading(title: string): void {
   console.log(`\n${title}\n${"─".repeat(title.length)}`);
+}
+
+/** First sentence of a skill description, capped so the refresh list stays scannable. */
+function summarizeSkill(desc: string, max = 160): string {
+  const s = desc.split(/(?<=[.!?])\s/)[0].trim() || desc.trim();
+  return s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s;
 }
 
 // ── CLI self-update ──────────────────────────────────────────────────────────
@@ -162,11 +168,12 @@ function resolveAgents(opts: UpgradeOpts, cwd: string): AgentId[] {
 
 /** The `skills` CLI agent names that take skills via `npx skills add` for this
  *  scope — cursor/codex/copilot always, Claude only at project scope (user
- *  scope gets its skills from the plugin instead). */
+ *  scope gets its skills from the plugin instead). The skills CLI names Claude
+ *  Code `claude-code` — bare `claude` errors "Invalid agents: claude". */
 function skillsCliAgentsFor(agents: AgentId[], scope: "user" | "project"): string[] {
   return agents
     .map((a) =>
-      a === "claude" ? (scope === "project" ? "claude" : null) : (SKILLS_CLI_AGENT[a] ?? null),
+      a === "claude" ? (scope === "project" ? "claude-code" : null) : (SKILLS_CLI_AGENT[a] ?? null),
     )
     .filter((x): x is string => Boolean(x));
 }
@@ -252,9 +259,14 @@ async function refreshSkills(
     return;
   }
 
-  for (const name of names) {
-    const res = await installMarketplaceSkill(name, sdk, { agents: skillsCliAgents, global });
-    console.log(`  ${res.action === "failed" ? "✗" : "✓"} ${name}: ${res.detail}`);
+  // One `skills add <dir> --skill …` for the whole set rather than one per skill.
+  const batch = await installMarketplaceSkills(names, sdk, { agents: skillsCliAgents, global });
+  for (const s of batch.skills) {
+    console.log(`  • ${s.name}${s.description ? ` — ${summarizeSkill(s.description)}` : ""}`);
+  }
+  for (const name of batch.missing) console.log(`  ✗ ${name}: could not fetch skill`);
+  if (batch.skills.length) {
+    console.log(`  ${batch.result.action === "failed" ? "✗" : "✓"} ${batch.result.detail}`);
   }
 
   // The SDK how-to skill (`shipeasy-<sdk>`) is a separate source (the published
@@ -313,8 +325,8 @@ export function sdkUpdateArgv(t: TargetRecommendation): string[] | null {
     case "javascript": {
       const mgr = pm && pm !== "unknown" ? pm : "npm";
       const verb = mgr === "npm" ? "install" : "add";
-      const react = frameworks.includes("react") || frameworks.includes("nextjs");
-      return [mgr, verb, "@shipeasy/sdk@latest", ...(react ? ["@shipeasy/react@latest"] : [])];
+      // No separate React package — the browser build lives in @shipeasy/sdk/client.
+      return [mgr, verb, "@shipeasy/sdk@latest"];
     }
     case "ruby":
       return ["bundle", "update", "shipeasy-sdk"];

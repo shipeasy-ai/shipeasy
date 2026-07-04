@@ -139,7 +139,7 @@ export function detectCommand(parent: Command): void {
             sdk: "typescript",
             action: "install",
             reason: "No Shipeasy SDK installed — install it, mint keys, wire the entry point.",
-            install: "pnpm add @shipeasy/sdk @shipeasy/react",
+            install: "pnpm add @shipeasy/sdk",
             keys: ["server", "client"],
             secret_store: "<dir>/.env.local (gitignored)",
             docs: "shipeasy docs get --sdk typescript installation",
