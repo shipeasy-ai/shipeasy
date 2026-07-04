@@ -3,17 +3,17 @@
   "name": "ai.shipeasy/mcp",
   "description": "Feature flags, A/B experiments, kill switches, dynamic config & i18n — Shipeasy MCP server.",
   "repository": {
-    "url": "https://github.com/shipeasy-ai/mcp",
+    "url": "https://github.com/shipeasy-ai/shipeasy",
     "source": "github"
   },
   "websiteUrl": "https://docs.shipeasy.ai/get-started/mcp?utm_source=mcp-registry&utm_medium=referral&utm_campaign=mcp-server-listing",
-  "version": "2.1.0",
+  "version": "2.3.0",
   "packages": [
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@shipeasy/mcp",
-      "version": "2.1.0",
+      "version": "2.3.0",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
