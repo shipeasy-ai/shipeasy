@@ -78,7 +78,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@shipeasy/openapi": "workspace:^2.0.0",
+    "@shipeasy/openapi": "workspace:^2.1.0",
     "package-manager-detector": "^1.6.0",
     "typescript": "^5.7.4",
     "zod": "^4.0.0"
