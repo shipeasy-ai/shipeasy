@@ -75,7 +75,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque gate id (`gat_…`) or the gate's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -137,7 +137,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque gate id (`gat_…`) or the gate's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -157,7 +157,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque gate id (`gat_…`) or the gate's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -206,7 +206,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque gate id (`gat_…`) or the gate's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `rollout_pct` | optional | `integer` | New rollout in **basis points** (0–10000 = 0%–100%) — `100` here means **1%**. Use `rollout_percent` (0–100) below for percent. Omit both to leave unchanged. _(0–10000)_ |
 | `rollout_percent` | optional | `number` | New rollout as a **percentage** (0–100). Friendlier alias for `rollout_pct`; converted internally. Wins over `rollout_pct` if both are supplied. Omit both to leave unchanged. _(0–100)_ |
 | `rules` | optional | `object[]` | Replaces the rule list wholesale. To add a value to an `in` rule, send the full new `rules` array with the augmented `value` (e.g. previous `['US','CA']` → `['US','CA','GB']`). |
@@ -242,7 +242,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Customer template id (`gtpl_…`) or its `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -284,7 +284,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Built-in slug (`country`) or customer template id (`gtpl_…`). |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -322,7 +322,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Customer template id (`gtpl_…`) or its `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `name` | optional | `string` | — _(length 1–140)_ |
 | `description` | optional | `string` | — _(length 0–2000)_ |
 | `category` | optional | `"condition" \| "rollout"` | — |
@@ -356,7 +356,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | The attribute id. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -401,7 +401,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | The attribute id. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -438,7 +438,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | The attribute id. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `type` | optional | `"string" \| "number" \| "boolean" \| "enum" \| "date"` | Declared value type of a targeting attribute. |
 | `enum_values` | optional | `any` | Replacement allowed values (for `enum`), or `null` to clear. |
 | `required` | optional | `boolean` | Whether the attribute must be present on the evaluation context. |
@@ -475,7 +475,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -525,7 +525,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -569,7 +569,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `env` | required | `"dev" \| "staging" \| "prod"` | Target environment. One of the project's configured envs (`dev`, `staging`, `prod`). |
 | `switchKey` | required | `string` | Switch key to set. _(length 0–64; pattern `^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$`)_ |
 | `value` | required | `boolean` | New boolean value for this `switchKey` on this `env`. |
@@ -597,7 +597,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `env` | required | `"dev" \| "staging" \| "prod"` | Target environment. One of the project's configured envs (`dev`, `staging`, `prod`). |
 | `value` | required | `boolean` | Flat boolean to publish on `env`. Publishes a new version on that env only. |
 
@@ -621,7 +621,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `env` | required | `"dev" \| "staging" \| "prod"` | Target environment. One of the project's configured envs (`dev`, `staging`, `prod`). |
 | `switchKey` | required | `string` | Switch key to remove. _(length 0–64; pattern `^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$`)_ |
 
@@ -649,7 +649,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `description` | optional | `any` | New description, or `null` to clear it. Max 512 chars. |
 | `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `value` | optional | `boolean` | Flat value applied to every env. Publishes a new version per env when set. Omit to leave values unchanged. |
@@ -685,7 +685,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque config id (`cfg_…`) or the config's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `limit` | optional | `integer` | Max rows to return (1–100). Defaults to 20. _(default `20`; 1–100)_ |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -705,7 +705,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque config id (`cfg_…`) or the config's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -755,7 +755,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque config id (`cfg_…`) or the config's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `env` | required | `"dev" \| "staging" \| "prod"` | Target environment. One of the project's configured envs (`dev`, `staging`, `prod`). |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -777,7 +777,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque config id (`cfg_…`) or the config's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `env` | required | `"dev" \| "staging" \| "prod"` | Target environment. One of the project's configured envs (`dev`, `staging`, `prod`). |
 | `value` | required | `any` | Draft value to stage on `env`. Validated against the config's current schema. |
 
@@ -799,7 +799,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque config id (`cfg_…`) or the config's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -840,7 +840,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque config id (`cfg_…`) or the config's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `env` | required | `"dev" \| "staging" \| "prod"` | Target environment. One of the project's configured envs (`dev`, `staging`, `prod`). |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -868,7 +868,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque config id (`cfg_…`) or the config's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `schema` | optional | `object` | Replacement schema. When supplied, the new schema is validated against every published value before it lands. |
 | `value` | optional | `any` | Flat value applied to **every** env. Publishes a new version per env. To target one env, use `PUT /{id}/drafts` then `POST /{id}/publish`. |
 | `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
@@ -891,7 +891,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque config id (`cfg_…`) or the config's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `schema` | required | `object` | Replacement JSON Schema (draft 2020-12). Validated against every published value before it lands. |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -928,7 +928,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque experiment id (`exp_…`) or the experiment's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1004,7 +1004,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque experiment id (`exp_…`) or the experiment's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1044,7 +1044,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque experiment id (`exp_…`) or the experiment's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1076,7 +1076,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque experiment id (`exp_…`) or the experiment's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1097,7 +1097,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque experiment id (`exp_…`) or the experiment's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1121,7 +1121,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque experiment id (`exp_…`) or the experiment's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `metrics` | required | `object[]` | Replacement metrics list — replaces the current attachments wholesale. |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -1156,7 +1156,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque experiment id (`exp_…`) or the experiment's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1189,7 +1189,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque experiment id (`exp_…`) or the experiment's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1210,7 +1210,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque experiment id (`exp_…`) or the experiment's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `metric` | optional | `string` | Optional metric name to filter the series. |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -1237,7 +1237,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque experiment id (`exp_…`) or the experiment's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `name` | optional | `string` | Stable experiment key. Single segment or `folder.name` (a-z, 0-9, `_`/`-`; max 128 chars). Used by SDKs as `Shipeasy.getExperiment(user, '<name>')`. Immutable after create. _(length 0–128; pattern `^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$`)_ |
 | `description` | optional | `any` | — |
 | `hypothesis` | optional | `any` | — |
@@ -1300,7 +1300,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque universe id (`uni_…`) or the universe's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1376,7 +1376,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque universe id (`uni_…`) or the universe's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `holdout_range` | optional | `any` | Inclusive `[lo, hi]` bucket range (0–9999) reserved as the **holdout** — callers hashed into this slice are excluded from every experiment in the universe. `null` disables the holdout. Pro plan or higher required. |
 
@@ -1415,7 +1415,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque metric id (`met_…`) or the metric's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1509,7 +1509,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque metric id (`met_…`) or the metric's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1528,7 +1528,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque metric id (`met_…`) or the metric's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `event_name` | optional | `string` | Source event the query reads from. _(length 1–∞)_ |
 | `query` | optional | `string` | Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`. Every label the query references — in filters, the value position, `by (…)`, or `without (…)` — must exist as a property on the tracked event's payload; a query over a label the event never carries validates fine but returns empty results. _(length 1–4096)_ |
@@ -1576,7 +1576,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque event id (`evt_…`) or the event's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `description` | optional | `string` | New description for the event. |
 | `properties` | optional | `object[]` | Replaces the full property set (no merge). Omit to leave properties unchanged. |
@@ -1599,7 +1599,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque event id (`evt_…`) or the event's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1648,7 +1648,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque event id (`evt_…`) or the event's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1687,7 +1687,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque event id (`evt_…`) or the event's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `description` | optional | `string` | New description for the event. |
 | `properties` | optional | `object[]` | Replaces the full property set (no merge). Omit to leave properties unchanged. |
@@ -1823,7 +1823,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `handle` | required | `string` | Per-project item number (e.g. `7`) or the full ops item id. |
+| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1842,7 +1842,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `handle` | required | `string` | Per-project item number (e.g. `7`) or the full ops item id. |
+| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `prNumber` | required | `any` | PR number to record on the item. `null` unlinks the PR. |
 | `prUrl` | optional | `string` | Explicit PR URL. Required for error/alert tickets (no GitHub issue to derive the URL from). _(format: uri)_ |
 
@@ -1913,7 +1913,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `handle` | required | `string` | Per-project item number (e.g. `7`) or the full ops item id. |
+| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `title` | optional | `string` | New bug title (no leading/trailing whitespace). _(length 1–200; pattern `^\S(.*\S)?$`)_ |
 | `stepsToReproduce` | optional | `string` | Updated reproduction steps. _(length 0–8000)_ |
 | `actualResult` | optional | `string` | Updated actual result. _(length 0–8000)_ |
@@ -1953,7 +1953,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque alert-rule id (`ar_…`) or the rule's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -2045,7 +2045,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque alert-rule id (`ar_…`) or the rule's `name`. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `name` | optional | `string` | — _(length 1–120)_ |
 | `comparator` | optional | `"gt" \| "gte" \| "lt" \| "lte"` | — |
 | `threshold` | optional | `number` | — |
@@ -2181,7 +2181,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque project id. Must match the caller's own project. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `name` | optional | `string` | New project name. _(length 1–120)_ |
 | `domain` | optional | `string` | Lowercase bare hostname (e.g. `acme.com`, `app.acme.com`, `*.acme.com`), or `*` to allow any origin. Full URLs with `https://` are not accepted. The project is keyed by `(owner_email, domain)`, so a second call with the same domain returns the existing project. _(length 1–2048; pattern `^(\*\|(\*\.)?[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+)$`)_ |
 | `slug` | optional | `string` | URL-safe identifier used in app URLs and SDK config. Lowercase letters, numbers, and hyphens; 2–48 chars; cannot start or end with a hyphen. The caller lowercases the raw slug before sending. _(length 2–48; pattern `^[a-z0-9](?:[a-z0-9-]{0,46}[a-z0-9])?$`)_ |
@@ -2274,7 +2274,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `profileId` | required | `string` | The profile id to publish. |
+| `profileId` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `chunk` | optional | `string` | Optional chunk label to stamp on the audit log. Publishing is profile-wide regardless — the whole profile is snapshotted into one KV blob. |
 
 ### Keys
@@ -2328,7 +2328,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | The key's id. |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `value` | required | `string` | New value for the key (the only overwrite path). |
 | `description` | optional | `string` | Optional human note to store with the key. |
 | `variables` | optional | `string[]` | Explicit `{{var}}` placeholder names in the value. Omit to auto-derive them from the value. |
@@ -2366,7 +2366,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `draftId` | required | `string` | The draft id to update. |
+| `draftId` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `status` | optional | `"open" \| "merged" \| "abandoned"` | New lifecycle state for the draft. |
 
 ## Errors
@@ -2388,7 +2388,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque error id (`err_…`). |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -2428,7 +2428,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `id` | required | `string` | Stable opaque error id (`err_…`). |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `from` | required | `integer` | Window start, epoch seconds (inclusive). _(≥ 0)_ |
 | `to` | required | `integer` | Window end, epoch seconds (exclusive). Must be greater than `from`. _(≥ 0)_ |
 | `bucket` | optional | `integer` | Bucket width in seconds (60s–86400s/1d). Defaults to `3600` (hourly). Each returned point is floor-aligned to this width. _(default `3600`; 60–86400)_ |

@@ -351,19 +351,39 @@ const WIRING_PROMPT = `Read ${WIRING_FILENAME} at the repo root and complete eve
 
 /** CLI-launchable coding agents and how each takes a one-shot prompt. `id` ties
  *  the runnable back to the `AgentId` the user selected in step 3 so we only
- *  offer to launch what they chose. Copilot uses `-i` (interactive-with-prompt)
- *  rather than `-p` (non-interactive): `-p` can't request tool/path permission
- *  from the user, so it denies every file read; `-i` prompts like the others. */
+ *  offer to launch what they chose.
+ *
+ *  Each launch passes the agent's "skip permission prompts" flag so it can
+ *  complete the wiring steps (read the checklist, edit entry points, write env)
+ *  unattended — the user already opted into this by choosing to launch an agent
+ *  on the wiring file, and without it every file read/edit blocks on an approval
+ *  prompt and the run stalls. Per-agent equivalent of Claude's
+ *  `--dangerously-skip-permissions`:
+ *    claude   → --dangerously-skip-permissions
+ *    codex    → --dangerously-bypass-approvals-and-sandbox
+ *    cursor   → --force
+ *    copilot  → --allow-all-tools (kept with `-i`: interactive-with-prompt, since
+ *               `-p`/non-interactive can't be granted tool/path access at all) */
 const RUNNABLE_AGENTS: Array<{
   id: AgentId;
   label: string;
   bin: string;
   argv: (p: string) => string[];
 }> = [
-  { id: "claude", label: "Claude Code", bin: "claude", argv: (p) => [p] },
-  { id: "codex", label: "OpenAI Codex", bin: "codex", argv: (p) => [p] },
-  { id: "cursor", label: "Cursor", bin: "cursor-agent", argv: (p) => [p] },
-  { id: "copilot", label: "GitHub Copilot", bin: "copilot", argv: (p) => ["-i", p] },
+  {
+    id: "claude",
+    label: "Claude Code",
+    bin: "claude",
+    argv: (p) => ["--dangerously-skip-permissions", p],
+  },
+  {
+    id: "codex",
+    label: "OpenAI Codex",
+    bin: "codex",
+    argv: (p) => ["--dangerously-bypass-approvals-and-sandbox", p],
+  },
+  { id: "cursor", label: "Cursor", bin: "cursor-agent", argv: (p) => ["--force", p] },
+  { id: "copilot", label: "GitHub Copilot", bin: "copilot", argv: (p) => ["--allow-all-tools", "-i", p] },
 ];
 
 function spawnAgent(bin: string, args: string[]): Promise<number> {
