@@ -1712,9 +1712,9 @@ export type UpdateUniverseResponse = {
 };
 
 /**
- * Single targeting predicate. Copy a template's rules, substitute the concrete `value`(s), and pass them as the `rules` arg of `release_flags_create`.
+ * Single targeting predicate as returned by the API. `value` is optional here — read-only built-in templates (e.g. `@owner`, or presets whose operand is supplied at substitution time) legitimately omit it. Request bodies still require `value`.
  */
-export type GateTemplateRule = {
+export type GateTemplateRuleResponse = {
     /**
      * Attribute key on the evaluation context (e.g. `country`, `plan`, `email`). Matched case-sensitively against `Shipeasy.checkGate(user, name)` input. May be empty on a built-in template whose attribute is supplied at substitution time (e.g. the `exp_in` "in any experiment" preset — you fill in the experiment name).
      */
@@ -1726,7 +1726,7 @@ export type GateTemplateRule = {
     /**
      * Operand. Shape depends on `op`: scalar for `eq/neq/gt/gte/lt/lte/contains/semver_*`; array of scalars for `in/not_in`; string pattern for `regex`; referenced gate name for `gate_pass`; variant selector for `exp_in`.
      */
-    value: unknown;
+    value?: unknown;
 };
 
 /**
@@ -1764,7 +1764,7 @@ export type GateTemplate = {
     /**
      * The rule definition — copy, substitute the value(s), pass as `rules`.
      */
-    rules: Array<GateTemplateRule>;
+    rules: Array<GateTemplateRuleResponse>;
     /**
      * ISO-8601 creation timestamp; `null` for built-ins.
      */
@@ -1778,6 +1778,24 @@ export type GateTemplate = {
 export type ListGateTemplatesResponse = {
     data: Array<GateTemplate>;
     next_cursor: string | null;
+};
+
+/**
+ * Single targeting predicate. Copy a template's rules, substitute the concrete `value`(s), and pass them as the `rules` arg of `release_flags_create`.
+ */
+export type GateTemplateRule = {
+    /**
+     * Attribute key on the evaluation context (e.g. `country`, `plan`, `email`). Matched case-sensitively against `Shipeasy.checkGate(user, name)` input. May be empty on a built-in template whose attribute is supplied at substitution time (e.g. the `exp_in` "in any experiment" preset — you fill in the experiment name).
+     */
+    attr: string;
+    /**
+     * Comparison operator. Equality: `eq`/`neq`. Set membership: `in`/`not_in` (value is an array). Numeric order: `gt`/`gte`/`lt`/`lte`. Semver order: `semver_gt`/`semver_gte`/`semver_lt`/`semver_lte`. String: `contains` (substring), `regex` (JS-flavour pattern). Cross-resource: `gate_pass` (value is another gate's name), `exp_in` (attr is an experiment name, value is a variant / `"$holdout"` / `"$any"`).
+     */
+    op: 'eq' | 'neq' | 'in' | 'not_in' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains' | 'regex' | 'semver_gt' | 'semver_gte' | 'semver_lt' | 'semver_lte' | 'gate_pass' | 'exp_in';
+    /**
+     * Operand. Shape depends on `op`: scalar for `eq/neq/gt/gte/lt/lte/contains/semver_*`; array of scalars for `in/not_in`; string pattern for `regex`; referenced gate name for `gate_pass`; variant selector for `exp_in`. Required on every request rule (value-ops need it; the valueless built-in presets are read-only and never created via the API).
+     */
+    value: string | number | boolean | Array<unknown>;
 };
 
 /**
@@ -3375,9 +3393,9 @@ export type NotifyOpsRequest = {
      */
     steps?: Array<string>;
     /**
-     * Dashboard-relative deep link to the related item.
+     * Dashboard-relative deep link to the related item. `null` is accepted and treated as "no link".
      */
-    href?: string;
+    href?: string | null;
     /**
      * Stable per-escalation key (e.g. `feedback:7`) so re-runs dedupe to one row.
      */
@@ -4667,35 +4685,27 @@ export type FireConnectorRequest = {
 };
 
 /**
- * Result of firing a trigger connector. `{ ok: true }` on success; `{ ok: false, error }` when the dispatch fails (the request still returns HTTP 200).
+ * Result of a successful trigger fire: `{ ok: true }`. When the downstream dispatch fails the endpoint returns HTTP 502 (see the `Error` response), never `ok: false`.
  */
 export type FireConnectorResponse = {
     /**
-     * `true` when the trigger run was successfully kicked off; `false` when the dispatch itself failed (still HTTP 200, with `error` set).
+     * Always `true` — a successful fire returns HTTP 200. A dispatch failure returns HTTP 502 with the `Error` envelope, not this body.
      */
     ok: boolean;
-    /**
-     * Failure reason. Present only when `ok` is `false` — the fire reached the handler but the underlying dispatch to the provider failed.
-     */
-    error?: string;
 };
 
 /**
- * Result of testing a connector. `{ ok: true, issueUrl }` on success; `{ ok: false, issueUrl: null, error }` when the dispatch fails (the request still returns HTTP 200).
+ * Result of a successful connector test: `{ ok: true, issueUrl }`. When the downstream dispatch fails the endpoint returns HTTP 502 (see the `Error` response), never `ok: false`.
  */
 export type TestConnectorResponse = {
     /**
-     * `true` when the test dispatch reached the destination; `false` when the dispatch itself failed (still HTTP 200, with `error` set).
+     * Always `true` — a successful test returns HTTP 200. A dispatch failure returns HTTP 502 with the `Error` envelope, not this body.
      */
     ok: boolean;
     /**
-     * URL of the artifact the test produced (e.g. the GitHub Issue created by a `github` connector), or `null` when the provider produces no linkable artifact (or the dispatch failed).
+     * URL of the artifact the test produced (e.g. the GitHub Issue created by a `github` connector), or `null` when the provider produces no linkable artifact.
      */
     issueUrl: string | null;
-    /**
-     * Failure reason. Present only when `ok` is `false` — the test reached the handler but the underlying dispatch to the provider failed.
-     */
-    error?: string;
 };
 
 /**
@@ -4978,6 +4988,11 @@ export type PaginationLimit = number;
  */
 export type PaginationCursor = string;
 
+/**
+ * Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything.
+ */
+export type Q = string;
+
 export type ListGatesData = {
     body?: never;
     headers?: {
@@ -4996,6 +5011,10 @@ export type ListGatesData = {
          * Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page.
          */
         cursor?: string;
+        /**
+         * Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything.
+         */
+        q?: string;
     };
     url: '/api/admin/gates';
 };
@@ -5252,7 +5271,7 @@ export type EnableGateResponses = {
     /**
      * Enable a gate
      */
-    201: EnableGateResponse;
+    200: EnableGateResponse;
 };
 
 export type EnableGateResponse2 = EnableGateResponses[keyof EnableGateResponses];
@@ -5308,7 +5327,7 @@ export type DisableGateResponses = {
     /**
      * Disable a gate
      */
-    201: DisableGateResponse;
+    200: DisableGateResponse;
 };
 
 export type DisableGateResponse2 = DisableGateResponses[keyof DisableGateResponses];
@@ -5331,6 +5350,14 @@ export type ListExperimentsData = {
          * Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page.
          */
         cursor?: string;
+        /**
+         * Filter by lifecycle status. Pass `archived` to return the archive tab; any other value (or omitting it) returns the non-archived experiments.
+         */
+        status?: string;
+        /**
+         * Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything.
+         */
+        q?: string;
     };
     url: '/api/admin/experiments';
 };
@@ -5643,7 +5670,7 @@ export type SetExperimentStatusResponses = {
     /**
      * Transition experiment status
      */
-    201: SetExperimentStatusResponse;
+    200: SetExperimentStatusResponse;
 };
 
 export type SetExperimentStatusResponse2 = SetExperimentStatusResponses[keyof SetExperimentStatusResponses];
@@ -5699,7 +5726,7 @@ export type SetExperimentMetricsResponses = {
     /**
      * Attach metrics
      */
-    201: SetExperimentMetricsResponse;
+    200: SetExperimentMetricsResponse;
 };
 
 export type SetExperimentMetricsResponse2 = SetExperimentMetricsResponses[keyof SetExperimentMetricsResponses];
@@ -5872,7 +5899,7 @@ export type ReanalyzeExperimentResponses = {
     /**
      * Re-queue analysis
      */
-    201: ReanalyzeExperimentResponse;
+    200: ReanalyzeExperimentResponse;
 };
 
 export type ReanalyzeExperimentResponse2 = ReanalyzeExperimentResponses[keyof ReanalyzeExperimentResponses];
@@ -5895,6 +5922,10 @@ export type ListConfigsData = {
          * Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page.
          */
         cursor?: string;
+        /**
+         * Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything.
+         */
+        q?: string;
     };
     url: '/api/admin/configs';
 };
@@ -6319,7 +6350,7 @@ export type PublishConfigDraftResponses = {
     /**
      * Publish a draft
      */
-    201: PublishConfigDraftResponse;
+    200: PublishConfigDraftResponse;
 };
 
 export type PublishConfigDraftResponse2 = PublishConfigDraftResponses[keyof PublishConfigDraftResponses];
@@ -6459,6 +6490,10 @@ export type ListKillswitchesData = {
          * Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page.
          */
         cursor?: string;
+        /**
+         * Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything.
+         */
+        q?: string;
     };
     url: '/api/admin/killswitches';
 };
@@ -6906,6 +6941,10 @@ export type ListUniversesData = {
          * Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page.
          */
         cursor?: string;
+        /**
+         * Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything.
+         */
+        q?: string;
     };
     url: '/api/admin/universes';
 };
@@ -7122,7 +7161,13 @@ export type ListGateTemplatesData = {
     path?: never;
     query?: {
         /**
-         * Case-insensitive substring filter over each template's `name` + `description`. Omit to return the whole catalog.
+         * Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything.
+         */
+        q?: string;
+        /**
+         * Deprecated alias for `q`, kept working for one release. Prefer `q`.
+         *
+         * @deprecated
          */
         query?: string;
     };
@@ -7371,7 +7416,12 @@ export type ListAttributesData = {
         'X-Project-Id'?: string;
     };
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything.
+         */
+        q?: string;
+    };
     url: '/api/admin/attributes';
 };
 
@@ -7641,7 +7691,12 @@ export type ListMetricsData = {
         'X-Project-Id'?: string;
     };
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything.
+         */
+        q?: string;
+    };
     url: '/api/admin/metrics';
 };
 
@@ -7911,7 +7966,12 @@ export type ListEventsData = {
         'X-Project-Id'?: string;
     };
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything.
+         */
+        q?: string;
+    };
     url: '/api/admin/events';
 };
 
@@ -8622,7 +8682,12 @@ export type ListAlertRulesData = {
         'X-Project-Id'?: string;
     };
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything.
+         */
+        q?: string;
+    };
     url: '/api/admin/alert-rules';
 };
 
@@ -9106,13 +9171,17 @@ export type ListI18nKeysData = {
          */
         prefix?: string;
         /**
-         * Free-text search — matches keys whose name OR value contains this substring (case-insensitive). Use it to find the key behind a piece of on-screen copy.
+         * Free-text search — matches keys whose name, value, OR description contains this substring (case-insensitive). Use it to find the key behind a piece of on-screen copy.
          */
         q?: string;
         /**
          * Max keys to return (1–500).
          */
         limit?: number;
+        /**
+         * Number of keys to skip before returning `limit` rows (offset pagination).
+         */
+        offset?: number;
     };
     url: '/api/admin/i18n/keys';
 };
@@ -9471,7 +9540,7 @@ export type PublishI18nProfileResponses = {
     /**
      * Publish a profile chunk
      */
-    201: PublishI18nProfileResponse;
+    200: PublishI18nProfileResponse;
 };
 
 export type PublishI18nProfileResponse2 = PublishI18nProfileResponses[keyof PublishI18nProfileResponses];
@@ -9824,7 +9893,12 @@ export type ListConnectorsData = {
         'X-Project-Id'?: string;
     };
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything.
+         */
+        q?: string;
+    };
     url: '/api/admin/connectors';
 };
 
@@ -10128,13 +10202,20 @@ export type FireConnectorErrors = {
      * The request body failed validation.
      */
     422: Error;
+    /**
+     * The request was well-formed and the resource exists, but a downstream provider
+     * the endpoint delegates to (e.g. a connector's Slack/GitHub/cloud-agent dispatch)
+     * failed. The failure is upstream of this API, not a client error. No stable
+     * `ErrorCode` is assigned to upstream failures, so `code` is omitted.
+     */
+    502: Error;
 };
 
 export type FireConnectorError = FireConnectorErrors[keyof FireConnectorErrors];
 
 export type FireConnectorResponses = {
     /**
-     * Fire a trigger connector
+     * The trigger run was successfully kicked off.
      */
     200: FireConnectorResponse;
 };
@@ -10184,13 +10265,20 @@ export type TestConnectorErrors = {
      * The request body failed validation.
      */
     422: Error;
+    /**
+     * The request was well-formed and the resource exists, but a downstream provider
+     * the endpoint delegates to (e.g. a connector's Slack/GitHub/cloud-agent dispatch)
+     * failed. The failure is upstream of this API, not a client error. No stable
+     * `ErrorCode` is assigned to upstream failures, so `code` is omitted.
+     */
+    502: Error;
 };
 
 export type TestConnectorError = TestConnectorErrors[keyof TestConnectorErrors];
 
 export type TestConnectorResponses = {
     /**
-     * Test a connector
+     * The test dispatch reached the destination.
      */
     200: TestConnectorResponse;
 };
@@ -10314,6 +10402,10 @@ export type ListKeysData = {
          * Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page.
          */
         cursor?: string;
+        /**
+         * Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything.
+         */
+        q?: string;
     };
     url: '/api/admin/keys';
 };

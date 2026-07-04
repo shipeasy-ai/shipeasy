@@ -124,9 +124,10 @@
       - name: q
         in: query
         required: false
-        description: Free-text search — matches keys whose name OR value contains this substring (case-insensitive). Use it to find the key behind a piece of on-screen copy.
+        description: Free-text search — matches keys whose name, value, OR description contains this substring (case-insensitive). Use it to find the key behind a piece of on-screen copy.
         schema:
           type: string
+          maxLength: 100
       - name: limit
         in: query
         required: false
@@ -135,6 +136,14 @@
           type: integer
           minimum: 1
           maximum: 500
+      - name: offset
+        in: query
+        required: false
+        description: Number of keys to skip before returning `limit` rows (offset pagination).
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
     responses:
       "200":
         description: List i18n keys

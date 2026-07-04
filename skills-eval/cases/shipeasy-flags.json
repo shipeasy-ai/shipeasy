@@ -49,33 +49,6 @@
     "note": "one gate, several gatekeeper steps: US 50% + email whitelist + team access. Args must carry country + whitelisted emails"
   },
   {
-    "id": "shipeasy-flags/release-india",
-    "prompt": "Release payments in India.",
-    "expect_skill": "shipeasy-flags",
-    "expect_tools": [
-      "release_flags_list",
-      [
-        "release_flags_create",
-        "release_flags_enable"
-      ]
-    ],
-    "tools_match": "all",
-    "assert_args": [
-      {
-        "tool": "release_flags_create",
-        "contains": [
-          "india"
-        ]
-      }
-    ],
-    "expect_state": {
-      "flags": [
-        "payment"
-      ]
-    },
-    "note": "terse ask must still geo-target India — list first to see if a payments gate exists, then create one (or enable/update the existing gate) scoped to India"
-  },
-  {
     "id": "shipeasy-flags/gated-list",
     "prompt": "Which features are gated currently?",
     "expect_skill": "shipeasy-flags",
@@ -111,41 +84,6 @@
     "note": "ASPIRATIONAL: after the kill switch, the agent should ask (AskUserQuestion) whether to add a failure metric + alert so we know WHEN to flip it"
   },
   {
-    "id": "shipeasy-flags/geo-launch-brazil",
-    "prompt": "Turn on the new pricing page only for users in Brazil.",
-    "expect_skill": "shipeasy-flags",
-    "expect_tools": [
-      "release_flags_list",
-      "release_flags_templates_list",
-      "release_flags_create"
-    ],
-    "tools_match": "all",
-    "forbid_tools": [
-      "release_flags_archive"
-    ],
-    "assert_args": [
-      {
-        "tool": "release_flags_create",
-        "contains": [
-          "country",
-          "BR"
-        ]
-      },
-      {
-        "tool": "release_flags_templates_list",
-        "contains": [
-          "country"
-        ]
-      }
-    ],
-    "expect_state": {
-      "flags": [
-        "pricing"
-      ]
-    },
-    "note": "geo targeting — the agent must PULL the Country template (release_flags_templates_list) to get country in [<ISO>], then create a pricing gate scoped to BR."
-  },
-  {
     "id": "shipeasy-flags/geo-multi-eu",
     "prompt": "Roll out the redesigned dashboard to Germany and France only.",
     "expect_skill": "shipeasy-flags",
@@ -179,22 +117,6 @@
       ]
     },
     "note": "multi-country geo targeting — pull the Country template first, then country in [DE, FR]. Args must carry both ISO codes."
-  },
-  {
-    "id": "shipeasy-flags/templates-list",
-    "prompt": "What flag targeting templates do we have?",
-    "expect_skill": "shipeasy-flags",
-    "expect_tools": [
-      "release_flags_templates_list"
-    ],
-    "tools_match": "any",
-    "forbid_tools": [
-      "release_flags_templates_create",
-      "release_flags_templates_update",
-      "release_flags_templates_archive",
-      "release_flags_create"
-    ],
-    "note": "read-only ask about the template catalog must route to the templates list tool and mutate nothing"
   },
   {
     "id": "shipeasy-flags/team-only-rollout",

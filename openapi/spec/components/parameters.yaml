@@ -22,3 +22,11 @@ PaginationCursor:
   description: Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page.
   schema:
     type: string
+Q:
+  name: q
+  in: query
+  required: false
+  description: Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything.
+  schema:
+    type: string
+    maxLength: 100

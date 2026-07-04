@@ -12,6 +12,7 @@
       - Connectors
     parameters:
       - $ref: ../components/parameters.yaml#/ProjectId
+      - $ref: ../components/parameters.yaml#/Q
     responses:
       "200":
         description: List connectors

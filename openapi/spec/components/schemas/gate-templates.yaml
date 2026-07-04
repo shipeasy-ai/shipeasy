@@ -25,13 +25,52 @@ GateTemplateRule:
         - exp_in
       description: "Comparison operator. Equality: `eq`/`neq`. Set membership: `in`/`not_in` (value is an array). Numeric order: `gt`/`gte`/`lt`/`lte`. Semver order: `semver_gt`/`semver_gte`/`semver_lt`/`semver_lte`. String: `contains` (substring), `regex` (JS-flavour pattern). Cross-resource: `gate_pass` (value is another gate's name), `exp_in` (attr is an experiment name, value is a variant / `\"$holdout\"` / `\"$any\"`)."
     value:
-      description: 'Operand. Shape depends on `op`: scalar for `eq/neq/gt/gte/lt/lte/contains/semver_*`; array of scalars for `in/not_in`; string pattern for `regex`; referenced gate name for `gate_pass`; variant selector for `exp_in`.'
+      description: 'Operand. Shape depends on `op`: scalar for `eq/neq/gt/gte/lt/lte/contains/semver_*`; array of scalars for `in/not_in`; string pattern for `regex`; referenced gate name for `gate_pass`; variant selector for `exp_in`. Required on every request rule (value-ops need it; the valueless built-in presets are read-only and never created via the API).'
+      anyOf:
+        - type: string
+        - type: number
+        - type: boolean
+        - type: array
+          items: {}
   required:
     - attr
     - op
     - value
   additionalProperties: false
   description: Single targeting predicate. Copy a template's rules, substitute the concrete `value`(s), and pass them as the `rules` arg of `release_flags_create`.
+GateTemplateRuleResponse:
+  type: object
+  properties:
+    attr:
+      type: string
+      description: Attribute key on the evaluation context (e.g. `country`, `plan`, `email`). Matched case-sensitively against `Shipeasy.checkGate(user, name)` input. May be empty on a built-in template whose attribute is supplied at substitution time (e.g. the `exp_in` "in any experiment" preset — you fill in the experiment name).
+    op:
+      type: string
+      enum:
+        - eq
+        - neq
+        - in
+        - not_in
+        - gt
+        - gte
+        - lt
+        - lte
+        - contains
+        - regex
+        - semver_gt
+        - semver_gte
+        - semver_lt
+        - semver_lte
+        - gate_pass
+        - exp_in
+      description: "Comparison operator. Equality: `eq`/`neq`. Set membership: `in`/`not_in` (value is an array). Numeric order: `gt`/`gte`/`lt`/`lte`. Semver order: `semver_gt`/`semver_gte`/`semver_lt`/`semver_lte`. String: `contains` (substring), `regex` (JS-flavour pattern). Cross-resource: `gate_pass` (value is another gate's name), `exp_in` (attr is an experiment name, value is a variant / `\"$holdout\"` / `\"$any\"`)."
+    value:
+      description: 'Operand. Shape depends on `op`: scalar for `eq/neq/gt/gte/lt/lte/contains/semver_*`; array of scalars for `in/not_in`; string pattern for `regex`; referenced gate name for `gate_pass`; variant selector for `exp_in`.'
+  required:
+    - attr
+    - op
+  additionalProperties: false
+  description: Single targeting predicate as returned by the API. `value` is optional here — read-only built-in templates (e.g. `@owner`, or presets whose operand is supplied at substitution time) legitimately omit it. Request bodies still require `value`.
 GateTemplate:
   type: object
   description: "A reusable targeting-rule template. Built-ins are read-only (`builtin: true`, stable slug `id`); per-project customer templates are `builtin: false` with a `gtpl_…` id."
@@ -65,7 +104,7 @@ GateTemplate:
     rules:
       type: array
       items:
-        $ref: "#/GateTemplateRule"
+        $ref: "#/GateTemplateRuleResponse"
       description: The rule definition — copy, substitute the value(s), pass as `rules`.
     createdAt:
       anyOf:

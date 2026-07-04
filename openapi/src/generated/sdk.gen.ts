@@ -695,7 +695,7 @@ export const updateUniverse = <ThrowOnError extends boolean = false>(options: Op
  *
  * Returns the merged targeting-rule template catalog — read-only **built-ins first** (the `@team`/`@owner` audience aliases, country, email-domain, region presets, …), then this project's **customer** templates. Each item carries a `rules: [{ attr, op, value }]` definition; the alias templates carry a symbol value (`email in ["@team"]`) that the SDK expands to the resolved email list at rebuild.
  *
- * **Turn "launch X in country Y" into a gated flag:** list templates (optionally with `query`), take the matching template's `rules`, substitute the concrete value(s), and pass them as the `rules` arg of `release_flags_create`.
+ * **Turn "launch X in country Y" into a gated flag:** list templates (optionally with `q`), take the matching template's `rules`, substitute the concrete value(s), and pass them as the `rules` arg of `release_flags_create`.
  *
  * The catalog is small and bounded, so the full merged set is returned in one page — this endpoint is **not** paginated (`next_cursor` is always `null`; there are no `limit`/`cursor` params).
  */

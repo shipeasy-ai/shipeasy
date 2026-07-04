@@ -12,6 +12,13 @@
       - $ref: ../components/parameters.yaml#/ProjectId
       - $ref: ../components/parameters.yaml#/PaginationLimit
       - $ref: ../components/parameters.yaml#/PaginationCursor
+      - name: status
+        in: query
+        required: false
+        description: Filter by lifecycle status. Pass `archived` to return the archive tab; any other value (or omitting it) returns the non-archived experiments.
+        schema:
+          type: string
+      - $ref: ../components/parameters.yaml#/Q
     responses:
       "200":
         description: List experiments

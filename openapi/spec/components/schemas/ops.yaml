@@ -946,8 +946,10 @@ NotifyOpsRequest:
       items:
         type: string
     href:
-      description: Dashboard-relative deep link to the related item.
-      type: string
+      description: Dashboard-relative deep link to the related item. `null` is accepted and treated as "no link".
+      anyOf:
+        - type: string
+        - type: "null"
     dedupeKey:
       description: Stable per-escalation key (e.g. `feedback:7`) so re-runs dedupe to one row.
       type: string

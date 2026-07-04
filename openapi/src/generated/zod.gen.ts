@@ -953,6 +953,53 @@ export const zUpdateUniverseResponse = z.object({
 });
 
 /**
+ * Single targeting predicate as returned by the API. `value` is optional here — read-only built-in templates (e.g. `@owner`, or presets whose operand is supplied at substitution time) legitimately omit it. Request bodies still require `value`.
+ */
+export const zGateTemplateRuleResponse = z.object({
+    attr: z.string(),
+    op: z.enum([
+        'eq',
+        'neq',
+        'in',
+        'not_in',
+        'gt',
+        'gte',
+        'lt',
+        'lte',
+        'contains',
+        'regex',
+        'semver_gt',
+        'semver_gte',
+        'semver_lt',
+        'semver_lte',
+        'gate_pass',
+        'exp_in'
+    ]),
+    value: z.unknown().optional()
+});
+
+/**
+ * A reusable targeting-rule template. Built-ins are read-only (`builtin: true`, stable slug `id`); per-project customer templates are `builtin: false` with a `gtpl_…` id.
+ */
+export const zGateTemplate = z.object({
+    id: z.string(),
+    name: z.string(),
+    description: z.string(),
+    category: z.enum(['condition', 'rollout']),
+    auto: z.boolean(),
+    builtin: z.boolean(),
+    iconKey: z.string().nullish(),
+    rules: z.array(zGateTemplateRuleResponse),
+    createdAt: z.string().nullish(),
+    updatedAt: z.string().nullish()
+});
+
+export const zListGateTemplatesResponse = z.object({
+    data: z.array(zGateTemplate),
+    next_cursor: z.string().nullable()
+});
+
+/**
  * Single targeting predicate. Copy a template's rules, substitute the concrete `value`(s), and pass them as the `rules` arg of `release_flags_create`.
  */
 export const zGateTemplateRule = z.object({
@@ -975,28 +1022,12 @@ export const zGateTemplateRule = z.object({
         'gate_pass',
         'exp_in'
     ]),
-    value: z.unknown()
-});
-
-/**
- * A reusable targeting-rule template. Built-ins are read-only (`builtin: true`, stable slug `id`); per-project customer templates are `builtin: false` with a `gtpl_…` id.
- */
-export const zGateTemplate = z.object({
-    id: z.string(),
-    name: z.string(),
-    description: z.string(),
-    category: z.enum(['condition', 'rollout']),
-    auto: z.boolean(),
-    builtin: z.boolean(),
-    iconKey: z.string().nullish(),
-    rules: z.array(zGateTemplateRule),
-    createdAt: z.string().nullish(),
-    updatedAt: z.string().nullish()
-});
-
-export const zListGateTemplatesResponse = z.object({
-    data: z.array(zGateTemplate),
-    next_cursor: z.string().nullable()
+    value: z.union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.array(z.unknown())
+    ])
 });
 
 /**
@@ -1910,7 +1941,7 @@ export const zNotifyOpsRequest = z.object({
     title: z.string().min(1).max(200),
     summary: z.string().min(1).max(280),
     steps: z.array(z.string()).optional(),
-    href: z.string().optional(),
+    href: z.string().nullish(),
     dedupeKey: z.string().optional()
 });
 
@@ -2572,20 +2603,18 @@ export const zFireConnectorRequest = z.object({
 });
 
 /**
- * Result of firing a trigger connector. `{ ok: true }` on success; `{ ok: false, error }` when the dispatch fails (the request still returns HTTP 200).
+ * Result of a successful trigger fire: `{ ok: true }`. When the downstream dispatch fails the endpoint returns HTTP 502 (see the `Error` response), never `ok: false`.
  */
 export const zFireConnectorResponse = z.object({
-    ok: z.boolean(),
-    error: z.string().optional()
+    ok: z.boolean()
 });
 
 /**
- * Result of testing a connector. `{ ok: true, issueUrl }` on success; `{ ok: false, issueUrl: null, error }` when the dispatch fails (the request still returns HTTP 200).
+ * Result of a successful connector test: `{ ok: true, issueUrl }`. When the downstream dispatch fails the endpoint returns HTTP 502 (see the `Error` response), never `ok: false`.
  */
 export const zTestConnectorResponse = z.object({
     ok: z.boolean(),
-    issueUrl: z.string().nullable(),
-    error: z.string().optional()
+    issueUrl: z.string().nullable()
 });
 
 /**
@@ -2779,13 +2808,19 @@ export const zPaginationLimit = z.coerce.number().int().gte(1).lte(500).default(
  */
 export const zPaginationCursor = z.string();
 
+/**
+ * Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything.
+ */
+export const zQ = z.string().max(100);
+
 export const zListGatesHeaders = z.object({
     'X-Project-Id': z.string().optional()
 });
 
 export const zListGatesQuery = z.object({
     limit: z.int().gte(1).lte(500).optional().default(100),
-    cursor: z.string().optional()
+    cursor: z.string().optional(),
+    q: z.string().max(100).optional()
 });
 
 /**
@@ -2864,7 +2899,9 @@ export const zListExperimentsHeaders = z.object({
 
 export const zListExperimentsQuery = z.object({
     limit: z.int().gte(1).lte(500).optional().default(100),
-    cursor: z.string().optional()
+    cursor: z.string().optional(),
+    status: z.string().optional(),
+    q: z.string().max(100).optional()
 });
 
 /**
@@ -3003,7 +3040,8 @@ export const zListConfigsHeaders = z.object({
 
 export const zListConfigsQuery = z.object({
     limit: z.int().gte(1).lte(500).optional().default(100),
-    cursor: z.string().optional()
+    cursor: z.string().optional(),
+    q: z.string().max(100).optional()
 });
 
 /**
@@ -3146,7 +3184,8 @@ export const zListKillswitchesHeaders = z.object({
 
 export const zListKillswitchesQuery = z.object({
     limit: z.int().gte(1).lte(500).optional().default(100),
-    cursor: z.string().optional()
+    cursor: z.string().optional(),
+    q: z.string().max(100).optional()
 });
 
 /**
@@ -3257,7 +3296,8 @@ export const zListUniversesHeaders = z.object({
 
 export const zListUniversesQuery = z.object({
     limit: z.int().gte(1).lte(500).optional().default(100),
-    cursor: z.string().optional()
+    cursor: z.string().optional(),
+    q: z.string().max(100).optional()
 });
 
 /**
@@ -3309,6 +3349,7 @@ export const zListGateTemplatesHeaders = z.object({
 });
 
 export const zListGateTemplatesQuery = z.object({
+    q: z.string().max(100).optional(),
     query: z.string().optional()
 });
 
@@ -3373,6 +3414,10 @@ export const zListAttributesHeaders = z.object({
     'X-Project-Id': z.string().optional()
 });
 
+export const zListAttributesQuery = z.object({
+    q: z.string().max(100).optional()
+});
+
 /**
  * List targeting attributes
  */
@@ -3434,6 +3479,10 @@ export const zListMetricsHeaders = z.object({
     'X-Project-Id': z.string().optional()
 });
 
+export const zListMetricsQuery = z.object({
+    q: z.string().max(100).optional()
+});
+
 /**
  * List metrics
  */
@@ -3493,6 +3542,10 @@ export const zUpdateMetricResponse = zGetMetricResponse;
 
 export const zListEventsHeaders = z.object({
     'X-Project-Id': z.string().optional()
+});
+
+export const zListEventsQuery = z.object({
+    q: z.string().max(100).optional()
 });
 
 /**
@@ -3671,6 +3724,10 @@ export const zListAlertRulesHeaders = z.object({
     'X-Project-Id': z.string().optional()
 });
 
+export const zListAlertRulesQuery = z.object({
+    q: z.string().max(100).optional()
+});
+
 /**
  * List alert rules
  */
@@ -3777,8 +3834,9 @@ export const zListI18nKeysHeaders = z.object({
 export const zListI18nKeysQuery = z.object({
     profile_id: z.string().optional(),
     prefix: z.string().optional(),
-    q: z.string().optional(),
-    limit: z.int().gte(1).lte(500).optional()
+    q: z.string().max(100).optional(),
+    limit: z.int().gte(1).lte(500).optional(),
+    offset: z.int().gte(0).optional().default(0)
 });
 
 /**
@@ -3953,6 +4011,10 @@ export const zListConnectorsHeaders = z.object({
     'X-Project-Id': z.string().optional()
 });
 
+export const zListConnectorsQuery = z.object({
+    q: z.string().max(100).optional()
+});
+
 /**
  * List connectors
  */
@@ -4021,7 +4083,7 @@ export const zFireConnectorPath = z.object({
 });
 
 /**
- * Fire a trigger connector
+ * The trigger run was successfully kicked off.
  */
 export const zFireConnectorResponse2 = zFireConnectorResponse;
 
@@ -4034,7 +4096,7 @@ export const zTestConnectorPath = z.object({
 });
 
 /**
- * Test a connector
+ * The test dispatch reached the destination.
  */
 export const zTestConnectorResponse2 = zTestConnectorResponse;
 
@@ -4070,7 +4132,8 @@ export const zListKeysHeaders = z.object({
 
 export const zListKeysQuery = z.object({
     limit: z.int().gte(1).lte(500).optional().default(100),
-    cursor: z.string().optional()
+    cursor: z.string().optional(),
+    q: z.string().max(100).optional()
 });
 
 /**

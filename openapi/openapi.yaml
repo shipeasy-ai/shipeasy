@@ -21,9 +21,26 @@ security:
   - bearerSdkKey: []
 tags:
   - name: Release
-    summary: Feature delivery
+    summary: Feature delivery — flags, kill switches, dynamic configs, A/B experiments, and the universes they bucket in.
     kind: nav
-    description: Flags, kill switches, dynamic configs, experiments, and the universes they bucket in — the feature-delivery surface.
+    description: |-
+      Release: the feature-delivery surface. One roof over the five resources
+      that decide which code path a user gets — feature gates (flags), kill
+      switches, dynamic configs, A/B/n experiments, and the universes that bucket
+      them — each exposed as its own subcommand group.
+
+      **Groups.**
+      - `flags` — boolean feature gates: AND-combined targeting rules + a percentage rollout (basis points), evaluated on the SDK hot path.
+      - `killswitch` (`ks`) — per-env boolean overrides for incident response; no rules, no rollout, versioned per environment.
+      - `configs` — JSON-Schema-validated structured values with a draft → publish workflow, delivered per environment.
+      - `experiments` — randomised A/B/n assignment plus the analysis pipeline (t-test, sequential testing, SRM detection); `universes` hold the shared bucketing space and holdouts the experiments draw from.
+
+      **Delivery model.** Every write rebuilds the project's KV blob and purges
+      the CDN — SDKs poll at the plan interval and never touch the database on
+      the hot path. The destructive verb is `archive` (soft-delete), never
+      `delete`.
+
+      Run `shipeasy release <group> --help` for the full contract of each group.
   - name: Flags
     parent: Release
     description: |-
@@ -229,6 +246,7 @@ paths:
         - $ref: '#/components/parameters/ProjectId'
         - $ref: '#/components/parameters/PaginationLimit'
         - $ref: '#/components/parameters/PaginationCursor'
+        - $ref: '#/components/parameters/Q'
       responses:
         '200':
           description: List feature gates
@@ -697,6 +715,13 @@ paths:
         - $ref: '#/components/parameters/ProjectId'
         - $ref: '#/components/parameters/PaginationLimit'
         - $ref: '#/components/parameters/PaginationCursor'
+        - name: status
+          in: query
+          required: false
+          description: Filter by lifecycle status. Pass `archived` to return the archive tab; any other value (or omitting it) returns the non-archived experiments.
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Q'
       responses:
         '200':
           description: List experiments
@@ -1499,6 +1524,7 @@ paths:
         - $ref: '#/components/parameters/ProjectId'
         - $ref: '#/components/parameters/PaginationLimit'
         - $ref: '#/components/parameters/PaginationCursor'
+        - $ref: '#/components/parameters/Q'
       responses:
         '200':
           description: List dynamic configs
@@ -2260,6 +2286,7 @@ paths:
         - $ref: '#/components/parameters/ProjectId'
         - $ref: '#/components/parameters/PaginationLimit'
         - $ref: '#/components/parameters/PaginationCursor'
+        - $ref: '#/components/parameters/Q'
       responses:
         '200':
           description: List killswitches
@@ -2838,6 +2865,7 @@ paths:
         - $ref: '#/components/parameters/ProjectId'
         - $ref: '#/components/parameters/PaginationLimit'
         - $ref: '#/components/parameters/PaginationCursor'
+        - $ref: '#/components/parameters/Q'
       responses:
         '200':
           description: List universes
@@ -3087,17 +3115,19 @@ paths:
       description: |-
         Returns the merged targeting-rule template catalog — read-only **built-ins first** (the `@team`/`@owner` audience aliases, country, email-domain, region presets, …), then this project's **customer** templates. Each item carries a `rules: [{ attr, op, value }]` definition; the alias templates carry a symbol value (`email in ["@team"]`) that the SDK expands to the resolved email list at rebuild.
 
-        **Turn "launch X in country Y" into a gated flag:** list templates (optionally with `query`), take the matching template's `rules`, substitute the concrete value(s), and pass them as the `rules` arg of `release_flags_create`.
+        **Turn "launch X in country Y" into a gated flag:** list templates (optionally with `q`), take the matching template's `rules`, substitute the concrete value(s), and pass them as the `rules` arg of `release_flags_create`.
 
         The catalog is small and bounded, so the full merged set is returned in one page — this endpoint is **not** paginated (`next_cursor` is always `null`; there are no `limit`/`cursor` params).
       tags:
         - Templates
       parameters:
         - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/Q'
         - name: query
           in: query
           required: false
-          description: Case-insensitive substring filter over each template's `name` + `description`. Omit to return the whole catalog.
+          deprecated: true
+          description: Deprecated alias for `q`, kept working for one release. Prefer `q`.
           schema:
             type: string
       responses:
@@ -3352,6 +3382,7 @@ paths:
         - Attributes
       parameters:
         - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/Q'
       responses:
         '200':
           description: List targeting attributes
@@ -3626,6 +3657,7 @@ paths:
         - Metrics
       parameters:
         - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/Q'
       responses:
         '200':
           description: List metrics
@@ -3943,6 +3975,7 @@ paths:
         - Events
       parameters:
         - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/Q'
       responses:
         '200':
           description: List events
@@ -4769,6 +4802,7 @@ paths:
         - Alerts
       parameters:
         - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/Q'
       responses:
         '200':
           description: List alert rules
@@ -5350,9 +5384,10 @@ paths:
         - name: q
           in: query
           required: false
-          description: Free-text search — matches keys whose name OR value contains this substring (case-insensitive). Use it to find the key behind a piece of on-screen copy.
+          description: Free-text search — matches keys whose name, value, OR description contains this substring (case-insensitive). Use it to find the key behind a piece of on-screen copy.
           schema:
             type: string
+            maxLength: 100
         - name: limit
           in: query
           required: false
@@ -5361,6 +5396,14 @@ paths:
             type: integer
             minimum: 1
             maximum: 500
+        - name: offset
+          in: query
+          required: false
+          description: Number of keys to skip before returning `limit` rows (offset pagination).
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
       responses:
         '200':
           description: List i18n keys
@@ -6168,6 +6211,7 @@ paths:
         - Connectors
       parameters:
         - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/Q'
       responses:
         '200':
           description: List connectors
@@ -6971,6 +7015,7 @@ paths:
         - $ref: '#/components/parameters/ProjectId'
         - $ref: '#/components/parameters/PaginationLimit'
         - $ref: '#/components/parameters/PaginationCursor'
+        - $ref: '#/components/parameters/Q'
       responses:
         '200':
           description: List API keys
@@ -7230,6 +7275,14 @@ components:
       description: Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page.
       schema:
         type: string
+    Q:
+      name: q
+      in: query
+      required: false
+      description: Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything.
+      schema:
+        type: string
+        maxLength: 100
   schemas:
     ListGatesResponse:
       type: object
@@ -9917,7 +9970,7 @@ components:
       required:
         - id
       additionalProperties: false
-    GateTemplateRule:
+    GateTemplateRuleResponse:
       type: object
       properties:
         attr:
@@ -9948,9 +10001,8 @@ components:
       required:
         - attr
         - op
-        - value
       additionalProperties: false
-      description: Single targeting predicate. Copy a template's rules, substitute the concrete `value`(s), and pass them as the `rules` arg of `release_flags_create`.
+      description: Single targeting predicate as returned by the API. `value` is optional here — read-only built-in templates (e.g. `@owner`, or presets whose operand is supplied at substitution time) legitimately omit it. Request bodies still require `value`.
     GateTemplate:
       type: object
       description: 'A reusable targeting-rule template. Built-ins are read-only (`builtin: true`, stable slug `id`); per-project customer templates are `builtin: false` with a `gtpl_…` id.'
@@ -9984,7 +10036,7 @@ components:
         rules:
           type: array
           items:
-            $ref: '#/components/schemas/GateTemplateRule'
+            $ref: '#/components/schemas/GateTemplateRuleResponse'
           description: The rule definition — copy, substitute the value(s), pass as `rules`.
         createdAt:
           anyOf:
@@ -10020,6 +10072,46 @@ components:
         - data
         - next_cursor
       additionalProperties: false
+    GateTemplateRule:
+      type: object
+      properties:
+        attr:
+          type: string
+          description: Attribute key on the evaluation context (e.g. `country`, `plan`, `email`). Matched case-sensitively against `Shipeasy.checkGate(user, name)` input. May be empty on a built-in template whose attribute is supplied at substitution time (e.g. the `exp_in` "in any experiment" preset — you fill in the experiment name).
+        op:
+          type: string
+          enum:
+            - eq
+            - neq
+            - in
+            - not_in
+            - gt
+            - gte
+            - lt
+            - lte
+            - contains
+            - regex
+            - semver_gt
+            - semver_gte
+            - semver_lt
+            - semver_lte
+            - gate_pass
+            - exp_in
+          description: 'Comparison operator. Equality: `eq`/`neq`. Set membership: `in`/`not_in` (value is an array). Numeric order: `gt`/`gte`/`lt`/`lte`. Semver order: `semver_gt`/`semver_gte`/`semver_lt`/`semver_lte`. String: `contains` (substring), `regex` (JS-flavour pattern). Cross-resource: `gate_pass` (value is another gate''s name), `exp_in` (attr is an experiment name, value is a variant / `"$holdout"` / `"$any"`).'
+        value:
+          description: 'Operand. Shape depends on `op`: scalar for `eq/neq/gt/gte/lt/lte/contains/semver_*`; array of scalars for `in/not_in`; string pattern for `regex`; referenced gate name for `gate_pass`; variant selector for `exp_in`. Required on every request rule (value-ops need it; the valueless built-in presets are read-only and never created via the API).'
+          anyOf:
+            - type: string
+            - type: number
+            - type: boolean
+            - type: array
+              items: {}
+      required:
+        - attr
+        - op
+        - value
+      additionalProperties: false
+      description: Single targeting predicate. Copy a template's rules, substitute the concrete `value`(s), and pass them as the `rules` arg of `release_flags_create`.
     CreateGateTemplateRequest:
       type: object
       description: Body for `POST /api/admin/gate-templates`. Creates a per-project (customer) template. At minimum supply `name` + `rules`.
@@ -12095,8 +12187,10 @@ components:
           items:
             type: string
         href:
-          description: Dashboard-relative deep link to the related item.
-          type: string
+          description: Dashboard-relative deep link to the related item. `null` is accepted and treated as "no link".
+          anyOf:
+            - type: string
+            - type: 'null'
         dedupeKey:
           description: Stable per-escalation key (e.g. `feedback:7`) so re-runs dedupe to one row.
           type: string
