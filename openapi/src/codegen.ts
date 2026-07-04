@@ -36,11 +36,22 @@ import { defineConfig, type UserConfig } from "@hey-api/openapi-ts";
  * doesn't matter how deeply the number is nested inside the schema.
  */
 export function coerceNumberResolver(ctx: any) {
-  // Not a parameter schema (body/response field, however deeply nested):
-  // returning nothing here falls through to hey-api's own default resolver,
-  // i.e. strict `z.number()`/`z.int()` with no coercion.
-  const isParameter = ctx.path?.["~ref"]?.[1] === "parameters";
-  if (!isParameter) return undefined;
+  // Only query/path parameters are string-sourced and need coercion. Every
+  // other number (request/response body fields, however deeply nested) keeps
+  // the default strict `z.number()`/`z.int()` — coercion there is NOT a no-op
+  // (`z.coerce.number()` calls `Number(value)`, so a body field wrongly typed
+  // as `false`/`"x"` would silently become `0`/`NaN` instead of being
+  // rejected). Distinguish by the hey-api IR ref path:
+  //   • reusable parameter component → ["components", "parameters", <name>]
+  //   • inline op parameter          → ["paths", <route>, <method>, "query"|"path", …]
+  //   • body/response field          → ["components", "schemas", …] or […, "body", …]
+  // The narrower "parameters"-only check used to miss inline query params (the
+  // ops that don't $ref a shared PaginationLimit/Q component), so their `limit`
+  // generated as strict `z.int()` and 422'd on the string `?limit=200`.
+  const ref = ctx.path?.["~ref"];
+  const isReusableParam = ref?.[1] === "parameters";
+  const isInlineQueryOrPath = ref?.[0] === "paths" && (ref?.[3] === "query" || ref?.[3] === "path");
+  if (!isReusableParam && !isInlineQueryOrPath) return undefined;
   // BigInt schemas (format int64 in some configs): keep default behavior.
   if (ctx.utils.shouldCoerceToBigInt(ctx.schema.format)) return ctx.nodes.base(ctx);
   // Const literal (e.g. type:integer, const:0): delegate to default.

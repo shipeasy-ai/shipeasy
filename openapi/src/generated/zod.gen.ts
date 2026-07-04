@@ -2818,7 +2818,7 @@ export const zListGatesHeaders = z.object({
 });
 
 export const zListGatesQuery = z.object({
-    limit: z.int().gte(1).lte(500).optional().default(100),
+    limit: z.coerce.number().int().gte(1).lte(500).optional().default(100),
     cursor: z.string().optional(),
     q: z.string().max(100).optional()
 });
@@ -2898,7 +2898,7 @@ export const zListExperimentsHeaders = z.object({
 });
 
 export const zListExperimentsQuery = z.object({
-    limit: z.int().gte(1).lte(500).optional().default(100),
+    limit: z.coerce.number().int().gte(1).lte(500).optional().default(100),
     cursor: z.string().optional(),
     status: z.string().optional(),
     q: z.string().max(100).optional()
@@ -3039,7 +3039,7 @@ export const zListConfigsHeaders = z.object({
 });
 
 export const zListConfigsQuery = z.object({
-    limit: z.int().gte(1).lte(500).optional().default(100),
+    limit: z.coerce.number().int().gte(1).lte(500).optional().default(100),
     cursor: z.string().optional(),
     q: z.string().max(100).optional()
 });
@@ -3155,7 +3155,7 @@ export const zListConfigActivityPath = z.object({
 });
 
 export const zListConfigActivityQuery = z.object({
-    limit: z.int().gte(1).lte(100).optional().default(20)
+    limit: z.coerce.number().int().gte(1).lte(100).optional().default(20)
 });
 
 /**
@@ -3183,7 +3183,7 @@ export const zListKillswitchesHeaders = z.object({
 });
 
 export const zListKillswitchesQuery = z.object({
-    limit: z.int().gte(1).lte(500).optional().default(100),
+    limit: z.coerce.number().int().gte(1).lte(500).optional().default(100),
     cursor: z.string().optional(),
     q: z.string().max(100).optional()
 });
@@ -3295,7 +3295,7 @@ export const zListUniversesHeaders = z.object({
 });
 
 export const zListUniversesQuery = z.object({
-    limit: z.int().gte(1).lte(500).optional().default(100),
+    limit: z.coerce.number().int().gte(1).lte(500).optional().default(100),
     cursor: z.string().optional(),
     q: z.string().max(100).optional()
 });
@@ -3638,7 +3638,7 @@ export const zListOpsItemsQuery = z.object({
         zOpsItemStatus,
         z.literal('all')
     ]).optional(),
-    limit: z.int().gte(1).lte(500).optional()
+    limit: z.coerce.number().int().gte(1).lte(500).optional()
 });
 
 /**
@@ -3835,8 +3835,8 @@ export const zListI18nKeysQuery = z.object({
     profile_id: z.string().optional(),
     prefix: z.string().optional(),
     q: z.string().max(100).optional(),
-    limit: z.int().gte(1).lte(500).optional(),
-    offset: z.int().gte(0).optional().default(0)
+    limit: z.coerce.number().int().gte(1).lte(500).optional(),
+    offset: z.coerce.number().int().gte(0).optional().default(0)
 });
 
 /**
@@ -3943,7 +3943,7 @@ export const zListErrorsQuery = z.object({
         'all'
     ]).optional().default('all'),
     q: z.string().max(200).optional(),
-    limit: z.int().gte(1).lte(500).optional().default(200)
+    limit: z.coerce.number().int().gte(1).lte(500).optional().default(200)
 });
 
 /**
@@ -4131,7 +4131,7 @@ export const zListKeysHeaders = z.object({
 });
 
 export const zListKeysQuery = z.object({
-    limit: z.int().gte(1).lte(500).optional().default(100),
+    limit: z.coerce.number().int().gte(1).lte(500).optional().default(100),
     cursor: z.string().optional(),
     q: z.string().max(100).optional()
 });
