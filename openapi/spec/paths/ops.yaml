@@ -177,6 +177,7 @@
         description: Per-project item number (e.g. `7`) or the full ops item id.
         schema:
           type: string
+          maxLength: 512
     responses:
       "200":
         description: Get one queue item
@@ -236,6 +237,7 @@
         description: Per-project item number (e.g. `7`) or the full ops item id.
         schema:
           type: string
+          maxLength: 512
     requestBody:
       required: true
       content:
@@ -304,6 +306,7 @@
         description: Per-project item number (e.g. `7`) or the full ops item id.
         schema:
           type: string
+          maxLength: 512
     requestBody:
       required: true
       content:

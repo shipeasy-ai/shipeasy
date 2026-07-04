@@ -154,6 +154,7 @@
         description: Stable opaque universe id (`uni_…`) or the universe's `name`.
         schema:
           type: string
+          maxLength: 512
     requestBody:
       required: true
       content:
@@ -222,6 +223,7 @@
         description: Stable opaque universe id (`uni_…`) or the universe's `name`.
         schema:
           type: string
+          maxLength: 512
     responses:
       "200":
         description: Delete a universe

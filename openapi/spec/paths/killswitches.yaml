@@ -171,6 +171,7 @@
         description: Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
         schema:
           type: string
+          maxLength: 512
     responses:
       "200":
         description: Get one killswitch
@@ -243,6 +244,7 @@
         description: Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
         schema:
           type: string
+          maxLength: 512
     requestBody:
       required: true
       content:
@@ -320,6 +322,7 @@
         description: Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
         schema:
           type: string
+          maxLength: 512
     responses:
       "200":
         description: Delete a killswitch
@@ -373,6 +376,7 @@
         description: Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
         schema:
           type: string
+          maxLength: 512
     requestBody:
       required: true
       content:
@@ -447,6 +451,7 @@
         description: Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
         schema:
           type: string
+          maxLength: 512
     requestBody:
       required: true
       content:
@@ -516,6 +521,7 @@
         description: Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
         schema:
           type: string
+          maxLength: 512
     requestBody:
       required: true
       content:

@@ -131,6 +131,7 @@
         description: Built-in slug (`country`) or customer template id (`gtpl_…`).
         schema:
           type: string
+          maxLength: 512
     responses:
       "200":
         description: Get one gate template
@@ -170,6 +171,7 @@
         description: Customer template id (`gtpl_…`) or its `name`.
         schema:
           type: string
+          maxLength: 512
     requestBody:
       required: true
       content:
@@ -234,6 +236,7 @@
         description: Customer template id (`gtpl_…`) or its `name`.
         schema:
           type: string
+          maxLength: 512
     responses:
       "200":
         description: Delete a gate template

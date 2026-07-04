@@ -149,6 +149,7 @@
         description: Stable opaque event id (`evt_…`) or the event's `name`.
         schema:
           type: string
+          maxLength: 512
     responses:
       "200":
         description: Get an event
@@ -208,6 +209,7 @@
         description: Stable opaque event id (`evt_…`) or the event's `name`.
         schema:
           type: string
+          maxLength: 512
     requestBody:
       required: true
       content:
@@ -276,6 +278,7 @@
         description: Stable opaque event id (`evt_…`) or the event's `name`.
         schema:
           type: string
+          maxLength: 512
     responses:
       "200":
         description: Archive an event
@@ -327,6 +330,7 @@
         description: Stable opaque event id (`evt_…`) or the event's `name`.
         schema:
           type: string
+          maxLength: 512
     requestBody:
       required: true
       content:

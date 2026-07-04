@@ -464,6 +464,7 @@ paths:
           description: Stable opaque gate id (`gat_…`) or the gate's `name`.
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: true
         content:
@@ -570,6 +571,7 @@ paths:
           description: Stable opaque gate id (`gat_…`) or the gate's `name`.
           schema:
             type: string
+            maxLength: 512
       responses:
         '200':
           description: Delete a feature gate
@@ -619,6 +621,7 @@ paths:
           description: Stable opaque gate id (`gat_…`) or the gate's `name`.
           schema:
             type: string
+            maxLength: 512
       responses:
         '200':
           description: Enable a gate
@@ -669,6 +672,7 @@ paths:
           description: Stable opaque gate id (`gat_…`) or the gate's `name`.
           schema:
             type: string
+            maxLength: 512
       responses:
         '200':
           description: Disable a gate
@@ -937,6 +941,7 @@ paths:
           description: Stable opaque experiment id (`exp_…`) or the experiment's `name`.
           schema:
             type: string
+            maxLength: 512
       responses:
         '200':
           description: Get one experiment
@@ -1017,6 +1022,7 @@ paths:
           description: Stable opaque experiment id (`exp_…`) or the experiment's `name`.
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: true
         content:
@@ -1102,6 +1108,7 @@ paths:
           description: Stable opaque experiment id (`exp_…`) or the experiment's `name`.
           schema:
             type: string
+            maxLength: 512
       responses:
         '200':
           description: Delete an experiment
@@ -1163,6 +1170,7 @@ paths:
           description: Stable opaque experiment id (`exp_…`) or the experiment's `name`.
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: true
         content:
@@ -1258,6 +1266,7 @@ paths:
           description: Stable opaque experiment id (`exp_…`) or the experiment's `name`.
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: true
         content:
@@ -1335,6 +1344,7 @@ paths:
           description: Stable opaque experiment id (`exp_…`) or the experiment's `name`.
           schema:
             type: string
+            maxLength: 512
       responses:
         '200':
           description: Get analysis results
@@ -1404,6 +1414,7 @@ paths:
           description: Stable opaque experiment id (`exp_…`) or the experiment's `name`.
           schema:
             type: string
+            maxLength: 512
         - name: metric
           in: query
           required: false
@@ -1478,6 +1489,7 @@ paths:
           description: Stable opaque experiment id (`exp_…`) or the experiment's `name`.
           schema:
             type: string
+            maxLength: 512
       responses:
         '200':
           description: Re-queue analysis
@@ -1730,6 +1742,7 @@ paths:
           description: Stable opaque config id (`cfg_…`) or the config's `name`.
           schema:
             type: string
+            maxLength: 512
       responses:
         '200':
           description: Get one config
@@ -1832,6 +1845,7 @@ paths:
           description: Stable opaque config id (`cfg_…`) or the config's `name`.
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: true
         content:
@@ -1908,6 +1922,7 @@ paths:
           description: Stable opaque config id (`cfg_…`) or the config's `name`.
           schema:
             type: string
+            maxLength: 512
       responses:
         '200':
           description: Delete a dynamic config
@@ -1958,6 +1973,7 @@ paths:
           description: Stable opaque config id (`cfg_…`) or the config's `name`.
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: true
         content:
@@ -2026,6 +2042,7 @@ paths:
           description: Stable opaque config id (`cfg_…`) or the config's `name`.
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: true
         content:
@@ -2088,6 +2105,7 @@ paths:
           description: Stable opaque config id (`cfg_…`) or the config's `name`.
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: true
         content:
@@ -2157,6 +2175,7 @@ paths:
           description: Stable opaque config id (`cfg_…`) or the config's `name`.
           schema:
             type: string
+            maxLength: 512
         - name: limit
           in: query
           required: false
@@ -2221,6 +2240,7 @@ paths:
           description: Stable opaque config id (`cfg_…`) or the config's `name`.
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: true
         content:
@@ -2450,6 +2470,7 @@ paths:
           description: Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
           schema:
             type: string
+            maxLength: 512
       responses:
         '200':
           description: Get one killswitch
@@ -2522,6 +2543,7 @@ paths:
           description: Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: true
         content:
@@ -2599,6 +2621,7 @@ paths:
           description: Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
           schema:
             type: string
+            maxLength: 512
       responses:
         '200':
           description: Delete a killswitch
@@ -2652,6 +2675,7 @@ paths:
           description: Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: true
         content:
@@ -2726,6 +2750,7 @@ paths:
           description: Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: true
         content:
@@ -2795,6 +2820,7 @@ paths:
           description: Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: true
         content:
@@ -3009,6 +3035,7 @@ paths:
           description: Stable opaque universe id (`uni_…`) or the universe's `name`.
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: true
         content:
@@ -3077,6 +3104,7 @@ paths:
           description: Stable opaque universe id (`uni_…`) or the universe's `name`.
           schema:
             type: string
+            maxLength: 512
       responses:
         '200':
           description: Delete a universe
@@ -3240,6 +3268,7 @@ paths:
           description: Built-in slug (`country`) or customer template id (`gtpl_…`).
           schema:
             type: string
+            maxLength: 512
       responses:
         '200':
           description: Get one gate template
@@ -3278,6 +3307,7 @@ paths:
           description: Customer template id (`gtpl_…`) or its `name`.
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: true
         content:
@@ -3341,6 +3371,7 @@ paths:
           description: Customer template id (`gtpl_…`) or its `name`.
           schema:
             type: string
+            maxLength: 512
       responses:
         '200':
           description: Delete a gate template
@@ -3502,6 +3533,7 @@ paths:
           description: The attribute id.
           schema:
             type: string
+            maxLength: 512
       responses:
         '200':
           description: Get a targeting attribute
@@ -3556,6 +3588,7 @@ paths:
           description: The attribute id.
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: true
         content:
@@ -3615,6 +3648,7 @@ paths:
           description: The attribute id.
           schema:
             type: string
+            maxLength: 512
       responses:
         '200':
           description: Archive a targeting attribute
@@ -3814,6 +3848,7 @@ paths:
           description: Stable opaque metric id (`met_…`) or the metric's `name`.
           schema:
             type: string
+            maxLength: 512
       responses:
         '200':
           description: Get a metric
@@ -3873,6 +3908,7 @@ paths:
           description: Stable opaque metric id (`met_…`) or the metric's `name`.
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: true
         content:
@@ -3932,6 +3968,7 @@ paths:
           description: Stable opaque metric id (`met_…`) or the metric's `name`.
           schema:
             type: string
+            maxLength: 512
       responses:
         '200':
           description: Archive a metric
@@ -4118,6 +4155,7 @@ paths:
           description: Stable opaque event id (`evt_…`) or the event's `name`.
           schema:
             type: string
+            maxLength: 512
       responses:
         '200':
           description: Get an event
@@ -4177,6 +4215,7 @@ paths:
           description: Stable opaque event id (`evt_…`) or the event's `name`.
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: true
         content:
@@ -4245,6 +4284,7 @@ paths:
           description: Stable opaque event id (`evt_…`) or the event's `name`.
           schema:
             type: string
+            maxLength: 512
       responses:
         '200':
           description: Archive an event
@@ -4296,6 +4336,7 @@ paths:
           description: Stable opaque event id (`evt_…`) or the event's `name`.
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: true
         content:
@@ -4523,6 +4564,7 @@ paths:
           description: Per-project item number (e.g. `7`) or the full ops item id.
           schema:
             type: string
+            maxLength: 512
       responses:
         '200':
           description: Get one queue item
@@ -4582,6 +4624,7 @@ paths:
           description: Per-project item number (e.g. `7`) or the full ops item id.
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: true
         content:
@@ -4650,6 +4693,7 @@ paths:
           description: Per-project item number (e.g. `7`) or the full ops item id.
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: true
         content:
@@ -4949,6 +4993,7 @@ paths:
           description: Stable opaque alert-rule id (`ar_…`) or the rule's `name`.
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: true
         content:
@@ -5020,6 +5065,7 @@ paths:
           description: Stable opaque alert-rule id (`ar_…`) or the rule's `name`.
           schema:
             type: string
+            maxLength: 512
       responses:
         '200':
           description: Delete an alert rule
@@ -5194,6 +5240,7 @@ paths:
           description: Stable opaque project id. Must match the caller's own project.
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: true
         content:
@@ -5509,6 +5556,7 @@ paths:
           description: The key's id.
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: true
         content:
@@ -5657,6 +5705,7 @@ paths:
           description: The draft id to update.
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: true
         content:
@@ -5715,6 +5764,7 @@ paths:
           description: The profile id to publish.
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: true
         content:
@@ -5926,6 +5976,7 @@ paths:
           description: Stable opaque error id (`err_…`).
           schema:
             type: string
+            maxLength: 512
       responses:
         '200':
           description: Get a tracked error
@@ -6001,6 +6052,7 @@ paths:
           description: Stable opaque error id (`err_…`).
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: true
         content:
@@ -6090,6 +6142,7 @@ paths:
           description: Stable opaque error id (`err_…`).
           schema:
             type: string
+            maxLength: 512
       responses:
         '201':
           description: File a feedback ticket for an error
@@ -6138,6 +6191,7 @@ paths:
           description: Stable opaque error id (`err_…`).
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: true
         content:
@@ -6383,6 +6437,7 @@ paths:
           description: Stable opaque connector id.
           schema:
             type: string
+            maxLength: 512
       responses:
         '200':
           description: Get a connector
@@ -6451,6 +6506,7 @@ paths:
           description: Stable opaque connector id.
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: true
         content:
@@ -6524,6 +6580,7 @@ paths:
           description: Stable opaque connector id.
           schema:
             type: string
+            maxLength: 512
       responses:
         '200':
           description: Delete a connector
@@ -6573,6 +6630,7 @@ paths:
           description: Stable opaque connector id.
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: false
         content:
@@ -6639,6 +6697,7 @@ paths:
           description: Stable opaque connector id.
           schema:
             type: string
+            maxLength: 512
       responses:
         '200':
           description: The test dispatch reached the destination.
@@ -6693,6 +6752,7 @@ paths:
           description: Stable opaque connector id. Its stored `provider` must match the body's `provider`.
           schema:
             type: string
+            maxLength: 512
       requestBody:
         required: true
         content:
@@ -7151,6 +7211,7 @@ paths:
           description: Stable opaque key id (UUID) returned by `create` / `list`.
           schema:
             type: string
+            maxLength: 512
       responses:
         '200':
           description: Revoke an API key

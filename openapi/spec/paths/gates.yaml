@@ -226,6 +226,7 @@
         description: Stable opaque gate id (`gat_…`) or the gate's `name`.
         schema:
           type: string
+          maxLength: 512
     requestBody:
       required: true
       content:
@@ -332,6 +333,7 @@
         description: Stable opaque gate id (`gat_…`) or the gate's `name`.
         schema:
           type: string
+          maxLength: 512
     responses:
       "200":
         description: Delete a feature gate
@@ -381,6 +383,7 @@
         description: Stable opaque gate id (`gat_…`) or the gate's `name`.
         schema:
           type: string
+          maxLength: 512
     responses:
       "200":
         description: Enable a gate
@@ -431,6 +434,7 @@
         description: Stable opaque gate id (`gat_…`) or the gate's `name`.
         schema:
           type: string
+          maxLength: 512
     responses:
       "200":
         description: Disable a gate

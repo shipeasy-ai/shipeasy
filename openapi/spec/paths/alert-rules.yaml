@@ -155,6 +155,7 @@
         description: Stable opaque alert-rule id (`ar_…`) or the rule's `name`.
         schema:
           type: string
+          maxLength: 512
     requestBody:
       required: true
       content:
@@ -226,6 +227,7 @@
         description: Stable opaque alert-rule id (`ar_…`) or the rule's `name`.
         schema:
           type: string
+          maxLength: 512
     responses:
       "200":
         description: Delete an alert rule

@@ -228,6 +228,7 @@
         description: Stable opaque experiment id (`exp_…`) or the experiment's `name`.
         schema:
           type: string
+          maxLength: 512
     responses:
       "200":
         description: Get one experiment
@@ -308,6 +309,7 @@
         description: Stable opaque experiment id (`exp_…`) or the experiment's `name`.
         schema:
           type: string
+          maxLength: 512
     requestBody:
       required: true
       content:
@@ -393,6 +395,7 @@
         description: Stable opaque experiment id (`exp_…`) or the experiment's `name`.
         schema:
           type: string
+          maxLength: 512
     responses:
       "200":
         description: Delete an experiment
@@ -454,6 +457,7 @@
         description: Stable opaque experiment id (`exp_…`) or the experiment's `name`.
         schema:
           type: string
+          maxLength: 512
     requestBody:
       required: true
       content:
@@ -549,6 +553,7 @@
         description: Stable opaque experiment id (`exp_…`) or the experiment's `name`.
         schema:
           type: string
+          maxLength: 512
     requestBody:
       required: true
       content:
@@ -626,6 +631,7 @@
         description: Stable opaque experiment id (`exp_…`) or the experiment's `name`.
         schema:
           type: string
+          maxLength: 512
     responses:
       "200":
         description: Get analysis results
@@ -695,6 +701,7 @@
         description: Stable opaque experiment id (`exp_…`) or the experiment's `name`.
         schema:
           type: string
+          maxLength: 512
       - name: metric
         in: query
         required: false
@@ -769,6 +776,7 @@
         description: Stable opaque experiment id (`exp_…`) or the experiment's `name`.
         schema:
           type: string
+          maxLength: 512
     responses:
       "200":
         description: Re-queue analysis
