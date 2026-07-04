@@ -422,6 +422,11 @@ export type CreateGateResponse = {
     name: string;
 };
 
+/**
+ * A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row.
+ */
+export type ResourceId = string;
+
 export type DeleteGateResponse = {
     ok: true;
 };
@@ -5120,7 +5125,7 @@ export type DeleteGateData = {
         /**
          * Stable opaque gate id (`gat_…`) or the gate's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/gates/{id}';
@@ -5176,7 +5181,7 @@ export type UpdateGateData = {
         /**
          * Stable opaque gate id (`gat_…`) or the gate's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/gates/{id}';
@@ -5232,7 +5237,7 @@ export type EnableGateData = {
         /**
          * Stable opaque gate id (`gat_…`) or the gate's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/gates/{id}/enable';
@@ -5288,7 +5293,7 @@ export type DisableGateData = {
         /**
          * Stable opaque gate id (`gat_…`) or the gate's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/gates/{id}/disable';
@@ -5463,7 +5468,7 @@ export type DeleteExperimentData = {
         /**
          * Stable opaque experiment id (`exp_…`) or the experiment's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/experiments/{id}';
@@ -5519,7 +5524,7 @@ export type GetExperimentData = {
         /**
          * Stable opaque experiment id (`exp_…`) or the experiment's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/experiments/{id}';
@@ -5575,7 +5580,7 @@ export type UpdateExperimentData = {
         /**
          * Stable opaque experiment id (`exp_…`) or the experiment's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/experiments/{id}';
@@ -5631,7 +5636,7 @@ export type SetExperimentStatusData = {
         /**
          * Stable opaque experiment id (`exp_…`) or the experiment's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/experiments/{id}/status';
@@ -5687,7 +5692,7 @@ export type SetExperimentMetricsData = {
         /**
          * Stable opaque experiment id (`exp_…`) or the experiment's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/experiments/{id}/metrics';
@@ -5743,7 +5748,7 @@ export type GetExperimentResultsData = {
         /**
          * Stable opaque experiment id (`exp_…`) or the experiment's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/experiments/{id}/results';
@@ -5799,7 +5804,7 @@ export type GetExperimentTimeseriesData = {
         /**
          * Stable opaque experiment id (`exp_…`) or the experiment's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: {
         /**
@@ -5860,7 +5865,7 @@ export type ReanalyzeExperimentData = {
         /**
          * Stable opaque experiment id (`exp_…`) or the experiment's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/experiments/{id}/reanalyze';
@@ -6031,7 +6036,7 @@ export type DeleteConfigData = {
         /**
          * Stable opaque config id (`cfg_…`) or the config's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/configs/{id}';
@@ -6087,7 +6092,7 @@ export type GetConfigData = {
         /**
          * Stable opaque config id (`cfg_…`) or the config's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/configs/{id}';
@@ -6143,7 +6148,7 @@ export type UpdateConfigData = {
         /**
          * Stable opaque config id (`cfg_…`) or the config's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/configs/{id}';
@@ -6199,7 +6204,7 @@ export type DiscardConfigDraftData = {
         /**
          * Stable opaque config id (`cfg_…`) or the config's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/configs/{id}/drafts';
@@ -6255,7 +6260,7 @@ export type SaveConfigDraftData = {
         /**
          * Stable opaque config id (`cfg_…`) or the config's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/configs/{id}/drafts';
@@ -6311,7 +6316,7 @@ export type PublishConfigDraftData = {
         /**
          * Stable opaque config id (`cfg_…`) or the config's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/configs/{id}/publish';
@@ -6367,7 +6372,7 @@ export type ListConfigActivityData = {
         /**
          * Stable opaque config id (`cfg_…`) or the config's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: {
         /**
@@ -6428,7 +6433,7 @@ export type UpdateConfigSchemaData = {
         /**
          * Stable opaque config id (`cfg_…`) or the config's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/configs/{id}/schema';
@@ -6599,7 +6604,7 @@ export type DeleteKillswitchData = {
         /**
          * Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/killswitches/{id}';
@@ -6655,7 +6660,7 @@ export type GetKillswitchData = {
         /**
          * Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/killswitches/{id}';
@@ -6711,7 +6716,7 @@ export type UpdateKillswitchData = {
         /**
          * Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/killswitches/{id}';
@@ -6767,7 +6772,7 @@ export type UnsetKillswitchSwitchData = {
         /**
          * Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/killswitches/{id}/switch';
@@ -6823,7 +6828,7 @@ export type SetKillswitchSwitchData = {
         /**
          * Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/killswitches/{id}/switch';
@@ -6879,7 +6884,7 @@ export type SetKillswitchValueData = {
         /**
          * Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/killswitches/{id}/value';
@@ -7050,7 +7055,7 @@ export type DeleteUniverseData = {
         /**
          * Stable opaque universe id (`uni_…`) or the universe's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/universes/{id}';
@@ -7106,7 +7111,7 @@ export type UpdateUniverseData = {
         /**
          * Stable opaque universe id (`uni_…`) or the universe's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/universes/{id}';
@@ -7263,7 +7268,7 @@ export type DeleteGateTemplateData = {
         /**
          * Customer template id (`gtpl_…`) or its `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/gates/templates/{id}';
@@ -7315,7 +7320,7 @@ export type GetGateTemplateData = {
         /**
          * Built-in slug (`country`) or customer template id (`gtpl_…`).
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/gates/templates/{id}';
@@ -7363,7 +7368,7 @@ export type UpdateGateTemplateData = {
         /**
          * Customer template id (`gtpl_…`) or its `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/gates/templates/{id}';
@@ -7526,7 +7531,7 @@ export type DeleteAttributeData = {
         /**
          * The attribute id.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/attributes/{id}';
@@ -7582,7 +7587,7 @@ export type GetAttributeData = {
         /**
          * The attribute id.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/attributes/{id}';
@@ -7638,7 +7643,7 @@ export type UpdateAttributeData = {
         /**
          * The attribute id.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/attributes/{id}';
@@ -7801,7 +7806,7 @@ export type DeleteMetricData = {
         /**
          * Stable opaque metric id (`met_…`) or the metric's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/metrics/{id}';
@@ -7857,7 +7862,7 @@ export type GetMetricData = {
         /**
          * Stable opaque metric id (`met_…`) or the metric's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/metrics/{id}';
@@ -7913,7 +7918,7 @@ export type UpdateMetricData = {
         /**
          * Stable opaque metric id (`met_…`) or the metric's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/metrics/{id}';
@@ -8076,7 +8081,7 @@ export type DeleteEventData = {
         /**
          * Stable opaque event id (`evt_…`) or the event's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/events/{id}';
@@ -8132,7 +8137,7 @@ export type GetEventData = {
         /**
          * Stable opaque event id (`evt_…`) or the event's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/events/{id}';
@@ -8188,7 +8193,7 @@ export type UpdateEventData = {
         /**
          * Stable opaque event id (`evt_…`) or the event's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/events/{id}';
@@ -8244,7 +8249,7 @@ export type ApproveEventData = {
         /**
          * Stable opaque event id (`evt_…`) or the event's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/events/{id}/approve';
@@ -8415,7 +8420,7 @@ export type GetOpsItemData = {
         /**
          * Per-project item number (e.g. `7`) or the full ops item id.
          */
-        handle: string;
+        handle: ResourceId;
     };
     query?: never;
     url: '/api/admin/ops/{handle}';
@@ -8471,7 +8476,7 @@ export type UpdateOpsItemData = {
         /**
          * Per-project item number (e.g. `7`) or the full ops item id.
          */
-        handle: string;
+        handle: ResourceId;
     };
     query?: never;
     url: '/api/admin/ops/{handle}';
@@ -8527,7 +8532,7 @@ export type LinkPrToOpsItemData = {
         /**
          * Per-project item number (e.g. `7`) or the full ops item id.
          */
-        handle: string;
+        handle: ResourceId;
     };
     query?: never;
     url: '/api/admin/ops/{handle}/link-pr';
@@ -8792,7 +8797,7 @@ export type DeleteAlertRuleData = {
         /**
          * Stable opaque alert-rule id (`ar_…`) or the rule's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/alert-rules/{id}';
@@ -8848,7 +8853,7 @@ export type UpdateAlertRuleData = {
         /**
          * Stable opaque alert-rule id (`ar_…`) or the rule's `name`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/alert-rules/{id}';
@@ -9006,7 +9011,7 @@ export type UpdateProjectData = {
         /**
          * Stable opaque project id. Must match the caller's own project.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/projects/{id}';
@@ -9287,7 +9292,7 @@ export type UpdateI18nKeyData = {
         /**
          * The key's id.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/i18n/keys/{id}';
@@ -9445,7 +9450,7 @@ export type UpdateI18nDraftData = {
         /**
          * The draft id to update.
          */
-        draftId: string;
+        draftId: ResourceId;
     };
     query?: never;
     url: '/api/admin/i18n/drafts/{draftId}';
@@ -9501,7 +9506,7 @@ export type PublishI18nProfileData = {
         /**
          * The profile id to publish.
          */
-        profileId: string;
+        profileId: ResourceId;
     };
     query?: never;
     url: '/api/admin/i18n/profiles/{profileId}/publish';
@@ -9672,7 +9677,7 @@ export type GetErrorData = {
         /**
          * Stable opaque error id (`err_…`).
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/errors/{id}';
@@ -9728,7 +9733,7 @@ export type UpdateErrorStatusData = {
         /**
          * Stable opaque error id (`err_…`).
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/errors/{id}';
@@ -9784,7 +9789,7 @@ export type FileErrorTicketData = {
         /**
          * Stable opaque error id (`err_…`).
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/errors/{id}/file';
@@ -9840,7 +9845,7 @@ export type GetErrorSeriesData = {
         /**
          * Stable opaque error id (`err_…`).
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/errors/{id}/series';
@@ -10003,7 +10008,7 @@ export type DeleteConnectorData = {
         /**
          * Stable opaque connector id.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/connectors/{id}';
@@ -10059,7 +10064,7 @@ export type GetConnectorData = {
         /**
          * Stable opaque connector id.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/connectors/{id}';
@@ -10115,7 +10120,7 @@ export type UpdateConnectorData = {
         /**
          * Stable opaque connector id.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/connectors/{id}';
@@ -10171,7 +10176,7 @@ export type FireConnectorData = {
         /**
          * Stable opaque connector id.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/connectors/{id}/fire';
@@ -10234,7 +10239,7 @@ export type TestConnectorData = {
         /**
          * Stable opaque connector id.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/connectors/{id}/test';
@@ -10297,7 +10302,7 @@ export type UpdateTriggerConnectorData = {
         /**
          * Stable opaque connector id. Its stored `provider` must match the body's `provider`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/connectors/{id}/trigger';
@@ -10511,7 +10516,7 @@ export type RevokeKeyData = {
         /**
          * Stable opaque key id (UUID) returned by `create` / `list`.
          */
-        id: string;
+        id: ResourceId;
     };
     query?: never;
     url: '/api/admin/keys/{id}/revoke';
