@@ -151,12 +151,28 @@ export async function verifyState(
   let pass = true;
   for (const type of Object.keys(expect) as StateType[]) {
     const needles = expect[type] ?? [];
-    let now: string[];
-    try {
-      now = await fetchNames(cfg, type);
-    } catch (err) {
+    // Poll the admin read: a just-created resource can lag the list endpoint
+    // (D1 write → KV rebuild → CDN purge propagation), so a single read right
+    // after the run yields a FALSE "MISSING". Re-read a few times until every
+    // expected needle appears, or the budget runs out.
+    let now: string[] = [];
+    let fetchErr: unknown;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        now = await fetchNames(cfg, type);
+        fetchErr = undefined;
+      } catch (err) {
+        fetchErr = err;
+      }
+      const allFound =
+        !fetchErr &&
+        needles.every((nd) => now.some((n) => n.toLowerCase().includes(nd.toLowerCase())));
+      if (allFound || attempt === 4) break;
+      await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+    }
+    if (fetchErr) {
       pass = false;
-      parts.push(`${type}: fetch failed (${String(err).slice(0, 60)})`);
+      parts.push(`${type}: fetch failed (${String(fetchErr).slice(0, 60)})`);
       continue;
     }
     for (const needle of needles) {
