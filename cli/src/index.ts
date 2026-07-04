@@ -14,6 +14,7 @@ import { codemodCommand } from "./commands/codemod";
 import { i18nWorkflowCommands } from "./commands/i18n-workflows";
 import { mcpCommand } from "./commands/mcp";
 import { setupCommand } from "./commands/setup";
+import { upgradeCommand } from "./commands/upgrade";
 import { installCommand } from "./commands/install";
 import { triggerCommand } from "./commands/trigger";
 import { detectCommand } from "./commands/detect";
@@ -183,6 +184,10 @@ export function buildProgram(): Command {
 
   // ── Custom commands (fs/AST + auth + install — not API endpoints) ─────────
   setupCommand(program);
+  // `upgrade` / `upgrade skills` — self-update the CLI + refresh the wired
+  // agents' plugin/MCP/skills (and, for the full verb, offer the SDK bump).
+  // Takes the resolved version so its CLI self-update can report the current one.
+  upgradeCommand(program, version);
   // `install <module>` — the platform installer (flags | i18n | ops). Enables
   // a module group via PATCH /api/admin/projects/:id (there is no `modules`
   // command); the install skills orchestrate this.

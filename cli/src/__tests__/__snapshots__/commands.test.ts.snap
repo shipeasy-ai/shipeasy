@@ -135,6 +135,8 @@ exports[`command tree > matches the registered command surface (snapshot) 1`] = 
   "sdk keys revoke",
   "setup",
   "setup triggers",
+  "upgrade",
+  "upgrade skills",
   "whoami",
 ]
 `;

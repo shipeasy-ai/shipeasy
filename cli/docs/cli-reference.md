@@ -1807,6 +1807,78 @@ shipeasy setup triggers --platform claude
 shipeasy setup triggers --dry-run
 ```
 
+## `shipeasy upgrade`
+
+Bring your Shipeasy install up to date: self-updates the CLI, refreshes the coding-agent wiring (Claude plugin / MCP registration) and the how-to skills from the marketplace, and offers to bump the @shipeasy/sdk dependency in each onboarded target. Idempotent and best-effort. Use `shipeasy upgrade skills` for the CLI + skills only.
+
+`upgrade` refreshes everything a Shipeasy install accumulates, in order:
+
+1. **CLI** — installs `@shipeasy/cli@latest` globally (npm by default; `--pm` for pnpm/yarn/bun). The new version applies to your NEXT command, not the running one.
+2. **Skills** — re-fetches the marketplace how-to skills from the repo and reinstalls them into your wired agents. Claude at user scope refreshes the native plugin (MCP + skills + slash commands in one); every other agent (and Claude in-repo) reinstalls via `skills add`. Only the skills you actually have are refreshed — discovery falls back to the full catalogue when it finds none.
+3. **MCP** — re-asserts the hosted MCP registration (mcp.shipeasy.ai is a static remote, so there's nothing to bump — this just repairs a stale/local entry).
+4. **SDK** — detects each onboarded target and OFFERS to bump `@shipeasy/sdk` to its latest release (prompted; `--yes` accepts, `--skip-sdk` skips).
+
+Scope and agents auto-detect from the repo; override with `--scope` / `--agents`. `shipeasy upgrade skills` runs only steps 1–2.
+
+```bash
+shipeasy upgrade [options] [command]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--agents <list>` | optional | Restrict to these agents (claude,cursor,codex,copilot,jules) |
+| `--scope <scope>` | optional | Where skills/MCP live: project \| user (default: auto-detected) |
+| `--pm <pm>` | optional | Package manager for the global CLI update (npm\|pnpm\|yarn\|bun) |
+| `--skip-cli` | optional | Don't self-update the CLI |
+| `--skip-sdk` | optional | Don't offer the SDK dependency update |
+| `--yes` | optional | Non-interactive: accept the SDK update without prompting |
+| `--dry-run` | optional | Show what would change without installing anything |
+
+Examples:
+
+```bash
+# CLI + agents + skills, then offer the SDK bump
+shipeasy upgrade
+
+# non-interactive: also accept the SDK update
+shipeasy upgrade --yes
+
+# global install, pnpm-managed CLI
+shipeasy upgrade --scope user --pm pnpm
+
+# preview without installing
+shipeasy upgrade --dry-run
+```
+
+### `shipeasy upgrade skills`
+
+Update the CLI itself and refresh your Shipeasy skills to the latest marketplace revision (re-fetched from the repo). Skips the MCP re-registration and the SDK bump that the full `shipeasy upgrade` also does.
+
+```bash
+shipeasy upgrade skills [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--agents <list>` | optional | Restrict to these agents (claude,cursor,codex,copilot,jules) |
+| `--scope <scope>` | optional | Where skills live: project \| user (default: auto-detected) |
+| `--pm <pm>` | optional | Package manager for the global CLI update (npm\|pnpm\|yarn\|bun) |
+| `--skip-cli` | optional | Refresh skills only — don't self-update the CLI |
+| `--dry-run` | optional | Show what would change without installing anything |
+
+Examples:
+
+```bash
+# refresh the CLI + skills only
+shipeasy upgrade skills
+
+# skills only, leave the CLI as-is
+shipeasy upgrade skills --skip-cli
+
+# one agent, in-repo
+shipeasy upgrade skills --agents claude --scope project
+```
+
 ## `shipeasy install`
 
 Enable a platform module group (flags | i18n | ops) and verify it
