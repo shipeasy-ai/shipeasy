@@ -313,12 +313,21 @@ async function mintKey(type: "server" | "client", env: string): Promise<KeyCreat
 
 const WIRING_PROMPT = `Read ${WIRING_FILENAME} at the repo root and complete every unchecked step, following its operating rules exactly.`;
 
-/** CLI-launchable coding agents and how each takes a one-shot prompt. */
-const RUNNABLE_AGENTS: Array<{ label: string; bin: string; argv: (p: string) => string[] }> = [
-  { label: "Claude Code", bin: "claude", argv: (p) => [p] },
-  { label: "OpenAI Codex", bin: "codex", argv: (p) => [p] },
-  { label: "Cursor", bin: "cursor-agent", argv: (p) => [p] },
-  { label: "GitHub Copilot", bin: "copilot", argv: (p) => ["-p", p] },
+/** CLI-launchable coding agents and how each takes a one-shot prompt. `id` ties
+ *  the runnable back to the `AgentId` the user selected in step 3 so we only
+ *  offer to launch what they chose. Copilot uses `-i` (interactive-with-prompt)
+ *  rather than `-p` (non-interactive): `-p` can't request tool/path permission
+ *  from the user, so it denies every file read; `-i` prompts like the others. */
+const RUNNABLE_AGENTS: Array<{
+  id: AgentId;
+  label: string;
+  bin: string;
+  argv: (p: string) => string[];
+}> = [
+  { id: "claude", label: "Claude Code", bin: "claude", argv: (p) => [p] },
+  { id: "codex", label: "OpenAI Codex", bin: "codex", argv: (p) => [p] },
+  { id: "cursor", label: "Cursor", bin: "cursor-agent", argv: (p) => [p] },
+  { id: "copilot", label: "GitHub Copilot", bin: "copilot", argv: (p) => ["-i", p] },
 ];
 
 function spawnAgent(bin: string, args: string[]): Promise<number> {
@@ -361,8 +370,14 @@ export function agentDirective(root: string): string {
  * code edits are best done by an assistant, so we show how to hand the file
  * off — and (interactively) offer to launch one that's on PATH.
  */
-async function humanHandoff(root: string, opts: SetupOpts, interactive: boolean): Promise<void> {
-  const available = RUNNABLE_AGENTS.filter((a) => onPath(a.bin));
+async function humanHandoff(
+  root: string,
+  opts: SetupOpts,
+  interactive: boolean,
+  selected: AgentId[],
+): Promise<void> {
+  // Only offer to launch agents the user chose in step 3 that are also on PATH.
+  const available = RUNNABLE_AGENTS.filter((a) => selected.includes(a.id) && onPath(a.bin));
   console.log(
     `  The remaining steps edit your code (entry-point SDK init, etc.), so they're\n` +
       `  best handed to a coding assistant. Either open ${WIRING_FILENAME} and follow\n` +
@@ -405,12 +420,17 @@ async function humanHandoff(root: string, opts: SetupOpts, interactive: boolean)
  * the CLI gets an actionable directive it can execute; a human at a terminal
  * gets plain instructions plus an optional launch picker.
  */
-async function wiringHandoff(root: string, opts: SetupOpts, interactive: boolean): Promise<void> {
+async function wiringHandoff(
+  root: string,
+  opts: SetupOpts,
+  interactive: boolean,
+  selected: AgentId[],
+): Promise<void> {
   if (detectHarness().inside) {
     console.log(agentDirective(root));
     return;
   }
-  await humanHandoff(root, opts, interactive);
+  await humanHandoff(root, opts, interactive, selected);
 }
 
 // ── command ─────────────────────────────────────────────────────────────────
@@ -881,7 +901,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     const wiringPath = join(root, WIRING_FILENAME);
     writeFileSync(wiringPath, doc, "utf8");
     console.log(`  ✓ wrote ${wiringPath}\n`);
-    await wiringHandoff(root, opts, interactive);
+    await wiringHandoff(root, opts, interactive, selected);
   }
 
   // 10. Automation trigger (unattended auto-apply — the queue burn-down loop)

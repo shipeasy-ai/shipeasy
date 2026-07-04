@@ -53,6 +53,6 @@ describe("substituteSdkSnippets", () => {
     expect(SKILLS_CLI_AGENT.jules).toBeUndefined();
     expect(SKILLS_CLI_AGENT.cursor).toBe("cursor");
     expect(SKILLS_CLI_AGENT.codex).toBe("codex");
-    expect(SKILLS_CLI_AGENT.copilot).toBe("copilot");
+    expect(SKILLS_CLI_AGENT.copilot).toBe("github-copilot");
   });
 });

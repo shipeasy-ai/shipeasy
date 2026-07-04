@@ -498,6 +498,10 @@ const SDK_FOR_LANGUAGE: Record<string, string> = {
   swift: "swift",
 };
 
+// Frameworks that serve a browser surface — so they need a public client key
+// and are candidates for the in-page devtools overlay. Covers both JS client
+// frameworks (which run the browser SDK) and server-rendered HTML frameworks
+// (django/flask/rails/laravel) whose templates can host the overlay `<script>`.
 export const BROWSER_FRAMEWORKS = new Set([
   "nextjs",
   "react",
@@ -507,6 +511,10 @@ export const BROWSER_FRAMEWORKS = new Set([
   "sveltekit",
   "angular",
   "remix",
+  "django",
+  "flask",
+  "rails",
+  "laravel",
 ]);
 
 function installHint(language: string, pm: string, frameworks: string[]): string {

@@ -40,7 +40,9 @@ export const MARKETPLACE_SLUG = "shipeasy-ai/shipeasy";
 export const SKILLS_CLI_AGENT: Partial<Record<AgentId, string>> = {
   cursor: "cursor",
   codex: "codex",
-  copilot: "copilot",
+  // The `skills` CLI names GitHub Copilot `github-copilot` (bare `copilot`
+  // errors "Invalid agents: copilot"). Our own AgentId stays `copilot`.
+  copilot: "github-copilot",
 };
 
 /** Is `bin` resolvable on PATH? Cross-platform (honors PATHEXT on win32). */

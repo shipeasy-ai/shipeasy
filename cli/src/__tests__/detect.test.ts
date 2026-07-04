@@ -37,6 +37,11 @@ describe("detect (detectTargets / discoverTargets)", () => {
     mkdirSync(join(dir, "apps/api"), { recursive: true });
     writeFileSync(join(dir, "apps/api/go.mod"), "module example.com/api\n\ngo 1.22\n");
 
+    // Django app → server-rendered HTML, so it's a browser target: server +
+    // client keys (the client key powers the in-page devtools overlay).
+    mkdirSync(join(dir, "apps/admin"), { recursive: true });
+    writeFileSync(join(dir, "apps/admin/requirements.txt"), "Django>=5.0\n");
+
     // Pruned dir — a manifest inside node_modules must never be discovered.
     mkdirSync(join(dir, "node_modules/pkg"), { recursive: true });
     writeFileSync(join(dir, "node_modules/pkg/package.json"), JSON.stringify({ name: "pkg" }));
@@ -69,6 +74,15 @@ describe("detect (detectTargets / discoverTargets)", () => {
     expect(api.recommendation.sdk).toBe("go");
     expect(api.recommendation.keys).toEqual(["server"]);
     expect(api.recommendation.docs).toBe("shipeasy docs get --sdk go installation");
+  });
+
+  it("treats a Django app as a browser target (server + client keys)", async () => {
+    const { targets } = await detectTargets([dir + "/apps/admin"]);
+    const admin = byPath(targets, "/apps/admin")!;
+    expect(admin.recommendation.action).toBe("install");
+    expect(admin.recommendation.sdk).toBe("python");
+    expect(admin.frameworks).toContain("django");
+    expect(admin.recommendation.keys).toEqual(["server", "client"]);
   });
 
   it("flags the workspace root as skip when scanning the whole tree", async () => {
