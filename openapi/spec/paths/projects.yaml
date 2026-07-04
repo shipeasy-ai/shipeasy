@@ -145,7 +145,7 @@
         description: Stable opaque project id. Must match the caller's own project.
         schema:
           type: string
-          maxLength: 512
+          maxLength: 128
     requestBody:
       required: true
       content:

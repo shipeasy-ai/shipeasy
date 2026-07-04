@@ -180,7 +180,7 @@
         description: Stable opaque connector id.
         schema:
           type: string
-          maxLength: 512
+          maxLength: 128
     responses:
       "200":
         description: Get a connector
@@ -249,7 +249,7 @@
         description: Stable opaque connector id.
         schema:
           type: string
-          maxLength: 512
+          maxLength: 128
     requestBody:
       required: true
       content:
@@ -323,7 +323,7 @@
         description: Stable opaque connector id.
         schema:
           type: string
-          maxLength: 512
+          maxLength: 128
     responses:
       "200":
         description: Delete a connector
@@ -373,7 +373,7 @@
         description: Stable opaque connector id.
         schema:
           type: string
-          maxLength: 512
+          maxLength: 128
     requestBody:
       required: false
       content:
@@ -440,7 +440,7 @@
         description: Stable opaque connector id.
         schema:
           type: string
-          maxLength: 512
+          maxLength: 128
     responses:
       "200":
         description: The test dispatch reached the destination.
@@ -495,7 +495,7 @@
         description: Stable opaque connector id. Its stored `provider` must match the body's `provider`.
         schema:
           type: string
-          maxLength: 512
+          maxLength: 128
     requestBody:
       required: true
       content:

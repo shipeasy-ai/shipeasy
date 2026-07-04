@@ -163,7 +163,7 @@
         description: Stable opaque metric id (`met_…`) or the metric's `name`.
         schema:
           type: string
-          maxLength: 512
+          maxLength: 128
     responses:
       "200":
         description: Get a metric
@@ -222,7 +222,7 @@
         description: Stable opaque metric id (`met_…`) or the metric's `name`.
         schema:
           type: string
-          maxLength: 512
+          maxLength: 128
     requestBody:
       required: true
       content:
@@ -282,7 +282,7 @@
         description: Stable opaque metric id (`met_…`) or the metric's `name`.
         schema:
           type: string
-          maxLength: 512
+          maxLength: 128
     responses:
       "200":
         description: Archive a metric

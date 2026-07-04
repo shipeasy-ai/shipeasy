@@ -150,7 +150,7 @@
         description: Stable opaque key id (UUID) returned by `create` / `list`.
         schema:
           type: string
-          maxLength: 512
+          maxLength: 128
     responses:
       "200":
         description: Revoke an API key

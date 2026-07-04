@@ -127,7 +127,7 @@
         description: The attribute id.
         schema:
           type: string
-          maxLength: 512
+          maxLength: 128
     responses:
       "200":
         description: Get a targeting attribute
@@ -182,7 +182,7 @@
         description: The attribute id.
         schema:
           type: string
-          maxLength: 512
+          maxLength: 128
     requestBody:
       required: true
       content:
@@ -242,7 +242,7 @@
         description: The attribute id.
         schema:
           type: string
-          maxLength: 512
+          maxLength: 128
     responses:
       "200":
         description: Archive a targeting attribute

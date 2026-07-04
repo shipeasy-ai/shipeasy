@@ -249,7 +249,7 @@
         description: The key's id.
         schema:
           type: string
-          maxLength: 512
+          maxLength: 128
     requestBody:
       required: true
       content:
@@ -398,7 +398,7 @@
         description: The draft id to update.
         schema:
           type: string
-          maxLength: 512
+          maxLength: 128
     requestBody:
       required: true
       content:
@@ -457,7 +457,7 @@
         description: The profile id to publish.
         schema:
           type: string
-          maxLength: 512
+          maxLength: 128
     requestBody:
       required: true
       content:

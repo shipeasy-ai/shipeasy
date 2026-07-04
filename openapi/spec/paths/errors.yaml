@@ -109,7 +109,7 @@
         description: Stable opaque error id (`err_…`).
         schema:
           type: string
-          maxLength: 512
+          maxLength: 128
     responses:
       "200":
         description: Get a tracked error
@@ -185,7 +185,7 @@
         description: Stable opaque error id (`err_…`).
         schema:
           type: string
-          maxLength: 512
+          maxLength: 128
     requestBody:
       required: true
       content:
@@ -275,7 +275,7 @@
         description: Stable opaque error id (`err_…`).
         schema:
           type: string
-          maxLength: 512
+          maxLength: 128
     responses:
       "201":
         description: File a feedback ticket for an error
@@ -324,7 +324,7 @@
         description: Stable opaque error id (`err_…`).
         schema:
           type: string
-          maxLength: 512
+          maxLength: 128
     requestBody:
       required: true
       content:
