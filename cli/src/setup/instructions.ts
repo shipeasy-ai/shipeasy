@@ -15,10 +15,19 @@ export function instructionsBody(): string {
 
 Feature flags, experiments, configs, kill switches, i18n, and feedback. Project bound via
 \`.shipeasy\`; the \`@shipeasy/mcp\` server is registered for this agent (run
-\`npx @shipeasy/cli login\` if a tool reports it's unauthenticated). Read flags/experiments
-through the Shipeasy SDK (it caches — never re-fetch on the hot path) and report errors via
-its error primitive. The exact calls are language-specific — get them from the installed
-\`shipeasy-*\` skills or \`shipeasy docs get\`, never guess.`;
+\`npx @shipeasy/cli login\` if a tool reports it's unauthenticated).
+
+Don't guess the API — discover it first:
+
+- **Manage resources** (create/list/edit flags, experiments, configs, metrics, i18n): call the
+  \`@shipeasy/mcp\` tools, or run \`shipeasy --help\` (then \`shipeasy <command> --help\`) for the
+  same surface on the CLI.
+- **Wire the SDK into code**: prefer the installed \`shipeasy-*\` skill for this project's language
+  (e.g. \`shipeasy-python\`) — it has the exact \`configure\`/\`get_flag\`/\`track\` calls. Otherwise
+  pull the docs with the MCP \`docs_get\` tool or \`shipeasy docs get\`.
+
+Read flags/experiments through the Shipeasy SDK (it caches — never re-fetch on the hot path) and
+report errors via its error primitive.`;
 }
 
 /** Insert or replace the marker-fenced Shipeasy block in shared markdown. */
