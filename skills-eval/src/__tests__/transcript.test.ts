@@ -17,6 +17,14 @@ function assistant(blocks: Array<{ name: string; input: unknown }>): string {
   });
 }
 
+/** Build one stream-json assistant event carrying a single text block. */
+function assistantText(text: string): string {
+  return JSON.stringify({
+    type: "assistant",
+    message: { role: "assistant", content: [{ type: "text", text }] },
+  });
+}
+
 const KNOWN = ["shipeasy-flags", "shipeasy-ops", "shipeasy-ops-work"];
 
 describe("parseTranscript", () => {
@@ -91,6 +99,30 @@ describe("parseTranscript", () => {
       KNOWN,
     );
     expect(withAsk.askedUser).toBe(true);
+  });
+
+  it("counts a prose question as askedUser (headless -p ask)", () => {
+    // Closing prose posing a question — the headless equivalent of calling
+    // AskUserQuestion when there is no interactive UI.
+    const asks = parseTranscript(
+      assistantText("Kill switch created. Would you like me to add a metric + alert?"),
+      KNOWN,
+    );
+    expect(asks.askedUser).toBe(true);
+
+    // A question followed by a rationale sentence still counts (real -p shape).
+    const askThenRationale = parseTranscript(
+      assistantText("Want me to wire an alert that fires when failures spike?\n\nThat way you know when to flip it."),
+      KNOWN,
+    );
+    expect(askThenRationale.askedUser).toBe(true);
+
+    // A pure statement (no question) does NOT count as asking.
+    const noAsk = parseTranscript(
+      assistantText("Kill switch created and enabled by default. Done."),
+      KNOWN,
+    );
+    expect(noAsk.askedUser).toBe(false);
   });
 
   it("tolerates non-JSON lines and empty input", () => {

@@ -21,7 +21,7 @@
   },
   {
     "id": "shipeasy-flags/rich-targeting",
-    "prompt": "Roll new checkout out to 50% of US users, always allow alice@acme.com and bob@acme.com, plus the internal team.",
+    "prompt": "Roll the new referrals page out to 50% of US users, always allow alice@acme.com and bob@acme.com, plus the internal team.",
     "expect_skill": "shipeasy-flags",
     "expect_tools": [
       "release_flags_list",
@@ -43,10 +43,10 @@
     ],
     "expect_state": {
       "flags": [
-        "checkout"
+        "referral"
       ]
     },
-    "note": "one gate, several gatekeeper steps: US 50% + email whitelist + team access. Args must carry country + whitelisted emails"
+    "note": "one gate, several gatekeeper steps: US 50% + email whitelist + team access. Args must carry country + whitelisted emails. Distinct feature from ship-then-ramp so this case actually creates (no within-run dedup)."
   },
   {
     "id": "shipeasy-flags/gated-list",
@@ -182,7 +182,7 @@
   },
   {
     "id": "shipeasy-flags/killswitch-feature-switch",
-    "prompt": "Set up a payments kill switch with a separate toggle to kill just the EU checkout.",
+    "prompt": "Set up an email kill switch with a separate toggle to kill just the EU email sending.",
     "expect_skill": "shipeasy-flags",
     "expect_tools": [
       "release_killswitch_list",
@@ -202,10 +202,10 @@
     ],
     "expect_state": {
       "killswitches": [
-        "payment"
+        "email"
       ]
     },
-    "note": "killswitch with a named switch — the switches map ({ eu_checkout: false }) gates one call site independent of the flat value; define it on create (or release_killswitch_set the switchKey after)."
+    "note": "killswitch with a named switch — the switches map ({ eu_email: false }) gates one call site independent of the flat value; define it on create (or release_killswitch_set the switchKey after). Distinct integration from kill-switch-then-offer-alert so this case actually creates (no within-run dedup)."
   },
   {
     "id": "shipeasy-flags/killswitch-feature-toggle",

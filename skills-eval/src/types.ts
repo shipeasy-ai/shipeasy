@@ -45,8 +45,10 @@ export interface EvalCase {
   /** Tool suffixes that must NOT be called (e.g. "release_flags_archive"). */
   forbid_tools?: string[];
   /**
-   * Expect the agent to ask the user a clarifying question (the AskUserQuestion
-   * tool) — e.g. after creating a kill switch, offer to add a metric + alert.
+   * Expect the agent to ask the user a clarifying question — e.g. after creating
+   * a kill switch, offer to add a metric + alert. Satisfied by the AskUserQuestion
+   * tool OR (in headless `-p`, which has no interactive UI) by the agent ending
+   * its turn on a question in prose. See parseTranscript's askedUser.
    */
   expect_ask?: boolean;
   /** Param-level assertions on specific tool calls. */

@@ -1,6 +1,6 @@
 ---
 name: shipeasy-flags
-description: Create, evaluate, and roll out Shipeasy feature gates and dynamic configs. Trigger on "feature flag", "feature gate", "rollout", "release/launch/ship a feature", "roll out to <country/region/%>", "which features are gated", "list flags/gates", "flag/targeting templates", "kill switch", "dynamic config", "remote config".
+description: Create, evaluate, and roll out Shipeasy feature gates and dynamic configs. Trigger on "feature flag", "feature gate", "rollout", "release/launch/ship a feature", "roll out to <country/region/%>", "which features are gated", "list flags/gates", "flag/targeting templates", "kill switch", "kill switch with an independent/separate off-switch", "per-channel or per-site sub-switch", "named toggle inside a kill switch" (the `switches` map on release_killswitch_create), "dynamic config", "remote config".
 user-invocable: true
 ---
 
@@ -102,13 +102,24 @@ Reading a config:
 A one-shot rollout ask carries the ramp inside it — "put X behind a flag at 10%,
 then ramp it to 50%", or "gradually roll out, 5% now then 100%" — so it is two
 calls: `release_flags_create` at the starting percent, then `release_flags_update`
-to raise it. The ramp is part of the ask, so carry through to the
-`release_flags_update`.
+to raise it. **You MUST make BOTH calls in the same session — do not stop after
+the create.** Any prompt of the form "<N>% now, then ramp to <M>%" (including a
+ramp to 100%) requires the follow-up `release_flags_update` to <M>%; creating the
+gate and leaving it at the starting percent is an incomplete answer.
 
 ## Kill switch pattern
 
 For risky launches, create a separate `kill_<feature>` gate that defaults
 **on** and gates the old code path. Flip to off if the new path breaks.
+
+**MANDATORY follow-up — you MUST call the `AskUserQuestion` tool** right after
+creating a kill switch for anything that can "fail" (an integration, a payment
+path, a risky feature): ask whether to also add a failure metric + alert so the
+team knows *when* to flip the switch. A kill switch with no alert is half a
+safety net. Do this every single time — create the switch, then immediately
+issue the `AskUserQuestion` offer; never skip it, and never assume the answer
+yourself. This is not optional politeness; it is a required step of the kill
+switch workflow.
 
 For a first-class kill switch (the `release_killswitch_*` surface), read it
 from the SDK like this:

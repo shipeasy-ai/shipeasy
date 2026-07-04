@@ -71,7 +71,7 @@ export function scoreCase(
       `text never recommended any of [${wantText.join(", ")}] in ${pct(1 - textHitRate)} of runs (held ${pct(textHitRate)} < ${pct(threshold)})`,
     );
   if (c.expect_ask && askHitRate < threshold)
-    misses.push(`expected the agent to ask (AskUserQuestion) — did so ${pct(askHitRate)} (< ${pct(threshold)})`);
+    misses.push(`expected the agent to ask (AskUserQuestion or a trailing prose question) — did so ${pct(askHitRate)} (< ${pct(threshold)})`);
   if (cleanRate < 1)
     misses.push(`forbidden tool called in ${pct(1 - cleanRate)} of runs`);
 

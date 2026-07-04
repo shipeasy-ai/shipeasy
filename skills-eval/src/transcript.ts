@@ -27,6 +27,7 @@ export function parseTranscript(ndjson: string, knownSkills: Iterable<string>): 
   const otherTools: string[] = [];
   const textParts: string[] = [];
   let askedUser = false;
+  let lastAssistantText = "";
   const skillNames = [...knownSkills];
 
   const lines = ndjson.split("\n").map((l) => l.trim()).filter(Boolean);
@@ -37,7 +38,12 @@ export function parseTranscript(ndjson: string, knownSkills: Iterable<string>): 
     } catch {
       continue; // non-JSON noise (shouldn't happen with --output-format stream-json)
     }
-    textParts.push(...textBlocks(evt));
+    const blocks = textBlocks(evt);
+    textParts.push(...blocks);
+    // Track the agent's LAST piece of prose so we can detect a headless "ask".
+    if (isObject(evt) && evt.type === "assistant") {
+      for (const t of blocks) if (t.trim()) lastAssistantText = t;
+    }
     for (const block of toolUseBlocks(evt)) {
       if (block.name === "Skill") {
         const hit = matchSkill(block.input, skillNames);
@@ -53,7 +59,19 @@ export function parseTranscript(ndjson: string, knownSkills: Iterable<string>): 
       }
     }
   }
+  // Headless `claude -p` has no interactive UI, so the model asks the user in
+  // prose (posing a question in its closing turn) rather than calling the
+  // AskUserQuestion tool. Count either as "asked": the tool if present, else a
+  // final assistant message that poses a question — a "…?" offer, even when a
+  // rationale sentence follows it.
+  if (!askedUser && posesQuestion(lastAssistantText)) askedUser = true;
+
   return { skills, tools, toolCalls, otherTools, askedUser, text: textParts.join("\n") };
+}
+
+/** True if the agent's closing prose poses a question to the user. */
+function posesQuestion(text: string): boolean {
+  return text.includes("?");
 }
 
 interface ToolUse {
