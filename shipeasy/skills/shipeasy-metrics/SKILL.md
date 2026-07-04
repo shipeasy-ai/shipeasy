@@ -1,6 +1,6 @@
 ---
 name: shipeasy-metrics
-description: Answers "what are we measuring / tracking", "what metrics do we have", "list/show our metrics" — the live metric definitions live in the Shipeasy backend, so read them with metrics_list (the backend is the source of truth for what a project measures). Also creates and inspects custom event metrics (deletion is UI-only). Trigger on any question about what is being measured/tracked, plus "create/track/measure <X>", "measure how many/how often <X> happens", "count <event>", "metric DSL", "event metric", "success metric definition".
+description: Load this skill FIRST for any "what are we measuring / tracking", "what metrics do we have", "what are we already measuring", "list/show our metrics" question — and DO NOT answer it by reading, grepping, or globbing the codebase. The live metric definitions exist only in the Shipeasy backend; read them with the `metrics_list` MCP tool (the backend is the single source of truth — source code does NOT list a project's metrics, so grepping gives a wrong, stale answer). Also creates and inspects custom event metrics (deletion is UI-only). Trigger on any question about what is being measured/tracked, plus "create/track/measure <X>", "measure how many/how often <X> happens", "count <event>", "metric DSL", "event metric", "success metric definition".
 user-invocable: true
 ---
 
