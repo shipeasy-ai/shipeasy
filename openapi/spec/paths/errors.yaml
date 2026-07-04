@@ -108,8 +108,7 @@
         required: true
         description: Stable opaque error id (`err_…`).
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     responses:
       "200":
         description: Get a tracked error
@@ -184,8 +183,7 @@
         required: true
         description: Stable opaque error id (`err_…`).
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     requestBody:
       required: true
       content:
@@ -274,8 +272,7 @@
         required: true
         description: Stable opaque error id (`err_…`).
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     responses:
       "201":
         description: File a feedback ticket for an error
@@ -323,8 +320,7 @@
         required: true
         description: Stable opaque error id (`err_…`).
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     requestBody:
       required: true
       content:

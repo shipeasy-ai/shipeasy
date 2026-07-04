@@ -227,8 +227,7 @@
         required: true
         description: Stable opaque experiment id (`exp_…`) or the experiment's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     responses:
       "200":
         description: Get one experiment
@@ -308,8 +307,7 @@
         required: true
         description: Stable opaque experiment id (`exp_…`) or the experiment's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     requestBody:
       required: true
       content:
@@ -394,8 +392,7 @@
         required: true
         description: Stable opaque experiment id (`exp_…`) or the experiment's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     responses:
       "200":
         description: Delete an experiment
@@ -456,8 +453,7 @@
         required: true
         description: Stable opaque experiment id (`exp_…`) or the experiment's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     requestBody:
       required: true
       content:
@@ -552,8 +548,7 @@
         required: true
         description: Stable opaque experiment id (`exp_…`) or the experiment's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     requestBody:
       required: true
       content:
@@ -630,8 +625,7 @@
         required: true
         description: Stable opaque experiment id (`exp_…`) or the experiment's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     responses:
       "200":
         description: Get analysis results
@@ -700,8 +694,7 @@
         required: true
         description: Stable opaque experiment id (`exp_…`) or the experiment's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
       - name: metric
         in: query
         required: false
@@ -775,8 +768,7 @@
         required: true
         description: Stable opaque experiment id (`exp_…`) or the experiment's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     responses:
       "200":
         description: Re-queue analysis

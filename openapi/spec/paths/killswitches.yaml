@@ -170,8 +170,7 @@
         required: true
         description: Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     responses:
       "200":
         description: Get one killswitch
@@ -243,8 +242,7 @@
         required: true
         description: Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     requestBody:
       required: true
       content:
@@ -321,8 +319,7 @@
         required: true
         description: Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     responses:
       "200":
         description: Delete a killswitch
@@ -375,8 +372,7 @@
         required: true
         description: Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     requestBody:
       required: true
       content:
@@ -450,8 +446,7 @@
         required: true
         description: Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     requestBody:
       required: true
       content:
@@ -520,8 +515,7 @@
         required: true
         description: Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     requestBody:
       required: true
       content:

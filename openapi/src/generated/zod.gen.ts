@@ -231,6 +231,11 @@ export const zCreateGateResponse = z.object({
     name: z.string().max(128).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$/)
 });
 
+/**
+ * A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row.
+ */
+export const zResourceId = z.string().min(1).max(128);
+
 export const zDeleteGateResponse = z.object({
     ok: z.literal(true)
 });
@@ -2844,7 +2849,7 @@ export const zDeleteGateHeaders = z.object({
 });
 
 export const zDeleteGatePath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -2859,7 +2864,7 @@ export const zUpdateGateHeaders = z.object({
 });
 
 export const zUpdateGatePath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -2872,7 +2877,7 @@ export const zEnableGateHeaders = z.object({
 });
 
 export const zEnableGatePath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -2885,7 +2890,7 @@ export const zDisableGateHeaders = z.object({
 });
 
 export const zDisableGatePath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -2925,7 +2930,7 @@ export const zDeleteExperimentHeaders = z.object({
 });
 
 export const zDeleteExperimentPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -2938,7 +2943,7 @@ export const zGetExperimentHeaders = z.object({
 });
 
 export const zGetExperimentPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -2953,7 +2958,7 @@ export const zUpdateExperimentHeaders = z.object({
 });
 
 export const zUpdateExperimentPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -2968,7 +2973,7 @@ export const zSetExperimentStatusHeaders = z.object({
 });
 
 export const zSetExperimentStatusPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -2983,7 +2988,7 @@ export const zSetExperimentMetricsHeaders = z.object({
 });
 
 export const zSetExperimentMetricsPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -2996,7 +3001,7 @@ export const zGetExperimentResultsHeaders = z.object({
 });
 
 export const zGetExperimentResultsPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3009,7 +3014,7 @@ export const zGetExperimentTimeseriesHeaders = z.object({
 });
 
 export const zGetExperimentTimeseriesPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 export const zGetExperimentTimeseriesQuery = z.object({
@@ -3026,7 +3031,7 @@ export const zReanalyzeExperimentHeaders = z.object({
 });
 
 export const zReanalyzeExperimentPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3065,7 +3070,7 @@ export const zDeleteConfigHeaders = z.object({
 });
 
 export const zDeleteConfigPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3078,7 +3083,7 @@ export const zGetConfigHeaders = z.object({
 });
 
 export const zGetConfigPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3093,7 +3098,7 @@ export const zUpdateConfigHeaders = z.object({
 });
 
 export const zUpdateConfigPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3108,7 +3113,7 @@ export const zDiscardConfigDraftHeaders = z.object({
 });
 
 export const zDiscardConfigDraftPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3123,7 +3128,7 @@ export const zSaveConfigDraftHeaders = z.object({
 });
 
 export const zSaveConfigDraftPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3138,7 +3143,7 @@ export const zPublishConfigDraftHeaders = z.object({
 });
 
 export const zPublishConfigDraftPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3151,7 +3156,7 @@ export const zListConfigActivityHeaders = z.object({
 });
 
 export const zListConfigActivityPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 export const zListConfigActivityQuery = z.object({
@@ -3170,7 +3175,7 @@ export const zUpdateConfigSchemaHeaders = z.object({
 });
 
 export const zUpdateConfigSchemaPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3209,7 +3214,7 @@ export const zDeleteKillswitchHeaders = z.object({
 });
 
 export const zDeleteKillswitchPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3222,7 +3227,7 @@ export const zGetKillswitchHeaders = z.object({
 });
 
 export const zGetKillswitchPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3237,7 +3242,7 @@ export const zUpdateKillswitchHeaders = z.object({
 });
 
 export const zUpdateKillswitchPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3252,7 +3257,7 @@ export const zUnsetKillswitchSwitchHeaders = z.object({
 });
 
 export const zUnsetKillswitchSwitchPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3267,7 +3272,7 @@ export const zSetKillswitchSwitchHeaders = z.object({
 });
 
 export const zSetKillswitchSwitchPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3282,7 +3287,7 @@ export const zSetKillswitchValueHeaders = z.object({
 });
 
 export const zSetKillswitchValuePath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3321,7 +3326,7 @@ export const zDeleteUniverseHeaders = z.object({
 });
 
 export const zDeleteUniversePath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3336,7 +3341,7 @@ export const zUpdateUniverseHeaders = z.object({
 });
 
 export const zUpdateUniversePath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3374,7 +3379,7 @@ export const zDeleteGateTemplateHeaders = z.object({
 });
 
 export const zDeleteGateTemplatePath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3387,7 +3392,7 @@ export const zGetGateTemplateHeaders = z.object({
 });
 
 export const zGetGateTemplatePath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3402,7 +3407,7 @@ export const zUpdateGateTemplateHeaders = z.object({
 });
 
 export const zUpdateGateTemplatePath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3439,7 +3444,7 @@ export const zDeleteAttributeHeaders = z.object({
 });
 
 export const zDeleteAttributePath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3452,7 +3457,7 @@ export const zGetAttributeHeaders = z.object({
 });
 
 export const zGetAttributePath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3467,7 +3472,7 @@ export const zUpdateAttributeHeaders = z.object({
 });
 
 export const zUpdateAttributePath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3504,7 +3509,7 @@ export const zDeleteMetricHeaders = z.object({
 });
 
 export const zDeleteMetricPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3517,7 +3522,7 @@ export const zGetMetricHeaders = z.object({
 });
 
 export const zGetMetricPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3532,7 +3537,7 @@ export const zUpdateMetricHeaders = z.object({
 });
 
 export const zUpdateMetricPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3569,7 +3574,7 @@ export const zDeleteEventHeaders = z.object({
 });
 
 export const zDeleteEventPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3582,7 +3587,7 @@ export const zGetEventHeaders = z.object({
 });
 
 export const zGetEventPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3597,7 +3602,7 @@ export const zUpdateEventHeaders = z.object({
 });
 
 export const zUpdateEventPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3612,7 +3617,7 @@ export const zApproveEventHeaders = z.object({
 });
 
 export const zApproveEventPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3662,7 +3667,7 @@ export const zGetOpsItemHeaders = z.object({
 });
 
 export const zGetOpsItemPath = z.object({
-    handle: z.string().max(128)
+    handle: zResourceId
 });
 
 /**
@@ -3677,7 +3682,7 @@ export const zUpdateOpsItemHeaders = z.object({
 });
 
 export const zUpdateOpsItemPath = z.object({
-    handle: z.string().max(128)
+    handle: zResourceId
 });
 
 /**
@@ -3692,7 +3697,7 @@ export const zLinkPrToOpsItemHeaders = z.object({
 });
 
 export const zLinkPrToOpsItemPath = z.object({
-    handle: z.string().max(128)
+    handle: zResourceId
 });
 
 /**
@@ -3749,7 +3754,7 @@ export const zDeleteAlertRuleHeaders = z.object({
 });
 
 export const zDeleteAlertRulePath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3764,7 +3769,7 @@ export const zUpdateAlertRuleHeaders = z.object({
 });
 
 export const zUpdateAlertRulePath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3799,7 +3804,7 @@ export const zUpdateProjectHeaders = z.object({
 });
 
 export const zUpdateProjectPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3862,7 +3867,7 @@ export const zUpdateI18nKeyHeaders = z.object({
 });
 
 export const zUpdateI18nKeyPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3897,7 +3902,7 @@ export const zUpdateI18nDraftHeaders = z.object({
 });
 
 export const zUpdateI18nDraftPath = z.object({
-    draftId: z.string().max(128)
+    draftId: zResourceId
 });
 
 /**
@@ -3912,7 +3917,7 @@ export const zPublishI18nProfileHeaders = z.object({
 });
 
 export const zPublishI18nProfilePath = z.object({
-    profileId: z.string().max(128)
+    profileId: zResourceId
 });
 
 /**
@@ -3956,7 +3961,7 @@ export const zGetErrorHeaders = z.object({
 });
 
 export const zGetErrorPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3971,7 +3976,7 @@ export const zUpdateErrorStatusHeaders = z.object({
 });
 
 export const zUpdateErrorStatusPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3984,7 +3989,7 @@ export const zFileErrorTicketHeaders = z.object({
 });
 
 export const zFileErrorTicketPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -3999,7 +4004,7 @@ export const zGetErrorSeriesHeaders = z.object({
 });
 
 export const zGetErrorSeriesPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -4036,7 +4041,7 @@ export const zDeleteConnectorHeaders = z.object({
 });
 
 export const zDeleteConnectorPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -4049,7 +4054,7 @@ export const zGetConnectorHeaders = z.object({
 });
 
 export const zGetConnectorPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -4064,7 +4069,7 @@ export const zUpdateConnectorHeaders = z.object({
 });
 
 export const zUpdateConnectorPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -4079,7 +4084,7 @@ export const zFireConnectorHeaders = z.object({
 });
 
 export const zFireConnectorPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -4092,7 +4097,7 @@ export const zTestConnectorHeaders = z.object({
 });
 
 export const zTestConnectorPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -4107,7 +4112,7 @@ export const zUpdateTriggerConnectorHeaders = z.object({
 });
 
 export const zUpdateTriggerConnectorPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**
@@ -4157,7 +4162,7 @@ export const zRevokeKeyHeaders = z.object({
 });
 
 export const zRevokeKeyPath = z.object({
-    id: z.string().max(128)
+    id: zResourceId
 });
 
 /**

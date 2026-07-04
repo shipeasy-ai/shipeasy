@@ -248,8 +248,7 @@
         required: true
         description: The key's id.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     requestBody:
       required: true
       content:
@@ -397,8 +396,7 @@
         required: true
         description: The draft id to update.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     requestBody:
       required: true
       content:
@@ -456,8 +454,7 @@
         required: true
         description: The profile id to publish.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     requestBody:
       required: true
       content:

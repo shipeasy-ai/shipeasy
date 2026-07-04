@@ -154,8 +154,7 @@
         required: true
         description: Stable opaque alert-rule id (`ar_…`) or the rule's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     requestBody:
       required: true
       content:
@@ -226,8 +225,7 @@
         required: true
         description: Stable opaque alert-rule id (`ar_…`) or the rule's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     responses:
       "200":
         description: Delete an alert rule

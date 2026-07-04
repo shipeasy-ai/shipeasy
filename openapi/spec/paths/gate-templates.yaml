@@ -130,8 +130,7 @@
         required: true
         description: Built-in slug (`country`) or customer template id (`gtpl_…`).
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     responses:
       "200":
         description: Get one gate template
@@ -170,8 +169,7 @@
         required: true
         description: Customer template id (`gtpl_…`) or its `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     requestBody:
       required: true
       content:
@@ -235,8 +233,7 @@
         required: true
         description: Customer template id (`gtpl_…`) or its `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     responses:
       "200":
         description: Delete a gate template

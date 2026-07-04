@@ -149,8 +149,7 @@
         required: true
         description: Stable opaque key id (UUID) returned by `create` / `list`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     responses:
       "200":
         description: Revoke an API key

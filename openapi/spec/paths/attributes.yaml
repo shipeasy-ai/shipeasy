@@ -126,8 +126,7 @@
         required: true
         description: The attribute id.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     responses:
       "200":
         description: Get a targeting attribute
@@ -181,8 +180,7 @@
         required: true
         description: The attribute id.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     requestBody:
       required: true
       content:
@@ -241,8 +239,7 @@
         required: true
         description: The attribute id.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     responses:
       "200":
         description: Archive a targeting attribute

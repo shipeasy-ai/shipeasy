@@ -443,8 +443,7 @@
             "required": true,
             "description": "Stable opaque gate id (`gat_…`) or the gate's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -599,8 +598,7 @@
             "required": true,
             "description": "Stable opaque gate id (`gat_…`) or the gate's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -670,8 +668,7 @@
             "required": true,
             "description": "Stable opaque gate id (`gat_…`) or the gate's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -742,8 +739,7 @@
             "required": true,
             "description": "Stable opaque gate id (`gat_…`) or the gate's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -1130,8 +1126,7 @@
             "required": true,
             "description": "Stable opaque experiment id (`exp_…`) or the experiment's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -1232,8 +1227,7 @@
             "required": true,
             "description": "Stable opaque experiment id (`exp_…`) or the experiment's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -1356,8 +1350,7 @@
             "required": true,
             "description": "Stable opaque experiment id (`exp_…`) or the experiment's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -1427,8 +1420,7 @@
             "required": true,
             "description": "Stable opaque experiment id (`exp_…`) or the experiment's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -1562,8 +1554,7 @@
             "required": true,
             "description": "Stable opaque experiment id (`exp_…`) or the experiment's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -1680,8 +1671,7 @@
             "required": true,
             "description": "Stable opaque experiment id (`exp_…`) or the experiment's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -1777,8 +1767,7 @@
             "required": true,
             "description": "Stable opaque experiment id (`exp_…`) or the experiment's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           },
           {
@@ -1882,8 +1871,7 @@
             "required": true,
             "description": "Stable opaque experiment id (`exp_…`) or the experiment's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -2263,8 +2251,7 @@
             "required": true,
             "description": "Stable opaque config id (`cfg_…`) or the config's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -2419,8 +2406,7 @@
             "required": true,
             "description": "Stable opaque config id (`cfg_…`) or the config's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -2536,8 +2522,7 @@
             "required": true,
             "description": "Stable opaque config id (`cfg_…`) or the config's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -2606,8 +2591,7 @@
             "required": true,
             "description": "Stable opaque config id (`cfg_…`) or the config's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -2710,8 +2694,7 @@
             "required": true,
             "description": "Stable opaque config id (`cfg_…`) or the config's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -2799,8 +2782,7 @@
             "required": true,
             "description": "Stable opaque config id (`cfg_…`) or the config's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -2899,8 +2881,7 @@
             "required": true,
             "description": "Stable opaque config id (`cfg_…`) or the config's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           },
           {
@@ -2991,8 +2972,7 @@
             "required": true,
             "description": "Stable opaque config id (`cfg_…`) or the config's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -3319,8 +3299,7 @@
             "required": true,
             "description": "Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -3410,8 +3389,7 @@
             "required": true,
             "description": "Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -3522,8 +3500,7 @@
             "required": true,
             "description": "Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -3592,8 +3569,7 @@
             "required": true,
             "description": "Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -3694,8 +3670,7 @@
             "required": true,
             "description": "Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -3787,8 +3762,7 @@
             "required": true,
             "description": "Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -4084,8 +4058,7 @@
             "required": true,
             "description": "Stable opaque universe id (`uni_…`) or the universe's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -4183,8 +4156,7 @@
             "required": true,
             "description": "Stable opaque universe id (`uni_…`) or the universe's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -4425,8 +4397,7 @@
             "required": true,
             "description": "Built-in slug (`country`) or customer template id (`gtpl_…`).",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -4484,8 +4455,7 @@
             "required": true,
             "description": "Customer template id (`gtpl_…`) or its `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -4582,8 +4552,7 @@
             "required": true,
             "description": "Customer template id (`gtpl_…`) or its `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -4819,8 +4788,7 @@
             "required": true,
             "description": "The attribute id.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -4895,8 +4863,7 @@
             "required": true,
             "description": "The attribute id.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -4981,8 +4948,7 @@
             "required": true,
             "description": "The attribute id.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -5253,8 +5219,7 @@
             "required": true,
             "description": "Stable opaque metric id (`met_…`) or the metric's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -5335,8 +5300,7 @@
             "required": true,
             "description": "Stable opaque metric id (`met_…`) or the metric's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -5420,8 +5384,7 @@
             "required": true,
             "description": "Stable opaque metric id (`met_…`) or the metric's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -5685,8 +5648,7 @@
             "required": true,
             "description": "Stable opaque event id (`evt_…`) or the event's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -5766,8 +5728,7 @@
             "required": true,
             "description": "Stable opaque event id (`evt_…`) or the event's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -5867,8 +5828,7 @@
             "required": true,
             "description": "Stable opaque event id (`evt_…`) or the event's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -5938,8 +5898,7 @@
             "required": true,
             "description": "Stable opaque event id (`evt_…`) or the event's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -6269,8 +6228,7 @@
             "required": true,
             "description": "Per-project item number (e.g. `7`) or the full ops item id.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -6343,8 +6301,7 @@
             "required": true,
             "description": "Per-project item number (e.g. `7`) or the full ops item id.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -6444,8 +6401,7 @@
             "required": true,
             "description": "Per-project item number (e.g. `7`) or the full ops item id.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -6858,8 +6814,7 @@
             "required": true,
             "description": "Stable opaque alert-rule id (`ar_…`) or the rule's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -6961,8 +6916,7 @@
             "required": true,
             "description": "Stable opaque alert-rule id (`ar_…`) or the rule's `name`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -7193,8 +7147,7 @@
             "required": true,
             "description": "Stable opaque project id. Must match the caller's own project.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -7642,8 +7595,7 @@
             "required": true,
             "description": "The key's id.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -7857,8 +7809,7 @@
             "required": true,
             "description": "The draft id to update.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -7942,8 +7893,7 @@
             "required": true,
             "description": "The profile id to publish.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -8228,8 +8178,7 @@
             "required": true,
             "description": "Stable opaque error id (`err_…`).",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -8317,8 +8266,7 @@
             "required": true,
             "description": "Stable opaque error id (`err_…`).",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -8435,8 +8383,7 @@
             "required": true,
             "description": "Stable opaque error id (`err_…`).",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -8505,8 +8452,7 @@
             "required": true,
             "description": "Stable opaque error id (`err_…`).",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -8834,8 +8780,7 @@
             "required": true,
             "description": "Stable opaque connector id.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -8918,8 +8863,7 @@
             "required": true,
             "description": "Stable opaque connector id.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -9025,8 +8969,7 @@
             "required": true,
             "description": "Stable opaque connector id.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -9094,8 +9037,7 @@
             "required": true,
             "description": "Stable opaque connector id.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -9189,8 +9131,7 @@
             "required": true,
             "description": "Stable opaque connector id.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -9262,8 +9203,7 @@
             "required": true,
             "description": "Stable opaque connector id. Its stored `provider` must match the body's `provider`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -9712,8 +9652,7 @@
             "required": true,
             "description": "Stable opaque key id (UUID) returned by `create` / `list`.",
             "schema": {
-              "type": "string",
-              "maxLength": 128
+              "$ref": "#/components/schemas/ResourceId"
             }
           }
         ],
@@ -10786,6 +10725,12 @@
           "name"
         ],
         "additionalProperties": false
+      },
+      "ResourceId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "description": "A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row."
       },
       "DeleteGateResponse": {
         "type": "object",

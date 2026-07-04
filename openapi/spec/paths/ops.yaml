@@ -176,8 +176,7 @@
         required: true
         description: Per-project item number (e.g. `7`) or the full ops item id.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     responses:
       "200":
         description: Get one queue item
@@ -236,8 +235,7 @@
         required: true
         description: Per-project item number (e.g. `7`) or the full ops item id.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     requestBody:
       required: true
       content:
@@ -305,8 +303,7 @@
         required: true
         description: Per-project item number (e.g. `7`) or the full ops item id.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     requestBody:
       required: true
       content:

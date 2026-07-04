@@ -179,8 +179,7 @@
         required: true
         description: Stable opaque connector id.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     responses:
       "200":
         description: Get a connector
@@ -248,8 +247,7 @@
         required: true
         description: Stable opaque connector id.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     requestBody:
       required: true
       content:
@@ -322,8 +320,7 @@
         required: true
         description: Stable opaque connector id.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     responses:
       "200":
         description: Delete a connector
@@ -372,8 +369,7 @@
         required: true
         description: Stable opaque connector id.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     requestBody:
       required: false
       content:
@@ -439,8 +435,7 @@
         required: true
         description: Stable opaque connector id.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     responses:
       "200":
         description: The test dispatch reached the destination.
@@ -494,8 +489,7 @@
         required: true
         description: Stable opaque connector id. Its stored `provider` must match the body's `provider`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     requestBody:
       required: true
       content:

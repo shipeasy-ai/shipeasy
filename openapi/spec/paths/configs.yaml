@@ -213,8 +213,7 @@
         required: true
         description: Stable opaque config id (`cfg_…`) or the config's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     responses:
       "200":
         description: Get one config
@@ -316,8 +315,7 @@
         required: true
         description: Stable opaque config id (`cfg_…`) or the config's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     requestBody:
       required: true
       content:
@@ -393,8 +391,7 @@
         required: true
         description: Stable opaque config id (`cfg_…`) or the config's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     responses:
       "200":
         description: Delete a dynamic config
@@ -444,8 +441,7 @@
         required: true
         description: Stable opaque config id (`cfg_…`) or the config's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     requestBody:
       required: true
       content:
@@ -513,8 +509,7 @@
         required: true
         description: Stable opaque config id (`cfg_…`) or the config's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     requestBody:
       required: true
       content:
@@ -576,8 +571,7 @@
         required: true
         description: Stable opaque config id (`cfg_…`) or the config's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     requestBody:
       required: true
       content:
@@ -646,8 +640,7 @@
         required: true
         description: Stable opaque config id (`cfg_…`) or the config's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
       - name: limit
         in: query
         required: false
@@ -711,8 +704,7 @@
         required: true
         description: Stable opaque config id (`cfg_…`) or the config's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     requestBody:
       required: true
       content:

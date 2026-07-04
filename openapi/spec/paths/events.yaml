@@ -148,8 +148,7 @@
         required: true
         description: Stable opaque event id (`evt_…`) or the event's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     responses:
       "200":
         description: Get an event
@@ -208,8 +207,7 @@
         required: true
         description: Stable opaque event id (`evt_…`) or the event's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     requestBody:
       required: true
       content:
@@ -277,8 +275,7 @@
         required: true
         description: Stable opaque event id (`evt_…`) or the event's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     responses:
       "200":
         description: Archive an event
@@ -329,8 +326,7 @@
         required: true
         description: Stable opaque event id (`evt_…`) or the event's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     requestBody:
       required: true
       content:

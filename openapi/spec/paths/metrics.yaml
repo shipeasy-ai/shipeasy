@@ -162,8 +162,7 @@
         required: true
         description: Stable opaque metric id (`met_…`) or the metric's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     responses:
       "200":
         description: Get a metric
@@ -221,8 +220,7 @@
         required: true
         description: Stable opaque metric id (`met_…`) or the metric's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     requestBody:
       required: true
       content:
@@ -281,8 +279,7 @@
         required: true
         description: Stable opaque metric id (`met_…`) or the metric's `name`.
         schema:
-          type: string
-          maxLength: 128
+          $ref: ../components/schemas/common.yaml#/ResourceId
     responses:
       "200":
         description: Archive a metric

@@ -1,4 +1,9 @@
 # Cross-cutting shared schemas referenced from multiple resources.
+ResourceId:
+  type: string
+  minLength: 1
+  maxLength: 128
+  description: A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row.
 Env:
   type: string
   enum:
