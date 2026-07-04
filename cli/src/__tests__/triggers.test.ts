@@ -71,4 +71,16 @@ describe("triggerSetupUrl", () => {
       "https://app.shipeasy.ai/dashboard/prj_1/triggers?provider=cursor",
     );
   });
+
+  it("adds secretsDone=1 when the CLI already wrote the Copilot Agents secrets", () => {
+    expect(
+      triggerSetupUrl("https://app.shipeasy.ai", "prj_1", "copilot", { secretsDone: true }),
+    ).toBe("https://app.shipeasy.ai/dashboard/prj_1/triggers?provider=copilot&secretsDone=1");
+  });
+
+  it("omits secretsDone when the flag is false", () => {
+    expect(
+      triggerSetupUrl("https://app.shipeasy.ai", "prj_1", "copilot", { secretsDone: false }),
+    ).toBe("https://app.shipeasy.ai/dashboard/prj_1/triggers?provider=copilot");
+  });
 });

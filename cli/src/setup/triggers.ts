@@ -1,5 +1,7 @@
+import { execSync } from "node:child_process";
 import prompts from "prompts";
 import { tryOpenBrowser } from "../auth/login";
+import { getApiClient } from "../api/client";
 
 /**
  * The automation-trigger step of onboarding — now owned by the CLI (it replaces
@@ -43,10 +45,16 @@ export function triggerSetupUrl(
   appBaseUrl: string,
   projectId: string,
   platform?: TriggerPlatform | null,
+  opts?: { secretsDone?: boolean },
 ): string {
   const base = appBaseUrl.replace(/\/$/, "");
-  const q = platform ? `?provider=${platform}` : "";
-  return `${base}/dashboard/${projectId}/triggers${q}`;
+  const params = new URLSearchParams();
+  if (platform) params.set("provider", platform);
+  // Copilot only: the CLI already wrote the Agents secrets via `gh`, so tell the
+  // wizard to render that step as done (apps/ui triggers-client reads this).
+  if (opts?.secretsDone) params.set("secretsDone", "1");
+  const q = params.toString();
+  return `${base}/dashboard/${projectId}/triggers${q ? `?${q}` : ""}`;
 }
 
 export interface TriggerStepResult {
@@ -116,14 +124,106 @@ export function orderTriggerPlatforms(preferredAgents: string[] = []): OrderedPl
   ];
 }
 
-/** Open (or print) the hosted wizard for one platform — shared by every path. */
-function openWizard(
+/** Is the GitHub CLI installed AND authenticated? Best-effort — any failure
+ *  (missing binary, not logged in) means we can't script the secrets. */
+function ghReady(): boolean {
+  try {
+    execSync("gh auth status", { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** The `owner/repo` slug of the current checkout via `gh`, or null. */
+function ghRepoSlug(): string | null {
+  try {
+    const slug = execSync("gh repo view --json nameWithOwner -q .nameWithOwner", {
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .toString()
+      .trim();
+    return slug || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Push one value into the repo's GitHub "Agents" (Copilot) secret store. The
+ *  value is piped over stdin so it never lands in argv / `ps` output. */
+function ghSetAgentsSecret(name: string, value: string, slug: string): void {
+  execSync(`gh secret set ${name} --app agents --repo ${slug}`, {
+    input: value,
+    stdio: ["pipe", "ignore", "pipe"],
+  });
+}
+
+/**
+ * Copilot only, best-effort: mint a restricted ops key and push it (plus the
+ * project id) into the repo's GitHub "Agents" secret store with the user's `gh`
+ * CLI, so the wizard's "add a restricted key" step is already done. Returns true
+ * ONLY when both secrets were written — any missing/unauthenticated `gh`, no
+ * detectable repo, a declined confirm, or a failed `gh`/mint call is a silent
+ * no-op (the wizard still shows the manual instructions). Never throws.
+ */
+async function provisionCopilotAgentsSecrets(
+  projectId: string,
+  interactive: boolean,
+): Promise<boolean> {
+  if (!ghReady()) return false;
+  const slug = ghRepoSlug();
+  if (!slug) return false;
+
+  if (interactive) {
+    const { go } = await prompts({
+      type: "confirm",
+      name: "go",
+      message: `Set the Copilot "Agents" secrets in ${slug} now via gh (SHIPEASY_CLI_TOKEN + SHIPEASY_PROJECT_ID)?`,
+      initial: true,
+    });
+    if (!go) return false;
+  }
+
+  try {
+    // Restricted ops key — read-only queue + status flips + link-pr + create-only
+    // (never edits/deletes), auto-extends its 7-day expiry on each run.
+    const client = getApiClient(projectId);
+    const created = await client.request<{ key: string }>("POST", "/api/admin/keys", {
+      type: "ops",
+      env: "prod",
+    });
+    ghSetAgentsSecret("SHIPEASY_CLI_TOKEN", created.key, slug);
+    ghSetAgentsSecret("SHIPEASY_PROJECT_ID", projectId, slug);
+    console.log(
+      `\n  ✓ Set Copilot Agents secrets in ${slug}: SHIPEASY_CLI_TOKEN, SHIPEASY_PROJECT_ID.`,
+    );
+    return true;
+  } catch (e) {
+    console.log(
+      `\n  • Couldn't set the Copilot secrets automatically (${
+        (e as Error).message.split("\n")[0]
+      }).\n    The wizard will show the manual steps instead.`,
+    );
+    return false;
+  }
+}
+
+/** Open (or print) the hosted wizard for one platform — shared by every path.
+ *  For Copilot it first tries to script the repo's Agents secrets via `gh`; on
+ *  success the deep link carries `?secretsDone=1` so the wizard marks that step
+ *  complete. */
+async function openWizard(
   appBaseUrl: string,
   projectId: string,
   platform: TriggerPlatform | null,
   dryRun?: boolean,
-): string {
-  const url = triggerSetupUrl(appBaseUrl, projectId, platform);
+  interactive?: boolean,
+): Promise<string> {
+  const secretsDone =
+    platform === "copilot" && !dryRun
+      ? await provisionCopilotAgentsSecrets(projectId, interactive ?? false)
+      : false;
+  const url = triggerSetupUrl(appBaseUrl, projectId, platform, { secretsDone });
   const picked = platform ? TRIGGER_PLATFORMS.find((p) => p.id === platform)?.label : "the picker";
   console.log(
     `\n  Opening the hosted trigger setup${platform ? ` for ${picked}` : ""}:\n\n    ${url}\n`,
@@ -174,7 +274,13 @@ export async function runTriggerStep(opts: TriggerStepOpts): Promise<TriggerStep
   // picker page for an unknown value) and return — no interactive loop.
   if (opts.platform !== undefined) {
     const platform = normalizePlatform(opts.platform);
-    const url = openWizard(opts.appBaseUrl, opts.projectId, platform, opts.dryRun);
+    const url = await openWizard(
+      opts.appBaseUrl,
+      opts.projectId,
+      platform,
+      opts.dryRun,
+      opts.interactive,
+    );
     return {
       enabled: true,
       platform: platform ?? undefined,
@@ -189,7 +295,7 @@ export async function runTriggerStep(opts: TriggerStepOpts): Promise<TriggerStep
     console.log(
       "  • no platform given — opening the picker (pass --trigger-platform to preselect).",
     );
-    const url = openWizard(opts.appBaseUrl, opts.projectId, null, opts.dryRun);
+    const url = await openWizard(opts.appBaseUrl, opts.projectId, null, opts.dryRun, false);
     return { enabled: true, platforms: [], url };
   }
 
@@ -234,7 +340,13 @@ export async function runTriggerStep(opts: TriggerStepOpts): Promise<TriggerStep
     }
 
     const platform = pick === "__other" ? null : normalizePlatform(pick as string);
-    lastUrl = openWizard(opts.appBaseUrl, opts.projectId, platform, opts.dryRun);
+    lastUrl = await openWizard(
+      opts.appBaseUrl,
+      opts.projectId,
+      platform,
+      opts.dryRun,
+      opts.interactive,
+    );
     if (platform && !opened.includes(platform)) opened.push(platform);
     console.log(
       "  The CLI is still running — finish the wizard in your browser, then come back\n" +
