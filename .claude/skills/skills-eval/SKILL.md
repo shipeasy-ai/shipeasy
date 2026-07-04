@@ -111,7 +111,7 @@ and the report land in `skills-eval/.eval-workdir/` (git-ignored).
 | `SHIPEASY_EVAL_TOKEN` | — (**required**) | admin SDK key (`X-SDK-Key`) minted vs the local backend |
 | `SHIPEASY_EVAL_PROJECT_ID` | — (**required**) | project id for the `.shipeasy` binding + admin calls |
 | `SHIPEASY_EVAL_BASE_URL` | `http://localhost:3100` | local admin API base |
-| `SHIPEASY_EVAL_K` | `3` | runs per case (raise to 5 to smooth routing flake) |
+| `SHIPEASY_EVAL_K` | `3` | runs per case |
 | `SHIPEASY_EVAL_THRESHOLD` | `0.67` | pass fraction (0..1) per asserted dimension |
 | `SHIPEASY_EVAL_MODE` | `execute` | `execute` = real MCP calls; `plan` = capture intended tool_use, no side effects |
 | `SHIPEASY_EVAL_MODEL` | `haiku` | `--model`; routing must survive the cheapest model |
@@ -169,8 +169,8 @@ or clobbers your real `~/.config/shipeasy` prod session.
 # Just one skill's cases
 pnpm --filter @shipeasy/skills-eval eval -- experiments
 
-# Smoother scoring (routing is nondeterministic on Haiku)
-SHIPEASY_EVAL_K=5 pnpm --filter @shipeasy/skills-eval eval -- flags
+# Raise K for more samples per case
+SHIPEASY_EVAL_K=3 pnpm --filter @shipeasy/skills-eval eval -- flags
 
 # A/B whether a skill is load-bearing: run once normally, once without it, compare
 # (this is how shipeasy-common, then shipeasy-setup, were shown to be
@@ -187,8 +187,6 @@ SHIPEASY_EVAL_APP_DIR=$PWD/../packages/server-sdks/sdk-go/examples/guide \
 
 ## Interpreting results / gotchas
 
-- **Routing is nondeterministic on Haiku** — a case can fire the skill 0% on one run
-  and 100% on the next. Use `K≥5` before treating a red as real; `K=1` is a smoke test.
 - **Outcome vs process** — a case can create the resource correctly (`state ✓`) yet
   fail because it skipped the asserted `*_list` step (`tools ✗`). The state column is
   the authoritative "did it work"; the tool column measures *how*.
