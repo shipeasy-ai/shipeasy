@@ -66,6 +66,37 @@ describe("scoreCase", () => {
     expect(r.misses.join(" ")).toContain("ops_create | ops_bug");
   });
 
+  it("skillProxy: correct tool without a Skill tool-call passes (read case)", () => {
+    // Skill didn't fire, but the expected tool did and no outcome is asserted.
+    const r = scoreCase(
+      { id: "metrics/list", prompt: "p", expect_skill: "shipeasy-metrics", expect_tools: ["metrics_list"], tools_match: "all" },
+      [run([], ["metrics_list"])],
+      0.67,
+    );
+    expect(r.pass).toBe(true);
+    expect(r.skillProxy).toBe(true);
+    expect(r.skillHitRate).toBe(0); // raw rate stays honest
+    expect(r.misses).toEqual([]);
+  });
+
+  it("skillProxy needs a correct outcome when state is asserted", () => {
+    const c: EvalCase = { ...base, expect_state: { flags: ["x"] } };
+    // tool hit but state WRONG → no proxy, still fails.
+    const bad = scoreCase(c, [run([], ["release_flags_create"])], 0.67, { pass: false, detail: "x MISSING" });
+    expect(bad.skillProxy).toBe(false);
+    expect(bad.pass).toBe(false);
+    // tool hit AND state ok → proxy carries it.
+    const good = scoreCase(c, [run([], ["release_flags_create"])], 0.67, { pass: true, detail: "flags:x (new)" });
+    expect(good.skillProxy).toBe(true);
+    expect(good.pass).toBe(true);
+  });
+
+  it("skillProxy does NOT rescue a case where the tool also missed", () => {
+    const r = scoreCase(base, [run([], [])], 0.67); // no skill, no tool
+    expect(r.skillProxy).toBe(false);
+    expect(r.pass).toBe(false);
+  });
+
   it("'any' semantics: one of the listed tools suffices", () => {
     const c: EvalCase = {
       ...base,

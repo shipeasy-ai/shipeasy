@@ -38,10 +38,16 @@ export function renderReport(results: CaseResult[], threshold: number, k: number
   return lines.join("\n");
 }
 
-/** Skill column shows "—" for a skill-less case (e.g. onboarding → CLI). */
+/**
+ * Skill column shows "—" for a skill-less case (e.g. onboarding → CLI), or
+ * "prox" when the Skill tool didn't fire but tool+outcome carried the case
+ * (see CaseResult.skillProxy).
+ */
 function skillCell(r: CaseResult): string {
   const hasSkill = !!r.case.expect_skill || !!r.case.expect_skills?.length;
-  return hasSkill ? cell(r.skillHitRate) : "  —  ";
+  if (!hasSkill) return "  —  ";
+  if (r.skillProxy) return "prox ";
+  return cell(r.skillHitRate);
 }
 
 function toolCell(r: CaseResult): string {

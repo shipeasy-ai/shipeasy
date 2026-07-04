@@ -53,8 +53,26 @@ export function scoreCase(
   const askHitRate = askHits / n;
   const cleanRate = clean / n;
 
+  // Outcome/state is verified once per case (post-run server query), not per run.
+  const checksState = !!(c.expect_state || c.expect_no_duplicate);
+  const statePass = checksState ? (state?.pass ?? false) : null;
+
+  // "tool + correct outcome = pass": headless Haiku often acts on a skill's
+  // guidance (calling the right MCP tool, landing the right resource) without
+  // spending a literal Skill tool-call — common for simple one-tool reads and
+  // creates. When the expected skill didn't fire but the expected tools DID and
+  // the outcome is correct, treat the skill dimension as satisfied by proxy.
+  const outcomeOk = checksState ? statePass === true : true;
+  const leanable = c.expect_tools.length > 0 || checksState;
+  const skillProxy =
+    wantSkills.length > 0 &&
+    skillHitRate < threshold &&
+    toolHitRate >= threshold &&
+    outcomeOk &&
+    leanable;
+
   const misses: string[] = [];
-  if (wantSkills.length && skillHitRate < threshold)
+  if (wantSkills.length && skillHitRate < threshold && !skillProxy)
     misses.push(
       `skills [${wantSkills.join(", ")}] fired ${pct(skillHitRate)} (< ${pct(threshold)}); saw [${uniq(runs.flatMap((r) => r.skills)).join(", ") || "none"}]`,
     );
@@ -75,8 +93,6 @@ export function scoreCase(
   if (cleanRate < 1)
     misses.push(`forbidden tool called in ${pct(1 - cleanRate)} of runs`);
 
-  const checksState = !!(c.expect_state || c.expect_no_duplicate);
-  const statePass = checksState ? (state?.pass ?? false) : null;
   if (statePass === false)
     misses.push(`server state wrong after run — ${state?.detail || "resource not found"}`);
 
@@ -84,6 +100,7 @@ export function scoreCase(
     case: c,
     runs,
     skillHitRate,
+    skillProxy,
     toolHitRate,
     argHitRate,
     textHitRate,

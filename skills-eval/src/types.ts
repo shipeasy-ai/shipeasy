@@ -127,6 +127,14 @@ export interface CaseResult {
   runs: Observation[];
   /** Fraction of runs where every expected skill fired. */
   skillHitRate: number;
+  /**
+   * True when the expected skill did NOT fire as a Skill tool-call, but the run
+   * satisfied the expected MCP tools and (if asserted) the outcome/state — so
+   * the skill's routing is treated as satisfied by proxy. Headless Haiku often
+   * acts on a skill's guidance without spending a Skill tool-call for simple
+   * one-tool reads/creates. "tool + correct outcome = pass."
+   */
+  skillProxy: boolean;
   /** Fraction of runs where the tool expectation was satisfied. */
   toolHitRate: number;
   /** Fraction of runs where every arg assertion held. */
