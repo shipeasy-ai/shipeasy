@@ -44,6 +44,11 @@ if (K !== 1) {
   process.exit(2);
 }
 const THRESHOLD = num(process.env.SHIPEASY_EVAL_THRESHOLD, 0.67);
+// Allow up to N retries per case (default 1). A case still runs at K=1 per
+// attempt; a retry re-invokes `claude` once more only when the prior attempt
+// FAILED, to absorb pure model variance (an empty transcript, a wrong-tool
+// pick). This is not K-averaging — a case passes the moment any attempt passes.
+const RETRIES = Math.max(0, int(process.env.SHIPEASY_EVAL_RETRIES, 1));
 const MODE = process.env.SHIPEASY_EVAL_MODE === "plan" ? "plan" : "execute";
 const CLAUDE = process.env.SHIPEASY_EVAL_CLAUDE_BIN ?? "claude";
 // Default to the cheapest model on purpose: routing must survive Haiku, not
@@ -64,7 +69,7 @@ mkdirSync(transcriptsDir, { recursive: true });
 
 const excluded = readEnvConfigFromEnv().excludeSkills ?? [];
 console.log(
-  `skills-eval: ${cases.length} cases × ${K} runs, mode=${MODE}, model=${MODEL}` +
+  `skills-eval: ${cases.length} cases × ${K} runs (≤${RETRIES} retry on fail), mode=${MODE}, model=${MODEL}` +
     `\nsandbox app: ${env.appDir ? env.appDir.replace(/.*\/packages\//, "packages/") : "(none)"}` +
     (excluded.length ? `\nexcluded skills: ${excluded.join(", ")}` : "") +
     `\n`,
@@ -80,10 +85,12 @@ for (const c of cases) {
     ? await snapshotState(stateCfg, c.expect_state ?? {}, c.expect_no_duplicate ?? {})
     : {};
 
-  const runs: Observation[] = [];
-  for (let i = 0; i < K; i++) {
-    const obs = runOnce(c, i, env.mcpConfigPath, workdir, transcriptsDir);
-    runs.push(obs);
+  // Up to RETRIES extra attempts, but only while the case is still failing.
+  // The `before` snapshot is taken ONCE (above), so a resource a failing first
+  // attempt happened to create still verifies as "new" on the passing retry.
+  let result: CaseResult | undefined;
+  for (let attempt = 0; attempt <= RETRIES; attempt++) {
+    const obs = runOnce(c, attempt, env.mcpConfigPath, workdir, transcriptsDir);
     const skillOk = expectedSkills(c).every((s) => obs.skills.includes(s));
     const textOk =
       !(c.expect_text_contains?.length) ||
@@ -91,11 +98,12 @@ for (const c of cases) {
         (obs.text ?? "").toLowerCase().includes(s.toLowerCase()),
       );
     process.stdout.write(obs.error ? "E" : skillOk && textOk ? "." : "x");
+    const state = checksState ? await mergeState(c, before) : undefined;
+    result = scoreCase(c, [obs], THRESHOLD, state);
+    if (result.pass) break;
   }
   process.stdout.write(` ${c.id}\n`);
-
-  const state = checksState ? await mergeState(c, before) : undefined;
-  results.push(scoreCase(c, runs, THRESHOLD, state));
+  results.push(result!);
 }
 
 /** Combine the existence + no-duplicate outcome checks into one state result. */

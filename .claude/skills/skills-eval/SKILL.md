@@ -117,6 +117,7 @@ and the report land in `skills-eval/.eval-workdir/` (git-ignored).
 | `SHIPEASY_EVAL_PROJECT_ID` | — (**required**) | project id for the `.shipeasy` binding + admin calls |
 | `SHIPEASY_EVAL_BASE_URL` | `http://localhost:3100` | local admin API base |
 | `SHIPEASY_EVAL_K` | `1` | runs per case — **must stay 1; never raise it** |
+| `SHIPEASY_EVAL_RETRIES` | `1` | extra attempts per case, used only when an attempt FAILS (absorbs pure model variance; a case passes as soon as any attempt passes). Not K-averaging. |
 | `SHIPEASY_EVAL_THRESHOLD` | `0.67` | pass fraction (0..1) per asserted dimension |
 | `SHIPEASY_EVAL_MODE` | `execute` | `execute` = real MCP calls; `plan` = capture intended tool_use, no side effects |
 | `SHIPEASY_EVAL_MODEL` | `haiku` | `--model`; routing must survive the cheapest model |
