@@ -1,6 +1,6 @@
 ---
 name: shipeasy-ops
-description: File, triage, and manage the Shipeasy operational inbox — bug reports, feature requests, and auto-filed production-error/alert tickets. Trigger on "bug report", "feature request", "feedback", "ops inbox", "operational queue", "fix open bugs", "burn down the queue".
+description: File, triage, and manage the Shipeasy operational inbox — bug reports, feature requests, and auto-filed production-error/alert tickets. Trigger on "file/log/report a bug", "file this as a bug", "log a feature request", "bug report", "feature request", "feedback", "ops inbox", "operational queue", "what's open in the bug/feature queue", "triage the inbox". (To actually work items down one at a time, see shipeasy-ops-work.)
 user-invocable: true
 ---
 
@@ -36,9 +36,20 @@ non-obvious flags are shown.
 `<handle>` = the item's per-project `number` (e.g. `7`) **or** its full id — the
 API resolves either.
 
-**Before filing a bug or feature, `ops_list` first** and check the same issue
-isn't already in the queue. If it is, point to (or update) the existing item
-instead of filing a duplicate.
+## Filing a bug or feature — two steps
+
+Both a terse "log that as a bug" and a detailed context dump follow the same two
+steps, ending in the file call:
+
+1. **`ops_list`** — scan the queue for the same issue (match on the described
+   symptom). This is the dedup check.
+2. **File the complete report** — `ops_bug` for a bug (or `ops_feature` for a
+   feature request), with a full title + actual result + steps to reproduce +
+   page URL. When step 1 surfaces a matching item, augment that one with
+   `ops_update` and point the user to it; otherwise file the new one.
+
+A "can you log/file/report this as a bug" ask is a request to create the item,
+so carry through to the `ops_bug` (or `ops_update`) write.
 
 ## Status — the convention the schema doesn't state
 

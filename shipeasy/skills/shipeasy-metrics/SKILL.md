@@ -1,6 +1,6 @@
 ---
 name: shipeasy-metrics
-description: Create and inspect Shipeasy custom event metrics (deletion is UI-only). Trigger on "create metric", "track metric", "metric DSL", "event metric", "success metric definition", "what metrics do we have".
+description: Answers "what are we measuring / tracking", "what metrics do we have", "list/show our metrics" — the live metric definitions live in the Shipeasy backend, so read them with metrics_list (the backend is the source of truth for what a project measures). Also creates and inspects custom event metrics (deletion is UI-only). Trigger on any question about what is being measured/tracked, plus "create/track/measure <X>", "measure how many/how often <X> happens", "count <event>", "metric DSL", "event metric", "success metric definition".
 user-invocable: true
 ---
 
@@ -49,13 +49,21 @@ p99(req_dur{route=~"/api/.*"}, ms) by (route, status)
 Run `shipeasy metrics grammar` (MCP: `metrics_grammar`) for the full BNF,
 aggregation list, and more examples.
 
-## Workflow — create a metric (analyze → propose → instrument → create)
+## Workflow — create a metric (analyze → decide → instrument → create)
 
 When the user says *"create a metric for <X>"* (or anything semantically
-equivalent — "track conversion on Y", "measure how often Z happens"),
-**do not jump straight to `shipeasy metrics create`.** Run the full
-analyze-and-suggest path below; the user almost never names the right
-event up front.
+equivalent — "track conversion on Y", "measure how many/how often Z happens"),
+run the full **analyze-and-decide** path below — a thorough analysis is what
+produces the *right* metric, since the user rarely names the exact event up
+front. Two rules always hold: **(1) reuse before creating** — list events and
+metrics first (`metrics_events_list`, `metrics_list`) and use an existing one
+when it fits; **(2) carry a clear intent through to creation** — for a concrete
+ask like "measure how many checkouts complete", analyze the candidates, pick the
+best event name + aggregation, create the event (`metrics_events_create`) and
+the metric (`metrics_create`), then report what you built and offer to adjust.
+Reserve a single clarifying question for the case where the event or aggregation
+stays genuinely ambiguous after analysis — a "measure X" ask is a request to
+*create* the metric, so follow through to creation.
 
 ### 0. Scope the metric
 
@@ -64,25 +72,26 @@ Read the user's request. Translate into one sentence of the form
 you can't fill in the blanks, ask the user **one** clarifying question
 (2–4 options framed around concrete app surfaces, not generic phrasing).
 
-### 1. Analyze the project for candidate events
+### 1. Analyze what already exists (MCP tools — always do this first)
 
-Two parallel searches:
-
-```bash
-# (a) Already-instrumented events — zero new code if one fits.
-grep -rnE 'flags\.track\(\s*["'"'"']' --include='*.ts' --include='*.tsx' \
-  --include='*.js' --include='*.jsx' src apps packages 2>/dev/null | head -50
-
-# (b) Already-registered events + existing metrics (reuse before creating).
-shipeasy metrics events list     # MCP: metrics_events_list — don't re-register an event
-shipeasy metrics list            # MCP: metrics_list — don't duplicate an existing metric
+```
+metrics_events_list   # already-registered events — reuse one that fits
+metrics_list          # existing metrics — reuse one that already covers the ask
 ```
 
-Always check both lists first: reuse an existing event/metric when one fits
-rather than creating a duplicate.
+Always call **both** before creating, and reuse an existing event/metric when
+one fits. This dedup check comes first because the MCP tools are always
+available (a shell may be too).
 
-Then heuristically find *uninstrumented* candidates — places where a
-new `flags.track(...)` call would naturally belong:
+Then, **when a shell is available**, deepen the analysis: find *uninstrumented*
+candidates — places where a new `track(...)` call would naturally belong. (When
+Bash is available, run the scan; otherwise pick a sensible event name straight
+from the request.)
+
+```bash
+grep -rnE 'flags\.track\(' src apps packages 2>/dev/null | head -50   # optional
+```
+Candidate sites — places where a new `track(...)` call would naturally belong:
 
 - Form submit handlers (`onSubmit`, `<form action=`).
 - Click handlers on primary CTAs (`onClick` on buttons whose copy
@@ -93,10 +102,15 @@ new `flags.track(...)` call would naturally belong:
 
 For each candidate, capture `file:line` and the user-visible action.
 
-### 2. Propose to the user
+### 2. Decide: create autonomously, or ask when genuinely ambiguous
 
-Ask the user, with 2–4 options. Each option label is the
-*event name + one-line behaviour*. Include in the option description:
+When the request clearly implies the action to measure (e.g. "how many checkouts
+complete" → a `checkout_completed` event, `count_users`), **proceed to create**
+(step 3/4) with the obvious event + aggregation, then report what you built and
+offer to adjust. Reserve the clarifying question for when the analysis leaves the
+event or aggregation genuinely open — then ask the user **one** question with
+2–4 options. Each option label is the *event name + one-line behaviour*. Include
+in the option description:
 
 - whether the event already exists (no new instrumentation) or needs to
   be added (and where),
@@ -163,6 +177,11 @@ In that case go straight to phase 4. Otherwise, run the full flow —
 metrics over the wrong event are the most common avoidable mistake.
 
 ## Other operations
+
+**"What are we measuring / tracking?" / "what metrics do we have?"** → call
+`metrics_list` and report the rows. The metric definitions live in the backend
+(the source of truth for what a project measures), so `metrics_list` is the
+authoritative answer.
 
 Listing, showing, and the DSL grammar run through the `metrics_list` /
 `metrics_show` / `metrics_grammar` MCP tools or the `shipeasy metrics …` CLI.

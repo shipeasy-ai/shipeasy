@@ -1,6 +1,6 @@
 ---
 name: shipeasy-ops-work
-description: Burn down the operational queue — the unified feedback table of bugs, feature requests, and auto-filed error/alert tickets — one item at a time, each as its own atomic diff. With --pr, commits each item on its own branch and opens one pull request PER item, each closing its connected GitHub issue and flipping the item to ready_for_qa (the mode the scheduled trigger uses).
+description: Burn down the operational queue — the unified feedback table of bugs, feature requests, and auto-filed error/alert tickets — one item at a time, each as its own atomic diff. Trigger on "burn down the queue", "work the (ops) queue", "start working the open bugs", "pick up/work the top/next/highest-priority item", "clear the backlog one item at a time", "work items down", "--pr per item". With --pr, commits each item on its own branch and opens one pull request PER item, each closing its connected GitHub issue and flipping the item to ready_for_qa (the mode the scheduled trigger uses).
 argument-hint: "[--type bug|feature|error|alert|measure_plan|all] [--status <s>] [--priority high|critical] [--limit <N>] [--pr] [--dry-run]"
 user-invocable: true
 ---

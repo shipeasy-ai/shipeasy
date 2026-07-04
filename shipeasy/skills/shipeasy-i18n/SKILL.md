@@ -1,6 +1,6 @@
 ---
 name: shipeasy-i18n
-description: Shipeasy translations end-to-end — wrap user-visible strings with i18n.t(), create keys in the backend via MCP, and publish them to CDN; also migrate an existing i18n library (react-i18next, react-intl, lingui, next-intl, raw-i18next) to Shipeasy, and machine-translate a project into a new locale. Trigger on "translate", "i18n", "add a key", "make this translatable", "new locale", "migrate i18n", or any request involving user-facing copy changes.
+description: Owns ALL user-facing copy in a Shipeasy project — creating, changing, and translating on-screen strings. Changing existing copy is an i18n task: the visible string is backed by an i18n key, so when asked to change/reword/rename a visible label or message (e.g. 'change "Welcome back" to "Welcome"', 'update the button text', 'rename this heading', 'fix the wording on the landing page'), route here and edit the i18n key that backs it. Also: wrap new strings for translation, create/find/update keys via MCP, publish to CDN, migrate an existing i18n library (react-i18next, react-intl, lingui, next-intl, raw-i18next), and machine-translate into a new locale. Trigger on "change/edit/reword/rename the copy/text/wording/label/heading/button", "change X to say Y", "update the text on <page>", "translate", "i18n", "add a key", "make this translatable", "new locale", "migrate i18n", or any request that changes what a user reads on screen.
 argument-hint: "[migrate <library> | translate <target-profile> [--from <source>] [--glossary <term=translation,…>]]"
 user-invocable: true
 ---
@@ -22,13 +22,24 @@ module with `shipeasy install i18n` (turns on `translations`, creates the
 | --------------------------------------------------------------------------- | ------------------------------------------ | -------------------------- |
 | Wrap new/changed copy — `t()` call form, key naming, render-time/attr rules | code edit / `shipeasy i18n extract`        | <references/wrapping.md>   |
 | Create, find, update, or publish keys and locale profiles                    | `i18n_keys_*` / `i18n_profiles_*` (or CLI) | <references/admin-keys.md> |
-| Change one live string in one shot                                           | `i18n_keys_set` (upsert, ships itself)     | <references/admin-keys.md> |
+| Change EXISTING on-screen copy (you know the current text, need its key)     | `i18n_keys_list` to find the key by its current value, THEN `i18n_keys_set`/`i18n_keys_update` | <references/admin-keys.md> |
 | Migrate from react-i18next / react-intl / lingui / next-intl / raw-i18next  | `shipeasy i18n migrate <library>`          | <references/migrate.md>    |
 | Machine-translate the project into a new locale                              | i18n MCP tools + in-agent translation      | <references/translate.md>  |
 
 Read the relevant reference file before wrapping strings or calling any i18n
 tool. Tool argument semantics live in the tool descriptions themselves — the
 references carry only what the tool docs don't (workflow order, code rules).
+
+**Changing text you can see, to find its key** (e.g. "change 'Welcome back' to
+'Welcome'"): first `i18n_keys_list` and match the current text
+to its key, then `i18n_keys_set`/`i18n_keys_update` the new value (set upserts +
+ships). When a key already exists, that key IS the string — updating it is the
+change. When no key backs the text yet, treat it as make-translatable (create
+the key first, then set the value).
+
+**Making a string translatable** creates its backing key via `i18n_keys_set`
+(MCP) alongside the code wrap. The source-scan codemod is CLI-only, so on an
+MCP-only surface, `i18n_keys_set` is the way to register the key directly.
 
 ## How to act: MCP tools for admin keys, CLI for codemods / fs-AST
 

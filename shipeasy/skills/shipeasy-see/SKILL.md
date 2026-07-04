@@ -1,12 +1,21 @@
 ---
 name: shipeasy-see
 description: >
-  Expert guidance on required exception handling and error reporting in code
-  that uses @shipeasy/sdk. Relevant for try/catch blocks, error handling,
-  migrating console.error to see(), writing consequences, and the errors
-  primitive. If your task involves exceptions, errors, error logging, or the
+  Load this skill FIRST — before locating or editing any code — whenever the
+  task is to log, report, or handle an error/exception: it carries the required
+  see() call form, so read it before writing the catch. Required guidance for
+  exception handling and error reporting in code that uses the Shipeasy SDK (any
+  language). Relevant for try/catch (or the language's equivalent) blocks, error
+  handling, a terse "log this error" / "report this error" on a caught error or
+  a swallowed catch, migrating a native error log (console.error, logger.error,
+  print/puts on an exception) to see(), writing consequences, and the errors
+  primitive. If your task involves
+  exceptions, errors, logging or reporting a caught error, or the
   see framework (see(), causes_the, Violation, ControlFlowException), this
-  Skill provides best practices and implementation support.
+  Skill provides best practices and implementation support. It also covers
+  reading back how often a reported error fires — "error frequency", "how many
+  times does this error happen/fail", "how noisy is this", "in the last 24h" —
+  via the dedicated tracked-error read tools.
 user-invocable: false
 ---
 
@@ -388,6 +397,30 @@ normalized away, so `order 123 failed` and `order 999 failed` fold into one
 issue. The consequence participates on purpose: the same TypeError harming two
 different product surfaces is two distinct issues. Implication: renaming a
 consequence re-fingerprints the issue (the old row stops growing).
+
+## Reading How Often an Error Fires
+
+Instrumenting is half the loop — you also read back how noisy a reported error
+is. When asked "how many times does this error happen / fail", "how often does
+this fire", "error frequency", or "how many times in the last 24h", read the
+answer straight from the analytics. Every `see()` occurrence is folded into a
+tracked-error row keyed by fingerprint, carrying a running `count` plus
+`firstSeenAt` / `lastSeenAt`. Read it back with the dedicated tracked-error
+tools — the errors primitive's own read surface (distinct from the ops queue):
+
+- `errors_list` — list tracked errors (filter by `status`, free-text `q`); each
+  row carries `count` and `lastSeenAt`. Match the row by its consequence /
+  message / `errorType` and read `count` for the total occurrences.
+- `errors_series { id, from, to, bucket }` — the occurrence timeseries for one
+  error id, for a "last 24h, by hour" breakdown once you have the id from
+  `errors_list`.
+
+This is a pure read: `errors_list` / `errors_series` answer the frequency
+question directly, so the tracked-error row stays as-is.
+
+```
+mcp tool: errors_list { "q": "checkout charge" }
+```
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: shipeasy-experiments
-description: Design, launch, monitor, and stop Shipeasy A/B experiments. Trigger on "A/B test", "experiment", "split test", "holdout", "metric significance".
+description: Design, launch, monitor, and stop Shipeasy A/B experiments. Trigger on "A/B test", "experiment", "split test", "holdout", "experiment results", "is <experiment> significant (yet)", "metric significance".
 user-invocable: true
 ---
 
@@ -84,11 +84,18 @@ run the full analyze → propose → provision workflow in the next section firs
 
 ## Workflow — design a new experiment (analyze → propose → provision)
 
-When the user says *"set up an A/B test for <X>"* (or anything equivalent)
-**without** naming the variation point, the event, and the metric, drive the
-whole "design a new A/B test" flow from analysis to draft. The user does **not**
-know yet which event or metric to use — your job is to look at the codebase,
-propose options, confirm with the user, then provision everything.
+When the user says *"A/B test <X>"* / *"set up an A/B test for <X>"* (or anything
+equivalent), drive the whole "design a new A/B test" flow from analysis to a
+provisioned draft. Analyze the codebase to pick the variation point, the event,
+and the success metric. For a clear ask (e.g. "A/B test a new green checkout
+button"), choose the obvious candidates and **provision the whole chain**:
+`metrics_events_list` + `metrics_list` to reuse what already fits, then
+`metrics_events_create` + `metrics_create` for anything missing, then
+`release_experiments_list` + `release_experiments_create` for the draft — and
+report what you built with an offer to adjust. Reserve a clarifying question for
+when the surface, event, or metric stays genuinely open after analysis. A bare
+"A/B test X" is a request to provision the experiment, so carry through to
+`release_experiments_create`.
 
 Prereqs: `.shipeasy` bound, and the `shipeasy` MCP server available — this flow
 instruments events and drafts the experiment through it
@@ -248,6 +255,22 @@ eligibility.
 This creates a **draft**. Start it with `release_experiments_start { "id": … }`
 (CLI: `shipeasy release experiments start <name>`). For the metric query DSL,
 run `shipeasy metrics grammar` (or see the `shipeasy-metrics` skill).
+
+## Start or read an experiment referenced by name
+
+An experiment is named in the request, so resolve it first, then act — both
+steps run every time, because the list gives the next call its `id`:
+
+1. **Find it.** `release_experiments_list` and match the user's name to read
+   its `id`.
+2. **Act on that id:**
+   - **Start** ("start the X experiment") → `release_experiments_start { id }`.
+   - **Read results** ("is X significant yet", "how is X doing") →
+     `release_experiments_results { id }`.
+
+So "start the checkout-button experiment" ends in a `release_experiments_start`
+call, and "is the checkout-button experiment significant yet" ends in a
+`release_experiments_results` call — each on the id the list resolved.
 
 ## Reading from the SDK
 

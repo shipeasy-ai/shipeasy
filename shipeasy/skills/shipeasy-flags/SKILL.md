@@ -1,6 +1,6 @@
 ---
 name: shipeasy-flags
-description: Create, evaluate, and roll out Shipeasy feature gates and dynamic configs. Trigger on "feature flag", "feature gate", "rollout", "kill switch", "dynamic config", "remote config".
+description: Create, evaluate, and roll out Shipeasy feature gates and dynamic configs. Trigger on "feature flag", "feature gate", "rollout", "release/launch/ship a feature", "roll out to <country/region/%>", "which features are gated", "list flags/gates", "flag/targeting templates", "kill switch", "dynamic config", "remote config".
 user-invocable: true
 ---
 
@@ -89,13 +89,21 @@ Reading a config:
 
 ## Rollout playbook
 
-1. Create the gate at `rollout_percent: 0` with the new code path gated on it.
+1. Create the gate (`release_flags_create`) at the starting `rollout_percent`
+   with the new code path gated on it.
 2. Ship to production. Both code paths exist; nothing changes.
-3. Ramp: `5 → 25 → 50 → 100`, watching error/latency dashboards.
+3. Ramp with `release_flags_update` — raise `rollout_percent` (`5 → 25 → 50 →
+   100`), watching error/latency dashboards.
 4. Once at 100% for at least one full deploy cycle, **remove the gate from
-   code**. Configs/gates are not a substitute for releases; leaving them
-   in forever creates branching that rots.
+   code**. Configs/gates are a stepping stone to a release; retiring them keeps
+   branching from rotting.
 5. Archive the gate after code removal.
+
+A one-shot rollout ask carries the ramp inside it — "put X behind a flag at 10%,
+then ramp it to 50%", or "gradually roll out, 5% now then 100%" — so it is two
+calls: `release_flags_create` at the starting percent, then `release_flags_update`
+to raise it. The ramp is part of the ask, so carry through to the
+`release_flags_update`.
 
 ## Kill switch pattern
 
@@ -110,9 +118,12 @@ from the SDK like this:
 **Per-call-site switches.** A kill switch can carry a `switches` map of named
 boolean overrides on top of its flat value — e.g. `switches: { eu_checkout:
 false }` gives an independent toggle that kills just that site/region/feature
-while the rest stays live. Set it on `release_killswitch_create`, or flip a
-single one later with `release_killswitch_set` (`switchKey` + `env`). Reach for
-this when the ask is "kill switch with a separate toggle for X".
+while the rest stays live. **Setting up a new kill switch that has a named
+toggle → include the `switches` map in the `release_killswitch_create` call**
+(the create carries the whole switch definition). Use `release_killswitch_set`
+(`switchKey` + `env`) later to flip a single existing switch. So "a kill switch
+with a separate toggle for X" is one `release_killswitch_create` with
+`switches: { X: … }`.
 
 ## Hard rules
 

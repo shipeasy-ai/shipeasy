@@ -1,6 +1,6 @@
 ---
 name: shipeasy-alerts
-description: Create and manage Shipeasy metric-threshold alert rules — the definitions the analysis cron evaluates to raise an alert when a metric crosses a threshold. Trigger on "alert rule", "alert me when", "metric threshold", "raise an alert", "notify when <metric> exceeds", "create/update/list alert rules", "alerting".
+description: Create and manage Shipeasy metric-threshold alert rules — the definitions the analysis cron evaluates to raise an alert when a metric crosses a threshold. Trigger on "alert rule", "alert me when", "ping me when/if <metric>", "metric threshold", "raise an alert", "notify when <metric> exceeds", "create/update/list alert rules", "mute/pause/snooze an alert", "disable/enable an alert", "change/bump/retune an alert threshold", "what alerts do we have", "alerting".
 user-invocable: true
 ---
 
@@ -27,25 +27,39 @@ them from memory.
 
 ## Create
 
-1. Resolve the metric first if the user gave a name — `shipeasy metrics list`
-   to confirm it exists (the tool accepts a metric id **or** name). If the metric
-   (or its underlying event) doesn't exist yet, create those first.
-2. **List existing alert rules** with `ops_alerts_list` and check none already
-   watches this metric+threshold — reuse or update it instead of creating a
-   duplicate.
-3. Only if nothing matches, call `ops_alerts_create { name, metricId, comparator,
+An alert watches a metric, and a metric rolls up an event — so build the whole
+chain when a piece is missing, and carry through to the alert. A "ping me when
+X exceeds Y" ask is a request to create the rule, so follow the flow to the
+final `ops_alerts_create` call:
+
+1. **Analyze the metric.** `metrics_events_list` + `metrics_list` (the tool
+   accepts a metric id **or** name). When a fitting metric already exists, reuse
+   it. When it's missing, build it first: `metrics_events_create` for the event
+   (e.g. a `checkout_error` event) and `metrics_create` for the metric (e.g. an
+   error-rate metric) — see the `shipeasy-metrics` skill for the DSL.
+2. **Analyze existing rules.** `ops_alerts_list` — reuse or retune a rule that
+   already watches this metric+threshold when one is found.
+3. **Create the rule.** `ops_alerts_create { name, metricId, comparator,
    threshold, … }` (or `shipeasy ops alerts create --name … --metric-id <id|name>
-   --comparator gt --threshold 50`).
+   --comparator gt --threshold 50`). This call is the culmination of the ask.
 
-## List & update
+## Pause, retune, or change a rule
 
-`ops_alerts_list` (or `shipeasy ops alerts list`) returns the rule
-*definitions*; the `id` (unique id-prefix or unique `name`) is what update takes.
-For the alerts these rules have *raised*, use the `shipeasy-ops` skill (`ops_list` /
-`shipeasy ops`, `--type alert`).
+Alerts are referenced by name, so resolve the id first, then apply the change —
+both steps run every time, because the list gives the update its `id`:
 
-`ops_alerts_update { "id": …, … }` retunes a rule; `enabled: false` pauses
-evaluation without deleting.
+1. **Find it.** `ops_alerts_list` (or `shipeasy ops alerts list`) returns the
+   rule *definitions*; match the user's name and read its `id`.
+2. **Apply the change** with `ops_alerts_update { "id": …, … }`:
+   - **Pause / mute / snooze** → `enabled: false` (evaluation stops, the rule
+     stays; `enabled: true` re-enables it).
+   - **Retune / bump the threshold** → `threshold: <new>` on the same rule.
+
+A "mute the X alert" or "bump the X alert to Y" ask always ends in an
+`ops_alerts_update` call on the id the list resolved.
+
+For the alerts these rules have *raised* (triaging, working them), use the
+`shipeasy-ops` skill (`ops_list` / `shipeasy ops`, `--type alert`).
 
 ## When to use this skill
 
