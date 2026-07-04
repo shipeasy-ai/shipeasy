@@ -18,6 +18,16 @@ import { handleUpsertProject } from "./tools/projects/upsert.js";
 import { GENERATED_DISPATCH, GENERATED_MUTATES, CUSTOM_DISPATCH } from "./tools/registry.js";
 import { getGeneratedClient } from "./tools/_gen-runtime.js";
 import { notAuthenticated, notBound, ok, apiErr } from "./util/api-client.js";
+import {
+  LIST_TOKEN_PARAM,
+  guardedCreateFamily,
+  listFamily,
+  listMintsToken,
+  listGuardError,
+  listTokenBlock,
+  mintListToken,
+  verifyToken,
+} from "./tools/list-guard.js";
 
 const SERVER_NAME = "shipeasy";
 const SERVER_VERSION = "0.1.0";
@@ -58,8 +68,28 @@ export async function startStdioServer(): Promise<void> {
       const handle = await getGeneratedClient();
       if (!handle) return notAuthenticated();
       if (GENERATED_MUTATES[toolName] && !handle.bound) return notBound(handle);
+      const args = params.arguments ?? {};
+
+      // List-before-create guard (MCP-only): a guarded create must carry a fresh
+      // `listToken` minted by its sibling `*_list` — proof the caller checked for
+      // an existing match. The token is never read by the generated dispatch
+      // (which picks only the named body/query args), so it can't reach the wire.
+      const createFamily = guardedCreateFamily(toolName);
+      if (createFamily) {
+        const verdict = verifyToken(createFamily, args[LIST_TOKEN_PARAM], Date.now());
+        if (verdict !== "ok") return listGuardError(createFamily, verdict);
+      }
+
       try {
-        return ok(await genDispatch(handle.client, params.arguments ?? {}));
+        const data = await genDispatch(handle.client, args);
+        // A token-minting list appends the fresh `listToken` for its family so
+        // the model can spend it on the matching create.
+        if (listMintsToken(toolName)) {
+          const family = listFamily(toolName) as string;
+          const base = ok(data);
+          return { content: [...base.content, listTokenBlock(family, mintListToken(family, Date.now()))] };
+        }
+        return ok(data);
       } catch (e) {
         return apiErr(e);
       }

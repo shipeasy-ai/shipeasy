@@ -5,6 +5,7 @@ import {
   GENERATED_MUTATES,
 } from "../generated/tools.gen.js";
 import { CUSTOM_TOOLS, CUSTOM_DISPATCH } from "./custom.js";
+import { withListTokenParam } from "./list-guard.js";
 
 /**
  * The full registry-driven MCP surface, projected from the spec — the MCP twin
@@ -24,5 +25,9 @@ import { CUSTOM_TOOLS, CUSTOM_DISPATCH } from "./custom.js";
  */
 export { GENERATED_DISPATCH, GENERATED_MUTATES, CUSTOM_DISPATCH };
 
-/** The generated API tools + the shared custom (non-spec) tools. */
-export const REGISTRY_TOOLS: Tool[] = [...GENERATED_TOOLS, ...CUSTOM_TOOLS];
+/**
+ * The generated API tools + the shared custom (non-spec) tools. Guarded create
+ * tools get an extra `listToken` input advertised (see ./list-guard.ts) so the
+ * model knows to carry the token its sibling `*_list` handed out.
+ */
+export const REGISTRY_TOOLS: Tool[] = [...withListTokenParam(GENERATED_TOOLS), ...CUSTOM_TOOLS];
