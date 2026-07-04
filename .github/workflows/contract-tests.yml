@@ -18,6 +18,12 @@ on:
   # Reusable gate: the publish-* workflows call this and only publish on success
   # (don't ship a new version without a full contract pass).
   workflow_call: {}
+  # We ship straight to main (no PRs), so a `pull_request` trigger never fires —
+  # re-run the contract suite on every push that touches the spec. Keep the
+  # `pull_request` leg too, harmlessly, for any future PR-based contribution.
+  push:
+    branches: [main]
+    paths: ["openapi/**"]
   pull_request:
     paths: ["openapi/**"]
   workflow_dispatch:
