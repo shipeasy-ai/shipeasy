@@ -122,5 +122,24 @@ export function apiErr(err: unknown) {
 }
 
 export function ok(data: unknown) {
-  return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+  // A bare empty payload reads to some models (esp. cheaper ones) as a FAILURE,
+  // so they retry a call that actually succeeded. Emit an explicit success line
+  // for the three "succeeded but empty" shapes — a void mutation (`undefined` /
+  // `null`, which `JSON.stringify` would turn into a non-string `text`), an
+  // empty list, and an empty object. Non-empty results are returned unchanged as
+  // pure JSON, so anything parsing the payload keeps working.
+  if (data === undefined || data === null) {
+    return okText("✓ Success — the operation completed. (No content to return.)");
+  }
+  if (Array.isArray(data) && data.length === 0) {
+    return okText("✓ Success — the query ran and matched 0 items. (Empty list, not an error.)");
+  }
+  if (typeof data === "object" && Object.keys(data as object).length === 0) {
+    return okText("✓ Success — the operation completed. (Empty result, not an error.)");
+  }
+  return okText(JSON.stringify(data, null, 2));
+}
+
+function okText(text: string) {
+  return { content: [{ type: "text" as const, text }] };
 }
