@@ -161,9 +161,15 @@ async function currentSession(): Promise<{ projectId: string; email?: string } |
   }
 }
 
+/** What `login` resolved to. `ranBrowserFlow` is true only when the device/
+ *  browser flow actually completed this call (a fresh, explicit project choice)
+ *  — callers like `shipeasy setup` use it to decide whether the returned project
+ *  is authoritative enough to (re)write `.shipeasy` over a stale binding. */
+export type LoginResult = { projectId: string; ranBrowserFlow: boolean };
+
 export async function login(
   opts: { force?: boolean; projectId?: string; ensureBound?: boolean } = {},
-): Promise<void> {
+): Promise<LoginResult> {
   // Scope the login to a single project when one is known: an explicit
   // --project wins, otherwise the project bound to cwd via `.shipeasy`
   // (searched up the tree, like .git). When set, the browser flow offers
@@ -192,7 +198,7 @@ export async function login(
         `Already logged in${session.email ? ` as ${session.email}` : ""}` +
           ` (project ${session.projectId}). Use \`shipeasy login --force\` to re-authenticate.`,
       );
-      return;
+      return { projectId: session.projectId, ranBrowserFlow: false };
     }
   }
 
@@ -297,4 +303,6 @@ export async function login(
         `Run \`shipeasy bind ${payload.project_id}\` manually.`,
     );
   }
+
+  return { projectId: payload.project_id, ranBrowserFlow: true };
 }

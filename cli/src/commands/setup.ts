@@ -19,7 +19,7 @@ import {
   registerMcp,
 } from "../setup/agents";
 import { fetchSdkDoc, fetchSdkSkill, installMarketplaceSkill, installSkill } from "../setup/sdk-docs";
-import { baseSkillNames } from "../setup/skills-registry";
+import { setupSkillNames } from "../setup/skills-registry";
 import {
   type FileResult,
   writeAgentsMd,
@@ -153,16 +153,37 @@ async function fetchProjectName(projectId: string): Promise<string | undefined> 
   }
 }
 
-/**
- * Guarantee we end authenticated AND with `.shipeasy` bound for this folder.
- * `login({})` already runs the full browser pick-or-create-and-bind flow for a
- * fresh user. The only gap it leaves is an already-authed user opening a fresh
- * repo — that's what the extra branch handles.
- */
-async function ensureAuthAndBind(interactive: boolean): Promise<void> {
-  await login({}); // idempotent; runs device flow + picker + auto-bind when no session
+/** Write `.shipeasy` for cwd to `projectId` and log it, calling out an override
+ *  of a stale/ancestor binding. Used when a fresh cli-auth result must win: the
+ *  project the user just picked/created is authoritative for this folder, and we
+ *  bind it BEFORE minting keys so a stale binding can't shadow it. */
+async function bindAuthoritative(projectId: string): Promise<string> {
+  const name = await fetchProjectName(projectId);
+  const prev = getBoundProjectId(process.cwd());
+  const { path } = bindProject(process.cwd(), projectId, name);
+  if (prev && prev !== projectId) {
+    console.log(`  ✓ rebound ${path} → ${name ?? projectId} (was ${prev})`);
+  } else {
+    console.log(`  ✓ bound ${path} → ${name ?? projectId}`);
+  }
+  return projectId;
+}
 
-  if (getBoundProjectId(process.cwd())) return; // bound (pre-existing or just bound by login)
+/**
+ * Guarantee we end authenticated AND with `.shipeasy` bound for this folder, and
+ * return the project id everything downstream (key minting, target binding) must
+ * use. When the cli-auth browser flow runs, its result is the user's explicit,
+ * final choice for this folder — we (re)write `.shipeasy` to it immediately,
+ * overriding any stale or ancestor binding, so nothing downstream can resolve to
+ * a different project. When `login` short-circuits (already authed), we honour an
+ * existing binding and only prompt when the folder is still unbound.
+ */
+async function ensureAuthAndBind(interactive: boolean): Promise<string> {
+  const first = await login({}); // idempotent; runs device flow + picker when no session
+  if (first.ranBrowserFlow) return bindAuthoritative(first.projectId);
+
+  const bound = getBoundProjectId(process.cwd());
+  if (bound) return bound; // already authed + bound (pre-existing binding wins)
 
   const creds = loadCredentials();
   if (!creds) throw new Error("Authentication did not produce credentials.");
@@ -170,7 +191,7 @@ async function ensureAuthAndBind(interactive: boolean): Promise<void> {
   if (!interactive) {
     const { path } = bindProject(process.cwd(), creds.project_id);
     console.log(`Bound this folder to project ${creds.project_id} → ${path}`);
-    return;
+    return creds.project_id;
   }
 
   const name = await fetchProjectName(creds.project_id);
@@ -189,12 +210,13 @@ async function ensureAuthAndBind(interactive: boolean): Promise<void> {
   });
 
   if (choice === "pick") {
-    await login({ ensureBound: true });
-    return;
+    const picked = await login({ ensureBound: true });
+    return bindAuthoritative(picked.projectId);
   }
   // default / "current"
   const { path } = bindProject(process.cwd(), creds.project_id, name);
   console.log(`Bound this folder to ${name ?? creds.project_id} → ${path}`);
+  return creds.project_id;
 }
 
 // ── agent selection ─────────────────────────────────────────────────────────
@@ -304,8 +326,15 @@ async function resolveKeyEnv(opts: SetupOpts, interactive: boolean): Promise<str
   return (env as string | undefined) ?? "prod";
 }
 
-async function mintKey(type: "server" | "client", env: string): Promise<KeyCreated> {
-  const client = getApiClient(undefined, { requireBinding: true });
+async function mintKey(
+  type: "server" | "client",
+  env: string,
+  projectId: string,
+): Promise<KeyCreated> {
+  // Pass the resolved project id explicitly so the key is minted against the
+  // project setup bound to cwd — never a re-walk of `.shipeasy` that could
+  // resolve to an ancestor binding on a different (already-full) project.
+  const client = getApiClient(projectId, { requireBinding: true });
   return client.request<KeyCreated>("POST", "/api/admin/keys", { type, env });
 }
 
@@ -487,10 +516,10 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   if (dryRun) {
     console.log("  (dry run — would run `shipeasy login`, bind cwd + each target)");
   } else {
-    await ensureAuthAndBind(interactive);
-    const creds = loadCredentials();
-    if (!creds) throw new Error("Authentication did not produce credentials.");
-    projectId = getBoundProjectId(cwd) ?? creds.project_id;
+    // Authoritative for the rest of setup: the project cli-auth resolved to and
+    // that we just bound to cwd. Everything below (key minting, target binding)
+    // uses this id — never a re-walk of `.shipeasy` that could drift.
+    projectId = await ensureAuthAndBind(interactive);
     projectName = await fetchProjectName(projectId);
 
     const outcomes = bindTargetDirs(
@@ -557,13 +586,24 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   } else if (!needServer && !needClient) {
     console.log("  • every target already has its keys in env — skipping");
   } else {
+    // Say which project the keys land in — the plan limit is per-project, so a
+    // mismatch here is exactly what produces a confusing "reached the free plan
+    // limit of 5 SDK keys" on what the user thinks is a brand-new project.
+    console.log(`  → minting into project ${projectName ?? projectId} [${projectId}]`);
+    const session = loadCredentials();
+    if (session && session.project_id !== projectId) {
+      console.log(
+        `  ⚠ your CLI session is on ${session.project_id}, but keys go to the bound\n` +
+          `    project ${projectId}. Run \`shipeasy bind ${session.project_id}\` if that's wrong.`,
+      );
+    }
     const keyEnv = await resolveKeyEnv(opts, interactive);
     if (needServer) {
-      serverKey = await mintKey("server", keyEnv);
+      serverKey = await mintKey("server", keyEnv, projectId);
       console.log(`  ✓ server key minted (${keyEnv}): ${maskKey(serverKey.key)}`);
     }
     if (needClient) {
-      clientKey = await mintKey("client", keyEnv);
+      clientKey = await mintKey("client", keyEnv, projectId);
       console.log(`  ✓ client key minted (${keyEnv}): ${maskKey(clientKey.key)} (public)`);
     }
   }
@@ -651,17 +691,21 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     }
   }
 
-  // 5b. Install skills into the wired agents (runs `npx skills`). Claude at user
-  // scope gets them from its plugin; every other agent — and Claude at project
-  // scope — gets the SDK how-to plus the full base workflow set here, mirroring
-  // the plugin bundle so no wired agent is left without the skills. User scope
-  // installs globally (`-g`); project scope keeps them in-repo.
+  // 5b. Install the SDK how-to skill(s) into the wired agents (runs `npx
+  // skills`). Claude at user scope gets everything from its plugin; every other
+  // agent — and Claude at project scope — gets the language-specific SDK how-to
+  // here. The feature workflow skills (flags/i18n/ops sets) are installed after
+  // the feature selection in step 7, so they follow what the user turns on.
+  // User scope installs globally (`-g`); project scope keeps them in-repo.
   heading("5b. Install skills");
   const uniqueSdks = [...new Set(actionable.map((t) => t.recommendation.sdk).filter(Boolean))] as string[];
   const skillsGlobal = scope === "user";
+  // Language the marketplace how-to skills bake their snippets for (shared by 5b
+  // and the feature-skill install in step 7).
+  const skillSdk = uniqueSdks[0] ?? actionable[0]?.language ?? "typescript";
   if (dryRun) {
     console.log(
-      `  (dry run — would \`npx skills add\` the SDK + base skills into: ${skillsCliAgents.join(", ") || "—"})`,
+      `  (dry run — would \`npx skills add\` the SDK how-to skills into: ${skillsCliAgents.join(", ") || "—"})`,
     );
   } else if (!skillsCliAgents.length) {
     console.log(
@@ -680,16 +724,6 @@ async function runSetup(opts: SetupOpts): Promise<void> {
       }
       const res = await installSkill(content, sdk, { agents: skillsCliAgents, global: skillsGlobal });
       console.log(`  ${res.action === "failed" ? "✗" : "✓"} ${sdk}: ${res.detail}`);
-    }
-    // Base workflow skills (flags/i18n/ops/see) — parity with the Claude plugin,
-    // installed regardless of which feature modules are enabled below.
-    const baseSdk = uniqueSdks[0] ?? actionable[0]?.language ?? "typescript";
-    for (const name of baseSkillNames()) {
-      const res = await installMarketplaceSkill(name, baseSdk, {
-        agents: skillsCliAgents,
-        global: skillsGlobal,
-      });
-      console.log(`  ${res.action === "failed" ? "✗" : "✓"} ${name}: ${res.detail}`);
     }
   }
 
@@ -787,7 +821,9 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   heading("7. Feature installs");
   let features: FeatureGroup[] = [];
   if (dryRun) {
-    console.log("  (dry run — would offer flags / i18n / ops module enables)");
+    console.log(
+      "  (dry run — would offer flags / i18n / ops module enables, then install each enabled feature's how-to skills + shipeasy-setup)",
+    );
   } else {
     if (opts.features) {
       const requested = opts.features
@@ -835,12 +871,28 @@ async function runSetup(opts: SetupOpts): Promise<void> {
       }
     }
 
-    // How-to skills for these modules were already installed in step 5b (the
-    // full base set, for parity with the Claude plugin) — enabling a module
-    // server-side doesn't change the skill set on disk, so there's nothing
-    // feature-specific to add here.
-    if (features.length && skillsCliAgents.length) {
-      console.log("  • how-to skills for these modules were installed in step 5b");
+    // Install the how-to skills for the enabled features (the SDK how-to went
+    // in at 5b). `shipeasy-setup` always rides along; each enabled feature adds
+    // its own skill set (overlap deduped). We key off what's actually ON — the
+    // selected `features` plus `ops` if the devtools step turned it on — so the
+    // agent gets exactly the workflow skills for what it can now do. Claude at
+    // user scope gets all of this from its plugin, so there's nothing to add.
+    const skillFeatures = [...new Set<string>([...features, ...(opsEnabled ? ["ops"] : [])])];
+    const featureSkills = setupSkillNames(skillFeatures);
+    if (!skillsCliAgents.length) {
+      console.log(
+        selected.includes("claude")
+          ? "  • how-to skills come from the Claude plugin (user scope) — nothing to add"
+          : `  • no skills-CLI agents — install later: ${featureSkills.join(", ")}`,
+      );
+    } else {
+      for (const name of featureSkills) {
+        const res = await installMarketplaceSkill(name, skillSdk, {
+          agents: skillsCliAgents,
+          global: skillsGlobal,
+        });
+        console.log(`  ${res.action === "failed" ? "✗" : "✓"} ${name}: ${res.detail}`);
+      }
     }
   }
 
