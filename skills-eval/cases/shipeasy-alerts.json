@@ -1,7 +1,7 @@
 [
   {
     "id": "shipeasy-alerts/error-rate-threshold",
-    "prompt": "Ping me if our checkout error rate climbs above 5%.",
+    "prompt": "Ping me if our payment API error rate climbs above 5%.",
     "expect_skill": "shipeasy-alerts",
     "expect_tools": [
       "metrics_events_list",
@@ -13,8 +13,8 @@
     ],
     "tools_match": "all",
     "forbid_tools": ["ops_alerts_archive"],
-    "expect_state": { "metrics": ["checkout"], "alerts": ["checkout"] },
-    "note": "full chain: an alert fires on a metric, a metric rolls up an event. List events, metrics AND alerts first to check none already exist, then create what's missing. expect_state confirms the metric + alert landed"
+    "expect_state": { "metrics": ["payment"], "alerts": ["payment"] },
+    "note": "full chain: an alert fires on a metric, a metric rolls up an event. List events, metrics AND alerts first to check none already exist, then create what's missing. expect_state confirms the metric + alert landed. Uses a 'payment' domain (not 'checkout') so the metric it creates never collides with the experiments case's checkout metric."
   },
   {
     "id": "shipeasy-alerts/pause",
@@ -23,7 +23,8 @@
     "expect_tools": ["ops_alerts_list", "ops_alerts_update"],
     "tools_match": "all",
     "forbid_tools": ["ops_alerts_archive"],
-    "note": "referenced by name — list to resolve its id, then pause (update enabled:false)"
+    "setup": { "alerts": ["signup-conversion"] },
+    "note": "referenced by name — list to resolve its id, then pause (update enabled:false). setup pre-seeds the signup-conversion alert so this mutate case is self-contained (an alert can't be created by the framework's flag/event seed alone — see setupState)."
   },
   {
     "id": "shipeasy-alerts/retune",
@@ -32,7 +33,8 @@
     "expect_tools": ["ops_alerts_list", "ops_alerts_update"],
     "tools_match": "all",
     "forbid_tools": ["ops_alerts_create", "ops_alerts_archive"],
-    "note": "referenced by name — list to resolve its id, then update the threshold (not a new rule)"
+    "setup": { "alerts": ["checkout error-rate"] },
+    "note": "referenced by name — list to resolve its id, then update the threshold (not a new rule). setup pre-seeds the checkout error-rate alert so this no longer depends on the error-rate-threshold case having created one first."
   },
   {
     "id": "shipeasy-alerts/list-readonly",

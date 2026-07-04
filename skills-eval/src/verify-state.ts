@@ -81,32 +81,91 @@ export async function snapshotState(cfg: EnvConfig, ...expects: ExpectState[]): 
   return out;
 }
 
-/** Minimal create bodies for the resource types `setup` can pre-create. */
+/** Minimal create bodies for the resource types `setup` can directly pre-create. */
 const SETUP_BODY: Partial<Record<StateType, (name: string) => unknown>> = {
   flags: (name) => ({ name, enabled: true }),
   events: (name) => ({ name }),
 };
 
-/** Pre-create resources so a dedup case has something existing to (not) duplicate. */
+/** POST a JSON body to a resource's admin create endpoint. */
+function postResource(cfg: EnvConfig, type: StateType, body: unknown): Promise<Response> {
+  const url = `${cfg.baseUrl.replace(/\/$/, "")}/api/admin/${ENDPOINT[type]}`;
+  return withRetry(() =>
+    fetch(url, {
+      method: "POST",
+      headers: {
+        "X-SDK-Key": cfg.token,
+        "X-Project-Id": cfg.projectId,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    }),
+  );
+}
+
+// An alert rule needs a `metricId`, and a metric needs a backing event — so
+// seeding an alert is really a 3-step create. All seeded alerts share ONE
+// deliberately domain-word-free metric so its name can never satisfy another
+// case's `expect_state` substring match (e.g. an alert-seed metric named
+// "checkout…" would make the experiments case dedup instead of create).
+const ALERT_SEED_EVENT = "alertseedevent";
+const ALERT_SEED_METRIC = "alertseedmetric";
+
+/** Fetch a metric's opaque id by exact name (the list read only exposes names). */
+async function fetchMetricIdByName(cfg: EnvConfig, name: string): Promise<string | undefined> {
+  const url = `${cfg.baseUrl.replace(/\/$/, "")}/api/admin/${ENDPOINT.metrics}`;
+  const res = await withRetry(() =>
+    fetch(url, { headers: { "X-SDK-Key": cfg.token, "X-Project-Id": cfg.projectId } }),
+  ).catch(() => undefined);
+  if (!res?.ok) return undefined;
+  const body: unknown = await res.json().catch(() => null);
+  const arr: unknown[] = Array.isArray(body) ? body : ((body as { data?: unknown[] })?.data ?? []);
+  const hit = arr.find((x) => (x as { name?: string })?.name === name) as { id?: string } | undefined;
+  return hit?.id;
+}
+
+/** Ensure the shared alert-seed event + metric exist; return the metric id. */
+async function ensureAlertSeedMetricId(cfg: EnvConfig): Promise<string | undefined> {
+  await postResource(cfg, "events", { name: ALERT_SEED_EVENT }).catch(() => undefined);
+  const res = await postResource(cfg, "metrics", {
+    name: ALERT_SEED_METRIC,
+    event_name: ALERT_SEED_EVENT,
+    query: `count_users(${ALERT_SEED_EVENT})`,
+  }).catch(() => undefined);
+  if (res?.ok) {
+    const id = ((await res.json().catch(() => null)) as { id?: string } | null)?.id;
+    if (id) return id;
+  }
+  // Already created by an earlier case this run — look the id up.
+  return fetchMetricIdByName(cfg, ALERT_SEED_METRIC);
+}
+
+/** Pre-create resources so a case has something existing to mutate or (not) duplicate. */
 export async function setupState(cfg: EnvConfig, setup: ExpectState): Promise<void> {
+  // Alerts are seeded specially — they need a backing metric (see above).
+  if (setup.alerts?.length) {
+    const metricId = await ensureAlertSeedMetricId(cfg);
+    if (metricId) {
+      const existing = new Set(await fetchNames(cfg, "alerts").catch(() => []));
+      for (const name of setup.alerts) {
+        if (existing.has(name)) continue;
+        await postResource(cfg, "alerts", {
+          name,
+          metricId,
+          comparator: "gt",
+          threshold: 5,
+        }).catch(() => undefined);
+      }
+    }
+  }
+
   for (const type of Object.keys(setup) as StateType[]) {
     const makeBody = SETUP_BODY[type];
-    if (!makeBody) continue; // only flags/events are pre-creatable
+    if (!makeBody) continue; // alerts handled above; other types not pre-creatable
     const existing = new Set(await fetchNames(cfg, type).catch(() => []));
     for (const name of setup[type] ?? []) {
       if (existing.has(name)) continue; // already there — leave it
-      const url = `${cfg.baseUrl.replace(/\/$/, "")}/api/admin/${ENDPOINT[type]}`;
-      await withRetry(() =>
-        fetch(url, {
-          method: "POST",
-          headers: {
-            "X-SDK-Key": cfg.token,
-            "X-Project-Id": cfg.projectId,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(makeBody(name)),
-        }),
-      ).catch(() => undefined);
+      await postResource(cfg, type, makeBody(name)).catch(() => undefined);
     }
   }
 }
