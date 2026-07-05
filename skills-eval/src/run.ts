@@ -92,7 +92,11 @@ const STANDING_APPROVAL =
 // never nudged into a mutation.
 const AUTO_APPROVE =
   "Approved — go with your recommended option/default and carry it through to completion now. If you presented choices, pick the one you recommended and proceed; do not ask again. Only take the action my original request asked for — if that request was read-only, just answer it and create or modify nothing.";
-const MAX_APPROVALS = Math.max(0, int(process.env.SHIPEASY_EVAL_MAX_APPROVALS, 2));
+// One approval is enough in practice — every consultative case observed reached
+// its create on the first nudge. Keep the default at 1 to avoid doubling the
+// claude spawn count (extra spawns burn tokens and API quota); raise
+// SHIPEASY_EVAL_MAX_APPROVALS if a skill genuinely needs more back-and-forth.
+const MAX_APPROVALS = Math.max(0, int(process.env.SHIPEASY_EVAL_MAX_APPROVALS, 1));
 
 const cases = loadCases(filter);
 if (cases.length === 0) {
@@ -313,7 +317,10 @@ function buildClaudeArgs(
     // it must use the MCP surface we assert on, and (c) blocks subagents whose
     // tool calls would escape the top-level stream we parse. ToolSearch stays
     // (deferred MCP tools surface through it); Read/Glob/Grep are read-only.
-    "--disallowedTools", "Bash,Edit,Write,NotebookEdit,Agent,Task,SendMessage",
+    // Monitor/Task*/Workflow are exec-capable back doors (Monitor runs arbitrary
+    // shell — an agent used it to `python`/`git commit` into the real repo, and
+    // Workflow/Agent spawn subagents) so they are disallowed alongside Bash.
+    "--disallowedTools", "Bash,Edit,Write,NotebookEdit,Agent,Task,SendMessage,Monitor,TaskCreate,TaskUpdate,TaskStop,TaskOutput,Workflow,ScheduleWakeup",
     "--append-system-prompt", STANDING_APPROVAL,
     "--model", MODEL,
     // Turn 0 stamps a fresh session id; each auto-approval resumes it so the
