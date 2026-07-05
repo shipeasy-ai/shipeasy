@@ -47,8 +47,14 @@
 //   SHIPEASY_PROBE_ALERTS (=1)               — enable the metric-rule alert leg (async cron)
 //   SHIPEASY_APP_URL                         — admin API base (errors + error-series legs)
 //   SHIPEASY_PROBE_ENRICHMENT (=1)           — enable the request-enrichment leg
-//   SHIPEASY_PROBE_MUTATE (=1)               — enable the killswitch-propagation leg
-//                                              (flips one switch then restores it)
+//   SHIPEASY_PROBE_MUTATE (=1)               — enable the killswitch-propagation leg,
+//                                              the stats-effect leg (power/SRM), AND the
+//                                              three stats-knob legs below (mSPRT τ / CUPED /
+//                                              verdict gates). All mutations self-restore.
+//   SHIPEASY_PROBE_STATS_UNIVERSE            — universe the create-and-mutate stats legs
+//                                              bucket their throwaway fixtures in
+//                                              (default "probe_stats"; created if missing).
+//                                              Requires a Pro+ plan (sequential + CUPED).
 //   SHIPEASY_PROBE_MAX_MS (default 50)       — latency p95 budget for /sdk/evaluate
 //   PROBE_COHORT (default 500)
 //   PROBE_CLI    — how to invoke the CLI. The workflow points this at the
@@ -1022,10 +1028,11 @@ async function probeKillswitchPropagation() {
 //   • srm_threshold → experiment_results.srm_detected. On a deliberately
 //     imbalanced split srm_detected = (srm_p < threshold), so a threshold bracket
 //     around the induced srm_p flips the flag.
-// The other knobs are NOT observable this way and we don't fake it: mSPRT τ needs
-// a sequential experiment, CUPED needs frozen baselines, and min_sample_size /
-// min_runtime_days / ci_confidence seed new experiments or drive display (they
-// don't re-derive an existing run) — those are covered by the worker unit sims.
+// The other knobs can't move an EXISTING canary run this way, so each gets its
+// own purpose-built fixture below instead: mSPRT τ needs a sequential experiment
+// (probeSequentialTau), CUPED needs frozen pre-period baselines (probeCupedGates),
+// and min_sample_size / min_runtime_days / ci_confidence seed the verdict / the
+// displayed interval rather than a results column (probeVerdictGates).
 async function probeStatsEffect() {
   const EXP = process.env.SHIPEASY_PROBE_EXPERIMENT;
   const EV = process.env.SHIPEASY_PROBE_METRIC_EVENT;
@@ -1707,6 +1714,538 @@ async function probeConditionRollout() {
   console.log("::endgroup::");
 }
 
+// ── stats-knob legs (mSPRT τ / CUPED / verdict gates) ────────────────────────
+// The stats-effect leg above covers the two project knobs that move an EXISTING
+// canary experiment's persisted results under `reanalyze` (default_power →
+// realized_mde, srm_threshold → srm_detected). The remaining analysis knobs
+// can't be exercised that way — each needs a purpose-built experiment:
+//   • mSPRT τ (msprt_tau_mei_factor / msprt_tau_sd_factor) only feeds the
+//     analysis when the experiment runs SEQUENTIAL testing → needs a sequential
+//     fixture, and a fixed sibling to prove it stays null off the sequential path.
+//   • CUPED (cuped_min_overlap / cuped_min_baseline_users / cuped_baseline_days)
+//     only fires when frozen pre-experiment baselines exist → needs a fixture
+//     seeded with a BACKDATED pre-period that correlates with the in-period
+//     outcome, so the variance visibly drops when CUPED is admitted.
+//   • min_sample_size / min_runtime_days seed the ship/hold/WAIT verdict (not any
+//     results column), and ci_confidence drives which interval the UI displays →
+//     covered by asserting the verdict flips and both CIs are carried.
+// These build/mutate throwaway fixtures under SHIPEASY_PROBE_STATS_UNIVERSE, so
+// they gate on SHIPEASY_PROBE_MUTATE and self-restore every project knob they touch.
+
+const STATS_UNIVERSE = process.env.SHIPEASY_PROBE_STATS_UNIVERSE || "probe_stats";
+
+const projectCurrent = () => {
+  try {
+    return cli(["projects", "current"]);
+  } catch {
+    return null;
+  }
+};
+const setProjKnob = (id, flag, val) => cliText(["projects", "update", id, flag, String(val)]);
+
+// Chunked POST to /collect (text/plain JSON, client key). Returns true on success.
+async function collect(events) {
+  for (let i = 0; i < events.length; i += 200) {
+    const res = await fetch(`${EDGE_URL}/collect`, {
+      method: "POST",
+      headers: { "content-type": "text/plain", "x-sdk-key": CLIENT_KEY },
+      body: JSON.stringify({ events: events.slice(i, i + 200) }),
+    });
+    if (!res.ok) {
+      annotate(`/collect ${res.status} — cannot seed stats fixture`);
+      return false;
+    }
+  }
+  return true;
+}
+
+const expByName = () => new Map(listExperiments().map((e) => [e.name, e]));
+const resultRows = (exp) => {
+  let st;
+  try {
+    st = experimentResults(exp);
+  } catch {
+    return { rows: [], verdict: null }; // transient CLI/read error — never abort the probe
+  }
+  const rows = Array.isArray(st.results) ? st.results : (st.results?.results ?? []);
+  return { rows, verdict: st.verdict ?? st.results?.verdict ?? null };
+};
+const groupRow = (rows, group) => rows.find((r) => (r.group_name ?? r.groupName) === group);
+const varOf = (r) => (r ? (r.variance ?? null) : null);
+const lambdaOf = (r) => (r ? (r.msprt_lambda ?? r.msprtLambda ?? null) : null);
+// Reanalyze a few times then read (cohort already in AE — recompute is fast; the
+// passes just absorb queue-consumer lag), reusing the stats-effect settle shape.
+async function settle(exp, passes = 3, gapMs = 12_000) {
+  for (let i = 0; i < passes; i++) {
+    try {
+      cliText(reanalyzeArgs(exp)); // transient reanalyze blip must not abort the whole probe
+    } catch (e) {
+      console.log(`  reanalyze(${exp}) transient error: ${e?.message ?? e}`);
+    }
+    await sleep(gapMs);
+  }
+  return resultRows(exp);
+}
+
+// A universe for the throwaway fixtures — created once, reused across runs.
+function ensureStatsUniverse() {
+  const has = () => listUniverses().some((u) => u.name === STATS_UNIVERSE);
+  if (has()) return true;
+  try {
+    cliText(["release", "experiments", "universes", "create", STATS_UNIVERSE]);
+  } catch (e) {
+    console.log(`  could not create universe ${STATS_UNIVERSE}: ${e?.message ?? e}`);
+  }
+  return has();
+}
+
+// Create the fixture experiment if absent (idempotent — reused across runs). The
+// goal metric is attached inline so `start` accepts it. Returns the row, or null
+// when creation is refused (e.g. a Free plan rejecting sequential_testing → the
+// leg soft-skips). `goalMetric` is the inline metric JSON string.
+function ensureExperiment(name, { goalMetric, sequential = false }) {
+  let exp = expByName().get(name);
+  if (exp) return exp;
+  const args = [
+    "release", "experiments", "create", name,
+    "--universe", STATS_UNIVERSE,
+    "--groups", JSON.stringify([
+      { name: "control", weight: 5000 },
+      { name: "treatment", weight: 5000 },
+    ]),
+    "--allocation-percent", "100",
+    "--goal-metric", goalMetric,
+  ];
+  if (sequential) args.push("--sequential-testing", "true");
+  try {
+    cliText(args);
+  } catch (e) {
+    console.log(`  could not create ${name}: ${e?.message ?? e}`);
+    return null;
+  }
+  return expByName().get(name) ?? null;
+}
+
+// Force a clean run: a stopped/draft fixture is (re)started so `started_at`
+// (and, for CUPED, the baseline freeze) is fresh; a running one is left as-is
+// unless `restart` forces a stop→start cycle (needed to re-freeze CUPED).
+function freshStart(name, { restart = false } = {}) {
+  const exp = expByName().get(name);
+  if (!exp) return null;
+  if (exp.status === "running" && !restart) return exp;
+  try {
+    if (exp.status === "running") cliText(["release", "experiments", "stop", name]);
+    if (exp.status === "archived") cliText(["release", "experiments", "restore", name]);
+    cliText(["release", "experiments", "start", name]);
+  } catch (e) {
+    console.log(`  freshStart(${name}) failed: ${e?.message ?? e}`);
+  }
+  return expByName().get(name);
+}
+
+// A balanced, deterministic, idempotent exposure cohort with a binary metric at
+// `convPct` (control) / `convPct+lift` (treatment). Fixed ids → re-runs upsert.
+function binaryCohort(exp, evt, { n = 200, controlPct = 30, lift = 40, tsMs = Date.now() }) {
+  const events = [];
+  for (const [grp, conv] of [["control", controlPct], ["treatment", controlPct + lift]]) {
+    const tag = grp[0];
+    for (let i = 0; i < n; i++) {
+      const uid = `sk-${exp}-${tag}-${i}`;
+      events.push({ type: "exposure", experiment: exp, group: grp, user_id: uid, ts: tsMs });
+      if (i % 100 < conv) events.push({ type: "metric", event_name: evt, value: 1, user_id: uid, ts: tsMs });
+    }
+  }
+  return events;
+}
+
+// ── mSPRT τ factors (only bite on a sequential experiment) ───────────────────
+// Build a SEQUENTIAL fixture with a strong lift so mSPRT computes a λ, then vary
+// the τ factors and assert (1) λ is populated, (2) it MOVES with the knob (τ
+// feeds the mixing prior — a knob-ignoring bug leaves λ pinned), and (3) it stays
+// NULL on a FIXED sibling seeded identically (the "only on sequential" contract:
+// consumer.ts guards `if (exp.sequentialTesting)` before touching msprt_*). λ is
+// non-monotonic in τ² in general, so we hard-assert movement, not a direction.
+async function probeSequentialTau() {
+  if (!process.env.SHIPEASY_PROBE_MUTATE) {
+    console.log("mSPRT-τ leg disabled — enable with SHIPEASY_PROBE_MUTATE=1 (creates a sequential fixture)");
+    return;
+  }
+  if (!CLIENT_KEY) {
+    console.log("mSPRT-τ leg: SHIPEASY_CLIENT_KEY unset — skipping");
+    return;
+  }
+  const proj = projectCurrent();
+  if (!proj?.id) {
+    annotate("mSPRT-τ: `projects current` returned no id");
+    failed++;
+    return;
+  }
+  if (!ensureStatsUniverse()) {
+    console.log("mSPRT-τ leg: no stats universe available — skipping");
+    return;
+  }
+  console.log("::group::mSPRT τ factors (sequential only)");
+  const SEQ = "probe_seq";
+  const FIXED = "probe_seq_fixed";
+  // MEI set so τ = MEI × msprt_tau_mei_factor is the active path; the strong lift
+  // keeps τ² below the λ(τ) peak across the knob's [0.1,2.0] range so the swing is
+  // large and one-signed in practice (we still only assert |Δλ|, never the sign).
+  const goal = JSON.stringify({ event: "probe_seq_evt", aggregation: "count_users", min_effect_of_interest: 0.05 });
+  const seq = ensureExperiment(SEQ, { goalMetric: goal, sequential: true });
+  if (!seq) {
+    console.log("  sequential fixture unavailable (plan gates sequential_testing?) — skipping");
+    console.log("::endgroup::");
+    return;
+  }
+  const fixed = ensureExperiment(FIXED, { goalMetric: goal, sequential: false });
+  freshStart(SEQ);
+  if (fixed) freshStart(FIXED);
+
+  const orig = { mei: proj.msprtTauMeiFactor, sd: proj.msprtTauSdFactor };
+  const setTau = (mei, sd) => {
+    setProjKnob(proj.id, "--msprt-tau-mei-factor", mei);
+    setProjKnob(proj.id, "--msprt-tau-sd-factor", sd);
+  };
+  try {
+    const tsMs = Date.now();
+    const seqEvents = binaryCohort(SEQ, "probe_seq_evt", { tsMs });
+    const fixedEvents = fixed ? binaryCohort(FIXED, "probe_seq_evt", { tsMs }) : [];
+    if (!(await collect([...seqEvents, ...fixedEvents]))) {
+      failed++;
+      console.log("::endgroup::");
+      return;
+    }
+
+    // τ small (both factors at their floor) vs τ large (at their ceiling).
+    setTau(0.1, 0.05);
+    let r = await settle(SEQ);
+    for (let t = 0; t < 6 && !groupRow(r.rows, "treatment"); t++) r = await settle(SEQ);
+    const lamLo = lambdaOf(groupRow(r.rows, "treatment"));
+    setTau(2.0, 1.0);
+    const lamHi = lambdaOf(groupRow(await settle(SEQ), "treatment"));
+
+    if (lamLo == null || lamHi == null) {
+      console.log(`⚠ msprt_lambda not populated (lo=${lamLo}, hi=${lamHi}) — AE ingestion lag; skipping (soft)`);
+    } else if (Math.abs(lamHi - lamLo) > 0.05) {
+      ok(`mSPRT λ moves with τ: ${lamLo.toFixed(3)} (τ small) → ${lamHi.toFixed(3)} (τ large)`);
+    } else {
+      annotate(`mSPRT τ had NO effect: λ=${lamLo} (small) vs ${lamHi} (large) — the τ knob isn't feeding mSPRT`);
+      failed++;
+    }
+
+    // Contract: the FIXED sibling never carries an mSPRT verdict, whatever τ is.
+    if (fixed) {
+      const fr = await settle(FIXED);
+      const fLam = lambdaOf(groupRow(fr.rows, "treatment"));
+      if (groupRow(fr.rows, "treatment") && fLam == null) {
+        ok("mSPRT λ is null on the fixed-horizon sibling (τ only bites on sequential)");
+      } else if (!groupRow(fr.rows, "treatment")) {
+        console.log("⚠ fixed sibling has no enrolment yet — cannot assert the sequential-only contract (soft)");
+      } else {
+        annotate(`fixed-horizon experiment carries msprt_lambda=${fLam} — mSPRT leaked off the sequential path`);
+        failed++;
+      }
+    }
+  } finally {
+    try {
+      setTau(orig.mei, orig.sd);
+      console.log(`  restored msprt_tau_mei_factor=${orig.mei}, msprt_tau_sd_factor=${orig.sd}`);
+    } catch (e) {
+      annotate(`mSPRT-τ: restore failed — ${e?.message ?? e}`);
+      failed++;
+    }
+    try {
+      cliText(["release", "experiments", "stop", SEQ]);
+      if (fixed) cliText(["release", "experiments", "stop", FIXED]);
+    } catch {}
+  }
+  console.log("::endgroup::");
+}
+
+// ── CUPED gates (need frozen pre-experiment baselines) ───────────────────────
+// CUPED reduces variance only when a frozen pre-period baseline exists AND passes
+// the overlap / min-baseline-users guards. Seed a fixture whose per-user
+// in-period outcome correlates with its BACKDATED pre-period (a `count_events`
+// metric — its per-user baseline is the pre-window event count, which is
+// non-constant, unlike count_users/retention which CUPED skips). Then flip the
+// gate knobs on a single freeze: admit CUPED (loose guards) → variance drops;
+// deny CUPED (max min-baseline-users floor) → variance is the raw value. A drop
+// proves the frozen baseline is real and the overlap/min-users guards bite; equal
+// variances mean no baseline landed (AE lag / plan) → soft; an INCREASE is a real
+// bug → hard. (The baseline-WINDOW knob is pinned by unit sims, not here — see the
+// note at the end of the leg for why it can't be soundly isolated live.)
+async function probeCupedGates() {
+  if (!process.env.SHIPEASY_PROBE_MUTATE) {
+    console.log("CUPED leg disabled — enable with SHIPEASY_PROBE_MUTATE=1 (seeds a baseline fixture)");
+    return;
+  }
+  if (!CLIENT_KEY) {
+    console.log("CUPED leg: SHIPEASY_CLIENT_KEY unset — skipping");
+    return;
+  }
+  const proj = projectCurrent();
+  if (!proj?.id) {
+    annotate("CUPED: `projects current` returned no id");
+    failed++;
+    return;
+  }
+  if (!ensureStatsUniverse()) {
+    console.log("CUPED leg: no stats universe available — skipping");
+    return;
+  }
+  console.log("::group::CUPED gates (frozen pre-experiment baselines)");
+  const EXP = "probe_cuped";
+  const EVT = "probe_cuped_evt";
+  const goal = JSON.stringify({ event: EVT, aggregation: "count_events" });
+  const exp = ensureExperiment(EXP, { goalMetric: goal, sequential: false });
+  if (!exp) {
+    console.log("  CUPED fixture unavailable — skipping");
+    console.log("::endgroup::");
+    return;
+  }
+
+  const orig = {
+    overlap: proj.cupedMinOverlap,
+    minUsers: proj.cupedMinBaselineUsers,
+    baselineDays: proj.cupedBaselineDays,
+  };
+  const N = 240;
+  const restore = () => {
+    setProjKnob(proj.id, "--cuped-min-overlap", orig.overlap);
+    setProjKnob(proj.id, "--cuped-min-baseline-users", orig.minUsers);
+    setProjKnob(proj.id, "--cuped-baseline-days", orig.baselineDays);
+  };
+  try {
+    // Seed the pre-period (backdated 3 days, in SECONDS — /collect passes a
+    // seconds ts through unchanged) so the freeze window [start−14d, start) sees
+    // it. Per-user level L drives BOTH the baseline count and the in-period count
+    // → strong θ → visible variance reduction when CUPED is admitted.
+    const startMs = Date.now();
+    const preTs = Math.floor(startMs / 1000) - 3 * 86_400;
+    const level = (i) => 1 + (i % 6); // 1..6 events, deterministic per user
+    const pre = [];
+    for (const grp of ["control", "treatment"]) {
+      const tag = grp[0];
+      for (let i = 0; i < N; i++) {
+        const uid = `sk-${EXP}-${tag}-${i}`;
+        for (let k = 0; k < level(i); k++) pre.push({ type: "metric", event_name: EVT, value: 1, user_id: uid, ts: preTs });
+      }
+    }
+    if (!(await collect(pre))) {
+      failed++;
+      restore();
+      console.log("::endgroup::");
+      return;
+    }
+    // Give AE a moment to ingest the pre-period, then start (NOT restart) so the
+    // freeze job reads it. Critical: the fixture is started ONCE from draft and
+    // left running across runs — a stop→start restart whose prior stopped_at
+    // falls inside the new 14-day pre-window trips cuped.ts's restart-contamination
+    // guard (isRestartContaminated) and DISABLES CUPED, so the leg would soft-skip
+    // forever after the first run. Started-once keeps cuped_frozen_at + the frozen
+    // baselines alive; later runs re-seed the (idempotent, fixed-id) in-period
+    // counts, which stay correlated with the frozen baseline. baseline-days default
+    // (14) is wide enough to include the −3d seed.
+    setProjKnob(proj.id, "--cuped-baseline-days", orig.baselineDays ?? 14);
+    await sleep(45_000);
+    freshStart(EXP); // start-once; no restart (see contamination-guard note above)
+
+    // In-period: exposure + a correlated count (control ≈ level, treatment gets a
+    // small lift). Idempotent fixed ids; ts = now (ms → normalized to seconds).
+    const inMs = Date.now();
+    const inp = [];
+    for (const [grp, extra] of [["control", 0], ["treatment", 1]]) {
+      const tag = grp[0];
+      for (let i = 0; i < N; i++) {
+        const uid = `sk-${EXP}-${tag}-${i}`;
+        inp.push({ type: "exposure", experiment: EXP, group: grp, user_id: uid, ts: inMs });
+        for (let k = 0; k < level(i) + extra; k++) inp.push({ type: "metric", event_name: EVT, value: 1, user_id: uid, ts: inMs });
+      }
+    }
+    if (!(await collect(inp))) {
+      failed++;
+      restore();
+      console.log("::endgroup::");
+      return;
+    }
+
+    // Admit CUPED: trivially-loose guards.
+    setProjKnob(proj.id, "--cuped-min-overlap", 0.01);
+    setProjKnob(proj.id, "--cuped-min-baseline-users", 10);
+    let r = await settle(EXP);
+    for (let t = 0; t < 6 && !groupRow(r.rows, "treatment"); t++) r = await settle(EXP);
+    const varOn = varOf(groupRow(r.rows, "treatment"));
+    // Deny CUPED: the max min-baseline-users floor (100k), far above the cohort.
+    setProjKnob(proj.id, "--cuped-min-baseline-users", 100_000);
+    const varOff = varOf(groupRow(await settle(EXP), "treatment"));
+
+    if (varOn == null || varOff == null) {
+      console.log(`⚠ variance not populated (on=${varOn}, off=${varOff}) — AE ingestion lag; skipping (soft)`);
+    } else if (varOn < varOff * 0.98) {
+      ok(`CUPED reduced treatment variance ${varOff.toFixed(4)} (denied) → ${varOn.toFixed(4)} (admitted)`);
+    } else if (varOn > varOff * 1.02) {
+      annotate(`CUPED INCREASED variance ${varOff.toFixed(4)} → ${varOn.toFixed(4)} — adjustment is inverted`);
+      failed++;
+    } else {
+      console.log(`⚠ variance unchanged (on=${varOn.toFixed(4)}, off=${varOff.toFixed(4)}) — no frozen baseline landed (AE lag / plan CUPED disabled); soft`);
+    }
+
+    // The baseline-WINDOW knob (cuped_baseline_days) is NOT soundly testable live:
+    // it's read at freeze time, and the freeze is an async job reading a
+    // project-global setting, so two experiments can't be given different windows
+    // deterministically in one run, and a same-experiment re-freeze needs a restart
+    // that trips the contamination guard above (confounding the result). It's
+    // pinned directly by the worker unit sims (analysis/__tests__/cuped.test.ts,
+    // baselineWindow + the windowDays param). We assert overlap + min-baseline-users
+    // here — the two guards that gate a single freeze live.
+  } finally {
+    // Restore the project knobs but LEAVE the fixture running — a stop here would
+    // make the next run's start trip the restart-contamination guard.
+    try {
+      restore();
+      console.log(`  restored cuped_min_overlap=${orig.overlap}, cuped_min_baseline_users=${orig.minUsers}, cuped_baseline_days=${orig.baselineDays}`);
+    } catch (e) {
+      annotate(`CUPED: restore failed — ${e?.message ?? e}`);
+      failed++;
+    }
+  }
+  console.log("::endgroup::");
+}
+
+// ── verdict gates: min_sample_size / min_runtime_days / ci_confidence ─────────
+// These don't move any results COLUMN — they seed the ship/hold/WAIT verdict the
+// /results API now carries (computeExperimentVerdict) and, for ci_confidence, the
+// interval the UI shows. Build a strongly-significant SEQUENTIAL fixture that
+// verdicts "ship" with the gates open (sequential so peek_warning stays 0 — a
+// running fixed-horizon significant experiment always peek-"wait"s, which would
+// mask the gates; see the fixture comment), then sweep each gate and assert the
+// verdict flips to "wait". min_sample_size / min_runtime_days are editable while
+// running (NOT in IMMUTABLE_WHILE_RUNNING), so no restart is needed — the flip is
+// driven purely by the knob against a fresh (daysRunning≈0) run, the create-and-
+// fast-forward shape without a real backdate (started_at is immutable, so we move
+// the threshold, not the clock). ci_confidence is inert in the pipeline (both CIs
+// are always computed), so we assert it round-trips AND that results carry ci95 +
+// ci99 — the two display levels — rather than a phantom analysis effect.
+async function probeVerdictGates() {
+  if (!process.env.SHIPEASY_PROBE_MUTATE) {
+    console.log("verdict-gates leg disabled — enable with SHIPEASY_PROBE_MUTATE=1 (creates a verdict fixture)");
+    return;
+  }
+  if (!CLIENT_KEY) {
+    console.log("verdict-gates leg: SHIPEASY_CLIENT_KEY unset — skipping");
+    return;
+  }
+  const proj = projectCurrent();
+  if (!proj?.id) {
+    annotate("verdict-gates: `projects current` returned no id");
+    failed++;
+    return;
+  }
+  if (!ensureStatsUniverse()) {
+    console.log("verdict-gates leg: no stats universe available — skipping");
+    return;
+  }
+  console.log("::group::Verdict gates (min_sample_size / min_runtime_days / ci_confidence)");
+  const EXP = "probe_verdict";
+  const EVT = "probe_verdict_evt";
+  const N = 200;
+  // SEQUENTIAL on purpose: a running FIXED-horizon experiment with a significant
+  // goal sets peek_warning=1 (consumer.ts: `!sequentialTesting && !isFinal && p<.05`),
+  // and deriveVerdict returns "wait" on hasPeekWarning BEFORE the ship branch — so a
+  // fixed fixture could never verdict "ship" while running and the sweeps below would
+  // be dead. mSPRT is peek-safe (peek_warning stays 0), so the gates are the only
+  // thing standing between the significant goal and "ship". MEI 0.2 + the strong
+  // 20/80 lift keep msprt_significant firing (λ ≫ log(1/α)) across the whole ambient
+  // msprt_tau_mei_factor range [0.1, 2.0] — even at the floor, where a smaller MEI
+  // would collapse τ→0 and drop λ below the boundary → a soft (never false) skip.
+  const goal = JSON.stringify({ event: EVT, aggregation: "count_users", min_effect_of_interest: 0.2 });
+  const exp = ensureExperiment(EXP, { goalMetric: goal, sequential: true });
+  if (!exp) {
+    console.log("  verdict fixture unavailable — skipping");
+    console.log("::endgroup::");
+    return;
+  }
+  const setGate = (flag, val) => cliText(["release", "experiments", "update", EXP, flag, String(val)]);
+  const origCi = proj.ciConfidence;
+  try {
+    // Gates wide open so a clean significant result verdicts "ship" (the schema
+    // floors min_sample_size at 1, so "open" is 1 — the 200-user cohort clears it).
+    setGate("--min-sample-size", 1);
+    setGate("--min-runtime-days", 0);
+    freshStart(EXP, { restart: true });
+    const tsMs = Date.now();
+    if (!(await collect(binaryCohort(EXP, EVT, { n: N, controlPct: 20, lift: 60, tsMs })))) {
+      failed++;
+      console.log("::endgroup::");
+      return;
+    }
+    let base = await settle(EXP);
+    for (let t = 0; t < 6 && !groupRow(base.rows, "treatment"); t++) base = await settle(EXP);
+    if (!groupRow(base.rows, "treatment")) {
+      console.log("⚠ no enrolment recovered within timeout (AE ingestion lag) — skipping (soft)");
+      console.log("::endgroup::");
+      return;
+    }
+    if (base.verdict === "ship") {
+      ok(`baseline verdict "ship" with gates open (goal significant, no SRM)`);
+    } else {
+      console.log(`⚠ baseline verdict is "${base.verdict}" not "ship" — cohort not conclusive yet; sweeps soft`);
+    }
+
+    // min_sample_size above the group N → "wait — needs ≥N users".
+    setGate("--min-sample-size", N + 1000);
+    const vSample = resultRows(EXP).verdict;
+    setGate("--min-sample-size", 1);
+    if (vSample === "wait") ok(`min_sample_size ${N + 1000} flips the verdict to "wait" (power guard bites)`);
+    else if (base.verdict === "ship") {
+      annotate(`min_sample_size guard had NO effect: verdict "${vSample}" at min_sample_size ${N + 1000} (want "wait")`);
+      failed++;
+    } else console.log(`⚠ min_sample_size sweep inconclusive (verdict "${vSample}"); soft`);
+
+    // min_runtime_days at the schema max (365) ≫ daysRunning≈0 → "wait — keep collecting".
+    setGate("--min-runtime-days", 365);
+    const vRun = resultRows(EXP).verdict;
+    setGate("--min-runtime-days", 0);
+    if (vRun === "wait") ok(`min_runtime_days 365 flips the verdict to "wait" (peeking guard bites)`);
+    else if (base.verdict === "ship") {
+      annotate(`min_runtime_days guard had NO effect: verdict "${vRun}" at min_runtime_days 365 (want "wait")`);
+      failed++;
+    } else console.log(`⚠ min_runtime_days sweep inconclusive (verdict "${vRun}"); soft`);
+
+    // ci_confidence: round-trips through project settings, and results carry BOTH
+    // display intervals. (The pipeline computes ci95 + ci99 regardless of the
+    // knob, so there's no analysis effect to assert — only the display inputs.)
+    setProjKnob(proj.id, "--ci-confidence", 0.99);
+    const after = projectCurrent();
+    if (after?.ciConfidence === 0.99) ok("ci_confidence round-trips through project settings (0.99)");
+    else {
+      annotate(`ci_confidence did not round-trip: read back ${after?.ciConfidence} (want 0.99)`);
+      failed++;
+    }
+    const tRow = groupRow(resultRows(EXP).rows, "treatment");
+    const has = (v) => v !== undefined && v !== null;
+    const ci95 = tRow && has(tRow.ci95Low ?? tRow.ci_95_low) && has(tRow.ci95High ?? tRow.ci_95_high);
+    const ci99 = tRow && has(tRow.ci99Low ?? tRow.ci_99_low) && has(tRow.ci99High ?? tRow.ci_99_high);
+    if (ci95 && ci99) ok("results carry both 95% and 99% intervals (ci_confidence selects which the UI shows)");
+    else {
+      annotate(`results missing a display interval — ci95=${ci95} ci99=${ci99}`);
+      failed++;
+    }
+  } finally {
+    try {
+      setProjKnob(proj.id, "--ci-confidence", origCi);
+      console.log(`  restored ci_confidence=${origCi}`);
+    } catch (e) {
+      annotate(`verdict-gates: restore failed — ${e?.message ?? e}`);
+      failed++;
+    }
+    try {
+      cliText(["release", "experiments", "stop", EXP]);
+    } catch {}
+  }
+  console.log("::endgroup::");
+}
+
 // ── run ─────────────────────────────────────────────────────────────────────
 try {
   probeExperiments();
@@ -1723,6 +2262,9 @@ try {
   await probeKillswitches();
   await probeKillswitchPropagation();
   await probeStatsEffect();
+  await probeSequentialTau();
+  await probeCupedGates();
+  await probeVerdictGates();
   await probeHoldout();
   await probeConfigs();
   await probeEnrichment();

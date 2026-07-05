@@ -49,7 +49,13 @@ jobs:
       SHIPEASY_PROBE_METRIC_EVENT: ${{ vars.SHIPEASY_PROBE_METRIC_EVENT }}
       SHIPEASY_PROBE_IDENTIFY_EXPERIMENT: ${{ vars.SHIPEASY_PROBE_IDENTIFY_EXPERIMENT }}
       SHIPEASY_PROBE_ENRICHMENT: ${{ vars.SHIPEASY_PROBE_ENRICHMENT }}
+      # Master switch for every self-restoring mutating leg — killswitch
+      # propagation, the stats-effect leg, AND the three stats-knob legs
+      # (mSPRT τ / CUPED / verdict gates), which build throwaway experiment
+      # fixtures under a Pro+ plan and restore every project knob they touch.
       SHIPEASY_PROBE_MUTATE: ${{ vars.SHIPEASY_PROBE_MUTATE }}
+      # Universe the stats-knob fixtures bucket in (default "probe_stats").
+      SHIPEASY_PROBE_STATS_UNIVERSE: ${{ vars.SHIPEASY_PROBE_STATS_UNIVERSE }}
       SHIPEASY_PROBE_MAX_MS: ${{ vars.SHIPEASY_PROBE_MAX_MS }}
       SHIPEASY_SERVER_KEY: ${{ secrets.SHIPEASY_SERVER_KEY }}
       SHIPEASY_CLIENT_KEY_DEV: ${{ secrets.SHIPEASY_CLIENT_KEY_DEV }}
