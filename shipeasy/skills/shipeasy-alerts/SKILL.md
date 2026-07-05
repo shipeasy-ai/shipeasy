@@ -55,19 +55,41 @@ to best track the signal, and **wait for the user to approve** before the final
    Then `ops_alerts_list` **before** you create, every time: the required dedup
    check. The list usually holds other, unrelated rules — that's fine; you're only
    looking for one that *already watches this same metric+threshold*. If one
-   matches, reuse or retune it instead of creating a duplicate.
+   matches, reuse or retune it instead of creating a duplicate. **Hard gate: do
+   not propose the plan or create the rule until all three lists have returned** —
+   the metric to watch and whether a rule already covers it both come from here.
 3. **Propose the tracking plan, then wait.** Come back with how to best set it up
    — the event/metric to use (reuse or new), the comparator + threshold, the
-   window, and the severity. When there's a real choice (error *rate* vs error
-   *count*, 5% vs a tighter bound), lay it out as 1–3 options. Present it and
-   **stop** for the user to approve or retune. Only ask about a decision that's
-   genuinely theirs (the exact threshold when they didn't give one) — never about
-   which external tool to use (there is none; Shipeasy is the backend).
+   window, and the severity — and **surface, don't silently default, the knobs the
+   user left open**, each with its tradeoff:
+   - **`windowHours` — the lookback the metric is aggregated over (1–720).** This
+     is the "time period" users usually omit. Offer a few and explain the
+     detection-latency vs noise tradeoff, rather than picking one silently:
+     - **1h** — catches a spike fast, but is **noisy/flappy** on low-traffic
+       metrics (a handful of events can cross a % threshold).
+     - **24h** — smooths hourly/daily swings; the usual default. Slower to fire on
+       a sudden spike, but far fewer false alarms.
+     - **168h (7d)** — very stable; only sustained regressions trip it. Use for
+       slow-moving guardrails, not incident response.
+   - **`comparator` + `threshold`** — surface error *rate* (a %, needs a
+     ratio-style metric) vs error *count* (an absolute number), and a loose vs
+     tight bound; they imply different metrics.
+   - **`severity`** (`danger` / `warn` / `info`) — page-worthy vs FYI.
+
+   When there's a real choice, lay it out as 1–3 options with a recommended
+   default. Present it and **stop** for the user to approve or retune. Only ask
+   about a decision that's genuinely theirs (the exact threshold or window when
+   they didn't give one) — never about which external tool to use (there is none;
+   Shipeasy is the backend).
 4. **Provision the approved rule.** Build any missing event
    (`metrics_events_create`) + metric (`metrics_create`), then the rule:
-   `ops_alerts_create { name, metricId, comparator, threshold, … }` (or `shipeasy
-   ops alerts create --name … --metric-id <id|name> --comparator gt --threshold
-   50`). This call is the culmination of the ask.
+   `ops_alerts_create { name, metricId, comparator, threshold, windowHours, … }`
+   (or `shipeasy ops alerts create --name … --metric-id <id|name> --comparator gt
+   --threshold 50`). This call is the culmination of the ask. If you had to create
+   a **new** event to back the metric, it emits nothing until instrumented — wire
+   the `track(...)` call into the code in the same change (see the
+   `shipeasy-metrics` skill); the `metrics_events_create` response hands you the
+   language-correct snippet.
 
 ## Pause, retune, or change a rule
 

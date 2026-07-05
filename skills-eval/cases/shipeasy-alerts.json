@@ -13,8 +13,9 @@
     ],
     "tools_match": "all",
     "forbid_tools": ["ops_alerts_archive"],
+    "assert_args": [{ "tool": "ops_alerts_create", "contains": ["windowHours"] }],
     "expect_state": { "metrics": ["payment"], "alerts": ["payment"] },
-    "note": "the skill examines the code first and proposes a tracking plan, then WAITS for approval before the create; the eval grants that approval up-front (run.ts standing-approval clause). Full chain: an alert fires on a metric, a metric rolls up an event. List events, metrics AND alerts first to check none already exist, then create what's missing. expect_state confirms the metric + alert landed. Uses a 'payment' domain (not 'checkout') so the metric it creates never collides with the experiments case's checkout metric."
+    "note": "the skill examines the code first and proposes a tracking plan, then WAITS for approval before the create; the eval grants that approval up-front (run.ts auto-approve). Full chain: an alert fires on a metric, a metric rolls up an event. List events, metrics AND alerts first to check none already exist, then create what's missing. expect_state confirms the metric + alert landed. The prompt gives NO time period, so the skill must propose windowHours options with the detection-latency-vs-noise tradeoff and land on one — assert_args checks the create carries a windowHours (not silently omitted). Uses a 'payment' domain (not 'checkout') so the metric it creates never collides with the experiments case's checkout metric."
   },
   {
     "id": "shipeasy-alerts/pause",
