@@ -59,11 +59,24 @@ manifest that *points at* the shared files; nothing is duplicated.
 
 ## Install in 12 seconds
 
+```bash
+npm install -g @shipeasy/cli
+shipeasy setup
+```
+
+That's it. `shipeasy setup` detects your coding agent, installs the right
+integration for it (native plugin where one exists, shared skills + MCP
+everywhere else), authenticates, binds the repo to a project, mints keys and
+installs `@shipeasy/sdk`. One command, every host — then just talk to your agent.
+
+<details>
+<summary><b>Prefer to wire the agent integration yourself?</b> Per-host install commands</summary>
+
 There are two install tiers. **Tier 1** hosts have a native plugin system, so
 one command bundles skills + MCP. **Tier 2** hosts (70+ agents) take the same
 shared skills via the
 [`vercel-labs/skills`](https://github.com/vercel-labs/skills) CLI plus a small
-MCP config snippet.
+MCP config snippet. (`shipeasy setup` above does the right one for you.)
 
 ### Tier 1 — one-command plugin install
 
@@ -87,6 +100,8 @@ npx skills add https://github.com/shipeasy-ai/shipeasy -a <agent>
 `continue`, `github-copilot`. The full per-host list, exact MCP file paths and
 formats live in **[`INSTALL.md`](./INSTALL.md)** (also published at
 <https://docs.shipeasy.ai/get-started/agents>).
+
+</details>
 
 ## Then: "set up shipeasy"
 
