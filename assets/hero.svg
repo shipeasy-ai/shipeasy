@@ -47,9 +47,9 @@
 
     <!-- install chip -->
     <g transform="translate(324 280)">
-      <rect width="556" height="56" rx="12" fill="#15131c" stroke="#a78bfa" stroke-opacity="0.35"/>
+      <rect width="588" height="56" rx="12" fill="#15131c" stroke="#a78bfa" stroke-opacity="0.35"/>
       <circle cx="26" cy="28" r="5" fill="#a78bfa"/>
-      <text x="48" y="35" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="20" fill="#e6e1f5">claude plugin install shipeasy@shipeasy</text>
+      <text x="48" y="35" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="18" fill="#e6e1f5">npm install -g @shipeasy/cli &amp;&amp; shipeasy setup</text>
     </g>
   </g>
 </svg>

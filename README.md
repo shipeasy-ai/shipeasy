@@ -8,6 +8,10 @@
 
 <br/>
 
+<img src="./assets/hero.gif" alt="Shipeasy in action — spinning up a feature flag from a single sentence to your AI agent" width="100%" />
+
+<br/>
+
 **Feature flags · kill switches · dynamic configs · A/B experiments · metrics · i18n — spun up from a single sentence to your AI coding agent.**
 
 [![Website](https://img.shields.io/badge/shipeasy.ai-7c3aed?style=flat-square&logo=safari&logoColor=white)](https://shipeasy.ai)
