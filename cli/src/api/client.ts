@@ -118,8 +118,13 @@ export function getApiClient(projectOverride?: string, opts: ApiClientOptions = 
     if (res.status === 204 || res.status === 202) return undefined as T;
     const json = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
     if (!res.ok) {
-      const j = json as { error?: string; code?: string };
-      throw new ApiError(j.error ?? `HTTP ${res.status}`, res.status, j.code);
+      const j = json as { error?: string; code?: string; detail?: string };
+      // The admin API returns a field-level `detail` on validation errors (422,
+      // code VALIDATION) — e.g. `scopes.0: Invalid enum value…`. Surface it so a
+      // caller sees WHAT failed, not just "Validation failed".
+      const base = j.error ?? `HTTP ${res.status}`;
+      const message = j.detail && j.detail !== base ? `${base} — ${j.detail}` : base;
+      throw new ApiError(message, res.status, j.code);
     }
     return json as T;
   }
