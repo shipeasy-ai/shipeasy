@@ -88,5 +88,11 @@ ExperimentInlineMetric:
       enum: [count_users, count_events, retention_7d, retention_30d, sum, avg]
       description: Reducer for the `event` form. Defaults to `count_users`.
     value: { type: string, minLength: 1, maxLength: 256, description: Numeric event property for `sum`/`avg` (with `event`). }
+    min_effect_of_interest:
+      description: Per-experiment override of the metric's default minimum effect of interest (relative, 0–1) — the smallest change worth acting on for this experiment's decision. `null`/omitted inherits the metric default. For a guardrail, the non-inferiority margin.
+      default: null
+      anyOf:
+        - type: number
+        - type: "null"
   additionalProperties: false
   description: Inline metric — a DSL `query`, or an `event` (+ `aggregation`/`value`) the server compiles into one.

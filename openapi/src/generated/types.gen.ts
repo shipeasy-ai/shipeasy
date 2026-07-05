@@ -723,6 +723,10 @@ export type ExperimentInlineMetric = {
      * Numeric event property for `sum`/`avg` (with `event`).
      */
     value?: string;
+    /**
+     * Per-experiment override of the metric's default minimum effect of interest (relative, 0–1) — the smallest change worth acting on for this experiment's decision. `null`/omitted inherits the metric default. For a guardrail, the non-inferiority margin.
+     */
+    min_effect_of_interest?: number | null;
 };
 
 /**
@@ -1008,6 +1012,10 @@ export type SetExperimentMetricsRequest = {
          * Metric role. `goal` drives the decision, `guardrail` blocks ship if degraded, `secondary` is informational.
          */
         role: 'goal' | 'guardrail' | 'secondary';
+        /**
+         * Per-experiment override of the metric's `default_min_effect_of_interest` (relative, 0–1) — the smallest change worth acting on for THIS experiment's decision, which depends on the intervention's cost/risk. `null`/omitted falls back to the metric default. For a `guardrail` this is the non-inferiority margin (how large a regression is tolerated); for a `goal` it is the superiority threshold.
+         */
+        min_effect_of_interest?: number | null;
     }>;
 };
 
@@ -1016,6 +1024,10 @@ export type SetExperimentMetricsResponse = {
     metrics: Array<{
         metric_id: string;
         role: 'goal' | 'guardrail' | 'secondary';
+        /**
+         * The resolved per-experiment override, or `null` when this attachment inherits the metric's `default_min_effect_of_interest`.
+         */
+        min_effect_of_interest: number | null;
     }>;
 };
 
@@ -1043,6 +1055,10 @@ export type GetExperimentResultsResponse = {
          * `1` if sample-ratio mismatch detected, else `0`.
          */
         srm_detected: number | null;
+        /**
+         * Realized minimum detectable effect (absolute, in metric units) — the smallest true effect this run could detect at the experiment's significance level and target power GIVEN the observed variance and per-arm sample sizes. A derived OUTPUT, not an input knob; compare it against the metric's minimum effect of interest to judge whether the run is adequately powered. `null` on the control row and on empty arms.
+         */
+        realized_mde: number | null;
     }>;
     /**
      * Server-computed decision from the goal metric + guardrails + SRM vs. the significance threshold and min runtime: `ship` (goal significant + guardrails pass), `hold` (a guardrail regressed), `wait` (inconclusive / under-powered), `invalid` (sample-ratio mismatch), `draft` (never started).
@@ -2168,9 +2184,9 @@ export type ListMetricsResponse = Array<{
      */
     winsorizePct?: number;
     /**
-     * Configured MDE, or `null`.
+     * Metric-level default minimum effect of interest (relative, 0–1), or `null`.
      */
-    minDetectableEffect?: number | null;
+    defaultMinEffectOfInterest?: number | null;
     /**
      * ISO-8601 creation timestamp.
      */
@@ -2198,9 +2214,9 @@ export type MetricQueryDsl = string;
 export type MetricWinsorizePct = number;
 
 /**
- * Minimum detectable effect (relative, 0–1) for power planning. `null` to omit.
+ * Default minimum effect of interest (relative, 0–1) — the smallest change in this metric worth acting on, used as the power-planning baseline. Intrinsic to the metric; an experiment overrides it per-attachment with `min_effect_of_interest` when a specific decision has a different cost/risk bar. `null` to omit.
  */
-export type MetricMinDetectableEffect = number | null;
+export type MetricDefaultMinEffectOfInterest = number | null;
 
 /**
  * Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).
@@ -2216,7 +2232,7 @@ export type CreateMetricWithQuery = {
     event_name: MetricEventName;
     query: MetricQueryDsl;
     winsorize_pct?: MetricWinsorizePct;
-    min_detectable_effect?: MetricMinDetectableEffect;
+    default_min_effect_of_interest?: MetricDefaultMinEffectOfInterest;
     direction?: MetricDirection;
 };
 
@@ -2229,7 +2245,7 @@ export type CreateMetricWithQueryIr = {
     event_name: MetricEventName;
     query_ir: QueryIr;
     winsorize_pct?: MetricWinsorizePct;
-    min_detectable_effect?: MetricMinDetectableEffect;
+    default_min_effect_of_interest?: MetricDefaultMinEffectOfInterest;
     direction?: MetricDirection;
 };
 
@@ -2286,9 +2302,9 @@ export type GetMetricResponse = {
      */
     winsorizePct?: number;
     /**
-     * Configured MDE, or `null`.
+     * Metric-level default minimum effect of interest (relative, 0–1), or `null`.
      */
-    minDetectableEffect?: number | null;
+    defaultMinEffectOfInterest?: number | null;
     /**
      * ISO-8601 creation timestamp.
      */
@@ -2315,7 +2331,7 @@ export type UpdateMetricWithQuery = {
     event_name?: MetricEventName;
     query: MetricQueryDsl;
     winsorize_pct?: MetricWinsorizePct;
-    min_detectable_effect?: MetricMinDetectableEffect;
+    default_min_effect_of_interest?: MetricDefaultMinEffectOfInterest;
     direction?: MetricDirection;
 };
 
@@ -2327,18 +2343,18 @@ export type UpdateMetricWithQueryIr = {
     event_name?: MetricEventName;
     query_ir: QueryIr;
     winsorize_pct?: MetricWinsorizePct;
-    min_detectable_effect?: MetricMinDetectableEffect;
+    default_min_effect_of_interest?: MetricDefaultMinEffectOfInterest;
     direction?: MetricDirection;
 };
 
 /**
- * Update-metric variant that leaves the query untouched (metadata-only edit — folder, event, winsorisation, MDE, direction).
+ * Update-metric variant that leaves the query untouched (metadata-only edit — folder, event, winsorisation, default minimum effect of interest, direction).
  */
 export type UpdateMetricFields = {
     folder?: Folder;
     event_name?: MetricEventName;
     winsorize_pct?: MetricWinsorizePct;
-    min_detectable_effect?: MetricMinDetectableEffect;
+    default_min_effect_of_interest?: MetricDefaultMinEffectOfInterest;
     direction?: MetricDirection;
 };
 

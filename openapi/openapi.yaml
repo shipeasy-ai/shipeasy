@@ -8467,6 +8467,12 @@ components:
           minLength: 1
           maxLength: 256
           description: Numeric event property for `sum`/`avg` (with `event`).
+        min_effect_of_interest:
+          description: Per-experiment override of the metric's default minimum effect of interest (relative, 0–1) — the smallest change worth acting on for this experiment's decision. `null`/omitted inherits the metric default. For a guardrail, the non-inferiority margin.
+          default: null
+          anyOf:
+            - type: number
+            - type: 'null'
       additionalProperties: false
       description: Inline metric — a DSL `query`, or an `event` (+ `aggregation`/`value`) the server compiles into one.
     CreateExperimentRequest:
@@ -8976,6 +8982,12 @@ components:
                   - guardrail
                   - secondary
                 description: Metric role. `goal` drives the decision, `guardrail` blocks ship if degraded, `secondary` is informational.
+              min_effect_of_interest:
+                description: Per-experiment override of the metric's `default_min_effect_of_interest` (relative, 0–1) — the smallest change worth acting on for THIS experiment's decision, which depends on the intervention's cost/risk. `null`/omitted falls back to the metric default. For a `guardrail` this is the non-inferiority margin (how large a regression is tolerated); for a `goal` it is the superiority threshold.
+                default: null
+                anyOf:
+                  - type: number
+                  - type: 'null'
             required:
               - metric_id
               - role
@@ -9003,9 +9015,15 @@ components:
                   - goal
                   - guardrail
                   - secondary
+              min_effect_of_interest:
+                description: The resolved per-experiment override, or `null` when this attachment inherits the metric's `default_min_effect_of_interest`.
+                anyOf:
+                  - type: number
+                  - type: 'null'
             required:
               - metric_id
               - role
+              - min_effect_of_interest
             additionalProperties: false
       required:
         - id
@@ -9069,6 +9087,11 @@ components:
                   - type: number
                   - type: 'null'
                 description: '`1` if sample-ratio mismatch detected, else `0`.'
+              realized_mde:
+                anyOf:
+                  - type: number
+                  - type: 'null'
+                description: Realized minimum detectable effect (absolute, in metric units) — the smallest true effect this run could detect at the experiment's significance level and target power GIVEN the observed variance and per-arm sample sizes. A derived OUTPUT, not an input knob; compare it against the metric's minimum effect of interest to judge whether the run is adequately powered. `null` on the control row and on empty arms.
             required:
               - metric
               - group_name
@@ -9078,6 +9101,7 @@ components:
               - delta_pct
               - p_value
               - srm_detected
+              - realized_mde
             additionalProperties: false
         verdict:
           type: string
@@ -10714,8 +10738,8 @@ components:
           winsorizePct:
             description: Winsorise percentile applied to the metric.
             type: number
-          minDetectableEffect:
-            description: Configured MDE, or `null`.
+          defaultMinEffectOfInterest:
+            description: Metric-level default minimum effect of interest (relative, 0–1), or `null`.
             anyOf:
               - type: number
               - type: 'null'
@@ -10750,9 +10774,9 @@ components:
       type: integer
       minimum: 1
       maximum: 99
-    MetricMinDetectableEffect:
+    MetricDefaultMinEffectOfInterest:
       default: null
-      description: Minimum detectable effect (relative, 0–1) for power planning. `null` to omit.
+      description: Default minimum effect of interest (relative, 0–1) — the smallest change in this metric worth acting on, used as the power-planning baseline. Intrinsic to the metric; an experiment overrides it per-attachment with `min_effect_of_interest` when a specific decision has a different cost/risk bar. `null` to omit.
       anyOf:
         - type: number
         - type: 'null'
@@ -10777,8 +10801,8 @@ components:
           $ref: '#/components/schemas/MetricQueryDsl'
         winsorize_pct:
           $ref: '#/components/schemas/MetricWinsorizePct'
-        min_detectable_effect:
-          $ref: '#/components/schemas/MetricMinDetectableEffect'
+        default_min_effect_of_interest:
+          $ref: '#/components/schemas/MetricDefaultMinEffectOfInterest'
         direction:
           $ref: '#/components/schemas/MetricDirection'
       required:
@@ -10800,8 +10824,8 @@ components:
           $ref: '#/components/schemas/QueryIr'
         winsorize_pct:
           $ref: '#/components/schemas/MetricWinsorizePct'
-        min_detectable_effect:
-          $ref: '#/components/schemas/MetricMinDetectableEffect'
+        default_min_effect_of_interest:
+          $ref: '#/components/schemas/MetricDefaultMinEffectOfInterest'
         direction:
           $ref: '#/components/schemas/MetricDirection'
       required:
@@ -10863,8 +10887,8 @@ components:
         winsorizePct:
           description: Winsorise percentile applied to the metric.
           type: number
-        minDetectableEffect:
-          description: Configured MDE, or `null`.
+        defaultMinEffectOfInterest:
+          description: Metric-level default minimum effect of interest (relative, 0–1), or `null`.
           anyOf:
             - type: number
             - type: 'null'
@@ -10904,8 +10928,8 @@ components:
           $ref: '#/components/schemas/MetricQueryDsl'
         winsorize_pct:
           $ref: '#/components/schemas/MetricWinsorizePct'
-        min_detectable_effect:
-          $ref: '#/components/schemas/MetricMinDetectableEffect'
+        default_min_effect_of_interest:
+          $ref: '#/components/schemas/MetricDefaultMinEffectOfInterest'
         direction:
           $ref: '#/components/schemas/MetricDirection'
       required:
@@ -10923,8 +10947,8 @@ components:
           $ref: '#/components/schemas/QueryIr'
         winsorize_pct:
           $ref: '#/components/schemas/MetricWinsorizePct'
-        min_detectable_effect:
-          $ref: '#/components/schemas/MetricMinDetectableEffect'
+        default_min_effect_of_interest:
+          $ref: '#/components/schemas/MetricDefaultMinEffectOfInterest'
         direction:
           $ref: '#/components/schemas/MetricDirection'
       required:
@@ -10940,12 +10964,12 @@ components:
           $ref: '#/components/schemas/MetricEventName'
         winsorize_pct:
           $ref: '#/components/schemas/MetricWinsorizePct'
-        min_detectable_effect:
-          $ref: '#/components/schemas/MetricMinDetectableEffect'
+        default_min_effect_of_interest:
+          $ref: '#/components/schemas/MetricDefaultMinEffectOfInterest'
         direction:
           $ref: '#/components/schemas/MetricDirection'
       additionalProperties: false
-      description: Update-metric variant that leaves the query untouched (metadata-only edit — folder, event, winsorisation, MDE, direction).
+      description: Update-metric variant that leaves the query untouched (metadata-only edit — folder, event, winsorisation, default minimum effect of interest, direction).
     UpdateMetricRequest:
       oneOf:
         - $ref: '#/components/schemas/UpdateMetricWithQuery'

@@ -662,6 +662,12 @@ SetExperimentMetricsRequest:
               - guardrail
               - secondary
             description: Metric role. `goal` drives the decision, `guardrail` blocks ship if degraded, `secondary` is informational.
+          min_effect_of_interest:
+            description: Per-experiment override of the metric's `default_min_effect_of_interest` (relative, 0–1) — the smallest change worth acting on for THIS experiment's decision, which depends on the intervention's cost/risk. `null`/omitted falls back to the metric default. For a `guardrail` this is the non-inferiority margin (how large a regression is tolerated); for a `goal` it is the superiority threshold.
+            default: null
+            anyOf:
+              - type: number
+              - type: "null"
         required:
           - metric_id
           - role
@@ -689,9 +695,15 @@ SetExperimentMetricsResponse:
               - goal
               - guardrail
               - secondary
+          min_effect_of_interest:
+            description: The resolved per-experiment override, or `null` when this attachment inherits the metric's `default_min_effect_of_interest`.
+            anyOf:
+              - type: number
+              - type: "null"
         required:
           - metric_id
           - role
+          - min_effect_of_interest
         additionalProperties: false
   required:
     - id
@@ -755,6 +767,11 @@ GetExperimentResultsResponse:
               - type: number
               - type: "null"
             description: "`1` if sample-ratio mismatch detected, else `0`."
+          realized_mde:
+            anyOf:
+              - type: number
+              - type: "null"
+            description: "Realized minimum detectable effect (absolute, in metric units) — the smallest true effect this run could detect at the experiment's significance level and target power GIVEN the observed variance and per-arm sample sizes. A derived OUTPUT, not an input knob; compare it against the metric's minimum effect of interest to judge whether the run is adequately powered. `null` on the control row and on empty arms."
         required:
           - metric
           - group_name
@@ -764,6 +781,7 @@ GetExperimentResultsResponse:
           - delta_pct
           - p_value
           - srm_detected
+          - realized_mde
         additionalProperties: false
     verdict:
       type: string

@@ -418,7 +418,8 @@ export const zExperimentInlineMetric = z.object({
         'sum',
         'avg'
     ]).optional(),
-    value: z.string().min(1).max(256).optional()
+    value: z.string().min(1).max(256).optional(),
+    min_effect_of_interest: z.number().nullish().default(null)
 });
 
 /**
@@ -575,7 +576,8 @@ export const zSetExperimentMetricsRequest = z.object({
             'goal',
             'guardrail',
             'secondary'
-        ])
+        ]),
+        min_effect_of_interest: z.number().nullish().default(null)
     }))
 });
 
@@ -587,7 +589,8 @@ export const zSetExperimentMetricsResponse = z.object({
             'goal',
             'guardrail',
             'secondary'
-        ])
+        ]),
+        min_effect_of_interest: z.number().nullable()
     }))
 });
 
@@ -610,7 +613,8 @@ export const zGetExperimentResultsResponse = z.object({
         mean: z.number().nullable(),
         delta_pct: z.number().nullable(),
         p_value: z.number().nullable(),
-        srm_detected: z.number().nullable()
+        srm_detected: z.number().nullable(),
+        realized_mde: z.number().nullable()
     })),
     verdict: z.enum([
         'ship',
@@ -1266,7 +1270,7 @@ export const zListMetricsResponse = z.array(z.object({
         'neutral'
     ]).optional(),
     winsorizePct: z.number().optional(),
-    minDetectableEffect: z.number().nullish(),
+    defaultMinEffectOfInterest: z.number().nullish(),
     createdAt: z.string().optional(),
     updatedAt: z.string().optional()
 }));
@@ -1287,9 +1291,9 @@ export const zMetricQueryDsl = z.string().min(1).max(4096);
 export const zMetricWinsorizePct = z.int().gte(1).lte(99).default(99);
 
 /**
- * Minimum detectable effect (relative, 0–1) for power planning. `null` to omit.
+ * Default minimum effect of interest (relative, 0–1) — the smallest change in this metric worth acting on, used as the power-planning baseline. Intrinsic to the metric; an experiment overrides it per-attachment with `min_effect_of_interest` when a specific decision has a different cost/risk bar. `null` to omit.
  */
-export const zMetricMinDetectableEffect = z.number().nullable().default(null);
+export const zMetricDefaultMinEffectOfInterest = z.number().nullable().default(null);
 
 /**
  * Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).
@@ -1309,7 +1313,7 @@ export const zCreateMetricWithQuery = z.object({
     event_name: zMetricEventName,
     query: zMetricQueryDsl,
     winsorize_pct: zMetricWinsorizePct.optional(),
-    min_detectable_effect: zMetricMinDetectableEffect.optional(),
+    default_min_effect_of_interest: zMetricDefaultMinEffectOfInterest.optional(),
     direction: zMetricDirection.optional()
 });
 
@@ -1322,7 +1326,7 @@ export const zCreateMetricWithQueryIr = z.object({
     event_name: zMetricEventName,
     query_ir: zQueryIr,
     winsorize_pct: zMetricWinsorizePct.optional(),
-    min_detectable_effect: zMetricMinDetectableEffect.optional(),
+    default_min_effect_of_interest: zMetricDefaultMinEffectOfInterest.optional(),
     direction: zMetricDirection.optional()
 });
 
@@ -1358,7 +1362,7 @@ export const zGetMetricResponse = z.object({
         'neutral'
     ]).optional(),
     winsorizePct: z.number().optional(),
-    minDetectableEffect: z.number().nullish(),
+    defaultMinEffectOfInterest: z.number().nullish(),
     createdAt: z.string().optional(),
     updatedAt: z.string().optional()
 });
@@ -1378,7 +1382,7 @@ export const zUpdateMetricWithQuery = z.object({
     event_name: zMetricEventName.optional(),
     query: zMetricQueryDsl,
     winsorize_pct: zMetricWinsorizePct.optional(),
-    min_detectable_effect: zMetricMinDetectableEffect.optional(),
+    default_min_effect_of_interest: zMetricDefaultMinEffectOfInterest.optional(),
     direction: zMetricDirection.optional()
 });
 
@@ -1390,18 +1394,18 @@ export const zUpdateMetricWithQueryIr = z.object({
     event_name: zMetricEventName.optional(),
     query_ir: zQueryIr,
     winsorize_pct: zMetricWinsorizePct.optional(),
-    min_detectable_effect: zMetricMinDetectableEffect.optional(),
+    default_min_effect_of_interest: zMetricDefaultMinEffectOfInterest.optional(),
     direction: zMetricDirection.optional()
 });
 
 /**
- * Update-metric variant that leaves the query untouched (metadata-only edit — folder, event, winsorisation, MDE, direction).
+ * Update-metric variant that leaves the query untouched (metadata-only edit — folder, event, winsorisation, default minimum effect of interest, direction).
  */
 export const zUpdateMetricFields = z.object({
     folder: zFolder.optional(),
     event_name: zMetricEventName.optional(),
     winsorize_pct: zMetricWinsorizePct.optional(),
-    min_detectable_effect: zMetricMinDetectableEffect.optional(),
+    default_min_effect_of_interest: zMetricDefaultMinEffectOfInterest.optional(),
     direction: zMetricDirection.optional()
 });
 

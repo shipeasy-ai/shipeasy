@@ -34,8 +34,8 @@ ListMetricsResponse:
       winsorizePct:
         description: Winsorise percentile applied to the metric.
         type: number
-      minDetectableEffect:
-        description: Configured MDE, or `null`.
+      defaultMinEffectOfInterest:
+        description: Metric-level default minimum effect of interest (relative, 0–1), or `null`.
         anyOf:
           - type: number
           - type: "null"
@@ -89,8 +89,8 @@ GetMetricResponse:
     winsorizePct:
       description: Winsorise percentile applied to the metric.
       type: number
-    minDetectableEffect:
-      description: Configured MDE, or `null`.
+    defaultMinEffectOfInterest:
+      description: Metric-level default minimum effect of interest (relative, 0–1), or `null`.
       anyOf:
         - type: number
         - type: "null"
@@ -397,9 +397,9 @@ MetricWinsorizePct:
   type: integer
   minimum: 1
   maximum: 99
-MetricMinDetectableEffect:
+MetricDefaultMinEffectOfInterest:
   default: null
-  description: Minimum detectable effect (relative, 0–1) for power planning. `null` to omit.
+  description: Default minimum effect of interest (relative, 0–1) — the smallest change in this metric worth acting on, used as the power-planning baseline. Intrinsic to the metric; an experiment overrides it per-attachment with `min_effect_of_interest` when a specific decision has a different cost/risk bar. `null` to omit.
   anyOf:
     - type: number
     - type: "null"
@@ -429,8 +429,8 @@ CreateMetricWithQuery:
       $ref: "#/MetricQueryDsl"
     winsorize_pct:
       $ref: "#/MetricWinsorizePct"
-    min_detectable_effect:
-      $ref: "#/MetricMinDetectableEffect"
+    default_min_effect_of_interest:
+      $ref: "#/MetricDefaultMinEffectOfInterest"
     direction:
       $ref: "#/MetricDirection"
   required:
@@ -452,8 +452,8 @@ CreateMetricWithQueryIr:
       $ref: "#/QueryIr"
     winsorize_pct:
       $ref: "#/MetricWinsorizePct"
-    min_detectable_effect:
-      $ref: "#/MetricMinDetectableEffect"
+    default_min_effect_of_interest:
+      $ref: "#/MetricDefaultMinEffectOfInterest"
     direction:
       $ref: "#/MetricDirection"
   required:
@@ -479,8 +479,8 @@ UpdateMetricWithQuery:
       $ref: "#/MetricQueryDsl"
     winsorize_pct:
       $ref: "#/MetricWinsorizePct"
-    min_detectable_effect:
-      $ref: "#/MetricMinDetectableEffect"
+    default_min_effect_of_interest:
+      $ref: "#/MetricDefaultMinEffectOfInterest"
     direction:
       $ref: "#/MetricDirection"
   required:
@@ -498,8 +498,8 @@ UpdateMetricWithQueryIr:
       $ref: "#/QueryIr"
     winsorize_pct:
       $ref: "#/MetricWinsorizePct"
-    min_detectable_effect:
-      $ref: "#/MetricMinDetectableEffect"
+    default_min_effect_of_interest:
+      $ref: "#/MetricDefaultMinEffectOfInterest"
     direction:
       $ref: "#/MetricDirection"
   required:
@@ -515,12 +515,12 @@ UpdateMetricFields:
       $ref: "#/MetricEventName"
     winsorize_pct:
       $ref: "#/MetricWinsorizePct"
-    min_detectable_effect:
-      $ref: "#/MetricMinDetectableEffect"
+    default_min_effect_of_interest:
+      $ref: "#/MetricDefaultMinEffectOfInterest"
     direction:
       $ref: "#/MetricDirection"
   additionalProperties: false
-  description: Update-metric variant that leaves the query untouched (metadata-only edit — folder, event, winsorisation, MDE, direction).
+  description: Update-metric variant that leaves the query untouched (metadata-only edit — folder, event, winsorisation, default minimum effect of interest, direction).
 CreateMetricResponse:
   type: object
   properties:
