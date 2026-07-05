@@ -24,8 +24,11 @@ export interface AgentInfo {
 
 /** The hosted, remote Shipeasy MCP server. Assistants connect over HTTP — no
  *  local `npx` process, no per-machine install; auth is negotiated by the
- *  client against the hosted endpoint on first use. */
-export const MCP_URL = "https://mcp.shipeasy.ai";
+ *  client against the hosted endpoint on first use. The streamable-HTTP
+ *  transport lives at `/mcp` (the worker serves discovery + tool calls there);
+ *  a bare `https://mcp.shipeasy.ai` POSTs to `/` and 404s ("No handler for
+ *  POST /"), which is what a client sees when the path is dropped. */
+export const MCP_URL = "https://mcp.shipeasy.ai/mcp";
 
 /** The MCP server entry every assistant registers (streamable-HTTP remote). */
 export const SERVER_SPEC = { type: "http", url: MCP_URL };

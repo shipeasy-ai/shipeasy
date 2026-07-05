@@ -4,7 +4,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import prompts from "prompts";
 import { login } from "../auth/login";
-import { loadCredentials } from "../auth/storage";
+import { loadCredentials, type ShipeasyConfig } from "../auth/storage";
 import { bindProject, getBoundProjectId } from "../util/project-config";
 import { getApiClient } from "../api/client";
 import {
@@ -48,7 +48,17 @@ import {
   SERVER_KEY_VAR,
 } from "../setup/onboard";
 import { buildWiringDoc, type WiringTarget } from "../setup/wiring-doc";
-import { runTriggerStep, type TriggerStepResult } from "../setup/triggers";
+import {
+  runTriggerStep,
+  type TriggerStepResult,
+  type CliSession,
+} from "../setup/triggers";
+
+/** Project the loaded CLI credentials onto the minimal session the trigger step
+ *  needs (token + admin-API origin). Null-safe: no creds → no session. */
+function sessionFromCreds(creds: ShipeasyConfig | null): CliSession | null {
+  return creds ? { token: creds.cli_token, appBaseUrl: creds.app_base_url } : null;
+}
 import { BROWSER_FRAMEWORKS, detectTargets, type TargetRecommendation } from "./scan";
 import { recordDetection } from "./detect";
 import { enableModuleGroup, type EnableResult } from "./install";
@@ -552,6 +562,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   heading("2. Authenticate + bind project");
   let projectId = "";
   let projectName: string | undefined;
+  let cliSession: CliSession | null = null;
   if (dryRun) {
     console.log("  (dry run — would run `shipeasy login`, bind cwd + each target)");
   } else {
@@ -560,6 +571,11 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     // uses this id — never a re-walk of `.shipeasy` that could drift.
     projectId = await ensureAuthAndBind(interactive);
     projectName = await fetchProjectName(projectId);
+    // Capture the authenticated session now — creds are guaranteed valid here
+    // (ensureAuthAndBind throws otherwise). The trigger step reuses this token
+    // to mint the Copilot ops key instead of re-resolving creds later (which can
+    // be gone by then and would hard-exit the run).
+    cliSession = sessionFromCreds(loadCredentials());
 
     const outcomes = bindTargetDirs(
       actionable.map((t) => t.path),
@@ -1147,6 +1163,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
       platform: opts.triggerPlatform,
       preferredAgents: selected,
       dryRun,
+      session: cliSession,
     });
   }
 
@@ -1228,6 +1245,7 @@ async function runSetupTriggers(opts: { platform?: string; dryRun?: boolean }): 
     ask: false, // running this command IS the opt-in
     platform: opts.platform,
     dryRun: opts.dryRun,
+    session: sessionFromCreds(creds),
   });
 }
 

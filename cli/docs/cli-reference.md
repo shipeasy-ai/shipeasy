@@ -2067,7 +2067,7 @@ shipeasy mcp [options] [command]
 
 ### `shipeasy mcp install`
 
-Register the hosted Shipeasy MCP server (https://mcp.shipeasy.ai) with installed AI assistants
+Register the hosted Shipeasy MCP server (https://mcp.shipeasy.ai/mcp) with installed AI assistants
 
 ```bash
 shipeasy mcp install [options]

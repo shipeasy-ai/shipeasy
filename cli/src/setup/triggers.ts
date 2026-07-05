@@ -1,7 +1,20 @@
 import { execSync } from "node:child_process";
 import prompts from "prompts";
 import { tryOpenBrowser } from "../auth/login";
-import { getApiClient } from "../api/client";
+
+/**
+ * The authenticated CLI session captured once by the caller (right after
+ * login/bind), so the Copilot secrets step can mint its ops key by REUSING the
+ * token already retrieved this run — never by re-resolving credentials from
+ * disk/env, which may already be gone by the trigger step and would hard-exit
+ * the whole `shipeasy setup` process instead of degrading to the manual wizard.
+ * `appBaseUrl` is the admin-API origin (`creds.app_base_url`), which owns
+ * `/api/admin/keys`.
+ */
+export interface CliSession {
+  token: string;
+  appBaseUrl: string;
+}
 
 /**
  * The automation-trigger step of onboarding — now owned by the CLI (it replaces
@@ -88,6 +101,13 @@ export interface TriggerStepOpts {
   preferredAgents?: string[];
   /** Don't open a browser (dry run / tests) — just print the URL. */
   dryRun?: boolean;
+  /**
+   * The authenticated CLI session captured once by the caller (after login).
+   * Lets the Copilot secrets step mint its ops key by reusing the token already
+   * retrieved this run instead of re-resolving credentials (which can be gone by
+   * now and would hard-exit). Null/omitted → that step is a best-effort no-op.
+   */
+  session?: CliSession | null;
 }
 
 /** Map a step-3 `AgentId` to its trigger platform id (`jules` → `gemini`). */
@@ -159,6 +179,30 @@ function ghSetAgentsSecret(name: string, value: string, slug: string): void {
 }
 
 /**
+ * Mint a restricted ops key by REUSING the CLI session token captured earlier
+ * this run — a direct admin-API call, so it never re-resolves credentials from
+ * disk/env (which may be gone by now) and never `process.exit`s: a failure is a
+ * thrown error the caller swallows into its best-effort no-op. `/api/admin/keys`
+ * is served by the admin UI worker, so it hangs off `session.appBaseUrl`.
+ */
+async function mintOpsKey(session: CliSession, projectId: string): Promise<string> {
+  const res = await fetch(`${session.appBaseUrl.replace(/\/$/, "")}/api/admin/keys`, {
+    method: "POST",
+    headers: {
+      "X-SDK-Key": session.token,
+      "X-Project-Id": projectId,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ type: "ops", env: "prod" }),
+  });
+  const json = (await res.json().catch(() => ({}))) as { key?: string; error?: string };
+  if (!res.ok || !json.key) {
+    throw new Error(json.error ?? `HTTP ${res.status} minting ops key`);
+  }
+  return json.key;
+}
+
+/**
  * Copilot only, best-effort: mint a restricted ops key and push it (plus the
  * project id) into the repo's GitHub "Agents" secret store with the user's `gh`
  * CLI, so the wizard's "add a restricted key" step is already done. Returns true
@@ -169,10 +213,15 @@ function ghSetAgentsSecret(name: string, value: string, slug: string): void {
 async function provisionCopilotAgentsSecrets(
   projectId: string,
   interactive: boolean,
+  session: CliSession | null,
 ): Promise<boolean> {
   if (!ghReady()) return false;
   const slug = ghRepoSlug();
   if (!slug) return false;
+  // No captured session → we'd have to re-pull credentials (and could hard-exit
+  // if they're gone). Best-effort contract: skip and let the wizard show the
+  // manual steps rather than crash the whole `shipeasy setup` run.
+  if (!session) return false;
 
   if (interactive) {
     const { go } = await prompts({
@@ -186,13 +235,10 @@ async function provisionCopilotAgentsSecrets(
 
   try {
     // Restricted ops key — read-only queue + status flips + link-pr + create-only
-    // (never edits/deletes), auto-extends its 7-day expiry on each run.
-    const client = getApiClient(projectId);
-    const created = await client.request<{ key: string }>("POST", "/api/admin/keys", {
-      type: "ops",
-      env: "prod",
-    });
-    ghSetAgentsSecret("SHIPEASY_CLI_TOKEN", created.key, slug);
+    // (never edits/deletes), auto-extends its 7-day expiry on each run. Minted by
+    // reusing the session token already retrieved this run, not a fresh re-resolve.
+    const opsKey = await mintOpsKey(session, projectId);
+    ghSetAgentsSecret("SHIPEASY_CLI_TOKEN", opsKey, slug);
     ghSetAgentsSecret("SHIPEASY_PROJECT_ID", projectId, slug);
     console.log(
       `\n  ✓ Set Copilot Agents secrets in ${slug}: SHIPEASY_CLI_TOKEN, SHIPEASY_PROJECT_ID.`,
@@ -218,10 +264,11 @@ async function openWizard(
   platform: TriggerPlatform | null,
   dryRun?: boolean,
   interactive?: boolean,
+  session?: CliSession | null,
 ): Promise<string> {
   const secretsDone =
     platform === "copilot" && !dryRun
-      ? await provisionCopilotAgentsSecrets(projectId, interactive ?? false)
+      ? await provisionCopilotAgentsSecrets(projectId, interactive ?? false, session ?? null)
       : false;
   const url = triggerSetupUrl(appBaseUrl, projectId, platform, { secretsDone });
   const picked = platform ? TRIGGER_PLATFORMS.find((p) => p.id === platform)?.label : "the picker";
@@ -280,6 +327,7 @@ export async function runTriggerStep(opts: TriggerStepOpts): Promise<TriggerStep
       platform,
       opts.dryRun,
       opts.interactive,
+      opts.session,
     );
     return {
       enabled: true,
@@ -295,7 +343,14 @@ export async function runTriggerStep(opts: TriggerStepOpts): Promise<TriggerStep
     console.log(
       "  • no platform given — opening the picker (pass --trigger-platform to preselect).",
     );
-    const url = await openWizard(opts.appBaseUrl, opts.projectId, null, opts.dryRun, false);
+    const url = await openWizard(
+      opts.appBaseUrl,
+      opts.projectId,
+      null,
+      opts.dryRun,
+      false,
+      opts.session,
+    );
     return { enabled: true, platforms: [], url };
   }
 
@@ -346,6 +401,7 @@ export async function runTriggerStep(opts: TriggerStepOpts): Promise<TriggerStep
       platform,
       opts.dryRun,
       opts.interactive,
+      opts.session,
     );
     if (platform && !opened.includes(platform)) opened.push(platform);
     console.log(
