@@ -40,7 +40,14 @@ them from memory.
 An alert watches a metric, and a metric rolls up an event — so a create ask is a
 short design conversation, not a one-shot. **Examine the code first**, propose how
 to best track the signal, and **wait for the user to approve** before the final
-`ops_alerts_create`. A "ping me when X exceeds Y" ask ends in an
+`ops_alerts_create`.
+
+A bare *"set up alerting (for my project)"* with no signal named starts that same
+conversation, it is not a green light to build a rule: alert rules ride the flags
+platform install, which is already in place, so confirm alerting is ready and
+offer to **create** the first alert rule — suggest a concrete metric+threshold
+from the code — rather than creating one unprompted. Wait for the user to pick
+the signal and threshold before you call `ops_alerts_create`. A "ping me when X exceeds Y" ask ends in an
 `ops_alerts_create` call — but only after the user has approved the plan:
 
 1. **Examine the code (required).** Read the specific surface the ask names — the

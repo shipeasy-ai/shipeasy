@@ -71,6 +71,13 @@ Read the user's request. Translate into one sentence of the form
 you can't fill in the blanks, ask the user **one** clarifying question
 (2–4 options framed around concrete app surfaces, not generic phrasing).
 
+A bare *"set up metrics (for my project)"* with no signal named is this same
+scope step, not a green light to build one: the metrics platform is already
+installed with the flags module, so confirm it's ready and offer to **create**
+the first metric — name a concrete candidate from the code — rather than
+creating anything unprompted. Wait for the user to pick the signal before you
+call `metrics_create`.
+
 ### 1. Analyze what already exists (MCP tools — always do this first)
 
 ```
