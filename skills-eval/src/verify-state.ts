@@ -140,6 +140,31 @@ async function ensureAlertSeedMetricId(cfg: EnvConfig): Promise<string | undefin
   return fetchMetricIdByName(cfg, ALERT_SEED_METRIC);
 }
 
+// An experiment needs a goal metric, which needs a backing event — so seeding
+// one is a 2-step create (event, then experiment with an even control/treatment
+// split). The seed event is deliberately domain-word-free so its name can never
+// satisfy another case's `expect_state` substring match.
+const EXP_SEED_EVENT = "expseedevent";
+
+/** Pre-create the given experiments (draft, even split) if absent. */
+async function seedExperiments(cfg: EnvConfig, names: string[]): Promise<void> {
+  await postResource(cfg, "events", { name: EXP_SEED_EVENT }).catch(() => undefined);
+  const existing = new Set(await fetchNames(cfg, "experiments").catch(() => []));
+  for (const name of names) {
+    if (existing.has(name)) continue;
+    await postResource(cfg, "experiments", {
+      name,
+      universe: "default",
+      allocation_percent: 100,
+      groups: [
+        { name: "control", weight: 5000 },
+        { name: "treatment", weight: 5000 },
+      ],
+      goal_metric: { event: EXP_SEED_EVENT, aggregation: "count_users" },
+    }).catch(() => undefined);
+  }
+}
+
 /** Pre-create resources so a case has something existing to mutate or (not) duplicate. */
 export async function setupState(cfg: EnvConfig, setup: ExpectState): Promise<void> {
   // Alerts are seeded specially — they need a backing metric (see above).
@@ -159,9 +184,12 @@ export async function setupState(cfg: EnvConfig, setup: ExpectState): Promise<vo
     }
   }
 
+  // Experiments are seeded specially — they need a backing goal metric/event.
+  if (setup.experiments?.length) await seedExperiments(cfg, setup.experiments);
+
   for (const type of Object.keys(setup) as StateType[]) {
     const makeBody = SETUP_BODY[type];
-    if (!makeBody) continue; // alerts handled above; other types not pre-creatable
+    if (!makeBody) continue; // alerts/experiments handled above; other types not pre-creatable
     const existing = new Set(await fetchNames(cfg, type).catch(() => []));
     for (const name of setup[type] ?? []) {
       if (existing.has(name)) continue; // already there — leave it

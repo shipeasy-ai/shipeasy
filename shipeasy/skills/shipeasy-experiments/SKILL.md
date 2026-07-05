@@ -100,14 +100,28 @@ the design — you don't pick it for them.
    variation point, existing `flags.track(...)` events, and existing metrics
    (`metrics_events_list` + `metrics_list`). Capture file:line for each candidate.
    See Phases 1–2 for the heuristics.
-2. **Propose 2–4 variants.** Turn what you found into concrete, comparable options
-   — each a `{ variation point, groups, goal metric }` bundle — noting for each
-   what new instrumentation (if any) it needs and roughly how long it would take
-   to reach significance (lower variant traffic → longer run).
-3. **Wait for approval.** Present the variants and **stop**. Let the user pick one,
-   refine it, or talk it through — this is a conversation, not a form. Do not call
-   `release_experiments_create` (or create any event/metric) until the user has
-   approved a design.
+2. **Propose the arms and the tuning.** Turn what you found into a concrete
+   design and put the open decisions to the user rather than picking silently:
+   - **Arms.** When the user didn't name exact variants, propose a few candidate
+     treatment arms (each a real, buildable change at the variation point) and let
+     them **select which to include** — one treatment, several, or all. Offer this
+     as a multi-select. More arms split traffic thinner, so each needs longer to
+     reach significance (always keep a single `control`).
+   - **Goal metric.** The `{ event, aggregation }` bundle from Phase 2, noting what
+     new instrumentation (if any) it needs.
+   - **Statistical options — surface the ones that apply, don't silently default.**
+     For anything the user didn't specify, offer it with its tradeoff (details in
+     "Statistical options" below): a **holdout** (a global control slice on the
+     universe — measures total lift, at the cost of holding some users out of
+     everything), one or more **guardrail metrics** (block ship if a key metric
+     regresses), **sequential testing** (peek early without inflating the false-
+     positive rate; Premium+), the **allocation %** (what share of eligible traffic
+     enters), the **group split** (even vs weighted), and a **targeting gate**
+     (who's eligible).
+3. **Wait for approval.** Present the arms + tuning and **stop**. Let the user pick
+   the arms, tune the knobs, refine, or talk it through — this is a conversation,
+   not a form. Do not call `release_experiments_create` (or create any
+   event/metric) until the user has approved a design.
 4. **Provision the approved design.** Only now run the chain: reuse-or-create the
    event + metric, then `release_experiments_list` + `release_experiments_create`
    for the draft. It lands as a DRAFT — never auto-start. Details in Phase 3.
@@ -135,8 +149,12 @@ For each candidate variation point, capture:
 - the user-visible behaviour you'd toggle (button copy, route order,
   ranking weights, layout, …)
 
-Stop at **one** variation point per experiment. Multi-variate is out of
-scope here.
+Stop at **one** variation *point* per experiment (changing two things at once
+makes the result uninterpretable — that's multivariate, out of scope). But one
+variation point can still have **several arms**: `control` plus more than one
+treatment (e.g. `green`, `bold`, `outline` for a button). When the user didn't
+pin the exact variants, propose a few candidate arms and let them pick which to
+include — see step 2.
 
 ### Phase 2 — propose a success metric
 
@@ -310,6 +328,59 @@ Stop with `release_experiments_stop { "id": … }` — it halts allocation; the
 winner is a *reading* of the results, not a stored field. (Every `id` param
 accepts the experiment's `name` or its `exp_…` id; see the tool schema.)
 
+## Statistical options
+
+These are the knobs that make an experiment trustworthy. When the user didn't
+specify them, **offer the ones that apply to *this* test with their tradeoff**
+(step 2) — recommend a default, let them tune — rather than silently accepting
+the defaults. Read exact shapes/plan gates from the tool schema, not here.
+
+- **Holdout** (`holdout_range` on the universe) — a global control slice held out
+  of *every* experiment in the universe. Measures the combined lift of everything
+  you ship; costs you those users' exposure. See "Holdouts" below.
+- **Guardrail metrics** (`guardrail_metrics`, up to 10) — metrics that must *not*
+  regress; a degraded guardrail flips the decision to `hold` even if the goal
+  won. Offer one when shipping the winner could hurt something else (latency,
+  refunds, error rate).
+- **Sequential testing** (`sequential_testing`, Premium+) — always-valid
+  p-values, so you can peek at results early and stop as soon as it's significant
+  without inflating the false-positive rate. Tradeoff: slightly less power per
+  look; needs the plan.
+- **Significance threshold** (`significance_threshold`) — the α (default 0.05).
+  Tighten for a costly/irreversible ship, loosen for a cheap reversible one.
+- **Minimum effect of interest** (`min_effect_of_interest`, per attached metric in
+  `set_metrics` / the inline goal+guardrail bodies) — the smallest change *worth
+  acting on for THIS experiment's decision*. It is the per-experiment override of
+  the metric's `default_min_effect_of_interest`; omit it (or `null`) to inherit the
+  metric default. **When you create an experiment and the user hasn't pinned it,
+  proactively suggest a value — don't silently inherit** — because the right bar
+  depends on the cost/risk of *the specific change under test*, which you know from
+  the diff you're shipping, and the metric default cannot. Offer 2–3 concrete
+  options scaled to the breadth of the change, recommend one, and let the user tune:
+  - **Small / cheap / reversible change** (copy tweak, a color, one-line CTA): a
+    *small* MEI (e.g. `0.005`–`0.01`, i.e. 0.5–1%). The change is free to ship, so
+    even a tiny lift is worth acting on — but warn this needs more traffic/runtime.
+  - **Medium change** (a redesigned component, a new flow step): a *moderate* MEI
+    (e.g. `0.02`–`0.03`, 2–3%). Balances runtime against a lift big enough to
+    justify the build+maintenance cost.
+  - **Large / risky / expensive change** (re-architecture, pricing change, a risky
+    migration): a *larger* MEI (e.g. `0.05`+, 5%+). Only ship the winner if the lift
+    clears the risk and cost of the change — a marginal win isn't worth it.
+  For a **guardrail** attachment this same field is the *non-inferiority margin*:
+  how large a regression you'll tolerate before it flips the decision to `hold` —
+  scale it the same way (a risky change tolerates less). After the run, compare each
+  result's `realized_mde` against the MEI to judge whether the experiment was
+  actually powered to detect what you care about.
+- **Allocation %** (`allocation_percent`) — the share of *eligible* traffic that
+  enters the experiment at all. Ramp it (10 → 50 → 100) to limit blast radius;
+  lower allocation → longer to significance.
+- **Group split** (group `weight`s, basis points summing to 10000) — even
+  (`5000/5000`) unless you have a reason to under-expose a risky treatment.
+- **Targeting gate** (`targeting_gate`) — restrict *who is eligible* (country,
+  plan, …). Keep it simple; complex eligibility belongs on the universe.
+- **Unit of randomization** (`unit_type` on the universe, default `user_id`) —
+  the sticky identity assignment hashes on (user, account, device, session).
+
 ## Holdouts
 
 Holdouts live on the **universe**, not on individual experiments — per-experiment
@@ -322,6 +393,18 @@ e.g. `holdout_range: [0, 99]`.
 ## Hard rules
 
 - One pre-registered `goal_metric`. Don't keep peeking and renaming.
+- **A goal-metric event you create MUST be instrumented in the same change.** If
+  Phase 3 creates a new event to back the metric, wire the `track(...)` call into
+  the code (Phase 3a) — an un-fired event makes the metric read zero, so the
+  experiment can never reach significance. The `metrics_events_create` response
+  hands you the language-correct snippet; also add the assignment branch (3d).
+- **Surface, don't silently default, the statistical options** (holdout,
+  guardrails, sequential testing, allocation, split, targeting, **and the
+  `min_effect_of_interest` for each attached metric**) the user didn't pin — offer
+  the ones that apply with their tradeoff (step 2 / "Statistical options"). For
+  `min_effect_of_interest` specifically, propose 2–3 values scaled to the breadth
+  of the change you're shipping and recommend one; never leave it to inherit
+  without at least offering.
 - Don't restart an experiment under the same name after stopping — the
   assignment hash changes, so users who saw treatment will be
   re-randomized and bias the result. Pick a new name.

@@ -217,9 +217,13 @@ function runClaudeConversation(
   empty: Observation,
 ): Observation {
   const sessionId = randomUUID();
-  // Only carry an approval through for cases that assert a server-state outcome;
-  // read-only asks stay single-shot so we never push them into a mutation.
-  const maxApprovals = c.expect_state ? MAX_APPROVALS : 0;
+  // Recommend-in-prose cases (expect_text_contains, e.g. the onboarding
+  // "set up X for my project" prompts) are meant to end in a *recommendation*,
+  // not an action — they forbid the create tools. Never nudge those; the
+  // approval would push the agent past the recommendation into a forbidden
+  // create. Everything else is nudgeable: outcome-gated creates, reads, and
+  // name-referenced mutates.
+  const maxApprovals = c.expect_text_contains?.length ? 0 : MAX_APPROVALS;
   const parts: string[] = [];
   let prompt = c.prompt;
   let resume = false;
@@ -236,13 +240,22 @@ function runClaudeConversation(
       lastError = `empty output (stderr: ${(res.stderr ?? "").slice(0, 300)})`;
       break;
     }
-    // Stop once we've spent our approvals, or the agent has actually provisioned
-    // (a mutating MCP call landed this turn). Otherwise keep nudging: an
-    // outcome-gated case that only listed/proposed — whether it closed with a
-    // question or a declarative "I'll set it up" — hasn't reached its create
-    // yet, so we resume with the approval and let it carry through.
+    // Decide whether to auto-accept and continue. Two exit conditions, by case
+    // shape:
+    //  - Outcome-gated (expect_state): stop once a mutating MCP call has landed;
+    //    otherwise keep nudging — an agent that only listed/proposed (whether it
+    //    closed with a question or a declarative "I'll set it up") hasn't reached
+    //    its create yet.
+    //  - Everything else (reads, name-referenced mutates): stop once the agent
+    //    stops *asking*. A turn that stalls behind a question ("give me the id,
+    //    or I can look it up via MCP") gets the approval so it carries through;
+    //    a turn that just answered/acted does not. The AUTO_APPROVE text keeps a
+    //    read-only ask read-only, and forbid_tools still guards mutations.
     if (turn >= maxApprovals) break;
-    if (turnMutated(ndjson)) break;
+    const done = c.expect_state
+      ? turnMutated(ndjson)
+      : !parseTranscript(ndjson, skillNames, "claude").askedUser;
+    if (done) break;
     prompt = AUTO_APPROVE;
     resume = true;
   }

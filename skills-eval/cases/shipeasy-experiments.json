@@ -25,16 +25,17 @@
   },
   {
     "id": "shipeasy-experiments/start",
-    "prompt": "Start the checkout-button experiment.",
+    "prompt": "Start the homepage hero experiment.",
     "expect_skill": "shipeasy-experiments",
     "expect_tools": ["release_experiments_list", "release_experiments_start"],
     "tools_match": "all",
     "forbid_tools": ["release_experiments_archive"],
-    "note": "referenced by name — list first to resolve its id, then start"
+    "setup": { "experiments": ["homepage_hero"] },
+    "note": "referenced by name — list first to resolve its id, then start. setup pre-seeds a DRAFT homepage_hero experiment (distinct from the checkout domain the ab-test case creates) so this case is deterministic and doesn't depend on that case's agent-chosen experiment name."
   },
   {
     "id": "shipeasy-experiments/results-readonly",
-    "prompt": "Is the checkout-button experiment significant yet?",
+    "prompt": "Is the homepage hero experiment significant yet?",
     "expect_skill": "shipeasy-experiments",
     "expect_tools": ["release_experiments_list", "release_experiments_results"],
     "tools_match": "all",
@@ -44,6 +45,7 @@
       "release_experiments_stop",
       "release_experiments_archive"
     ],
-    "note": "referenced by name — list to find it, then read results by id; must not mutate"
+    "setup": { "experiments": ["homepage_hero"] },
+    "note": "referenced by name — list to find it, then read results by id; must not mutate. setup pre-seeds homepage_hero (same distinct domain as the start case) so it's self-contained, not reliant on another case creating an experiment first."
   }
 ]
