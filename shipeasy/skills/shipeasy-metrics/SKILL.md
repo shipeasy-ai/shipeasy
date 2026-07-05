@@ -152,9 +152,15 @@ tradeoff, rather than silently defaulting:
 - **`winsorizePct`** — clip the top N% of values before aggregating. Offer it for
   long-tailed value metrics (revenue, session length): "clip the top 1% so a few
   whales don't dominate the mean — at the cost of ignoring genuine outliers."
-- **`minDetectableEffect`** — the smallest relative change worth powering for.
-  Offer it when the metric will back an experiment: a tighter MDE needs more
-  traffic/time; a looser one ships faster but misses small wins.
+- **`defaultMinEffectOfInterest`** (wire: `default_min_effect_of_interest`) — the
+  metric-level DEFAULT smallest relative change worth acting on. Offer it when the
+  metric will back an experiment: a tighter value needs more traffic/time; a looser
+  one ships faster but misses small wins. It is intrinsic to *what the metric
+  measures* and applies to every experiment that attaches the metric — an
+  individual experiment can override it per-attachment with `min_effect_of_interest`
+  when a specific decision has a different cost/risk bar (see shipeasy-experiments).
+  This is the effect *of interest*, not the *detectable* effect — a run's realized
+  detectable effect is reported back per result row as `realized_mde`.
 
 Present these as part of the proposal (1–3 options where there's a real choice),
 recommend a default, and let the user tune or accept. Don't dump all four on a
@@ -186,9 +192,9 @@ on this call. Then run the project's typecheck / build so the import resolves.
 shipeasy metrics create <name> --event-name <event_name> --query '<dsl>'
 ```
 
-Optional knobs (winsorization, min detectable effect, direction, folder) and
-all constraints are in `--help` / the `metrics_create` MCP schema — the API
-validates them and returns instructive errors.
+Optional knobs (winsorization, default minimum effect of interest, direction,
+folder) and all constraints are in `--help` / the `metrics_create` MCP schema —
+the API validates them and returns instructive errors.
 
 ### 5. Verify
 
