@@ -415,7 +415,8 @@
           "UNAUTHORIZED",
           "FORBIDDEN",
           "ALREADY_EXISTS",
-          "VALIDATION"
+          "VALIDATION",
+          "PLAN_LIMIT"
         ],
         "x-cli": {
           "name": "create",
@@ -1324,7 +1325,8 @@
           "INVALID_TRANSITION",
           "GROUPS_WEIGHT_SUM",
           "REFERENCED_NOT_FOUND",
-          "VALIDATION"
+          "VALIDATION",
+          "EXPERIMENT_IMMUTABLE_FIELD"
         ],
         "x-cli": {
           "name": "update",
@@ -1504,7 +1506,13 @@
           "FORBIDDEN",
           "NOT_FOUND",
           "INVALID_TRANSITION",
-          "VALIDATION"
+          "VALIDATION",
+          "PLAN_LIMIT",
+          "EXPERIMENT_NO_GOAL_METRIC",
+          "EXPERIMENT_ARCHIVED_RESTART",
+          "EXPERIMENT_NOT_RUNNING",
+          "EXPERIMENT_RUNNING_ARCHIVE",
+          "EXPERIMENT_RESTORE_INVALID"
         ],
         "x-cli": {
           "positional": [
@@ -1643,7 +1651,8 @@
           "NOT_FOUND",
           "EVENT_PENDING",
           "REFERENCED_NOT_FOUND",
-          "VALIDATION"
+          "VALIDATION",
+          "METRIC_UNKNOWN_ID"
         ],
         "x-cli": {
           "name": "set-metrics",
@@ -2223,7 +2232,8 @@
           "UNAUTHORIZED",
           "FORBIDDEN",
           "ALREADY_EXISTS",
-          "VALIDATION"
+          "VALIDATION",
+          "PLAN_LIMIT"
         ],
         "x-cli": {
           "name": "create",
@@ -3271,7 +3281,8 @@
           "UNAUTHORIZED",
           "FORBIDDEN",
           "ALREADY_EXISTS",
-          "VALIDATION"
+          "VALIDATION",
+          "PLAN_LIMIT"
         ],
         "x-cli": {
           "name": "create",
@@ -4030,7 +4041,8 @@
           "FORBIDDEN",
           "PLAN_REQUIRED",
           "ALREADY_EXISTS",
-          "VALIDATION"
+          "VALIDATION",
+          "PLAN_LIMIT"
         ],
         "x-cli": {
           "name": "create",
@@ -5194,7 +5206,8 @@
           "ALREADY_EXISTS",
           "EVENT_PENDING",
           "REFERENCED_NOT_FOUND",
-          "VALIDATION"
+          "VALIDATION",
+          "PLAN_LIMIT"
         ],
         "x-cli": {
           "name": "create",
@@ -5623,7 +5636,8 @@
           "UNAUTHORIZED",
           "FORBIDDEN",
           "ALREADY_EXISTS",
-          "VALIDATION"
+          "VALIDATION",
+          "PLAN_LIMIT"
         ],
         "x-cli": {
           "name": "create",
@@ -9631,7 +9645,8 @@
         "x-error-codes": [
           "UNAUTHORIZED",
           "FORBIDDEN",
-          "VALIDATION"
+          "VALIDATION",
+          "PLAN_LIMIT"
         ],
         "x-cli": {
           "name": "create"
@@ -10289,11 +10304,7 @@
           "GROUPS_WEIGHT_SUM",
           "EVENT_PENDING",
           "INTERNAL",
-          "CONFLICT",
           "PLAN_LIMIT",
-          "FEATURE_REQUIRES_UPGRADE",
-          "INVALID_JSON",
-          "EXPERIMENT_NOT_FOUND",
           "EXPERIMENT_NO_GOAL_METRIC",
           "EXPERIMENT_ARCHIVED_RESTART",
           "EXPERIMENT_RESTORE_INVALID",
@@ -10319,11 +10330,7 @@
           "GROUPS_WEIGHT_SUM": "Experiment group weights must sum to 10000 (basis points).",
           "EVENT_PENDING": "The referenced event is still pending review and cannot back a metric yet.",
           "INTERNAL": "Unexpected server error.",
-          "CONFLICT": "The write conflicts with the current state of the resource (concurrent update or duplicate).",
-          "PLAN_LIMIT": "The action would exceed a plan quota (e.g. the tier's maximum flags or experiments).",
-          "FEATURE_REQUIRES_UPGRADE": "The requested capability is not available on the current plan tier.",
-          "INVALID_JSON": "The request body was not valid JSON.",
-          "EXPERIMENT_NOT_FOUND": "The referenced experiment does not exist or is not visible to the caller.",
+          "PLAN_LIMIT": "The action would exceed a plan quota (e.g. the tier's maximum experiments, metrics, or configs). Upgrade the plan or archive an existing resource.",
           "EXPERIMENT_NO_GOAL_METRIC": "The experiment has no goal metric set, which the requested action requires.",
           "EXPERIMENT_ARCHIVED_RESTART": "An archived experiment cannot be restarted.",
           "EXPERIMENT_RESTORE_INVALID": "The experiment cannot be restored from its current state.",
@@ -19669,10 +19676,11 @@
                 "gates:evaluate",
                 "events:write",
                 "configs:write",
-                "experiments:write"
+                "experiments:write",
+                "tickets:public_create"
               ]
             },
-            "description": "Optional permission strings recorded on the key for audit/display."
+            "description": "Optional permission strings recorded on the key. `tickets:public_create` is enforced: a client key needs it (plus the project's `allowPublicTickets` setting) to file a `pending_approval` bug via the public `POST /cli/report` endpoint. The rest are audit/display only."
           },
           "expiresInDays": {
             "anyOf": [

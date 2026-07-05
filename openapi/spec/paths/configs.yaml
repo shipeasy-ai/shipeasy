@@ -192,6 +192,7 @@
       - FORBIDDEN
       - ALREADY_EXISTS
       - VALIDATION
+      - PLAN_LIMIT
     x-cli:
       name: create
       positional:

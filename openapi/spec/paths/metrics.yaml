@@ -141,6 +141,7 @@
       - EVENT_PENDING
       - REFERENCED_NOT_FOUND
       - VALIDATION
+      - PLAN_LIMIT
     x-cli:
       name: create
       positional:

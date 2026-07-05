@@ -192,7 +192,7 @@ export type ListGatesResponse = {
 /**
  * Stable, machine-readable error code. Mirrors the `ErrorCode` catalogue in `@shipeasy/core`. Each operation lists the subset it can return under `x-error-codes`.
  */
-export type ErrorCode = 'BAD_REQUEST' | 'UNAUTHORIZED' | 'FORBIDDEN' | 'PLAN_REQUIRED' | 'NOT_FOUND' | 'ALREADY_EXISTS' | 'INVALID_TRANSITION' | 'IMMUTABLE_FIELD' | 'READ_ONLY' | 'REFERENCED_IN_USE' | 'VALIDATION' | 'REFERENCED_NOT_FOUND' | 'GROUPS_WEIGHT_SUM' | 'EVENT_PENDING' | 'INTERNAL' | 'CONFLICT' | 'PLAN_LIMIT' | 'FEATURE_REQUIRES_UPGRADE' | 'INVALID_JSON' | 'EXPERIMENT_NOT_FOUND' | 'EXPERIMENT_NO_GOAL_METRIC' | 'EXPERIMENT_ARCHIVED_RESTART' | 'EXPERIMENT_RESTORE_INVALID' | 'EXPERIMENT_NOT_RUNNING' | 'EXPERIMENT_RUNNING_ARCHIVE' | 'EXPERIMENT_IMMUTABLE_FIELD' | 'METRIC_NOT_FOUND' | 'METRIC_UNKNOWN_ID';
+export type ErrorCode = 'BAD_REQUEST' | 'UNAUTHORIZED' | 'FORBIDDEN' | 'PLAN_REQUIRED' | 'NOT_FOUND' | 'ALREADY_EXISTS' | 'INVALID_TRANSITION' | 'IMMUTABLE_FIELD' | 'READ_ONLY' | 'REFERENCED_IN_USE' | 'VALIDATION' | 'REFERENCED_NOT_FOUND' | 'GROUPS_WEIGHT_SUM' | 'EVENT_PENDING' | 'INTERNAL' | 'PLAN_LIMIT' | 'EXPERIMENT_NO_GOAL_METRIC' | 'EXPERIMENT_ARCHIVED_RESTART' | 'EXPERIMENT_RESTORE_INVALID' | 'EXPERIMENT_NOT_RUNNING' | 'EXPERIMENT_RUNNING_ARCHIVE' | 'EXPERIMENT_IMMUTABLE_FIELD' | 'METRIC_NOT_FOUND' | 'METRIC_UNKNOWN_ID';
 
 /**
  * Uniform error envelope returned by every admin endpoint on a non-2xx status. `error` is the human-readable message; `code` is the stable machine code (present whenever the failure maps to a catalogued `ErrorCode`); `detail` carries extra context (validation paths, conflicting field); `instructions` is optional actionable guidance for resolving the error.
@@ -4895,9 +4895,9 @@ export type CreateKeyRequest = {
      */
     name?: string;
     /**
-     * Optional permission strings recorded on the key for audit/display.
+     * Optional permission strings recorded on the key. `tickets:public_create` is enforced: a client key needs it (plus the project's `allowPublicTickets` setting) to file a `pending_approval` bug via the public `POST /cli/report` endpoint. The rest are audit/display only.
      */
-    scopes?: Array<'experiments:read' | 'gates:evaluate' | 'events:write' | 'configs:write' | 'experiments:write'>;
+    scopes?: Array<'experiments:read' | 'gates:evaluate' | 'events:write' | 'configs:write' | 'experiments:write' | 'tickets:public_create'>;
     /**
      * Days until the key expires (1–3650), or `null`/omitted for a key that never expires. Ignored for `admin` keys (fixed 90-day expiry) and `ops` keys (short sliding window).
      */

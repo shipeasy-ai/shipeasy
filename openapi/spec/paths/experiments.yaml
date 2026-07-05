@@ -372,6 +372,7 @@
       - GROUPS_WEIGHT_SUM
       - REFERENCED_NOT_FOUND
       - VALIDATION
+      - EXPERIMENT_IMMUTABLE_FIELD
     x-cli:
       name: update
       positional:
@@ -510,6 +511,12 @@
       - NOT_FOUND
       - INVALID_TRANSITION
       - VALIDATION
+      - PLAN_LIMIT
+      - EXPERIMENT_NO_GOAL_METRIC
+      - EXPERIMENT_ARCHIVED_RESTART
+      - EXPERIMENT_NOT_RUNNING
+      - EXPERIMENT_RUNNING_ARCHIVE
+      - EXPERIMENT_RESTORE_INVALID
     x-cli:
       positional:
         - id
@@ -604,6 +611,7 @@
       - EVENT_PENDING
       - REFERENCED_NOT_FOUND
       - VALIDATION
+      - METRIC_UNKNOWN_ID
     x-cli:
       name: set-metrics
       positional:

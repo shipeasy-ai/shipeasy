@@ -128,6 +128,7 @@
       - UNAUTHORIZED
       - FORBIDDEN
       - VALIDATION
+      - PLAN_LIMIT
     x-cli:
       name: create
 /api/admin/keys/{id}/revoke:

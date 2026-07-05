@@ -117,11 +117,7 @@ export const zErrorCode = z.enum([
     'GROUPS_WEIGHT_SUM',
     'EVENT_PENDING',
     'INTERNAL',
-    'CONFLICT',
     'PLAN_LIMIT',
-    'FEATURE_REQUIRES_UPGRADE',
-    'INVALID_JSON',
-    'EXPERIMENT_NOT_FOUND',
     'EXPERIMENT_NO_GOAL_METRIC',
     'EXPERIMENT_ARCHIVED_RESTART',
     'EXPERIMENT_RESTORE_INVALID',
@@ -2753,7 +2749,8 @@ export const zCreateKeyRequest = z.object({
         'gates:evaluate',
         'events:write',
         'configs:write',
-        'experiments:write'
+        'experiments:write',
+        'tickets:public_create'
     ])).optional(),
     expiresInDays: z.int().gte(1).lte(3650).nullish(),
     env: z.enum([
