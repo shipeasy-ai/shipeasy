@@ -49,21 +49,20 @@ p99(req_dur{route=~"/api/.*"}, ms) by (route, status)
 Run `shipeasy metrics grammar` (MCP: `metrics_grammar`) for the full BNF,
 aggregation list, and more examples.
 
-## Workflow — create a metric (analyze → decide → instrument → create)
+## Workflow — create a metric (investigate → propose → approve → create)
 
 When the user says *"create a metric for <X>"* (or anything semantically
 equivalent — "track conversion on Y", "measure how many/how often Z happens"),
-run the full **analyze-and-decide** path below — a thorough analysis is what
-produces the *right* metric, since the user rarely names the exact event up
-front. Two rules always hold: **(1) reuse before creating** — list events and
-metrics first (`metrics_events_list`, `metrics_list`) and use an existing one
-when it fits; **(2) carry a clear intent through to creation** — for a concrete
-ask like "measure how many checkouts complete", analyze the candidates, pick the
-best event name + aggregation, create the event (`metrics_events_create`) and
-the metric (`metrics_create`), then report what you built and offer to adjust.
-Reserve a single clarifying question for the case where the event or aggregation
-stays genuinely ambiguous after analysis — a "measure X" ask is a request to
-*create* the metric, so follow through to creation.
+run the flow below. It is **consultative**: a thorough investigation of the code
+is what produces the *right* metric (the user rarely names the exact event up
+front), and the user picks the definition rather than having it chosen for them.
+Two rules always hold: **(1) reuse before creating** — list events and metrics
+first (`metrics_events_list`, `metrics_list`) and use an existing one when it
+fits; **(2) investigate, propose, then wait** — read the surface the ask names,
+come back with the best candidate event + aggregation (and 1–3 alternatives when
+there's a real choice), and **stop for the user to approve** before you call
+`metrics_events_create` / `metrics_create`. The one exception is the Quick path
+below (the user already gave a complete definition = already approved).
 
 ### 0. Scope the metric
 
@@ -83,10 +82,10 @@ Always call **both** before creating, and reuse an existing event/metric when
 one fits. This dedup check comes first because the MCP tools are always
 available (a shell may be too).
 
-Then, **when a shell is available**, deepen the analysis: find *uninstrumented*
-candidates — places where a new `track(...)` call would naturally belong. (When
-Bash is available, run the scan; otherwise pick a sensible event name straight
-from the request.)
+Then deepen the analysis by reading the surface the ask names (required, scoped
+to that feature): find *uninstrumented* candidates — places where a new
+`track(...)` call would naturally belong. Use Grep/Glob/Read for this (or the
+shell if you have one); don't skip it just because there's no shell.
 
 ```bash
 grep -rnE 'flags\.track\(' src apps packages 2>/dev/null | head -50   # optional
@@ -102,15 +101,15 @@ Candidate sites — places where a new `track(...)` call would naturally belong:
 
 For each candidate, capture `file:line` and the user-visible action.
 
-### 2. Decide: create autonomously, or ask when genuinely ambiguous
+### 2. Propose the metric and wait for approval
 
-When the request clearly implies the action to measure (e.g. "how many checkouts
-complete" → a `checkout_completed` event, `count_users`), **proceed to create**
-(step 3/4) with the obvious event + aggregation, then report what you built and
-offer to adjust. Reserve the clarifying question for when the analysis leaves the
-event or aggregation genuinely open — then ask the user **one** question with
-2–4 options. Each option label is the *event name + one-line behaviour*. Include
-in the option description:
+Turn the analysis into a recommendation: the best event + aggregation, plus 1–3
+alternatives when there's a real choice. Present it to the user with a question
+that has 2–4 options, and **stop** — don't call `metrics_events_create` /
+`metrics_create` until they approve or refine one. (The Quick path below is the
+only skip: if the user already handed you a complete, unambiguous definition,
+that *is* the approval — go straight to step 4.) Each option label is the
+*event name + one-line behaviour*. Include in the option description:
 
 - whether the event already exists (no new instrumentation) or needs to
   be added (and where),

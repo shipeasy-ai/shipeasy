@@ -1,6 +1,6 @@
 ---
 name: shipeasy-experiments
-description: Design, launch, monitor, and stop Shipeasy A/B experiments. Trigger on "A/B test", "experiment", "split test", "holdout", "experiment results", "is <experiment> significant (yet)", "metric significance".
+description: Design, launch, monitor, and stop Shipeasy A/B experiments. Trigger on "A/B test", "experiment", "split test", "holdout", "experiment results", "is <experiment> significant (yet)", "metric significance", "how should I structure an experiment", "help me design an A/B test".
 user-invocable: true
 ---
 
@@ -76,26 +76,41 @@ management run through the `release_experiments_*` /
 `release_experiments_universes_*` MCP tools or the `shipeasy release experiments
 …` CLI.
 
-When the design is already pinned down (you know the variation point, the
-groups, and the goal metric), jump straight to "Creating" below and call the
-MCP/CLI. When you're starting from a **vague ask** — the user wants "an A/B test
-on checkout" but hasn't named the variation point, the event, or the metric —
-run the full analyze → propose → provision workflow in the next section first.
+A create ask is **consultative, not fire-and-forget**. Even when the ask sounds
+clear ("A/B test the green checkout button"), don't provision on the first pass:
+investigate the code the ask names, come back with 2–4 concrete ways to structure
+the test, and **wait for the user to approve one** before you create anything.
+Jump straight to "Creating" only when the user has already approved a fully
+specified design (variation point + groups + goal metric all pinned). The
+read/lifecycle paths (start / results / stop, "is X significant") are the
+exception — those are referenced by name, so resolve-then-act without stopping.
 
-## Workflow — design a new experiment (analyze → propose → provision)
+## Workflow — design a new experiment (investigate → propose → approve → provision)
 
 When the user says *"A/B test <X>"* / *"set up an A/B test for <X>"* (or anything
-equivalent), drive the whole "design a new A/B test" flow from analysis to a
-provisioned draft. Analyze the codebase to pick the variation point, the event,
-and the success metric. For a clear ask (e.g. "A/B test a new green checkout
-button"), choose the obvious candidates and **provision the whole chain**:
-`metrics_events_list` + `metrics_list` to reuse what already fits, then
-`metrics_events_create` + `metrics_create` for anything missing, then
-`release_experiments_list` + `release_experiments_create` for the draft — and
-report what you built with an offer to adjust. Reserve a clarifying question for
-when the surface, event, or metric stays genuinely open after analysis. A bare
-"A/B test X" is a request to provision the experiment, so carry through to
-`release_experiments_create`.
+equivalent — including "how should I structure an experiment on <X>"), run this
+four-step flow. The first three steps are **required** even for a clear-sounding
+ask: a good experiment comes from reading the actual code, and the *user* picks
+the design — you don't pick it for them.
+
+1. **Investigate the code (required, scoped).** Read the specific surface the ask
+   names — the checkout flow for "A/B test the checkout button", the pricing page
+   for "test the pricing layout". Scope it to that feature; a whole-repo sweep
+   isn't needed. Use Grep/Glob/Read (or the shell if you have one) to find the
+   variation point, existing `flags.track(...)` events, and existing metrics
+   (`metrics_events_list` + `metrics_list`). Capture file:line for each candidate.
+   See Phases 1–2 for the heuristics.
+2. **Propose 2–4 variants.** Turn what you found into concrete, comparable options
+   — each a `{ variation point, groups, goal metric }` bundle — noting for each
+   what new instrumentation (if any) it needs and roughly how long it would take
+   to reach significance (lower variant traffic → longer run).
+3. **Wait for approval.** Present the variants and **stop**. Let the user pick one,
+   refine it, or talk it through — this is a conversation, not a form. Do not call
+   `release_experiments_create` (or create any event/metric) until the user has
+   approved a design.
+4. **Provision the approved design.** Only now run the chain: reuse-or-create the
+   event + metric, then `release_experiments_list` + `release_experiments_create`
+   for the draft. It lands as a DRAFT — never auto-start. Details in Phase 3.
 
 Prereqs: `.shipeasy` bound, and the `shipeasy` MCP server available — this flow
 instruments events and drafts the experiment through it
@@ -155,7 +170,10 @@ Q: Which metric should decide this experiment?
    3. <name3> — <DSL> (needs new event)
 ```
 
-### Phase 3 — provision (in order, halt on first failure)
+### Phase 3 — provision the approved design (in order, halt on first failure)
+
+Reached only after the user approved a variant (step 3 above). If nothing has
+been approved yet, you're still in step 3 — present the options and wait.
 
 The SDK calls in 3a and 3d below are the exact, version-correct forms for this
 project's SDK language. Use them verbatim.

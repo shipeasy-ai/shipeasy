@@ -21,7 +21,7 @@
       "metrics": ["checkout"],
       "experiments": ["checkout"]
     },
-    "note": "a bare 'A/B test X' must drive the whole chain — list events, metrics AND experiments to dedup, create what's missing, draft the experiment — and stay a DRAFT (skill rule: never auto-start). expect_state confirms the event, metric AND experiment actually landed on the server."
+    "note": "the skill is consultative — investigate the code, propose variants, then WAIT for approval before creating. The eval grants that approval up-front (run.ts standing-approval clause), so a bare 'A/B test X' still drives the whole chain — list events, metrics AND experiments to dedup, create what's missing, draft the experiment — and stays a DRAFT (skill rule: never auto-start). expect_state confirms the event, metric AND experiment actually landed on the server."
   },
   {
     "id": "shipeasy-experiments/start",

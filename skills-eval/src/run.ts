@@ -177,7 +177,15 @@ function buildClaudeArgs(c: EvalCase, mcpConfig: string): string[] {
     // (deferred MCP tools surface through it); Read/Glob/Grep are read-only.
     "--disallowedTools", "Bash,Edit,Write,NotebookEdit,Agent,Task,SendMessage",
     "--append-system-prompt",
-    "You are being evaluated. Carry out the user's request directly using the available skills and MCP tools, then stop. Only ask the user a question if you genuinely cannot proceed without a decision that is theirs to make.",
+    // Standing approval for the eval only: some skills (experiments, alerts,
+    // metrics) are consultative in real use — they investigate the code, propose
+    // 2–4 variants, then STOP for the user to approve before creating anything.
+    // A headless -p run is single-shot, so that pause would strand every
+    // outcome-gated create case short of its create call. Grant the approval
+    // up-front: when a skill reaches its propose→provision gate, pick its
+    // recommended default and carry through. This never licenses an action the
+    // prompt didn't ask for — only the skill's own already-scoped create step.
+    "You are being evaluated. Carry out the user's request directly using the available skills and MCP tools, then stop. If a skill would pause to have the user approve or choose among proposed variants before creating or updating a resource, treat that approval as already granted: pick the skill's recommended default variant and proceed through to the create/update call. This standing approval applies ONLY to a skill's own propose-then-provision step and never licenses an action the request didn't ask for. Only ask the user a question if you genuinely cannot proceed without a decision that is theirs to make.",
   ];
   args.push("--model", MODEL);
   return args;

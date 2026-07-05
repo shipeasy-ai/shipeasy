@@ -37,25 +37,37 @@ them from memory.
 
 ## Create
 
-An alert watches a metric, and a metric rolls up an event — so build the whole
-chain when a piece is missing, and carry through to the alert. A "ping me when
-X exceeds Y" ask is a request to create the rule, so follow the flow to the
-final `ops_alerts_create` call:
+An alert watches a metric, and a metric rolls up an event — so a create ask is a
+short design conversation, not a one-shot. **Examine the code first**, propose how
+to best track the signal, and **wait for the user to approve** before the final
+`ops_alerts_create`. A "ping me when X exceeds Y" ask ends in an
+`ops_alerts_create` call — but only after the user has approved the plan:
 
-1. **Analyze the metric.** `metrics_events_list` + `metrics_list` (the tool
-   accepts a metric id **or** name). When a fitting metric already exists, reuse
-   it. When it's missing, build it first: `metrics_events_create` for the event
-   (e.g. a `checkout_error` event) and `metrics_create` for the metric (e.g. an
-   error-rate metric) — see the `shipeasy-metrics` skill for the DSL.
-2. **Analyze existing rules — always.** Call `ops_alerts_list` **before** you
-   create, every time (even when you just created the metric): it's the required
-   dedup check. The list will usually contain other, unrelated rules — that's
-   fine; you're only looking for one that *already watches this same
-   metric+threshold*. If one matches, reuse or retune it instead of creating a
-   duplicate; otherwise proceed to create the new rule.
-3. **Create the rule.** `ops_alerts_create { name, metricId, comparator,
-   threshold, … }` (or `shipeasy ops alerts create --name … --metric-id <id|name>
-   --comparator gt --threshold 50`). This call is the culmination of the ask.
+1. **Examine the code (required).** Read the specific surface the ask names — the
+   payment/checkout handler for "alert on payment error rate", the signup flow for
+   "alert when signups drop". Scope it to that feature; a whole-repo sweep isn't
+   needed. Find where the signal is (or should be) emitted: an existing
+   `flags.track(...)` call, an error path, or the natural place to add one.
+   Capture file:line. This step is required even when the metric sounds obvious —
+   the right event *and* the right threshold both come from the code.
+2. **Analyze what exists.** `metrics_events_list` + `metrics_list` (the tool
+   accepts a metric id **or** name) for a metric that already fits — reuse it.
+   Then `ops_alerts_list` **before** you create, every time: the required dedup
+   check. The list usually holds other, unrelated rules — that's fine; you're only
+   looking for one that *already watches this same metric+threshold*. If one
+   matches, reuse or retune it instead of creating a duplicate.
+3. **Propose the tracking plan, then wait.** Come back with how to best set it up
+   — the event/metric to use (reuse or new), the comparator + threshold, the
+   window, and the severity. When there's a real choice (error *rate* vs error
+   *count*, 5% vs a tighter bound), lay it out as 1–3 options. Present it and
+   **stop** for the user to approve or retune. Only ask about a decision that's
+   genuinely theirs (the exact threshold when they didn't give one) — never about
+   which external tool to use (there is none; Shipeasy is the backend).
+4. **Provision the approved rule.** Build any missing event
+   (`metrics_events_create`) + metric (`metrics_create`), then the rule:
+   `ops_alerts_create { name, metricId, comparator, threshold, … }` (or `shipeasy
+   ops alerts create --name … --metric-id <id|name> --comparator gt --threshold
+   50`). This call is the culmination of the ask.
 
 ## Pause, retune, or change a rule
 

@@ -7,7 +7,7 @@
     "tools_match": "all",
     "forbid_tools": ["metrics_archive"],
     "expect_state": { "events": ["download"], "metrics": ["download"] },
-    "note": "before creating: list events (does one already track this?) and list metrics (does the metric already exist?), then create. expect_state confirms the event + metric landed. Uses a 'download' domain that no other case touches so it always reads as new (the checkout domain overlaps the experiments case's checkout_conversion metric, which made this dedup instead of create)."
+    "note": "the skill is consultative — investigate, propose the event + aggregation, then WAIT for approval before creating; the eval grants that approval up-front (run.ts standing-approval clause). Before creating: list events (does one already track this?) and list metrics (does the metric already exist?), then create. expect_state confirms the event + metric landed. Uses a 'download' domain that no other case touches so it always reads as new (the checkout domain overlaps the experiments case's checkout_conversion metric, which made this dedup instead of create)."
   },
   {
     "id": "shipeasy-metrics/list-readonly",
