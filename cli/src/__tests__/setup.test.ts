@@ -19,6 +19,26 @@ import {
   writeCursorRule,
 } from "../setup/instructions";
 import { applyAgent, agentDirective } from "../commands/setup";
+import { buildWiringDoc, type WiringTarget } from "../setup/wiring-doc";
+
+function wiringTarget(over: Partial<WiringTarget> = {}): WiringTarget {
+  return {
+    relPath: "apps/web",
+    language: "typescript",
+    sdk: "typescript",
+    frameworks: ["next"],
+    packageManager: "pnpm",
+    entryPoints: ["apps/web/app/layout.tsx"],
+    sdkInstalled: true,
+    installCmd: null,
+    installationDoc: null,
+    envFile: ".env.local",
+    envVars: ["SHIPEASY_SERVER_KEY"],
+    secretStoreMove: null,
+    browser: false,
+    ...over,
+  };
+}
 
 function tmp(): string {
   return mkdtempSync(join(tmpdir(), "se-setup-"));
@@ -224,6 +244,53 @@ describe("agentDirective", () => {
     expect(d).toContain("Never print, log, or commit a key value");
     expect(d).toContain("don't commit");
     expect(d).toContain("Delete shipeasy-wiring.md");
+  });
+});
+
+describe("buildWiringDoc", () => {
+  const base = {
+    projectId: "proj_1",
+    devtools: null,
+    enabledFeatures: [] as string[],
+    buildTargets: ["apps/web"],
+  };
+
+  it("only wires the targets it is handed — de-selected folders never appear", () => {
+    // The caller filters out folders the user unchecked; the doc must not
+    // resurrect them (no section, no `cd`-into-it verification line).
+    const doc = buildWiringDoc({
+      ...base,
+      targets: [wiringTarget({ relPath: "apps/web" })],
+      agents: ["claude"],
+    });
+    expect(doc).toContain("apps/web");
+    expect(doc).not.toContain("apps/admin");
+  });
+
+  it("emits a harness-specific reload notice for the wired agents", () => {
+    const doc = buildWiringDoc({
+      ...base,
+      targets: [wiringTarget()],
+      agents: ["claude", "cursor"],
+    });
+    expect(doc).toContain("reload so the Shipeasy MCP tools load");
+    expect(doc).toContain("Claude Code");
+    expect(doc).toContain("Cursor");
+    // The reload gate comes before the per-target wiring.
+    expect(doc.indexOf("reload so the Shipeasy MCP tools load")).toBeLessThan(
+      doc.indexOf("Per-target SDK wiring"),
+    );
+  });
+
+  it("omits the reload notice when no agent was wired", () => {
+    const doc = buildWiringDoc({ ...base, targets: [wiringTarget()], agents: [] });
+    expect(doc).not.toContain("reload so the Shipeasy MCP tools load");
+  });
+
+  it("falls back to a generic reload line for an unknown harness", () => {
+    const doc = buildWiringDoc({ ...base, targets: [wiringTarget()], agents: ["acme-ai"] });
+    expect(doc).toContain("reload so the Shipeasy MCP tools load");
+    expect(doc).toContain("Restart your coding agent");
   });
 });
 

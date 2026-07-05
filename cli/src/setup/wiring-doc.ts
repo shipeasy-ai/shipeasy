@@ -55,6 +55,42 @@ export interface WiringDocInput {
   featureDocs?: { i18n?: string | null; errorReporting?: string | null };
   /** JS/TS targets to build-verify at the end. */
   buildTargets: string[];
+  /**
+   * Coding agents/harnesses the CLI just registered the `@shipeasy/mcp` server
+   * into this run. Drives the reload notice — a harness reading this file was
+   * already running when its MCP config changed, so it must reload to see the
+   * `shipeasy-mcp` tools. Empty → no MCP was wired, notice is omitted.
+   */
+  agents?: string[];
+}
+
+/** Harness-specific "reload so the new MCP server loads" instruction. */
+const RELOAD_BY_AGENT: Record<string, string> = {
+  claude:
+    "**Claude Code** — restart Claude Code (project-scoped MCP servers load on startup; approve `shipeasy` when prompted). Check with `/mcp`.",
+  cursor:
+    "**Cursor** — reload the window (Command Palette → *Developer: Reload Window*), then enable the `shipeasy` server under Settings → MCP.",
+  copilot:
+    "**VS Code / Copilot** — reload the window (Command Palette → *Developer: Reload Window*), then start `shipeasy` from the MCP servers view (trust it when prompted).",
+  codex: "**Codex CLI** — restart the Codex session so it re-reads the MCP config.",
+  jules: "**Jules** — start a fresh task; the MCP server is picked up per session.",
+};
+
+function reloadSection(agents: string[]): string {
+  const known = agents.filter((a) => RELOAD_BY_AGENT[a]);
+  const lines = known.length
+    ? known.map((a) => `- ${RELOAD_BY_AGENT[a]}`)
+    : ["- Restart your coding agent / reload its window so it re-reads the MCP config."];
+  return `## First: reload so the Shipeasy MCP tools load
+
+\`shipeasy setup\` registered the \`@shipeasy/mcp\` server **while this session was
+already running**, so the \`shipeasy-mcp\` tools this file relies on are not live
+yet. A harness cannot reload itself — **ask the user to reload**, then continue:
+
+${lines.join("\n")}
+
+- [ ] Gate: the \`shipeasy-mcp\` tools are available (e.g. \`whoami\`/\`projects_current\`
+  resolve). If they still aren't, fall back to the \`shipeasy\` CLI for every step below.`;
 }
 
 /** Embed a fetched doc snippet under a marker, or a `docs get` fallback line. */
@@ -145,7 +181,9 @@ function targetSection(i: number, t: WiringTarget): string {
       ` (prefer a framework generator when the doc lists one).`,
   );
   if (t.entryPoints.length) {
-    lines.push(`      Detected entry point(s): ${t.entryPoints.map((e) => `\`${e}\``).join(", ")}.`);
+    lines.push(
+      `      Detected entry point(s): ${t.entryPoints.map((e) => `\`${e}\``).join(", ")}.`,
+    );
   }
   if (t.browser) {
     lines.push(
@@ -170,10 +208,7 @@ function buildHint(t: WiringTarget): string {
   return "the project's build/test command";
 }
 
-function devtoolsSection(
-  d: NonNullable<WiringDocInput["devtools"]>,
-  projectId: string,
-): string {
+function devtoolsSection(d: NonNullable<WiringDocInput["devtools"]>, projectId: string): string {
   const clientVal = d.clientKey ?? `<value of ${d.clientKeyVar} in env>`;
   const idVal = projectId || `<value of ${d.projectIdVar} in env>`;
   return `## Devtools overlay (user accepted — wire it)
@@ -256,10 +291,17 @@ your agent(s), and server-side module enablement${
 What remains requires reading this codebase and making judgement calls — that
 is your job. Work top to bottom; check off items as you complete them, and
 delete this file once everything passes.`,
+  ];
+
+  // A harness reading this file was running before the CLI registered the MCP
+  // server — surface the reload step first so the shipeasy-mcp tools come online.
+  if (input.agents?.length) sections.push(reloadSection(input.agents));
+
+  sections.push(
     OPERATING_RULES,
     `## Per-target SDK wiring`,
     ...input.targets.map((t, i) => targetSection(i, t)),
-  ];
+  );
 
   // Module-dependent sections — only what was actually enabled. `sdk` for the
   // doc handles comes from the first target (falls back to a placeholder).

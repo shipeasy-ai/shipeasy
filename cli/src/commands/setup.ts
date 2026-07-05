@@ -18,7 +18,12 @@ import {
   onPath,
   registerMcp,
 } from "../setup/agents";
-import { fetchSdkDoc, fetchSdkSkill, installMarketplaceSkills, installSkill } from "../setup/sdk-docs";
+import {
+  fetchSdkDoc,
+  fetchSdkSkill,
+  installMarketplaceSkills,
+  installSkill,
+} from "../setup/sdk-docs";
 import { setupSkillNames } from "../setup/skills-registry";
 import {
   type FileResult,
@@ -383,7 +388,12 @@ const RUNNABLE_AGENTS: Array<{
     argv: (p) => ["--dangerously-bypass-approvals-and-sandbox", p],
   },
   { id: "cursor", label: "Cursor", bin: "cursor-agent", argv: (p) => ["--force", p] },
-  { id: "copilot", label: "GitHub Copilot", bin: "copilot", argv: (p) => ["--allow-all-tools", "-i", p] },
+  {
+    id: "copilot",
+    label: "GitHub Copilot",
+    bin: "copilot",
+    argv: (p) => ["--allow-all-tools", "-i", p],
+  },
 ];
 
 function spawnAgent(bin: string, args: string[]): Promise<number> {
@@ -527,7 +537,9 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   if (!dryRun) recordDetection(detected.targets); // seed each target's .shipeasy with sdk/language
   for (const t of detected.targets) {
     const fw = t.frameworks.length ? ` · ${t.frameworks.join(", ")}` : "";
-    console.log(`  ${t.recommendation.action.startsWith("skip") ? "·" : "▸"} ${relPath(root, t.path)}/  [${t.language}${fw}]  → ${t.recommendation.action}`);
+    console.log(
+      `  ${t.recommendation.action.startsWith("skip") ? "·" : "▸"} ${relPath(root, t.path)}/  [${t.language}${fw}]  → ${t.recommendation.action}`,
+    );
   }
   const actionable = actionableTargets(detected.targets);
   console.log(
@@ -585,7 +597,9 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   if (selected.length === 0) {
     console.log("  (no agents selected — skipping)");
   } else {
-    console.log(`  scope: ${scope === "project" ? "this project (in-repo)" : "user-level (global)"}`);
+    console.log(
+      `  scope: ${scope === "project" ? "this project (in-repo)" : "user-level (global)"}`,
+    );
     for (const agent of selected) {
       console.log(`\n  ${agent}:`);
       for (const line of applyAgent(agent, ctx)) console.log(line);
@@ -601,9 +615,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   let clientKey: KeyCreated | null = null;
   const browserTarget = (t: TargetRecommendation): boolean =>
     t.recommendation.keys.includes("client");
-  const needServer = actionable.some(
-    (t) => !t.shipeasy.env_keys_detected.includes(SERVER_KEY_VAR),
-  );
+  const needServer = actionable.some((t) => !t.shipeasy.env_keys_detected.includes(SERVER_KEY_VAR));
   const needClient = actionable.some(
     (t) => browserTarget(t) && !t.shipeasy.env_keys_detected.some((k) => k.includes("CLIENT")),
   );
@@ -641,6 +653,10 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   const installOutcome = new Map<string, { status: string; cmd: string }>();
   const persistedVars = new Map<string, string[]>();
   const installDocs = new Map<string, string | null>(); // target path → installation doc
+  // Targets the user explicitly unchecked in the install multiselect below. These
+  // drop out of onboarding entirely — no key persist, no wiring-doc section — so
+  // the harness never walks a folder the user opted out of.
+  const deselectedTargets = new Set<string>();
   if (!actionable.length) {
     console.log("  • nothing to do");
   } else {
@@ -654,7 +670,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
       const { picked } = await prompts({
         type: "multiselect",
         name: "picked",
-        message: `Run the SDK package install in which of ${needing.length} target(s)?`,
+        message: `Onboard which of ${needing.length} target(s)?`,
         choices: needing.map((t) => ({
           title: `${relPath(root, t.path)}/  →  ${t.recommendation.sdk ?? t.language}${
             t.recommendation.install ? `  (${t.recommendation.install})` : ""
@@ -662,15 +678,22 @@ async function runSetup(opts: SetupOpts): Promise<void> {
           value: t.path,
           selected: true,
         })),
-        hint: "space to toggle, enter to confirm",
+        hint: "space to toggle, enter to confirm — unchecked folders are left out of onboarding + the wiring plan",
         instructions: false,
       });
       installTargets.clear();
       for (const p of (picked as string[] | undefined) ?? []) installTargets.add(p);
+      // Anything the user unchecked is opted out entirely — record it so it never
+      // reaches the wiring doc (step 9) and the harness never walks it.
+      for (const t of needing) if (!installTargets.has(t.path)) deselectedTargets.add(t.path);
     }
 
     for (const t of actionable) {
       const rp = relPath(root, t.path);
+      if (deselectedTargets.has(t.path)) {
+        console.log(`\n  ${rp}/: · skipped (de-selected) — left out of onboarding + wiring`);
+        continue;
+      }
       console.log(`\n  ${rp}/:`);
 
       if (t.recommendation.action === "install") {
@@ -696,7 +719,9 @@ async function runSetup(opts: SetupOpts): Promise<void> {
             status: "deferred",
             cmd: t.recommendation.install ?? "(see docs)",
           });
-          console.log(`    → install ${dryRun ? "(dry run) " : ""}deferred: ${t.recommendation.install}`);
+          console.log(
+            `    → install ${dryRun ? "(dry run) " : ""}deferred: ${t.recommendation.install}`,
+          );
         }
       } else {
         console.log("    • SDK already installed");
@@ -715,7 +740,8 @@ async function runSetup(opts: SetupOpts): Promise<void> {
         const w = persistEnv(t.path, file, entries);
         persistedVars.set(t.path, [...w.added, ...w.existing]);
         if (w.added.length) console.log(`    ✓ ${file}: added ${w.added.join(", ")}`);
-        if (w.existing.length) console.log(`    • ${file}: ${w.existing.join(", ")} already present (left untouched)`);
+        if (w.existing.length)
+          console.log(`    • ${file}: ${w.existing.join(", ")} already present (left untouched)`);
         const gi = ensureGitignored(t.path, file);
         console.log(`    ${gi.action === "added" ? "✓" : "•"} ${gi.detail}`);
       } else {
@@ -724,9 +750,15 @@ async function runSetup(opts: SetupOpts): Promise<void> {
       }
 
       // Pull the version-correct installation doc to embed in the wiring file.
-      const doc = await fetchSdkDoc(t.recommendation.sdk ?? t.language, "installation", t.frameworks[0]);
+      const doc = await fetchSdkDoc(
+        t.recommendation.sdk ?? t.language,
+        "installation",
+        t.frameworks[0],
+      );
       installDocs.set(t.path, doc);
-      console.log(doc ? "    ✓ installation doc fetched" : "    • installation doc unavailable (offline?)");
+      console.log(
+        doc ? "    ✓ installation doc fetched" : "    • installation doc unavailable (offline?)",
+      );
     }
   }
 
@@ -737,7 +769,9 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   // the feature selection in step 7, so they follow what the user turns on.
   // User scope installs globally (`-g`); project scope keeps them in-repo.
   heading("5b. Install skills");
-  const uniqueSdks = [...new Set(actionable.map((t) => t.recommendation.sdk).filter(Boolean))] as string[];
+  const uniqueSdks = [
+    ...new Set(actionable.map((t) => t.recommendation.sdk).filter(Boolean)),
+  ] as string[];
   const skillsGlobal = scope === "user";
   // Language the marketplace how-to skills bake their snippets for (shared by 5b
   // and the feature-skill install in step 7).
@@ -761,7 +795,10 @@ async function runSetup(opts: SetupOpts): Promise<void> {
         console.log(`  • ${sdk}: no published skill — skipped`);
         continue;
       }
-      const res = await installSkill(content, sdk, { agents: skillsCliAgents, global: skillsGlobal });
+      const res = await installSkill(content, sdk, {
+        agents: skillsCliAgents,
+        global: skillsGlobal,
+      });
       console.log(`  ${res.action === "failed" ? "✗" : "✓"} ${sdk}: ${res.detail}`);
     }
   }
@@ -793,7 +830,9 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   let opsEnabled: EnableResult | null = null;
 
   if (dryRun) {
-    console.log("  (dry run — would confirm the HTML surface, then offer the overlay + ops module)");
+    console.log(
+      "  (dry run — would confirm the HTML surface, then offer the overlay + ops module)",
+    );
   } else {
     // Does the project render HTML in a browser? Default from detection; an
     // explicit --devtools / --no-devtools flag skips the question outright.
@@ -847,7 +886,9 @@ async function runSetup(opts: SetupOpts): Promise<void> {
           opsEnabled = await enableModuleGroup("ops");
           console.log(`  ✓ ops module enabled (${opsEnabled.enabled_modules.join(", ")})`);
         } catch (e) {
-          console.log(`  ✗ ops module enable failed: ${e instanceof Error ? e.message : String(e)}`);
+          console.log(
+            `  ✗ ops module enable failed: ${e instanceof Error ? e.message : String(e)}`,
+          );
         }
         // The overlay script reads the project id from public env — persist it now.
         for (const t of browserCandidates) {
@@ -859,7 +900,9 @@ async function runSetup(opts: SetupOpts): Promise<void> {
         }
         console.log("  → the <script> tag injection is in the wiring steps (needs your layout)");
       } else {
-        console.log("  • declined — add later with `shipeasy install ops` (see the shipeasy-ops skill)");
+        console.log(
+          "  • declined — add later with `shipeasy install ops` (see the shipeasy-ops skill)",
+        );
       }
     }
   }
@@ -879,14 +922,17 @@ async function runSetup(opts: SetupOpts): Promise<void> {
         .filter(Boolean);
       const unknown = requested.filter((f) => !(FEATURE_GROUPS as readonly string[]).includes(f));
       if (unknown.length) {
-        throw new Error(`Unknown feature(s): ${unknown.join(", ")}. Known: ${FEATURE_GROUPS.join(", ")}`);
+        throw new Error(
+          `Unknown feature(s): ${unknown.join(", ")}. Known: ${FEATURE_GROUPS.join(", ")}`,
+        );
       }
       features = requested as FeatureGroup[];
     } else if (interactive) {
       const { picked } = await prompts({
         type: "multiselect",
         name: "picked",
-        message: "Enable feature modules now? (all preselected — space to deselect any you don't want)",
+        message:
+          "Enable feature modules now? (all preselected — space to deselect any you don't want)",
         choices: [
           {
             title: "Flags & experiments — gates, configs, kill switches, A/B, metrics",
@@ -993,8 +1039,12 @@ async function runSetup(opts: SetupOpts): Promise<void> {
       checks.push(["could not list keys", false]);
     }
     for (const t of actionable) {
+      if (deselectedTargets.has(t.path)) continue;
       const bound = getBoundProjectId(t.path);
-      checks.push([`${relPath(root, t.path)}/.shipeasy bound${bound ? ` → ${bound}` : ""}`, Boolean(bound)]);
+      checks.push([
+        `${relPath(root, t.path)}/.shipeasy bound${bound ? ` → ${bound}` : ""}`,
+        Boolean(bound),
+      ]);
     }
     for (const [label, ok] of checks) console.log(`  ${ok ? "✓" : "✗"} ${label}`);
     if (checks.some(([, ok]) => !ok)) {
@@ -1004,29 +1054,31 @@ async function runSetup(opts: SetupOpts): Promise<void> {
 
   // 9. Remaining (non-deterministic) wiring → instructions for ANY harness
   heading("9. Remaining wiring — instructions for your coding agent");
-  const wiringTargets: WiringTarget[] = actionable.map((t) => {
-    const inst = installOutcome.get(t.path);
-    return {
-      relPath: relPath(root, t.path),
-      language: t.language,
-      sdk: t.recommendation.sdk ?? t.language,
-      frameworks: t.frameworks,
-      packageManager: t.package_manager,
-      entryPoints: t.entry_points,
-      sdkInstalled: t.recommendation.action === "set_key" || inst?.status === "ran",
-      installCmd:
-        t.recommendation.action === "install" && inst?.status !== "ran"
-          ? (t.recommendation.install ?? null)
+  const wiringTargets: WiringTarget[] = actionable
+    .filter((t) => !deselectedTargets.has(t.path))
+    .map((t) => {
+      const inst = installOutcome.get(t.path);
+      return {
+        relPath: relPath(root, t.path),
+        language: t.language,
+        sdk: t.recommendation.sdk ?? t.language,
+        frameworks: t.frameworks,
+        packageManager: t.package_manager,
+        entryPoints: t.entry_points,
+        sdkInstalled: t.recommendation.action === "set_key" || inst?.status === "ran",
+        installCmd:
+          t.recommendation.action === "install" && inst?.status !== "ran"
+            ? (t.recommendation.install ?? null)
+            : null,
+        installationDoc: installDocs.get(t.path) ?? null,
+        envFile: envFileFor(t),
+        envVars: persistedVars.get(t.path) ?? [],
+        secretStoreMove: needsStoreMove(t.recommendation.secret_store)
+          ? t.recommendation.secret_store
           : null,
-      installationDoc: installDocs.get(t.path) ?? null,
-      envFile: envFileFor(t),
-      envVars: persistedVars.get(t.path) ?? [],
-      secretStoreMove: needsStoreMove(t.recommendation.secret_store)
-        ? t.recommendation.secret_store
-        : null,
-      browser: browserTarget(t),
-    };
-  });
+        browser: browserTarget(t),
+      };
+    });
 
   const enabledFeatures = [
     ...new Set([...features, ...(opsEnabled && !features.includes("ops") ? ["ops"] : [])]),
@@ -1049,7 +1101,9 @@ async function runSetup(opts: SetupOpts): Promise<void> {
       featureDocs.errorReporting = await fetchSdkDoc(primarySdk, "error-reporting");
     }
 
-    const sampleBrowser = browserCandidates[0] ?? actionable.find((t) => browserTarget(t));
+    const sampleBrowser =
+      browserCandidates.find((t) => !deselectedTargets.has(t.path)) ??
+      actionable.find((t) => browserTarget(t) && !deselectedTargets.has(t.path));
     const doc = buildWiringDoc({
       projectId,
       targets: wiringTargets,
@@ -1066,6 +1120,8 @@ async function runSetup(opts: SetupOpts): Promise<void> {
       buildTargets: wiringTargets
         .filter((t) => t.language === "typescript" || t.language === "javascript")
         .map((t) => t.relPath),
+      // Harnesses we just registered the MCP server into — drives the reload notice.
+      agents: selected,
     });
     const wiringPath = join(root, WIRING_FILENAME);
     writeFileSync(wiringPath, doc, "utf8");
@@ -1113,13 +1169,17 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   console.log(
     `Agents:    ${selected.length ? `${selected.join(", ")} (${scope} scope)` : "none wired"}`,
   );
-  console.log(`Devtools:  ${devtoolsAccepted ? "enabled (wire the script tag — see wiring steps)" : "declined"}`);
+  console.log(
+    `Devtools:  ${devtoolsAccepted ? "enabled (wire the script tag — see wiring steps)" : "declined"}`,
+  );
   console.log(`Features:  ${features.length ? features.join(", ") : "none enabled"}`);
   console.log(
     `Trigger:   ${
       triggerResult.platforms?.length
         ? `${triggerResult.platforms.join(", ")} — ${
-            triggerResult.completed ? "done (finish any open wizard tabs)" : "finish setup in the browser"
+            triggerResult.completed
+              ? "done (finish any open wizard tabs)"
+              : "finish setup in the browser"
           }`
         : triggerResult.completed
           ? "done — none opened"
@@ -1220,14 +1280,13 @@ export function setupCommand(parent: Command): void {
       "Set up an automation trigger — a scheduled agent that fixes queue items as " +
         "PRs, unattended. Opens the hosted, guided setup for your platform.",
     )
-    .option(
-      "--platform <id>",
-      "Preselect the platform (claude|codex|cursor|copilot|gemini|jules)",
-    )
+    .option("--platform <id>", "Preselect the platform (claude|codex|cursor|copilot|gemini|jules)")
     .option("--dry-run", "Print the URL without opening a browser")
     .action(async (opts: { platform?: string; dryRun?: boolean }) => {
       await runSetupTriggers(opts).catch((err: unknown) => {
-        console.error(`\nTrigger setup failed: ${err instanceof Error ? err.message : String(err)}`);
+        console.error(
+          `\nTrigger setup failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
         process.exit(1);
       });
     });
