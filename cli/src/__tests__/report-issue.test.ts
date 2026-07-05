@@ -41,11 +41,10 @@ describe("report-issue", () => {
     expect(res.error).toMatch(/consent/i);
   });
 
-  it("is inert until a report key is baked in / provided (no placeholder sends)", async () => {
-    // No SHIPEASY_REPORT_KEY in the test env → the placeholder is still in place.
-    expect(reportConfigured()).toBe(false);
-    const res = await sendSetupIssue({ title: "x" }, { consent: true });
-    expect(res.ok).toBe(false);
-    expect(res.error).toMatch(/wired up|report key/i);
+  it("has a real report key baked in (reporter is live)", () => {
+    // The production client key is baked in, so the reporter is configured.
+    // (We deliberately do NOT call sendSetupIssue with consent here — that would
+    // fire a real network request at the live endpoint.)
+    expect(reportConfigured()).toBe(true);
   });
 });

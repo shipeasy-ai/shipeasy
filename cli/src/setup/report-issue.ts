@@ -13,22 +13,27 @@ import prompts from "prompts";
 import { loadCredentials, API_BASE_URL } from "../auth/storage";
 import { getBoundProjectId } from "../util/project-config";
 
+// Sentinel used before a real key exists — keeps `reportConfigured()` false so a
+// build without a baked key never fires doomed requests at the endpoint.
+const PLACEHOLDER_KEY = "sdk_client_REPLACE_WITH_SHIPEASY_PUBLIC_REPORT_KEY";
+
 // Shipeasy's own PUBLIC client key, scoped to `tickets:public_create` only.
 // Client keys are designed to be embedded in shipped code, so baking this into
 // the distributed CLI is safe: presenting it can do nothing but file a
-// pending_approval bug into Shipeasy's own project. Overridable via
-// SHIPEASY_REPORT_KEY for testing and until the production key is minted (see
-// the bootstrap note in DEPLOY.md / the setup docs).
-const BAKED_REPORT_KEY = "sdk_client_REPLACE_WITH_SHIPEASY_PUBLIC_REPORT_KEY";
+// pending_approval bug into Shipeasy's own project (rate-limited, reviewed
+// before anyone acts on it). Overridable via SHIPEASY_REPORT_KEY for testing /
+// rotation.
+const BAKED_REPORT_KEY = "sdk_client_1823d0e259694fb9a203954739845920";
 
 export function reportClientKey(): string {
   return process.env.SHIPEASY_REPORT_KEY?.trim() || BAKED_REPORT_KEY;
 }
 
-/** True once a real key has been baked in (or provided via env) — the reporter
- *  stays inert until then rather than firing doomed requests at the endpoint. */
+/** True once a real key is present (baked in or via env) — the reporter stays
+ *  inert while only the placeholder sentinel is set. */
 export function reportConfigured(): boolean {
-  return reportClientKey() !== BAKED_REPORT_KEY;
+  const key = reportClientKey();
+  return !!key && key !== PLACEHOLDER_KEY;
 }
 
 const REPORT_TIMEOUT_MS = 4000;
