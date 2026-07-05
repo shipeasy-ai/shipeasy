@@ -40,6 +40,7 @@ All error codes:
 | `GROUPS_WEIGHT_SUM` | Experiment group weights must sum to 10000 (basis points). |
 | `EVENT_PENDING` | The referenced event is still pending review and cannot back a metric yet. |
 | `INTERNAL` | Unexpected server error. |
+| `PLAN_LIMIT` | The action would exceed a plan quota (e.g. the tier's maximum experiments, metrics, or configs). Upgrade the plan or archive an existing resource. |
 | `EXPERIMENT_NO_GOAL_METRIC` | The experiment has no goal metric set, which the requested action requires. |
 | `EXPERIMENT_ARCHIVED_RESTART` | An archived experiment cannot be restarted. |
 | `EXPERIMENT_RESTORE_INVALID` | The experiment cannot be restored from its current state. |
@@ -1092,6 +1093,12 @@ _Errors_ — beyond the [common errors](#errors):
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 - `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
 - `VALIDATION` — The request body failed structural (schema) validation.
+- `PLAN_LIMIT` — The action would exceed a plan quota (e.g. the tier's maximum experiments, metrics, or configs). Upgrade the plan or archive an existing resource.
+- `EXPERIMENT_NO_GOAL_METRIC` — The experiment has no goal metric set, which the requested action requires.
+- `EXPERIMENT_ARCHIVED_RESTART` — An archived experiment cannot be restarted.
+- `EXPERIMENT_NOT_RUNNING` — The action requires the experiment to be running.
+- `EXPERIMENT_RUNNING_ARCHIVE` — A running experiment cannot be archived — stop it first.
+- `EXPERIMENT_RESTORE_INVALID` — The experiment cannot be restored from its current state.
 
 #### `release_experiments_results`
 
@@ -1139,6 +1146,7 @@ _Errors_ — beyond the [common errors](#errors):
 - `EVENT_PENDING` — The referenced event is still pending review and cannot back a metric yet.
 - `REFERENCED_NOT_FOUND` — A referenced entity (universe, metric, gate, event) does not exist.
 - `VALIDATION` — The request body failed structural (schema) validation.
+- `METRIC_UNKNOWN_ID` — The supplied metric id is malformed or not recognised.
 
 #### `release_experiments_start`
 
@@ -1172,6 +1180,12 @@ _Errors_ — beyond the [common errors](#errors):
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 - `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
 - `VALIDATION` — The request body failed structural (schema) validation.
+- `PLAN_LIMIT` — The action would exceed a plan quota (e.g. the tier's maximum experiments, metrics, or configs). Upgrade the plan or archive an existing resource.
+- `EXPERIMENT_NO_GOAL_METRIC` — The experiment has no goal metric set, which the requested action requires.
+- `EXPERIMENT_ARCHIVED_RESTART` — An archived experiment cannot be restarted.
+- `EXPERIMENT_NOT_RUNNING` — The action requires the experiment to be running.
+- `EXPERIMENT_RUNNING_ARCHIVE` — A running experiment cannot be archived — stop it first.
+- `EXPERIMENT_RESTORE_INVALID` — The experiment cannot be restored from its current state.
 
 #### `release_experiments_stop`
 
@@ -1205,6 +1219,12 @@ _Errors_ — beyond the [common errors](#errors):
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 - `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
 - `VALIDATION` — The request body failed structural (schema) validation.
+- `PLAN_LIMIT` — The action would exceed a plan quota (e.g. the tier's maximum experiments, metrics, or configs). Upgrade the plan or archive an existing resource.
+- `EXPERIMENT_NO_GOAL_METRIC` — The experiment has no goal metric set, which the requested action requires.
+- `EXPERIMENT_ARCHIVED_RESTART` — An archived experiment cannot be restarted.
+- `EXPERIMENT_NOT_RUNNING` — The action requires the experiment to be running.
+- `EXPERIMENT_RUNNING_ARCHIVE` — A running experiment cannot be archived — stop it first.
+- `EXPERIMENT_RESTORE_INVALID` — The experiment cannot be restored from its current state.
 
 #### `release_experiments_timeseries`
 
@@ -1283,6 +1303,7 @@ _Errors_ — beyond the [common errors](#errors):
 - `GROUPS_WEIGHT_SUM` — Experiment group weights must sum to 10000 (basis points).
 - `REFERENCED_NOT_FOUND` — A referenced entity (universe, metric, gate, event) does not exist.
 - `VALIDATION` — The request body failed structural (schema) validation.
+- `EXPERIMENT_IMMUTABLE_FIELD` — A field that is immutable while the experiment is running was modified.
 
 #### Universes
 

@@ -30,8 +30,25 @@ export interface AgentInfo {
  *  POST /"), which is what a client sees when the path is dropped. */
 export const MCP_URL = "https://mcp.shipeasy.ai/mcp";
 
-/** The MCP server entry every assistant registers (streamable-HTTP remote). */
-export const SERVER_SPEC = { type: "http", url: MCP_URL };
+/**
+ * The MCP server entry an assistant registers (streamable-HTTP remote). When a
+ * bound project is known we pin it with an `X-Project-Id` header, so the
+ * connection acts on THAT project regardless of what was picked at OAuth consent
+ * — this is what makes a per-repo `.mcp.json` target its own project. The header
+ * is not a credential: the server still authenticates you via OAuth and the
+ * admin API re-checks your membership of the pinned project on every call.
+ */
+export function serverSpec(projectId?: string): { type: "http"; url: string; headers?: Record<string, string> } {
+  const spec: { type: "http"; url: string; headers?: Record<string, string> } = {
+    type: "http",
+    url: MCP_URL,
+  };
+  if (projectId) spec.headers = { "X-Project-Id": projectId };
+  return spec;
+}
+
+/** The projectless default entry, kept for callers that don't scope a project. */
+export const SERVER_SPEC = serverSpec();
 
 export const MARKETPLACE_SLUG = "shipeasy-ai/shipeasy";
 
@@ -198,6 +215,10 @@ export interface InstallCtx {
   scope: "user" | "project";
   force: boolean;
   dryRun: boolean;
+  /** Bound project id to pin via `X-Project-Id` in the written MCP config, so the
+   *  connection targets this project without relying on the OAuth consent pick.
+   *  Omitted → the entry carries no header and the project is chosen at consent. */
+  projectId?: string;
 }
 
 export interface McpResult {
@@ -252,7 +273,7 @@ function registerJsonMcp(
   const { config, replaced } = mergeMcpServer(
     existing,
     "shipeasy",
-    SERVER_SPEC,
+    serverSpec(ctx.projectId),
     ctx.force,
     target.key,
   );
@@ -280,10 +301,17 @@ export function registerMcp(agent: AgentId, ctx: InstallCtx): McpResult {
   if (jsonTarget) return registerJsonMcp(jsonTarget, ctx);
 
   if (agent === "codex") {
+    // Codex's HTTP MCP config only carries a URL (+ optional bearer-token env
+    // var) — `codex mcp add` has no header flag — so we can't pin the project via
+    // `X-Project-Id` the way the JSON agents do. Codex uses whatever project you
+    // pick at OAuth consent; note that when a specific project was requested.
+    const projectNote = ctx.projectId
+      ? ` (Codex can't pin a project header — approve project ${ctx.projectId} at the browser consent step.)`
+      : "";
     if (!onPath("codex")) {
       return {
         action: "manual",
-        detail: `add to ~/.codex/config.toml:\n\n${codexTomlSnippet()}`,
+        detail: `add to ~/.codex/config.toml:\n\n${codexTomlSnippet()}${projectNote}`,
       };
     }
     if (ctx.dryRun) {
@@ -301,7 +329,7 @@ export function registerMcp(agent: AgentId, ctx: InstallCtx): McpResult {
         detail: `codex mcp add failed (${res.status ?? "?"}). Add manually:\n\n${codexTomlSnippet()}`,
       };
     }
-    return { action: "shell", detail: "codex mcp add shipeasy" };
+    return { action: "shell", detail: `codex mcp add shipeasy${projectNote}` };
   }
 
   if (agent === "jules") {

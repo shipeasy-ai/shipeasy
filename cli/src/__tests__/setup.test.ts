@@ -223,6 +223,29 @@ describe("registerMcp", () => {
     }
   });
 
+  it("pins the bound project via an X-Project-Id header when ctx.projectId is set", () => {
+    const dir = tmp();
+    try {
+      registerMcp("cursor", ctx(dir, { projectId: "proj_42" }));
+      const cfg = JSON.parse(readFileSync(join(dir, ".cursor", "mcp.json"), "utf8"));
+      expect(cfg.mcpServers.shipeasy.headers).toEqual({ "X-Project-Id": "proj_42" });
+      expect(cfg.mcpServers.shipeasy.url).toBe("https://mcp.shipeasy.ai/mcp");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("omits the header entirely when no project is bound (chosen at OAuth consent)", () => {
+    const dir = tmp();
+    try {
+      registerMcp("copilot", ctx(dir));
+      const cfg = JSON.parse(readFileSync(join(dir, ".vscode", "mcp.json"), "utf8"));
+      expect(cfg.servers.shipeasy.headers).toBeUndefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("dryRun does not write a file", () => {
     const dir = tmp();
     try {

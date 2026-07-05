@@ -642,7 +642,9 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   const scope: "user" | "project" = selected.length
     ? await resolveScope(opts, interactive, dryRun)
     : "project";
-  const ctx: InstallCtx = { cwd, scope, force: false, dryRun };
+  // Pin the resolved project into each written MCP config (X-Project-Id header)
+  // so the repo's connection targets its own project, not the OAuth-consent pick.
+  const ctx: InstallCtx = { cwd, scope, force: false, dryRun, projectId: projectId || undefined };
   // The `skills` CLI names for the agents that take skills via `npx skills add`
   // (not the plugin): cursor/codex/copilot always; Claude only at project scope
   // (user scope gets skills from its global plugin instead). The skills CLI names

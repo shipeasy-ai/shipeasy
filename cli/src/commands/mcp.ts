@@ -14,6 +14,7 @@ import {
   registerMcp,
 } from "../setup/agents";
 import { readJsonConfig, writeJsonConfig } from "../util/json-config";
+import { getBoundProjectId } from "../util/project-config";
 import { withExamples } from "../util/examples";
 
 // The registered entry is the hosted, remote MCP server (mcp.shipeasy.ai) —
@@ -94,11 +95,17 @@ export function mcpCommand(parent: Command): void {
           process.exit(1);
         }
 
+        // Pin the connection to the folder's bound project (or the logged-in
+        // project) via an X-Project-Id header in the written config, so tools act
+        // on the right project without re-authorizing. Falls back to no header
+        // (project chosen at OAuth consent) when neither is known.
+        const projectId = getBoundProjectId(process.cwd()) ?? loadCredentials()?.project_id;
         const ctx: InstallCtx = {
           cwd: process.cwd(),
           scope,
           force: !!opts.force,
           dryRun: !!opts.dryRun,
+          projectId,
         };
 
         let wrote = 0;
