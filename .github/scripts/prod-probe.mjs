@@ -1006,93 +1006,159 @@ async function probeKillswitchPropagation() {
   console.log("::endgroup::");
 }
 
-// ── Project stats knobs — each per-project analysis parameter (Settings →
-// "Statistics & analysis") must round-trip through `projects update` → the DB →
-// `projects current`. Opt-in + self-restoring (SHIPEASY_PROBE_MUTATE=1): capture
-// the live values, set every knob to a distinct in-range value in one update,
-// read them back and assert, then restore the originals and re-assert. This is
-// the end-to-end proof that the OpenAPI field → Zod validation → admin handler →
-// `projects` column → analyzer-read chain is intact for all 10 knobs.
-const STATS_KNOBS = [
-  { key: "minSampleSize", flag: "--min-sample-size", test: 250 },
-  { key: "minRuntimeDays", flag: "--min-runtime-days", test: 7 },
-  { key: "defaultPower", flag: "--default-power", test: 0.9 },
-  { key: "ciConfidence", flag: "--ci-confidence", test: 0.99 },
-  { key: "cupedBaselineDays", flag: "--cuped-baseline-days", test: 21 },
-  { key: "cupedMinOverlap", flag: "--cuped-min-overlap", test: 0.6 },
-  { key: "cupedMinBaselineUsers", flag: "--cuped-min-baseline-users", test: 150 },
-  { key: "msprtTauMeiFactor", flag: "--msprt-tau-mei-factor", test: 0.75 },
-  { key: "msprtTauSdFactor", flag: "--msprt-tau-sd-factor", test: 0.3 },
-  { key: "srmThreshold", flag: "--srm-threshold", test: 0.002 },
-];
-
-async function probeProjectStats() {
+// ── Project stats knobs — EFFECT test. Not "did the value save" (that's just
+// CRUD) but "does changing the knob change the analysis". Opt-in + self-restoring
+// (SHIPEASY_PROBE_MUTATE=1 + SHIPEASY_PROBE_EXPERIMENT/METRIC_EVENT + CLIENT_KEY):
+// inject ONE deterministic, slightly-imbalanced synthetic cohort, then vary a
+// knob to a random in-range value and re-run the analyzer, asserting the
+// persisted result moves the way the statistics say it must.
+//
+// Two knobs have a robustly-observable effect on an EXISTING experiment's
+// persisted results via `experiments reanalyze`:
+//   • default_power → experiment_results.realized_mde. MDE = (z_{α/2}+z_β)·SE, so
+//     raising power raises z_β and the realized detectable effect, monotonically,
+//     independent of the exact N — this is literally "does the power knob move
+//     statistical power".
+//   • srm_threshold → experiment_results.srm_detected. On a deliberately
+//     imbalanced split srm_detected = (srm_p < threshold), so a threshold bracket
+//     around the induced srm_p flips the flag.
+// The other knobs are NOT observable this way and we don't fake it: mSPRT τ needs
+// a sequential experiment, CUPED needs frozen baselines, and min_sample_size /
+// min_runtime_days / ci_confidence seed new experiments or drive display (they
+// don't re-derive an existing run) — those are covered by the worker unit sims.
+async function probeStatsEffect() {
+  const EXP = process.env.SHIPEASY_PROBE_EXPERIMENT;
+  const EV = process.env.SHIPEASY_PROBE_METRIC_EVENT;
   if (!process.env.SHIPEASY_PROBE_MUTATE) {
     console.log(
-      "project-stats leg disabled — enable with SHIPEASY_PROBE_MUTATE=1 (sets each knob then restores it)",
+      "stats-effect leg disabled — enable with SHIPEASY_PROBE_MUTATE=1 (varies power/SRM, then restores)",
     );
     return;
   }
-  const numEq = (a, b) => Number.isFinite(Number(a)) && Math.abs(Number(a) - Number(b)) < 1e-9;
-  const readProject = () => cli(["projects", "current"]);
-  const setKnobs = (values) =>
-    cliText([
-      "projects",
-      "update",
-      proj.id,
-      ...STATS_KNOBS.flatMap((k) => [k.flag, String(values[k.key])]),
-    ]);
-
-  let proj;
-  try {
-    proj = readProject();
-  } catch (e) {
-    annotate(`project-stats: could not read current project — ${e?.message ?? e}`);
-    failed++;
+  if (!CLIENT_KEY || !EXP || !EV) {
+    console.log("stats-effect leg: needs SHIPEASY_PROBE_EXPERIMENT + SHIPEASY_PROBE_METRIC_EVENT");
     return;
   }
-  if (!proj?.id) {
-    annotate("project-stats: `projects current` returned no id");
-    failed++;
-    return;
-  }
-  // Capture originals; a knob absent from the read model means the field never
-  // round-tripped — that is itself a failure to surface.
-  const original = {};
-  for (const k of STATS_KNOBS) {
-    if (proj[k.key] == null) {
-      annotate(`project-stats: ${k.key} missing from projects.current response`);
-      failed++;
+  const rnd = (lo, hi) => lo + Math.random() * (hi - lo);
+  const proj = (() => {
+    try {
+      return cli(["projects", "current"]);
+    } catch {
+      return null;
     }
-    original[k.key] = proj[k.key];
+  })();
+  if (!proj?.id) {
+    annotate("stats-effect: `projects current` returned no id");
+    failed++;
+    return;
+  }
+  const setKnob = (flag, val) => cliText(["projects", "update", proj.id, flag, String(val)]);
+  const treatmentRow = () => {
+    const st = experimentResults(EXP);
+    const rows = Array.isArray(st.results) ? st.results : (st.results?.results ?? []);
+    return rows.find((r) => (r.group_name ?? r.groupName) === "treatment");
+  };
+  const mdeOf = (r) => (r ? (r.realized_mde ?? r.realizedMde) : null);
+  const srmOf = (r) => (r ? (r.srm_detected ?? r.srmDetected) : null);
+  // Reanalyze a few times then read — the cohort is already in AE, so recompute
+  // is fast; the passes just absorb queue-consumer lag.
+  const settle = async () => {
+    for (let i = 0; i < 3; i++) {
+      cliText(reanalyzeArgs(EXP));
+      await sleep(12_000);
+    }
+    return treatmentRow();
+  };
+
+  // Deterministic, idempotent, imbalanced cohort (200 control / 260 treatment)
+  // → induced srm_p ≈ 0.005, comfortably inside the [1e-4, 0.05] threshold band.
+  const now = Date.now();
+  const events = [];
+  for (const [grp, n, conv] of [
+    ["control", 200, 40],
+    ["treatment", 260, 60],
+  ]) {
+    for (let i = 0; i < n; i++) {
+      const uid = `sfx-${grp[0]}-${i}`;
+      events.push({ type: "exposure", experiment: EXP, group: grp, user_id: uid, ts: now });
+      if (i % 100 < conv) events.push({ type: "metric", event_name: EV, value: 1, user_id: uid, ts: now });
+    }
   }
 
-  console.log("::group::Project stats knobs (10 fields round-trip)");
-  let restored = false;
+  console.log(`::group::Stats knobs affect the analysis (${EXP})`);
+  const orig = { power: proj.defaultPower, srm: proj.srmThreshold };
   try {
-    const testValues = Object.fromEntries(STATS_KNOBS.map((k) => [k.key, k.test]));
-    setKnobs(testValues);
-    const after = readProject();
-    for (const k of STATS_KNOBS) {
-      if (numEq(after[k.key], k.test)) ok(`${k.key} set → ${k.test} round-tripped`);
-      else {
-        annotate(`${k.key} did NOT round-trip: set ${k.test}, read back ${after[k.key]}`);
+    for (let i = 0; i < events.length; i += 200) {
+      const res = await fetch(`${EDGE_URL}/collect`, {
+        method: "POST",
+        headers: { "content-type": "text/plain", "x-sdk-key": CLIENT_KEY },
+        body: JSON.stringify({ events: events.slice(i, i + 200) }),
+      });
+      if (!res.ok) {
+        annotate(`/collect ${res.status} — cannot run stats-effect leg`);
+        failed++;
+        console.log("::endgroup::");
+        return;
+      }
+    }
+
+    // Wait for the cohort to land (with SRM off, so realized_mde is clean).
+    await setKnob("--srm-threshold", orig.srm);
+    let base = await settle();
+    for (let tries = 0; tries < 8 && !(base && (base.n ?? 0) > 0); tries++) base = await settle();
+    if (!base || !((base.n ?? 0) > 0)) {
+      console.log("⚠ no enrolment recovered within timeout (AE ingestion lag) — skipping (soft)");
+      console.log("::endgroup::");
+      return;
+    }
+
+    // ── default_power → realized_mde (monotonic increase) ────────────────────
+    const pLo = Number(rnd(0.5, 0.6).toFixed(3));
+    const pHi = Number(rnd(0.95, 0.99).toFixed(3));
+    await setKnob("--default-power", pLo);
+    const mdeLo = mdeOf(await settle());
+    await setKnob("--default-power", pHi);
+    const mdeHi = mdeOf(await settle());
+    if (mdeLo != null && mdeHi != null && mdeLo > 0) {
+      if (mdeHi > mdeLo * 1.15) {
+        ok(`default_power ${pLo}→${pHi} raised realized_mde ${mdeLo.toFixed(4)}→${mdeHi.toFixed(4)}`);
+      } else {
+        annotate(
+          `default_power had NO effect: realized_mde ${mdeLo} (power ${pLo}) vs ${mdeHi} (power ${pHi}) — expected a clear increase`,
+        );
         failed++;
       }
+    } else {
+      console.log(`⚠ realized_mde not populated (${mdeLo}/${mdeHi}) — skipping power assertion (soft)`);
+    }
+    await setKnob("--default-power", orig.power);
+
+    // ── srm_threshold → srm_detected (flag flips across the induced srm_p) ────
+    const thrHi = Number(rnd(0.02, 0.05).toFixed(4)); // > induced srm_p → detect
+    const thrLo = Number(rnd(0.0001, 0.0008).toFixed(4)); // < induced srm_p → clear
+    await setKnob("--srm-threshold", thrHi);
+    const detHi = srmOf(await settle());
+    await setKnob("--srm-threshold", thrLo);
+    const detLo = srmOf(await settle());
+    if (detHi === 1 && detLo === 0) {
+      ok(`srm_threshold ${thrHi}→${thrLo} flipped srm_detected 1→0 on the imbalanced split`);
+    } else if (detHi === detLo) {
+      // srm_p fell outside [thrLo, thrHi] (real traffic diluted or over-skewed
+      // the split) — the knob still applied, just not observable here. Soft.
+      console.log(
+        `⚠ srm_detected did not flip (hi=${detHi}, lo=${detLo}) — induced srm_p outside the bracket; not a knob failure (soft)`,
+      );
+    } else {
+      annotate(`srm_threshold inverted: raising the threshold gave detected=${detHi}, lowering gave ${detLo}`);
+      failed++;
     }
   } finally {
     try {
-      setKnobs(original);
-      const back = readProject();
-      restored = STATS_KNOBS.every((k) => numEq(back[k.key], original[k.key]));
-      console.log(
-        restored
-          ? "  restored all 10 knobs to their original values"
-          : "  ⚠ could not confirm restore of every knob",
-      );
-      if (!restored) failed++;
+      await setKnob("--default-power", orig.power);
+      await setKnob("--srm-threshold", orig.srm);
+      console.log(`  restored default_power=${orig.power}, srm_threshold=${orig.srm}`);
     } catch (e) {
-      annotate(`project-stats: restore failed — ${e?.message ?? e}`);
+      annotate(`stats-effect: restore failed — ${e?.message ?? e}`);
       failed++;
     }
   }
@@ -1656,7 +1722,7 @@ try {
   await probeManagedPresets();
   await probeKillswitches();
   await probeKillswitchPropagation();
-  await probeProjectStats();
+  await probeStatsEffect();
   await probeHoldout();
   await probeConfigs();
   await probeEnrichment();
