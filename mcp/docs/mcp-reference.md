@@ -40,11 +40,6 @@ All error codes:
 | `GROUPS_WEIGHT_SUM` | Experiment group weights must sum to 10000 (basis points). |
 | `EVENT_PENDING` | The referenced event is still pending review and cannot back a metric yet. |
 | `INTERNAL` | Unexpected server error. |
-| `CONFLICT` | The write conflicts with the current state of the resource (concurrent update or duplicate). |
-| `PLAN_LIMIT` | The action would exceed a plan quota (e.g. the tier's maximum flags or experiments). |
-| `FEATURE_REQUIRES_UPGRADE` | The requested capability is not available on the current plan tier. |
-| `INVALID_JSON` | The request body was not valid JSON. |
-| `EXPERIMENT_NOT_FOUND` | The referenced experiment does not exist or is not visible to the caller. |
 | `EXPERIMENT_NO_GOAL_METRIC` | The experiment has no goal metric set, which the requested action requires. |
 | `EXPERIMENT_ARCHIVED_RESTART` | An archived experiment cannot be restarted. |
 | `EXPERIMENT_RESTORE_INVALID` | The experiment cannot be restored from its current state. |
