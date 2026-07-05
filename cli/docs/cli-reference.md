@@ -2211,6 +2211,8 @@ shipeasy sdk keys create [options]
 | --- | --- | --- |
 | `--type <type>` | required | Key type: server \| client \| admin \| ops |
 | `--env <env>` | optional | Environment the key is bound to: dev \| staging \| prod (required for server/client keys) |
+| `--name <name>` | optional | Human label for the key (shown in the dashboard + audit logs) |
+| `--scopes <list>` | optional | Comma list of permission scopes: experiments:read, gates:evaluate, events:write, configs:write, experiments:write, tickets:public_create |
 | `--json` | optional | Output as JSON |
 | `--project <id>` | optional | Project ID override |
 
@@ -2222,6 +2224,9 @@ shipeasy sdk keys create --type server --env prod
 
 # Public client key for staging
 shipeasy sdk keys create --type client --env staging
+
+# Named client key scoped to file public bug reports (CLI /cli/report)
+shipeasy sdk keys create --type client --env prod --name "CLI main key" --scopes tickets:public_create
 
 # Restricted ops key for the trigger
 shipeasy sdk keys create --type ops

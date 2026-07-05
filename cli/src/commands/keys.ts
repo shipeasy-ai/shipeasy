@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { zCreateKeyRequest } from "@shipeasy/openapi/schemas";
 import { getApiClient, ApiError, printApiError } from "../api/client";
 import { printTable, printJson } from "../util/output";
 import { withExamples } from "../util/examples";
@@ -32,6 +33,43 @@ type KeyEnv = (typeof VALID_ENVS)[number];
 
 function isKeyEnv(s: string): s is KeyEnv {
   return (VALID_ENVS as readonly string[]).includes(s);
+}
+
+/**
+ * Valid `--scopes` values, read straight from the OpenAPI `CreateKeyRequest`
+ * schema (the single source of truth) so the CLI stays in lockstep with the
+ * spec: add a scope to `spec/components/schemas/keys.yaml` and it shows up here
+ * automatically. Falls back to `[]` (→ server-side validation only) if the
+ * generated schema shape ever changes under us.
+ */
+function keyScopeOptions(): readonly string[] {
+  try {
+    const opts = zCreateKeyRequest.shape.scopes.unwrap().element.options;
+    return Array.isArray(opts) ? (opts as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+const KEY_SCOPES = keyScopeOptions();
+
+/** Parse + validate a `--scopes a,b,c` value against the spec's scope enum. */
+function parseScopes(raw: string | undefined): string[] | undefined {
+  if (!raw) return undefined;
+  const scopes = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (!scopes.length) return undefined;
+  if (KEY_SCOPES.length) {
+    const unknown = scopes.filter((s) => !KEY_SCOPES.includes(s));
+    if (unknown.length) {
+      throw new ApiError(
+        `Unknown scope(s): ${unknown.join(", ")}. Valid scopes: ${KEY_SCOPES.join(", ")}`,
+        400,
+      );
+    }
+  }
+  return scopes;
 }
 
 /** GET /api/admin/keys returns a paginated `{ data: [...] }` envelope. */
@@ -89,6 +127,13 @@ export function keysCommand(parent: Command): void {
       "--env <env>",
       "Environment the key is bound to: dev | staging | prod (required for server/client keys)",
     )
+    .option("--name <name>", "Human label for the key (shown in the dashboard + audit logs)")
+    .option(
+      "--scopes <list>",
+      KEY_SCOPES.length
+        ? `Comma list of permission scopes: ${KEY_SCOPES.join(", ")}`
+        : "Comma list of permission scopes",
+    )
     .option("--json", "Output as JSON")
     .option("--project <id>", "Project ID override")
     .action(async (opts) => {
@@ -116,10 +161,17 @@ export function keysCommand(parent: Command): void {
             400,
           );
         }
+        // `--scopes` is validated against the spec's scope enum; `--name` is a
+        // free label. Both flow straight into the CreateKeyRequest body.
+        const scopes = parseScopes(opts.scopes);
+        const name = (opts.name as string | undefined)?.trim() || undefined;
+
         const client = getApiClient(opts.project, { requireBinding: true });
         const created = await client.request<KeyCreated>("POST", "/api/admin/keys", {
           type: opts.type,
           ...(needsEnv ? { env: opts.env } : {}),
+          ...(name ? { name } : {}),
+          ...(scopes ? { scopes } : {}),
         });
         if (opts.json) return printJson(created);
         console.log(`Created ${created.type} key (id ${created.id.slice(0, 8)}):`);
@@ -127,7 +179,9 @@ export function keysCommand(parent: Command): void {
         console.log(`  ${created.key}`);
         console.log("");
         console.log("Store this token now — it cannot be retrieved again.");
+        if (name) console.log(`Name: ${name}`);
         if (created.env) console.log(`Environment: ${created.env}`);
+        if (scopes?.length) console.log(`Scopes: ${scopes.join(", ")}`);
         if (created.expires_at) console.log(`Expires: ${created.expires_at}`);
         if (opts.type === "client") {
           console.log("");
@@ -162,6 +216,10 @@ export function keysCommand(parent: Command): void {
     {
       note: "Public client key for staging",
       run: "shipeasy sdk keys create --type client --env staging",
+    },
+    {
+      note: "Named client key scoped to file public bug reports (CLI /cli/report)",
+      run: 'shipeasy sdk keys create --type client --env prod --name "CLI main key" --scopes tickets:public_create',
     },
     { note: "Restricted ops key for the trigger", run: "shipeasy sdk keys create --type ops" },
   ]);
