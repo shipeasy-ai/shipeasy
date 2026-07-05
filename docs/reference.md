@@ -5,9 +5,10 @@
 > unattended scheduled triggers run `shipeasy setup triggers` (reference also at
 > <https://docs.shipeasy.ai/get-started/triggers>).
 
-The plugin ships **10 skills** — **9 area skills** that auto-trigger on natural
-language and carry the guidance for each subsystem, plus **1 workflow skill**
-for the multi-step ops loop. Everything else — all day-to-day CRUD — runs through
+The plugin ships **10 skills** — **8 area skills** that auto-trigger on natural
+language and carry the guidance for each subsystem, plus **2 workflow skills**
+(the multi-step ops loop and the on-demand cross-platform migration). Everything
+else — all day-to-day CRUD — runs through
 the generated `shipeasy` MCP tools or the `shipeasy` CLI. (The thin
 `*-install` onboarding wrappers were removed — `shipeasy setup`
 and `shipeasy install <group>` do that work now — and the i18n
@@ -36,7 +37,7 @@ skill triggers from phrasing or the host's explicit skill invocation.
 
 ---
 
-## The 9 skills
+## The 10 skills
 
 ### Area skills (guidance; auto-trigger on phrasing)
 
@@ -56,6 +57,7 @@ skill triggers from phrasing or the host's explicit skill invocation.
 | Skill | Argument(s) | What it does |
 | --- | --- | --- |
 | `shipeasy-ops-work` | `[--type bug\|feature\|error\|alert\|measure_plan\|all] [--priority high\|critical] [--limit <N>] [--pr] [--dry-run]` | The unified work loop over the operational queue — one atomic diff per item, each type worked per its `references/` runbook. `--pr` opens one PR per item (the mode the scheduled trigger runs). Schedule it unattended with `shipeasy setup triggers`. |
+| `shipeasy-migrate` | `<statsig\|eppo\|optimizely\|posthog\|confidence> [plan flags \| plan code \| execute <plan-file>]` | On-demand migration **into** Shipeasy from another platform. Two phases (definitions → code); flags become gates/configs/experiments/kill switches, targeting is remapped onto Shipeasy's operator set, and code is repointed onto `@shipeasy/sdk` one PR per flag. **Does not auto-trigger** — a customer invokes it intentionally. Router `SKILL.md` + a shared `references/conventions.md` and one `references/<platform>.md` per source. |
 
 (The former `shipeasy-i18n-migrate` / `shipeasy-i18n-translate` workflow
 skills are now references inside `shipeasy-i18n` — same flows, routed from
@@ -173,8 +175,9 @@ marketplace/
     ├── .mcp.json                        # MCP registration (mcpServers wrapper; Claude + Codex)
     ├── .mcp.copilot.json               # MCP registration with type:"local" (Copilot requires it)
     └── skills/                          # ALL 10 skills — router SKILL.md + optional references/
-        ├── shipeasy-{setup,common,flags,experiments,metrics,alerts,ops,see}/SKILL.md
+        ├── shipeasy-{setup,flags,experiments,metrics,alerts,ops,see}/SKILL.md
         ├── shipeasy-i18n/{SKILL.md,references/}      # wrapping, admin-keys, migrate, translate
+        ├── shipeasy-migrate/{SKILL.md,references/}   # conventions + one file per source platform
         └── shipeasy-ops-work/{SKILL.md,references/}  # per-item-type runbooks
 ```
 

@@ -1,7 +1,7 @@
 {
   "name": "shipeasy",
   "version": "3.11.0",
-  "description": "Shipeasy for Codex — feature flags, A/B experiments, event metrics, translations, and in-app feedback. Bundles the shipeasy MCP server plus the same 10 skills the Claude Code plugin ships (9 area guides + the shipeasy-ops-work workflow loop); no content is duplicated. All CRUD is delegated to the shipeasy MCP server or CLI — invoke the plugin with @shipeasy or let a skill trigger on phrasing.",
+  "description": "Shipeasy for Codex — feature flags, A/B experiments, event metrics, translations, and in-app feedback. Bundles the shipeasy MCP server plus the same 10 skills the Claude Code plugin ships (8 area guides + the shipeasy-ops-work workflow loop + the on-demand shipeasy-migrate workflow); no content is duplicated. All CRUD is delegated to the shipeasy MCP server or CLI — invoke the plugin with @shipeasy or let a skill trigger on phrasing.",
   "author": { "name": "Shipeasy", "url": "https://shipeasy.ai" },
   "homepage": "https://shipeasy.ai",
   "repository": "https://github.com/shipeasy-ai/shipeasy",
