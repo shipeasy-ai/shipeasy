@@ -18,6 +18,7 @@
  *   ANTHROPIC_API_KEY           required by headless claude
  */
 import { spawnSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { readdirSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -79,6 +80,20 @@ const MODEL =
 const STANDING_APPROVAL =
   "You are being evaluated. Carry out the user's request directly using the available skills and MCP tools, then stop. If a skill would pause to have the user approve or choose among proposed variants before creating or updating a resource, treat that approval as already granted: pick the skill's recommended default variant and proceed through to the create/update call. This standing approval applies ONLY to a skill's own propose-then-provision step and never licenses an action the request didn't ask for. Only ask the user a question if you genuinely cannot proceed without a decision that is theirs to make.";
 
+// The system prompt above is advisory, and the cheap model still often ends a
+// consultative turn by posing its options as a question instead of provisioning.
+// So the runner ALSO auto-accepts at the transport layer: when an outcome-gated
+// case (one with `expect_state`) ends a turn by asking/proposing, we resume the
+// SAME session with this approval and let the agent carry its recommended
+// default through to the create/update. Up to SHIPEASY_EVAL_MAX_APPROVALS
+// continuations (default 2). This is deliberately scoped — it only fires for
+// cases that assert a resource must land on the server; read-only asks
+// (list/results/"what are we measuring") have no `expect_state`, so they are
+// never nudged into a mutation.
+const AUTO_APPROVE =
+  "Approved — go with your recommended option/default and carry it through to completion now. If you presented choices, pick the one you recommended and proceed; do not ask again. Only take the action my original request asked for — if that request was read-only, just answer it and create or modify nothing.";
+const MAX_APPROVALS = Math.max(0, int(process.env.SHIPEASY_EVAL_MAX_APPROVALS, 2));
+
 const cases = loadCases(filter);
 if (cases.length === 0) {
   console.error(`No cases found${filter ? ` matching "${filter}"` : ""}. Run \`pnpm seed\` first.`);
@@ -112,6 +127,12 @@ for (const c of cases) {
   // Up to RETRIES extra attempts, but only while the case is still failing.
   // The `before` snapshot is taken ONCE (above), so a resource a failing first
   // attempt happened to create still verifies as "new" on the passing retry.
+  //
+  // Keep the BEST attempt, not the last. With the auto-approve runner an
+  // outcome-gated case usually provisions on attempt 0; a retry then re-lists,
+  // sees that resource, and (correctly) dedups instead of creating — a *worse*
+  // transcript (no create tool-call) that must not overwrite the earlier,
+  // stronger attempt. "Better" = passing, else fewer missed dimensions.
   let result: CaseResult | undefined;
   for (let attempt = 0; attempt <= RETRIES; attempt++) {
     const obs = runOnce(c, attempt, env, workdir, transcriptsDir);
@@ -123,7 +144,8 @@ for (const c of cases) {
       );
     process.stdout.write(obs.error ? "E" : skillOk && textOk ? "." : "x");
     const state = checksState ? await mergeState(c, before) : undefined;
-    result = scoreCase(c, [obs], THRESHOLD, state);
+    const r = scoreCase(c, [obs], THRESHOLD, state);
+    if (!result || r.pass || r.misses.length < result.misses.length) result = r;
     if (result.pass) break;
   }
   process.stdout.write(` ${c.id}\n`);
@@ -163,21 +185,96 @@ function runOnce(
   cwd: string,
   outDir: string,
 ): Observation {
-  const args = AGENT === "copilot" ? buildCopilotArgs(c, env) : buildClaudeArgs(c, env.mcpConfigPath);
-  const res = spawnSync(BIN, args, {
+  const outFile = join(outDir, `${c.id.replace(/\//g, "__")}.${i}.jsonl`);
+  const empty = { skills: [], tools: [], toolCalls: [], otherTools: [], askedUser: false, text: "" };
+  if (AGENT === "copilot") {
+    const res = spawn(buildCopilotArgs(c, env), cwd);
+    const ndjson = res.stdout ?? "";
+    writeFileSync(outFile, ndjson);
+    if (res.error) return { ...empty, error: String(res.error) };
+    if (!ndjson.trim())
+      return { ...empty, error: `empty output (stderr: ${(res.stderr ?? "").slice(0, 300)})` };
+    return parseTranscript(ndjson, skillNames, "copilot");
+  }
+  return runClaudeConversation(c, env.mcpConfigPath, cwd, outFile, empty);
+}
+
+/**
+ * Drive `claude` for one case, auto-accepting the skill's propose→provision
+ * pause. Turn 0 is the real prompt on a fresh session id; if an outcome-gated
+ * case (`expect_state`) ends that turn by asking/proposing (a trailing prose
+ * question or an AskUserQuestion call), we `--resume` the SAME session with
+ * {@link AUTO_APPROVE} so the agent carries its recommended default through to
+ * the create — up to {@link MAX_APPROVALS} continuations. The transcripts from
+ * every turn are concatenated and parsed as one, so `expect_ask` still sees the
+ * turn-0 question and the state check sees the eventual create.
+ */
+function runClaudeConversation(
+  c: EvalCase,
+  mcpConfig: string,
+  cwd: string,
+  outFile: string,
+  empty: Observation,
+): Observation {
+  const sessionId = randomUUID();
+  // Only carry an approval through for cases that assert a server-state outcome;
+  // read-only asks stay single-shot so we never push them into a mutation.
+  const maxApprovals = c.expect_state ? MAX_APPROVALS : 0;
+  const parts: string[] = [];
+  let prompt = c.prompt;
+  let resume = false;
+  let lastError: string | undefined;
+  for (let turn = 0; turn <= maxApprovals; turn++) {
+    const res = spawn(buildClaudeArgs(prompt, mcpConfig, { id: sessionId, resume }), cwd);
+    const ndjson = res.stdout ?? "";
+    if (ndjson.trim()) parts.push(ndjson);
+    if (res.error) {
+      lastError = String(res.error);
+      break;
+    }
+    if (!ndjson.trim()) {
+      lastError = `empty output (stderr: ${(res.stderr ?? "").slice(0, 300)})`;
+      break;
+    }
+    // Stop once we've spent our approvals, or the agent has actually provisioned
+    // (a mutating MCP call landed this turn). Otherwise keep nudging: an
+    // outcome-gated case that only listed/proposed — whether it closed with a
+    // question or a declarative "I'll set it up" — hasn't reached its create
+    // yet, so we resume with the approval and let it carry through.
+    if (turn >= maxApprovals) break;
+    if (turnMutated(ndjson)) break;
+    prompt = AUTO_APPROVE;
+    resume = true;
+  }
+  const combined = parts.join("\n");
+  writeFileSync(outFile, combined);
+  if (!combined.trim()) return { ...empty, error: lastError ?? "empty output" };
+  return parseTranscript(combined, skillNames, "claude");
+}
+
+/**
+ * Did this turn perform a state-changing MCP call? Read tools (`*_list`,
+ * `*_get`, `*_show`, `*_results`, `*_grammar`, …) never match; create/update/
+ * set/enable/start/archive/… do. Used to decide whether an outcome-gated case
+ * still needs an auto-approval nudge to reach its provision step. The regex is
+ * inlined (not a module const) so it's safe to call from the top-level case loop
+ * that runs before this file's trailing declarations initialise.
+ */
+function turnMutated(ndjson: string): boolean {
+  const mutationVerb =
+    /(create|update|set|enable|disable|start|stop|archive|restore|publish|draft|discard|unset|upsert|push|approve|link_pr|notify|trigger)/;
+  return parseTranscript(ndjson, skillNames, "claude").tools.some((t) => mutationVerb.test(t));
+}
+
+/** One headless spawn with the shared limits. */
+function spawn(args: string[], cwd: string) {
+  return spawnSync(BIN, args, {
     cwd,
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
     timeout: int(process.env.SHIPEASY_EVAL_TIMEOUT_MS, 240000),
     env: process.env,
   });
-  const ndjson = res.stdout ?? "";
-  writeFileSync(join(outDir, `${c.id.replace(/\//g, "__")}.${i}.jsonl`), ndjson);
-  const empty = { skills: [], tools: [], toolCalls: [], otherTools: [], askedUser: false, text: "" };
-  if (res.error) return { ...empty, error: String(res.error) };
-  if (!ndjson.trim())
-    return { ...empty, error: `empty output (stderr: ${(res.stderr ?? "").slice(0, 300)})` };
-  return parseTranscript(ndjson, skillNames, AGENT === "copilot" ? "copilot" : "claude");
 }
 
 /**
@@ -185,10 +282,14 @@ function runOnce(
  * live in ONE place. Smoke-test these against your installed `claude` once (see
  * README) and adjust here if a flag name has drifted.
  */
-function buildClaudeArgs(c: EvalCase, mcpConfig: string): string[] {
+function buildClaudeArgs(
+  prompt: string,
+  mcpConfig: string,
+  session: { id: string; resume: boolean },
+): string[] {
   return [
     "-p",
-    c.prompt,
+    prompt,
     "--output-format", "stream-json",
     "--verbose",
     "--mcp-config", mcpConfig,
@@ -202,6 +303,9 @@ function buildClaudeArgs(c: EvalCase, mcpConfig: string): string[] {
     "--disallowedTools", "Bash,Edit,Write,NotebookEdit,Agent,Task,SendMessage",
     "--append-system-prompt", STANDING_APPROVAL,
     "--model", MODEL,
+    // Turn 0 stamps a fresh session id; each auto-approval resumes it so the
+    // whole conversation shares one context (see runClaudeConversation).
+    ...(session.resume ? ["--resume", session.id] : ["--session-id", session.id]),
   ];
 }
 

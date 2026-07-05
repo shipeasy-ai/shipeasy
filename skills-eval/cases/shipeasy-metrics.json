@@ -6,8 +6,8 @@
     "expect_tools": ["metrics_events_list", "metrics_list", "metrics_create"],
     "tools_match": "all",
     "forbid_tools": ["metrics_archive"],
-    "expect_state": { "events": ["download"], "metrics": ["download"] },
-    "note": "the skill is consultative — investigate, propose the event + aggregation, then WAIT for approval before creating; the eval grants that approval up-front (run.ts standing-approval clause). Before creating: list events (does one already track this?) and list metrics (does the metric already exist?), then create. expect_state confirms the event + metric landed. Uses a 'download' domain that no other case touches so it always reads as new (the checkout domain overlaps the experiments case's checkout_conversion metric, which made this dedup instead of create)."
+    "expect_state": { "metrics": ["download"] },
+    "note": "the skill is consultative — investigate, propose the event + aggregation, then WAIT for approval before creating; the eval grants that approval up-front (run.ts auto-approve). Before creating: list events (does one already track this?) and list metrics (does the metric already exist?), then create. expect_state asserts the METRIC landed (the deliverable of 'measure downloads'); the backing event's exact NAME is the agent's call — it reasonably picks app_install / mobile_app_download / etc., so asserting a literal 'download' substring on the event was brittle. The downloads-metric name reliably carries the token. Uses a 'download' domain no other case touches so it always reads as new."
   },
   {
     "id": "shipeasy-metrics/list-readonly",

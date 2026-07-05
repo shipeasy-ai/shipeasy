@@ -17,6 +17,7 @@ import { handleAuthCheck, handleAuthLogout } from "./tools/shared/auth.js";
 import { handleUpsertProject } from "./tools/projects/upsert.js";
 import { GENERATED_DISPATCH, GENERATED_MUTATES, CUSTOM_DISPATCH } from "./tools/registry.js";
 import { getGeneratedClient } from "./tools/_gen-runtime.js";
+import { wireInBlock } from "./tools/wire-in.js";
 import { notAuthenticated, notBound, ok, apiErr } from "./util/api-client.js";
 import {
   LIST_TOKEN_PARAM,
@@ -90,6 +91,24 @@ export async function startStdioServer(): Promise<void> {
           const family = listFamily(toolName) as string;
           const base = ok(data);
           return { content: [...base.content, listTokenBlock(family, mintListToken(family, Date.now()))] };
+        }
+        // A fresh event registers a NAME but emits no data until the app calls
+        // `track(...)`. Reinforce the follow-through right here: append the
+        // language-correct "now wire it in" block (see ./tools/wire-in.ts).
+        if (toolName === "metrics_events_create") {
+          const rec = args as Record<string, unknown>;
+          const dataRec = (data ?? {}) as Record<string, unknown>;
+          const evName =
+            typeof rec.name === "string"
+              ? rec.name
+              : typeof dataRec.name === "string"
+                ? dataRec.name
+                : "";
+          const props = Array.isArray(rec.properties)
+            ? (rec.properties as { name?: unknown; type?: unknown }[])
+            : undefined;
+          const base = ok(data);
+          return { content: [...base.content, wireInBlock(evName, props, process.cwd())] };
         }
         return ok(data);
       } catch (e) {

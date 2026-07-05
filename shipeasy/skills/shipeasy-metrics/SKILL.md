@@ -80,7 +80,9 @@ metrics_list          # existing metrics — reuse one that already covers the a
 
 Always call **both** before creating, and reuse an existing event/metric when
 one fits. This dedup check comes first because the MCP tools are always
-available (a shell may be too).
+available (a shell may be too). **Hard gate: do not propose options or create
+anything until both lists have returned** — the right event usually already
+exists, and the proposal in step 2 is built from what these two calls surface.
 
 Then deepen the analysis by reading the surface the ask names (required, scoped
 to that feature): find *uninstrumented* candidates — places where a new
@@ -135,16 +137,48 @@ If the user picks option (3) — *new event* — propose the exact
 `flags.track(...)` payload (the labels you'll need for filters /
 `by (...)` / value position).
 
-### 3. Instrument (only if a new event was chosen)
+**Surface the tunable knobs the user didn't pin.** A metric is more than an
+event + aggregation — several statistical knobs shape how it reads, and when the
+user didn't specify them, offer the ones that matter *for this metric* with the
+tradeoff, rather than silently defaulting:
 
-Edit one file. The tracking call below is the exact, version-correct form for
-this project's SDK language — use it verbatim:
+- **Aggregation** — when "measure X" is ambiguous, show the real choices:
+  `count_users` (distinct converters — binary "did they?"), `count` (raw events
+  — counts repeats), `sum(value)` (magnitude, e.g. revenue), `avg`/`p95`/`p99`
+  (latency-style). The pick changes what "better" means.
+- **`direction`** (`higher_better` default / `lower_better` / `neutral`) — for a
+  latency, error, or cost metric the win is *down*; set `lower_better` so lift is
+  read correctly. `neutral` marks a guardrail you only watch.
+- **`winsorizePct`** — clip the top N% of values before aggregating. Offer it for
+  long-tailed value metrics (revenue, session length): "clip the top 1% so a few
+  whales don't dominate the mean — at the cost of ignoring genuine outliers."
+- **`minDetectableEffect`** — the smallest relative change worth powering for.
+  Offer it when the metric will back an experiment: a tighter MDE needs more
+  traffic/time; a looser one ships faster but misses small wins.
+
+Present these as part of the proposal (1–3 options where there's a real choice),
+recommend a default, and let the user tune or accept. Don't dump all four on a
+trivial count metric — pick the ones that genuinely apply.
+
+### 3. Instrument — **mandatory whenever you create a new event**
+
+Creating an event registers a *name*; it makes no data flow. Until the app
+actually calls `track("<event>", …)` at the point the action happens, the metric
+reads **zero**. So creating a new event is only half the job — you MUST wire the
+tracking call into the code, in the same change, before the task is done. This
+is not optional and not "leave it to the user": if you called
+`metrics_events_create`, you also edit the code.
+
+The `metrics_events_create` response echoes a language-correct `track(...)`
+snippet (picked up from `.shipeasy`) to reinforce exactly this — follow it. Edit
+one file; the tracking call below is the exact, version-correct form for this
+project's SDK language — use it verbatim:
 
 {{SDK_SNIPPET:metrics/track}}
 
 Confirm every label referenced by the metric query — in filters, the
 value position, `by (...)`, or `without (...)` — exists as a property
-on this call.
+on this call. Then run the project's typecheck / build so the import resolves.
 
 ### 4. Create the metric
 
@@ -174,6 +208,19 @@ Skip phases 1–2 only if **all** of the following hold:
 In that case go straight to phase 4. Otherwise, run the full flow —
 "the user didn't ask to be prompted" is not a reason to skip it;
 metrics over the wrong event are the most common avoidable mistake.
+
+## Hard rules
+
+- **A created event MUST be instrumented in the same change.** If you call
+  `metrics_events_create`, you also wire the `track(...)` call into the code
+  (step 3) before the task is done — an un-fired event makes every metric over
+  it read zero. Never hand back a "metric created" that silently measures
+  nothing.
+- **List before you create** (step 1) — reuse an existing event/metric when one
+  fits; the wrong-event metric is the most common avoidable mistake.
+- **Surface, don't silently default, the statistical knobs** (aggregation,
+  `direction`, `winsorizePct`, `minDetectableEffect`) the user didn't pin —
+  offer the ones that apply with their tradeoff (step 2).
 
 ## Other operations
 

@@ -63,6 +63,16 @@ function parseClaudeTranscript(ndjson: string, knownSkills: Iterable<string>): O
     if (isObject(evt) && evt.type === "assistant") {
       for (const t of blocks) if (t.trim()) lastAssistantText = t;
     }
+    // A `result` event ends a turn. Evaluate that turn's closing prose for a
+    // posed question NOW, then reset — so a question asked in ANY turn counts,
+    // not just the final one. This keeps `expect_ask` true across the
+    // auto-approve continuations the runner may append (the ask lives in turn 0,
+    // the create in a later turn); without it, a later non-question turn would
+    // mask the earlier ask.
+    if (isObject(evt) && evt.type === "result") {
+      if (posesQuestion(lastAssistantText)) askedUser = true;
+      lastAssistantText = "";
+    }
     for (const block of toolUseBlocks(evt)) {
       if (block.name === "Skill") {
         const hit = matchSkill(block.input, skillNames);

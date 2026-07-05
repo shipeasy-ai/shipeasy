@@ -133,6 +133,7 @@ _Errors_ — beyond the [common errors](#errors):
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `ALREADY_EXISTS` — A resource with this name already exists in the project.
 - `VALIDATION` — The request body failed structural (schema) validation.
+- `PLAN_LIMIT` — The action would exceed a plan quota (e.g. the tier's maximum experiments, metrics, or configs). Upgrade the plan or archive an existing resource.
 
 #### `release_flags_disable`
 
@@ -521,6 +522,7 @@ _Errors_ — beyond the [common errors](#errors):
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `ALREADY_EXISTS` — A resource with this name already exists in the project.
 - `VALIDATION` — The request body failed structural (schema) validation.
+- `PLAN_LIMIT` — The action would exceed a plan quota (e.g. the tier's maximum experiments, metrics, or configs). Upgrade the plan or archive an existing resource.
 
 #### `release_killswitch_get`
 
@@ -751,6 +753,7 @@ _Errors_ — beyond the [common errors](#errors):
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `ALREADY_EXISTS` — A resource with this name already exists in the project.
 - `VALIDATION` — The request body failed structural (schema) validation.
+- `PLAN_LIMIT` — The action would exceed a plan quota (e.g. the tier's maximum experiments, metrics, or configs). Upgrade the plan or archive an existing resource.
 
 #### `release_configs_discard_draft`
 
@@ -1367,6 +1370,7 @@ _Errors_ — beyond the [common errors](#errors):
 - `PLAN_REQUIRED` — The requested feature requires a higher plan tier (e.g. sequential testing, custom alpha, holdout, group count).
 - `ALREADY_EXISTS` — A resource with this name already exists in the project.
 - `VALIDATION` — The request body failed structural (schema) validation.
+- `PLAN_LIMIT` — The action would exceed a plan quota (e.g. the tier's maximum experiments, metrics, or configs). Upgrade the plan or archive an existing resource.
 
 ##### `release_experiments_universes_list`
 
@@ -1497,6 +1501,7 @@ _Errors_ — beyond the [common errors](#errors):
 - `EVENT_PENDING` — The referenced event is still pending review and cannot back a metric yet.
 - `REFERENCED_NOT_FOUND` — A referenced entity (universe, metric, gate, event) does not exist.
 - `VALIDATION` — The request body failed structural (schema) validation.
+- `PLAN_LIMIT` — The action would exceed a plan quota (e.g. the tier's maximum experiments, metrics, or configs). Upgrade the plan or archive an existing resource.
 
 ### `metrics_grammar`
 
@@ -1664,6 +1669,7 @@ _Errors_ — beyond the [common errors](#errors):
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `ALREADY_EXISTS` — A resource with this name already exists in the project.
 - `VALIDATION` — The request body failed structural (schema) validation.
+- `PLAN_LIMIT` — The action would exceed a plan quota (e.g. the tier's maximum experiments, metrics, or configs). Upgrade the plan or archive an existing resource.
 
 #### `metrics_events_get`
 
