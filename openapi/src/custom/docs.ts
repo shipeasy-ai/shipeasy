@@ -8,10 +8,10 @@ import { type CustomOp, CustomOpError } from "./types.js";
  * that haven't adopted the doc standard yet.
  */
 const SDK_REPOS: Record<string, { owner: string; repo: string }> = {
-  typescript: { owner: "shipeasy-ai", repo: "sdk" },
-  javascript: { owner: "shipeasy-ai", repo: "sdk" },
-  node: { owner: "shipeasy-ai", repo: "sdk" },
-  ts: { owner: "shipeasy-ai", repo: "sdk" },
+  typescript: { owner: "shipeasy-ai", repo: "sdk-ts" },
+  javascript: { owner: "shipeasy-ai", repo: "sdk-ts" },
+  node: { owner: "shipeasy-ai", repo: "sdk-ts" },
+  ts: { owner: "shipeasy-ai", repo: "sdk-ts" },
   python: { owner: "shipeasy-ai", repo: "sdk-python" },
   go: { owner: "shipeasy-ai", repo: "sdk-go" },
   java: { owner: "shipeasy-ai", repo: "sdk-java" },
