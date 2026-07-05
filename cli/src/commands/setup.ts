@@ -11,6 +11,7 @@ import {
   type AgentId,
   type InstallCtx,
   type McpResult,
+  MCP_AUTH_INSTRUCTIONS,
   SKILLS_CLI_AGENT,
   detectAgents,
   detectHarness,
@@ -489,6 +490,46 @@ async function humanHandoff(
   const code = await spawnAgent(chosen.bin, chosen.argv(WIRING_PROMPT));
   if (code !== 0) {
     console.log(`\n${chosen.bin} exited with code ${code}. You can re-run it anytime.`);
+  }
+}
+
+/**
+ * The one-time MCP OAuth authorization step. The hosted MCP server
+ * (mcp.shipeasy.ai) authenticates with OAuth 2.1 — a browser sign-in per client,
+ * no key to paste — but the flow is client-driven, so the CLI can't complete it
+ * for another app. It prints the exact per-agent trigger and, for a human, pauses
+ * until they've done it; for a coding agent driving the CLI, it emits a directive
+ * to authorize its OWN connection. Runs BEFORE the wiring hand-off so the MCP
+ * tools are usable the moment the agent picks up shipeasy-wiring.md.
+ */
+export async function mcpAuthHandoff(selected: AgentId[], interactive: boolean): Promise<void> {
+  if (selected.length === 0) return;
+  heading("Authorize the MCP connection");
+  console.log(
+    "  The hosted Shipeasy MCP server (mcp.shipeasy.ai) authenticates with OAuth — a\n" +
+      "  one-time browser sign-in per client, no key to paste. Authorize it now so the\n" +
+      "  MCP tools work when the wiring steps run:\n",
+  );
+  for (const id of selected) {
+    console.log(`    • ${MCP_AUTH_INSTRUCTIONS[id]}`);
+  }
+  console.log("");
+
+  if (detectHarness().inside) {
+    console.log(
+      "  ▶ CODING AGENT: authorize your OWN shipeasy MCP connection now — run your\n" +
+        "    client's MCP Authenticate step (above) and approve in the browser BEFORE\n" +
+        "    starting the wiring steps, or every shipeasy_* tool call will 401.",
+    );
+    return;
+  }
+  if (interactive) {
+    await prompts({
+      type: "confirm",
+      name: "done",
+      message: "Press Enter once you've authorized the MCP connection (or skip to do it later)",
+      initial: true,
+    });
   }
 }
 
@@ -1143,6 +1184,9 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     const wiringPath = join(root, WIRING_FILENAME);
     writeFileSync(wiringPath, doc, "utf8");
     console.log(`  ✓ wrote ${wiringPath}\n`);
+    // Authorize the hosted MCP connection (OAuth) BEFORE handing off the wiring
+    // steps — otherwise every shipeasy_* tool the agent tries during wiring 401s.
+    await mcpAuthHandoff(selected, interactive);
     await wiringHandoff(root, opts, interactive, selected);
   }
 

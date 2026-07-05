@@ -89,9 +89,15 @@ export function __resetGuardConfigForTests(): void {
 /**
  * Per-process signing secret. Never persisted and never leaves the process — a
  * token is only ever verified by the same process that minted it, which is what
- * makes cross-session replay impossible.
+ * makes cross-session replay impossible. Generated lazily on first use, not at
+ * module load: the Cloudflare Workers runtime (mcp-worker imports this registry)
+ * forbids `randomBytes()` in global scope, so it must run inside a handler.
  */
-const SECRET = randomBytes(32);
+let _secret: Buffer | null = null;
+function secret(): Buffer {
+  if (!_secret) _secret = randomBytes(32);
+  return _secret;
+}
 
 /** The coarse time bucket `now` falls into. Exported for tests. */
 export function bucketAt(now: number, windowMs: number = guardConfig().windowMs): number {
@@ -99,7 +105,10 @@ export function bucketAt(now: number, windowMs: number = guardConfig().windowMs)
 }
 
 function sign(family: string, bucket: number): string {
-  return createHmac("sha256", SECRET).update(`${family}\n${bucket}`).digest("base64url").slice(0, 16);
+  return createHmac("sha256", secret())
+    .update(`${family}\n${bucket}`)
+    .digest("base64url")
+    .slice(0, 16);
 }
 
 // ── which tools are list / guarded-create ───────────────────────────────────

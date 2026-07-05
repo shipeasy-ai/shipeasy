@@ -6,7 +6,7 @@ import { buildProgram } from "../index";
 // CreateKeyRequest schema (single source of truth). These lock that wiring so a
 // zod upgrade that breaks the schema-introspection can't silently strip it.
 
-function find(cmd: { commands: unknown[] }, path: string[]): any {
+function find(cmd: { commands: readonly unknown[] }, path: string[]): any {
   let c: any = cmd;
   for (const p of path) c = c.commands.find((x: any) => x.name() === p);
   return c;

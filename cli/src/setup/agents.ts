@@ -50,6 +50,22 @@ export const SKILLS_CLI_AGENT: Partial<Record<AgentId, string>> = {
   copilot: "github-copilot",
 };
 
+/**
+ * Per-agent one-liners for the one-time MCP OAuth authorization. The hosted
+ * server (mcp.shipeasy.ai) authenticates via OAuth 2.1 — on first use each
+ * client opens a browser sign-in; there's no key to paste. The trigger is
+ * client-driven (the CLI can't complete another app's OAuth for it), so setup
+ * just tells the user/agent exactly where to start it.
+ */
+export const MCP_AUTH_INSTRUCTIONS: Record<AgentId, string> = {
+  claude: "Claude Code: run `/mcp`, select `shipeasy`, choose Authenticate, then approve in the browser.",
+  cursor: "Cursor: Settings → Tools & MCP → `shipeasy` → Login, then approve in the browser.",
+  codex: "Codex: the `shipeasy` server prompts to authenticate on first tool use — approve in the browser.",
+  copilot:
+    "VS Code (Copilot): open the MCP Servers view, start `shipeasy`, then approve in the browser.",
+  jules: "Antigravity (Jules): open MCP settings, authorize `shipeasy`, then approve in the browser.",
+};
+
 /** Is `bin` resolvable on PATH? Cross-platform (honors PATHEXT on win32). */
 export function onPath(bin: string): boolean {
   const PATH = process.env.PATH ?? "";

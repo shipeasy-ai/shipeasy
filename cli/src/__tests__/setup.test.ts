@@ -1,10 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { mkdtempSync, readFileSync, existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mergeMcpServer } from "../util/json-config";
 import {
+  type AgentId,
   type InstallCtx,
+  MCP_AUTH_INSTRUCTIONS,
   codexTomlSnippet,
   detectAgents,
   detectHarness,
@@ -18,7 +20,7 @@ import {
   writeCopilotInstructions,
   writeCursorRule,
 } from "../setup/instructions";
-import { applyAgent, agentDirective } from "../commands/setup";
+import { applyAgent, agentDirective, mcpAuthHandoff } from "../commands/setup";
 import { buildWiringDoc, type WiringTarget } from "../setup/wiring-doc";
 
 function wiringTarget(over: Partial<WiringTarget> = {}): WiringTarget {
@@ -305,5 +307,40 @@ describe("applyAgent", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("mcpAuthHandoff — the one-time MCP OAuth authorization step", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    delete process.env.SHIPEASY_AGENT;
+  });
+
+  it("has a browser-authorize instruction for every agent", () => {
+    const agents: AgentId[] = ["claude", "cursor", "codex", "copilot", "jules"];
+    for (const a of agents) {
+      expect(MCP_AUTH_INSTRUCTIONS[a]).toBeTruthy();
+      expect(MCP_AUTH_INSTRUCTIONS[a]).toMatch(/browser/i);
+    }
+  });
+
+  it("prints each selected agent's instruction and the agent directive under a harness", async () => {
+    process.env.SHIPEASY_AGENT = "1"; // force the coding-agent path (detectHarness)
+    const logs: string[] = [];
+    vi.spyOn(console, "log").mockImplementation((...a: unknown[]) => void logs.push(a.join(" ")));
+
+    await mcpAuthHandoff(["cursor", "codex"], false);
+
+    const out = logs.join("\n");
+    expect(out).toContain(MCP_AUTH_INSTRUCTIONS.cursor);
+    expect(out).toContain(MCP_AUTH_INSTRUCTIONS.codex);
+    // The driving agent is told to authorize its own connection before wiring.
+    expect(out).toMatch(/CODING AGENT: authorize your OWN shipeasy MCP connection/i);
+  });
+
+  it("is a no-op when no agents were wired", async () => {
+    const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+    await mcpAuthHandoff([], false);
+    expect(spy).not.toHaveBeenCalled();
   });
 });
