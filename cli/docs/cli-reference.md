@@ -771,6 +771,16 @@ shipeasy projects update [options] <id>
 | `--module-feedback <value>` | optional | Enable/disable the feedback/ops module. |
 | `--module-user <value>` | optional | Enable/disable the user-management module. |
 | `--module-events <value>` | optional | Enable/disable the events module. |
+| `--min-sample-size <value>` | optional | Verdict power guard — minimum users per arm before a ship/hold verdict. |
+| `--min-runtime-days <value>` | optional | Minimum days an experiment must run before a verdict (peeking guard). |
+| `--default-power <value>` | optional | Target statistical power (1−β) feeding the realized-MDE calculation. |
+| `--ci-confidence <value>` | optional | Confidence level for the interval surfaced on results. |
+| `--cuped-baseline-days <value>` | optional | CUPED baseline window — days of pre-experiment history, frozen at start. |
+| `--cuped-min-overlap <value>` | optional | CUPED selection-bias guard — min share of users with a baseline, else skip. |
+| `--cuped-min-baseline-users <value>` | optional | CUPED — minimum users with a baseline before it runs at all. |
+| `--msprt-tau-mei-factor <value>` | optional | mSPRT prior width — τ = minimum effect of interest × this factor. |
+| `--msprt-tau-sd-factor <value>` | optional | mSPRT fallback prior width — τ = this × control SD when no MEI is set. |
+| `--srm-threshold <value>` | optional | SRM chi-square p-value below which the run is called invalid. |
 
 ## `shipeasy release`
 

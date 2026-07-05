@@ -1006,6 +1006,99 @@ async function probeKillswitchPropagation() {
   console.log("::endgroup::");
 }
 
+// ── Project stats knobs — each per-project analysis parameter (Settings →
+// "Statistics & analysis") must round-trip through `projects update` → the DB →
+// `projects current`. Opt-in + self-restoring (SHIPEASY_PROBE_MUTATE=1): capture
+// the live values, set every knob to a distinct in-range value in one update,
+// read them back and assert, then restore the originals and re-assert. This is
+// the end-to-end proof that the OpenAPI field → Zod validation → admin handler →
+// `projects` column → analyzer-read chain is intact for all 10 knobs.
+const STATS_KNOBS = [
+  { key: "minSampleSize", flag: "--min-sample-size", test: 250 },
+  { key: "minRuntimeDays", flag: "--min-runtime-days", test: 7 },
+  { key: "defaultPower", flag: "--default-power", test: 0.9 },
+  { key: "ciConfidence", flag: "--ci-confidence", test: 0.99 },
+  { key: "cupedBaselineDays", flag: "--cuped-baseline-days", test: 21 },
+  { key: "cupedMinOverlap", flag: "--cuped-min-overlap", test: 0.6 },
+  { key: "cupedMinBaselineUsers", flag: "--cuped-min-baseline-users", test: 150 },
+  { key: "msprtTauMeiFactor", flag: "--msprt-tau-mei-factor", test: 0.75 },
+  { key: "msprtTauSdFactor", flag: "--msprt-tau-sd-factor", test: 0.3 },
+  { key: "srmThreshold", flag: "--srm-threshold", test: 0.002 },
+];
+
+async function probeProjectStats() {
+  if (!process.env.SHIPEASY_PROBE_MUTATE) {
+    console.log(
+      "project-stats leg disabled — enable with SHIPEASY_PROBE_MUTATE=1 (sets each knob then restores it)",
+    );
+    return;
+  }
+  const numEq = (a, b) => Number.isFinite(Number(a)) && Math.abs(Number(a) - Number(b)) < 1e-9;
+  const readProject = () => cli(["projects", "current"]);
+  const setKnobs = (values) =>
+    cliText([
+      "projects",
+      "update",
+      proj.id,
+      ...STATS_KNOBS.flatMap((k) => [k.flag, String(values[k.key])]),
+    ]);
+
+  let proj;
+  try {
+    proj = readProject();
+  } catch (e) {
+    annotate(`project-stats: could not read current project — ${e?.message ?? e}`);
+    failed++;
+    return;
+  }
+  if (!proj?.id) {
+    annotate("project-stats: `projects current` returned no id");
+    failed++;
+    return;
+  }
+  // Capture originals; a knob absent from the read model means the field never
+  // round-tripped — that is itself a failure to surface.
+  const original = {};
+  for (const k of STATS_KNOBS) {
+    if (proj[k.key] == null) {
+      annotate(`project-stats: ${k.key} missing from projects.current response`);
+      failed++;
+    }
+    original[k.key] = proj[k.key];
+  }
+
+  console.log("::group::Project stats knobs (10 fields round-trip)");
+  let restored = false;
+  try {
+    const testValues = Object.fromEntries(STATS_KNOBS.map((k) => [k.key, k.test]));
+    setKnobs(testValues);
+    const after = readProject();
+    for (const k of STATS_KNOBS) {
+      if (numEq(after[k.key], k.test)) ok(`${k.key} set → ${k.test} round-tripped`);
+      else {
+        annotate(`${k.key} did NOT round-trip: set ${k.test}, read back ${after[k.key]}`);
+        failed++;
+      }
+    }
+  } finally {
+    try {
+      setKnobs(original);
+      const back = readProject();
+      restored = STATS_KNOBS.every((k) => numEq(back[k.key], original[k.key]));
+      console.log(
+        restored
+          ? "  restored all 10 knobs to their original values"
+          : "  ⚠ could not confirm restore of every knob",
+      );
+      if (!restored) failed++;
+    } catch (e) {
+      annotate(`project-stats: restore failed — ${e?.message ?? e}`);
+      failed++;
+    }
+  }
+  console.log("::endgroup::");
+}
+
 // ── latency: client-facing /sdk/evaluate must be fast (<50ms target) ─────────
 async function probeLatency() {
   if (!CLIENT_KEY) return;
@@ -1563,6 +1656,7 @@ try {
   await probeManagedPresets();
   await probeKillswitches();
   await probeKillswitchPropagation();
+  await probeProjectStats();
   await probeHoldout();
   await probeConfigs();
   await probeEnrichment();

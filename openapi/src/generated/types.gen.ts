@@ -3641,6 +3641,46 @@ export type GetCurrentProjectResponse = {
      */
     moduleFeedback: boolean | number;
     /**
+     * Verdict power guard — minimum users per arm before a ship/hold verdict.
+     */
+    minSampleSize?: number;
+    /**
+     * Minimum days an experiment must run before a verdict (peeking guard).
+     */
+    minRuntimeDays?: number;
+    /**
+     * Target statistical power (1−β) feeding the realized-MDE calculation.
+     */
+    defaultPower?: number;
+    /**
+     * Confidence level for the interval surfaced on results.
+     */
+    ciConfidence?: number;
+    /**
+     * CUPED baseline window — days of pre-experiment history, frozen at start.
+     */
+    cupedBaselineDays?: number;
+    /**
+     * CUPED selection-bias guard — min share of users with a baseline, else skip.
+     */
+    cupedMinOverlap?: number;
+    /**
+     * CUPED — minimum users with a baseline before it runs at all.
+     */
+    cupedMinBaselineUsers?: number;
+    /**
+     * mSPRT prior width — τ = minimum effect of interest × this factor.
+     */
+    msprtTauMeiFactor?: number;
+    /**
+     * mSPRT fallback prior width — τ = this × control SD when no MEI is set.
+     */
+    msprtTauSdFactor?: number;
+    /**
+     * SRM chi-square p-value below which the run is called invalid.
+     */
+    srmThreshold?: number;
+    /**
      * ISO-8601 timestamp of project creation.
      */
     createdAt: string;
@@ -3761,6 +3801,46 @@ export type UpdateProjectRequest = {
      * Enable/disable the events module.
      */
     moduleEvents?: boolean;
+    /**
+     * Verdict power guard — minimum users per arm before a ship/hold verdict.
+     */
+    minSampleSize?: number;
+    /**
+     * Minimum days an experiment must run before a verdict (peeking guard).
+     */
+    minRuntimeDays?: number;
+    /**
+     * Target statistical power (1−β) feeding the realized-MDE calculation.
+     */
+    defaultPower?: number;
+    /**
+     * Confidence level for the interval surfaced on results.
+     */
+    ciConfidence?: 0.95 | 0.99;
+    /**
+     * CUPED baseline window — days of pre-experiment history, frozen at start.
+     */
+    cupedBaselineDays?: number;
+    /**
+     * CUPED selection-bias guard — min share of users with a baseline, else skip.
+     */
+    cupedMinOverlap?: number;
+    /**
+     * CUPED — minimum users with a baseline before it runs at all.
+     */
+    cupedMinBaselineUsers?: number;
+    /**
+     * mSPRT prior width — τ = minimum effect of interest × this factor.
+     */
+    msprtTauMeiFactor?: number;
+    /**
+     * mSPRT fallback prior width — τ = this × control SD when no MEI is set.
+     */
+    msprtTauSdFactor?: number;
+    /**
+     * SRM chi-square p-value below which the run is called invalid.
+     */
+    srmThreshold?: number;
 };
 
 export type ListI18nProfilesResponse = Array<{

@@ -2098,6 +2098,16 @@ export const zGetCurrentProjectResponse = z.object({
         z.boolean(),
         z.number()
     ]),
+    minSampleSize: z.int().optional(),
+    minRuntimeDays: z.int().optional(),
+    defaultPower: z.number().optional(),
+    ciConfidence: z.number().optional(),
+    cupedBaselineDays: z.int().optional(),
+    cupedMinOverlap: z.number().optional(),
+    cupedMinBaselineUsers: z.int().optional(),
+    msprtTauMeiFactor: z.number().optional(),
+    msprtTauSdFactor: z.number().optional(),
+    srmThreshold: z.number().optional(),
     createdAt: z.string(),
     updatedAt: z.string()
 });
@@ -2157,7 +2167,17 @@ export const zUpdateProjectRequest = z.object({
     moduleExperiments: z.boolean().optional(),
     moduleFeedback: z.boolean().optional(),
     moduleUser: z.boolean().optional(),
-    moduleEvents: z.boolean().optional()
+    moduleEvents: z.boolean().optional(),
+    minSampleSize: z.int().gte(2).lte(1000000).optional(),
+    minRuntimeDays: z.int().gte(0).lte(365).optional(),
+    defaultPower: z.number().gte(0.5).lte(0.99).optional(),
+    ciConfidence: z.union([z.literal(0.95), z.literal(0.99)]).optional(),
+    cupedBaselineDays: z.int().gte(1).lte(365).optional(),
+    cupedMinOverlap: z.number().gte(0.01).lte(0.99).optional(),
+    cupedMinBaselineUsers: z.int().gte(10).lte(100000).optional(),
+    msprtTauMeiFactor: z.number().gte(0.1).lte(2).optional(),
+    msprtTauSdFactor: z.number().gte(0.05).lte(1).optional(),
+    srmThreshold: z.number().gte(0.0001).lte(0.05).optional()
 });
 
 export const zListI18nProfilesResponse = z.array(z.object({

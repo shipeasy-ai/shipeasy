@@ -205,8 +205,18 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--module-feedback <value>", "Enable/disable the feedback/ops module.")
     .option("--module-user <value>", "Enable/disable the user-management module.")
     .option("--module-events <value>", "Enable/disable the events module.")
+    .option("--min-sample-size <value>", "Verdict power guard — minimum users per arm before a ship/hold verdict.")
+    .option("--min-runtime-days <value>", "Minimum days an experiment must run before a verdict (peeking guard).")
+    .option("--default-power <value>", "Target statistical power (1−β) feeding the realized-MDE calculation.")
+    .option("--ci-confidence <value>", "Confidence level for the interval surfaced on results.")
+    .option("--cuped-baseline-days <value>", "CUPED baseline window — days of pre-experiment history, frozen at start.")
+    .option("--cuped-min-overlap <value>", "CUPED selection-bias guard — min share of users with a baseline, else skip.")
+    .option("--cuped-min-baseline-users <value>", "CUPED — minimum users with a baseline before it runs at all.")
+    .option("--msprt-tau-mei-factor <value>", "mSPRT prior width — τ = minimum effect of interest × this factor.")
+    .option("--msprt-tau-sd-factor <value>", "mSPRT fallback prior width — τ = this × control SD when no MEI is set.")
+    .option("--srm-threshold <value>", "SRM chi-square p-value below which the run is called invalid.")
     .action(async (id, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateProject({ client, path: { id: id }, body: clean({ name: str(opts.name), domain: str(opts.domain), slug: str(opts.slug), defaultEnv: str(opts.defaultEnv), timezone: str(opts.timezone), statMethod: str(opts.statMethod), sigThreshold: str(opts.sigThreshold), autoRollback: bool(opts.autoRollback), minSampleDays: num(opts.minSampleDays), moduleTranslations: bool(opts.moduleTranslations), moduleConfigs: bool(opts.moduleConfigs), moduleGates: bool(opts.moduleGates), moduleExperiments: bool(opts.moduleExperiments), moduleFeedback: bool(opts.moduleFeedback), moduleUser: bool(opts.moduleUser), moduleEvents: bool(opts.moduleEvents) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.updateProject({ client, path: { id: id }, body: clean({ name: str(opts.name), domain: str(opts.domain), slug: str(opts.slug), defaultEnv: str(opts.defaultEnv), timezone: str(opts.timezone), statMethod: str(opts.statMethod), sigThreshold: str(opts.sigThreshold), autoRollback: bool(opts.autoRollback), minSampleDays: num(opts.minSampleDays), moduleTranslations: bool(opts.moduleTranslations), moduleConfigs: bool(opts.moduleConfigs), moduleGates: bool(opts.moduleGates), moduleExperiments: bool(opts.moduleExperiments), moduleFeedback: bool(opts.moduleFeedback), moduleUser: bool(opts.moduleUser), moduleEvents: bool(opts.moduleEvents), minSampleSize: num(opts.minSampleSize), minRuntimeDays: num(opts.minRuntimeDays), defaultPower: num(opts.defaultPower), ciConfidence: num(opts.ciConfidence), cupedBaselineDays: num(opts.cupedBaselineDays), cupedMinOverlap: num(opts.cupedMinOverlap), cupedMinBaselineUsers: num(opts.cupedMinBaselineUsers), msprtTauMeiFactor: num(opts.msprtTauMeiFactor), msprtTauSdFactor: num(opts.msprtTauSdFactor), srmThreshold: num(opts.srmThreshold) }) }) });
     });
   g_metrics_events.command("list")
     .description("List events")

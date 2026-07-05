@@ -2236,6 +2236,16 @@ _Parameters_
 | `moduleFeedback` | optional | `boolean` | Enable/disable the feedback/ops module. |
 | `moduleUser` | optional | `boolean` | Enable/disable the user-management module. |
 | `moduleEvents` | optional | `boolean` | Enable/disable the events module. |
+| `minSampleSize` | optional | `integer` | Verdict power guard — minimum users per arm before a ship/hold verdict. _(2–1000000)_ |
+| `minRuntimeDays` | optional | `integer` | Minimum days an experiment must run before a verdict (peeking guard). _(0–365)_ |
+| `defaultPower` | optional | `number` | Target statistical power (1−β) feeding the realized-MDE calculation. _(0.5–0.99)_ |
+| `ciConfidence` | optional | `0.95 \| 0.99` | Confidence level for the interval surfaced on results. |
+| `cupedBaselineDays` | optional | `integer` | CUPED baseline window — days of pre-experiment history, frozen at start. _(1–365)_ |
+| `cupedMinOverlap` | optional | `number` | CUPED selection-bias guard — min share of users with a baseline, else skip. _(0.01–0.99)_ |
+| `cupedMinBaselineUsers` | optional | `integer` | CUPED — minimum users with a baseline before it runs at all. _(10–100000)_ |
+| `msprtTauMeiFactor` | optional | `number` | mSPRT prior width — τ = minimum effect of interest × this factor. _(0.1–2)_ |
+| `msprtTauSdFactor` | optional | `number` | mSPRT fallback prior width — τ = this × control SD when no MEI is set. _(0.05–1)_ |
+| `srmThreshold` | optional | `number` | SRM chi-square p-value below which the run is called invalid. _(0.0001–0.05)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 

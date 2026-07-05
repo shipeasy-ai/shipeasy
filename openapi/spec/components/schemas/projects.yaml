@@ -76,6 +76,36 @@ GetCurrentProjectResponse:
         - type: boolean
         - type: number
       description: Whether the feedback/ops module is enabled.
+    minSampleSize:
+      type: integer
+      description: Verdict power guard — minimum users per arm before a ship/hold verdict.
+    minRuntimeDays:
+      type: integer
+      description: Minimum days an experiment must run before a verdict (peeking guard).
+    defaultPower:
+      type: number
+      description: Target statistical power (1−β) feeding the realized-MDE calculation.
+    ciConfidence:
+      type: number
+      description: Confidence level for the interval surfaced on results.
+    cupedBaselineDays:
+      type: integer
+      description: CUPED baseline window — days of pre-experiment history, frozen at start.
+    cupedMinOverlap:
+      type: number
+      description: CUPED selection-bias guard — min share of users with a baseline, else skip.
+    cupedMinBaselineUsers:
+      type: integer
+      description: CUPED — minimum users with a baseline before it runs at all.
+    msprtTauMeiFactor:
+      type: number
+      description: mSPRT prior width — τ = minimum effect of interest × this factor.
+    msprtTauSdFactor:
+      type: number
+      description: mSPRT fallback prior width — τ = this × control SD when no MEI is set.
+    srmThreshold:
+      type: number
+      description: SRM chi-square p-value below which the run is called invalid.
     createdAt:
       type: string
       description: ISO-8601 timestamp of project creation.
@@ -220,5 +250,56 @@ UpdateProjectRequest:
     moduleEvents:
       type: boolean
       description: Enable/disable the events module.
+    minSampleSize:
+      type: integer
+      minimum: 2
+      maximum: 1000000
+      description: Verdict power guard — minimum users per arm before a ship/hold verdict.
+    minRuntimeDays:
+      type: integer
+      minimum: 0
+      maximum: 365
+      description: Minimum days an experiment must run before a verdict (peeking guard).
+    defaultPower:
+      type: number
+      minimum: 0.5
+      maximum: 0.99
+      description: Target statistical power (1−β) feeding the realized-MDE calculation.
+    ciConfidence:
+      type: number
+      enum:
+        - 0.95
+        - 0.99
+      description: Confidence level for the interval surfaced on results.
+    cupedBaselineDays:
+      type: integer
+      minimum: 1
+      maximum: 365
+      description: CUPED baseline window — days of pre-experiment history, frozen at start.
+    cupedMinOverlap:
+      type: number
+      minimum: 0.01
+      maximum: 0.99
+      description: CUPED selection-bias guard — min share of users with a baseline, else skip.
+    cupedMinBaselineUsers:
+      type: integer
+      minimum: 10
+      maximum: 100000
+      description: CUPED — minimum users with a baseline before it runs at all.
+    msprtTauMeiFactor:
+      type: number
+      minimum: 0.1
+      maximum: 2
+      description: mSPRT prior width — τ = minimum effect of interest × this factor.
+    msprtTauSdFactor:
+      type: number
+      minimum: 0.05
+      maximum: 1
+      description: mSPRT fallback prior width — τ = this × control SD when no MEI is set.
+    srmThreshold:
+      type: number
+      minimum: 0.0001
+      maximum: 0.05
+      description: SRM chi-square p-value below which the run is called invalid.
   additionalProperties: false
   description: "Body for `PATCH /api/admin/projects/{id}`. Partial — every field is optional; only supplied fields change. The project id in the path must match the caller's own project."
