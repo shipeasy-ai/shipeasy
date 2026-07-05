@@ -48,6 +48,7 @@ import {
   SERVER_KEY_VAR,
 } from "../setup/onboard";
 import { buildWiringDoc, type WiringTarget } from "../setup/wiring-doc";
+import { promptAndSend, reportConfigured } from "../setup/report-issue";
 import {
   runTriggerStep,
   type TriggerStepResult,
@@ -1249,7 +1250,51 @@ async function runSetupTriggers(opts: { platform?: string; dryRun?: boolean }): 
   });
 }
 
-export function setupCommand(parent: Command): void {
+/**
+ * On an unexpected setup failure, offer to file a bug report to Shipeasy. Who's
+ * watching decides how consent is gathered:
+ *  - a human at a TTY (not --yes, not inside an agent harness) gets the
+ *    interactive consent prompt — promptAndSend prints the EXACT payload + asks,
+ *    and only sends on an explicit yes;
+ *  - an agent-driven or non-interactive run is NEVER auto-sent — we print the one
+ *    command the agent should run AFTER asking its user (the wiring doc spells
+ *    this out). Nothing leaves the machine without explicit consent.
+ */
+async function offerSetupIssueReport(
+  message: string,
+  opts: SetupOpts,
+  version: string,
+): Promise<void> {
+  if (!reportConfigured()) return; // reporter not wired into this build — stay silent
+  const interactive = Boolean(process.stdin.isTTY) && !opts.yes;
+  const insideHarness = detectHarness().inside;
+  const projectId = getBoundProjectId(process.cwd()) ?? undefined;
+
+  if (insideHarness || !interactive) {
+    console.log(
+      "\nIf this looks like a Shipeasy bug, you can report it — ASK THE USER FIRST, then run:\n" +
+        `    shipeasy report-issue --consent --title ${JSON.stringify("Setup failed")} ` +
+        `--error ${JSON.stringify(message.slice(0, 200))}\n` +
+        "  (add --step/--description/--language/--frameworks for a cleaner report). " +
+        "Never send without the user's consent.",
+    );
+    return;
+  }
+
+  const result = await promptAndSend(
+    { title: "Setup failed", error: message, projectId, cliVersion: version },
+    true,
+  );
+  if (result.ok) {
+    console.log(
+      `\n✓ Reported to Shipeasy${result.number ? ` (#${result.number})` : ""} — pending approval. Thank you.`,
+    );
+  } else if (result.error) {
+    console.log(`\n• ${result.error}`);
+  }
+}
+
+export function setupCommand(parent: Command, version = "unknown"): void {
   const setup = parent
     .command("setup")
     .description(
@@ -1283,8 +1328,10 @@ export function setupCommand(parent: Command): void {
     )
     .option("--dry-run", "Show what would change without writing files or calling the API")
     .action(async (opts: SetupOpts) => {
-      await runSetup(opts).catch((err: unknown) => {
-        console.error(`\nSetup failed: ${err instanceof Error ? err.message : String(err)}`);
+      await runSetup(opts).catch(async (err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`\nSetup failed: ${message}`);
+        await offerSetupIssueReport(message, opts, version);
         process.exit(1);
       });
     });

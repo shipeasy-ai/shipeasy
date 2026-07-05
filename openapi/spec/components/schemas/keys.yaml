@@ -114,7 +114,8 @@ CreateKeyRequest:
           - events:write
           - configs:write
           - experiments:write
-      description: Optional permission strings recorded on the key for audit/display.
+          - tickets:public_create
+      description: "Optional permission strings recorded on the key. `tickets:public_create` is enforced: a client key needs it (plus the project's `allowPublicTickets` setting) to file a `pending_approval` bug via the public `POST /cli/report` endpoint. The rest are audit/display only."
     expiresInDays:
       anyOf:
         - type: integer

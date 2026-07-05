@@ -76,6 +76,7 @@ describe("command tree", () => {
         "bind",
         "root",
         "setup",
+        "report-issue",
         "upgrade",
         "install",
         "detect",

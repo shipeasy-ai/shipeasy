@@ -16,6 +16,7 @@ import { mcpCommand } from "./commands/mcp";
 import { setupCommand } from "./commands/setup";
 import { upgradeCommand } from "./commands/upgrade";
 import { installCommand } from "./commands/install";
+import { reportIssueCommand } from "./commands/report-issue";
 import { triggerCommand } from "./commands/trigger";
 import { detectCommand } from "./commands/detect";
 import { bindProject, findProjectConfigDir, readProjectConfig } from "./util/project-config";
@@ -183,7 +184,10 @@ export function buildProgram(): Command {
   registerGeneratedCommands(program, genCtx);
 
   // ── Custom commands (fs/AST + auth + install — not API endpoints) ─────────
-  setupCommand(program);
+  setupCommand(program, version);
+  // `report-issue` — file a setup/onboarding bug to Shipeasy (pending approval),
+  // with the user's consent. The setup agent calls this when a step fails.
+  reportIssueCommand(program, version);
   // `upgrade` / `upgrade skills` — self-update the CLI + refresh the wired
   // agents' plugin/MCP/skills (and, for the full verb, offer the SDK bump).
   // Takes the resolved version so its CLI self-update can report the current one.

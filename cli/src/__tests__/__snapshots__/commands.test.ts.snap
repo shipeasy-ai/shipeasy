@@ -127,6 +127,7 @@ exports[`command tree > matches the registered command surface (snapshot) 1`] = 
   "release killswitch set-value",
   "release killswitch unset",
   "release killswitch update",
+  "report-issue",
   "root",
   "sdk",
   "sdk keys",

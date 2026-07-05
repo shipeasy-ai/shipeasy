@@ -130,7 +130,13 @@ const OPERATING_RULES = `## Operating rules (follow exactly)
    Self-heal once, then stop and report the failure.
 7. If a \`shipeasy\` command fails with \`unknown command\`/\`400\`/\`404\`, suspect
    version drift: \`npm i -g @shipeasy/cli@latest\` and retry once before
-   treating it as a bug.`;
+   treating it as a bug.
+8. **If a step fails and you cannot recover it, offer to report it — but ASK THE
+   USER FIRST.** In plain language, ask whether to send a bug report to Shipeasy,
+   and say exactly what it includes (OS/Node/CLI version, the failing step + error,
+   the project id, detected language/framework, your description). ONLY on an
+   explicit yes, run \`shipeasy report-issue --consent …\` (see the last section).
+   Never send anything to Shipeasy without the user's consent.`;
 
 function targetSection(i: number, t: WiringTarget): string {
   const dir = t.relPath === "." ? "the repo root" : `\`${t.relPath}/\``;
@@ -328,5 +334,38 @@ manifests + lockfiles, entry files, \`.claude/skills/shipeasy-onboarded/\` — a
 **stop**. Confirm every \`.env*\` file is gitignored before listing anything.
 Do not commit. Do not include this file in the list (it gets deleted instead).`);
 
+  sections.push(bugReportingSection());
+
   return sections.join("\n\n") + "\n";
+}
+
+/**
+ * Final section: how the agent reports a setup failure back to Shipeasy — always
+ * consent-gated. Appended to every wiring doc so the escape hatch is right where
+ * the agent lands if something above breaks.
+ */
+function bugReportingSection(): string {
+  return `## If setup breaks: report it to Shipeasy (with the user's consent)
+
+If any step above fails and you cannot recover it, you can file a bug straight to
+the Shipeasy team so we can fix it. This is **opt-in and consent-gated** — treat
+consent as mandatory:
+
+- [ ] **Ask the user first.** In plain language, ask whether to send a bug report
+      to Shipeasy, and tell them exactly what it includes: OS/arch, Node, and CLI
+      version; the failing step and the error message; the Shipeasy project id;
+      the detected language + frameworks; and your description of the problem.
+- [ ] **Only on an explicit "yes"**, run (fill in the real details):
+
+      shipeasy report-issue --consent \\
+        --title "Setup failed at <step>" \\
+        --step "<step>" \\
+        --error "<the error message>" \\
+        --description "<what you tried and what happened>" \\
+        --language "<lang>" --frameworks "<comma,list>"
+
+  It files a **pending-approval** bug (a human reviews it before anyone acts on
+  it) and prints the exact payload before sending. \`--consent\` is required — it
+  records that the user agreed. Preview the payload without sending using \`--json\`.
+- [ ] If the user declines, do nothing — never send a report without consent.`;
 }

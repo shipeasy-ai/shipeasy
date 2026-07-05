@@ -1807,6 +1807,37 @@ shipeasy setup triggers --platform claude
 shipeasy setup triggers --dry-run
 ```
 
+## `shipeasy report-issue`
+
+File a setup/onboarding bug to Shipeasy (filed as pending-approval). Meant for the setup agent when a step fails: it collects OS/Node/CLI version, your project id, language and frameworks, plus the failing step + error. REQUIRES the user's consent — pass --consent (agent, after asking) or answer the interactive prompt. Prints the exact payload first.
+
+```bash
+shipeasy report-issue [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--title <title>` | required | One-line summary, e.g. "Setup failed at Feature installs" |
+| `--step <step>` | optional | Which setup step failed |
+| `--error <error>` | optional | The error message / actual result |
+| `--description <text>` | optional | Freeform description of the problem |
+| `--reporter-email <email>` | optional | Optional contact email |
+| `--project <id>` | optional | Shipeasy project id the issue relates to (defaults to the bound one) |
+| `--language <lang>` | optional | Detected language (typescript, python, …) |
+| `--frameworks <list>` | optional | Comma list of detected frameworks |
+| `--consent` | optional | Confirm the USER agreed to send system/env info to Shipeasy. Required to send unattended. |
+| `--json` | optional | Print the exact payload and exit WITHOUT sending (dry preview) |
+
+Examples:
+
+```bash
+# agent files a report after the user agreed
+shipeasy report-issue --consent --title "Setup failed at Feature installs" --step "Feature installs" --error "enableModuleGroup(ops) 500"
+
+# preview the exact payload without sending
+shipeasy report-issue --title "Setup broke" --error "..." --json
+```
+
 ## `shipeasy upgrade`
 
 Bring your Shipeasy install up to date: self-updates the CLI, refreshes the coding-agent wiring (Claude plugin / MCP registration) and the how-to skills from the marketplace, and offers to bump the @shipeasy/sdk dependency in each onboarded target. Idempotent and best-effort. Use `shipeasy upgrade skills` for the CLI + skills only.
