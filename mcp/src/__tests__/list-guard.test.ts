@@ -28,6 +28,14 @@ describe("list-guard family detection", () => {
     expect(guardedCreateFamily("ops_alerts_create")).toBe("ops_alerts");
   });
 
+  it("guards the create-shaped ops verbs that lack the `_create` suffix", () => {
+    // ops_bug / ops_feature file a NEW row into the `ops` queue, so they dedup
+    // against `ops_list` exactly like `ops_create` — otherwise an agent bypasses
+    // the guard by filing via the convenience verb.
+    expect(guardedCreateFamily("ops_bug")).toBe("ops");
+    expect(guardedCreateFamily("ops_feature")).toBe("ops");
+  });
+
   it("exempts creates with no list sibling and non-`_create` tools", () => {
     // ends in `_claude`, not `_create` → not a create at all
     expect(guardedCreateFamily("ops_trigger_create_claude")).toBeNull();

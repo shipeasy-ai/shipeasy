@@ -1773,6 +1773,7 @@ _Parameters_
 | `viewport` | optional | `any` | Reporter's viewport (e.g. `1280x720`), or `null`. |
 | `context` | optional | `any` | Arbitrary capture context, or `null`. |
 | `notify` | optional | `any` | Where this bug's completion notification lands. |
+| `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `ops_list` call. It proves you listed existing ops and confirmed this one doesn't already exist before creating it. Call `ops_list` first if you don't have a fresh token. |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -1841,6 +1842,7 @@ _Parameters_
 | `userAgent` | optional | `any` | Reporter's user-agent string, or `null`. |
 | `context` | optional | `any` | Arbitrary capture context, or `null`. |
 | `notify` | optional | `any` | Where this request's completion notification lands. |
+| `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `ops_list` call. It proves you listed existing ops and confirmed this one doesn't already exist before creating it. Call `ops_list` first if you don't have a fresh token. |
 
 _Errors_ — beyond the [common errors](#errors):
 

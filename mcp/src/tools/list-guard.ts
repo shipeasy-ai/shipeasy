@@ -146,12 +146,31 @@ export function listFamily(toolName: string): string | null {
 }
 
 /**
+ * Create-shaped tools that file a NEW item into a family but don't use the
+ * `_create` suffix, so the suffix rule alone would leave them un-guarded. Both
+ * `ops_bug` and `ops_feature` append a new row to the `ops` feedback queue — the
+ * very queue `ops_list` reads — so they need the same dedup-list-first as
+ * `ops_create`. Without this an agent bypasses the guard entirely by filing via
+ * the convenience verb (observed: an eval agent called `ops_bug` directly and
+ * skipped the required list-first dedup). Map each to the family whose
+ * `${family}_list` mints the token.
+ */
+const ALIAS_GUARDED_CREATES: Readonly<Record<string, string>> = {
+  ops_bug: "ops",
+  ops_feature: "ops",
+};
+
+/**
  * The resource family a create tool is guarded on, or `null` if the tool isn't a
  * guarded create. A create is guarded iff it ends in `_create` AND its
  * `${family}_list` sibling exists — so `ops_trigger_create_*` (not `_create`),
  * `i18n_keys_push`, and `release_killswitch_set*` all fall out automatically.
+ * The `ALIAS_GUARDED_CREATES` map folds in the create-shaped verbs that don't
+ * carry the `_create` suffix (`ops_bug` / `ops_feature`).
  */
 export function guardedCreateFamily(toolName: string): string | null {
+  const alias = ALIAS_GUARDED_CREATES[toolName];
+  if (alias) return LIST_NAMES.has(`${alias}_list`) ? alias : null;
   if (!toolName.endsWith("_create")) return null;
   const family = toolName.slice(0, -"_create".length);
   return LIST_NAMES.has(`${family}_list`) ? family : null;

@@ -18,8 +18,8 @@
       { "contains": ["proration"] },
       { "contains": ["seat"] }
     ],
-    "expect_state": { "ops": ["proration"] },
-    "note": "context-pickup: list to dedup, then synthesise a complete report from the preceding description (not an empty stub). expect_state confirms a bug mentioning the context landed"
+    "expect_state": { "ops": ["subscription"] },
+    "note": "context-pickup: list to dedup, then synthesise a complete report from the preceding description (not an empty stub). expect_state confirms a bug about the subscription issue landed; the context-specific 'proration'/'seat' wording is verified in assert_args (the filed content), not the agent-chosen title, which needn't repeat 'proration'"
   },
   {
     "id": "shipeasy-ops/triage-readonly",
