@@ -1,6 +1,7 @@
 # @shipeasy/skills-eval
 
-Behavioural eval for the shipped skills. It drives **headless `claude -p`** with
+Behavioural eval for the shipped skills. It drives a **headless agent** —
+`claude -p` by default, or `copilot -p` with `--copilot` (see [Runner](#runner--claude-default-or-copilot)) — with
 prompts and asserts, from the tool-call transcript, that:
 
 1. the **right Skill fires** (`shipeasy-flags`, `shipeasy-alerts`, …), and
@@ -88,6 +89,38 @@ the cheapest model: if a case only passes on a bigger model, the *skill
 description* is too weak — fix the description, don't bump the model. Override only
 to diagnose (`SHIPEASY_EVAL_MODEL=sonnet`).
 
+### Runner — claude (default) or copilot
+
+The same cases can be driven by **Claude Code** (`claude -p`, default) or by the
+**GitHub Copilot CLI** (`copilot -p`). Pick the runner with a user argument —
+`--copilot` (or `--agent copilot`), or `SHIPEASY_EVAL_AGENT=copilot`:
+
+```bash
+pnpm --filter @shipeasy/skills-eval eval -- --copilot            # all cases, via copilot
+pnpm --filter @shipeasy/skills-eval eval -- --copilot flags      # one skill, via copilot
+```
+
+Copilot **forces the cheapest GPT model** (`gpt-5-mini`) for the same reason
+claude forces Haiku — routing must survive the small model, not lean on a bigger
+one. Override only to diagnose: `SHIPEASY_EVAL_COPILOT_MODEL=gpt-5`.
+
+The copilot runner keeps the same MCP-only lockdown: it denies the `shell` and
+`write` tools (no repo edits, no falling back to the prod `shipeasy` CLI),
+`--disable-builtin-mcps` drops the github server, and `--disable-mcp-server
+shipeasy` drops any installed prod plugin server — the eval's own local-backend
+server is registered under the distinct name `shipeasy_eval`, so tools resolve to
+local D1 only. Copilot discovers the sandbox `.claude/skills/`, so it fires the
+same `shipeasy-*` skills; if an installed plugin exposes the short name (`flags`),
+the parser maps it back (`flags` → `shipeasy-flags`).
+
+### Model — cheapest, on purpose
+
+The eval defaults to **Haiku** (`SHIPEASY_EVAL_MODEL=haiku`) for claude and
+**gpt-5-mini** for copilot. Routing must survive the cheapest model: if a case
+only passes on a bigger model, the *skill description* is too weak — fix the
+description, don't bump the model. Override only to diagnose
+(`SHIPEASY_EVAL_MODEL=sonnet`, `SHIPEASY_EVAL_COPILOT_MODEL=gpt-5`).
+
 ### Knobs
 
 | env | default | meaning |
@@ -95,8 +128,11 @@ to diagnose (`SHIPEASY_EVAL_MODEL=sonnet`).
 | `SHIPEASY_EVAL_K` | `3` | runs per case (raise to 5 to smooth flake) |
 | `SHIPEASY_EVAL_THRESHOLD` | `0.67` | pass fraction (0..1) |
 | `SHIPEASY_EVAL_MODE` | `execute` | `execute` = real MCP calls; `plan` = capture intended tool_use, no side effects |
-| `SHIPEASY_EVAL_MODEL` | `haiku` | `--model` for the run |
+| `SHIPEASY_EVAL_AGENT` | `claude` | runner: `claude` or `copilot` (or pass `--copilot` / `--agent <name>`) |
+| `SHIPEASY_EVAL_MODEL` | `haiku` | `--model` for the **claude** runner |
 | `SHIPEASY_EVAL_CLAUDE_BIN` | `claude` | claude binary |
+| `SHIPEASY_EVAL_COPILOT_MODEL` | `gpt-5-mini` | `--model` for the **copilot** runner (cheapest GPT) |
+| `SHIPEASY_EVAL_COPILOT_BIN` | `copilot` | copilot binary |
 
 ## Case format
 
@@ -161,19 +197,29 @@ with no id to resolve or natural dedup key, so those cases stay create-only.
 
 ## ⚠️ Version-sensitive flags
 
-The headless invocation lives in **one place** — `buildClaudeArgs()` in
-[`src/run.ts`](src/run.ts). It assumes current `claude` CLI behaviour:
+Each runner's headless invocation lives in **one place** — `buildClaudeArgs()` /
+`buildCopilotArgs()` in [`src/run.ts`](src/run.ts). Claude assumes
 `--output-format stream-json --verbose`, `--mcp-config`/`--strict-mcp-config`,
 `--permission-mode bypassPermissions|plan`, `--append-system-prompt`, and that a
-Skill invocation surfaces as a `tool_use` block named `Skill`. **Smoke-test once**
-against your installed `claude` before trusting a red result:
+Skill invocation surfaces as a `tool_use` block named `Skill`. Copilot assumes
+`--output-format json` (JSONL), `--allow-all-tools` with `--deny-tool
+shell/write`, `--disable-builtin-mcps`, `--additional-mcp-config @<file>`, and
+that tool calls ride on `assistant.message` events (MCP via `mcpToolName`, skills
+via the builtin `skill` tool). **Smoke-test once** against your installed CLI
+before trusting a red result:
 
 ```bash
+# claude
 claude -p "list my feature flags" --output-format stream-json --verbose \
   --mcp-config .eval-workdir/mcp-config.json --strict-mcp-config \
   --permission-mode bypassPermissions --model haiku | grep '"name"'
+
+# copilot
+copilot -p "list my feature flags" --output-format json --allow-all-tools \
+  --additional-mcp-config @.eval-workdir/mcp-config.copilot.json \
+  --model gpt-5-mini | grep -o '"mcpToolName":"[^"]*"'
 ```
 
-If a flag name has drifted or the Skill block is shaped differently, adjust
-`buildClaudeArgs()` and `parseTranscript()` (the two seams) — everything else is
-version-independent.
+If a flag name has drifted or the transcript shape is different, adjust the
+matching `build*Args()` and the format branch in `parseTranscript()` (the two
+seams) — everything else is version-independent.

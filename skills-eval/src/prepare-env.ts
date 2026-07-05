@@ -15,7 +15,7 @@ import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } fro
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
-import { SKILLS_DIR, MCP_SERVER_NAME } from "./catalog.js";
+import { SKILLS_DIR, MCP_SERVER_NAME, COPILOT_MCP_SERVER_NAME } from "./catalog.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 /** …/marketplace/mcp — the local MCP build we point the run at by default. */
@@ -57,7 +57,14 @@ export interface EnvConfig {
 
 export interface PreparedEnv {
   workdir: string;
+  /** `--mcp-config` for the claude runner (server named `shipeasy`). */
   mcpConfigPath: string;
+  /**
+   * `--additional-mcp-config` for the copilot runner (server named
+   * `shipeasy_eval` so the prod plugin's `shipeasy` server can be disabled
+   * without clobbering ours). Same command/env as `mcpConfigPath`.
+   */
+  copilotMcpConfigPath: string;
   xdgHome: string;
   /** The example app copied in, or "" if none. */
   appDir: string;
@@ -137,25 +144,31 @@ export function prepareEnv(cfg: EnvConfig, workdir: string): PreparedEnv {
   );
 
   // 4. MCP config for the run — the spawned server inherits the isolated XDG.
+  //    Both runners launch the SAME local MCP build against the SAME isolated
+  //    XDG; they differ only in the server name (see COPILOT_MCP_SERVER_NAME).
+  const mcpServer = {
+    command: cfg.mcpCommand ?? "node",
+    args: cfg.mcpArgs ?? [join(MCP_PKG, "bin", "mcp.js")],
+    env: { XDG_CONFIG_HOME: xdgHome },
+  };
   const mcpConfigPath = join(workdir, "mcp-config.json");
   writeFileSync(
     mcpConfigPath,
-    JSON.stringify(
-      {
-        mcpServers: {
-          [MCP_SERVER_NAME]: {
-            command: cfg.mcpCommand ?? "node",
-            args: cfg.mcpArgs ?? [join(MCP_PKG, "bin", "mcp.js")],
-            env: { XDG_CONFIG_HOME: xdgHome },
-          },
-        },
-      },
-      null,
-      2,
-    ) + "\n",
+    JSON.stringify({ mcpServers: { [MCP_SERVER_NAME]: mcpServer } }, null, 2) + "\n",
+  );
+  const copilotMcpConfigPath = join(workdir, "mcp-config.copilot.json");
+  writeFileSync(
+    copilotMcpConfigPath,
+    JSON.stringify({ mcpServers: { [COPILOT_MCP_SERVER_NAME]: mcpServer } }, null, 2) + "\n",
   );
 
-  return { workdir, mcpConfigPath, xdgHome, appDir: appDir && existsSync(appDir) ? appDir : "" };
+  return {
+    workdir,
+    mcpConfigPath,
+    copilotMcpConfigPath,
+    xdgHome,
+    appDir: appDir && existsSync(appDir) ? appDir : "",
+  };
 }
 
 function req(name: string): string {

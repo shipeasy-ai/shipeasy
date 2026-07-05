@@ -3,24 +3,43 @@ import type { Observation } from "./types.js";
 
 const MCP_PREFIX = `mcp__${MCP_SERVER_NAME}__`;
 
+/** Which agent runner produced the transcript (its NDJSON shape differs). */
+export type TranscriptFormat = "claude" | "copilot";
+
 /**
- * Parse the newline-delimited JSON emitted by
- * `claude -p --output-format stream-json --verbose` into the skills and MCP
- * tools that were invoked.
+ * Parse the newline-delimited JSON a headless agent run emits into the skills
+ * and MCP tools that were invoked. Two shapes are supported (`format`):
  *
- * We read the *complete* assistant-message events (`{type:"assistant",
- * message:{content:[…]}}`), whose `content[]` carries whole `tool_use` blocks
- * ({type,name,input}). That's far more robust than reassembling
- * `input_json_delta` chunks, and it's what stream-json emits per turn even
- * without `--include-partial-messages`.
+ * - **claude** (`claude -p --output-format stream-json --verbose`, default):
+ *   the *complete* assistant-message events (`{type:"assistant",
+ *   message:{content:[…]}}`), whose `content[]` carries whole `tool_use` blocks
+ *   ({type,name,input}). A Skill invocation is a `tool_use` block named "Skill"
+ *   whose skill name lives *somewhere* in `input` (the field has varied across
+ *   versions: `command`, `name`, `skill`, `skill_name`), so we scan the whole
+ *   input for a known skill token.
  *
- * A Skill invocation shows up as a `tool_use` block named "Skill"; the skill's
- * name lives somewhere in `input` (field name has varied across versions:
- * `command`, `name`, `skill`, `skill_name`) — so we scan the whole input for a
- * known skill token rather than trusting one field. Pass the set of skill names
- * you care about as `knownSkills`.
+ * - **copilot** (`copilot -p --output-format json`): one JSON object per line;
+ *   tool calls ride on `{type:"assistant.message", data:{toolRequests:[…]}}`.
+ *   An MCP call carries `{mcpServerName, mcpToolName, arguments}` (server-name
+ *   agnostic — we key off `mcpToolName`); a skill invocation is the builtin
+ *   `skill` tool with `{arguments:{skill:"<name>"}}`; asking is the `ask_user`
+ *   tool. Copilot discovers the sandbox `.claude/skills/` (so it fires the same
+ *   `shipeasy-*` skills), but an installed plugin may expose them under the
+ *   short name (`flags`) — {@link matchSkillToken} maps `flags`→`shipeasy-flags`.
+ *
+ * Pass the set of skill names you care about as `knownSkills`.
  */
-export function parseTranscript(ndjson: string, knownSkills: Iterable<string>): Observation {
+export function parseTranscript(
+  ndjson: string,
+  knownSkills: Iterable<string>,
+  format: TranscriptFormat = "claude",
+): Observation {
+  return format === "copilot"
+    ? parseCopilotTranscript(ndjson, knownSkills)
+    : parseClaudeTranscript(ndjson, knownSkills);
+}
+
+function parseClaudeTranscript(ndjson: string, knownSkills: Iterable<string>): Observation {
   const skills: string[] = [];
   const tools: string[] = [];
   const toolCalls: Observation["toolCalls"] = [];
@@ -67,6 +86,83 @@ export function parseTranscript(ndjson: string, knownSkills: Iterable<string>): 
   if (!askedUser && posesQuestion(lastAssistantText)) askedUser = true;
 
   return { skills, tools, toolCalls, otherTools, askedUser, text: textParts.join("\n") };
+}
+
+/**
+ * Parse `copilot -p --output-format json` (JSONL, one object per line). Tool
+ * calls ride on `assistant.message` events under `data.toolRequests[]`; the
+ * agent's prose is `data.content`. See {@link parseTranscript} for the shape.
+ */
+function parseCopilotTranscript(ndjson: string, knownSkills: Iterable<string>): Observation {
+  const skills: string[] = [];
+  const tools: string[] = [];
+  const toolCalls: Observation["toolCalls"] = [];
+  const otherTools: string[] = [];
+  const textParts: string[] = [];
+  let askedUser = false;
+  let lastAssistantText = "";
+  const skillNames = [...knownSkills];
+
+  const lines = ndjson.split("\n").map((l) => l.trim()).filter(Boolean);
+  for (const line of lines) {
+    let evt: unknown;
+    try {
+      evt = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (!isObject(evt) || evt.type !== "assistant.message") continue;
+    const data = isObject(evt.data) ? evt.data : undefined;
+    if (!data) continue;
+
+    if (typeof data.content === "string" && data.content.trim()) {
+      textParts.push(data.content);
+      lastAssistantText = data.content;
+    }
+    const requests = Array.isArray(data.toolRequests) ? data.toolRequests : [];
+    for (const req of requests) {
+      if (!isObject(req)) continue;
+      const name = typeof req.name === "string" ? req.name : "";
+      const args = req.arguments;
+      // MCP tool: identified by `mcpToolName` (server-name agnostic).
+      if (typeof req.mcpToolName === "string" && req.mcpToolName) {
+        tools.push(req.mcpToolName);
+        toolCalls.push({ name: req.mcpToolName, inputText: JSON.stringify(args ?? "") });
+        continue;
+      }
+      // Skill invocation: the builtin `skill` tool, arg `{skill:"<name>"}`.
+      if (name === "skill") {
+        const token = isObject(args) && typeof args.skill === "string" ? args.skill : "";
+        const hit = matchSkillToken(token, skillNames);
+        if (hit) skills.push(hit);
+        else otherTools.push("skill(?)");
+        continue;
+      }
+      if (name === "ask_user") askedUser = true;
+      if (name) otherTools.push(name);
+    }
+  }
+  // Same headless-ask heuristic as claude: a closing question in prose counts.
+  if (!askedUser && posesQuestion(lastAssistantText)) askedUser = true;
+
+  return { skills, tools, toolCalls, otherTools, askedUser, text: textParts.join("\n") };
+}
+
+/**
+ * Map a copilot skill token to a known (claude-named) skill. The sandbox
+ * `.claude/skills/` copies expose the full `shipeasy-flags` name, but an
+ * installed plugin may register the short `flags`; accept an exact match, the
+ * `shipeasy-<token>` form, or any known name ending in `-<token>`. Longest
+ * known name first so `ops-work` wins over `ops`.
+ */
+function matchSkillToken(token: string, skillNames: string[]): string | undefined {
+  if (!token) return undefined;
+  const t = token.toLowerCase();
+  for (const name of [...skillNames].sort((a, b) => b.length - a.length)) {
+    const n = name.toLowerCase();
+    if (n === t || n === `shipeasy-${t}` || n.endsWith(`-${t}`)) return name;
+  }
+  return undefined;
 }
 
 /** True if the agent's closing prose poses a question to the user. */

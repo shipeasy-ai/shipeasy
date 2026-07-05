@@ -13,6 +13,16 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  */
 export const MCP_SERVER_NAME = "shipeasy";
 
+/**
+ * The name we give the eval's shipeasy MCP server when driving the **copilot**
+ * runner (`--additional-mcp-config`). Deliberately DISTINCT from `shipeasy` so
+ * we can `--disable-mcp-server shipeasy` (killing any installed prod plugin
+ * server of that name) without also disabling our local-backend one. Copilot
+ * reports MCP calls with an explicit `mcpToolName`, so the parser keys off the
+ * tool suffix, not the server name — this rename is invisible to the assertions.
+ */
+export const COPILOT_MCP_SERVER_NAME = "shipeasy_eval";
+
 export function mcpToolName(suffix: string): string {
   return `mcp__${MCP_SERVER_NAME}__${suffix}`;
 }

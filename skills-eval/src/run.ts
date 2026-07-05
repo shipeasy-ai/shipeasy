@@ -22,8 +22,8 @@ import { readdirSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
-import { CASES_DIR } from "./catalog.js";
-import { prepareEnv, readEnvConfigFromEnv } from "./prepare-env.js";
+import { CASES_DIR, MCP_SERVER_NAME } from "./catalog.js";
+import { prepareEnv, readEnvConfigFromEnv, type PreparedEnv } from "./prepare-env.js";
 import { setupState, snapshotState, verifyState, verifyNoDuplicate } from "./verify-state.js";
 import { parseTranscript } from "./transcript.js";
 import { scoreCase } from "./score.js";
@@ -31,7 +31,9 @@ import { renderReport } from "./report.js";
 import { expectedSkills, type CaseResult, type EvalCase, type Observation } from "./types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const filter = process.argv.slice(2).find((a) => !a.startsWith("--"));
+// Which agent runner drives the cases. `claude` (default) or `copilot`, chosen
+// via `--copilot` / `--agent <name>` (a user argument) or SHIPEASY_EVAL_AGENT.
+const { agent: AGENT, filter } = parseArgs(process.argv.slice(2));
 // HARD RULE: the eval always runs at K=1. A skill that only routes when its
 // result is averaged over multiple runs is not fixed — every case must pass
 // deterministically on a single run. Refuse any attempt to raise K.
@@ -50,10 +52,32 @@ const THRESHOLD = num(process.env.SHIPEASY_EVAL_THRESHOLD, 0.67);
 // pick). This is not K-averaging — a case passes the moment any attempt passes.
 const RETRIES = Math.max(0, int(process.env.SHIPEASY_EVAL_RETRIES, 1));
 const MODE = process.env.SHIPEASY_EVAL_MODE === "plan" ? "plan" : "execute";
-const CLAUDE = process.env.SHIPEASY_EVAL_CLAUDE_BIN ?? "claude";
-// Default to the cheapest model on purpose: routing must survive Haiku, not
-// lean on a bigger model to rescue a weak skill description.
-const MODEL = process.env.SHIPEASY_EVAL_MODEL ?? "haiku";
+// Binary + model resolve per runner. Default to the cheapest model on purpose:
+// routing must survive the small model, not lean on a bigger one to rescue a
+// weak skill description — Haiku for claude, gpt-5-mini (cheapest GPT) for
+// copilot. SHIPEASY_EVAL_MODEL applies to claude; SHIPEASY_EVAL_COPILOT_MODEL
+// to copilot.
+const BIN =
+  AGENT === "copilot"
+    ? process.env.SHIPEASY_EVAL_COPILOT_BIN ?? "copilot"
+    : process.env.SHIPEASY_EVAL_CLAUDE_BIN ?? "claude";
+const MODEL =
+  AGENT === "copilot"
+    ? process.env.SHIPEASY_EVAL_COPILOT_MODEL ?? "gpt-5-mini"
+    : process.env.SHIPEASY_EVAL_MODEL ?? "haiku";
+
+// Standing approval for the eval only: some skills (experiments, alerts,
+// metrics) are consultative in real use — they investigate the code, propose
+// 2–4 variants, then STOP for the user to approve before creating anything.
+// A headless -p run is single-shot, so that pause would strand every
+// outcome-gated create case short of its create call. Grant the approval
+// up-front: when a skill reaches its propose→provision gate, pick its
+// recommended default and carry through. This never licenses an action the
+// prompt didn't ask for — only the skill's own already-scoped create step.
+// Claude gets this via --append-system-prompt; copilot (no such flag) prepends
+// it to the prompt.
+const STANDING_APPROVAL =
+  "You are being evaluated. Carry out the user's request directly using the available skills and MCP tools, then stop. If a skill would pause to have the user approve or choose among proposed variants before creating or updating a resource, treat that approval as already granted: pick the skill's recommended default variant and proceed through to the create/update call. This standing approval applies ONLY to a skill's own propose-then-provision step and never licenses an action the request didn't ask for. Only ask the user a question if you genuinely cannot proceed without a decision that is theirs to make.";
 
 const cases = loadCases(filter);
 if (cases.length === 0) {
@@ -69,7 +93,7 @@ mkdirSync(transcriptsDir, { recursive: true });
 
 const excluded = readEnvConfigFromEnv().excludeSkills ?? [];
 console.log(
-  `skills-eval: ${cases.length} cases × ${K} runs (≤${RETRIES} retry on fail), mode=${MODE}, model=${MODEL}` +
+  `skills-eval: ${cases.length} cases × ${K} runs (≤${RETRIES} retry on fail), agent=${AGENT}, mode=${MODE}, model=${MODEL}` +
     `\nsandbox app: ${env.appDir ? env.appDir.replace(/.*\/packages\//, "packages/") : "(none)"}` +
     (excluded.length ? `\nexcluded skills: ${excluded.join(", ")}` : "") +
     `\n`,
@@ -90,7 +114,7 @@ for (const c of cases) {
   // attempt happened to create still verifies as "new" on the passing retry.
   let result: CaseResult | undefined;
   for (let attempt = 0; attempt <= RETRIES; attempt++) {
-    const obs = runOnce(c, attempt, env.mcpConfigPath, workdir, transcriptsDir);
+    const obs = runOnce(c, attempt, env, workdir, transcriptsDir);
     const skillOk = expectedSkills(c).every((s) => obs.skills.includes(s));
     const textOk =
       !(c.expect_text_contains?.length) ||
@@ -135,12 +159,12 @@ process.exit(results.every((r) => r.pass) ? 0 : 1);
 function runOnce(
   c: EvalCase,
   i: number,
-  mcpConfig: string,
+  env: PreparedEnv,
   cwd: string,
   outDir: string,
 ): Observation {
-  const args = buildClaudeArgs(c, mcpConfig);
-  const res = spawnSync(CLAUDE, args, {
+  const args = AGENT === "copilot" ? buildCopilotArgs(c, env) : buildClaudeArgs(c, env.mcpConfigPath);
+  const res = spawnSync(BIN, args, {
     cwd,
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
@@ -153,16 +177,16 @@ function runOnce(
   if (res.error) return { ...empty, error: String(res.error) };
   if (!ndjson.trim())
     return { ...empty, error: `empty output (stderr: ${(res.stderr ?? "").slice(0, 300)})` };
-  return parseTranscript(ndjson, skillNames);
+  return parseTranscript(ndjson, skillNames, AGENT === "copilot" ? "copilot" : "claude");
 }
 
 /**
- * The headless invocation — centralised so the version-sensitive flags live in
- * ONE place. Smoke-test these against your installed `claude` once (see README)
- * and adjust here if a flag name has drifted.
+ * The headless claude invocation — centralised so the version-sensitive flags
+ * live in ONE place. Smoke-test these against your installed `claude` once (see
+ * README) and adjust here if a flag name has drifted.
  */
 function buildClaudeArgs(c: EvalCase, mcpConfig: string): string[] {
-  const args = [
+  return [
     "-p",
     c.prompt,
     "--output-format", "stream-json",
@@ -176,19 +200,66 @@ function buildClaudeArgs(c: EvalCase, mcpConfig: string): string[] {
     // tool calls would escape the top-level stream we parse. ToolSearch stays
     // (deferred MCP tools surface through it); Read/Glob/Grep are read-only.
     "--disallowedTools", "Bash,Edit,Write,NotebookEdit,Agent,Task,SendMessage",
-    "--append-system-prompt",
-    // Standing approval for the eval only: some skills (experiments, alerts,
-    // metrics) are consultative in real use — they investigate the code, propose
-    // 2–4 variants, then STOP for the user to approve before creating anything.
-    // A headless -p run is single-shot, so that pause would strand every
-    // outcome-gated create case short of its create call. Grant the approval
-    // up-front: when a skill reaches its propose→provision gate, pick its
-    // recommended default and carry through. This never licenses an action the
-    // prompt didn't ask for — only the skill's own already-scoped create step.
-    "You are being evaluated. Carry out the user's request directly using the available skills and MCP tools, then stop. If a skill would pause to have the user approve or choose among proposed variants before creating or updating a resource, treat that approval as already granted: pick the skill's recommended default variant and proceed through to the create/update call. This standing approval applies ONLY to a skill's own propose-then-provision step and never licenses an action the request didn't ask for. Only ask the user a question if you genuinely cannot proceed without a decision that is theirs to make.",
+    "--append-system-prompt", STANDING_APPROVAL,
+    "--model", MODEL,
   ];
-  args.push("--model", MODEL);
+}
+
+/**
+ * The headless copilot (`@github/copilot`) invocation. Mirrors the claude
+ * runner: JSONL output we parse, an MCP-only lockdown, and the same standing
+ * approval. Copilot has no `--append-system-prompt`, so the approval is
+ * prepended to the prompt. Smoke-test the flags against your installed
+ * `copilot` once and adjust here if a flag name drifts.
+ */
+function buildCopilotArgs(c: EvalCase, env: PreparedEnv): string[] {
+  const args = [
+    "-p",
+    `${STANDING_APPROVAL}\n\n--- User request ---\n${c.prompt}`,
+    "--model", MODEL,
+    "--output-format", "json",
+    "--no-color",
+    "--allow-all-tools",
+    // Lockdown mirroring the claude runner: deny the shell tool (so it can't
+    // fall back to the interchangeable prod `shipeasy` CLI) and `write` (so it
+    // can't touch the sandbox/repo). Denials beat --allow-all-tools, forcing
+    // the agent onto the MCP surface we assert on.
+    "--deny-tool", "shell",
+    "--deny-tool", "write",
+    // Only the local-backend MCP is reachable: drop the builtin github server
+    // and any installed prod `shipeasy` plugin server (ours is `shipeasy_eval`,
+    // see COPILOT_MCP_SERVER_NAME — a different name so this disable misses it).
+    "--disable-builtin-mcps",
+    "--disable-mcp-server", MCP_SERVER_NAME,
+    "--additional-mcp-config", `@${env.copilotMcpConfigPath}`,
+  ];
+  if (MODE === "plan") args.push("--plan");
   return args;
+}
+
+/**
+ * Parse the runner selection + case filter off argv. The agent comes from
+ * `--copilot`, `--agent <name>`/`--agent=<name>`, or SHIPEASY_EVAL_AGENT
+ * (default `claude`); the filter is the first bare positional that isn't the
+ * value consumed by `--agent`.
+ */
+function parseArgs(argv: string[]): { agent: "claude" | "copilot"; filter?: string } {
+  let agent = process.env.SHIPEASY_EVAL_AGENT?.trim() || "claude";
+  let filter: string | undefined;
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (!a) continue;
+    if (a === "--copilot") agent = "copilot";
+    else if (a === "--claude") agent = "claude";
+    else if (a === "--agent" && argv[i + 1]) agent = argv[++i] as string;
+    else if (a.startsWith("--agent=")) agent = a.slice("--agent=".length);
+    else if (!a.startsWith("--") && filter === undefined) filter = a;
+  }
+  if (agent !== "claude" && agent !== "copilot") {
+    console.error(`Unknown --agent "${agent}". Use "claude" (default) or "copilot".`);
+    process.exit(2);
+  }
+  return { agent, filter };
 }
 
 function loadCases(f?: string): EvalCase[] {

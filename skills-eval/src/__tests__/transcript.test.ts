@@ -145,3 +145,81 @@ describe("parseTranscript", () => {
     expect(obs.text).toContain("Done —");
   });
 });
+
+/** Build one copilot `assistant.message` event (JSONL) with tool requests. */
+function copilotMessage(
+  content: string,
+  toolRequests: Array<Record<string, unknown>> = [],
+): string {
+  return JSON.stringify({ type: "assistant.message", data: { content, toolRequests } });
+}
+
+describe("parseTranscript (copilot format)", () => {
+  it("pulls the skill + MCP tool from copilot's toolRequests", () => {
+    const ndjson = [
+      JSON.stringify({ type: "session.tools_updated", data: { model: "gpt-5-mini" } }),
+      copilotMessage("Loading the flags skill.", [{ name: "skill", arguments: { skill: "shipeasy-flags" } }]),
+      copilotMessage("Creating the gate.", [
+        {
+          name: "shipeasy_eval-release_flags_create",
+          mcpServerName: "shipeasy_eval",
+          mcpToolName: "release_flags_create",
+          arguments: { name: "checkout_v2" },
+        },
+      ]),
+      JSON.stringify({ type: "result", exitCode: 0 }),
+    ].join("\n");
+    const obs = parseTranscript(ndjson, KNOWN, "copilot");
+    expect(obs.skills).toEqual(["shipeasy-flags"]);
+    expect(obs.tools).toEqual(["release_flags_create"]);
+    expect(obs.otherTools).toEqual([]);
+  });
+
+  it("maps a short plugin skill token to the known shipeasy- name", () => {
+    // The installed copilot plugin may expose the skill as `flags`, not
+    // `shipeasy-flags` — matchSkillToken bridges the two.
+    const obs = parseTranscript(
+      copilotMessage("", [{ name: "skill", arguments: { skill: "flags" } }]),
+      KNOWN,
+      "copilot",
+    );
+    expect(obs.skills).toEqual(["shipeasy-flags"]);
+  });
+
+  it("prefers the longest known name for a short token (ops-work over ops)", () => {
+    const obs = parseTranscript(
+      copilotMessage("", [{ name: "skill", arguments: { skill: "ops-work" } }]),
+      KNOWN,
+      "copilot",
+    );
+    expect(obs.skills).toEqual(["shipeasy-ops-work"]);
+  });
+
+  it("captures tool inputs and flags ask_user", () => {
+    const obs = parseTranscript(
+      copilotMessage("On it.", [
+        {
+          name: "shipeasy_eval-release_flags_create",
+          mcpServerName: "shipeasy_eval",
+          mcpToolName: "release_flags_create",
+          arguments: { name: "checkout", rules: [{ attr: "country", value: ["US"] }] },
+        },
+        { name: "ask_user", arguments: { question: "Add an alert?" } },
+      ]),
+      KNOWN,
+      "copilot",
+    );
+    expect(obs.tools).toEqual(["release_flags_create"]);
+    expect(obs.toolCalls[0]!.inputText).toContain("US");
+    expect(obs.askedUser).toBe(true);
+  });
+
+  it("counts a closing prose question as askedUser", () => {
+    const obs = parseTranscript(
+      copilotMessage("Gate created. Want me to wire an alert too?"),
+      KNOWN,
+      "copilot",
+    );
+    expect(obs.askedUser).toBe(true);
+  });
+});
