@@ -992,6 +992,7 @@ _Parameters_
 | `goal_metric.event` | optional | `string` | Event name to build the metric from server-side. Auto-created if missing. _(length 1–256)_ |
 | `goal_metric.aggregation` | optional | `"count_users" \| "count_events" \| "retention_7d" \| "retention_30d" \| "sum" \| "avg"` | Reducer for the `event` form. Defaults to `count_users`. |
 | `goal_metric.value` | optional | `string` | Numeric event property for `sum`/`avg` (with `event`). _(length 1–256)_ |
+| `goal_metric.min_effect_of_interest` | optional | `any` | Per-experiment override of the metric's default minimum effect of interest (relative, 0–1) — the smallest change worth acting on for this experiment's decision. `null`/omitted inherits the metric default. For a guardrail, the non-inferiority margin. _(default `null`)_ |
 | `guardrail_metrics` | optional | `object[]` | Up to 10 guardrail metrics defined inline. Each is upserted (event + metric) and attached with role=guardrail. _(default `[]`)_ |
 | `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `release_experiments_list` call. It proves you listed existing release experiments and confirmed this one doesn't already exist before creating it. Call `release_experiments_list` first if you don't have a fresh token. |
 
@@ -1294,6 +1295,7 @@ _Parameters_
 | `goal_metric.event` | optional | `string` | Event name to build the metric from server-side. Auto-created if missing. _(length 1–256)_ |
 | `goal_metric.aggregation` | optional | `"count_users" \| "count_events" \| "retention_7d" \| "retention_30d" \| "sum" \| "avg"` | Reducer for the `event` form. Defaults to `count_users`. |
 | `goal_metric.value` | optional | `string` | Numeric event property for `sum`/`avg` (with `event`). _(length 1–256)_ |
+| `goal_metric.min_effect_of_interest` | optional | `any` | Per-experiment override of the metric's default minimum effect of interest (relative, 0–1) — the smallest change worth acting on for this experiment's decision. `null`/omitted inherits the metric default. For a guardrail, the non-inferiority margin. _(default `null`)_ |
 | `guardrail_metrics` | optional | `object[]` | Replaces the guardrail set wholesale (event auto-upserted per entry). |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -1482,7 +1484,7 @@ _Parameters_
 | `event_name` | required | `string` | Source event the query reads from. _(length 1–∞)_ |
 | `query` | optional | `string` | Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`. Every label the query references — in filters, the value position, `by (…)`, or `without (…)` — must exist as a property on the tracked event's payload; a query over a label the event never carries validates fine but returns empty results. _(length 1–4096)_ |
 | `winsorize_pct` | optional | `integer` | Winsorise percentile (1–99) to clamp outliers. Defaults to 99. _(default `99`; 1–99)_ |
-| `min_detectable_effect` | optional | `any` | Minimum detectable effect (relative, 0–1) for power planning. `null` to omit. _(default `null`)_ |
+| `default_min_effect_of_interest` | optional | `any` | Default minimum effect of interest (relative, 0–1) — the smallest change in this metric worth acting on, used as the power-planning baseline. Intrinsic to the metric; an experiment overrides it per-attachment with `min_effect_of_interest` when a specific decision has a different cost/risk bar. `null` to omit. _(default `null`)_ |
 | `direction` | optional | `"higher_better" \| "lower_better" \| "neutral"` | Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail). _(default `"higher_better"`)_ |
 | `query_ir` | optional | `object` | Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body. |
 | `query_ir.agg` | required | `any` | Aggregation function applied to the source event. |
@@ -1567,7 +1569,7 @@ _Parameters_
 | `event_name` | optional | `string` | Source event the query reads from. _(length 1–∞)_ |
 | `query` | optional | `string` | Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`. Every label the query references — in filters, the value position, `by (…)`, or `without (…)` — must exist as a property on the tracked event's payload; a query over a label the event never carries validates fine but returns empty results. _(length 1–4096)_ |
 | `winsorize_pct` | optional | `integer` | Winsorise percentile (1–99) to clamp outliers. Defaults to 99. _(default `99`; 1–99)_ |
-| `min_detectable_effect` | optional | `any` | Minimum detectable effect (relative, 0–1) for power planning. `null` to omit. _(default `null`)_ |
+| `default_min_effect_of_interest` | optional | `any` | Default minimum effect of interest (relative, 0–1) — the smallest change in this metric worth acting on, used as the power-planning baseline. Intrinsic to the metric; an experiment overrides it per-attachment with `min_effect_of_interest` when a specific decision has a different cost/risk bar. `null` to omit. _(default `null`)_ |
 | `direction` | optional | `"higher_better" \| "lower_better" \| "neutral"` | Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail). _(default `"higher_better"`)_ |
 | `query_ir` | optional | `object` | Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body. |
 | `query_ir.agg` | required | `any` | Aggregation function applied to the source event. |

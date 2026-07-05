@@ -38,13 +38,29 @@ export const MCP_URL = "https://mcp.shipeasy.ai/mcp";
  * is not a credential: the server still authenticates you via OAuth and the
  * admin API re-checks your membership of the pinned project on every call.
  */
-export function serverSpec(projectId?: string): { type: "http"; url: string; headers?: Record<string, string> } {
-  const spec: { type: "http"; url: string; headers?: Record<string, string> } = {
+export function serverSpec(projectId?: string): {
+  type: "http";
+  url: string;
+  "//list-guard": string;
+  headers: Record<string, string>;
+} {
+  // Guard header is written DISABLED (`off`, the hosted-server default) so it's
+  // present and discoverable — flip to `on` to require a *_list before each
+  // *_create. `//list-guard` is a JSON-safe comment key (strict JSON has no `//`
+  // comments); it sits beside `headers`, never inside it, so it's never sent as
+  // an HTTP header (a `/` in a header name is invalid anyway).
+  const headers: Record<string, string> = {};
+  if (projectId) headers["X-Project-Id"] = projectId;
+  headers["X-Shipeasy-List-Guard"] = "off";
+  return {
     type: "http",
     url: MCP_URL,
+    "//list-guard":
+      'Set the "X-Shipeasy-List-Guard" header below to "on" to require a *_list before each ' +
+      "*_create — a dedup guard so the agent confirms a resource doesn't already exist before " +
+      'making one. "off" (default) disables it.',
+    headers,
   };
-  if (projectId) spec.headers = { "X-Project-Id": projectId };
-  return spec;
 }
 
 /** The projectless default entry, kept for callers that don't scope a project. */

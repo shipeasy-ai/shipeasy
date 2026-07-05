@@ -228,19 +228,32 @@ describe("registerMcp", () => {
     try {
       registerMcp("cursor", ctx(dir, { projectId: "proj_42" }));
       const cfg = JSON.parse(readFileSync(join(dir, ".cursor", "mcp.json"), "utf8"));
-      expect(cfg.mcpServers.shipeasy.headers).toEqual({ "X-Project-Id": "proj_42" });
+      expect(cfg.mcpServers.shipeasy.headers["X-Project-Id"]).toBe("proj_42");
       expect(cfg.mcpServers.shipeasy.url).toBe("https://mcp.shipeasy.ai/mcp");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  it("omits the header entirely when no project is bound (chosen at OAuth consent)", () => {
+  it("omits X-Project-Id when no project is bound (chosen at OAuth consent)", () => {
     const dir = tmp();
     try {
       registerMcp("copilot", ctx(dir));
       const cfg = JSON.parse(readFileSync(join(dir, ".vscode", "mcp.json"), "utf8"));
-      expect(cfg.servers.shipeasy.headers).toBeUndefined();
+      expect(cfg.servers.shipeasy.headers["X-Project-Id"]).toBeUndefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("auto-adds the list-guard disabled + annotated (X-Shipeasy-List-Guard: off + //list-guard)", () => {
+    const dir = tmp();
+    try {
+      registerMcp("cursor", ctx(dir, { projectId: "proj_42" }));
+      const entry = JSON.parse(readFileSync(join(dir, ".cursor", "mcp.json"), "utf8")).mcpServers
+        .shipeasy;
+      expect(entry.headers["X-Shipeasy-List-Guard"]).toBe("off");
+      expect(entry["//list-guard"]).toMatch(/X-Shipeasy-List-Guard/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

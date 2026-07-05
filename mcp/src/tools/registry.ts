@@ -7,6 +7,22 @@ import {
 import { CUSTOM_TOOLS, CUSTOM_DISPATCH } from "./custom.js";
 import { withListTokenParam } from "./list-guard.js";
 
+// The list-before-create guard surface, re-exported so the remote worker (which
+// can only import `@shipeasy/mcp/registry`, not deep paths) can enforce the same
+// guard the stdio server does — see packages/mcp-worker/src/app.ts.
+export {
+  LIST_TOKEN_PARAM,
+  guardedCreateFamily,
+  verifyToken,
+  listMintsToken,
+  listFamily,
+  mintListToken,
+  listTokenBlock,
+  listGuardError,
+  setGuardSecret,
+  parseGuardToggle,
+} from "./list-guard.js";
+
 /**
  * The full registry-driven MCP surface, projected from the spec — the MCP twin
  * of the CLI's generated command tree. Two layers:

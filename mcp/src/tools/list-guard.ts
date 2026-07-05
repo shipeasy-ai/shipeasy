@@ -87,16 +87,36 @@ export function __resetGuardConfigForTests(): void {
 }
 
 /**
- * Per-process signing secret. Never persisted and never leaves the process — a
- * token is only ever verified by the same process that minted it, which is what
- * makes cross-session replay impossible. Generated lazily on first use, not at
- * module load: the Cloudflare Workers runtime (mcp-worker imports this registry)
- * forbids `randomBytes()` in global scope, so it must run inside a handler.
+ * Signing secret. For the local stdio server it's a per-process random value —
+ * never persisted, verified only by the minting process, so cross-session replay
+ * is impossible. The stateless remote worker instead injects a FIXED secret via
+ * `setGuardSecret()` (a Worker secret binding): its `*_list` mint and the
+ * follow-up `*_create` verify may land on different isolates, so they must share
+ * a key. Generated lazily, not at module load: the Workers runtime forbids
+ * `randomBytes()` in global scope, so it must run inside a handler.
  */
 let _secret: Buffer | null = null;
 function secret(): Buffer {
   if (!_secret) _secret = randomBytes(32);
   return _secret;
+}
+
+/**
+ * Pin the guard's signing secret to a fixed value (the remote worker passes a
+ * Worker secret binding here). Idempotent for the same value; required on any
+ * stateless/multi-isolate host so a token minted in one isolate verifies in
+ * another. No-op for an empty value so a missing binding can't silently install
+ * a weak all-zero key. Not called by the stdio server (it keeps the random key).
+ */
+export function setGuardSecret(sec: string | Uint8Array | null | undefined): void {
+  if (sec == null || (typeof sec === "string" && sec.trim() === "") || sec.length === 0) return;
+  _secret = Buffer.from(sec as Uint8Array | string);
+}
+
+/** Parse a guard on/off value (e.g. an `X-Shipeasy-List-Guard` header) with an
+ *  explicit default — the header-transport analogue of the env `SHIPEASY_MCP_LIST_GUARD`. */
+export function parseGuardToggle(v: string | null | undefined, dflt: boolean): boolean {
+  return parseBool(v ?? undefined, dflt);
 }
 
 /** The coarse time bucket `now` falls into. Exported for tests. */
