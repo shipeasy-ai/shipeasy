@@ -64,6 +64,29 @@ describe("parseTranscript", () => {
     expect(obs.skills).toEqual(["shipeasy-ops-work"]);
   });
 
+  it("credits a skill whose SKILL.md was Read (consulted, not Skill-invoked)", () => {
+    const obs = parseTranscript(
+      assistant([
+        {
+          name: "Read",
+          input: { file_path: "/x/.eval-workdir/.claude/skills/shipeasy-flags/SKILL.md" },
+        },
+      ]),
+      KNOWN,
+    );
+    expect(obs.skills).toEqual(["shipeasy-flags"]);
+    // The Read itself is still recorded among the non-skill tools.
+    expect(obs.otherTools).toContain("Read");
+  });
+
+  it("does not credit a Read of a file outside any skill dir", () => {
+    const obs = parseTranscript(
+      assistant([{ name: "Read", input: { file_path: "/x/app/checkout/page.tsx" } }]),
+      KNOWN,
+    );
+    expect(obs.skills).toEqual([]);
+  });
+
   it("classifies non-MCP, non-Skill tools as otherTools", () => {
     const obs = parseTranscript(
       assistant([

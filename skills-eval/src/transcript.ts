@@ -82,6 +82,17 @@ function parseClaudeTranscript(ndjson: string, knownSkills: Iterable<string>): O
         const suffix = block.name.slice(MCP_PREFIX.length);
         tools.push(suffix);
         toolCalls.push({ name: suffix, inputText: JSON.stringify(block.input ?? "") });
+      } else if (block.name === "Read") {
+        // A skill consulted by READING its SKILL.md (or a file under its skill
+        // dir) counts as fired. Headless Haiku frequently opens
+        // `.claude/skills/<name>/SKILL.md` directly instead of invoking the
+        // Skill tool — especially for a code-instrumentation skill like
+        // shipeasy-see that has no MCP tool to corroborate and whose deliverable
+        // (a code edit) the sandbox forbids. Either way the skill's guidance was
+        // loaded, which is what the `skill` dimension is measuring.
+        const s = skillFromSkillDocPath(block.input, skillNames);
+        if (s && !skills.includes(s)) skills.push(s);
+        otherTools.push(block.name);
       } else {
         if (block.name === "AskUserQuestion") askedUser = true;
         otherTools.push(block.name);
@@ -234,6 +245,21 @@ function matchSkill(input: unknown, skillNames: string[]): string | undefined {
     if (hay.includes(name.toLowerCase())) return name;
   }
   return undefined;
+}
+
+/**
+ * The skill whose doc a `Read` opened, or `undefined`. Matches a `file_path`
+ * under `.claude/skills/<name>/` (the SKILL.md or any of its reference files)
+ * against the known skill names — reading a skill's own doc is the same
+ * "guidance was loaded" signal as invoking it via the Skill tool.
+ */
+function skillFromSkillDocPath(input: unknown, skillNames: string[]): string | undefined {
+  if (!isObject(input)) return undefined;
+  const raw = input.file_path ?? input.path;
+  if (typeof raw !== "string") return undefined;
+  const dir = raw.match(/\.claude\/skills\/([^/]+)\//)?.[1]?.toLowerCase();
+  if (!dir) return undefined;
+  return skillNames.find((n) => n.toLowerCase() === dir);
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {

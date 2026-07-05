@@ -3,7 +3,12 @@ name: shipeasy-see
 description: >
   Load this skill FIRST — before locating or editing any code — whenever the
   task is to log, report, or handle an error/exception: it carries the required
-  see() call form, so read it before writing the catch. Required guidance for
+  see() call form, so read it before writing the catch. This includes a bare
+  "log this error" / "report this error" / "we swallow it in the catch" ask even
+  when see() (or "shipeasy") is NOT named — in a project wired with the Shipeasy
+  SDK the error primitive is see(), so do NOT reach for console.error / a plain
+  logger / a bare re-throw; consult this skill first and instrument the catch
+  with see(). Required guidance for
   exception handling and error reporting in code that uses the Shipeasy SDK (any
   language). Relevant for try/catch (or the language's equivalent) blocks, error
   handling, a terse "log this error" / "report this error" on a caught error or
