@@ -344,6 +344,117 @@
       name: link-pr
       positional:
         - handle
+/api/admin/ops/{handle}/comments:
+  get:
+    operationId: listOpsComments
+    summary: List an item's comments
+    description: |-
+      List the comment thread on a queue item, oldest first. Each comment
+      carries its author (a teammate email, or `system` for a comment authored by
+      Jarvis — the AI agent), its markdown body, and `parentId` for the single
+      level of threaded replies. Removed comments are omitted.
+
+      **Use case:** Read the discussion on an item before replying or acting on it.
+    tags:
+      - Comments
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: handle
+        in: path
+        required: true
+        description: Per-project item number (e.g. `7`) or the full ops item id.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    responses:
+      "200":
+        description: List an item's comments
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/ListOpsCommentsResponse
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: list
+      positional:
+        - handle
+  post:
+    operationId: createOpsComment
+    summary: Comment on an item
+    description: |-
+      Append a comment to a queue item's thread. The body is markdown (mentions
+      like `@teammate` notify that person; `@shipeasy` asks Jarvis, the AI agent,
+      to reply). Pass `parentId` to reply under an existing top-level comment
+      (one level of threading — a reply to a reply attaches to the same parent).
+
+      Create-only and append-only, so it is safe for restricted ops keys — the
+      same channel the ops loop and Jarvis use to leave a note on an item.
+    tags:
+      - Comments
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: handle
+        in: path
+        required: true
+        description: Per-project item number (e.g. `7`) or the full ops item id.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/CreateOpsCommentRequest
+          examples:
+            comment:
+              summary: Leave a comment
+              value:
+                body: "Repro'd on iOS Safari 17 — the button overflows its container. cc @alice"
+            reply:
+              summary: Reply under an existing comment
+              value:
+                body: "Agreed, let's ship the fix behind @shipeasy's suggested flag."
+                parentId: cm_01j7w8a1b2c3d4e5f6g7h8i9j0
+    responses:
+      "201":
+        description: Comment on an item
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/CreateOpsCommentResponse
+            example:
+              id: cm_01j7w8a1b2c3d4e5f6g7h8i9j0
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: create
+      positional:
+        - handle
 /api/admin/notifications:
   post:
     operationId: notifyOps

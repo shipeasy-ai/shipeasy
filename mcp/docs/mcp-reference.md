@@ -2101,6 +2101,65 @@ _Errors_ — beyond the [common errors](#errors):
 - `IMMUTABLE_FIELD` — A field that is immutable in the current state was modified (e.g. editing allocation while running).
 - `VALIDATION` — The request body failed structural (schema) validation.
 
+### Comments
+
+Comments on a queue item — the discussion thread that hangs off any bug,
+feature request, or auto-filed error/alert ticket. Append a comment or read
+the thread; one level of threaded replies via `parentId`.
+
+**Mentions.** `@teammate` in a body raises an in-app notification for that
+person; `@shipeasy` asks Jarvis (the AI agent) to read the item and reply.
+Comments authored by Jarvis carry `authorType: system`.
+
+#### `ops_comments_create`
+
+**Comment on an item**
+
+Append a comment to a queue item's thread. The body is markdown (mentions
+like `@teammate` notify that person; `@shipeasy` asks Jarvis, the AI agent,
+to reply). Pass `parentId` to reply under an existing top-level comment
+(one level of threading — a reply to a reply attaches to the same parent).
+
+Create-only and append-only, so it is safe for restricted ops keys — the
+same channel the ops loop and Jarvis use to leave a note on an item.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `body` | required | `string` | The comment body as markdown. Mentions (`@teammate`, `@shipeasy`) are parsed from it. _(length 1–10000)_ |
+| `parentId` | optional | `any` | Reply under this top-level comment. Omit / `null` for a top-level comment. Replying to a reply attaches to the same top-level parent (threading is one level deep). |
+| `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `ops_comments_list` call. It proves you listed existing ops comments and confirmed this one doesn't already exist before creating it. Call `ops_comments_list` first if you don't have a fresh token. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+#### `ops_comments_list`
+
+**List an item's comments**
+
+List the comment thread on a queue item, oldest first. Each comment
+carries its author (a teammate email, or `system` for a comment authored by
+Jarvis — the AI agent), its markdown body, and `parentId` for the single
+level of threaded replies. Removed comments are omitted.
+
+**Use case:** Read the discussion on an item before replying or acting on it.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
 ### Trigger
 
 Recurring coding-agent triggers: the scheduled, unattended runs that burn
@@ -2241,7 +2300,10 @@ _Parameters_
 | `minSampleSize` | optional | `integer` | Verdict power guard — minimum users per arm before a ship/hold verdict. _(2–1000000)_ |
 | `minRuntimeDays` | optional | `integer` | Minimum days an experiment must run before a verdict (peeking guard). _(0–365)_ |
 | `defaultPower` | optional | `number` | Target statistical power (1−β) feeding the realized-MDE calculation. _(0.5–0.99)_ |
-| `ciConfidence` | optional | `0.95 \| 0.99` | Confidence level for the interval surfaced on results. |
+| `ciConfidence` | optional | `number` | Confidence level for the interval surfaced on results (any value in [0.5, 0.999], e.g. 0.90, 0.95, 0.975, 0.99). _(0.5–0.999)_ |
+| `defaultAllocationPct` | optional | `integer` | Default traffic allocation (basis points, 1000 = 10%) new experiments start with; overridable per experiment. _(1–10000)_ |
+| `defaultWinsorizePct` | optional | `integer` | Default winsorization percentile new metrics start with; overridable per metric. _(1–99)_ |
+| `defaultMei` | optional | `any` | Default minimum effect of interest (relative, 0–1) new metrics start with; overridable per metric and per experiment. Null clears it. |
 | `cupedBaselineDays` | optional | `integer` | CUPED baseline window — days of pre-experiment history, frozen at start. _(1–365)_ |
 | `cupedMinOverlap` | optional | `number` | CUPED selection-bias guard — min share of users with a baseline, else skip. _(0.01–0.99)_ |
 | `cupedMinBaselineUsers` | optional | `integer` | CUPED — minimum users with a baseline before it runs at all. _(10–100000)_ |

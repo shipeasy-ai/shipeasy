@@ -1953,6 +1953,47 @@ export const zLinkPrToOpsItemResponse = z.object({
 });
 
 /**
+ * Who wrote a comment. `user` is a teammate (their email is in `authorEmail`); `system` is Jarvis — the AI agent — which authors comments when an ops-notify escalation lands on the item and when it is `@shipeasy`-mentioned in a thread.
+ */
+export const zOpsCommentAuthorType = z.enum(['user', 'system']);
+
+/**
+ * A single comment on a queue item.
+ */
+export const zOpsComment = z.object({
+    id: z.string(),
+    feedbackId: z.string(),
+    parentId: z.string().nullable(),
+    authorType: zOpsCommentAuthorType,
+    authorEmail: z.string().nullable(),
+    body: z.string(),
+    createdAt: z.string(),
+    updatedAt: z.string()
+});
+
+/**
+ * Response for `GET /api/admin/ops/{handle}/comments` — the thread, oldest first.
+ */
+export const zListOpsCommentsResponse = z.object({
+    comments: z.array(zOpsComment)
+});
+
+/**
+ * Body for `POST /api/admin/ops/{handle}/comments`.
+ */
+export const zCreateOpsCommentRequest = z.object({
+    body: z.string().min(1).max(10000),
+    parentId: z.string().nullish()
+});
+
+/**
+ * Response for `POST /api/admin/ops/{handle}/comments`.
+ */
+export const zCreateOpsCommentResponse = z.object({
+    id: z.string()
+});
+
+/**
  * Body for `POST /api/admin/notifications`. In `title`, `summary`, and each step, reference admin entities inline with tokens — `#42` (feedback item), `@gate:<name>` (alias `@flag:`), `@experiment:<name>` (`@exp:`), `@config:<name>`, `@killswitch:<name>` (`@ks:`), `@metric:<name>`, `@universe:<name>`, `@alert:<name>` — where `<name>` is the entity's immutable name/slug (e.g. `features.checkout`). The dashboard renders each token as a live hover chip deep-linking to the entity; tokens degrade to plain text elsewhere, so they're always safe to use.
  */
 export const zNotifyOpsRequest = z.object({
@@ -3749,6 +3790,34 @@ export const zLinkPrToOpsItemPath = z.object({
  * Link a fixing PR
  */
 export const zLinkPrToOpsItemResponse2 = zLinkPrToOpsItemResponse;
+
+export const zListOpsCommentsHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zListOpsCommentsPath = z.object({
+    handle: zResourceId
+});
+
+/**
+ * List an item's comments
+ */
+export const zListOpsCommentsResponse2 = zListOpsCommentsResponse;
+
+export const zCreateOpsCommentBody = zCreateOpsCommentRequest;
+
+export const zCreateOpsCommentHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zCreateOpsCommentPath = z.object({
+    handle: zResourceId
+});
+
+/**
+ * Comment on an item
+ */
+export const zCreateOpsCommentResponse2 = zCreateOpsCommentResponse;
 
 export const zNotifyOpsBody = zNotifyOpsRequest;
 

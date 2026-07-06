@@ -180,6 +180,16 @@ tags:
       **Immutable metric.** The bound metric (and its aggregation) is fixed at create time — there is no update path for `metricId`. Tune `threshold`/`comparator`/`windowHours`/`severity`/`name`/`enabled` instead, or delete + recreate to repoint the rule at a different metric.
 
       **Delivery.** `notify` optionally targets a Slack channel and/or email for this rule; `null` falls back to the project's default notification settings. Slack targets require a connected Slack connector.
+  - name: Comments
+    parent: Ops
+    description: |-
+      Comments on a queue item — the discussion thread that hangs off any bug,
+      feature request, or auto-filed error/alert ticket. Append a comment or read
+      the thread; one level of threaded replies via `parentId`.
+
+      **Mentions.** `@teammate` in a body raises an in-app notification for that
+      person; `@shipeasy` asks Jarvis (the AI agent) to read the item and reply.
+      Comments authored by Jarvis carry `authorType: system`.
   - name: Projects
     description: |-
       Projects: the account-level container every other resource is scoped to.
@@ -304,6 +314,8 @@ paths:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}
   /api/admin/ops/{handle}/link-pr:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1link-pr
+  /api/admin/ops/{handle}/comments:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1comments
   /api/admin/notifications:
     $ref: ./paths/ops.yaml#/~1api~1admin~1notifications
   /api/admin/slack/channels:

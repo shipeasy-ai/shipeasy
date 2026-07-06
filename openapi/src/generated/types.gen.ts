@@ -3398,6 +3398,77 @@ export type LinkPrToOpsItemResponse = {
 };
 
 /**
+ * Who wrote a comment. `user` is a teammate (their email is in `authorEmail`); `system` is Jarvis — the AI agent — which authors comments when an ops-notify escalation lands on the item and when it is `@shipeasy`-mentioned in a thread.
+ */
+export type OpsCommentAuthorType = 'user' | 'system';
+
+/**
+ * A single comment on a queue item.
+ */
+export type OpsComment = {
+    /**
+     * Comment id.
+     */
+    id: string;
+    /**
+     * The queue item this comment hangs off.
+     */
+    feedbackId: string;
+    /**
+     * The top-level comment this is a reply to, or `null` for a top-level comment.
+     */
+    parentId: string | null;
+    authorType: OpsCommentAuthorType;
+    /**
+     * The teammate who wrote it, or `null` for a `system` (Jarvis) comment.
+     */
+    authorEmail: string | null;
+    /**
+     * Comment body as markdown (may contain sanitised inline image/video embeds).
+     */
+    body: string;
+    /**
+     * ISO-8601 creation timestamp.
+     */
+    createdAt: string;
+    /**
+     * ISO-8601 last-edit timestamp.
+     */
+    updatedAt: string;
+};
+
+/**
+ * Response for `GET /api/admin/ops/{handle}/comments` — the thread, oldest first.
+ */
+export type ListOpsCommentsResponse = {
+    comments: Array<OpsComment>;
+};
+
+/**
+ * Body for `POST /api/admin/ops/{handle}/comments`.
+ */
+export type CreateOpsCommentRequest = {
+    /**
+     * The comment body as markdown. Mentions (`@teammate`, `@shipeasy`) are parsed from it.
+     */
+    body: string;
+    /**
+     * Reply under this top-level comment. Omit / `null` for a top-level comment. Replying to a reply attaches to the same top-level parent (threading is one level deep).
+     */
+    parentId?: string | null;
+};
+
+/**
+ * Response for `POST /api/admin/ops/{handle}/comments`.
+ */
+export type CreateOpsCommentResponse = {
+    /**
+     * Newly created comment id.
+     */
+    id: string;
+};
+
+/**
  * Body for `POST /api/admin/notifications`. In `title`, `summary`, and each step, reference admin entities inline with tokens — `#42` (feedback item), `@gate:<name>` (alias `@flag:`), `@experiment:<name>` (`@exp:`), `@config:<name>`, `@killswitch:<name>` (`@ks:`), `@metric:<name>`, `@universe:<name>`, `@alert:<name>` — where `<name>` is the entity's immutable name/slug (e.g. `features.checkout`). The dashboard renders each token as a live hover chip deep-linking to the entity; tokens degrade to plain text elsewhere, so they're always safe to use.
  */
 export type NotifyOpsRequest = {
@@ -8699,6 +8770,106 @@ export type LinkPrToOpsItemResponses = {
 };
 
 export type LinkPrToOpsItemResponse2 = LinkPrToOpsItemResponses[keyof LinkPrToOpsItemResponses];
+
+export type ListOpsCommentsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Per-project item number (e.g. `7`) or the full ops item id.
+         */
+        handle: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/ops/{handle}/comments';
+};
+
+export type ListOpsCommentsErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+};
+
+export type ListOpsCommentsError = ListOpsCommentsErrors[keyof ListOpsCommentsErrors];
+
+export type ListOpsCommentsResponses = {
+    /**
+     * List an item's comments
+     */
+    200: ListOpsCommentsResponse;
+};
+
+export type ListOpsCommentsResponse2 = ListOpsCommentsResponses[keyof ListOpsCommentsResponses];
+
+export type CreateOpsCommentData = {
+    body: CreateOpsCommentRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Per-project item number (e.g. `7`) or the full ops item id.
+         */
+        handle: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/ops/{handle}/comments';
+};
+
+export type CreateOpsCommentErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type CreateOpsCommentError = CreateOpsCommentErrors[keyof CreateOpsCommentErrors];
+
+export type CreateOpsCommentResponses = {
+    /**
+     * Comment on an item
+     */
+    201: CreateOpsCommentResponse;
+};
+
+export type CreateOpsCommentResponse2 = CreateOpsCommentResponses[keyof CreateOpsCommentResponses];
 
 export type NotifyOpsData = {
     body: NotifyOpsRequest;

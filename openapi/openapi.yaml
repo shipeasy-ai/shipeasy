@@ -178,6 +178,16 @@ tags:
       **Immutable metric.** The bound metric (and its aggregation) is fixed at create time — there is no update path for `metricId`. Tune `threshold`/`comparator`/`windowHours`/`severity`/`name`/`enabled` instead, or delete + recreate to repoint the rule at a different metric.
 
       **Delivery.** `notify` optionally targets a Slack channel and/or email for this rule; `null` falls back to the project's default notification settings. Slack targets require a connected Slack connector.
+  - name: Comments
+    parent: Ops
+    description: |-
+      Comments on a queue item — the discussion thread that hangs off any bug,
+      feature request, or auto-filed error/alert ticket. Append a comment or read
+      the thread; one level of threaded replies via `parentId`.
+
+      **Mentions.** `@teammate` in a body raises an in-app notification for that
+      person; `@shipeasy` asks Jarvis (the AI agent) to read the item and reply.
+      Comments authored by Jarvis carry `authorType: system`.
   - name: Projects
     description: |-
       Projects: the account-level container every other resource is scoped to.
@@ -4704,6 +4714,117 @@ paths:
         - VALIDATION
       x-cli:
         name: link-pr
+        positional:
+          - handle
+  /api/admin/ops/{handle}/comments:
+    get:
+      operationId: listOpsComments
+      summary: List an item's comments
+      description: |-
+        List the comment thread on a queue item, oldest first. Each comment
+        carries its author (a teammate email, or `system` for a comment authored by
+        Jarvis — the AI agent), its markdown body, and `parentId` for the single
+        level of threaded replies. Removed comments are omitted.
+
+        **Use case:** Read the discussion on an item before replying or acting on it.
+      tags:
+        - Comments
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: handle
+          in: path
+          required: true
+          description: Per-project item number (e.g. `7`) or the full ops item id.
+          schema:
+            $ref: '#/components/schemas/ResourceId'
+      responses:
+        '200':
+          description: List an item's comments
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListOpsCommentsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+      x-cli:
+        name: list
+        positional:
+          - handle
+    post:
+      operationId: createOpsComment
+      summary: Comment on an item
+      description: |-
+        Append a comment to a queue item's thread. The body is markdown (mentions
+        like `@teammate` notify that person; `@shipeasy` asks Jarvis, the AI agent,
+        to reply). Pass `parentId` to reply under an existing top-level comment
+        (one level of threading — a reply to a reply attaches to the same parent).
+
+        Create-only and append-only, so it is safe for restricted ops keys — the
+        same channel the ops loop and Jarvis use to leave a note on an item.
+      tags:
+        - Comments
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: handle
+          in: path
+          required: true
+          description: Per-project item number (e.g. `7`) or the full ops item id.
+          schema:
+            $ref: '#/components/schemas/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOpsCommentRequest'
+            examples:
+              comment:
+                summary: Leave a comment
+                value:
+                  body: Repro'd on iOS Safari 17 — the button overflows its container. cc @alice
+              reply:
+                summary: Reply under an existing comment
+                value:
+                  body: Agreed, let's ship the fix behind @shipeasy's suggested flag.
+                  parentId: cm_01j7w8a1b2c3d4e5f6g7h8i9j0
+      responses:
+        '201':
+          description: Comment on an item
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateOpsCommentResponse'
+              example:
+                id: cm_01j7w8a1b2c3d4e5f6g7h8i9j0
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+        - VALIDATION
+      x-cli:
+        name: create
         positional:
           - handle
   /api/admin/notifications:
@@ -12233,6 +12354,91 @@ components:
         - id
       additionalProperties: false
       description: Response for the update / link-pr endpoints.
+    OpsCommentAuthorType:
+      type: string
+      enum:
+        - user
+        - system
+      description: Who wrote a comment. `user` is a teammate (their email is in `authorEmail`); `system` is Jarvis — the AI agent — which authors comments when an ops-notify escalation lands on the item and when it is `@shipeasy`-mentioned in a thread.
+    OpsComment:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Comment id.
+        feedbackId:
+          type: string
+          description: The queue item this comment hangs off.
+        parentId:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: The top-level comment this is a reply to, or `null` for a top-level comment.
+        authorType:
+          $ref: '#/components/schemas/OpsCommentAuthorType'
+        authorEmail:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: The teammate who wrote it, or `null` for a `system` (Jarvis) comment.
+        body:
+          type: string
+          description: Comment body as markdown (may contain sanitised inline image/video embeds).
+        createdAt:
+          type: string
+          description: ISO-8601 creation timestamp.
+        updatedAt:
+          type: string
+          description: ISO-8601 last-edit timestamp.
+      required:
+        - id
+        - feedbackId
+        - parentId
+        - authorType
+        - authorEmail
+        - body
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+      description: A single comment on a queue item.
+    ListOpsCommentsResponse:
+      type: object
+      properties:
+        comments:
+          type: array
+          items:
+            $ref: '#/components/schemas/OpsComment'
+      required:
+        - comments
+      additionalProperties: false
+      description: Response for `GET /api/admin/ops/{handle}/comments` — the thread, oldest first.
+    CreateOpsCommentRequest:
+      type: object
+      properties:
+        body:
+          type: string
+          minLength: 1
+          maxLength: 10000
+          description: The comment body as markdown. Mentions (`@teammate`, `@shipeasy`) are parsed from it.
+        parentId:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: Reply under this top-level comment. Omit / `null` for a top-level comment. Replying to a reply attaches to the same top-level parent (threading is one level deep).
+      required:
+        - body
+      additionalProperties: false
+      description: Body for `POST /api/admin/ops/{handle}/comments`.
+    CreateOpsCommentResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Newly created comment id.
+      required:
+        - id
+      additionalProperties: false
+      description: Response for `POST /api/admin/ops/{handle}/comments`.
     NotifyOpsRequest:
       type: object
       properties:

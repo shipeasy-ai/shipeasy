@@ -421,6 +421,47 @@ shipeasy ops alerts archive [options] <id>
 | --- | --- | --- |
 | `--data <value>` | optional | Request body as a JSON object. |
 
+### `shipeasy ops comments`
+
+Comments on a queue item — the discussion thread that hangs off any bug, feature request, or auto-filed error/alert ticket.
+
+```bash
+shipeasy ops comments [options] [command]
+```
+
+#### `shipeasy ops comments list`
+
+List an item's comments
+
+```bash
+shipeasy ops comments list [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+#### `shipeasy ops comments create`
+
+Comment on an item
+
+```bash
+shipeasy ops comments create [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--body <value>` | optional | The comment body as markdown. Mentions (`@teammate`, `@shipeasy`) are parsed from it. |
+| `--parent-id <value>` | optional | Reply under this top-level comment. Omit / `null` for a top-level comment. Replying to a reply attaches to the same top-level parent (threading is one level deep). |
+
 ### `shipeasy ops trigger`
 
 Recurring coding-agent triggers: the scheduled, unattended runs that burn down the ops queue in `--pr` mode (one PR per fixed item; nothing auto-merges).
@@ -774,7 +815,10 @@ shipeasy projects update [options] <id>
 | `--min-sample-size <value>` | optional | Verdict power guard — minimum users per arm before a ship/hold verdict. |
 | `--min-runtime-days <value>` | optional | Minimum days an experiment must run before a verdict (peeking guard). |
 | `--default-power <value>` | optional | Target statistical power (1−β) feeding the realized-MDE calculation. |
-| `--ci-confidence <value>` | optional | Confidence level for the interval surfaced on results. |
+| `--ci-confidence <value>` | optional | Confidence level for the interval surfaced on results (any value in [0.5, 0.999], e.g. 0.90, 0.95, 0.975, 0.99). |
+| `--default-allocation-pct <value>` | optional | Default traffic allocation (basis points, 1000 = 10%) new experiments start with; overridable per experiment. |
+| `--default-winsorize-pct <value>` | optional | Default winsorization percentile new metrics start with; overridable per metric. |
+| `--default-mei <value>` | optional | Default minimum effect of interest (relative, 0–1) new metrics start with; overridable per metric and per experiment. Null clears it. |
 | `--cuped-baseline-days <value>` | optional | CUPED baseline window — days of pre-experiment history, frozen at start. |
 | `--cuped-min-overlap <value>` | optional | CUPED selection-bias guard — min share of users with a baseline, else skip. |
 | `--cuped-min-baseline-users <value>` | optional | CUPED — minimum users with a baseline before it runs at all. |
