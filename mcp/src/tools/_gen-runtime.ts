@@ -32,9 +32,16 @@ export type SdkResult = { data?: unknown; error?: unknown; response?: Response }
 export function unwrap(result: SdkResult): unknown {
   const { data, error, response } = result;
   if (error || !response || !response.ok) {
-    const body = error as { error?: string; code?: string } | undefined;
+    const body = error as { error?: string; code?: string; instructions?: string } | undefined;
     const status = response?.status ?? 0;
-    throw new ApiError(body?.error ?? `HTTP ${status}`, status, body?.code);
+    // Fold the envelope's `instructions` (actionable guidance — e.g. the expected
+    // config schema on a value/schema mismatch) into the surfaced message. The
+    // MCP tool result only renders the thrown message, so without this the
+    // carefully authored guidance on core's ApiErrors never reaches the agent.
+    const parts = [body?.error ?? `HTTP ${status}`, body?.instructions].filter(
+      (p): p is string => typeof p === "string" && p.length > 0,
+    );
+    throw new ApiError(parts.join("\n"), status, body?.code);
   }
   return data;
 }

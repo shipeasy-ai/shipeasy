@@ -1,6 +1,47 @@
 import { describe, expect, it } from "vitest";
 
-import { reviveStructuredArgs } from "../_gen-runtime.js";
+import { ApiError, reviveStructuredArgs, unwrap } from "../_gen-runtime.js";
+
+const res = (status: number) =>
+  ({ ok: status >= 200 && status < 300, status }) as Response;
+
+describe("unwrap", () => {
+  it("returns data on success", () => {
+    expect(unwrap({ data: { id: "cfg_1" }, response: res(200) })).toEqual({ id: "cfg_1" });
+  });
+
+  it("folds `instructions` into the thrown message so guidance reaches the agent", () => {
+    try {
+      unwrap({
+        error: {
+          error: "Config value does not match schema: /tiers: must be array",
+          code: "VALIDATION",
+          instructions: "Fix `value` … Expected schema:\n{\n  \"type\": \"object\"\n}",
+        },
+        response: res(400),
+      });
+      throw new Error("expected unwrap to throw");
+    } catch (e) {
+      expect(e).toBeInstanceOf(ApiError);
+      const err = e as ApiError;
+      expect(err.status).toBe(400);
+      expect(err.code).toBe("VALIDATION");
+      expect(err.message).toContain("does not match schema");
+      // the expected schema (carried in instructions) is now visible
+      expect(err.message).toContain("Expected schema:");
+      expect(err.message).toContain('"type": "object"');
+    }
+  });
+
+  it("falls back to an HTTP status line when the body has no message", () => {
+    try {
+      unwrap({ error: {}, response: res(500) });
+      throw new Error("expected unwrap to throw");
+    } catch (e) {
+      expect((e as ApiError).message).toBe("HTTP 500");
+    }
+  });
+});
 
 // The config-draft tool's real shape: `value` is freeform (no `type`), which is
 // exactly what makes an MCP host stringify an object argument.
