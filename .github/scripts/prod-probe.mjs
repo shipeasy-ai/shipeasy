@@ -1047,15 +1047,13 @@ async function probeStatsEffect() {
     return;
   }
   const rnd = (lo, hi) => lo + Math.random() * (hi - lo);
-  const proj = (() => {
-    try {
-      return cli(["projects", "current"]);
-    } catch {
-      return null;
-    }
-  })();
+  const proj = await readProject();
+  if (proj && !hasStatsKnobs(proj)) {
+    console.log("stats-effect leg: project stats knobs absent — prod UI worker predates the per-project-stats-settings deploy; skipping (soft)");
+    return;
+  }
   if (!proj?.id) {
-    annotate("stats-effect: `projects current` returned no id");
+    annotate("stats-effect: could not read project via admin API");
     failed++;
     return;
   }
@@ -1734,13 +1732,27 @@ async function probeConditionRollout() {
 
 const STATS_UNIVERSE = process.env.SHIPEASY_PROBE_STATS_UNIVERSE || "probe_stats";
 
-const projectCurrent = () => {
+// Read the bound project via the admin API. NOTE: `projects current`
+// (getCurrentProject) is NOT a real route — /api/admin/projects/current collides
+// with /projects/[id] (id="current") and 403s — so read the project by its id
+// (SHIPEASY_PROJECT_ID) through the withAdmin GET, which returns the full row incl.
+// the stats knobs. Returns null when unavailable.
+async function readProject() {
+  const id = process.env.SHIPEASY_PROJECT_ID || "";
+  if (!APP_URL || !id) return null;
   try {
-    return cli(["projects", "current"]);
+    const res = await fetch(`${APP_URL}/api/admin/projects/${id}`, { headers: ADMIN_H });
+    if (!res.ok) return null;
+    return await res.json();
   } catch {
     return null;
   }
-};
+}
+// True once the deployed backend carries the per-project stats knobs. When false,
+// the deployed UI worker predates the per-project-stats-settings feature, so a
+// `projects update <knob>` would 422 ("unrecognized key") — the stats legs
+// soft-skip rather than fail, and light up automatically once prod redeploys.
+const hasStatsKnobs = (proj) => proj != null && proj.msprtTauMeiFactor != null;
 const setProjKnob = (id, flag, val) => cliText(["projects", "update", id, flag, String(val)]);
 
 // Chunked POST to /collect (text/plain JSON, client key). Returns true on success.
@@ -1874,9 +1886,13 @@ async function probeSequentialTau() {
     console.log("mSPRT-τ leg: SHIPEASY_CLIENT_KEY unset — skipping");
     return;
   }
-  const proj = projectCurrent();
+  const proj = await readProject();
+  if (proj && !hasStatsKnobs(proj)) {
+    console.log("mSPRT-τ leg: project stats knobs absent — prod UI worker predates the per-project-stats-settings deploy; skipping (soft)");
+    return;
+  }
   if (!proj?.id) {
-    annotate("mSPRT-τ: `projects current` returned no id");
+    annotate("mSPRT-τ: could not read project via admin API");
     failed++;
     return;
   }
@@ -1983,9 +1999,13 @@ async function probeCupedGates() {
     console.log("CUPED leg: SHIPEASY_CLIENT_KEY unset — skipping");
     return;
   }
-  const proj = projectCurrent();
+  const proj = await readProject();
+  if (proj && !hasStatsKnobs(proj)) {
+    console.log("CUPED leg: project stats knobs absent — prod UI worker predates the per-project-stats-settings deploy; skipping (soft)");
+    return;
+  }
   if (!proj?.id) {
-    annotate("CUPED: `projects current` returned no id");
+    annotate("CUPED: could not read project via admin API");
     failed++;
     return;
   }
@@ -2135,9 +2155,13 @@ async function probeVerdictGates() {
     console.log("verdict-gates leg: SHIPEASY_CLIENT_KEY unset — skipping");
     return;
   }
-  const proj = projectCurrent();
+  const proj = await readProject();
+  if (proj && !hasStatsKnobs(proj)) {
+    console.log("verdict-gates leg: project stats knobs absent — prod UI worker predates the per-project-stats-settings deploy; skipping (soft)");
+    return;
+  }
   if (!proj?.id) {
-    annotate("verdict-gates: `projects current` returned no id");
+    annotate("verdict-gates: could not read project via admin API");
     failed++;
     return;
   }
@@ -2216,7 +2240,7 @@ async function probeVerdictGates() {
     // display intervals. (The pipeline computes ci95 + ci99 regardless of the
     // knob, so there's no analysis effect to assert — only the display inputs.)
     setProjKnob(proj.id, "--ci-confidence", 0.99);
-    const after = projectCurrent();
+    const after = await readProject();
     if (after?.ciConfidence === 0.99) ok("ci_confidence round-trips through project settings (0.99)");
     else {
       annotate(`ci_confidence did not round-trip: read back ${after?.ciConfidence} (want 0.99)`);
