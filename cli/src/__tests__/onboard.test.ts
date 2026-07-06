@@ -309,6 +309,14 @@ describe("buildWiringDoc", () => {
     expect(doc).toContain("BEGIN installation doc (sdk: typescript)");
     expect(doc).toContain("shipeasy({ serverKey })");
     expect(doc).toContain("Target 2: `services/api/`");
+    // Every target gets the identity / targeting-attributes wiring step, pointing at
+    // its own SDK's configuration doc and the read-only attributes-schema check.
+    expect(doc).toContain("Wire user identity + targeting attributes");
+    expect(doc).toContain("shipeasy docs get --sdk typescript configuration");
+    expect(doc).toContain("shipeasy docs get --sdk ruby configuration");
+    expect(doc).toContain("shipeasy release flags attributes list");
+    // Browser target also feeds the same transform through identify().
+    expect(doc).toContain("identify()`s the visitor");
     // Target 2 has no fetched doc → falls back to the docs-get instruction.
     expect(doc).toContain("shipeasy docs get --sdk ruby installation");
     expect(doc).toContain('add `gem "shipeasy-sdk"`');

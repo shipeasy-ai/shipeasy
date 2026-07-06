@@ -191,16 +191,36 @@ function targetSection(i: number, t: WiringTarget): string {
       `      Detected entry point(s): ${t.entryPoints.map((e) => `\`${e}\``).join(", ")}.`,
     );
   }
+  lines.push(
+    `- [ ] **Wire user identity + targeting attributes** — do NOT skip. With no` +
+      ` attributes every evaluation sees an empty context, so only default rules and` +
+      ` 100% rollouts fire and experiments cannot bucket. First READ this codebase to` +
+      ` find the best targeting attributes: inspect the auth / session / user model` +
+      ` (login, middleware, the request \`user\`/session object, the ORM user schema)` +
+      ` and pick the stable, high-signal keys this app can actually supply — a stable` +
+      ` \`user_id\` (the bucketing unit; fall back to a persisted \`anonymous_id\` for` +
+      ` logged-out visitors), plus whatever exists here: plan/tier, country/region,` +
+      ` locale, org/company id, role, signup cohort. Do NOT invent attributes the app` +
+      ` can't provide. Then wire them through the SDK's OWN identity mechanism — the` +
+      ` \`attributes\`/identify transform registered on the init call — mapping YOUR` +
+      ` user object → the attribute bag. Use the exact signature from the installation` +
+      ` doc above (full reference: \`shipeasy docs get --sdk ${t.sdk} configuration\`).` +
+      ` Never hard-code a single user; the transform runs per bound client.`,
+  );
   if (t.browser) {
     lines.push(
       `- [ ] Also initialise the browser SDK once at client startup with the PUBLIC client` +
-        ` key (\`${t.envVars.find((v) => v.includes("CLIENT")) ?? "SHIPEASY_CLIENT_KEY"}\`), per the same doc.` +
-        ` Never pass the server key to the client entrypoint (or vice versa).`,
+        ` key (\`${t.envVars.find((v) => v.includes("CLIENT")) ?? "SHIPEASY_CLIENT_KEY"}\`), per the same doc,` +
+        ` and give it the SAME identity transform so the browser \`identify()\`s the visitor` +
+        ` with the attributes chosen above. Never pass the server key to the client entrypoint (or vice versa).`,
     );
   }
   lines.push(
     `- [ ] Gate: the app builds/boots cleanly with the SDK wired` +
       ` (${buildHint(t)}, or the project's usual dev command).`,
+    `- [ ] Gate: the attribute bag carries a stable identifier plus the targeting keys you` +
+      ` found. Once the SDK evaluates, the platform auto-infers this schema from the` +
+      ` evaluation calls — confirm the keys surface via \`shipeasy release flags attributes list\`.`,
     "",
   );
   return lines.join("\n");
