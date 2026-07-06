@@ -1755,16 +1755,45 @@ async function readProject() {
 const hasStatsKnobs = (proj) => proj != null && proj.msprtTauMeiFactor != null;
 const setProjKnob = (id, flag, val) => cliText(["projects", "update", id, flag, String(val)]);
 
+// Approve a metric event so the edge :catalog KV blob is rebuilt. Inline
+// goal-metric registration (attachInlineMetrics) inserts the backing event as
+// pending:0 but does NOT call rebuildCatalog — only the events handlers do — so
+// without this the edge /collect gate keeps 422-ing "Unregistered event names".
+// approve is idempotent (works on an already-approved event) and always rebuilds.
+function registerEvent(name) {
+  try {
+    cliText(["metrics", "events", "approve", name]);
+  } catch (e) {
+    console.log(`  registerEvent(${name}) note: ${e?.message ?? e}`);
+  }
+}
+
 // Chunked POST to /collect (text/plain JSON, client key). Returns true on success.
+// Retries the "Unregistered event names" 422 — a just-approved event can still be
+// missing from the edge's in-memory catalog cache (per-isolate, 60s TTL) for a
+// short window after rebuildCatalog updates the KV blob.
 async function collect(events) {
   for (let i = 0; i < events.length; i += 200) {
-    const res = await fetch(`${EDGE_URL}/collect`, {
-      method: "POST",
-      headers: { "content-type": "text/plain", "x-sdk-key": CLIENT_KEY },
-      body: JSON.stringify({ events: events.slice(i, i + 200) }),
-    });
-    if (!res.ok) {
-      annotate(`/collect ${res.status} — cannot seed stats fixture`);
+    const chunk = events.slice(i, i + 200);
+    let status = 0;
+    let body = "";
+    for (let attempt = 0; attempt < 7; attempt++) {
+      const res = await fetch(`${EDGE_URL}/collect`, {
+        method: "POST",
+        headers: { "content-type": "text/plain", "x-sdk-key": CLIENT_KEY },
+        body: JSON.stringify({ events: chunk }),
+      });
+      status = res.status;
+      if (res.ok) break;
+      body = await res.text().catch(() => "");
+      if (status === 422 && body.includes("Unregistered")) {
+        await sleep(15_000); // catalog cache TTL — let the rebuild propagate
+        continue;
+      }
+      break; // other errors: don't spin
+    }
+    if (status < 200 || status >= 300) {
+      annotate(`/collect ${status} — cannot seed stats fixture${body ? ` (${body.slice(0, 120)})` : ""}`);
       return false;
     }
   }
@@ -1914,6 +1943,7 @@ async function probeSequentialTau() {
     return;
   }
   const fixed = ensureExperiment(FIXED, { goalMetric: goal, sequential: false });
+  registerEvent("probe_seq_evt"); // rebuild the edge catalog — inline-metric events aren't in it yet
   freshStart(SEQ);
   if (fixed) freshStart(FIXED);
 
@@ -2023,6 +2053,7 @@ async function probeCupedGates() {
     console.log("::endgroup::");
     return;
   }
+  registerEvent(EVT); // rebuild the edge catalog — inline-metric events aren't in it yet
 
   const orig = {
     overlap: proj.cupedMinOverlap,
@@ -2189,6 +2220,7 @@ async function probeVerdictGates() {
     console.log("::endgroup::");
     return;
   }
+  registerEvent(EVT); // rebuild the edge catalog — inline-metric events aren't in it yet
   const setGate = (flag, val) => cliText(["release", "experiments", "update", EXP, flag, String(val)]);
   const origCi = proj.ciConfidence;
   try {
