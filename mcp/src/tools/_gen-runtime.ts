@@ -52,6 +52,63 @@ export function clean(obj: Record<string, unknown>): never {
   return out as unknown as never;
 }
 
+/** Minimal view of a JSON Schema node — only what `reviveArg` inspects. */
+type JsonSchemaNode = { type?: unknown; enum?: unknown };
+
+const isStructuredType = (t: unknown): boolean =>
+  t === "object" || t === "array" || (Array.isArray(t) && (t.includes("object") || t.includes("array")));
+
+/**
+ * Revive one argument an MCP host may have over-stringified. If the property
+ * schema is structured (`object`/`array`), a JSON string is parsed back. If the
+ * schema is freeform (no `type`, no `enum` — e.g. a config draft `value`), only
+ * strings that unambiguously look like a JSON object/array literal are parsed,
+ * so a plain scalar string (`"true"`, `"42"`, `"hello"`) is never coerced.
+ */
+function reviveArg(schema: JsonSchemaNode | undefined, v: string): unknown {
+  const t = schema?.type;
+  const structured = isStructuredType(t);
+  const freeform = t === undefined && schema?.enum === undefined;
+  if (!structured && !freeform) return v;
+  const s = v.trim();
+  if (!structured && !(s.startsWith("{") || s.startsWith("["))) return v;
+  try {
+    const parsed = JSON.parse(v);
+    // A freeform value that parses to a scalar (e.g. the string "42") stays a
+    // string — only a real container is a marshalling artefact worth reviving.
+    if (!structured && (parsed === null || typeof parsed !== "object")) return v;
+    return parsed;
+  } catch {
+    return v;
+  }
+}
+
+/**
+ * Undo the "known marshalling bug": some MCP hosts serialise a structured
+ * (object/array) tool argument to a JSON string when the tool's JSON Schema
+ * doesn't pin the property to `type: "object"`/`"array"`. The admin API then
+ * rejects it (e.g. `saveConfigDraft` → "Config value must be a JSON object").
+ * Walk the tool's declared properties and parse any such string back before it
+ * reaches the wire. Returns the same object reference when nothing changed.
+ */
+export function reviveStructuredArgs(
+  args: Record<string, unknown>,
+  inputSchema: { properties?: Record<string, unknown> } | undefined,
+): Record<string, unknown> {
+  const props = inputSchema?.properties;
+  if (!props) return args;
+  let out: Record<string, unknown> | null = null;
+  for (const [k, v] of Object.entries(args)) {
+    if (typeof v !== "string") continue;
+    const revived = reviveArg(props[k] as JsonSchemaNode | undefined, v);
+    if (revived !== v) {
+      out ??= { ...args };
+      out[k] = revived;
+    }
+  }
+  return out ?? args;
+}
+
 export interface ClientHandle {
   client: Client;
   cfg: ShipeasyConfig;

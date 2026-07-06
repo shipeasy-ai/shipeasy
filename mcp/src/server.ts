@@ -16,7 +16,7 @@ import { RESOURCE_TEMPLATES } from "./resources/schema.js";
 import { handleAuthCheck, handleAuthLogout } from "./tools/shared/auth.js";
 import { handleUpsertProject } from "./tools/projects/upsert.js";
 import { GENERATED_DISPATCH, GENERATED_MUTATES, CUSTOM_DISPATCH } from "./tools/registry.js";
-import { getGeneratedClient } from "./tools/_gen-runtime.js";
+import { getGeneratedClient, reviveStructuredArgs } from "./tools/_gen-runtime.js";
 import { wireInBlock } from "./tools/wire-in.js";
 import { notAuthenticated, notBound, ok, apiErr } from "./util/api-client.js";
 import {
@@ -52,8 +52,8 @@ export async function startStdioServer(): Promise<void> {
 
   server.setRequestHandler(CallToolRequestSchema, async ({ params }) => {
     const toolName = params.name;
-    const known = TOOLS.some((t) => t.name === toolName);
-    if (!known) {
+    const toolDef = TOOLS.find((t) => t.name === toolName);
+    if (!toolDef) {
       return {
         isError: true,
         content: [{ type: "text", text: `Error: unknown tool "${toolName}"` }],
@@ -70,7 +70,9 @@ export async function startStdioServer(): Promise<void> {
       const handle = await getGeneratedClient();
       if (!handle) return notAuthenticated();
       if (GENERATED_MUTATES[toolName] && !handle.bound) return notBound(handle);
-      const args = params.arguments ?? {};
+      // Undo any host-side over-stringification of structured params (the known
+      // marshalling bug) using the tool's declared schema before dispatch.
+      const args = reviveStructuredArgs(params.arguments ?? {}, toolDef.inputSchema);
 
       // List-before-create guard (MCP-only; toggle with SHIPEASY_MCP_LIST_GUARD):
       // a guarded create must carry a fresh `listToken` minted by its sibling
