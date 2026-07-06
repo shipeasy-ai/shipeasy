@@ -7773,7 +7773,7 @@ components:
         METRIC_UNKNOWN_ID: The supplied metric id is malformed or not recognised.
     Error:
       type: object
-      description: Uniform error envelope returned by every admin endpoint on a non-2xx status. `error` is the human-readable message; `code` is the stable machine code (present whenever the failure maps to a catalogued `ErrorCode`); `detail` carries extra context (validation paths, conflicting field); `instructions` is optional actionable guidance for resolving the error.
+      description: Uniform error envelope returned by every admin endpoint on a non-2xx status. `error` is the human-readable message; `code` is the stable machine code (present whenever the failure maps to a catalogued `ErrorCode`); `detail` carries extra context (validation paths, conflicting field); `instructions` is optional actionable guidance for resolving the error; `schema` echoes back the expected JSON Schema when a value failed schema validation.
       required:
         - error
       additionalProperties: false
@@ -7789,6 +7789,10 @@ components:
         instructions:
           type: string
           description: Actionable guidance for resolving this error — what to check or change next.
+        schema:
+          type: object
+          additionalProperties: true
+          description: The expected JSON Schema (draft 2020-12) the submitted value must satisfy. Returned only when a value failed schema validation (e.g. a config `value` that does not match its config's saved schema), so the caller can correct the value and retry without re-fetching.
     Folder:
       anyOf:
         - type: string

@@ -129,13 +129,14 @@ export const zErrorCode = z.enum([
 ]);
 
 /**
- * Uniform error envelope returned by every admin endpoint on a non-2xx status. `error` is the human-readable message; `code` is the stable machine code (present whenever the failure maps to a catalogued `ErrorCode`); `detail` carries extra context (validation paths, conflicting field); `instructions` is optional actionable guidance for resolving the error.
+ * Uniform error envelope returned by every admin endpoint on a non-2xx status. `error` is the human-readable message; `code` is the stable machine code (present whenever the failure maps to a catalogued `ErrorCode`); `detail` carries extra context (validation paths, conflicting field); `instructions` is optional actionable guidance for resolving the error; `schema` echoes back the expected JSON Schema when a value failed schema validation.
  */
 export const zError = z.object({
     error: z.string(),
     code: zErrorCode.optional(),
     detail: z.string().optional(),
-    instructions: z.string().optional()
+    instructions: z.string().optional(),
+    schema: z.record(z.string(), z.unknown()).optional()
 });
 
 /**
