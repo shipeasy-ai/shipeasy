@@ -1678,6 +1678,7 @@ export const zOpsErrorContext = z.object({
     firstSeenAt: z.string(),
     lastSeenAt: z.string(),
     seenUrls: z.array(z.string()),
+    stackTail: z.string().nullish(),
     sdkVersion: z.string().nullish()
 });
 
@@ -1764,6 +1765,7 @@ export const zMeasurePlanStep = z.object({
  * An assistant-proposed measurement plan: what it already built, what it still needs, and the event instrumentation you implement.
  */
 export const zOpsMeasurePlanContext = z.object({
+    goal: z.string().nullish(),
     created: z.array(zMeasurePlanResource),
     pending: z.array(zMeasurePlanResource).optional(),
     instrumentation: z.array(zMeasurePlanStep)

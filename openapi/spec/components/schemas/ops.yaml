@@ -245,6 +245,11 @@ OpsErrorContext:
       items:
         type: string
       description: "Distinct, id-normalized routes this error has surfaced on (UUIDs/ids collapsed to `#`)."
+    stackTail:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: "The last 3 non-empty lines of the latest occurrence's stack — the innermost frames closest to where the throw bubbled out, baked in as an at-a-glance locator. `null` when the source supplied no stack. Fetch the full stack via `related.error`."
     sdkVersion:
       anyOf:
         - type: string
@@ -380,6 +385,11 @@ OpsAlertMetricSummary:
 OpsMeasurePlanContext:
   type: object
   properties:
+    goal:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: "The customer's underlying intent in their own words — WHAT they want to learn or achieve and WHY, independent of the specific steps. The plan below is a best-effort proposal made without repo access; when the code reveals a better path, this goal is the target you optimize for, not literal step-adherence."
     created:
       type: array
       items:

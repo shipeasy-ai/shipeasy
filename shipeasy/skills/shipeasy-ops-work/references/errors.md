@@ -8,10 +8,13 @@ error-specific flow.
 
 1. `context.error` is hydrated from the live tracked-error row — `errorType`,
    `message`, `subject`, `outcome` (the `see()` consequence), `kind`, `side`,
-   `env`, `count`, `firstSeenAt`, `lastSeenAt`, `seenUrls[]`, `fingerprint`.
-   (`count`/`lastSeenAt` reflect the current state, not file time.) The item
-   `title` is the full see() sentence — "`<errorType>` causes the `<subject>`
-   to `<outcome>`". For the full stack + extras, `GET related.error`.
+   `env`, `count`, `firstSeenAt`, `lastSeenAt`, `seenUrls[]`, `fingerprint`,
+   and `stackTail` (the last 3 frames of the latest occurrence's stack — an
+   at-a-glance locator right on the ticket). (`count`/`lastSeenAt` reflect the
+   current state, not file time.) The item `title` is the full see() sentence —
+   "`<errorType>` causes the `<subject>` to `<outcome>`". `stackTail` is enough
+   to jump to the throw for most items; for the **full** stack + extras,
+   `GET related.error`.
 2. **Grep for the consequence to find the throw.** When `subject`/`outcome`
    are set, search the codebase for the existing
    `see(e).causes_the("<subject>").to("<outcome>")` call — that's the throw

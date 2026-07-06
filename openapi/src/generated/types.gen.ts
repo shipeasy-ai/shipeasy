@@ -2870,6 +2870,10 @@ export type OpsErrorContext = {
      */
     seenUrls: Array<string>;
     /**
+     * The last 3 non-empty lines of the latest occurrence's stack — the innermost frames closest to where the throw bubbled out, baked in as an at-a-glance locator. `null` when the source supplied no stack. Fetch the full stack via `related.error`.
+     */
+    stackTail?: string | null;
+    /**
      * @shipeasy/sdk version of the latest occurrence, or `null`.
      */
     sdkVersion?: string | null;
@@ -3019,6 +3023,10 @@ export type MeasurePlanStep = {
  * An assistant-proposed measurement plan: what it already built, what it still needs, and the event instrumentation you implement.
  */
 export type OpsMeasurePlanContext = {
+    /**
+     * The customer's underlying intent in their own words — WHAT they want to learn or achieve and WHY, independent of the specific steps. The plan below is a best-effort proposal made without repo access; when the code reveals a better path, this goal is the target you optimize for, not literal step-adherence.
+     */
+    goal?: string | null;
     /**
      * Resources the assistant already created on approval (live now) — don't recreate them.
      */
