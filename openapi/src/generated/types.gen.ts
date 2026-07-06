@@ -3657,6 +3657,18 @@ export type GetCurrentProjectResponse = {
      */
     ciConfidence?: number;
     /**
+     * Default traffic allocation (basis points) new experiments start with.
+     */
+    defaultAllocationPct?: number;
+    /**
+     * Default winsorization percentile new metrics start with.
+     */
+    defaultWinsorizePct?: number;
+    /**
+     * Default minimum effect of interest (relative, 0–1) new metrics start with, or null.
+     */
+    defaultMei?: number | null;
+    /**
      * CUPED baseline window — days of pre-experiment history, frozen at start.
      */
     cupedBaselineDays?: number;
@@ -3814,9 +3826,21 @@ export type UpdateProjectRequest = {
      */
     defaultPower?: number;
     /**
-     * Confidence level for the interval surfaced on results.
+     * Confidence level for the interval surfaced on results (any value in [0.5, 0.999], e.g. 0.90, 0.95, 0.975, 0.99).
      */
-    ciConfidence?: 0.95 | 0.99;
+    ciConfidence?: number;
+    /**
+     * Default traffic allocation (basis points, 1000 = 10%) new experiments start with; overridable per experiment.
+     */
+    defaultAllocationPct?: number;
+    /**
+     * Default winsorization percentile new metrics start with; overridable per metric.
+     */
+    defaultWinsorizePct?: number;
+    /**
+     * Default minimum effect of interest (relative, 0–1) new metrics start with; overridable per metric and per experiment. Null clears it.
+     */
+    defaultMei?: number | null;
     /**
      * CUPED baseline window — days of pre-experiment history, frozen at start.
      */

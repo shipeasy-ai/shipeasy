@@ -17572,6 +17572,25 @@
             "type": "number",
             "description": "Confidence level for the interval surfaced on results."
           },
+          "defaultAllocationPct": {
+            "type": "integer",
+            "description": "Default traffic allocation (basis points) new experiments start with."
+          },
+          "defaultWinsorizePct": {
+            "type": "integer",
+            "description": "Default winsorization percentile new metrics start with."
+          },
+          "defaultMei": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Default minimum effect of interest (relative, 0–1) new metrics start with, or null."
+          },
           "cupedBaselineDays": {
             "type": "integer",
             "description": "CUPED baseline window — days of pre-experiment history, frozen at start."
@@ -17809,11 +17828,34 @@
           },
           "ciConfidence": {
             "type": "number",
-            "enum": [
-              0.95,
-              0.99
+            "minimum": 0.5,
+            "maximum": 0.999,
+            "description": "Confidence level for the interval surfaced on results (any value in [0.5, 0.999], e.g. 0.90, 0.95, 0.975, 0.99)."
+          },
+          "defaultAllocationPct": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000,
+            "description": "Default traffic allocation (basis points, 1000 = 10%) new experiments start with; overridable per experiment."
+          },
+          "defaultWinsorizePct": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 99,
+            "description": "Default winsorization percentile new metrics start with; overridable per metric."
+          },
+          "defaultMei": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              {
+                "type": "null"
+              }
             ],
-            "description": "Confidence level for the interval surfaced on results."
+            "description": "Default minimum effect of interest (relative, 0–1) new metrics start with; overridable per metric and per experiment. Null clears it."
           },
           "cupedBaselineDays": {
             "type": "integer",
