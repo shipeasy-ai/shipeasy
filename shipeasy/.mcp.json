@@ -1,8 +1,12 @@
 {
   "mcpServers": {
     "shipeasy": {
-      "command": "npx",
-      "args": ["-y", "@shipeasy/mcp@latest"]
+      "type": "http",
+      "url": "https://mcp.shipeasy.ai/mcp",
+      "//list-guard": "Set the \"X-Shipeasy-List-Guard\" header below to \"on\" to require a *_list before each *_create — a dedup guard so the agent confirms a resource doesn't already exist before making one. \"off\" (default) disables it.",
+      "headers": {
+        "X-Shipeasy-List-Guard": "off"
+      }
     }
   }
 }
