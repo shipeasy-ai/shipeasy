@@ -23,6 +23,26 @@ export function configPath(): string {
   return join(root, "shipeasy", "config.json");
 }
 
+/**
+ * Synthesize a config from `SHIPEASY_CLI_TOKEN` + `SHIPEASY_PROJECT_ID` env vars.
+ * This is how the server authenticates when there's no `~/.config/shipeasy`
+ * config file — e.g. the local stdio server a GitHub Copilot custom agent spawns,
+ * which injects those vars from the repo's `COPILOT_MCP_*` secrets. Returns null
+ * unless BOTH are present. Base URLs fall back to the fixed production domains.
+ */
+export function configFromEnv(env: NodeJS.ProcessEnv = process.env): ShipeasyConfig | null {
+  const cli_token = env.SHIPEASY_CLI_TOKEN?.trim();
+  const project_id = env.SHIPEASY_PROJECT_ID?.trim();
+  if (!cli_token || !project_id) return null;
+  return {
+    project_id,
+    cli_token,
+    api_base_url: API_BASE_URL,
+    app_base_url: APP_BASE_URL,
+    created_at: "",
+  };
+}
+
 export async function readConfig(): Promise<ShipeasyConfig | null> {
   try {
     const raw = await readFile(configPath(), "utf8");
@@ -30,7 +50,10 @@ export async function readConfig(): Promise<ShipeasyConfig | null> {
     if (!parsed.project_id || !parsed.cli_token) return null;
     return parsed;
   } catch (err: unknown) {
-    if ((err as NodeJS.ErrnoException)?.code === "ENOENT") return null;
+    if ((err as NodeJS.ErrnoException)?.code === "ENOENT") {
+      // No config file — fall back to env creds (Copilot coding-agent path).
+      return configFromEnv();
+    }
     throw err;
   }
 }

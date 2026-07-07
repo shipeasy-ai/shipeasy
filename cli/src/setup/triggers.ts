@@ -1,6 +1,11 @@
 import { execSync } from "node:child_process";
 import prompts from "prompts";
 import { tryOpenBrowser } from "../auth/login";
+import {
+  COPILOT_AGENT_NAME,
+  COPILOT_MCP_TOKEN_SECRET,
+  writeCopilotAgentFile,
+} from "./copilot-agent";
 
 /**
  * The authenticated CLI session captured once by the caller (right after
@@ -58,14 +63,17 @@ export function triggerSetupUrl(
   appBaseUrl: string,
   projectId: string,
   platform?: TriggerPlatform | null,
-  opts?: { secretsDone?: boolean },
+  opts?: { secretsDone?: boolean; agent?: string },
 ): string {
   const base = appBaseUrl.replace(/\/$/, "");
   const params = new URLSearchParams();
   if (platform) params.set("provider", platform);
-  // Copilot only: the CLI already wrote the Agents secrets via `gh`, so tell the
-  // wizard to render that step as done (apps/ui triggers-client reads this).
+  // Copilot only: the CLI already set the repo's Copilot MCP token secret via
+  // `gh`, so tell the wizard to render that step as done (triggers-client reads it).
   if (opts?.secretsDone) params.set("secretsDone", "1");
+  // Copilot only: the CLI wrote the custom-agent file `<agent>.agent.md`, so the
+  // wizard shows the file step as already done.
+  if (opts?.agent) params.set("agent", opts.agent);
   const q = params.toString();
   return `${base}/dashboard/${projectId}/triggers${q ? `?${q}` : ""}`;
 }
@@ -169,8 +177,8 @@ function ghRepoSlug(): string | null {
   }
 }
 
-/** Push one value into the repo's GitHub "Agents" (Copilot) secret store. The
- *  value is piped over stdin so it never lands in argv / `ps` output. */
+/** Push one value into the repo's Copilot coding-agent secret store. The value
+ *  is piped over stdin so it never lands in argv / `ps` output. */
 function ghSetAgentsSecret(name: string, value: string, slug: string): void {
   execSync(`gh secret set ${name} --app agents --repo ${slug}`, {
     input: value,
@@ -203,14 +211,14 @@ async function mintOpsKey(session: CliSession, projectId: string): Promise<strin
 }
 
 /**
- * Copilot only, best-effort: mint a restricted ops key and push it (plus the
- * project id) into the repo's GitHub "Agents" secret store with the user's `gh`
- * CLI, so the wizard's "add a restricted key" step is already done. Returns true
- * ONLY when both secrets were written — any missing/unauthenticated `gh`, no
- * detectable repo, a declined confirm, or a failed `gh`/mint call is a silent
- * no-op (the wizard still shows the manual instructions). Never throws.
+ * Copilot only, best-effort: mint a restricted ops key and push it into the
+ * repo's Copilot coding-agent secret store as `COPILOT_MCP_SHIPEASY_CLI_TOKEN` —
+ * the secret the custom-agent file's MCP server reads. Returns true ONLY when the
+ * secret was written — any missing/unauthenticated `gh`, no detectable repo, a
+ * declined confirm, or a failed `gh`/mint call is a silent no-op (the wizard
+ * shows the manual step). Never throws.
  */
-async function provisionCopilotAgentsSecrets(
+async function provisionCopilotMcpSecret(
   projectId: string,
   interactive: boolean,
   session: CliSession | null,
@@ -220,14 +228,14 @@ async function provisionCopilotAgentsSecrets(
   if (!slug) return false;
   // No captured session → we'd have to re-pull credentials (and could hard-exit
   // if they're gone). Best-effort contract: skip and let the wizard show the
-  // manual steps rather than crash the whole `shipeasy setup` run.
+  // manual step rather than crash the whole `shipeasy setup` run.
   if (!session) return false;
 
   if (interactive) {
     const { go } = await prompts({
       type: "confirm",
       name: "go",
-      message: `Set the Copilot "Agents" secrets in ${slug} now via gh (SHIPEASY_CLI_TOKEN + SHIPEASY_PROJECT_ID)?`,
+      message: `Set the Copilot MCP secret ${COPILOT_MCP_TOKEN_SECRET} in ${slug} now via gh?`,
       initial: true,
     });
     if (!go) return false;
@@ -238,26 +246,46 @@ async function provisionCopilotAgentsSecrets(
     // (never edits/deletes), auto-extends its 7-day expiry on each run. Minted by
     // reusing the session token already retrieved this run, not a fresh re-resolve.
     const opsKey = await mintOpsKey(session, projectId);
-    ghSetAgentsSecret("SHIPEASY_CLI_TOKEN", opsKey, slug);
-    ghSetAgentsSecret("SHIPEASY_PROJECT_ID", projectId, slug);
-    console.log(
-      `\n  ✓ Set Copilot Agents secrets in ${slug}: SHIPEASY_CLI_TOKEN, SHIPEASY_PROJECT_ID.`,
-    );
+    ghSetAgentsSecret(COPILOT_MCP_TOKEN_SECRET, opsKey, slug);
+    console.log(`\n  ✓ Set Copilot MCP secret in ${slug}: ${COPILOT_MCP_TOKEN_SECRET}.`);
     return true;
   } catch (e) {
     console.log(
-      `\n  • Couldn't set the Copilot secrets automatically (${
+      `\n  • Couldn't set the Copilot MCP secret automatically (${
         (e as Error).message.split("\n")[0]
-      }).\n    The wizard will show the manual steps instead.`,
+      }).\n    The wizard will show the manual step instead.`,
     );
     return false;
   }
 }
 
+/**
+ * Copilot only: write `.github/agents/shipeasy.agent.md` (the custom agent that
+ * wires the MCP server + carries the ops-work prompt). Best-effort — a write
+ * error just logs and the wizard shows the contents for a manual copy. Returns
+ * the agent name when the file exists after this step (written or already there),
+ * so the deep link can flag the step done.
+ */
+function provisionCopilotAgentFile(projectId: string, dryRun: boolean): string | null {
+  const res = writeCopilotAgentFile({ projectId, dryRun });
+  if (res.action === "wrote") {
+    console.log(`\n  ✓ ${dryRun ? "Would write" : "Wrote"} ${res.path} (agent \`${COPILOT_AGENT_NAME}\`).`);
+    return COPILOT_AGENT_NAME;
+  }
+  if (res.action === "skipped") {
+    console.log(`\n  • ${res.path} ${res.detail}. Leaving it as-is (agent \`${COPILOT_AGENT_NAME}\`).`);
+    return COPILOT_AGENT_NAME;
+  }
+  console.log(
+    `\n  • Couldn't write the agent file (${res.detail}). The wizard will show its contents to copy.`,
+  );
+  return null;
+}
+
 /** Open (or print) the hosted wizard for one platform — shared by every path.
- *  For Copilot it first tries to script the repo's Agents secrets via `gh`; on
- *  success the deep link carries `?secretsDone=1` so the wizard marks that step
- *  complete. */
+ *  For Copilot it first writes the custom-agent file and scripts the repo's MCP
+ *  secret via `gh`; the deep link then carries `?agent=…` / `?secretsDone=1` so the
+ *  wizard marks those steps complete. */
 async function openWizard(
   appBaseUrl: string,
   projectId: string,
@@ -266,11 +294,15 @@ async function openWizard(
   interactive?: boolean,
   session?: CliSession | null,
 ): Promise<string> {
-  const secretsDone =
-    platform === "copilot" && !dryRun
-      ? await provisionCopilotAgentsSecrets(projectId, interactive ?? false, session ?? null)
-      : false;
-  const url = triggerSetupUrl(appBaseUrl, projectId, platform, { secretsDone });
+  let secretsDone = false;
+  let agent: string | undefined;
+  if (platform === "copilot") {
+    agent = provisionCopilotAgentFile(projectId, dryRun ?? false) ?? undefined;
+    if (!dryRun) {
+      secretsDone = await provisionCopilotMcpSecret(projectId, interactive ?? false, session ?? null);
+    }
+  }
+  const url = triggerSetupUrl(appBaseUrl, projectId, platform, { secretsDone, agent });
   const picked = platform ? TRIGGER_PLATFORMS.find((p) => p.id === platform)?.label : "the picker";
   console.log(
     `\n  Opening the hosted trigger setup${platform ? ` for ${picked}` : ""}:\n\n    ${url}\n`,

@@ -5,6 +5,7 @@ import {
   orderTriggerPlatforms,
   triggerSetupUrl,
 } from "../setup/triggers";
+import { buildCopilotAgentFile } from "../setup/copilot-agent";
 
 describe("normalizePlatform", () => {
   it("accepts each guided platform id", () => {
@@ -82,5 +83,32 @@ describe("triggerSetupUrl", () => {
     expect(
       triggerSetupUrl("https://app.shipeasy.ai", "prj_1", "copilot", { secretsDone: false }),
     ).toBe("https://app.shipeasy.ai/dashboard/prj_1/triggers?provider=copilot");
+  });
+
+  it("carries the agent name when the CLI wrote the custom-agent file", () => {
+    expect(
+      triggerSetupUrl("https://app.shipeasy.ai", "prj_1", "copilot", {
+        secretsDone: true,
+        agent: "shipeasy",
+      }),
+    ).toBe(
+      "https://app.shipeasy.ai/dashboard/prj_1/triggers?provider=copilot&secretsDone=1&agent=shipeasy",
+    );
+  });
+});
+
+describe("buildCopilotAgentFile", () => {
+  it("writes the documented path with the local-stdio MCP server + token secret", () => {
+    const { path, content } = buildCopilotAgentFile({ projectId: "prj_xyz" });
+    expect(path).toBe(".github/agents/shipeasy.agent.md");
+    expect(content).toContain("name: shipeasy");
+    expect(content).toContain("target: github-copilot");
+    expect(content).toContain("type: local");
+    expect(content).toContain("args: ['-y', '@shipeasy/mcp']");
+    expect(content).toContain("SHIPEASY_PROJECT_ID: 'prj_xyz'");
+    expect(content).toContain(
+      "SHIPEASY_CLI_TOKEN: ${{ secrets.COPILOT_MCP_SHIPEASY_CLI_TOKEN }}",
+    );
+    expect(content).toContain("shipeasy-ops-work");
   });
 });
