@@ -1,0 +1,19 @@
+{
+  "name": "shipeasy",
+  "version": "3.11.0",
+  "description": "Shipeasy for Cursor — feature flags, A/B experiments, event metrics, translations, alert rules, and the in-app feedback/ops inbox. Bundles the shipeasy MCP server plus the same 10 skills the Claude Code, Codex, and Copilot plugins ship (8 area guides + the shipeasy-ops-work workflow loop + the on-demand shipeasy-migrate workflow); no content is duplicated. Cursor reads the MCP server from `./.mcp.json` under `mcpServers` (the hosted HTTP endpoint at mcp.shipeasy.ai). All CRUD is delegated to the shipeasy MCP server or CLI, and deletions are UI-only.",
+  "author": { "name": "Shipeasy", "url": "https://shipeasy.ai" },
+  "homepage": "https://shipeasy.ai",
+  "repository": "https://github.com/shipeasy-ai/shipeasy",
+  "license": "MIT",
+  "keywords": ["feature-flags", "experiments", "ab-testing", "metrics", "i18n", "feedback"],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Shipeasy",
+    "shortDescription": "Feature flags, A/B experiments, metrics, translations, and in-app feedback.",
+    "developerName": "Shipeasy",
+    "category": "Productivity",
+    "websiteURL": "https://shipeasy.ai"
+  }
+}
