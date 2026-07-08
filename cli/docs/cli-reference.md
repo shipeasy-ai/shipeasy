@@ -817,6 +817,7 @@ shipeasy projects update [options] <id>
 | `--default-power <value>` | optional | Target statistical power (1−β) feeding the realized-MDE calculation. |
 | `--ci-confidence <value>` | optional | Confidence level for the interval surfaced on results (any value in [0.5, 0.999], e.g. 0.90, 0.95, 0.975, 0.99). |
 | `--default-allocation-pct <value>` | optional | Default traffic allocation (basis points, 1000 = 10%) new experiments start with; overridable per experiment. |
+| `--default-holdout <value>` | optional | Default holdout carve-out (basis points) that seeds each new universe's holdout (0 = none). |
 | `--default-winsorize-pct <value>` | optional | Default winsorization percentile new metrics start with; overridable per metric. |
 | `--default-mei <value>` | optional | Default minimum effect of interest (relative, 0–1) new metrics start with; overridable per metric and per experiment. Null clears it. |
 | `--cuped-baseline-days <value>` | optional | CUPED baseline window — days of pre-experiment history, frozen at start. |

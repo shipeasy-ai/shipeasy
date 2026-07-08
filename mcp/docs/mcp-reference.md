@@ -2314,6 +2314,7 @@ _Parameters_
 | `defaultPower` | optional | `number` | Target statistical power (1−β) feeding the realized-MDE calculation. _(0.5–0.99)_ |
 | `ciConfidence` | optional | `number` | Confidence level for the interval surfaced on results (any value in [0.5, 0.999], e.g. 0.90, 0.95, 0.975, 0.99). _(0.5–0.999)_ |
 | `defaultAllocationPct` | optional | `integer` | Default traffic allocation (basis points, 1000 = 10%) new experiments start with; overridable per experiment. _(1–10000)_ |
+| `defaultHoldout` | optional | `integer` | Default holdout carve-out (basis points) that seeds each new universe's holdout (0 = none). _(0–10000)_ |
 | `defaultWinsorizePct` | optional | `integer` | Default winsorization percentile new metrics start with; overridable per metric. _(1–99)_ |
 | `defaultMei` | optional | `any` | Default minimum effect of interest (relative, 0–1) new metrics start with; overridable per metric and per experiment. Null clears it. |
 | `cupedBaselineDays` | optional | `integer` | CUPED baseline window — days of pre-experiment history, frozen at start. _(1–365)_ |

@@ -678,9 +678,17 @@ export type ListExperimentsResponse = {
         universe: string;
         targetingGate: string | null;
         /**
+         * Per-experiment holdout gate name (a `holdout`-type flag), or `null`.
+         */
+        holdoutGate?: string | null;
+        /**
          * Allocation in basis points (0–10000).
          */
         allocationPct: number;
+        /**
+         * Basis points of the split reserved for appended variants (group weights sum to 10000 − this).
+         */
+        reservedHeadroom?: number;
         salt: string;
         params: {
             [key: string]: 'string' | 'bool' | 'number';
@@ -3830,6 +3838,10 @@ export type GetCurrentProjectResponse = {
      */
     defaultAllocationPct?: number;
     /**
+     * Default holdout carve-out (basis points) that seeds each new universe's holdout.
+     */
+    defaultHoldout?: number;
+    /**
      * Default winsorization percentile new metrics start with.
      */
     defaultWinsorizePct?: number;
@@ -4002,6 +4014,10 @@ export type UpdateProjectRequest = {
      * Default traffic allocation (basis points, 1000 = 10%) new experiments start with; overridable per experiment.
      */
     defaultAllocationPct?: number;
+    /**
+     * Default holdout carve-out (basis points) that seeds each new universe's holdout (0 = none).
+     */
+    defaultHoldout?: number;
     /**
      * Default winsorization percentile new metrics start with; overridable per metric.
      */

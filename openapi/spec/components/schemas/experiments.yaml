@@ -60,11 +60,21 @@ ListExperimentsResponse:
             anyOf:
               - type: string
               - type: "null"
+          holdoutGate:
+            anyOf:
+              - type: string
+              - type: "null"
+            description: Per-experiment holdout gate name (a `holdout`-type flag), or `null`.
           allocationPct:
             type: integer
             minimum: -9007199254740991
             maximum: 9007199254740991
             description: Allocation in basis points (0–10000).
+          reservedHeadroom:
+            type: integer
+            minimum: 0
+            maximum: 10000
+            description: Basis points of the split reserved for appended variants (group weights sum to 10000 − this).
           salt:
             type: string
           params:
