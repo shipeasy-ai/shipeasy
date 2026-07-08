@@ -10,6 +10,7 @@ export const zListGatesResponse = z.object({
             z.boolean(),
             z.int().gte(0).lte(1)
         ]),
+        type: z.enum(['targeting', 'holdout']).optional(),
         rolloutPct: z.int().gte(0).lte(10000),
         rules: z.array(z.object({
             attr: z.string().min(1),
@@ -149,6 +150,7 @@ export const zFolder = z.string().max(256).regex(/^[a-zA-Z0-9_-]+$/).nullable();
  */
 export const zCreateGateRequest = z.object({
     name: z.string().max(128).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$/),
+    type: z.enum(['targeting', 'holdout']).optional().default('targeting'),
     enabled: z.boolean().optional().default(true),
     rollout_pct: z.int().gte(0).lte(10000).optional().default(0),
     rollout_percent: z.number().gte(0).lte(100).optional(),
@@ -254,6 +256,7 @@ export const zDeleteGateResponse = z.object({
  * Body for `PATCH /api/admin/gates/{id}`. Partial — only supplied fields change. Array fields (`rules`, `stack`) replace, not merge.
  */
 export const zUpdateGateRequest = z.object({
+    type: z.enum(['targeting', 'holdout']).optional(),
     rollout_pct: z.int().gte(0).lte(10000).optional(),
     rollout_percent: z.number().gte(0).lte(100).optional(),
     rules: z.array(z.object({
@@ -437,8 +440,10 @@ export const zCreateExperimentRequest = z.object({
     folder: zFolder.optional(),
     universe: z.string().min(1),
     targeting_gate: z.string().nullish().default(null),
+    holdout_gate: z.string().nullish().default(null),
     allocation_pct: z.int().gte(0).lte(10000).optional().default(0),
     allocation_percent: z.number().gte(0).lte(100).optional(),
+    reserved_headroom: z.int().gte(0).lte(10000).optional(),
     salt: z.string().min(1).max(64).optional(),
     params: z.record(z.string(), z.enum([
         'string',
@@ -507,7 +512,7 @@ export const zDeleteExperimentResponse = z.object({
 });
 
 /**
- * Body for `PATCH /api/admin/experiments/{id}`. Partial — only supplied fields change. `allocation_pct`, `groups`, `salt`, `universe`, `params` are immutable while the experiment is running (stop first).
+ * Body for `PATCH /api/admin/experiments/{id}`. Partial — only supplied fields change. `allocation_pct`, `salt`, `universe` and existing group weights/values are immutable while running (stop first); a new variant may still be appended into the reserved tail.
  */
 export const zUpdateExperimentRequest = z.object({
     name: z.string().max(128).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$/).optional(),
@@ -519,7 +524,9 @@ export const zUpdateExperimentRequest = z.object({
     bucket_by: z.string().min(1).max(128).regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/).nullish(),
     folder: zFolder.optional(),
     targeting_gate: z.string().nullish(),
+    holdout_gate: z.string().nullish(),
     allocation_pct: z.int().gte(0).lte(10000).optional(),
+    reserved_headroom: z.int().gte(0).lte(10000).optional(),
     allocation_percent: z.number().gte(0).lte(100).optional(),
     salt: z.string().min(1).max(64).optional(),
     universe: z.string().optional(),
@@ -929,12 +936,31 @@ export const zSetKillswitchValueResponse = z.object({
     published: zKillswitchValue
 });
 
+export const zUniverseParam = z.object({
+    name: z.string().min(1).max(128).regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/),
+    type: z.enum([
+        'bool',
+        'string',
+        'int',
+        'number'
+    ]),
+    default: z.unknown()
+});
+
+/**
+ * The universe's ordered config schema — the single source of truth for its params.
+ */
+export const zUniverseParamSchema = z.array(zUniverseParam);
+
 export const zListUniversesResponse = z.object({
     data: z.array(z.object({
         id: z.string(),
         name: z.string().max(128).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$/),
+        description: z.string().nullish(),
         unitType: z.string(),
         holdoutRange: z.tuple([z.number(), z.number()]).nullable(),
+        recommendedHeadroom: z.int().gte(0).lte(10000).optional(),
+        paramSchema: zUniverseParamSchema.nullish(),
         createdAt: z.string()
     })),
     next_cursor: z.string().nullable()
@@ -946,8 +972,11 @@ export const zListUniversesResponse = z.object({
 export const zCreateUniverseRequest = z.object({
     name: z.string().max(128).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$/),
     folder: zFolder.optional(),
+    description: z.string().max(2000).nullish().default(null),
     unit_type: z.string().optional().default('user_id'),
-    holdout_range: z.tuple([z.int().gte(0).lte(9999), z.int().gte(0).lte(9999)]).nullish().default(null)
+    holdout_range: z.tuple([z.int().gte(0).lte(9999), z.int().gte(0).lte(9999)]).nullish().default(null),
+    recommended_headroom: z.int().gte(0).lte(10000).optional().default(0),
+    param_schema: zUniverseParamSchema.nullish().default(null)
 });
 
 export const zCreateUniverseResponse = z.object({
@@ -960,11 +989,14 @@ export const zDeleteUniverseResponse = z.object({
 });
 
 /**
- * Body for `PATCH /api/admin/universes/{id}`. Only `holdout_range` is mutable — name and unit_type are immutable after create.
+ * Body for `PATCH /api/admin/universes/{id}`. `name` and `unit_type` are immutable after create; `holdout_range`, `description`, `recommended_headroom` and `param_schema` are mutable.
  */
 export const zUpdateUniverseRequest = z.object({
     folder: zFolder.optional(),
-    holdout_range: z.tuple([z.int().gte(0).lte(9999), z.int().gte(0).lte(9999)]).nullish()
+    description: z.string().max(2000).nullish(),
+    holdout_range: z.tuple([z.int().gte(0).lte(9999), z.int().gte(0).lte(9999)]).nullish(),
+    recommended_headroom: z.int().gte(0).lte(10000).optional(),
+    param_schema: zUniverseParamSchema.nullish()
 });
 
 export const zUpdateUniverseResponse = z.object({

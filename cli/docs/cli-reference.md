@@ -1054,8 +1054,11 @@ shipeasy release experiments universes create [options] <name>
 | Option | | Description |
 | --- | --- | --- |
 | `--folder <value>` | optional | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
+| `--description <value>` | optional | Human-readable blurb shown in the universe picker/hovercard. |
 | `--unit-type <value>` | optional | Unit of randomisation. Typically `user_id`. Use `account_id` to keep whole accounts in the same group across an experiment. |
 | `--holdout-range <value>` | optional | Inclusive `[lo, hi]` bucket range (0–9999) reserved as the **holdout** — callers hashed into this slice are excluded from every experiment in the universe. `null` disables the holdout. Pro plan or higher required. |
+| `--recommended-headroom <value>` | optional | Basis points of reserved headroom seeded into each new experiment created in this universe (0 = none). Lets variants be appended into a running experiment without reshuffling. |
+| `--param-schema <value>` | optional | The universe-owned config schema — an ordered `{ name, type, default }[]`. Experiments may only override values per variant, never add fields. `null` starts an empty schema. |
 
 ##### `shipeasy release experiments universes update`
 
@@ -1072,7 +1075,10 @@ shipeasy release experiments universes update [options] <id>
 | Option | | Description |
 | --- | --- | --- |
 | `--folder <value>` | optional | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
+| `--description <value>` | optional | Human-readable blurb shown in the universe picker/hovercard. |
 | `--holdout-range <value>` | optional | Inclusive `[lo, hi]` bucket range (0–9999) reserved as the **holdout** — callers hashed into this slice are excluded from every experiment in the universe. `null` disables the holdout. Pro plan or higher required. |
+| `--recommended-headroom <value>` | optional | Basis points of reserved headroom seeded into new experiments in this universe. |
+| `--param-schema <value>` | optional | Replace the universe config schema. Additive changes + default edits are always allowed; removing a param a running experiment overrides is rejected (deprecate-only). |
 
 ##### `shipeasy release experiments universes archive`
 
@@ -1128,12 +1134,14 @@ shipeasy release experiments create [options] <name>
 | `--bucket-by <value>` | optional | — |
 | `--folder <value>` | optional | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `--universe <value>` | optional | Name of an existing universe in the project. Returns `422` if the universe doesn't exist. |
-| `--targeting-gate <value>` | optional | Optional gate name. Only callers that pass the gate are enrolled in the experiment. |
-| `--allocation-pct <value>` | optional | Share of the (gated) audience allocated to the experiment, in basis points (0–10000 = 0%–100%). `0` = unallocated. Use `allocation_percent` (0–100) below to think in percent. Immutable while the experiment is running. |
+| `--targeting-gate <value>` | optional | Optional gate name (a `targeting`-type flag). Only callers that pass the gate are enrolled in the experiment. |
+| `--holdout-gate <value>` | optional | Optional per-experiment holdout gate — the name of a `holdout`-type flag (public % + whitelist). A caller the flag passes is *held out* (never assigned, sees the universe defaults). Distinct from the universe-level holdout. |
+| `--allocation-pct <value>` | optional | Share of the (gated) audience allocated to the experiment, in basis points (0–10000 = 0%–100%). `0` = unallocated. Under pooled assignment this is the size of the universe-pool slice claimed. Use `allocation_percent` (0–100) below to think in percent. Immutable while the experiment is running. |
 | `--allocation-percent <value>` | optional | Allocation as a **percentage** (0–100, fractional ok). Friendlier alias for `allocation_pct`; converted to basis points server-side (e.g. `50` = 5000 bp). If both are set, `allocation_percent` wins. |
+| `--reserved-headroom <value>` | optional | Basis points of this experiment's split kept empty (0–10000) so a new variant can be appended into it while running without reshuffling. Group weights must sum to `10000 − reserved_headroom`. Defaults to the universe's `recommended_headroom` when omitted. |
 | `--salt <value>` | optional | Hash salt for bucketing. Auto-generated if omitted. Immutable while running. |
-| `--params <value>` | optional | Map of param-name → scalar type. Defines the shape of `groups[].params`. Example: `{ headline: 'string', show_cta: 'bool' }`. |
-| `--groups <value>` | optional | Two or more variants. Weights must sum to exactly 10000 (100%). Immutable while running. |
+| `--params <value>` | optional | **Deprecated** — the universe now owns the config schema (`param_schema`). Retained for back-compat; new experiments should leave this empty and declare params on the universe. Map of param-name → scalar type. |
+| `--groups <value>` | optional | Two or more variants. Weights must sum to `10000 − reserved_headroom`. Existing weights are immutable while running, but a new variant may be appended into the reserved tail. |
 | `--significance-threshold <value>` | optional | p-value cutoff used by the analysis pass. Defaults to `0.05`. Values other than 0.05 require Pro plan or higher. |
 | `--min-runtime-days <value>` | optional | Minimum days the experiment must run before results are considered conclusive. |
 | `--min-sample-size <value>` | optional | Minimum exposures per group before results are considered conclusive. |
@@ -1180,12 +1188,14 @@ shipeasy release experiments update [options] <id>
 | `--bucket-by <value>` | optional | — |
 | `--folder <value>` | optional | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `--targeting-gate <value>` | optional | — |
+| `--holdout-gate <value>` | optional | Per-experiment holdout gate — the name of a `holdout`-type flag, or `null` to clear. A caller the flag passes is held out. |
 | `--allocation-pct <value>` | optional | Basis-points allocation (0–10000). Use `allocation_percent` (0–100) for percent. Immutable while the experiment is running. |
+| `--reserved-headroom <value>` | optional | Basis points of the split kept empty for appended variants. Group weights must sum to `10000 − reserved_headroom`. May be shrunk (never grown into existing weights) while running when appending a variant. |
 | `--allocation-percent <value>` | optional | Allocation as a **percentage** (0–100). Friendlier alias for `allocation_pct`; converted to basis points server-side. Wins over `allocation_pct` if both are supplied. Immutable while running. |
 | `--salt <value>` | optional | Hash salt. Immutable while running. |
 | `--universe <value>` | optional | New universe name. Immutable while running. Returns `422` if the universe doesn't exist. |
-| `--params <value>` | optional | Map of param-name → scalar type. Defines the shape of `groups[].params`. Example: `{ headline: 'string', show_cta: 'bool' }`. |
-| `--groups <value>` | optional | Replacement groups. Weights must sum to 10000. Immutable while running. |
+| `--params <value>` | optional | **Deprecated** — the universe owns the config schema (`param_schema`). Retained for back-compat. Map of param-name → scalar type. |
+| `--groups <value>` | optional | Replacement groups. Weights must sum to `10000 − reserved_headroom`. Existing weights/values are immutable while running; a new variant may be appended into the reserved tail. |
 | `--significance-threshold <value>` | optional | — |
 | `--min-runtime-days <value>` | optional | — |
 | `--min-sample-size <value>` | optional | — |
@@ -1535,6 +1545,7 @@ shipeasy release flags create [options] <name>
 
 | Option | | Description |
 | --- | --- | --- |
+| `--type <value>` | optional | Gate kind. `targeting` (default) is a normal flag with the full builder. `holdout` is a **restricted** flag — only a public rollout % and a whitelist are allowed; attribute rules and a gatekeeper stack are rejected. Used as an experiment's `holdout_gate`. |
 | `--enabled <value>` | optional | Master switch. Defaults to `true`. Set `false` to create the gate disabled (evaluates to `false` regardless of rules/rollout); flip on via `POST /{id}/enable` or PATCH. |
 | `--rollout-pct <value>` | optional | Initial rollout in **basis points** (0–10000 = 0%–100%) — `100` here means **1%**, not 100%. Use `rollout_percent` (0–100) below if you'd rather think in percent. Use `0` to create the gate dark and ramp via PATCH after deploy validation. |
 | `--rollout-percent <value>` | optional | Initial rollout as a **percentage** (0–100, fractional ok). Friendlier alias for `rollout_pct`; converted internally to basis points (e.g. `100` here = 10000 bp = 100%). If both `rollout_pct` and `rollout_percent` are set, `rollout_percent` wins. |
@@ -1561,6 +1572,7 @@ shipeasy release flags update [options] <id>
 
 | Option | | Description |
 | --- | --- | --- |
+| `--type <value>` | optional | Gate kind. Switching to `holdout` requires the gate carry only a public rollout % + whitelist (attribute rules / stack are rejected). |
 | `--rollout-pct <value>` | optional | New rollout in **basis points** (0–10000 = 0%–100%) — `100` here means **1%**. Use `rollout_percent` (0–100) below for percent. Omit both to leave unchanged. |
 | `--rollout-percent <value>` | optional | New rollout as a **percentage** (0–100). Friendlier alias for `rollout_pct`; converted internally. Wins over `rollout_pct` if both are supplied. Omit both to leave unchanged. |
 | `--rules <value>` | optional | Replaces the rule list wholesale. To add a value to an `in` rule, send the full new `rules` array with the augmented `value` (e.g. previous `['US','CA']` → `['US','CA','GB']`). |

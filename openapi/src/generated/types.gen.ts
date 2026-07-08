@@ -19,6 +19,10 @@ export type ListGatesResponse = {
          */
         enabled: boolean | number;
         /**
+         * Gate kind — `targeting` (normal flag) or `holdout` (restricted public % + whitelist).
+         */
+        type?: 'targeting' | 'holdout';
+        /**
          * Current rollout in basis points (0–10000).
          */
         rolloutPct: number;
@@ -233,6 +237,10 @@ export type CreateGateRequest = {
      */
     name: string;
     /**
+     * Gate kind. `targeting` (default) is a normal flag with the full builder. `holdout` is a **restricted** flag — only a public rollout % and a whitelist are allowed; attribute rules and a gatekeeper stack are rejected. Used as an experiment's `holdout_gate`.
+     */
+    type?: 'targeting' | 'holdout';
+    /**
      * Master switch. Defaults to `true`. Set `false` to create the gate disabled (evaluates to `false` regardless of rules/rollout); flip on via `POST /{id}/enable` or PATCH.
      */
     enabled?: boolean;
@@ -441,6 +449,10 @@ export type DeleteGateResponse = {
  * Body for `PATCH /api/admin/gates/{id}`. Partial — only supplied fields change. Array fields (`rules`, `stack`) replace, not merge.
  */
 export type UpdateGateRequest = {
+    /**
+     * Gate kind. Switching to `holdout` requires the gate carry only a public rollout % + whitelist (attribute rules / stack are rejected).
+     */
+    type?: 'targeting' | 'holdout';
     /**
      * New rollout in **basis points** (0–10000 = 0%–100%) — `100` here means **1%**. Use `rollout_percent` (0–100) below for percent. Omit both to leave unchanged.
      */
@@ -770,11 +782,15 @@ export type CreateExperimentRequest = {
      */
     universe: string;
     /**
-     * Optional gate name. Only callers that pass the gate are enrolled in the experiment.
+     * Optional gate name (a `targeting`-type flag). Only callers that pass the gate are enrolled in the experiment.
      */
     targeting_gate?: string | null;
     /**
-     * Share of the (gated) audience allocated to the experiment, in basis points (0–10000 = 0%–100%). `0` = unallocated. Use `allocation_percent` (0–100) below to think in percent. Immutable while the experiment is running.
+     * Optional per-experiment holdout gate — the name of a `holdout`-type flag (public % + whitelist). A caller the flag passes is *held out* (never assigned, sees the universe defaults). Distinct from the universe-level holdout.
+     */
+    holdout_gate?: string | null;
+    /**
+     * Share of the (gated) audience allocated to the experiment, in basis points (0–10000 = 0%–100%). `0` = unallocated. Under pooled assignment this is the size of the universe-pool slice claimed. Use `allocation_percent` (0–100) below to think in percent. Immutable while the experiment is running.
      */
     allocation_pct?: number;
     /**
@@ -782,17 +798,21 @@ export type CreateExperimentRequest = {
      */
     allocation_percent?: number;
     /**
+     * Basis points of this experiment's split kept empty (0–10000) so a new variant can be appended into it while running without reshuffling. Group weights must sum to `10000 − reserved_headroom`. Defaults to the universe's `recommended_headroom` when omitted.
+     */
+    reserved_headroom?: number;
+    /**
      * Hash salt for bucketing. Auto-generated if omitted. Immutable while running.
      */
     salt?: string;
     /**
-     * Map of param-name → scalar type. Defines the shape of `groups[].params`. Example: `{ headline: 'string', show_cta: 'bool' }`.
+     * **Deprecated** — the universe now owns the config schema (`param_schema`). Retained for back-compat; new experiments should leave this empty and declare params on the universe. Map of param-name → scalar type.
      */
     params?: {
         [key: string]: 'string' | 'bool' | 'number';
     };
     /**
-     * Two or more variants. Weights must sum to exactly 10000 (100%). Immutable while running.
+     * Two or more variants. Weights must sum to `10000 − reserved_headroom`. Existing weights are immutable while running, but a new variant may be appended into the reserved tail.
      */
     groups: Array<{
         /**
@@ -800,11 +820,11 @@ export type CreateExperimentRequest = {
          */
         name: string;
         /**
-         * Allocation weight in basis points (0–10000). The sum across all groups must equal exactly **10000** (100%).
+         * Allocation weight in basis points (0–10000). Weights across all groups must sum to `10000 − reserved_headroom` (100% minus any reserved tail).
          */
         weight: number;
         /**
-         * Per-group parameter values delivered to the SDK when a caller is hashed into this group. Keys must match the experiment's `params` schema.
+         * Per-variant **override map** — a subset of the universe's `param_schema` keys. A key the variant doesn't set inherits the universe default. Unknown keys (not in the universe schema) are rejected.
          */
         params?: {
             [key: string]: unknown;
@@ -910,7 +930,7 @@ export type DeleteExperimentResponse = {
 };
 
 /**
- * Body for `PATCH /api/admin/experiments/{id}`. Partial — only supplied fields change. `allocation_pct`, `groups`, `salt`, `universe`, `params` are immutable while the experiment is running (stop first).
+ * Body for `PATCH /api/admin/experiments/{id}`. Partial — only supplied fields change. `allocation_pct`, `salt`, `universe` and existing group weights/values are immutable while running (stop first); a new variant may still be appended into the reserved tail.
  */
 export type UpdateExperimentRequest = {
     /**
@@ -926,9 +946,17 @@ export type UpdateExperimentRequest = {
     folder?: Folder;
     targeting_gate?: string | null;
     /**
+     * Per-experiment holdout gate — the name of a `holdout`-type flag, or `null` to clear. A caller the flag passes is held out.
+     */
+    holdout_gate?: string | null;
+    /**
      * Basis-points allocation (0–10000). Use `allocation_percent` (0–100) for percent. Immutable while the experiment is running.
      */
     allocation_pct?: number;
+    /**
+     * Basis points of the split kept empty for appended variants. Group weights must sum to `10000 − reserved_headroom`. May be shrunk (never grown into existing weights) while running when appending a variant.
+     */
+    reserved_headroom?: number;
     /**
      * Allocation as a **percentage** (0–100). Friendlier alias for `allocation_pct`; converted to basis points server-side. Wins over `allocation_pct` if both are supplied. Immutable while running.
      */
@@ -942,13 +970,13 @@ export type UpdateExperimentRequest = {
      */
     universe?: string;
     /**
-     * Map of param-name → scalar type. Defines the shape of `groups[].params`. Example: `{ headline: 'string', show_cta: 'bool' }`.
+     * **Deprecated** — the universe owns the config schema (`param_schema`). Retained for back-compat. Map of param-name → scalar type.
      */
     params?: {
         [key: string]: 'string' | 'bool' | 'number';
     };
     /**
-     * Replacement groups. Weights must sum to 10000. Immutable while running.
+     * Replacement groups. Weights must sum to `10000 − reserved_headroom`. Existing weights/values are immutable while running; a new variant may be appended into the reserved tail.
      */
     groups?: Array<{
         /**
@@ -956,11 +984,11 @@ export type UpdateExperimentRequest = {
          */
         name: string;
         /**
-         * Allocation weight in basis points (0–10000). The sum across all groups must equal exactly **10000** (100%).
+         * Allocation weight in basis points (0–10000). Weights across all groups must sum to `10000 − reserved_headroom`.
          */
         weight: number;
         /**
-         * Per-group parameter values delivered to the SDK when a caller is hashed into this group. Keys must match the experiment's `params` schema.
+         * Per-variant **override map** — a subset of the universe's `param_schema` keys. Unknown keys are rejected; unset keys inherit the universe default.
          */
         params?: {
             [key: string]: unknown;
@@ -1651,6 +1679,26 @@ export type SetKillswitchValueResponse = {
     published: KillswitchValue;
 };
 
+export type UniverseParam = {
+    /**
+     * Param key, referenced by `groups[].params` on every experiment in the universe.
+     */
+    name: string;
+    /**
+     * Scalar type of the param's value.
+     */
+    type: 'bool' | 'string' | 'int' | 'number';
+    /**
+     * Universe-wide default. Returned when the assigned variant doesn't override this param (resolution: variant override → universe default).
+     */
+    default: unknown;
+};
+
+/**
+ * The universe's ordered config schema — the single source of truth for its params.
+ */
+export type UniverseParamSchema = Array<UniverseParam>;
+
 export type ListUniversesResponse = {
     data: Array<{
         /**
@@ -1662,6 +1710,10 @@ export type ListUniversesResponse = {
          */
         name: string;
         /**
+         * Human-readable blurb shown in the universe picker/hovercard.
+         */
+        description?: string | null;
+        /**
          * Unit of randomisation. Snake-case in request (`unit_type`), camelCase in response.
          */
         unitType: string;
@@ -1672,6 +1724,14 @@ export type ListUniversesResponse = {
             number,
             number
         ] | null;
+        /**
+         * Basis points of headroom seeded into each new experiment's reserved tail (0 = none).
+         */
+        recommendedHeadroom?: number;
+        /**
+         * The universe-owned config schema, or `null` on pre-rework universes not yet seeded.
+         */
+        paramSchema?: UniverseParamSchema | null;
         /**
          * ISO-8601 timestamp of creation.
          */
@@ -1690,6 +1750,10 @@ export type CreateUniverseRequest = {
     name: string;
     folder?: Folder;
     /**
+     * Human-readable blurb shown in the universe picker/hovercard.
+     */
+    description?: string | null;
+    /**
      * Unit of randomisation. Typically `user_id`. Use `account_id` to keep whole accounts in the same group across an experiment.
      */
     unit_type?: string;
@@ -1700,6 +1764,14 @@ export type CreateUniverseRequest = {
         number,
         number
     ] | null;
+    /**
+     * Basis points of reserved headroom seeded into each new experiment created in this universe (0 = none). Lets variants be appended into a running experiment without reshuffling.
+     */
+    recommended_headroom?: number;
+    /**
+     * The universe-owned config schema — an ordered `{ name, type, default }[]`. Experiments may only override values per variant, never add fields. `null` starts an empty schema.
+     */
+    param_schema?: UniverseParamSchema | null;
 };
 
 export type CreateUniverseResponse = {
@@ -1718,10 +1790,14 @@ export type DeleteUniverseResponse = {
 };
 
 /**
- * Body for `PATCH /api/admin/universes/{id}`. Only `holdout_range` is mutable — name and unit_type are immutable after create.
+ * Body for `PATCH /api/admin/universes/{id}`. `name` and `unit_type` are immutable after create; `holdout_range`, `description`, `recommended_headroom` and `param_schema` are mutable.
  */
 export type UpdateUniverseRequest = {
     folder?: Folder;
+    /**
+     * Human-readable blurb shown in the universe picker/hovercard.
+     */
+    description?: string | null;
     /**
      * Inclusive `[lo, hi]` bucket range (0–9999) reserved as the **holdout** — callers hashed into this slice are excluded from every experiment in the universe. `null` disables the holdout. Pro plan or higher required.
      */
@@ -1729,6 +1805,14 @@ export type UpdateUniverseRequest = {
         number,
         number
     ] | null;
+    /**
+     * Basis points of reserved headroom seeded into new experiments in this universe.
+     */
+    recommended_headroom?: number;
+    /**
+     * Replace the universe config schema. Additive changes + default edits are always allowed; removing a param a running experiment overrides is rejected (deprecate-only).
+     */
+    param_schema?: UniverseParamSchema | null;
 };
 
 export type UpdateUniverseResponse = {

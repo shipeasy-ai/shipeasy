@@ -115,6 +115,7 @@ _Parameters_
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
 | `name` | required | `string` | Stable gate key used by SDKs (`Shipeasy.checkGate(user, '<name>')`). Single segment or `folder.name`. Lowercase letters, digits, `_` or `-`; max 128 chars. Immutable after create — rename = delete + recreate. _(length 0–128; pattern `^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$`)_ |
+| `type` | optional | `"targeting" \| "holdout"` | Gate kind. `targeting` (default) is a normal flag with the full builder. `holdout` is a **restricted** flag — only a public rollout % and a whitelist are allowed; attribute rules and a gatekeeper stack are rejected. Used as an experiment's `holdout_gate`. _(default `"targeting"`)_ |
 | `enabled` | optional | `boolean` | Master switch. Defaults to `true`. Set `false` to create the gate disabled (evaluates to `false` regardless of rules/rollout); flip on via `POST /{id}/enable` or PATCH. _(default `true`)_ |
 | `rollout_pct` | optional | `integer` | Initial rollout in **basis points** (0–10000 = 0%–100%) — `100` here means **1%**, not 100%. Use `rollout_percent` (0–100) below if you'd rather think in percent. Use `0` to create the gate dark and ramp via PATCH after deploy validation. _(default `0`; 0–10000)_ |
 | `rollout_percent` | optional | `number` | Initial rollout as a **percentage** (0–100, fractional ok). Friendlier alias for `rollout_pct`; converted internally to basis points (e.g. `100` here = 10000 bp = 100%). If both `rollout_pct` and `rollout_percent` are set, `rollout_percent` wins. _(0–100)_ |
@@ -217,6 +218,7 @@ _Parameters_
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
 | `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `type` | optional | `"targeting" \| "holdout"` | Gate kind. Switching to `holdout` requires the gate carry only a public rollout % + whitelist (attribute rules / stack are rejected). |
 | `rollout_pct` | optional | `integer` | New rollout in **basis points** (0–10000 = 0%–100%) — `100` here means **1%**. Use `rollout_percent` (0–100) below for percent. Omit both to leave unchanged. _(0–10000)_ |
 | `rollout_percent` | optional | `number` | New rollout as a **percentage** (0–100). Friendlier alias for `rollout_pct`; converted internally. Wins over `rollout_pct` if both are supplied. Omit both to leave unchanged. _(0–100)_ |
 | `rules` | optional | `object[]` | Replaces the rule list wholesale. To add a value to an `in` rule, send the full new `rules` array with the augmented `value` (e.g. previous `['US','CA']` → `['US','CA','GB']`). |
@@ -976,12 +978,14 @@ _Parameters_
 | `bucket_by` | optional | `any` | — _(default `null`)_ |
 | `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `universe` | required | `string` | Name of an existing universe in the project. Returns `422` if the universe doesn't exist. _(length 1–∞)_ |
-| `targeting_gate` | optional | `any` | Optional gate name. Only callers that pass the gate are enrolled in the experiment. _(default `null`)_ |
-| `allocation_pct` | optional | `integer` | Share of the (gated) audience allocated to the experiment, in basis points (0–10000 = 0%–100%). `0` = unallocated. Use `allocation_percent` (0–100) below to think in percent. Immutable while the experiment is running. _(default `0`; 0–10000)_ |
+| `targeting_gate` | optional | `any` | Optional gate name (a `targeting`-type flag). Only callers that pass the gate are enrolled in the experiment. _(default `null`)_ |
+| `holdout_gate` | optional | `any` | Optional per-experiment holdout gate — the name of a `holdout`-type flag (public % + whitelist). A caller the flag passes is *held out* (never assigned, sees the universe defaults). Distinct from the universe-level holdout. _(default `null`)_ |
+| `allocation_pct` | optional | `integer` | Share of the (gated) audience allocated to the experiment, in basis points (0–10000 = 0%–100%). `0` = unallocated. Under pooled assignment this is the size of the universe-pool slice claimed. Use `allocation_percent` (0–100) below to think in percent. Immutable while the experiment is running. _(default `0`; 0–10000)_ |
 | `allocation_percent` | optional | `number` | Allocation as a **percentage** (0–100, fractional ok). Friendlier alias for `allocation_pct`; converted to basis points server-side (e.g. `50` = 5000 bp). If both are set, `allocation_percent` wins. _(0–100)_ |
+| `reserved_headroom` | optional | `integer` | Basis points of this experiment's split kept empty (0–10000) so a new variant can be appended into it while running without reshuffling. Group weights must sum to `10000 − reserved_headroom`. Defaults to the universe's `recommended_headroom` when omitted. _(0–10000)_ |
 | `salt` | optional | `string` | Hash salt for bucketing. Auto-generated if omitted. Immutable while running. _(length 1–64)_ |
-| `params` | optional | `object` | Map of param-name → scalar type. Defines the shape of `groups[].params`. Example: `{ headline: 'string', show_cta: 'bool' }`. _(default `{}`)_ |
-| `groups` | required | `object[]` | Two or more variants. Weights must sum to exactly 10000 (100%). Immutable while running. |
+| `params` | optional | `object` | **Deprecated** — the universe now owns the config schema (`param_schema`). Retained for back-compat; new experiments should leave this empty and declare params on the universe. Map of param-name → scalar type. _(default `{}`)_ |
+| `groups` | required | `object[]` | Two or more variants. Weights must sum to `10000 − reserved_headroom`. Existing weights are immutable while running, but a new variant may be appended into the reserved tail. |
 | `significance_threshold` | optional | `number` | p-value cutoff used by the analysis pass. Defaults to `0.05`. Values other than 0.05 require Pro plan or higher. _(default `0.05`; 0.0001–0.5)_ |
 | `min_runtime_days` | optional | `integer` | Minimum days the experiment must run before results are considered conclusive. _(default `0`; 0–365)_ |
 | `min_sample_size` | optional | `integer` | Minimum exposures per group before results are considered conclusive. _(default `100`; 1–9007199254740991)_ |
@@ -1279,12 +1283,14 @@ _Parameters_
 | `bucket_by` | optional | `any` | — |
 | `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `targeting_gate` | optional | `any` | — |
+| `holdout_gate` | optional | `any` | Per-experiment holdout gate — the name of a `holdout`-type flag, or `null` to clear. A caller the flag passes is held out. |
 | `allocation_pct` | optional | `integer` | Basis-points allocation (0–10000). Use `allocation_percent` (0–100) for percent. Immutable while the experiment is running. _(0–10000)_ |
+| `reserved_headroom` | optional | `integer` | Basis points of the split kept empty for appended variants. Group weights must sum to `10000 − reserved_headroom`. May be shrunk (never grown into existing weights) while running when appending a variant. _(0–10000)_ |
 | `allocation_percent` | optional | `number` | Allocation as a **percentage** (0–100). Friendlier alias for `allocation_pct`; converted to basis points server-side. Wins over `allocation_pct` if both are supplied. Immutable while running. _(0–100)_ |
 | `salt` | optional | `string` | Hash salt. Immutable while running. _(length 1–64)_ |
 | `universe` | optional | `string` | New universe name. Immutable while running. Returns `422` if the universe doesn't exist. |
-| `params` | optional | `object` | Map of param-name → scalar type. Defines the shape of `groups[].params`. Example: `{ headline: 'string', show_cta: 'bool' }`. |
-| `groups` | optional | `object[]` | Replacement groups. Weights must sum to 10000. Immutable while running. |
+| `params` | optional | `object` | **Deprecated** — the universe owns the config schema (`param_schema`). Retained for back-compat. Map of param-name → scalar type. |
+| `groups` | optional | `object[]` | Replacement groups. Weights must sum to `10000 − reserved_headroom`. Existing weights/values are immutable while running; a new variant may be appended into the reserved tail. |
 | `significance_threshold` | optional | `number` | — _(0.0001–0.5)_ |
 | `min_runtime_days` | optional | `integer` | — _(0–365)_ |
 | `min_sample_size` | optional | `integer` | — _(1–9007199254740991)_ |
@@ -1362,8 +1368,11 @@ _Parameters_
 | --- | --- | --- | --- |
 | `name` | required | `string` | Stable universe key. Single segment or `folder.name`. Lowercase letters, digits, `_` or `-`; max 128 chars. Immutable after create. _(length 0–128; pattern `^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$`)_ |
 | `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
+| `description` | optional | `any` | Human-readable blurb shown in the universe picker/hovercard. _(default `null`)_ |
 | `unit_type` | optional | `string` | Unit of randomisation. Typically `user_id`. Use `account_id` to keep whole accounts in the same group across an experiment. _(default `"user_id"`)_ |
 | `holdout_range` | optional | `any` | Inclusive `[lo, hi]` bucket range (0–9999) reserved as the **holdout** — callers hashed into this slice are excluded from every experiment in the universe. `null` disables the holdout. Pro plan or higher required. _(default `null`)_ |
+| `recommended_headroom` | optional | `integer` | Basis points of reserved headroom seeded into each new experiment created in this universe (0 = none). Lets variants be appended into a running experiment without reshuffling. _(default `0`; 0–10000)_ |
+| `param_schema` | optional | `any` | The universe-owned config schema — an ordered `{ name, type, default }[]`. Experiments may only override values per variant, never add fields. `null` starts an empty schema. _(default `null`)_ |
 | `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `release_experiments_universes_list` call. It proves you listed existing release experiments universes and confirmed this one doesn't already exist before creating it. Call `release_experiments_universes_list` first if you don't have a fresh token. |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -1413,7 +1422,10 @@ _Parameters_
 | --- | --- | --- | --- |
 | `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
+| `description` | optional | `any` | Human-readable blurb shown in the universe picker/hovercard. |
 | `holdout_range` | optional | `any` | Inclusive `[lo, hi]` bucket range (0–9999) reserved as the **holdout** — callers hashed into this slice are excluded from every experiment in the universe. `null` disables the holdout. Pro plan or higher required. |
+| `recommended_headroom` | optional | `integer` | Basis points of reserved headroom seeded into new experiments in this universe. _(0–10000)_ |
+| `param_schema` | optional | `any` | Replace the universe config schema. Additive changes + default edits are always allowed; removing a param a running experiment overrides is rejected (deprecate-only). |
 
 _Errors_ — beyond the [common errors](#errors):
 

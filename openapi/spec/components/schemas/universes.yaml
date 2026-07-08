@@ -1,3 +1,35 @@
+# The universe owns the config schema for every experiment/variant in it — an
+# ordered list of `{ name, type, default }`. Experiments may only override the
+# per-variant value of a declared param, never add fields (universe rework).
+UniverseParam:
+  type: object
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: ^[a-zA-Z_][a-zA-Z0-9_]*$
+      description: Param key, referenced by `groups[].params` on every experiment in the universe.
+    type:
+      type: string
+      enum:
+        - bool
+        - string
+        - int
+        - number
+      description: Scalar type of the param's value.
+    default:
+      description: "Universe-wide default. Returned when the assigned variant doesn't override this param (resolution: variant override → universe default)."
+  required:
+    - name
+    - type
+    - default
+  additionalProperties: false
+UniverseParamSchema:
+  type: array
+  items:
+    $ref: "#/UniverseParam"
+  description: The universe's ordered config schema — the single source of truth for its params.
 ListUniversesResponse:
   type: object
   properties:
@@ -14,6 +46,11 @@ ListUniversesResponse:
             maxLength: 128
             pattern: ^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$
             description: Stable universe key. Single segment or `folder.name`. Lowercase letters, digits, `_` or `-`; max 128 chars. Immutable after create.
+          description:
+            anyOf:
+              - type: string
+              - type: "null"
+            description: Human-readable blurb shown in the universe picker/hovercard.
           unitType:
             type: string
             description: Unit of randomisation. Snake-case in request (`unit_type`), camelCase in response.
@@ -26,6 +63,16 @@ ListUniversesResponse:
                 maxItems: 2
               - type: "null"
             description: Reserved holdout bucket range, or `null` if none.
+          recommendedHeadroom:
+            type: integer
+            minimum: 0
+            maximum: 10000
+            description: Basis points of headroom seeded into each new experiment's reserved tail (0 = none).
+          paramSchema:
+            anyOf:
+              - $ref: "#/UniverseParamSchema"
+              - type: "null"
+            description: The universe-owned config schema, or `null` on pre-rework universes not yet seeded.
           createdAt:
             type: string
             description: ISO-8601 timestamp of creation.
@@ -54,6 +101,13 @@ CreateUniverseRequest:
       description: Stable universe key. Single segment or `folder.name`. Lowercase letters, digits, `_` or `-`; max 128 chars. Immutable after create.
     folder:
       $ref: ./common.yaml#/Folder
+    description:
+      default: null
+      anyOf:
+        - type: string
+          maxLength: 2000
+        - type: "null"
+      description: Human-readable blurb shown in the universe picker/hovercard.
     unit_type:
       default: user_id
       description: Unit of randomisation. Typically `user_id`. Use `account_id` to keep whole accounts in the same group across an experiment.
@@ -70,6 +124,18 @@ CreateUniverseRequest:
           maxItems: 2
         - type: "null"
       description: Inclusive `[lo, hi]` bucket range (0–9999) reserved as the **holdout** — callers hashed into this slice are excluded from every experiment in the universe. `null` disables the holdout. Pro plan or higher required.
+    recommended_headroom:
+      default: 0
+      type: integer
+      minimum: 0
+      maximum: 10000
+      description: Basis points of reserved headroom seeded into each new experiment created in this universe (0 = none). Lets variants be appended into a running experiment without reshuffling.
+    param_schema:
+      default: null
+      anyOf:
+        - $ref: "#/UniverseParamSchema"
+        - type: "null"
+      description: The universe-owned config schema — an ordered `{ name, type, default }[]`. Experiments may only override values per variant, never add fields. `null` starts an empty schema.
   required:
     - name
   additionalProperties: false
@@ -94,6 +160,12 @@ UpdateUniverseRequest:
   properties:
     folder:
       $ref: ./common.yaml#/Folder
+    description:
+      anyOf:
+        - type: string
+          maxLength: 2000
+        - type: "null"
+      description: Human-readable blurb shown in the universe picker/hovercard.
     holdout_range:
       anyOf:
         - type: array
@@ -105,8 +177,18 @@ UpdateUniverseRequest:
           maxItems: 2
         - type: "null"
       description: Inclusive `[lo, hi]` bucket range (0–9999) reserved as the **holdout** — callers hashed into this slice are excluded from every experiment in the universe. `null` disables the holdout. Pro plan or higher required.
+    recommended_headroom:
+      type: integer
+      minimum: 0
+      maximum: 10000
+      description: Basis points of reserved headroom seeded into new experiments in this universe.
+    param_schema:
+      anyOf:
+        - $ref: "#/UniverseParamSchema"
+        - type: "null"
+      description: Replace the universe config schema. Additive changes + default edits are always allowed; removing a param a running experiment overrides is rejected (deprecate-only).
   additionalProperties: false
-  description: Body for `PATCH /api/admin/universes/{id}`. Only `holdout_range` is mutable — name and unit_type are immutable after create.
+  description: Body for `PATCH /api/admin/universes/{id}`. `name` and `unit_type` are immutable after create; `holdout_range`, `description`, `recommended_headroom` and `param_schema` are mutable.
 UpdateUniverseResponse:
   type: object
   properties:

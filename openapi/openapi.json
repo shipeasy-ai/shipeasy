@@ -10048,6 +10048,14 @@
                   ],
                   "description": "Master switch. Returned as `1`/`0` from D1; treat truthy as enabled."
                 },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "targeting",
+                    "holdout"
+                  ],
+                  "description": "Gate kind — `targeting` (normal flag) or `holdout` (restricted public % + whitelist)."
+                },
                 "rolloutPct": {
                   "type": "integer",
                   "minimum": 0,
@@ -10548,6 +10556,15 @@
             "pattern": "^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$",
             "description": "Stable gate key used by SDKs (`Shipeasy.checkGate(user, '<name>')`). Single segment or `folder.name`. Lowercase letters, digits, `_` or `-`; max 128 chars. Immutable after create — rename = delete + recreate."
           },
+          "type": {
+            "default": "targeting",
+            "type": "string",
+            "enum": [
+              "targeting",
+              "holdout"
+            ],
+            "description": "Gate kind. `targeting` (default) is a normal flag with the full builder. `holdout` is a **restricted** flag — only a public rollout % and a whitelist are allowed; attribute rules and a gatekeeper stack are rejected. Used as an experiment's `holdout_gate`."
+          },
           "enabled": {
             "default": true,
             "description": "Master switch. Defaults to `true`. Set `false` to create the gate disabled (evaluates to `false` regardless of rules/rollout); flip on via `POST /{id}/enable` or PATCH.",
@@ -10945,6 +10962,14 @@
       "UpdateGateRequest": {
         "type": "object",
         "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "targeting",
+              "holdout"
+            ],
+            "description": "Gate kind. Switching to `holdout` requires the gate carry only a public rollout % + whitelist (attribute rules / stack are rejected)."
+          },
           "rollout_pct": {
             "description": "New rollout in **basis points** (0–10000 = 0%–100%) — `100` here means **1%**. Use `rollout_percent` (0–100) below for percent. Omit both to leave unchanged.",
             "type": "integer",
@@ -11743,7 +11768,19 @@
           },
           "targeting_gate": {
             "default": null,
-            "description": "Optional gate name. Only callers that pass the gate are enrolled in the experiment.",
+            "description": "Optional gate name (a `targeting`-type flag). Only callers that pass the gate are enrolled in the experiment.",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "holdout_gate": {
+            "default": null,
+            "description": "Optional per-experiment holdout gate — the name of a `holdout`-type flag (public % + whitelist). A caller the flag passes is *held out* (never assigned, sees the universe defaults). Distinct from the universe-level holdout.",
             "anyOf": [
               {
                 "type": "string"
@@ -11755,7 +11792,7 @@
           },
           "allocation_pct": {
             "default": 0,
-            "description": "Share of the (gated) audience allocated to the experiment, in basis points (0–10000 = 0%–100%). `0` = unallocated. Use `allocation_percent` (0–100) below to think in percent. Immutable while the experiment is running.",
+            "description": "Share of the (gated) audience allocated to the experiment, in basis points (0–10000 = 0%–100%). `0` = unallocated. Under pooled assignment this is the size of the universe-pool slice claimed. Use `allocation_percent` (0–100) below to think in percent. Immutable while the experiment is running.",
             "type": "integer",
             "minimum": 0,
             "maximum": 10000
@@ -11765,6 +11802,12 @@
             "type": "number",
             "minimum": 0,
             "maximum": 100
+          },
+          "reserved_headroom": {
+            "description": "Basis points of this experiment's split kept empty (0–10000) so a new variant can be appended into it while running without reshuffling. Group weights must sum to `10000 − reserved_headroom`. Defaults to the universe's `recommended_headroom` when omitted.",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
           },
           "salt": {
             "description": "Hash salt for bucketing. Auto-generated if omitted. Immutable while running.",
@@ -11783,7 +11826,7 @@
                 "number"
               ]
             },
-            "description": "Map of param-name → scalar type. Defines the shape of `groups[].params`. Example: `{ headline: 'string', show_cta: 'bool' }`."
+            "description": "**Deprecated** — the universe now owns the config schema (`param_schema`). Retained for back-compat; new experiments should leave this empty and declare params on the universe. Map of param-name → scalar type."
           },
           "groups": {
             "minItems": 2,
@@ -11801,11 +11844,11 @@
                   "type": "integer",
                   "minimum": 0,
                   "maximum": 10000,
-                  "description": "Allocation weight in basis points (0–10000). The sum across all groups must equal exactly **10000** (100%)."
+                  "description": "Allocation weight in basis points (0–10000). Weights across all groups must sum to `10000 − reserved_headroom` (100% minus any reserved tail)."
                 },
                 "params": {
                   "default": {},
-                  "description": "Per-group parameter values delivered to the SDK when a caller is hashed into this group. Keys must match the experiment's `params` schema.",
+                  "description": "Per-variant **override map** — a subset of the universe's `param_schema` keys. A key the variant doesn't set inherits the universe default. Unknown keys (not in the universe schema) are rejected.",
                   "type": "object",
                   "additionalProperties": {}
                 }
@@ -11815,9 +11858,9 @@
                 "weight"
               ],
               "additionalProperties": false,
-              "description": "One variant in the experiment. Weights across all groups must sum to 10000."
+              "description": "One variant. Its `params` may only override keys declared on the universe schema."
             },
-            "description": "Two or more variants. Weights must sum to exactly 10000 (100%). Immutable while running."
+            "description": "Two or more variants. Weights must sum to `10000 − reserved_headroom`. Existing weights are immutable while running, but a new variant may be appended into the reserved tail."
           },
           "significance_threshold": {
             "default": 0.05,
@@ -12220,8 +12263,25 @@
               }
             ]
           },
+          "holdout_gate": {
+            "description": "Per-experiment holdout gate — the name of a `holdout`-type flag, or `null` to clear. A caller the flag passes is held out.",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "allocation_pct": {
             "description": "Basis-points allocation (0–10000). Use `allocation_percent` (0–100) for percent. Immutable while the experiment is running.",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "reserved_headroom": {
+            "description": "Basis points of the split kept empty for appended variants. Group weights must sum to `10000 − reserved_headroom`. May be shrunk (never grown into existing weights) while running when appending a variant.",
             "type": "integer",
             "minimum": 0,
             "maximum": 10000
@@ -12252,10 +12312,10 @@
                 "number"
               ]
             },
-            "description": "Map of param-name → scalar type. Defines the shape of `groups[].params`. Example: `{ headline: 'string', show_cta: 'bool' }`."
+            "description": "**Deprecated** — the universe owns the config schema (`param_schema`). Retained for back-compat. Map of param-name → scalar type."
           },
           "groups": {
-            "description": "Replacement groups. Weights must sum to 10000. Immutable while running.",
+            "description": "Replacement groups. Weights must sum to `10000 − reserved_headroom`. Existing weights/values are immutable while running; a new variant may be appended into the reserved tail.",
             "minItems": 2,
             "type": "array",
             "items": {
@@ -12271,11 +12331,11 @@
                   "type": "integer",
                   "minimum": 0,
                   "maximum": 10000,
-                  "description": "Allocation weight in basis points (0–10000). The sum across all groups must equal exactly **10000** (100%)."
+                  "description": "Allocation weight in basis points (0–10000). Weights across all groups must sum to `10000 − reserved_headroom`."
                 },
                 "params": {
                   "default": {},
-                  "description": "Per-group parameter values delivered to the SDK when a caller is hashed into this group. Keys must match the experiment's `params` schema.",
+                  "description": "Per-variant **override map** — a subset of the universe's `param_schema` keys. Unknown keys are rejected; unset keys inherit the universe default.",
                   "type": "object",
                   "additionalProperties": {}
                 }
@@ -12285,7 +12345,7 @@
                 "weight"
               ],
               "additionalProperties": false,
-              "description": "One variant in the experiment. Weights across all groups must sum to 10000."
+              "description": "One variant. Its `params` may only override keys declared on the universe schema."
             }
           },
           "significance_threshold": {
@@ -12320,7 +12380,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Body for `PATCH /api/admin/experiments/{id}`. Partial — only supplied fields change. `allocation_pct`, `groups`, `salt`, `universe`, `params` are immutable while the experiment is running (stop first)."
+        "description": "Body for `PATCH /api/admin/experiments/{id}`. Partial — only supplied fields change. `allocation_pct`, `salt`, `universe` and existing group weights/values are immutable while running (stop first); a new variant may still be appended into the reserved tail."
       },
       "UpdateExperimentResponse": {
         "type": "object",
@@ -13747,6 +13807,44 @@
         ],
         "additionalProperties": false
       },
+      "UniverseParam": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$",
+            "description": "Param key, referenced by `groups[].params` on every experiment in the universe."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "bool",
+              "string",
+              "int",
+              "number"
+            ],
+            "description": "Scalar type of the param's value."
+          },
+          "default": {
+            "description": "Universe-wide default. Returned when the assigned variant doesn't override this param (resolution: variant override → universe default)."
+          }
+        },
+        "required": [
+          "name",
+          "type",
+          "default"
+        ],
+        "additionalProperties": false
+      },
+      "UniverseParamSchema": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/UniverseParam"
+        },
+        "description": "The universe's ordered config schema — the single source of truth for its params."
+      },
       "ListUniversesResponse": {
         "type": "object",
         "properties": {
@@ -13764,6 +13862,17 @@
                   "maxLength": 128,
                   "pattern": "^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$",
                   "description": "Stable universe key. Single segment or `folder.name`. Lowercase letters, digits, `_` or `-`; max 128 chars. Immutable after create."
+                },
+                "description": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Human-readable blurb shown in the universe picker/hovercard."
                 },
                 "unitType": {
                   "type": "string",
@@ -13784,6 +13893,23 @@
                     }
                   ],
                   "description": "Reserved holdout bucket range, or `null` if none."
+                },
+                "recommendedHeadroom": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 10000,
+                  "description": "Basis points of headroom seeded into each new experiment's reserved tail (0 = none)."
+                },
+                "paramSchema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/UniverseParamSchema"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The universe-owned config schema, or `null` on pre-rework universes not yet seeded."
                 },
                 "createdAt": {
                   "type": "string",
@@ -13829,6 +13955,19 @@
           "folder": {
             "$ref": "#/components/schemas/Folder"
           },
+          "description": {
+            "default": null,
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Human-readable blurb shown in the universe picker/hovercard."
+          },
           "unit_type": {
             "default": "user_id",
             "description": "Unit of randomisation. Typically `user_id`. Use `account_id` to keep whole accounts in the same group across an experiment.",
@@ -13852,6 +13991,25 @@
               }
             ],
             "description": "Inclusive `[lo, hi]` bucket range (0–9999) reserved as the **holdout** — callers hashed into this slice are excluded from every experiment in the universe. `null` disables the holdout. Pro plan or higher required."
+          },
+          "recommended_headroom": {
+            "default": 0,
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000,
+            "description": "Basis points of reserved headroom seeded into each new experiment created in this universe (0 = none). Lets variants be appended into a running experiment without reshuffling."
+          },
+          "param_schema": {
+            "default": null,
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UniverseParamSchema"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The universe-owned config schema — an ordered `{ name, type, default }[]`. Experiments may only override values per variant, never add fields. `null` starts an empty schema."
           }
         },
         "required": [
@@ -13899,6 +14057,18 @@
           "folder": {
             "$ref": "#/components/schemas/Folder"
           },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Human-readable blurb shown in the universe picker/hovercard."
+          },
           "holdout_range": {
             "anyOf": [
               {
@@ -13916,10 +14086,27 @@
               }
             ],
             "description": "Inclusive `[lo, hi]` bucket range (0–9999) reserved as the **holdout** — callers hashed into this slice are excluded from every experiment in the universe. `null` disables the holdout. Pro plan or higher required."
+          },
+          "recommended_headroom": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000,
+            "description": "Basis points of reserved headroom seeded into new experiments in this universe."
+          },
+          "param_schema": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UniverseParamSchema"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Replace the universe config schema. Additive changes + default edits are always allowed; removing a param a running experiment overrides is rejected (deprecate-only)."
           }
         },
         "additionalProperties": false,
-        "description": "Body for `PATCH /api/admin/universes/{id}`. Only `holdout_range` is mutable — name and unit_type are immutable after create."
+        "description": "Body for `PATCH /api/admin/universes/{id}`. `name` and `unit_type` are immutable after create; `holdout_range`, `description`, `recommended_headroom` and `param_schema` are mutable."
       },
       "UpdateUniverseResponse": {
         "type": "object",

@@ -21,6 +21,12 @@ ListGatesResponse:
                 minimum: 0
                 maximum: 1
             description: Master switch. Returned as `1`/`0` from D1; treat truthy as enabled.
+          type:
+            type: string
+            enum:
+              - targeting
+              - holdout
+            description: Gate kind — `targeting` (normal flag) or `holdout` (restricted public % + whitelist).
           rolloutPct:
             type: integer
             minimum: 0
@@ -301,6 +307,13 @@ CreateGateRequest:
       maxLength: 128
       pattern: ^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$
       description: Stable gate key used by SDKs (`Shipeasy.checkGate(user, '<name>')`). Single segment or `folder.name`. Lowercase letters, digits, `_` or `-`; max 128 chars. Immutable after create — rename = delete + recreate.
+    type:
+      default: targeting
+      type: string
+      enum:
+        - targeting
+        - holdout
+      description: Gate kind. `targeting` (default) is a normal flag with the full builder. `holdout` is a **restricted** flag — only a public rollout % and a whitelist are allowed; attribute rules and a gatekeeper stack are rejected. Used as an experiment's `holdout_gate`.
     enabled:
       default: true
       description: Master switch. Defaults to `true`. Set `false` to create the gate disabled (evaluates to `false` regardless of rules/rollout); flip on via `POST /{id}/enable` or PATCH.
@@ -588,6 +601,12 @@ CreateGateResponse:
 UpdateGateRequest:
   type: object
   properties:
+    type:
+      type: string
+      enum:
+        - targeting
+        - holdout
+      description: Gate kind. Switching to `holdout` requires the gate carry only a public rollout % + whitelist (attribute rules / stack are rejected).
     rollout_pct:
       description: New rollout in **basis points** (0–10000 = 0%–100%) — `100` here means **1%**. Use `rollout_percent` (0–100) below for percent. Omit both to leave unchanged.
       type: integer

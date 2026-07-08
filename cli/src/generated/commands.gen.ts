@@ -485,12 +485,14 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--bucket-by <value>", "")
     .option("--folder <value>", "Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).")
     .option("--universe <value>", "Name of an existing universe in the project. Returns `422` if the universe doesn't exist.")
-    .option("--targeting-gate <value>", "Optional gate name. Only callers that pass the gate are enrolled in the experiment.")
-    .option("--allocation-pct <value>", "Share of the (gated) audience allocated to the experiment, in basis points (0–10000 = 0%–100%). `0` = unallocated. Use `allocation_percent` (0–100) below to think in percent. Immutable while the experiment is running.")
+    .option("--targeting-gate <value>", "Optional gate name (a `targeting`-type flag). Only callers that pass the gate are enrolled in the experiment.")
+    .option("--holdout-gate <value>", "Optional per-experiment holdout gate — the name of a `holdout`-type flag (public % + whitelist). A caller the flag passes is *held out* (never assigned, sees the universe defaults). Distinct from the universe-level holdout.")
+    .option("--allocation-pct <value>", "Share of the (gated) audience allocated to the experiment, in basis points (0–10000 = 0%–100%). `0` = unallocated. Under pooled assignment this is the size of the universe-pool slice claimed. Use `allocation_percent` (0–100) below to think in percent. Immutable while the experiment is running.")
     .option("--allocation-percent <value>", "Allocation as a **percentage** (0–100, fractional ok). Friendlier alias for `allocation_pct`; converted to basis points server-side (e.g. `50` = 5000 bp). If both are set, `allocation_percent` wins.")
+    .option("--reserved-headroom <value>", "Basis points of this experiment's split kept empty (0–10000) so a new variant can be appended into it while running without reshuffling. Group weights must sum to `10000 − reserved_headroom`. Defaults to the universe's `recommended_headroom` when omitted.")
     .option("--salt <value>", "Hash salt for bucketing. Auto-generated if omitted. Immutable while running.")
-    .option("--params <value>", "Map of param-name → scalar type. Defines the shape of `groups[].params`. Example: `{ headline: 'string', show_cta: 'bool' }`.")
-    .option("--groups <value>", "Two or more variants. Weights must sum to exactly 10000 (100%). Immutable while running.")
+    .option("--params <value>", "**Deprecated** — the universe now owns the config schema (`param_schema`). Retained for back-compat; new experiments should leave this empty and declare params on the universe. Map of param-name → scalar type.")
+    .option("--groups <value>", "Two or more variants. Weights must sum to `10000 − reserved_headroom`. Existing weights are immutable while running, but a new variant may be appended into the reserved tail.")
     .option("--significance-threshold <value>", "p-value cutoff used by the analysis pass. Defaults to `0.05`. Values other than 0.05 require Pro plan or higher.")
     .option("--min-runtime-days <value>", "Minimum days the experiment must run before results are considered conclusive.")
     .option("--min-sample-size <value>", "Minimum exposures per group before results are considered conclusive.")
@@ -498,7 +500,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--goal-metric <value>", "Inline metric — a DSL `query`, or an `event` (+ `aggregation`/`value`) the server compiles into one.")
     .option("--guardrail-metrics <value>", "Up to 10 guardrail metrics defined inline. Each is upserted (event + metric) and attached with role=guardrail.")
     .action(async (name, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createExperiment({ client, body: clean({ name: name, description: str(opts.description), hypothesis: str(opts.hypothesis), tag: str(opts.tag), owner_email: str(opts.ownerEmail), audience: str(opts.audience), bucket_by: str(opts.bucketBy), folder: str(opts.folder), universe: str(opts.universe), targeting_gate: str(opts.targetingGate), allocation_pct: num(opts.allocationPct), allocation_percent: num(opts.allocationPercent), salt: str(opts.salt), params: json(opts.params), groups: json(opts.groups), significance_threshold: num(opts.significanceThreshold), min_runtime_days: num(opts.minRuntimeDays), min_sample_size: num(opts.minSampleSize), sequential_testing: bool(opts.sequentialTesting), goal_metric: json(opts.goalMetric), guardrail_metrics: json(opts.guardrailMetrics) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createExperiment({ client, body: clean({ name: name, description: str(opts.description), hypothesis: str(opts.hypothesis), tag: str(opts.tag), owner_email: str(opts.ownerEmail), audience: str(opts.audience), bucket_by: str(opts.bucketBy), folder: str(opts.folder), universe: str(opts.universe), targeting_gate: str(opts.targetingGate), holdout_gate: str(opts.holdoutGate), allocation_pct: num(opts.allocationPct), allocation_percent: num(opts.allocationPercent), reserved_headroom: num(opts.reservedHeadroom), salt: str(opts.salt), params: json(opts.params), groups: json(opts.groups), significance_threshold: num(opts.significanceThreshold), min_runtime_days: num(opts.minRuntimeDays), min_sample_size: num(opts.minSampleSize), sequential_testing: bool(opts.sequentialTesting), goal_metric: json(opts.goalMetric), guardrail_metrics: json(opts.guardrailMetrics) }) }) });
     });
   g_release_experiments.command("get")
     .description("Get one experiment")
@@ -519,12 +521,14 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--bucket-by <value>", "")
     .option("--folder <value>", "Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).")
     .option("--targeting-gate <value>", "")
+    .option("--holdout-gate <value>", "Per-experiment holdout gate — the name of a `holdout`-type flag, or `null` to clear. A caller the flag passes is held out.")
     .option("--allocation-pct <value>", "Basis-points allocation (0–10000). Use `allocation_percent` (0–100) for percent. Immutable while the experiment is running.")
+    .option("--reserved-headroom <value>", "Basis points of the split kept empty for appended variants. Group weights must sum to `10000 − reserved_headroom`. May be shrunk (never grown into existing weights) while running when appending a variant.")
     .option("--allocation-percent <value>", "Allocation as a **percentage** (0–100). Friendlier alias for `allocation_pct`; converted to basis points server-side. Wins over `allocation_pct` if both are supplied. Immutable while running.")
     .option("--salt <value>", "Hash salt. Immutable while running.")
     .option("--universe <value>", "New universe name. Immutable while running. Returns `422` if the universe doesn't exist.")
-    .option("--params <value>", "Map of param-name → scalar type. Defines the shape of `groups[].params`. Example: `{ headline: 'string', show_cta: 'bool' }`.")
-    .option("--groups <value>", "Replacement groups. Weights must sum to 10000. Immutable while running.")
+    .option("--params <value>", "**Deprecated** — the universe owns the config schema (`param_schema`). Retained for back-compat. Map of param-name → scalar type.")
+    .option("--groups <value>", "Replacement groups. Weights must sum to `10000 − reserved_headroom`. Existing weights/values are immutable while running; a new variant may be appended into the reserved tail.")
     .option("--significance-threshold <value>", "")
     .option("--min-runtime-days <value>", "")
     .option("--min-sample-size <value>", "")
@@ -532,7 +536,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--goal-metric <value>", "Inline metric — a DSL `query`, or an `event` (+ `aggregation`/`value`) the server compiles into one.")
     .option("--guardrail-metrics <value>", "Replaces the guardrail set wholesale (event auto-upserted per entry).")
     .action(async (id, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateExperiment({ client, path: { id: id }, body: clean({ name: str(opts.name), description: str(opts.description), hypothesis: str(opts.hypothesis), tag: str(opts.tag), owner_email: str(opts.ownerEmail), audience: str(opts.audience), bucket_by: str(opts.bucketBy), folder: str(opts.folder), targeting_gate: str(opts.targetingGate), allocation_pct: num(opts.allocationPct), allocation_percent: num(opts.allocationPercent), salt: str(opts.salt), universe: str(opts.universe), params: json(opts.params), groups: json(opts.groups), significance_threshold: num(opts.significanceThreshold), min_runtime_days: num(opts.minRuntimeDays), min_sample_size: num(opts.minSampleSize), sequential_testing: bool(opts.sequentialTesting), goal_metric: json(opts.goalMetric), guardrail_metrics: json(opts.guardrailMetrics) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.updateExperiment({ client, path: { id: id }, body: clean({ name: str(opts.name), description: str(opts.description), hypothesis: str(opts.hypothesis), tag: str(opts.tag), owner_email: str(opts.ownerEmail), audience: str(opts.audience), bucket_by: str(opts.bucketBy), folder: str(opts.folder), targeting_gate: str(opts.targetingGate), holdout_gate: str(opts.holdoutGate), allocation_pct: num(opts.allocationPct), reserved_headroom: num(opts.reservedHeadroom), allocation_percent: num(opts.allocationPercent), salt: str(opts.salt), universe: str(opts.universe), params: json(opts.params), groups: json(opts.groups), significance_threshold: num(opts.significanceThreshold), min_runtime_days: num(opts.minRuntimeDays), min_sample_size: num(opts.minSampleSize), sequential_testing: bool(opts.sequentialTesting), goal_metric: json(opts.goalMetric), guardrail_metrics: json(opts.guardrailMetrics) }) }) });
     });
   g_release_experiments.command("archive")
     .description("Delete an experiment")
@@ -600,6 +604,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   g_release_flags.command("create")
     .description("Create a feature gate")
     .argument("<name>", "Stable gate key used by SDKs (`Shipeasy.checkGate(user, '<name>')`). Single segment or `folder.name`. Lowercase letters, digits, `_` or `-`; max 128 chars. Immutable after create — rename = delete + recreate.")
+    .option("--type <value>", "Gate kind. `targeting` (default) is a normal flag with the full builder. `holdout` is a **restricted** flag — only a public rollout % and a whitelist are allowed; attribute rules and a gatekeeper stack are rejected. Used as an experiment's `holdout_gate`.")
     .option("--enabled <value>", "Master switch. Defaults to `true`. Set `false` to create the gate disabled (evaluates to `false` regardless of rules/rollout); flip on via `POST /{id}/enable` or PATCH.")
     .option("--rollout-pct <value>", "Initial rollout in **basis points** (0–10000 = 0%–100%) — `100` here means **1%**, not 100%. Use `rollout_percent` (0–100) below if you'd rather think in percent. Use `0` to create the gate dark and ramp via PATCH after deploy validation.")
     .option("--rollout-percent <value>", "Initial rollout as a **percentage** (0–100, fractional ok). Friendlier alias for `rollout_pct`; converted internally to basis points (e.g. `100` here = 10000 bp = 100%). If both `rollout_pct` and `rollout_percent` are set, `rollout_percent` wins.")
@@ -612,11 +617,12 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--group <value>", "Group label for dashboard organisation (e.g. team or product area).")
     .option("--owner-email <value>", "Owner contact. Displayed verbatim; not used for auth.")
     .action(async (name, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createGate({ client, body: clean({ name: name, enabled: bool(opts.enabled), rollout_pct: num(opts.rolloutPct), rollout_percent: num(opts.rolloutPercent), rules: json(opts.rules), salt: str(opts.salt), stack: json(opts.stack), title: str(opts.title), description: str(opts.description), folder: str(opts.folder), group: str(opts.group), owner_email: str(opts.ownerEmail) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createGate({ client, body: clean({ name: name, type: str(opts.type), enabled: bool(opts.enabled), rollout_pct: num(opts.rolloutPct), rollout_percent: num(opts.rolloutPercent), rules: json(opts.rules), salt: str(opts.salt), stack: json(opts.stack), title: str(opts.title), description: str(opts.description), folder: str(opts.folder), group: str(opts.group), owner_email: str(opts.ownerEmail) }) }) });
     });
   g_release_flags.command("update")
     .description("Update a feature gate")
     .argument("<id>", "Stable opaque gate id (`gat_…`) or the gate's `name`.")
+    .option("--type <value>", "Gate kind. Switching to `holdout` requires the gate carry only a public rollout % + whitelist (attribute rules / stack are rejected).")
     .option("--rollout-pct <value>", "New rollout in **basis points** (0–10000 = 0%–100%) — `100` here means **1%**. Use `rollout_percent` (0–100) below for percent. Omit both to leave unchanged.")
     .option("--rollout-percent <value>", "New rollout as a **percentage** (0–100). Friendlier alias for `rollout_pct`; converted internally. Wins over `rollout_pct` if both are supplied. Omit both to leave unchanged.")
     .option("--rules <value>", "Replaces the rule list wholesale. To add a value to an `in` rule, send the full new `rules` array with the augmented `value` (e.g. previous `['US','CA']` → `['US','CA','GB']`).")
@@ -628,7 +634,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--group <value>", "Group label for dashboard organisation (e.g. team or product area).")
     .option("--owner-email <value>", "Owner contact. Displayed verbatim; not used for auth.")
     .action(async (id, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateGate({ client, path: { id: id }, body: clean({ rollout_pct: num(opts.rolloutPct), rollout_percent: num(opts.rolloutPercent), rules: json(opts.rules), enabled: bool(opts.enabled), stack: json(opts.stack), title: str(opts.title), description: str(opts.description), folder: str(opts.folder), group: str(opts.group), owner_email: str(opts.ownerEmail) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.updateGate({ client, path: { id: id }, body: clean({ type: str(opts.type), rollout_pct: num(opts.rolloutPct), rollout_percent: num(opts.rolloutPercent), rules: json(opts.rules), enabled: bool(opts.enabled), stack: json(opts.stack), title: str(opts.title), description: str(opts.description), folder: str(opts.folder), group: str(opts.group), owner_email: str(opts.ownerEmail) }) }) });
     });
   g_release_flags.command("archive")
     .description("Delete a feature gate")
@@ -732,18 +738,24 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .description("Create a universe")
     .argument("<name>", "Stable universe key. Single segment or `folder.name`. Lowercase letters, digits, `_` or `-`; max 128 chars. Immutable after create.")
     .option("--folder <value>", "Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).")
+    .option("--description <value>", "Human-readable blurb shown in the universe picker/hovercard.")
     .option("--unit-type <value>", "Unit of randomisation. Typically `user_id`. Use `account_id` to keep whole accounts in the same group across an experiment.")
     .option("--holdout-range <value>", "Inclusive `[lo, hi]` bucket range (0–9999) reserved as the **holdout** — callers hashed into this slice are excluded from every experiment in the universe. `null` disables the holdout. Pro plan or higher required.")
+    .option("--recommended-headroom <value>", "Basis points of reserved headroom seeded into each new experiment created in this universe (0 = none). Lets variants be appended into a running experiment without reshuffling.")
+    .option("--param-schema <value>", "The universe-owned config schema — an ordered `{ name, type, default }[]`. Experiments may only override values per variant, never add fields. `null` starts an empty schema.")
     .action(async (name, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createUniverse({ client, body: clean({ name: name, folder: str(opts.folder), unit_type: str(opts.unitType), holdout_range: json(opts.holdoutRange) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createUniverse({ client, body: clean({ name: name, folder: str(opts.folder), description: str(opts.description), unit_type: str(opts.unitType), holdout_range: json(opts.holdoutRange), recommended_headroom: num(opts.recommendedHeadroom), param_schema: json(opts.paramSchema) }) }) });
     });
   g_release_experiments_universes.command("update")
     .description("Update a universe")
     .argument("<id>", "Stable opaque universe id (`uni_…`) or the universe's `name`.")
     .option("--folder <value>", "Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).")
+    .option("--description <value>", "Human-readable blurb shown in the universe picker/hovercard.")
     .option("--holdout-range <value>", "Inclusive `[lo, hi]` bucket range (0–9999) reserved as the **holdout** — callers hashed into this slice are excluded from every experiment in the universe. `null` disables the holdout. Pro plan or higher required.")
+    .option("--recommended-headroom <value>", "Basis points of reserved headroom seeded into new experiments in this universe.")
+    .option("--param-schema <value>", "Replace the universe config schema. Additive changes + default edits are always allowed; removing a param a running experiment overrides is rejected (deprecate-only).")
     .action(async (id, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateUniverse({ client, path: { id: id }, body: clean({ folder: str(opts.folder), holdout_range: json(opts.holdoutRange) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.updateUniverse({ client, path: { id: id }, body: clean({ folder: str(opts.folder), description: str(opts.description), holdout_range: json(opts.holdoutRange), recommended_headroom: num(opts.recommendedHeadroom), param_schema: json(opts.paramSchema) }) }) });
     });
   g_release_experiments_universes.command("archive")
     .description("Delete a universe")
