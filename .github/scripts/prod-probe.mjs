@@ -2459,6 +2459,31 @@ function ensureExperimentEx(
   return expByName().get(name) ?? null;
 }
 
+// Stop a fixture if it's running. The rework legs each build a throwaway
+// experiment; unlike the read-only legs they must NOT leave it running, or the
+// fixtures pile up against the plan's running-experiment cap (Pro = 10) and
+// starve later legs (and the stats legs). Each leg stops its fixture once it has
+// asserted; `reclaimThrowawayFixtures()` at run start clears any left over from a
+// prior run so every run begins under the cap. Never throws.
+const THROWAWAY_FIXTURES = [
+  "probe_cfg_exp",
+  "probe_targeting_exp",
+  "probe_holdout_exp",
+  "probe_append_exp",
+  "probe_mx_a",
+  "probe_mx_b",
+];
+function stopExp(name) {
+  try {
+    cliText(["release", "experiments", "stop", name]);
+  } catch {
+    /* already stopped / not found — fine */
+  }
+}
+function reclaimThrowawayFixtures() {
+  for (const n of THROWAWAY_FIXTURES) stopExp(n);
+}
+
 // Poll /sdk/evaluate until the experiment is assigned for at least one of
 // `users` — a create/start rebuilds the :experiments blob + purges the CDN
 // asynchronously. Returns true when visible, false on timeout (leg soft-skips).
@@ -2562,6 +2587,7 @@ async function probeExperimentConfig() {
   } else {
     ok(`config object carries the merged params for all ${assigned} assigned units (control=${ctrl} inherit every universe default; treatment=${treat} override button_color + inherit the rest)`);
   }
+  stopExp(EXP); // free the running-experiment slot for later legs
   console.log("::endgroup::");
 }
 
@@ -2638,6 +2664,7 @@ async function probeExperimentTargetingGate() {
   } else {
     failed++;
   }
+  stopExp(EXP); // free the running-experiment slot for later legs
   console.log("::endgroup::");
 }
 
@@ -2745,6 +2772,7 @@ async function probeExperimentHoldoutGate() {
   } else {
     failed++;
   }
+  stopExp(EXP); // free the running-experiment slot for later legs
   console.log("::endgroup::");
 }
 
@@ -2872,6 +2900,7 @@ async function probeAppendVariant() {
   } else {
     ok(`append-variant: ${newC} unit(s) entered variant_c (all from the former reserved tail), 0 existing enrolments moved`);
   }
+  stopExp(EXP); // free the running-experiment slot for later legs
   console.log("::endgroup::");
 }
 
@@ -2902,11 +2931,13 @@ async function probeUniverseExclusivity() {
     console.log("::endgroup::");
     return;
   }
-  // Fresh fixture names: these must be created AFTER §B4 deploys to be pooled
-  // (ensureExperimentEx reuses an existing row verbatim, so a pre-§B4 fixture
-  // would stay hashVersion 1 forever). New names guarantee a pooled birth.
-  const A = "probe_mx_pa";
-  const B = "probe_mx_pb";
+  // Reuse the standing pooled pair. Both were created pooled (hashVersion 2,
+  // slices [0,4000)/[4000,8000)) once §B4 shipped, and they already claim the
+  // universe pool — creating a SECOND 40%+40% pair here would 422 (the pool is
+  // full, which is mutual exclusion working). ensureExperimentEx returns the
+  // existing rows; freshStart makes sure both are running.
+  const A = "probe_mx_a";
+  const B = "probe_mx_b";
   const groups = [
     { name: "control", weight: 5000, params: {} },
     { name: "treatment", weight: 5000, params: {} },
@@ -2998,11 +3029,18 @@ async function probeUniverseExclusivity() {
     annotate(`universe mutual exclusion BROKEN: ${both}/${N} units assigned to both ${A} and ${B} in universe ${MX_UNIVERSE}`);
     failed++;
   }
+  stopExp(A); // free the running-experiment slots for the next run
+  stopExp(B);
   console.log("::endgroup::");
 }
 
 // ── run ─────────────────────────────────────────────────────────────────────
 try {
+  // Reclaim any throwaway rework fixtures left running by a prior run so this run
+  // starts under the plan's running-experiment cap (each rework leg re-starts the
+  // one fixture it needs, asserts, then stops it again). The MUTATE stats legs
+  // already stop their own fixtures in a finally.
+  if (process.env.SHIPEASY_PROBE_MUTATE) reclaimThrowawayFixtures();
   probeExperiments();
   await probeGates();
   await probeReferenceGates();
