@@ -68,6 +68,13 @@
 //                                              (default "probe_stats"; created if missing).
 //                                              Requires a Pro+ plan (sequential + CUPED).
 //   SHIPEASY_PROBE_MAX_MS (default 50)       — latency p95 budget for /sdk/evaluate
+//   SHIPEASY_CATALOG_TOKEN                   — R2 SQL token for the event-lake verdict
+//                                              leg (Pipelines → R2 Data Catalog; needs
+//                                              R2 SQL read + Data Catalog read + R2
+//                                              storage admin R&W). Unset → leg disabled.
+//   SHIPEASY_CF_ACCOUNT_ID                   — CF account for the lake query endpoint
+//                                              (defaults to the prod account)
+//   SHIPEASY_LAKE_BUCKET                     — lake bucket (default "shipeasy-lake")
 //   PROBE_COHORT (default 500)
 //   PROBE_CLI    — how to invoke the CLI. The workflow points this at the
 //                  locally-built workspace binary (`node cli/bin/shipeasy.js`)
@@ -3069,6 +3076,172 @@ async function probeUniverseExclusivity() {
   console.log("::endgroup::");
 }
 
+// ── event-lake verdict (Pipelines → R2 Data Catalog → R2 SQL) ────────────────
+// Phase-2 lake path (experiment-platform/25-pipelines.md): /collect fans events
+// into Cloudflare Pipelines, whose transform SQL materializes `unit_key` + `ts`
+// into Iceberg tables (telemetry.experiment_exposures / telemetry.events), and
+// verdict inputs come from ONE R2 SQL statement — first exposure per unit per
+// group, LEFT JOIN each unit's metric events at/after that exposure (exposed-
+// but-silent units count as y=0), aggregated to per-group sufficient stats
+// (n, Σy, Σy²). Unlike Analytics Engine the lake never samples, so this leg
+// asserts EXACT stats for a deterministic seeded cohort, including two poison
+// rows the fence must exclude (a pre-exposure metric and a never-exposed unit).
+//
+// Two halves share `lakeSeed`: seedLakeVerdict() sends the cohort as the very
+// FIRST leg; probeLakeVerdict() polls as the very LAST — the sink's 300s roll
+// interval flushes while the rest of the probe runs.
+
+const LAKE_ACCOUNT = process.env.SHIPEASY_CF_ACCOUNT_ID || "b3b935b0b2a42ae7ec5029cd3de2f0e8";
+const LAKE_BUCKET = process.env.SHIPEASY_LAKE_BUCKET || "shipeasy-lake";
+const LAKE_TOKEN = process.env.SHIPEASY_CATALOG_TOKEN || "";
+
+async function r2sql(query) {
+  const res = await fetch(
+    `https://api.sql.cloudflarestorage.com/api/v1/accounts/${LAKE_ACCOUNT}/r2-sql/query/${LAKE_BUCKET}`,
+    {
+      method: "POST",
+      headers: { authorization: `Bearer ${LAKE_TOKEN}`, "content-type": "application/json" },
+      body: JSON.stringify({ query }),
+    },
+  );
+  const body = await res.json().catch(() => null);
+  if (!res.ok || !body?.success) {
+    throw new Error(`r2-sql ${res.status}: ${JSON.stringify(body?.errors ?? body).slice(0, 200)}`);
+  }
+  return body.result?.rows ?? [];
+}
+
+let lakeSeed = null; // { prefix, exp, evt, expected } — set once the seed is in
+
+async function seedLakeVerdict() {
+  const exp = process.env.SHIPEASY_PROBE_EXPERIMENT;
+  const evt = process.env.SHIPEASY_PROBE_METRIC_EVENT;
+  if (!LAKE_TOKEN) {
+    console.log("lake-verdict leg disabled — set SHIPEASY_CATALOG_TOKEN (R2 SQL auth) to enable");
+    return;
+  }
+  if (!CLIENT_KEY || !exp || !evt) {
+    console.log(
+      "lake-verdict leg: set SHIPEASY_CLIENT_KEY + SHIPEASY_PROBE_EXPERIMENT + SHIPEASY_PROBE_METRIC_EVENT to enable",
+    );
+    return;
+  }
+  const runId = Date.now().toString(36);
+  const prefix = `lake-${runId}-`;
+  const tsMs = Date.now();
+  const events = [];
+  const expected = {};
+  // 10 exposed units per group; only `loggers` of them log a metric (values
+  // base..base+loggers-1) — n must still count all 10 (silent units y=0).
+  for (const [grp, tag, base, loggers] of [
+    ["control", "c", 10, 8],
+    ["treatment", "t", 20, 9],
+  ]) {
+    let sum = 0;
+    let sum2 = 0;
+    for (let i = 0; i < 10; i++) {
+      const uid = `${prefix}${tag}${i}`;
+      events.push({ type: "exposure", experiment: exp, group: grp, user_id: uid, ts: tsMs });
+      if (i < loggers) {
+        const v = base + i;
+        sum += v;
+        sum2 += v * v;
+        events.push({ type: "metric", event_name: evt, value: v, user_id: uid, ts: tsMs + 1000 });
+      }
+    }
+    expected[grp] = { n: 10, sum, sum2 };
+  }
+  // Poison rows the verdict SQL must EXCLUDE: a metric logged BEFORE the unit's
+  // first exposure, and a metric from a unit that was never exposed at all.
+  events.push({ type: "metric", event_name: evt, value: 999, user_id: `${prefix}c0`, ts: tsMs - 3_600_000 });
+  events.push({ type: "metric", event_name: evt, value: 555, user_id: `${prefix}x0`, ts: tsMs + 1000 });
+  registerEvent(evt); // idempotent — ensures the edge catalog carries the event
+  console.log(`::group::Event-lake verdict — seed (${exp} / ${evt}, run ${runId})`);
+  if (await collect(events)) {
+    ok(`seeded ${events.length} events for lake run ${runId} (verified at end of probe)`);
+    lakeSeed = { prefix, exp, evt, expected };
+  } else {
+    failed++; // collect() already annotated
+  }
+  console.log("::endgroup::");
+}
+
+async function probeLakeVerdict() {
+  if (!lakeSeed) return; // disabled, or the seed already annotated a failure
+  const { prefix, exp, evt, expected } = lakeSeed;
+  console.log("::group::Event-lake verdict (Pipelines → Iceberg → R2 SQL sufficient stats)");
+  const sql = `
+WITH exposed AS (
+  SELECT unit_key, "group" AS grp, MIN(ts) AS first_ts
+  FROM telemetry.experiment_exposures
+  WHERE experiment = '${exp}' AND unit_key LIKE '${prefix}%'
+  GROUP BY unit_key, "group"
+),
+per_unit AS (
+  SELECT e.unit_key, e.grp, COALESCE(SUM(ev.value), 0) AS y
+  FROM exposed e
+  LEFT JOIN telemetry.events ev
+    ON ev.unit_key = e.unit_key AND ev.event_name = '${evt}' AND ev.ts >= e.first_ts
+  GROUP BY e.unit_key, e.grp
+)
+SELECT grp, COUNT(*) AS n, SUM(y) AS sum_y, SUM(y * y) AS sum_y2
+FROM per_unit GROUP BY grp`;
+  // The sink rolls files every 300s and the seed went out as the first leg, so
+  // most of that window has already elapsed — poll out the remainder.
+  const deadline = Date.now() + 480_000;
+  let rows = [];
+  let lastErr = null;
+  for (;;) {
+    try {
+      lastErr = null;
+      rows = await r2sql(sql);
+      if (rows.reduce((a, r) => a + Number(r.n ?? 0), 0) >= 20) break; // all units visible
+    } catch (e) {
+      lastErr = e; // transient query errors ride the same poll budget
+    }
+    if (Date.now() >= deadline) break;
+    await sleep(30_000);
+  }
+  if (lastErr) {
+    annotate(`lake-verdict: R2 SQL query kept failing: ${lastErr.message}`);
+    failed++;
+    console.log("::endgroup::");
+    return;
+  }
+  const got = Object.fromEntries(rows.map((r) => [r.grp, r]));
+  let clean = true;
+  for (const grp of ["control", "treatment"]) {
+    const want = expected[grp];
+    const g = got[grp];
+    if (!g) {
+      annotate(
+        `lake-verdict: group ${grp} missing from lake sufficient stats — seeded exposures never landed (pipeline → sink path broken or backed up beyond the poll budget)`,
+      );
+      failed++;
+      clean = false;
+      continue;
+    }
+    const off =
+      Number(g.n) !== want.n ||
+      Math.abs(Number(g.sum_y) - want.sum) > 1e-6 ||
+      Math.abs(Number(g.sum_y2) - want.sum2) > 1e-6;
+    if (off) {
+      annotate(
+        `lake-verdict ${grp}: got n=${g.n} Σy=${g.sum_y} Σy²=${g.sum_y2}, want n=${want.n} Σy=${want.sum} Σy²=${want.sum2} — wrong verdict inputs (fence, unit_key, or duplicate delivery)`,
+      );
+      failed++;
+      clean = false;
+    }
+  }
+  if (clean) {
+    ok(
+      `lake sufficient stats EXACT per group (control n=10 Σy=${expected.control.sum} Σy²=${expected.control.sum2}; treatment n=10 Σy=${expected.treatment.sum} Σy²=${expected.treatment.sum2})`,
+    );
+    ok("silent exposed units counted at y=0; pre-exposure and never-exposed poison metrics excluded by the fence");
+  }
+  console.log("::endgroup::");
+}
+
 // ── run ─────────────────────────────────────────────────────────────────────
 try {
   // Reclaim any throwaway rework fixtures left running by a prior run so this run
@@ -3076,6 +3249,7 @@ try {
   // one fixture it needs, asserts, then stops it again). The MUTATE stats legs
   // already stop their own fixtures in a finally.
   if (process.env.SHIPEASY_PROBE_MUTATE) reclaimThrowawayFixtures();
+  await seedLakeVerdict(); // FIRST — the lake sink's 300s roll flushes during the run
   probeExperiments();
   await probeGates();
   await probeReferenceGates();
@@ -3109,6 +3283,7 @@ try {
   await probeErrors();
   await probeExperimentResults();
   await probeIdentifyMerge();
+  await probeLakeVerdict(); // LAST — verify the seed through Pipelines → R2 SQL
 } catch (err) {
   annotate(`probe failed to run: ${err?.message ?? err}`);
   process.exit(2);

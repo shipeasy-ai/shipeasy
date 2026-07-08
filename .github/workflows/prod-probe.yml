@@ -15,6 +15,7 @@ name: prod-probe
 # Required repo config:
 #   secrets.SHIPEASY_CLI_TOKEN   — admin/CLI token for the prod project
 #   secrets.SHIPEASY_CLIENT_KEY  — prod CLIENT key (enables the rollout leg)
+#   secrets.SHIPEASY_CATALOG_TOKEN — R2 SQL token for the event-lake verdict leg
 #   vars.SHIPEASY_PROJECT_ID     — prod project id
 #   vars.SHIPEASY_EDGE_URL       — edge origin, e.g. https://cdn.shipeasy.ai
 #   vars.SHIPEASY_PROBE_MEMBER_EMAIL — known @team/@owner member (template-gate leg)
@@ -57,6 +58,11 @@ jobs:
       # Universe the stats-knob fixtures bucket in (default "probe_stats").
       SHIPEASY_PROBE_STATS_UNIVERSE: ${{ vars.SHIPEASY_PROBE_STATS_UNIVERSE }}
       SHIPEASY_PROBE_MAX_MS: ${{ vars.SHIPEASY_PROBE_MAX_MS }}
+      # Event-lake verdict leg: seeds a deterministic cohort through /collect →
+      # Pipelines → R2 Data Catalog, then asserts EXACT per-group sufficient
+      # stats via R2 SQL (experiment-platform/25-pipelines.md). Token absent →
+      # the leg soft-skips.
+      SHIPEASY_CATALOG_TOKEN: ${{ secrets.SHIPEASY_CATALOG_TOKEN }}
       SHIPEASY_SERVER_KEY: ${{ secrets.SHIPEASY_SERVER_KEY }}
       SHIPEASY_CLIENT_KEY_DEV: ${{ secrets.SHIPEASY_CLIENT_KEY_DEV }}
       SHIPEASY_PROBE_ALERTS: ${{ vars.SHIPEASY_PROBE_ALERTS }}
