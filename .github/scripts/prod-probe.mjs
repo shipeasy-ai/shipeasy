@@ -48,9 +48,21 @@
 //   SHIPEASY_APP_URL                         — admin API base (errors + error-series legs)
 //   SHIPEASY_PROBE_ENRICHMENT (=1)           — enable the request-enrichment leg
 //   SHIPEASY_PROBE_MUTATE (=1)               — enable the killswitch-propagation leg,
-//                                              the stats-effect leg (power/SRM), AND the
-//                                              three stats-knob legs below (mSPRT τ / CUPED /
-//                                              verdict gates). All mutations self-restore.
+//                                              the stats-effect leg (power/SRM), the three
+//                                              stats-knob legs (mSPRT τ / CUPED / verdict
+//                                              gates), AND the five Universes→Experiments→
+//                                              Groups rework legs (config object + universe-
+//                                              default inheritance, experiment targeting gate,
+//                                              holdout gate, append-variant-while-running,
+//                                              universe mutual exclusion). All mutations
+//                                              self-restore; the rework legs build reusable
+//                                              throwaway fixtures (probe_cfg_exp,
+//                                              probe_targeting_exp, probe_holdout_exp,
+//                                              probe_append_exp) and assert deterministically
+//                                              off /sdk/evaluate — no /collect, no AE lag. The
+//                                              mutual-exclusion leg additionally needs
+//                                              SHIPEASY_SERVER_KEY (pool metadata) and soft-
+//                                              skips until the §B4 pooled write path deploys.
 //   SHIPEASY_PROBE_STATS_UNIVERSE            — universe the create-and-mutate stats legs
 //                                              bucket their throwaway fixtures in
 //                                              (default "probe_stats"; created if missing).
@@ -2341,6 +2353,578 @@ async function probeVerdictGates() {
   console.log("::endgroup::");
 }
 
+// ── Universes → Experiments → Groups rework legs ─────────────────────────────
+// The rework moved the config schema onto the UNIVERSE (variants only override
+// values), added two per-experiment gates (targeting + a new restricted holdout
+// flag type), reserved headroom so a variant can be appended to a RUNNING
+// experiment, and a real capacity pool giving mutual exclusion (§B4, behind a
+// hashVersion bump). Every one of these is an ASSIGNMENT-time property, so a
+// single /sdk/evaluate call is a self-contained oracle — no /collect, no AE
+// sampling, no analysis lag. That lets these legs assert DETERMINISTICALLY (the
+// bucketing is fixed per unit) instead of the robust-soft style the stats legs
+// need. They build throwaway fixtures, so they gate on SHIPEASY_PROBE_MUTATE.
+
+const MODEL_SCHEMA_UNIVERSE = "probe_model_cfg"; // schema'd universe (config leg)
+const MODEL_GATE_UNIVERSE = "probe_model_gate"; // plain universe (gate/append legs)
+
+// Create a universe (optionally with a param_schema / recommended_headroom /
+// holdout_range) if absent — idempotent, reused across runs.
+function ensureUniverseWithSchema(name, { paramSchema = null, recommendedHeadroom, holdoutRange } = {}) {
+  const existing = listUniverses().find((u) => u.name === name);
+  if (existing) return existing;
+  const args = ["release", "experiments", "universes", "create", name];
+  if (paramSchema) args.push("--param-schema", JSON.stringify(paramSchema));
+  if (recommendedHeadroom != null) args.push("--recommended-headroom", String(recommendedHeadroom));
+  if (holdoutRange) args.push("--holdout-range", JSON.stringify(holdoutRange));
+  try {
+    cliText(args);
+  } catch (e) {
+    console.log(`  ensureUniverse(${name}): ${e?.message ?? e}`);
+  }
+  return listUniverses().find((u) => u.name === name) ?? null;
+}
+
+// Create a feature gate (flag) if absent. `type` is "targeting" | "holdout";
+// `rolloutPercent` is 0–100. Idempotent.
+function ensureGate(name, { type = "targeting", rolloutPercent, rules = null, enabled = true } = {}) {
+  if (listGates().some((g) => g.name === name)) return true;
+  const args = ["release", "flags", "create", name, "--type", type, "--enabled", String(enabled)];
+  if (rolloutPercent != null) args.push("--rollout-percent", String(rolloutPercent));
+  if (rules) args.push("--rules", JSON.stringify(rules));
+  try {
+    cliText(args);
+  } catch (e) {
+    console.log(`  ensureGate(${name}): ${e?.message ?? e}`);
+    return false;
+  }
+  return listGates().some((g) => g.name === name);
+}
+
+// Create an experiment across the full new surface if absent (idempotent).
+// Attaches an inline goal metric because `start` throws NoGoalMetric without one.
+function ensureExperimentEx(
+  name,
+  { universe, groups, allocationPercent = 100, targetingGate, holdoutGate, reservedHeadroom, goalEvent },
+) {
+  let exp = expByName().get(name);
+  if (exp) return exp;
+  const args = [
+    "release", "experiments", "create", name,
+    "--universe", universe,
+    "--groups", JSON.stringify(groups),
+    "--allocation-percent", String(allocationPercent),
+    "--goal-metric", JSON.stringify({ event: goalEvent, aggregation: "count_users" }),
+  ];
+  if (targetingGate) args.push("--targeting-gate", targetingGate);
+  if (holdoutGate) args.push("--holdout-gate", holdoutGate);
+  if (reservedHeadroom != null) args.push("--reserved-headroom", String(reservedHeadroom));
+  try {
+    cliText(args);
+  } catch (e) {
+    console.log(`  ensureExperimentEx(${name}): ${e?.message ?? e}`);
+    return null;
+  }
+  return expByName().get(name) ?? null;
+}
+
+// Poll /sdk/evaluate until the experiment is assigned for at least one of
+// `users` — a create/start rebuilds the :experiments blob + purges the CDN
+// asynchronously. Returns true when visible, false on timeout (leg soft-skips).
+async function waitForExperimentVisible(exp, users, { tries = 15, gap = 4000 } = {}) {
+  for (let t = 0; t < tries; t++) {
+    for (const u of users) {
+      const r = await evaluate(u);
+      if (r.experiments?.[exp]) return true;
+    }
+    await sleep(gap);
+  }
+  return false;
+}
+
+// Tolerant per-key deep-equal so a merged param object is compared by content,
+// not key order (the edge merges `{...defaults, ...override}`).
+const paramsMatch = (got, want) =>
+  got != null &&
+  typeof got === "object" &&
+  Object.keys(want).every((k) => JSON.stringify(got[k]) === JSON.stringify(want[k])) &&
+  Object.keys(got).length === Object.keys(want).length;
+
+// ── experiment returns a config object; unset params inherit universe defaults ─
+// The universe owns the param schema + defaults; a variant overrides only the
+// keys it names. Assignment now returns `experiments[e].params` = the MERGED
+// object (universe defaults ⊕ group override). Build a 3-param universe, a
+// control that overrides nothing and a treatment that overrides ONE key, then
+// assert every assigned unit's params equal the exact merge for its group.
+async function probeExperimentConfig() {
+  if (!process.env.SHIPEASY_PROBE_MUTATE) {
+    console.log("config-inheritance leg disabled — enable with SHIPEASY_PROBE_MUTATE=1 (builds a schema'd universe)");
+    return;
+  }
+  if (!CLIENT_KEY) {
+    console.log("config-inheritance leg: SHIPEASY_CLIENT_KEY unset — skipping");
+    return;
+  }
+  console.log("::group::Experiment config object + universe-default inheritance");
+  const EXP = "probe_cfg_exp";
+  const schema = [
+    { name: "show_banner", type: "bool", default: false },
+    { name: "button_color", type: "string", default: "blue" },
+    { name: "max_items", type: "int", default: 20 },
+  ];
+  const defaults = { show_banner: false, button_color: "blue", max_items: 20 };
+  if (!ensureUniverseWithSchema(MODEL_SCHEMA_UNIVERSE, { paramSchema: schema })) {
+    console.log("  schema'd universe unavailable — skipping");
+    console.log("::endgroup::");
+    return;
+  }
+  const groups = [
+    { name: "control", weight: 5000, params: {} }, // inherits every default
+    { name: "treatment", weight: 5000, params: { button_color: "green" } }, // overrides one
+  ];
+  const exp = ensureExperimentEx(EXP, {
+    universe: MODEL_SCHEMA_UNIVERSE,
+    groups,
+    allocationPercent: 100,
+    goalEvent: "probe_cfg_evt",
+  });
+  if (!exp) {
+    console.log("  fixture unavailable — skipping");
+    console.log("::endgroup::");
+    return;
+  }
+  registerEvent("probe_cfg_evt");
+  freshStart(EXP);
+  const visUsers = Array.from({ length: 6 }, (_, i) => ({ anonymous_id: `cfg-vis:${i}` }));
+  if (!(await waitForExperimentVisible(EXP, visUsers))) {
+    console.log("⚠ experiment not visible at edge within timeout (KV/CDN lag) — soft");
+    console.log("::endgroup::");
+    return;
+  }
+  const N = 200;
+  let assigned = 0;
+  let ctrl = 0;
+  let treat = 0;
+  let bad = 0;
+  for (let i = 0; i < N; i++) {
+    const a = (await evaluate({ anonymous_id: `cfg:${i}` })).experiments?.[EXP];
+    if (!a) continue;
+    assigned++;
+    if (typeof a.params !== "object" || a.params == null) {
+      bad++;
+      if (bad <= 3) annotate(`config: unit ${i} assigned (${a.group}) but params=${JSON.stringify(a.params)} — expected a merged config object`);
+      continue;
+    }
+    const want = a.group === "treatment" ? { ...defaults, button_color: "green" } : defaults;
+    if (paramsMatch(a.params, want)) {
+      if (a.group === "control") ctrl++;
+      else treat++;
+    } else {
+      bad++;
+      if (bad <= 3) annotate(`config: ${a.group} unit ${i} params ${JSON.stringify(a.params)} !== ${JSON.stringify(want)} — universe-default merge broken`);
+    }
+  }
+  if (assigned === 0) {
+    console.log("⚠ no unit assigned within the cohort (visibility/allocation) — soft");
+  } else if (bad > 0) {
+    failed++;
+  } else {
+    ok(`config object carries the merged params for all ${assigned} assigned units (control=${ctrl} inherit every universe default; treatment=${treat} override button_color + inherit the rest)`);
+  }
+  console.log("::endgroup::");
+}
+
+// ── experiment targeting gate gates enrollment ───────────────────────────────
+// `targeting_gate` is a normal flag; a unit that fails it is never enrolled. With
+// allocation 100% and no holdout, the gate is the ONLY thing between a unit and
+// enrollment, so within a single /sdk/evaluate response the biconditional
+// `flags[gate]===true ⇔ experiments[exp] present` must hold for EVERY unit —
+// oracle-free (the response carries both the flag verdict and the assignment).
+async function probeExperimentTargetingGate() {
+  if (!process.env.SHIPEASY_PROBE_MUTATE) {
+    console.log("exp-targeting-gate leg disabled — enable with SHIPEASY_PROBE_MUTATE=1");
+    return;
+  }
+  if (!CLIENT_KEY) {
+    console.log("exp-targeting-gate leg: SHIPEASY_CLIENT_KEY unset — skipping");
+    return;
+  }
+  console.log("::group::Experiment targeting gate (gates enrollment)");
+  const FLAG = "probe_exp_targeting";
+  const EXP = "probe_targeting_exp";
+  if (!ensureUniverseWithSchema(MODEL_GATE_UNIVERSE)) {
+    console.log("  universe unavailable — skipping");
+    console.log("::endgroup::");
+    return;
+  }
+  if (!ensureGate(FLAG, { type: "targeting", rolloutPercent: 100, rules: [{ attr: "plan", op: "eq", value: "pro" }] })) {
+    console.log("  targeting flag unavailable — skipping");
+    console.log("::endgroup::");
+    return;
+  }
+  const groups = [
+    { name: "control", weight: 5000, params: {} },
+    { name: "treatment", weight: 5000, params: {} },
+  ];
+  const exp = ensureExperimentEx(EXP, {
+    universe: MODEL_GATE_UNIVERSE,
+    groups,
+    allocationPercent: 100,
+    targetingGate: FLAG,
+    goalEvent: "probe_targeting_evt",
+  });
+  if (!exp) {
+    console.log("  fixture unavailable — skipping");
+    console.log("::endgroup::");
+    return;
+  }
+  registerEvent("probe_targeting_evt");
+  freshStart(EXP);
+  const visUsers = Array.from({ length: 6 }, (_, i) => ({ anonymous_id: `tg-vis:${i}`, plan: "pro" }));
+  if (!(await waitForExperimentVisible(EXP, visUsers))) {
+    console.log("⚠ experiment not visible at edge within timeout (KV/CDN lag) — soft");
+    console.log("::endgroup::");
+    return;
+  }
+  const N = 150;
+  let violations = 0;
+  let pro = 0;
+  let free = 0;
+  for (let i = 0; i < N; i++) {
+    const plan = i % 2 === 0 ? "pro" : "free";
+    const r = await evaluate({ anonymous_id: `tg:${i}`, plan });
+    const passes = r.flags?.[FLAG] === true;
+    const enrolled = !!r.experiments?.[EXP];
+    if (passes) pro++;
+    else free++;
+    if (passes !== enrolled) {
+      violations++;
+      if (violations <= 3) annotate(`targeting: unit ${i} (plan=${plan}) gate=${passes} but enrolled=${enrolled} — the targeting gate is not gating enrollment`);
+    }
+  }
+  if (violations === 0) {
+    ok(`experiment targeting gate gates enrollment: gate⇔enrolled held for all ${N} units (pro admitted=${pro}, free denied=${free})`);
+  } else {
+    failed++;
+  }
+  console.log("::endgroup::");
+}
+
+// ── experiment holdout gate (public % + whitelist) excludes units ────────────
+// The new restricted `holdout` flag type: passing it = HELD OUT (never assigned,
+// sees the universe defaults). Two assertions: (1) a NEGATIVE shape check — a
+// holdout gate carrying an attribute rule must be rejected (assertHoldoutShape);
+// (2) a public 50% holdout flag with allocation 100% and no targeting gives the
+// crisp per-unit biconditional `flags[holdoutFlag]===true (held) ⇔
+// experiments[exp] absent`, plus the held fraction ≈ the public rollout %.
+async function probeExperimentHoldoutGate() {
+  if (!process.env.SHIPEASY_PROBE_MUTATE) {
+    console.log("exp-holdout-gate leg disabled — enable with SHIPEASY_PROBE_MUTATE=1");
+    return;
+  }
+  if (!CLIENT_KEY) {
+    console.log("exp-holdout-gate leg: SHIPEASY_CLIENT_KEY unset — skipping");
+    return;
+  }
+  console.log("::group::Experiment holdout gate (public % + whitelist excludes units)");
+  const FLAG = "probe_exp_holdout";
+  const EXP = "probe_holdout_exp";
+  if (!ensureUniverseWithSchema(MODEL_GATE_UNIVERSE)) {
+    console.log("  universe unavailable — skipping");
+    console.log("::endgroup::");
+    return;
+  }
+
+  // (1) NEGATIVE: a holdout gate must reject attribute rules — only a public %
+  // + an in/not_in whitelist are allowed. Creating one with an `eq` rule must
+  // fail; if it succeeds, the restriction regressed. The create IS the assertion,
+  // so only run it while the bad flag doesn't already exist.
+  if (!listGates().some((g) => g.name === "probe_holdout_bad")) {
+    let rejected = false;
+    try {
+      cliText([
+        "release", "flags", "create", "probe_holdout_bad",
+        "--type", "holdout", "--rollout-percent", "50",
+        "--rules", JSON.stringify([{ attr: "plan", op: "eq", value: "pro" }]),
+      ]);
+    } catch {
+      rejected = true;
+    }
+    if (rejected && !listGates().some((g) => g.name === "probe_holdout_bad")) {
+      ok("holdout gate rejects attribute rules (assertHoldoutShape bites — only a public % + in/not_in whitelist)");
+    } else {
+      annotate("holdout gate ACCEPTED an attribute-rule payload — the public%+whitelist restriction regressed");
+      failed++;
+    }
+  }
+
+  // (2) Public 50% holdout flag (no rules) → the clean biconditional path.
+  if (!ensureGate(FLAG, { type: "holdout", rolloutPercent: 50 })) {
+    console.log("  holdout flag unavailable — skipping the assignment assertion");
+    console.log("::endgroup::");
+    return;
+  }
+  const groups = [
+    { name: "control", weight: 5000, params: {} },
+    { name: "treatment", weight: 5000, params: {} },
+  ];
+  const exp = ensureExperimentEx(EXP, {
+    universe: MODEL_GATE_UNIVERSE,
+    groups,
+    allocationPercent: 100,
+    holdoutGate: FLAG,
+    goalEvent: "probe_holdout_evt",
+  });
+  if (!exp) {
+    console.log("  fixture unavailable — skipping");
+    console.log("::endgroup::");
+    return;
+  }
+  registerEvent("probe_holdout_evt");
+  freshStart(EXP);
+  const visUsers = Array.from({ length: 8 }, (_, i) => ({ anonymous_id: `ho-vis:${i}` }));
+  if (!(await waitForExperimentVisible(EXP, visUsers))) {
+    console.log("⚠ experiment not visible at edge within timeout (KV/CDN lag) — soft");
+    console.log("::endgroup::");
+    return;
+  }
+  const N = 300;
+  let violations = 0;
+  let held = 0;
+  let assigned = 0;
+  for (let i = 0; i < N; i++) {
+    const r = await evaluate({ anonymous_id: `ho:${i}` });
+    const isHeld = r.flags?.[FLAG] === true;
+    const enrolled = !!r.experiments?.[EXP];
+    if (isHeld) held++;
+    else assigned++;
+    // held ⇒ NOT enrolled; not-held ⇒ enrolled (allocation 100%, no other gate).
+    if (isHeld === enrolled) {
+      violations++;
+      if (violations <= 3) annotate(`holdout: unit ${i} heldFlag=${isHeld} enrolled=${enrolled} — the holdout gate is not excluding held units`);
+    }
+  }
+  const frac = held / N;
+  const band = Math.max(0.08, 4 * Math.sqrt((0.5 * 0.5) / N));
+  if (violations === 0 && Math.abs(frac - 0.5) <= band) {
+    ok(`holdout gate excludes units: held⇔not-enrolled held for all ${N} units; ${(frac * 100).toFixed(0)}% held out ≈ 50% public rollout`);
+  } else if (violations === 0) {
+    annotate(`holdout: biconditional held but the held fraction ${(frac * 100).toFixed(1)}% is far from the 50% public rollout (±${(band * 100).toFixed(0)}pp)`);
+    failed++;
+  } else {
+    failed++;
+  }
+  console.log("::endgroup::");
+}
+
+// ── append a new variant to a RUNNING experiment (reserved headroom) ─────────
+// A tail of the split is kept EMPTY (reserved) so a new variant can be appended
+// while running WITHOUT reshuffling anyone: existing group weights are immutable,
+// the new variant is appended at the end, reserved shrinks by its weight, and it
+// draws only from the former reserved tail (units that hashed there were
+// unassigned before). Assert: (a) the append succeeds while running, (b) no unit
+// already in control/treatment moves to a different existing group, (c) units
+// that land in the new variant were previously UNASSIGNED (the reserved tail).
+async function probeAppendVariant() {
+  if (!process.env.SHIPEASY_PROBE_MUTATE) {
+    console.log("append-variant leg disabled — enable with SHIPEASY_PROBE_MUTATE=1");
+    return;
+  }
+  if (!CLIENT_KEY) {
+    console.log("append-variant leg: SHIPEASY_CLIENT_KEY unset — skipping");
+    return;
+  }
+  console.log("::group::Append a variant mid-run (reserved headroom, stable assignments)");
+  const EXP = "probe_append_exp";
+  if (!ensureUniverseWithSchema(MODEL_GATE_UNIVERSE)) {
+    console.log("  universe unavailable — skipping");
+    console.log("::endgroup::");
+    return;
+  }
+  const base = [
+    { name: "control", weight: 4500, params: {} },
+    { name: "treatment", weight: 4500, params: {} },
+  ]; // Σ 9000 = 10000 − 1000 reserved
+  const exp = ensureExperimentEx(EXP, {
+    universe: MODEL_GATE_UNIVERSE,
+    groups: base,
+    allocationPercent: 100,
+    reservedHeadroom: 1000,
+    goalEvent: "probe_append_evt",
+  });
+  if (!exp) {
+    console.log("  fixture unavailable — skipping");
+    console.log("::endgroup::");
+    return;
+  }
+  registerEvent("probe_append_evt");
+
+  // Reset to the 2-group baseline (reserved 1000) so re-runs start clean —
+  // group weights + reserved are only mutable while NOT running, so stop → reset
+  // → start. The salt is stable across the cycle, so assignments are reproducible.
+  try {
+    const cur = expByName().get(EXP);
+    if (cur?.status === "running") cliText(["release", "experiments", "stop", EXP]);
+    if (cur?.status === "archived") cliText(["release", "experiments", "restore", EXP]);
+    cliText(["release", "experiments", "update", EXP, "--reserved-headroom", "1000", "--groups", JSON.stringify(base)]);
+    cliText(["release", "experiments", "start", EXP]);
+  } catch (e) {
+    console.log(`  reset(${EXP}) failed: ${e?.message ?? e} — skipping (soft)`);
+    console.log("::endgroup::");
+    return;
+  }
+  const visUsers = Array.from({ length: 8 }, (_, i) => ({ anonymous_id: `av-vis:${i}` }));
+  if (!(await waitForExperimentVisible(EXP, visUsers))) {
+    console.log("⚠ experiment not visible at edge within timeout (KV/CDN lag) — soft");
+    console.log("::endgroup::");
+    return;
+  }
+  const N = 300;
+  const before = new Array(N);
+  for (let i = 0; i < N; i++) {
+    before[i] = (await evaluate({ anonymous_id: `av:${i}` })).experiments?.[EXP]?.group ?? null;
+  }
+
+  // Append a 3rd variant into the reserved tail (weight 500 ≤ reserved 1000);
+  // reserved shrinks 1000 → 500. Existing weights unchanged ⇒ no reshuffle.
+  const grown = [...base, { name: "variant_c", weight: 500, params: {} }];
+  try {
+    cliText(["release", "experiments", "update", EXP, "--reserved-headroom", "500", "--groups", JSON.stringify(grown)]);
+  } catch (e) {
+    annotate(`append rejected on a running experiment — ${e?.message ?? e} (appending a variant ≤ reserved headroom must be allowed while running)`);
+    failed++;
+    console.log("::endgroup::");
+    return;
+  }
+
+  // Wait for the edge to carry the new arm (KV rebuild + purge).
+  let seenC = false;
+  for (let t = 0; t < 15 && !seenC; t++) {
+    for (let i = 0; i < 20; i++) {
+      if ((await evaluate({ anonymous_id: `av:${i}` })).experiments?.[EXP]?.group === "variant_c") {
+        seenC = true;
+        break;
+      }
+    }
+    if (!seenC) await sleep(4000);
+  }
+  const after = new Array(N);
+  for (let i = 0; i < N; i++) {
+    after[i] = (await evaluate({ anonymous_id: `av:${i}` })).experiments?.[EXP]?.group ?? null;
+  }
+
+  let moved = 0;
+  let newC = 0;
+  let newCFromTail = 0;
+  for (let i = 0; i < N; i++) {
+    const b = before[i];
+    const a = after[i];
+    if (a === "variant_c") {
+      newC++;
+      if (b === null) newCFromTail++;
+    }
+    if ((b === "control" || b === "treatment") && a !== b) moved++;
+  }
+  let violations = 0;
+  if (moved > 0) {
+    annotate(`append reshuffled ${moved} enrolled unit(s) between existing groups — appending must only draw from the reserved tail`);
+    violations += moved;
+  }
+  if (newC > newCFromTail) {
+    annotate(`append: ${newC - newCFromTail}/${newC} variant_c unit(s) came from an EXISTING group, not the reserved tail — enrolled users were reassigned`);
+    violations++;
+  }
+  if (violations > 0) {
+    failed++;
+  } else if (!seenC || newC === 0) {
+    console.log(`⚠ no unit landed in variant_c yet (edge lag) — assignment stability still asserted (0 moved); soft on new-arm presence`);
+  } else {
+    ok(`append-variant: ${newC} unit(s) entered variant_c (all from the former reserved tail), 0 existing enrolments moved`);
+  }
+  console.log("::endgroup::");
+}
+
+// ── universe mutual exclusion (§B4 pooled assignment) ────────────────────────
+// A universe is a real capacity pool: each experiment claims a contiguous slice
+// of one shared hash space, so a unit can land in at most ONE experiment per
+// universe. This only engages when experiments run POOLED (hashVersion ≥ 2 with a
+// pool slice) — the §B4 write path is gated behind that bump, so until it ships,
+// new experiments stay on independent per-experiment salts (which overlap by
+// design, nothing to assert). This leg DISCOVERS pooled experiments from the
+// server blob (the pool fields aren't in the curated CLI list) and, only when a
+// universe has ≥2 of them, asserts slices are disjoint AND no unit double-assigns.
+// It soft-skips (never false-fails) while pooled assignment is dormant, and lights
+// up automatically once §B4 deploys.
+async function probeUniverseExclusivity() {
+  if (!CLIENT_KEY) {
+    console.log("mutual-exclusion leg: SHIPEASY_CLIENT_KEY unset — skipping");
+    return;
+  }
+  const SK = process.env.SHIPEASY_SERVER_KEY;
+  if (!SK) {
+    console.log("mutual-exclusion leg: set SHIPEASY_SERVER_KEY (needed to read pool metadata) to enable");
+    return;
+  }
+  let blob;
+  try {
+    const r = await fetch(`${EDGE_URL}/sdk/experiments`, { headers: { "x-sdk-key": SK } });
+    if (!r.ok) {
+      console.log(`mutual-exclusion leg: /sdk/experiments ${r.status} — skipping`);
+      return;
+    }
+    blob = await r.json();
+  } catch (e) {
+    console.log(`mutual-exclusion leg: experiment blob read failed (${e?.message ?? e}) — skipping`);
+    return;
+  }
+  const running = Object.values(blob.experiments ?? {}).filter((e) => e.status === "running");
+  const pooled = running.filter(
+    (e) => (e.hashVersion ?? 1) >= 2 && e.poolOffsetBp != null && e.poolSizeBp > 0,
+  );
+  const byUni = {};
+  for (const e of pooled) (byUni[e.universe] ??= []).push(e);
+  const universes = Object.entries(byUni).filter(([, list]) => list.length >= 2);
+
+  console.log("::group::Universe mutual exclusion (§B4 pooled assignment)");
+  if (universes.length === 0) {
+    console.log(
+      `⚠ no universe has ≥2 running POOLED experiments (hashVersion≥2 + pool slice) — §B4 pooled-assignment write path is dormant, so mutual exclusion isn't live yet (soft). ${pooled.length}/${running.length} running experiment(s) are pooled.`,
+    );
+    console.log("::endgroup::");
+    return;
+  }
+  for (const [uni, list] of universes) {
+    // Admin-side invariant: first-fit must keep the pool slices disjoint.
+    const ranges = list
+      .map((e) => [e.poolOffsetBp, e.poolOffsetBp + e.poolSizeBp, e.name])
+      .sort((a, b) => a[0] - b[0]);
+    let overlap = null;
+    for (let i = 1; i < ranges.length; i++) {
+      if (ranges[i][0] < ranges[i - 1][1]) {
+        overlap = `${ranges[i - 1][2]} [${ranges[i - 1][0]},${ranges[i - 1][1]}) ∩ ${ranges[i][2]} [${ranges[i][0]},${ranges[i][1]})`;
+      }
+    }
+    if (overlap) {
+      annotate(`universe ${uni}: pool slices OVERLAP (${overlap}) — first-fit allocation is broken`);
+      failed++;
+    }
+    // Behavioural: no unit may be assigned to >1 experiment in the universe.
+    const N = 400;
+    let doubled = 0;
+    for (let i = 0; i < N; i++) {
+      const r = await evaluate({ anonymous_id: `mx:${uni}:${i}` });
+      const hits = list.filter((e) => r.experiments?.[e.name]?.inExperiment).length;
+      if (hits > 1) doubled++;
+    }
+    if (doubled === 0 && !overlap) {
+      ok(`universe ${uni}: ${list.length} pooled experiments mutually exclusive — 0/${N} units double-assigned, slices disjoint`);
+    } else if (doubled > 0) {
+      annotate(`universe ${uni}: ${doubled}/${N} units assigned to >1 experiment in the pool — mutual exclusion broken`);
+      failed++;
+    }
+  }
+  console.log("::endgroup::");
+}
+
 // ── run ─────────────────────────────────────────────────────────────────────
 try {
   probeExperiments();
@@ -2360,6 +2944,11 @@ try {
   await probeSequentialTau();
   await probeCupedGates();
   await probeVerdictGates();
+  await probeExperimentConfig();
+  await probeExperimentTargetingGate();
+  await probeExperimentHoldoutGate();
+  await probeAppendVariant();
+  await probeUniverseExclusivity();
   await probeHoldout();
   await probeConfigs();
   await probeEnrichment();
