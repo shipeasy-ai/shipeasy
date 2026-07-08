@@ -2512,6 +2512,10 @@ const paramsMatch = (got, want) =>
 // object (universe defaults ⊕ group override). Build a 3-param universe, a
 // control that overrides nothing and a treatment that overrides ONE key, then
 // assert every assigned unit's params equal the exact merge for its group.
+// Also guards the two response fields the universe-first SDKs depend on: the
+// per-entry `experiments[e].universe` tag (so `universe(name).assign()` can find
+// the pooled experiment) and the top-level `universes[name].defaults` map (so a
+// not-enrolled `universe(name).get(field)` still resolves to the universe default).
 async function probeExperimentConfig() {
   if (!process.env.SHIPEASY_PROBE_MUTATE) {
     console.log("config-inheritance leg disabled — enable with SHIPEASY_PROBE_MUTATE=1 (builds a schema'd universe)");
@@ -2562,10 +2566,36 @@ async function probeExperimentConfig() {
   let ctrl = 0;
   let treat = 0;
   let bad = 0;
+  let uniFieldBad = 0; // per-entry `universe` tag missing/wrong
+  let defaultsSeen = false; // top-level `universes[name].defaults` asserted once
   for (let i = 0; i < N; i++) {
-    const a = (await evaluate({ anonymous_id: `cfg:${i}` })).experiments?.[EXP];
+    const body = await evaluate({ anonymous_id: `cfg:${i}` });
+    // The universe defaults map rides along on every /sdk/evaluate response (SSR
+    // bootstrap + remote-SDK parity): universe(name).get(field) must resolve to a
+    // universe default even for a NOT-enrolled unit, so the defaults must be on
+    // the wire independent of assignment. Assert it once.
+    if (!defaultsSeen && body.universes) {
+      defaultsSeen = true;
+      const d = body.universes?.[CFG_UNIVERSE]?.defaults;
+      if (!d || !paramsMatch(d, defaults)) {
+        bad++;
+        annotate(
+          `config: body.universes[${CFG_UNIVERSE}].defaults=${JSON.stringify(d)} !== ${JSON.stringify(defaults)} — universe defaults map broken`,
+        );
+      }
+    }
+    const a = body.experiments?.[EXP];
     if (!a) continue;
     assigned++;
+    // Every experiment entry now tags its universe so `universe(name).assign()`
+    // can find the ≤1 experiment a unit is pooled into (the universe-first read).
+    if (a.universe !== CFG_UNIVERSE) {
+      uniFieldBad++;
+      if (uniFieldBad <= 3)
+        annotate(
+          `config: assigned unit ${i} entry.universe=${JSON.stringify(a.universe)} !== ${CFG_UNIVERSE} — per-experiment universe tag missing`,
+        );
+    }
     if (typeof a.params !== "object" || a.params == null) {
       bad++;
       if (bad <= 3) annotate(`config: unit ${i} assigned (${a.group}) but params=${JSON.stringify(a.params)} — expected a merged config object`);
@@ -2582,10 +2612,15 @@ async function probeExperimentConfig() {
   }
   if (assigned === 0) {
     console.log("⚠ no unit assigned within the cohort (visibility/allocation) — soft");
-  } else if (bad > 0) {
+  } else if (bad > 0 || uniFieldBad > 0) {
+    failed++;
+  } else if (!defaultsSeen) {
+    annotate(
+      `config: no /sdk/evaluate response carried a top-level universes map for ${CFG_UNIVERSE} — remote SDKs can't resolve universe defaults`,
+    );
     failed++;
   } else {
-    ok(`config object carries the merged params for all ${assigned} assigned units (control=${ctrl} inherit every universe default; treatment=${treat} override button_color + inherit the rest)`);
+    ok(`config object carries the merged params for all ${assigned} assigned units (control=${ctrl} inherit every universe default; treatment=${treat} override button_color + inherit the rest); every entry tags universe=${CFG_UNIVERSE} and body.universes carries the defaults map`);
   }
   stopExp(EXP); // free the running-experiment slot for later legs
   console.log("::endgroup::");
