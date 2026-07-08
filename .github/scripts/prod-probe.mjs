@@ -2364,8 +2364,16 @@ async function probeVerdictGates() {
 // bucketing is fixed per unit) instead of the robust-soft style the stats legs
 // need. They build throwaway fixtures, so they gate on SHIPEASY_PROBE_MUTATE.
 
-const MODEL_SCHEMA_UNIVERSE = "probe_model_cfg"; // schema'd universe (config leg)
-const MODEL_GATE_UNIVERSE = "probe_model_gate"; // plain universe (gate/append legs)
+// ONE experiment per universe. Under §B4 pooled assignment a 100%-allocation
+// experiment claims the WHOLE universe capacity pool, so two 100% experiments
+// can't coexist in one universe (that IS mutual exclusion) — each single-
+// experiment leg gets its own universe. The mutual-exclusion leg builds its own
+// two-experiment universe with sub-100% allocations that fit side by side.
+const CFG_UNIVERSE = "probe_uni_cfg"; // schema'd (config-inheritance leg)
+const TARGETING_UNIVERSE = "probe_uni_targeting";
+const HOLDOUT_UNIVERSE = "probe_uni_holdout";
+const APPEND_UNIVERSE = "probe_uni_append";
+const MX_UNIVERSE = "probe_uni_mx"; // the dedicated mutual-exclusion pair lives here
 
 // Create a universe (optionally with a param_schema / recommended_headroom /
 // holdout_range) if absent — idempotent, reused across runs.
@@ -2472,7 +2480,7 @@ async function probeExperimentConfig() {
     { name: "max_items", type: "int", default: 20 },
   ];
   const defaults = { show_banner: false, button_color: "blue", max_items: 20 };
-  if (!ensureUniverseWithSchema(MODEL_SCHEMA_UNIVERSE, { paramSchema: schema })) {
+  if (!ensureUniverseWithSchema(CFG_UNIVERSE, { paramSchema: schema })) {
     console.log("  schema'd universe unavailable — skipping");
     console.log("::endgroup::");
     return;
@@ -2482,7 +2490,7 @@ async function probeExperimentConfig() {
     { name: "treatment", weight: 5000, params: { button_color: "green" } }, // overrides one
   ];
   const exp = ensureExperimentEx(EXP, {
-    universe: MODEL_SCHEMA_UNIVERSE,
+    universe: CFG_UNIVERSE,
     groups,
     allocationPercent: 100,
     goalEvent: "probe_cfg_evt",
@@ -2551,7 +2559,7 @@ async function probeExperimentTargetingGate() {
   console.log("::group::Experiment targeting gate (gates enrollment)");
   const FLAG = "probe_exp_targeting";
   const EXP = "probe_targeting_exp";
-  if (!ensureUniverseWithSchema(MODEL_GATE_UNIVERSE)) {
+  if (!ensureUniverseWithSchema(TARGETING_UNIVERSE)) {
     console.log("  universe unavailable — skipping");
     console.log("::endgroup::");
     return;
@@ -2566,7 +2574,7 @@ async function probeExperimentTargetingGate() {
     { name: "treatment", weight: 5000, params: {} },
   ];
   const exp = ensureExperimentEx(EXP, {
-    universe: MODEL_GATE_UNIVERSE,
+    universe: TARGETING_UNIVERSE,
     groups,
     allocationPercent: 100,
     targetingGate: FLAG,
@@ -2628,7 +2636,7 @@ async function probeExperimentHoldoutGate() {
   console.log("::group::Experiment holdout gate (public % + whitelist excludes units)");
   const FLAG = "probe_exp_holdout";
   const EXP = "probe_holdout_exp";
-  if (!ensureUniverseWithSchema(MODEL_GATE_UNIVERSE)) {
+  if (!ensureUniverseWithSchema(HOLDOUT_UNIVERSE)) {
     console.log("  universe unavailable — skipping");
     console.log("::endgroup::");
     return;
@@ -2668,7 +2676,7 @@ async function probeExperimentHoldoutGate() {
     { name: "treatment", weight: 5000, params: {} },
   ];
   const exp = ensureExperimentEx(EXP, {
-    universe: MODEL_GATE_UNIVERSE,
+    universe: HOLDOUT_UNIVERSE,
     groups,
     allocationPercent: 100,
     holdoutGate: FLAG,
@@ -2735,7 +2743,7 @@ async function probeAppendVariant() {
   }
   console.log("::group::Append a variant mid-run (reserved headroom, stable assignments)");
   const EXP = "probe_append_exp";
-  if (!ensureUniverseWithSchema(MODEL_GATE_UNIVERSE)) {
+  if (!ensureUniverseWithSchema(APPEND_UNIVERSE)) {
     console.log("  universe unavailable — skipping");
     console.log("::endgroup::");
     return;
@@ -2745,7 +2753,7 @@ async function probeAppendVariant() {
     { name: "treatment", weight: 4500, params: {} },
   ]; // Σ 9000 = 10000 − 1000 reserved
   const exp = ensureExperimentEx(EXP, {
-    universe: MODEL_GATE_UNIVERSE,
+    universe: APPEND_UNIVERSE,
     groups: base,
     allocationPercent: 100,
     reservedHeadroom: 1000,
@@ -2844,83 +2852,135 @@ async function probeAppendVariant() {
 }
 
 // ── universe mutual exclusion (§B4 pooled assignment) ────────────────────────
-// A universe is a real capacity pool: each experiment claims a contiguous slice
-// of one shared hash space, so a unit can land in at most ONE experiment per
-// universe. This only engages when experiments run POOLED (hashVersion ≥ 2 with a
-// pool slice) — the §B4 write path is gated behind that bump, so until it ships,
-// new experiments stay on independent per-experiment salts (which overlap by
-// design, nothing to assert). This leg DISCOVERS pooled experiments from the
-// server blob (the pool fields aren't in the curated CLI list) and, only when a
-// universe has ≥2 of them, asserts slices are disjoint AND no unit double-assigns.
-// It soft-skips (never false-fails) while pooled assignment is dormant, and lights
-// up automatically once §B4 deploys.
+// A universe is a real capacity pool: each experiment claims a CONTIGUOUS slice
+// of one shared hash segment, so a unit lands in at most ONE experiment per
+// universe. This leg BUILDS the proof: two experiments at 40% allocation in one
+// universe. Under pooled assignment they first-fit into DISJOINT slices
+// ([0,4000) and [4000,8000)) — and two 40% experiments only fit at all BECAUSE
+// the pool is finite, which is the same property that makes them exclusive. It
+// asserts (1) the second create succeeds (allocation actually fits, not
+// rejected), (2) the slices are disjoint, (3) no unit is assigned to both.
+// Guarded by an actual "are they pooled?" check from the server blob so it can't
+// false-fail on independent salts before the §B4 write path deploys (then it
+// lights up on its own). Builds fixtures ⇒ gates on SHIPEASY_PROBE_MUTATE.
 async function probeUniverseExclusivity() {
+  if (!process.env.SHIPEASY_PROBE_MUTATE) {
+    console.log("mutual-exclusion leg disabled — enable with SHIPEASY_PROBE_MUTATE=1 (builds a pooled pair)");
+    return;
+  }
   if (!CLIENT_KEY) {
     console.log("mutual-exclusion leg: SHIPEASY_CLIENT_KEY unset — skipping");
     return;
   }
-  const SK = process.env.SHIPEASY_SERVER_KEY;
-  if (!SK) {
-    console.log("mutual-exclusion leg: set SHIPEASY_SERVER_KEY (needed to read pool metadata) to enable");
+  console.log("::group::Universe mutual exclusion (§B4 pooled assignment)");
+  if (!ensureUniverseWithSchema(MX_UNIVERSE)) {
+    console.log("  universe unavailable — skipping");
+    console.log("::endgroup::");
     return;
   }
-  let blob;
+  const A = "probe_mx_a";
+  const B = "probe_mx_b";
+  const groups = [
+    { name: "control", weight: 5000, params: {} },
+    { name: "treatment", weight: 5000, params: {} },
+  ];
+  const ea = ensureExperimentEx(A, { universe: MX_UNIVERSE, groups, allocationPercent: 40, goalEvent: "probe_mx_evt" });
+  const eb = ensureExperimentEx(B, { universe: MX_UNIVERSE, groups, allocationPercent: 40, goalEvent: "probe_mx_evt" });
+  if (!ea || !eb) {
+    // The 2nd create failing when 40%+40% ≤ 100% would itself be a first-fit bug,
+    // but it can also be a plan/transient issue — report soft rather than a false
+    // hard fail. (A genuine over-subscription is caught by the config legs' own
+    // universes; here both fit by construction.)
+    console.log(`  could not build the pooled pair (A=${!!ea}, B=${!!eb}) — skipping (soft)`);
+    console.log("::endgroup::");
+    return;
+  }
+  registerEvent("probe_mx_evt");
+  freshStart(A);
+  freshStart(B);
+
+  // Confirm the pair is POOLED before any hard assertion — before §B4 deploys,
+  // new experiments are hashVersion 1 (independent salts, which CAN overlap), so
+  // a behavioural exclusion assert would false-fail. Read the pool metadata from
+  // the server blob (needs a server key; the fields aren't in the CLI list).
+  const SK = process.env.SHIPEASY_SERVER_KEY;
+  if (!SK) {
+    console.log("⚠ no SHIPEASY_SERVER_KEY to confirm the pair is pooled — skipping the hard exclusion assert to avoid a false-fail under legacy salts (soft)");
+    console.log("::endgroup::");
+    return;
+  }
+  let ba;
+  let bb;
   try {
     const r = await fetch(`${EDGE_URL}/sdk/experiments`, { headers: { "x-sdk-key": SK } });
     if (!r.ok) {
-      console.log(`mutual-exclusion leg: /sdk/experiments ${r.status} — skipping`);
+      console.log(`⚠ /sdk/experiments ${r.status} — can't confirm pooled; soft`);
+      console.log("::endgroup::");
       return;
     }
-    blob = await r.json();
+    const blob = await r.json();
+    ba = blob.experiments?.[A];
+    bb = blob.experiments?.[B];
   } catch (e) {
-    console.log(`mutual-exclusion leg: experiment blob read failed (${e?.message ?? e}) — skipping`);
+    console.log(`⚠ experiment blob read failed (${e?.message ?? e}) — soft`);
+    console.log("::endgroup::");
     return;
   }
-  const running = Object.values(blob.experiments ?? {}).filter((e) => e.status === "running");
-  const pooled = running.filter(
-    (e) => (e.hashVersion ?? 1) >= 2 && e.poolOffsetBp != null && e.poolSizeBp > 0,
-  );
-  const byUni = {};
-  for (const e of pooled) (byUni[e.universe] ??= []).push(e);
-  const universes = Object.entries(byUni).filter(([, list]) => list.length >= 2);
-
-  console.log("::group::Universe mutual exclusion (§B4 pooled assignment)");
-  if (universes.length === 0) {
+  const isPooled = (x) => x && (x.hashVersion ?? 1) >= 2 && x.poolOffsetBp != null && x.poolSizeBp > 0;
+  if (!isPooled(ba) || !isPooled(bb)) {
     console.log(
-      `⚠ no universe has ≥2 running POOLED experiments (hashVersion≥2 + pool slice) — §B4 pooled-assignment write path is dormant, so mutual exclusion isn't live yet (soft). ${pooled.length}/${running.length} running experiment(s) are pooled.`,
+      `⚠ the pair is NOT pooled yet (A.hashVersion=${ba?.hashVersion}, B.hashVersion=${bb?.hashVersion}) — §B4 pooled-assignment write path isn't deployed; mutual exclusion is dormant (soft). Lights up once it ships.`,
     );
     console.log("::endgroup::");
     return;
   }
-  for (const [uni, list] of universes) {
-    // Admin-side invariant: first-fit must keep the pool slices disjoint.
-    const ranges = list
-      .map((e) => [e.poolOffsetBp, e.poolOffsetBp + e.poolSizeBp, e.name])
-      .sort((a, b) => a[0] - b[0]);
-    let overlap = null;
-    for (let i = 1; i < ranges.length; i++) {
-      if (ranges[i][0] < ranges[i - 1][1]) {
-        overlap = `${ranges[i - 1][2]} [${ranges[i - 1][0]},${ranges[i - 1][1]}) ∩ ${ranges[i][2]} [${ranges[i][0]},${ranges[i][1]})`;
+
+  // Admin first-fit invariant: the two slices must be disjoint.
+  const ra = [ba.poolOffsetBp, ba.poolOffsetBp + ba.poolSizeBp];
+  const rb = [bb.poolOffsetBp, bb.poolOffsetBp + bb.poolSizeBp];
+  const [lo, hi] = ra[0] <= rb[0] ? [ra, rb] : [rb, ra];
+  if (hi[0] < lo[1]) {
+    annotate(`mutual exclusion: pool slices OVERLAP — ${A} [${ra[0]},${ra[1]}) ∩ ${B} [${rb[0]},${rb[1]}) — first-fit is broken`);
+    failed++;
+  }
+
+  // Wait for the edge to carry both experiments.
+  const visUsers = Array.from({ length: 10 }, (_, i) => ({ anonymous_id: `mx-vis:${i}` }));
+  let visible = false;
+  for (let t = 0; t < 15 && !visible; t++) {
+    for (const u of visUsers) {
+      const r = await evaluate(u);
+      if (r.experiments?.[A] || r.experiments?.[B]) {
+        visible = true;
+        break;
       }
     }
-    if (overlap) {
-      annotate(`universe ${uni}: pool slices OVERLAP (${overlap}) — first-fit allocation is broken`);
-      failed++;
-    }
-    // Behavioural: no unit may be assigned to >1 experiment in the universe.
-    const N = 400;
-    let doubled = 0;
-    for (let i = 0; i < N; i++) {
-      const r = await evaluate({ anonymous_id: `mx:${uni}:${i}` });
-      const hits = list.filter((e) => r.experiments?.[e.name]?.inExperiment).length;
-      if (hits > 1) doubled++;
-    }
-    if (doubled === 0 && !overlap) {
-      ok(`universe ${uni}: ${list.length} pooled experiments mutually exclusive — 0/${N} units double-assigned, slices disjoint`);
-    } else if (doubled > 0) {
-      annotate(`universe ${uni}: ${doubled}/${N} units assigned to >1 experiment in the pool — mutual exclusion broken`);
-      failed++;
-    }
+    if (!visible) await sleep(4000);
+  }
+  if (!visible) {
+    console.log("⚠ pooled pair not visible at edge within timeout (KV/CDN lag) — soft");
+    console.log("::endgroup::");
+    return;
+  }
+
+  // Behavioural: no unit may be assigned to BOTH experiments in the universe.
+  const N = 400;
+  let both = 0;
+  let inA = 0;
+  let inB = 0;
+  for (let i = 0; i < N; i++) {
+    const r = await evaluate({ anonymous_id: `mx:${i}` });
+    const a = !!r.experiments?.[A]?.inExperiment;
+    const b = !!r.experiments?.[B]?.inExperiment;
+    if (a) inA++;
+    if (b) inB++;
+    if (a && b) both++;
+  }
+  if (both === 0 && hi[0] >= lo[1]) {
+    ok(`universe mutual exclusion: 0/${N} units in BOTH pooled experiments (A admitted=${inA}, B admitted=${inB}, disjoint 40% slices)`);
+  } else if (both > 0) {
+    annotate(`universe mutual exclusion BROKEN: ${both}/${N} units assigned to both ${A} and ${B} in universe ${MX_UNIVERSE}`);
+    failed++;
   }
   console.log("::endgroup::");
 }
