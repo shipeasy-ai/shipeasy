@@ -350,6 +350,8 @@ paths:
     $ref: ./paths/errors.yaml#/~1api~1admin~1errors~1{id}
   /api/admin/errors/{id}/file:
     $ref: ./paths/errors.yaml#/~1api~1admin~1errors~1{id}~1file
+  /api/admin/errors/{id}/resolve:
+    $ref: ./paths/errors.yaml#/~1api~1admin~1errors~1{id}~1resolve
   /api/admin/errors/{id}/series:
     $ref: ./paths/errors.yaml#/~1api~1admin~1errors~1{id}~1series
   /api/admin/connectors:

@@ -2541,6 +2541,24 @@ _Errors_ — beyond the [common errors](#errors):
 
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 
+### `errors_resolve`
+
+**Resolve a tracked error**
+
+Marks one tracked error `resolved` — the single-purpose "close out" action. Takes no body; it is `PATCH /api/admin/errors/{id}` pinned to `{ "status": "resolved" }`, exposed so tooling can close an error without being handed the full open/resolved/ignored status machine. A resolved error reopens automatically (ingestion-side) if it recurs, so resolving is always safe: a premature resolve un-does itself on the next occurrence. Returns the updated row; `404` if the error does not exist.
+
+**Use case:** Close out a tracked error from an agent or script once its fix has shipped — e.g. after a deploy, resolve every open issue the change addressed and let recurrence reopen anything that wasn't actually fixed.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
 ### `errors_series`
 
 **Get an error's occurrence series**

@@ -4151,6 +4151,19 @@ export const zFileErrorTicketPath = z.object({
  */
 export const zFileErrorTicketResponse2 = zFileErrorTicketResponse;
 
+export const zResolveErrorHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zResolveErrorPath = z.object({
+    id: zResourceId
+});
+
+/**
+ * Resolve a tracked error
+ */
+export const zResolveErrorResponse = zErrorRecord;
+
 export const zGetErrorSeriesBody = zErrorSeriesRequest;
 
 export const zGetErrorSeriesHeaders = z.object({

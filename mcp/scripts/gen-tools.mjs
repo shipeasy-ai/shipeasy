@@ -112,8 +112,10 @@ function tagChain(name) {
 // (`errors_list`/`errors_get`/`errors_series`) are projected here so agent
 // skills (e.g. shipeasy-see answering "how often does this error fire") can read
 // the tracked-error analytics over MCP. The CLI still skips Errors wholesale.
-// The two mutating error ops stay unprojected — status flips + ticket-filing are
-// dashboard/ops-queue concerns (`updateErrorStatus`, `fileErrorTicket`).
+// `errors_resolve` is the one projected mutation — a no-body "close out once
+// the fix ships" action that's safe by construction (a resolved error reopens
+// on recurrence). The general status machine + ticket-filing stay unprojected
+// as dashboard/ops-queue concerns (`updateErrorStatus`, `fileErrorTicket`).
 const SKIP_TAGS = new Set([
   "API Keys",
   "Connectors",

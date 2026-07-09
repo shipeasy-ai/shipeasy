@@ -8607,6 +8607,96 @@
         }
       }
     },
+    "/api/admin/errors/{id}/resolve": {
+      "post": {
+        "operationId": "resolveError",
+        "summary": "Resolve a tracked error",
+        "description": "Marks one tracked error `resolved` — the single-purpose \"close out\" action. Takes no body; it is `PATCH /api/admin/errors/{id}` pinned to `{ \"status\": \"resolved\" }`, exposed so tooling can close an error without being handed the full open/resolved/ignored status machine. A resolved error reopens automatically (ingestion-side) if it recurs, so resolving is always safe: a premature resolve un-does itself on the next occurrence. Returns the updated row; `404` if the error does not exist.\n\n**Use case:** Close out a tracked error from an agent or script once its fix has shipped — e.g. after a deploy, resolve every open issue the change addressed and let recurrence reopen anything that wasn't actually fixed.",
+        "tags": [
+          "Errors"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Stable opaque error id (`err_…`).",
+            "schema": {
+              "$ref": "#/components/schemas/ResourceId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resolve a tracked error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorRecord"
+                },
+                "example": {
+                  "id": "err_01j7w7m9q4hxbf6npe6s9zr3vc",
+                  "projectId": "e976b15e-2f0d-4c6e-9b1a-3a7c1f2d8e90",
+                  "fingerprint": "9c1f4f1f2c0c4a5fa1c2b6d3e7c8e3a1",
+                  "causedByFingerprint": null,
+                  "message": "Cannot read properties of undefined (reading 'id')",
+                  "errorType": "TypeError",
+                  "stack": null,
+                  "source": "shipeasy",
+                  "url": "https://app.example.com/dashboard/gat_01j7/edit",
+                  "seenUrls": null,
+                  "subject": "gate editor",
+                  "outcome": "crash on load",
+                  "side": "client",
+                  "env": "prod",
+                  "kind": "uncaught",
+                  "lastExtrasJson": null,
+                  "sdkVersion": "6.0.0",
+                  "count": 137,
+                  "status": "resolved",
+                  "firstSeenAt": "2026-06-20T08:11:02.000Z",
+                  "lastSeenAt": "2026-06-28T14:55:31.000Z",
+                  "createdAt": "2026-06-20T08:11:02.000Z",
+                  "updatedAt": "2026-06-28T15:02:10.000Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND"
+        ],
+        "x-cli": {
+          "name": "resolve",
+          "positional": [
+            "id"
+          ]
+        }
+      }
+    },
     "/api/admin/errors/{id}/series": {
       "post": {
         "operationId": "getErrorSeries",
