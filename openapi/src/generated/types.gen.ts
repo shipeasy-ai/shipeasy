@@ -199,7 +199,7 @@ export type ListGatesResponse = {
 export type ErrorCode = 'BAD_REQUEST' | 'UNAUTHORIZED' | 'FORBIDDEN' | 'PLAN_REQUIRED' | 'NOT_FOUND' | 'ALREADY_EXISTS' | 'INVALID_TRANSITION' | 'IMMUTABLE_FIELD' | 'READ_ONLY' | 'REFERENCED_IN_USE' | 'VALIDATION' | 'REFERENCED_NOT_FOUND' | 'GROUPS_WEIGHT_SUM' | 'EVENT_PENDING' | 'INTERNAL' | 'PLAN_LIMIT' | 'EXPERIMENT_NO_GOAL_METRIC' | 'EXPERIMENT_ARCHIVED_RESTART' | 'EXPERIMENT_RESTORE_INVALID' | 'EXPERIMENT_NOT_RUNNING' | 'EXPERIMENT_RUNNING_ARCHIVE' | 'EXPERIMENT_IMMUTABLE_FIELD' | 'METRIC_NOT_FOUND' | 'METRIC_UNKNOWN_ID';
 
 /**
- * Uniform error envelope returned by every admin endpoint on a non-2xx status. `error` is the human-readable message; `code` is the stable machine code (present whenever the failure maps to a catalogued `ErrorCode`); `detail` carries extra context (validation paths, conflicting field); `instructions` is optional actionable guidance for resolving the error; `schema` echoes back the expected JSON Schema when a value failed schema validation.
+ * Uniform error envelope returned by every admin endpoint on a non-2xx status. `error` is the human-readable message; `code` is the stable machine code (present whenever the failure maps to a catalogued `ErrorCode`); `detail` carries extra context (validation paths, conflicting field); `fields` maps each failing input field to its own message; `instructions` is optional actionable guidance for resolving the error; `schema` echoes back the expected JSON Schema when a value failed schema validation.
  */
 export type Error = {
     /**
@@ -211,6 +211,12 @@ export type Error = {
      * Extra context (validation details, conflicting field, referenced row).
      */
     detail?: string;
+    /**
+     * Per-field validation messages, keyed by the submitted field's path (dot-notation for nested fields, e.g. `groups.0.weight`). Present when structural validation failed on one or more specific input fields, so a client form can attach each message to its own input instead of collapsing everything into one banner.
+     */
+    fields?: {
+        [key: string]: string;
+    };
     /**
      * Actionable guidance for resolving this error — what to check or change next.
      */
