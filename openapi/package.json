@@ -1,6 +1,6 @@
 {
   "name": "@shipeasy/openapi",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Shipeasy admin OpenAPI 3.2 spec (hand-authored, single source of truth) + the generated TypeScript client, Zod schemas, and types. Consumed by @shipeasy/cli and @shipeasy/mcp.",
   "type": "module",
   "main": "./dist/index.js",
