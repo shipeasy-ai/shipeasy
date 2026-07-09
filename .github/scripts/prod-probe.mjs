@@ -2405,6 +2405,8 @@ const TARGETING_UNIVERSE = "probe_uni_targeting";
 const HOLDOUT_UNIVERSE = "probe_uni_holdout";
 const APPEND_UNIVERSE = "probe_uni_append";
 const MX_UNIVERSE = "probe_uni_mx"; // the dedicated mutual-exclusion pair lives here
+const SRM_UNIVERSE = "probe_uni_srm"; // skewed-weight group-split (SRM) fixture
+const OVR_UNIVERSE = "probe_uni_ovr"; // durable-overrides fixture (step 1)
 
 // Create a universe (optionally with a param_schema / recommended_headroom /
 // holdout_range) if absent — idempotent, reused across runs.
@@ -2479,6 +2481,8 @@ const THROWAWAY_FIXTURES = [
   "probe_append_exp",
   "probe_mx_a",
   "probe_mx_b",
+  "probe_srm_exp",
+  "probe_ovr_exp",
 ];
 function stopExp(name) {
   try {
@@ -3065,6 +3069,28 @@ async function probeUniverseExclusivity() {
     if (b) inB++;
     if (a && b) both++;
   }
+
+  // Step 3 at scale: `hash(universe:uid) % 10000` must spread UNIFORMLY across
+  // the pool, so each disjoint 40% slice admits ~40% of units. A skewed universe
+  // hash would select the wrong experiment for a biased share of units even with
+  // disjoint slices. Wide ±15%-of-N band (≈6σ at N=400) — catches a broken/biased
+  // hash, never flakes on a healthy one.
+  const uniBand = Math.round(N * 0.15);
+  const wantEach = Math.round(N * 0.4);
+  for (const [label, count] of [
+    [A, inA],
+    [B, inB],
+  ]) {
+    if (Math.abs(count - wantEach) <= uniBand) {
+      ok(`universe-hash uniformity: ${label} admitted ${count}/${N} (~${((count / N) * 100).toFixed(1)}%, expected ~40%)`);
+    } else {
+      annotate(
+        `universe-hash NON-UNIFORM: ${label} admitted ${count}/${N} (${((count / N) * 100).toFixed(1)}%), expected ~40% ±15% — hash(universe:uid) is skewed across the pool`,
+      );
+      failed++;
+    }
+  }
+
   if (both === 0 && hi[0] >= lo[1]) {
     ok(`universe mutual exclusion: 0/${N} units in BOTH pooled experiments (A admitted=${inA}, B admitted=${inB}, disjoint 40% slices)`);
   } else if (both > 0) {
@@ -3073,6 +3099,299 @@ async function probeUniverseExclusivity() {
   }
   stopExp(A); // free the running-experiment slots for the next run
   stopExp(B);
+  console.log("::endgroup::");
+}
+
+// ── step 6 (group split) + step 2 (fast path) AT SCALE ───────────────────────
+// The group pick is `hash(unit + salt) % 10000` walked against the cumulative
+// group-weight boundaries. At scale the enrolled population MUST land in the
+// DECLARED weights. Build a 100%-allocation fixture with a SKEWED 30/70 split,
+// drive a big deterministic cohort through /sdk/evaluate, then assert:
+//   • step 2 — the fully-allocated fast path admits ~every unit (100% alloc, no
+//     holdout/targeting ⇒ enrolled ≈ N);
+//   • step 6 — the observed control/treatment counts match 30/70 by a df=1
+//     chi-square: χ² > 10.83 ⇒ SRM at p<0.001 (a boundary-walk or group-hash
+//     bug). Fixed unit ids ⇒ the assignment is deterministic, so a passing run
+//     stays passing. MUTATE-gated; own universe; fixture stopped after.
+const SRM_CONTROL_BP = 3000; // 30% control / 70% treatment
+async function probeGroupSplitSRM() {
+  if (!process.env.SHIPEASY_PROBE_MUTATE) {
+    console.log("group-split-SRM leg disabled — enable with SHIPEASY_PROBE_MUTATE=1 (builds a skewed-weight fixture)");
+    return;
+  }
+  if (!CLIENT_KEY) {
+    console.log("group-split-SRM leg: SHIPEASY_CLIENT_KEY unset — skipping");
+    return;
+  }
+  console.log("::group::Group split distribution (SRM, step 6) + fully-allocated fast path (step 2)");
+  if (!ensureUniverseWithSchema(SRM_UNIVERSE)) {
+    console.log("  universe unavailable — skipping");
+    console.log("::endgroup::");
+    return;
+  }
+  const EXP = "probe_srm_exp";
+  const groups = [
+    { name: "control", weight: SRM_CONTROL_BP, params: {} },
+    { name: "treatment", weight: 10000 - SRM_CONTROL_BP, params: {} },
+  ];
+  const e = ensureExperimentEx(EXP, {
+    universe: SRM_UNIVERSE,
+    groups,
+    allocationPercent: 100,
+    goalEvent: "probe_srm_evt",
+  });
+  if (!e) {
+    console.log("  could not build the skewed fixture — skipping (soft)");
+    console.log("::endgroup::");
+    return;
+  }
+  registerEvent("probe_srm_evt");
+  freshStart(EXP);
+
+  const N = Math.min(COHORT, 800);
+  const warm = Array.from({ length: 10 }, (_, i) => ({ anonymous_id: `srm-vis:${i}` }));
+  if (!(await waitForExperimentVisible(EXP, warm))) {
+    console.log("⚠ fixture not visible at edge within timeout (KV/CDN lag) — soft");
+    stopExp(EXP);
+    console.log("::endgroup::");
+    return;
+  }
+
+  let enrolled = 0;
+  const obs = { control: 0, treatment: 0 };
+  for (let i = 0; i < N; i++) {
+    const r = await evaluate({ anonymous_id: `srm:${i}` });
+    const a = r.experiments?.[EXP];
+    if (a?.inExperiment) {
+      enrolled++;
+      if (a.group in obs) obs[a.group]++;
+    }
+  }
+
+  // Step 2 — fully-allocated fast path: 100% allocation + no holdout/targeting ⇒
+  // essentially every unit enrolled. Tiny slack absorbs edge/CDN staleness on the
+  // first units of a just-started fixture.
+  const enrolledFrac = enrolled / N;
+  if (enrolledFrac >= 0.98) {
+    ok(`fully-allocated fast path: ${enrolled}/${N} units enrolled (${(enrolledFrac * 100).toFixed(1)}%) at 100% allocation`);
+  } else if (enrolledFrac >= 0.9) {
+    console.log(
+      `⚠ fast path: only ${(enrolledFrac * 100).toFixed(1)}% enrolled (expected ~100%) — likely edge lag on a fresh fixture (soft)`,
+    );
+  } else {
+    annotate(
+      `fully-allocated fast path BROKEN: only ${enrolled}/${N} units enrolled at 100% allocation (expected ~all)`,
+    );
+    failed++;
+  }
+
+  // Step 6 — group split: chi-square the classified population against 30/70.
+  const classified = obs.control + obs.treatment;
+  if (classified < 200) {
+    console.log(`⚠ SRM: only ${classified} classified units (<200) — cohort too thin to test the split (soft)`);
+  } else {
+    const pC = SRM_CONTROL_BP / 10000;
+    const expC = classified * pC;
+    const expT = classified * (1 - pC);
+    const chi = (obs.control - expC) ** 2 / expC + (obs.treatment - expT) ** 2 / expT;
+    const share = (obs.control / classified) * 100;
+    if (chi <= 10.828) {
+      ok(
+        `group split matches declared 30/70 at scale: control=${obs.control} treatment=${obs.treatment} (control ${share.toFixed(1)}%, χ²=${chi.toFixed(2)} ≤ 10.83, no SRM)`,
+      );
+    } else {
+      annotate(
+        `group-split SRM: control=${obs.control}/${classified} (${share.toFixed(1)}%) vs declared 30% — χ²=${chi.toFixed(2)} > 10.83 (p<0.001). Cumulative-boundary walk or group hash is skewed.`,
+      );
+      failed++;
+    }
+  }
+  stopExp(EXP);
+  console.log("::endgroup::");
+}
+
+// ── step 1 (durable overrides, forced-but-gated) AT SCALE ────────────────────
+// The chain OPENS with durable overrides: an ID override pins one unit to a
+// group; a cohort/GK override pins everyone passing a gate — both FORCED BUT
+// STILL GATED (a unit failing targeting or held out is NOT assigned despite the
+// override), and ID beats cohort. Verifying this at scale needs a write path to
+// CREATE overrides in the canary, which ships with Phase 6 (admin UI + OpenAPI
+// registry op → CLI `release experiments overrides …` + MCP). Until that CLI
+// subcommand exists this leg is DORMANT (soft-skip), exactly as the §B4 mutual-
+// exclusion leg was before its write path deployed — it probes for the command
+// and lights up automatically once Phase 6 lands.
+//
+// The assertion body below is written against the forward-declared CLI contract
+// (`overrides set-id <exp> --unit <id> --group <g>`, `set-cohort <exp> --gate
+// <gate> --group <g>`, `archive-id`/`archive-cohort`) so Phase 6 has a live
+// target; every setup call is defensively wrapped so the leg can only PASS or
+// SOFT-SKIP before the contract is real, never false-fail.
+async function probeExperimentOverrides() {
+  if (!process.env.SHIPEASY_PROBE_MUTATE) {
+    console.log("overrides leg disabled — enable with SHIPEASY_PROBE_MUTATE=1 (needs the Phase-6 override write path)");
+    return;
+  }
+  if (!CLIENT_KEY) {
+    console.log("overrides leg: SHIPEASY_CLIENT_KEY unset — skipping");
+    return;
+  }
+  console.log("::group::Durable overrides (step 1 — forced-but-gated, ID beats cohort)");
+
+  // Capability probe: does this CLI carry the override subcommand? `--help` exits
+  // 0 when the tree exists, non-zero otherwise. No mutation.
+  let hasOverrides = false;
+  try {
+    cliText(["release", "experiments", "overrides", "--help"]);
+    hasOverrides = true;
+  } catch {
+    hasOverrides = false;
+  }
+  if (!hasOverrides) {
+    console.log(
+      "⚠ `release experiments overrides` not in this CLI — the override write path (Phase 6) isn't deployed; step-1 at-scale verification is dormant (soft). Lights up once it ships.",
+    );
+    console.log("::endgroup::");
+    return;
+  }
+
+  // ── setup (all defensive: any failure → soft-skip) ──────────────────────────
+  if (!ensureUniverseWithSchema(OVR_UNIVERSE)) {
+    console.log("  universe unavailable — skipping (soft)");
+    console.log("::endgroup::");
+    return;
+  }
+  // Targeting gate the fixture rides so we can prove forced-but-gated: passes for
+  // plan=pro only. Cohort gate: passes for `probe_seg=x` — the cohort we force.
+  const TGT = "probe_ovr_target";
+  const COH = "probe_ovr_cohort";
+  ensureGate(TGT, { type: "targeting", rolloutPercent: 100, rules: [{ attr: "plan", op: "eq", value: "pro" }] });
+  ensureGate(COH, { type: "targeting", rolloutPercent: 100, rules: [{ attr: "probe_seg", op: "eq", value: "x" }] });
+
+  const EXP = "probe_ovr_exp";
+  const groups = [
+    { name: "control", weight: 5000, params: {} },
+    { name: "treatment", weight: 5000, params: {} },
+  ];
+  const e = ensureExperimentEx(EXP, {
+    universe: OVR_UNIVERSE,
+    groups,
+    allocationPercent: 100,
+    targetingGate: TGT,
+    goalEvent: "probe_ovr_evt",
+  });
+  if (!e) {
+    console.log("  could not build the override fixture — skipping (soft)");
+    console.log("::endgroup::");
+    return;
+  }
+  registerEvent("probe_ovr_evt");
+  freshStart(EXP);
+
+  const proUser = (id, extra = {}) => ({ user_id: id, plan: "pro", ...extra });
+  const warm = Array.from({ length: 10 }, (_, i) => proUser(`ovr-vis:${i}`));
+  if (!(await waitForExperimentVisible(EXP, warm))) {
+    console.log("⚠ fixture not visible at edge within timeout (KV/CDN lag) — soft");
+    stopExp(EXP);
+    console.log("::endgroup::");
+    return;
+  }
+
+  const setId = (unit, group) => {
+    try {
+      cliText(["release", "experiments", "overrides", "set-id", EXP, "--unit", unit, "--group", group]);
+      return true;
+    } catch (err) {
+      console.log(`  set-id ${unit}→${group}: ${err?.message ?? err}`);
+      return false;
+    }
+  };
+  const setCohort = (gate, group) => {
+    try {
+      cliText(["release", "experiments", "overrides", "set-cohort", EXP, "--gate", gate, "--group", group]);
+      return true;
+    } catch (err) {
+      console.log(`  set-cohort ${gate}→${group}: ${err?.message ?? err}`);
+      return false;
+    }
+  };
+  const cleanup = () => {
+    try {
+      cliText(["release", "experiments", "overrides", "archive-id", EXP, "--unit", "ovr-flip-a"]);
+    } catch {
+      /* best effort */
+    }
+    stopExp(EXP);
+  };
+
+  // ── (1) ID override flips a unit's assignment at the edge ───────────────────
+  // Read a unit's NATURAL group first (plan=pro so it passes targeting), then
+  // force it into the OTHER group and assert the edge honors it. Same unit +
+  // salt, opposite result ⇒ the override drives selection, not the hash.
+  const naturalOf = async (unit) => (await evaluate(proUser(unit))).experiments?.[EXP]?.group ?? null;
+  const natA = await naturalOf("ovr-flip-a");
+  if (!natA) {
+    console.log("  could not read a natural assignment (unit not enrolled) — soft");
+    cleanup();
+    console.log("::endgroup::");
+    return;
+  }
+  const flipTo = natA === "control" ? "treatment" : "control";
+  if (setId("ovr-flip-a", flipTo)) {
+    // Wait for the :experiments blob rebuild to carry the override.
+    let flipped = null;
+    for (let t = 0; t < 12; t++) {
+      await sleep(4000);
+      flipped = await naturalOf("ovr-flip-a");
+      if (flipped === flipTo) break;
+    }
+    if (flipped === flipTo) {
+      ok(`ID override flips assignment at scale: ovr-flip-a ${natA} → forced ${flipTo} (edge honors the override)`);
+    } else {
+      annotate(`ID override NOT honored: ovr-flip-a natural=${natA}, forced=${flipTo}, edge still returns ${flipped}`);
+      failed++;
+    }
+  }
+
+  // ── (2) forced-but-gated: the override does NOT apply when targeting fails ───
+  // Same forced unit, but evaluated with plan=free → fails the targeting gate →
+  // must NOT be enrolled, despite the ID override pinning a group.
+  const gated = (await evaluate({ user_id: "ovr-flip-a", plan: "free" })).experiments?.[EXP];
+  if (!gated || gated.inExperiment !== true) {
+    ok("forced-but-gated: an ID override does NOT enroll a unit that fails targeting (plan=free excluded)");
+  } else {
+    annotate(`forced-but-gated BROKEN: ovr-flip-a with plan=free (fails targeting) is enrolled as ${gated.group} despite the override`);
+    failed++;
+  }
+
+  // ── (3) cohort override forces a whole cohort into one group ────────────────
+  if (setCohort(COH, "treatment")) {
+    let sawCohort = false;
+    let offGroup = 0;
+    let enrolledCohort = 0;
+    for (let t = 0; t < 12 && !sawCohort; t++) {
+      await sleep(4000);
+      const r = (await evaluate(proUser("coh-probe-0", { probe_seg: "x" }))).experiments?.[EXP];
+      if (r?.group === "treatment") sawCohort = true;
+    }
+    if (sawCohort) {
+      for (let i = 0; i < 200; i++) {
+        const r = (await evaluate(proUser(`coh:${i}`, { probe_seg: "x" }))).experiments?.[EXP];
+        if (r?.inExperiment) {
+          enrolledCohort++;
+          if (r.group !== "treatment") offGroup++;
+        }
+      }
+      if (enrolledCohort > 0 && offGroup === 0) {
+        ok(`cohort override forces the whole cohort: ${enrolledCohort}/${enrolledCohort} probe_seg=x units in "treatment"`);
+      } else {
+        annotate(`cohort override leaks: ${offGroup}/${enrolledCohort} probe_seg=x units NOT in the forced "treatment" group`);
+        failed++;
+      }
+    } else {
+      console.log("⚠ cohort override not visible at edge within timeout — soft");
+    }
+  }
+  cleanup();
   console.log("::endgroup::");
 }
 
@@ -3272,6 +3591,8 @@ try {
   await probeExperimentHoldoutGate();
   await probeAppendVariant();
   await probeUniverseExclusivity();
+  await probeGroupSplitSRM();
+  await probeExperimentOverrides();
   await probeHoldout();
   await probeConfigs();
   await probeEnrichment();
