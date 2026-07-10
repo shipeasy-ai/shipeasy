@@ -15,7 +15,8 @@ name: prod-probe
 # Required repo config:
 #   secrets.SHIPEASY_CLI_TOKEN   — admin/CLI token for the prod project
 #   secrets.SHIPEASY_CLIENT_KEY  — prod CLIENT key (enables the rollout leg)
-#   secrets.SHIPEASY_CATALOG_TOKEN — R2 SQL token for the event-lake verdict leg
+#   secrets.SHIPEASY_CATALOG_TOKEN — R2 SQL token for the event-lake verdict
+#                                    + exposure-timeline legs
 #   vars.SHIPEASY_PROJECT_ID     — prod project id
 #   vars.SHIPEASY_EDGE_URL       — edge origin, e.g. https://cdn.shipeasy.ai
 #   vars.SHIPEASY_PROBE_MEMBER_EMAIL — known @team/@owner member (template-gate leg)

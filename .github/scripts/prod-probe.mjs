@@ -69,9 +69,10 @@
 //                                              Requires a Pro+ plan (sequential + CUPED).
 //   SHIPEASY_PROBE_MAX_MS (default 50)       — latency p95 budget for /sdk/evaluate
 //   SHIPEASY_CATALOG_TOKEN                   — R2 SQL token for the event-lake verdict
-//                                              leg (Pipelines → R2 Data Catalog; needs
-//                                              R2 SQL read + Data Catalog read + R2
-//                                              storage admin R&W). Unset → leg disabled.
+//                                              + exposure-timeline legs (Pipelines → R2
+//                                              Data Catalog; needs R2 SQL read + Data
+//                                              Catalog read + R2 storage admin R&W).
+//                                              Unset → both legs disabled.
 //   SHIPEASY_CF_ACCOUNT_ID                   — CF account for the lake query endpoint
 //                                              (defaults to the prod account)
 //   SHIPEASY_LAKE_BUCKET                     — lake bucket (default "shipeasy-lake")
@@ -3430,7 +3431,7 @@ async function r2sql(query) {
   return body.result?.rows ?? [];
 }
 
-let lakeSeed = null; // { prefix, exp, evt, expected } — set once the seed is in
+let lakeSeed = null; // { prefix, exp, evt, expected, dayIdx } — set once the seed is in
 
 async function seedLakeVerdict() {
   const exp = process.env.SHIPEASY_PROBE_EXPERIMENT;
@@ -3478,7 +3479,7 @@ async function seedLakeVerdict() {
   console.log(`::group::Event-lake verdict — seed (${exp} / ${evt}, run ${runId})`);
   if (await collect(events)) {
     ok(`seeded ${events.length} events for lake run ${runId} (verified at end of probe)`);
-    lakeSeed = { prefix, exp, evt, expected };
+    lakeSeed = { prefix, exp, evt, expected, dayIdx: Math.floor(tsMs / 86_400_000) };
   } else {
     failed++; // collect() already annotated
   }
@@ -3561,6 +3562,212 @@ FROM per_unit GROUP BY grp`;
   console.log("::endgroup::");
 }
 
+// ── exposure timeline (exposure logging → cumulative enrollment curve) ───────
+// Validates that exposure logging is tracked properly, in two halves:
+//
+//   A. Lake recalc inputs (deterministic, THIS run): the hourly worker cron
+//      `exposure_recalc` derives each unit's first-ever exposure day with a
+//      nested per-unit MIN(ts_ms) query over telemetry.gate_exposures /
+//      experiment_exposures, then prefix-sums per-day new-uniques into the
+//      resource_daily_stats enrollment curve. Run that exact query shape scoped
+//      to this run's seeded unit prefixes and assert the cohorts land as
+//      new-uniques on today's UTC day index — proving /collect exposure rows
+//      reach the lake, unit_key materializes from user_id, duplicate checks
+//      collapse per unit, and the cron's inputs are exact. The experiment half
+//      reuses the lake-verdict cohort (20 fresh units per run); the gate half
+//      seeds its own 6-unit cohort (+2 duplicate rows the count must ignore).
+//   B. Served cumulative series (CROSS-run): the admin experiment view-model
+//      carries `exposureSeries` — the cumulative unique-users curve the
+//      dashboard sparkline draws, sourced from resource_daily_stats (nightly
+//      lake-stats rollup + hourly cumulative recalc). Every probe run enrolls a
+//      brand-new cohort against SHIPEASY_PROBE_EXPERIMENT, so once the crons
+//      have run the curve must exist, be monotonic non-decreasing, and have
+//      totalUnits equal to its final point. Soft-skips while the deployed stack
+//      predates the feature or the crons haven't produced rows yet (e.g.
+//      SHIPEASY_CATALOG_TOKEN missing on the worker no-ops both lake crons).
+
+const EXPO_GATE_UNITS = 6;
+let expoSeed = null; // { prefix, gate, dayIdx } — set once the gate seed is in
+
+async function seedExposureTimeline() {
+  if (!LAKE_TOKEN || !CLIENT_KEY) return; // same auth surface as the lake-verdict leg
+  const runId = Date.now().toString(36);
+  const prefix = `expo-${runId}-`;
+  const tsMs = Date.now();
+  // /collect validates gate names against the env-scoped flags blob, so try a
+  // few from the admin inventory and move past any the blob doesn't carry.
+  let candidates = [];
+  try {
+    candidates = listGates()
+      .filter((g) => g.enabled)
+      .map((g) => g.name)
+      .slice(0, 3);
+  } catch (e) {
+    console.log(`exposure-timeline seed: gate inventory unavailable (${e?.message ?? e})`);
+  }
+  console.log(`::group::Exposure timeline — seed (gate checks, run ${runId})`);
+  for (const gate of candidates) {
+    const events = [];
+    for (let i = 0; i < EXPO_GATE_UNITS; i++) {
+      events.push({ type: "gate", gate, result: true, user_id: `${prefix}g${i}`, ts: tsMs });
+    }
+    // Two duplicate checks by an already-counted unit — new-uniques must stay 6.
+    events.push({ type: "gate", gate, result: true, user_id: `${prefix}g0`, ts: tsMs + 1000 });
+    events.push({ type: "gate", gate, result: false, user_id: `${prefix}g0`, ts: tsMs + 2000 });
+    const res = await fetch(`${EDGE_URL}/collect`, {
+      method: "POST",
+      headers: { "content-type": "text/plain", "x-sdk-key": CLIENT_KEY },
+      body: JSON.stringify({ events }),
+    });
+    if (res.ok) {
+      ok(`seeded ${events.length} gate checks on '${gate}' (${EXPO_GATE_UNITS} unique units)`);
+      expoSeed = { prefix, gate, dayIdx: Math.floor(tsMs / 86_400_000) };
+      break;
+    }
+    const body = await res.text().catch(() => "");
+    console.log(`  gate '${gate}' rejected (${res.status}${body ? ` ${body.slice(0, 80)}` : ""}) — trying next`);
+  }
+  if (candidates.length && !expoSeed) {
+    console.log("  no seedable gate — the gate half of the exposure-timeline leg will skip");
+  }
+  console.log("::endgroup::");
+}
+
+// The recalc cron's first-exposure query shape (worker exposure-recalc.ts),
+// scoped to one probe unit prefix. day_idx = UTC days since epoch (int64
+// division truncates in R2 SQL).
+function firstExposureProbeQuery(table, keyCol, prefix) {
+  return (
+    `SELECT resource, first_ms / 86400000 AS day_idx, COUNT(*) AS new_units ` +
+    `FROM (SELECT ${keyCol} AS resource, unit_key, MIN(ts_ms) AS first_ms ` +
+    `FROM telemetry.${table} WHERE unit_key LIKE '${prefix}%' ` +
+    `GROUP BY ${keyCol}, unit_key) ` +
+    `GROUP BY resource, first_ms / 86400000`
+  );
+}
+
+async function probeExposureTimeline() {
+  console.log("::group::Exposure timeline (recalc inputs + cumulative series)");
+  // Shared poll budget for both lake halves. probeLakeVerdict already polled
+  // the experiment sink flush out, so usually only the gate sink's tail—if
+  // anything—is left to wait for.
+  const deadline = Date.now() + 300_000;
+  const pollLake = async (query, done) => {
+    let rows = [];
+    for (;;) {
+      try {
+        rows = await r2sql(query);
+        if (done(rows)) return rows;
+      } catch {
+        /* transient query error — ride the poll budget */
+      }
+      if (Date.now() >= deadline) return rows;
+      await sleep(20_000);
+    }
+  };
+  const checkRecalcInputs = async (label, table, keyCol, seed, resource, wantUnits) => {
+    const rows = await pollLake(
+      firstExposureProbeQuery(table, keyCol, seed.prefix),
+      (r) => r.reduce((a, x) => a + Number(x.new_units ?? 0), 0) >= wantUnits,
+    );
+    if (rows.length === 0) {
+      annotate(
+        `exposure-timeline(${label}): seeded exposures never surfaced in telemetry.${table} — ` +
+          `exposure logging is NOT being tracked (pipeline unbound/broken, or sink backed up beyond the poll budget)`,
+      );
+      failed++;
+      return;
+    }
+    const bad =
+      rows.length !== 1 ||
+      String(rows[0].resource) !== resource ||
+      Number(rows[0].new_units) !== wantUnits ||
+      Number(rows[0].day_idx) !== seed.dayIdx;
+    if (bad) {
+      annotate(
+        `exposure-timeline(${label}): recalc inputs wrong — got ${JSON.stringify(rows).slice(0, 200)}, ` +
+          `want one row {resource:${resource}, day_idx:${seed.dayIdx}, new_units:${wantUnits}} ` +
+          `(unit dedup, unit_key materialization, or day bucketing is off)`,
+      );
+      failed++;
+    } else {
+      ok(
+        `${label}: cron recalc query sees exactly ${wantUnits} new unique units for '${resource}' on day ${seed.dayIdx}`,
+      );
+    }
+  };
+
+  if (expoSeed) {
+    await checkRecalcInputs("gates", "gate_exposures", "gate", expoSeed, expoSeed.gate, EXPO_GATE_UNITS);
+  } else {
+    console.log("gate half skipped (no seed — see the seed group above)");
+  }
+  if (lakeSeed) {
+    // The lake-verdict cohort: 10 control + 10 treatment units, one exposure each.
+    await checkRecalcInputs("experiments", "experiment_exposures", "experiment", lakeSeed, lakeSeed.exp, 20);
+  } else {
+    console.log("experiment half skipped (lake-verdict seed disabled)");
+  }
+
+  // B. served cumulative series off the admin view-model bundle.
+  const expName = process.env.SHIPEASY_PROBE_EXPERIMENT;
+  if (!APP_URL || !expName) {
+    console.log("series half skipped — needs SHIPEASY_APP_URL + SHIPEASY_PROBE_EXPERIMENT");
+    console.log("::endgroup::");
+    return;
+  }
+  let bundle = null;
+  try {
+    const id = expByName().get(expName)?.id;
+    if (!id) {
+      console.log(`experiment '${expName}' not found in inventory — series half skipped`);
+    } else {
+      const res = await fetch(`${APP_URL}/api/admin/experiments/${id}/view-model`, { headers: ADMIN_H });
+      if (res.ok) bundle = await res.json();
+      else console.log(`view-model ${res.status} — soft-skip (deployed UI may predate the route)`);
+    }
+  } catch (e) {
+    console.log(`view-model fetch failed (${e?.message ?? e}) — series half skipped`);
+  }
+  if (bundle) {
+    if (!("exposureSeries" in bundle)) {
+      console.log("⚠ bundle has no exposureSeries — deployed UI predates the exposure timeline; soft");
+    } else {
+      const s = bundle.exposureSeries;
+      if (!s || !(Number(s.totalUnits) > 0)) {
+        console.log(
+          "⚠ exposureSeries empty — the lake crons haven't produced rows for this experiment yet " +
+            "(needs one hourly exposure_recalc pass; if it persists, check SHIPEASY_CATALOG_TOKEN " +
+            "on the shipeasy-worker — without it both lake crons no-op) — soft",
+        );
+      } else {
+        const cum = Array.isArray(s.cumulative) ? s.cumulative : [];
+        let bad = null;
+        if (!Array.isArray(s.days) || s.days.length !== cum.length || cum.length === 0) {
+          bad = `days/cumulative shape mismatch (${s.days?.length ?? "?"} days vs ${cum.length} points)`;
+        } else if (cum.some((v, i) => i > 0 && v < cum[i - 1])) {
+          bad = "cumulative curve DECREASES — enrollment curves are monotonic by construction";
+        } else if (Number(s.totalUnits) !== cum[cum.length - 1]) {
+          bad = `totalUnits=${s.totalUnits} ≠ final cumulative point ${cum[cum.length - 1]}`;
+        }
+        if (bad) {
+          annotate(`exposure-timeline(series ${expName}): ${bad}`);
+          failed++;
+        } else {
+          ok(
+            `series: ${cum.length}-day monotonic enrollment curve for '${expName}' — ` +
+              `${s.totalUnits} unique units, ${s.totalExposures} exposures`,
+          );
+          if (Number(s.totalUnits) < 20) {
+            console.log(`  note: totalUnits=${s.totalUnits} < one probe cohort (20) — timeline is young`);
+          }
+        }
+      }
+    }
+  }
+  console.log("::endgroup::");
+}
+
 // ── run ─────────────────────────────────────────────────────────────────────
 try {
   // Reclaim any throwaway rework fixtures left running by a prior run so this run
@@ -3569,6 +3776,7 @@ try {
   // already stop their own fixtures in a finally.
   if (process.env.SHIPEASY_PROBE_MUTATE) reclaimThrowawayFixtures();
   await seedLakeVerdict(); // FIRST — the lake sink's 300s roll flushes during the run
+  await seedExposureTimeline(); // gate-check exposures ride the same sink roll
   probeExperiments();
   await probeGates();
   await probeReferenceGates();
@@ -3605,6 +3813,7 @@ try {
   await probeExperimentResults();
   await probeIdentifyMerge();
   await probeLakeVerdict(); // LAST — verify the seed through Pipelines → R2 SQL
+  await probeExposureTimeline(); // reuses the flushed lake seeds + admin exposure series
 } catch (err) {
   annotate(`probe failed to run: ${err?.message ?? err}`);
   process.exit(2);
