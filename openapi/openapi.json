@@ -8337,7 +8337,7 @@
       "get": {
         "operationId": "getError",
         "summary": "Get a tracked error",
-        "description": "Returns a single tracked error by its id, including the latest occurrence's stack, extras, and consequence. Returns `404` if no such error exists in the project.\n\n**Use case:** Drill into one issue — fetch its full stack and `seenUrls` to investigate, or to render the detail panel behind a row in the errors list.",
+        "description": "Returns a single tracked error by its id, including the latest occurrence's stack, extras, and consequence, plus `occurrences` — the sampled per-instance detail rows behind the issue (newest first; exhaustive while the issue is small, thinned at volume, capped at 100). Returns `404` if no such error exists in the project.\n\n**Use case:** Drill into one issue — fetch its full stack and `seenUrls` to investigate, or walk `occurrences` to see how the failing message/stack varies across instances.",
         "tags": [
           "Errors"
         ],
@@ -8386,7 +8386,33 @@
                   "firstSeenAt": "2026-06-20T08:11:02.000Z",
                   "lastSeenAt": "2026-06-28T14:55:31.000Z",
                   "createdAt": "2026-06-20T08:11:02.000Z",
-                  "updatedAt": "2026-06-28T14:55:31.000Z"
+                  "updatedAt": "2026-06-28T14:55:31.000Z",
+                  "occurrences": [
+                    {
+                      "id": "occ_01j7w7qq0v3k9d2m5rc8t1xh4n",
+                      "message": "Cannot read properties of undefined (reading 'id')",
+                      "stack": "TypeError: Cannot read properties of undefined (reading 'id')\n    at GateEditor (/app/gates/[id]/page.tsx:42:18)",
+                      "url": "https://app.example.com/dashboard/gat_01j7/edit",
+                      "env": "prod",
+                      "side": "client",
+                      "sdkVersion": "6.0.0",
+                      "extrasJson": "{\"gateId\":\"gat_01j7\"}",
+                      "sampleRate": 100,
+                      "seenAt": "2026-06-28T14:55:31.000Z"
+                    },
+                    {
+                      "id": "occ_01j7w7pk8s6e3f9b0zad7y5w2q",
+                      "message": "Cannot read properties of undefined (reading 'id')",
+                      "stack": "TypeError: Cannot read properties of undefined (reading 'id')\n    at GateEditor (/app/gates/[id]/page.tsx:42:18)",
+                      "url": "https://app.example.com/dashboard/gat_02c4/edit",
+                      "env": "prod",
+                      "side": "client",
+                      "sdkVersion": "6.0.0",
+                      "extrasJson": "{\"gateId\":\"gat_02c4\"}",
+                      "sampleRate": 10,
+                      "seenAt": "2026-06-24T09:12:05.000Z"
+                    }
+                  ]
                 }
               }
             }
@@ -19177,6 +19203,102 @@
         "additionalProperties": false,
         "description": "Result of a one-shot set-and-publish."
       },
+      "ErrorOccurrence": {
+        "type": "object",
+        "description": "One sampled instance behind a tracked error — the minimal per-occurrence payload (what varies between instances; everything else lives on the parent `ErrorRecord`).",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable opaque occurrence id."
+          },
+          "message": {
+            "type": "string",
+            "description": "This instance's raw message (unlike the fingerprint, never normalized)."
+          },
+          "stack": {
+            "description": "This instance's stack trace, or `null` if none was captured.",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "url": {
+            "description": "This instance's raw URL (ids intact), or `null`.",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "env": {
+            "description": "Published env this instance ran against, or `null`.",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "side": {
+            "description": "Which SDK side reported it — `client` or `server`. `null` if unknown.",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sdkVersion": {
+            "description": "`@shipeasy/sdk` version of this instance, or `null`.",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "extrasJson": {
+            "description": "This instance's sanitized extras, JSON-encoded. `null` if none.",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sampleRate": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "1-in-N sampling rate in force when this instance was kept (`1` = the issue was still being recorded exhaustively)."
+          },
+          "seenAt": {
+            "type": "string",
+            "description": "ISO-8601 timestamp this instance was ingested."
+          }
+        },
+        "required": [
+          "id",
+          "message",
+          "sampleRate",
+          "seenAt"
+        ],
+        "additionalProperties": false
+      },
       "ErrorRecord": {
         "type": "object",
         "description": "A tracked production error — one row per distinct issue, keyed by `fingerprint`. Rows are never created by hand: an ingestion path (worker log drain / the `see()` SDK reporter) folds each occurrence into the matching row, bumping `count` and `lastSeenAt`. The admin surface only lists them, reads one, and flips `status`.\n\nField names are camelCase (the D1 row projected through Drizzle). Many columns are nullable because the reporting source may not supply them.",
@@ -19191,7 +19313,7 @@
           },
           "fingerprint": {
             "type": "string",
-            "description": "Stable dedupe key (hash of `errorType` + normalized `message` + consequence). Unique per project — every occurrence with the same fingerprint folds into this one row."
+            "description": "Stable dedupe key — the issue TITLE (hash of `errorType` + `subject` + `outcome`, plus the violation name for violations). Unique per project — every occurrence with the same title folds into this one row; per-instance variety (message/stack/extras) lives in `occurrences`."
           },
           "causedByFingerprint": {
             "description": "Fingerprint of the issue this one descends from — set when `see()` reported the same error (re-throw) or its `{ cause }` (wrap) at an inner boundary first. Points at another error's `fingerprint` in the same project (soft reference, no FK). `null` for a root issue.",
@@ -19350,7 +19472,14 @@
           "count": {
             "type": "integer",
             "minimum": 1,
-            "description": "Number of folded occurrences for this fingerprint."
+            "description": "EXACT number of folded occurrences for this fingerprint — every occurrence increments it, regardless of detail-row sampling."
+          },
+          "occurrences": {
+            "type": "array",
+            "description": "Sampled per-instance detail rows behind this issue, newest first. Returned only by `GET /api/admin/errors/{id}` (never in list responses). The parent row's `count` / `firstSeenAt` / `lastSeenAt` are exact; these rows are a *sampled sketch* of the instances — exhaustive while the issue is small, thinning to roughly 1-in-10 past 10 occurrences, 1-in-100 past 100, and 1-in-1000 past 1000 (each row's `sampleRate` records the rate in force when it was kept), capped at the newest 100 rows.",
+            "items": {
+              "$ref": "#/components/schemas/ErrorOccurrence"
+            }
           },
           "status": {
             "type": "string",
@@ -19394,7 +19523,7 @@
       },
       "ListErrorsResponse": {
         "type": "array",
-        "description": "A bare JSON array of tracked errors, ordered by `lastSeenAt` descending. There is no pagination envelope — `limit` caps the page size.",
+        "description": "A bare JSON array of tracked errors, ordered by `lastSeenAt` descending. There is no pagination envelope — `limit` caps the page size. List rows never include `occurrences` — read one error to get them.",
         "items": {
           "$ref": "#/components/schemas/ErrorRecord"
         }

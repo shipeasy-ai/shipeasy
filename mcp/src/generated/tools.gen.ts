@@ -9,7 +9,7 @@ import { clean, unwrap } from "../tools/_gen-runtime.js";
 export const GENERATED_TOOLS: Tool[] = [
   {
     name: "errors_get",
-    description: "Get a tracked error. Returns a single tracked error by its id, including the latest occurrence's stack, extras, and consequence. Returns `404` if no such error exists in the project.",
+    description: "Get a tracked error. Returns a single tracked error by its id, including the latest occurrence's stack, extras, and consequence, plus `occurrences` — the sampled per-instance detail rows behind the issue (newest first; exhaustive while the issue is small, thinned at volume, capped at 100). Returns…",
     inputSchema: {"type":"object","properties":{"id":{"type":"string","minLength":1,"maxLength":128,"description":"A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row."}},"required":["id"]},
   },
   {

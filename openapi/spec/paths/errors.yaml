@@ -96,9 +96,9 @@
     operationId: getError
     summary: Get a tracked error
     description: |-
-      Returns a single tracked error by its id, including the latest occurrence's stack, extras, and consequence. Returns `404` if no such error exists in the project.
+      Returns a single tracked error by its id, including the latest occurrence's stack, extras, and consequence, plus `occurrences` — the sampled per-instance detail rows behind the issue (newest first; exhaustive while the issue is small, thinned at volume, capped at 100). Returns `404` if no such error exists in the project.
 
-      **Use case:** Drill into one issue — fetch its full stack and `seenUrls` to investigate, or to render the detail panel behind a row in the errors list.
+      **Use case:** Drill into one issue — fetch its full stack and `seenUrls` to investigate, or walk `occurrences` to see how the failing message/stack varies across instances.
     tags:
       - Errors
     parameters:
@@ -142,6 +142,31 @@
               lastSeenAt: 2026-06-28T14:55:31.000Z
               createdAt: 2026-06-20T08:11:02.000Z
               updatedAt: 2026-06-28T14:55:31.000Z
+              occurrences:
+                - id: occ_01j7w7qq0v3k9d2m5rc8t1xh4n
+                  message: Cannot read properties of undefined (reading 'id')
+                  stack: |-
+                    TypeError: Cannot read properties of undefined (reading 'id')
+                        at GateEditor (/app/gates/[id]/page.tsx:42:18)
+                  url: https://app.example.com/dashboard/gat_01j7/edit
+                  env: prod
+                  side: client
+                  sdkVersion: 6.0.0
+                  extrasJson: '{"gateId":"gat_01j7"}'
+                  sampleRate: 100
+                  seenAt: 2026-06-28T14:55:31.000Z
+                - id: occ_01j7w7pk8s6e3f9b0zad7y5w2q
+                  message: Cannot read properties of undefined (reading 'id')
+                  stack: |-
+                    TypeError: Cannot read properties of undefined (reading 'id')
+                        at GateEditor (/app/gates/[id]/page.tsx:42:18)
+                  url: https://app.example.com/dashboard/gat_02c4/edit
+                  env: prod
+                  side: client
+                  sdkVersion: 6.0.0
+                  extrasJson: '{"gateId":"gat_02c4"}'
+                  sampleRate: 10
+                  seenAt: 2026-06-24T09:12:05.000Z
       "400":
         $ref: ../components/responses.yaml#/BadRequest
       "401":

@@ -2462,6 +2462,22 @@ export const zSetI18nLabelResponse = z.object({
 });
 
 /**
+ * One sampled instance behind a tracked error — the minimal per-occurrence payload (what varies between instances; everything else lives on the parent `ErrorRecord`).
+ */
+export const zErrorOccurrence = z.object({
+    id: z.string(),
+    message: z.string(),
+    stack: z.string().nullish(),
+    url: z.string().nullish(),
+    env: z.string().nullish(),
+    side: z.string().nullish(),
+    sdkVersion: z.string().nullish(),
+    extrasJson: z.string().nullish(),
+    sampleRate: z.int().gte(1),
+    seenAt: z.string()
+});
+
+/**
  * A tracked production error — one row per distinct issue, keyed by `fingerprint`. Rows are never created by hand: an ingestion path (worker log drain / the `see()` SDK reporter) folds each occurrence into the matching row, bumping `count` and `lastSeenAt`. The admin surface only lists them, reads one, and flips `status`.
  *
  * Field names are camelCase (the D1 row projected through Drizzle). Many columns are nullable because the reporting source may not supply them.
@@ -2491,6 +2507,7 @@ export const zErrorRecord = z.object({
     lastExtrasJson: z.string().nullish(),
     sdkVersion: z.string().nullish(),
     count: z.int().gte(1),
+    occurrences: z.array(zErrorOccurrence).optional(),
     status: z.enum([
         'open',
         'resolved',
@@ -2503,7 +2520,7 @@ export const zErrorRecord = z.object({
 });
 
 /**
- * A bare JSON array of tracked errors, ordered by `lastSeenAt` descending. There is no pagination envelope — `limit` caps the page size.
+ * A bare JSON array of tracked errors, ordered by `lastSeenAt` descending. There is no pagination envelope — `limit` caps the page size. List rows never include `occurrences` — read one error to get them.
  */
 export const zListErrorsResponse = z.array(zErrorRecord);
 

@@ -4482,6 +4482,52 @@ export type SetI18nLabelResponse = {
 };
 
 /**
+ * One sampled instance behind a tracked error — the minimal per-occurrence payload (what varies between instances; everything else lives on the parent `ErrorRecord`).
+ */
+export type ErrorOccurrence = {
+    /**
+     * Stable opaque occurrence id.
+     */
+    id: string;
+    /**
+     * This instance's raw message (unlike the fingerprint, never normalized).
+     */
+    message: string;
+    /**
+     * This instance's stack trace, or `null` if none was captured.
+     */
+    stack?: string | null;
+    /**
+     * This instance's raw URL (ids intact), or `null`.
+     */
+    url?: string | null;
+    /**
+     * Published env this instance ran against, or `null`.
+     */
+    env?: string | null;
+    /**
+     * Which SDK side reported it — `client` or `server`. `null` if unknown.
+     */
+    side?: string | null;
+    /**
+     * `@shipeasy/sdk` version of this instance, or `null`.
+     */
+    sdkVersion?: string | null;
+    /**
+     * This instance's sanitized extras, JSON-encoded. `null` if none.
+     */
+    extrasJson?: string | null;
+    /**
+     * 1-in-N sampling rate in force when this instance was kept (`1` = the issue was still being recorded exhaustively).
+     */
+    sampleRate: number;
+    /**
+     * ISO-8601 timestamp this instance was ingested.
+     */
+    seenAt: string;
+};
+
+/**
  * A tracked production error — one row per distinct issue, keyed by `fingerprint`. Rows are never created by hand: an ingestion path (worker log drain / the `see()` SDK reporter) folds each occurrence into the matching row, bumping `count` and `lastSeenAt`. The admin surface only lists them, reads one, and flips `status`.
  *
  * Field names are camelCase (the D1 row projected through Drizzle). Many columns are nullable because the reporting source may not supply them.
@@ -4496,7 +4542,7 @@ export type ErrorRecord = {
      */
     projectId: string;
     /**
-     * Stable dedupe key (hash of `errorType` + normalized `message` + consequence). Unique per project — every occurrence with the same fingerprint folds into this one row.
+     * Stable dedupe key — the issue TITLE (hash of `errorType` + `subject` + `outcome`, plus the violation name for violations). Unique per project — every occurrence with the same title folds into this one row; per-instance variety (message/stack/extras) lives in `occurrences`.
      */
     fingerprint: string;
     /**
@@ -4556,9 +4602,13 @@ export type ErrorRecord = {
      */
     sdkVersion?: string | null;
     /**
-     * Number of folded occurrences for this fingerprint.
+     * EXACT number of folded occurrences for this fingerprint — every occurrence increments it, regardless of detail-row sampling.
      */
     count: number;
+    /**
+     * Sampled per-instance detail rows behind this issue, newest first. Returned only by `GET /api/admin/errors/{id}` (never in list responses). The parent row's `count` / `firstSeenAt` / `lastSeenAt` are exact; these rows are a *sampled sketch* of the instances — exhaustive while the issue is small, thinning to roughly 1-in-10 past 10 occurrences, 1-in-100 past 100, and 1-in-1000 past 1000 (each row's `sampleRate` records the rate in force when it was kept), capped at the newest 100 rows.
+     */
+    occurrences?: Array<ErrorOccurrence>;
     /**
      * Triage state. `open` is the default; a `resolved` error reopens automatically (ingestion-side) if it recurs; `ignored` is sticky until flipped back here.
      */
@@ -4582,7 +4632,7 @@ export type ErrorRecord = {
 };
 
 /**
- * A bare JSON array of tracked errors, ordered by `lastSeenAt` descending. There is no pagination envelope — `limit` caps the page size.
+ * A bare JSON array of tracked errors, ordered by `lastSeenAt` descending. There is no pagination envelope — `limit` caps the page size. List rows never include `occurrences` — read one error to get them.
  */
 export type ListErrorsResponse = Array<ErrorRecord>;
 

@@ -1466,9 +1466,9 @@ export const listErrors = <ThrowOnError extends boolean = false>(options?: Optio
 /**
  * Get a tracked error
  *
- * Returns a single tracked error by its id, including the latest occurrence's stack, extras, and consequence. Returns `404` if no such error exists in the project.
+ * Returns a single tracked error by its id, including the latest occurrence's stack, extras, and consequence, plus `occurrences` — the sampled per-instance detail rows behind the issue (newest first; exhaustive while the issue is small, thinned at volume, capped at 100). Returns `404` if no such error exists in the project.
  *
- * **Use case:** Drill into one issue — fetch its full stack and `seenUrls` to investigate, or to render the detail panel behind a row in the errors list.
+ * **Use case:** Drill into one issue — fetch its full stack and `seenUrls` to investigate, or walk `occurrences` to see how the failing message/stack varies across instances.
  */
 export const getError = <ThrowOnError extends boolean = false>(options: Options<GetErrorData, ThrowOnError>): RequestResult<GetErrorResponses, GetErrorErrors, ThrowOnError> => (options.client ?? client).get<GetErrorResponses, GetErrorErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
