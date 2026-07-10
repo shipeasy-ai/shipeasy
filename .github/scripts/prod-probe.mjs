@@ -3515,7 +3515,13 @@ FROM per_unit GROUP BY grp`;
     try {
       lastErr = null;
       rows = await r2sql(sql);
-      if (rows.reduce((a, r) => a + Number(r.n ?? 0), 0) >= 20) break; // all units visible
+      const nTotal = rows.reduce((a, r) => a + Number(r.n ?? 0), 0);
+      const yTotal = rows.reduce((a, r) => a + Number(r.sum_y ?? 0), 0);
+      // Exposures and metric events flush through SEPARATE sinks: all 20 units
+      // can be visible while the events sink is still rolling, which would
+      // freeze Σy at 0 and false-fail the exact-stats assert below. Hold until
+      // both families are in (a never-landing side still rides the deadline).
+      if (nTotal >= 20 && yTotal >= expected.control.sum + expected.treatment.sum) break;
     } catch (e) {
       lastErr = e; // transient query errors ride the same poll budget
     }
