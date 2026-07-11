@@ -11,7 +11,7 @@
   "dependencies": {
     "@shipeasy/cli": "workspace:*",
     "@shipeasy/mcp": "workspace:*",
-    "@shipeasy/sdk": "^6.2.0"
+    "@shipeasy/sdk": "^7.6.0"
   },
   "devDependencies": {
     "@types/node": "^20.19.39",

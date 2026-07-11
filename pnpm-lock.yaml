@@ -147,8 +147,8 @@ importers:
         specifier: workspace:*
         version: link:../mcp
       '@shipeasy/sdk':
-        specifier: ^6.2.0
-        version: 6.2.0
+        specifier: ^7.6.0
+        version: 7.6.0(zod@4.4.3)
     devDependencies:
       '@types/node':
         specifier: ^20.19.39
@@ -872,20 +872,53 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@shipeasy/sdk@6.2.0':
-    resolution: {integrity: sha512-7PRTPg1USB3Yp0Z4cTaRazhyVYLw+7K0Y8QYqkI5MSRl7opakArpZ9+qip2y3A8PycmYJo3CKDrNiFtz/vlGFw==}
+  '@shipeasy/sdk@7.6.0':
+    resolution: {integrity: sha512-TIjz4HOT9qK/SOQw/RvpnJdthhgfUix6rk2MrQDcvIiuQ8UtyQS/rDvVz8Ra662GtGY+dLghhqYkgbUaLY/tgQ==}
     engines: {node: '>=20'}
     hasBin: true
     peerDependencies:
+      '@hookform/resolvers': '>=3'
       '@openfeature/server-sdk': '>=1.13.0'
       '@openfeature/web-sdk': '>=1.2.0'
+      expo-crypto: '>=13'
+      expo-image-picker: '>=15'
+      expo-secure-store: '>=13'
+      expo-sensors: '>=13'
+      expo-web-browser: '>=13'
       next: '>=13'
+      react: '>=18'
+      react-hook-form: '>=7.50'
+      react-native: '>=0.73'
+      react-native-svg: '>=12'
+      zod: '>=4'
     peerDependenciesMeta:
+      '@hookform/resolvers':
+        optional: true
       '@openfeature/server-sdk':
         optional: true
       '@openfeature/web-sdk':
         optional: true
+      expo-crypto:
+        optional: true
+      expo-image-picker:
+        optional: true
+      expo-secure-store:
+        optional: true
+      expo-sensors:
+        optional: true
+      expo-web-browser:
+        optional: true
       next:
+        optional: true
+      react:
+        optional: true
+      react-hook-form:
+        optional: true
+      react-native:
+        optional: true
+      react-native-svg:
+        optional: true
+      zod:
         optional: true
 
   '@turbo/darwin-64@2.10.0':
@@ -2415,9 +2448,11 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.62.2':
     optional: true
 
-  '@shipeasy/sdk@6.2.0':
+  '@shipeasy/sdk@7.6.0(zod@4.4.3)':
     dependencies:
       murmurhash-js: 1.0.0
+    optionalDependencies:
+      zod: 4.4.3
 
   '@turbo/darwin-64@2.10.0':
     optional: true
