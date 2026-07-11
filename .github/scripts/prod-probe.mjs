@@ -985,6 +985,19 @@ async function probeConfigs() {
 // Flipping one switch via the admin API must transfer to the edge on the next
 // request. Opt-in + self-restoring (SHIPEASY_PROBE_MUTATE=1): read a switch, flip
 // it, poll /sdk/evaluate until it reflects, then restore the original value.
+//
+// Poll budget must outlast Cloudflare KV's propagation SLA. `/sdk/evaluate`
+// reads the flags blob with `FLAGS_KV.get()` (no explicit cacheTtl), so each
+// edge PoP serves a value cached for up to ~60s — unlike the CDN-purged
+// `/sdk/flags` GET, an evaluate read only refreshes when that per-PoP cache
+// expires. A too-short window loses two ways: (1) the flip simply hasn't
+// propagated yet, and (2) if we restore before ~60s elapses, the transient
+// flipped value can live in KV for less than the PoP cache TTL and the edge
+// never observes it at all. So we hold the flip for KSP_POLL_MS (> 60s) before
+// restoring. See packages/core/src/kv/cache.ts (DEFAULT_FLAGS_CACHE_TTL_MS is
+// the 1s in-isolate layer; the dominant floor is KV's own 60s edge cache).
+const KSP_POLL_MS = 96_000; // > KV's ~60s edge-cache SLA, with margin
+const KSP_POLL_STEP_MS = 3000;
 async function probeKillswitchPropagation() {
   if (!CLIENT_KEY) return;
   if (!process.env.SHIPEASY_PROBE_MUTATE) {
@@ -1003,30 +1016,29 @@ async function probeKillswitchPropagation() {
   const setSwitch = (val) =>
     cliText(["release", "killswitch", "set", ks.name, "--env", "prod", "--switch-key", key, "--value", String(val)]);
   const read = async () => (await evaluate({ anonymous_id: "ksp-probe" })).killswitches?.[ks.name]?.[key];
+  // Poll `read()` up to KSP_POLL_MS for it to equal `want`; returns the last value seen.
+  const pollFor = async (want) => {
+    let live;
+    for (let waited = 0; waited < KSP_POLL_MS; waited += KSP_POLL_STEP_MS) {
+      await sleep(KSP_POLL_STEP_MS);
+      live = await read();
+      if (live === want) break;
+    }
+    return live;
+  };
   console.log(`::group::Killswitch switch propagation (${ks.name}.${key})`);
   let restored = false;
   try {
     setSwitch(flipped);
-    let live;
-    for (let i = 0; i < 12; i++) {
-      await sleep(2000);
-      live = await read();
-      if (live === flipped) break;
-    }
+    const live = await pollFor(flipped);
     if (live === flipped) ok(`flip ${key} ${orig}→${flipped} propagated to the edge`);
     else {
-      annotate(`flip ${key} ${orig}→${flipped} did NOT propagate (edge still ${live})`);
+      annotate(`flip ${key} ${orig}→${flipped} did NOT propagate within ${KSP_POLL_MS / 1000}s (edge still ${live})`);
       failed++;
     }
   } finally {
     setSwitch(orig);
-    for (let i = 0; i < 12; i++) {
-      await sleep(2000);
-      if ((await read()) === orig) {
-        restored = true;
-        break;
-      }
-    }
+    restored = (await pollFor(orig)) === orig;
     console.log(restored ? `  restored ${key}=${orig}` : `  ⚠ could not confirm restore of ${key}=${orig}`);
   }
   console.log("::endgroup::");
