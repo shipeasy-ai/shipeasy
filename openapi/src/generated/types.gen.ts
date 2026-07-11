@@ -660,72 +660,152 @@ export type DisableGateResponse = {
     enabled: boolean;
 };
 
-export type ListExperimentsResponse = {
-    data: Array<{
+export type ExperimentApiRow = {
+    /**
+     * Stable opaque experiment id (`exp_…`).
+     */
+    id: string;
+    /**
+     * Stable experiment key. Single segment or `folder.name` (a-z, 0-9, `_`/`-`; max 128 chars). Used by SDKs as `Shipeasy.getExperiment(user, '<name>')`. Immutable after create.
+     */
+    name: string;
+    description: string | null;
+    hypothesis: string | null;
+    tag: string | null;
+    ownerEmail: string | null;
+    audience: string | null;
+    bucketBy: string | null;
+    folder: string | null;
+    status: 'draft' | 'running' | 'stopped' | 'archived';
+    /**
+     * Universe name this experiment draws from.
+     */
+    universe: string;
+    targetingGate: string | null;
+    /**
+     * Per-experiment holdout gate name (a `holdout`-type flag), or `null`.
+     */
+    holdoutGate: string | null;
+    /**
+     * Allocation in basis points (0–10000).
+     */
+    allocationPct: number;
+    /**
+     * Basis points of the split reserved for appended variants (group weights sum to 10000 − this).
+     */
+    reservedHeadroom: number;
+    /**
+     * Bucketing hash algorithm version for the experiment's pool slice (§B4). Defaults to 1.
+     */
+    hashVersion: number;
+    /**
+     * Basis-point offset of the experiment's contiguous slice in the universe pool, or `null` before a slice is allocated.
+     */
+    poolOffsetBp: number | null;
+    /**
+     * Basis-point width of the experiment's pool slice (equal to its allocation), or `null` before a slice is allocated.
+     */
+    poolSizeBp: number | null;
+    salt: string;
+    params: {
+        [key: string]: 'string' | 'bool' | 'number';
+    };
+    groups: Array<{
         /**
-         * Stable opaque experiment id (`exp_…`).
-         */
-        id: string;
-        /**
-         * Stable experiment key. Single segment or `folder.name` (a-z, 0-9, `_`/`-`; max 128 chars). Used by SDKs as `Shipeasy.getExperiment(user, '<name>')`. Immutable after create.
+         * Group label (e.g. `control`, `treatment_a`). Max 64 chars.
          */
         name: string;
-        description: string | null;
-        hypothesis: string | null;
-        tag: string | null;
-        ownerEmail: string | null;
-        audience: string | null;
-        bucketBy: string | null;
-        folder: string | null;
-        status: 'draft' | 'running' | 'stopped' | 'archived';
         /**
-         * Universe name this experiment draws from.
+         * Allocation weight in basis points (0–10000). The sum across all groups must equal exactly **10000** (100%).
          */
-        universe: string;
-        targetingGate: string | null;
+        weight: number;
         /**
-         * Per-experiment holdout gate name (a `holdout`-type flag), or `null`.
+         * Per-group parameter values delivered to the SDK when a caller is hashed into this group. Keys must match the experiment's `params` schema.
          */
-        holdoutGate?: string | null;
-        /**
-         * Allocation in basis points (0–10000).
-         */
-        allocationPct: number;
-        /**
-         * Basis points of the split reserved for appended variants (group weights sum to 10000 − this).
-         */
-        reservedHeadroom?: number;
-        salt: string;
-        params: {
-            [key: string]: 'string' | 'bool' | 'number';
+        params?: {
+            [key: string]: unknown;
         };
-        groups: Array<{
-            /**
-             * Group label (e.g. `control`, `treatment_a`). Max 64 chars.
-             */
-            name: string;
-            /**
-             * Allocation weight in basis points (0–10000). The sum across all groups must equal exactly **10000** (100%).
-             */
-            weight: number;
-            /**
-             * Per-group parameter values delivered to the SDK when a caller is hashed into this group. Keys must match the experiment's `params` schema.
-             */
-            params?: {
-                [key: string]: unknown;
-            };
-        }>;
-        significanceThreshold: number;
-        minRuntimeDays: number;
-        minSampleSize: number;
-        sequentialTesting: boolean;
-        /**
-         * ISO-8601 timestamp the experiment last transitioned to `running`, or `null`.
-         */
-        startedAt: string | null;
-        stoppedAt?: string | null;
-        updatedAt: string;
     }>;
+    significanceThreshold: number;
+    minRuntimeDays: number;
+    minSampleSize: number;
+    sequentialTesting: boolean;
+    /**
+     * ISO-8601 timestamp the experiment last transitioned to `running`, or `null`.
+     */
+    startedAt: string | null;
+    stoppedAt: string | null;
+    updatedAt: string;
+    /**
+     * Save counter (number of published edits), or `null` on pre-versioning rows.
+     */
+    version: number | null;
+    /**
+     * Resolved creator email (`created_by` → users). Enriched field: present on list rows, omitted from the by-id detail.
+     */
+    creatorEmail?: string | null;
+    /**
+     * Resolved last-editor email (`updated_by` → users). Enriched field: present on list rows, omitted from the by-id detail.
+     */
+    updaterEmail?: string | null;
+    /**
+     * Answer-first decision from the goal metric + guardrails + SRM vs. the significance threshold and min runtime: `ship`, `hold`, `wait`, `invalid`, `draft`. Enriched field: list rows only.
+     */
+    verdict?: 'ship' | 'hold' | 'wait' | 'invalid' | 'draft';
+    /**
+     * Expanded verdict headline the results hero renders. Enriched field: list rows only.
+     */
+    verdictTitle?: string;
+    /**
+     * Verdict rationale the results hero renders. Enriched field: list rows only.
+     */
+    verdictWhy?: string;
+    /**
+     * The experiment's goal metric `{ id, name }`, or `null` when none is set. Enriched field: list rows only.
+     */
+    goalMetric?: {
+        id: string;
+        name: string;
+    } | null;
+    /**
+     * Guardrail metrics `{ id, name, eventName? }`. Enriched field: list rows only.
+     */
+    guardrails?: Array<{
+        id: string;
+        name: string;
+        eventName?: string | null;
+    }>;
+    /**
+     * Number of guardrail metrics. Enriched field: list rows only.
+     */
+    guardrailCount?: number;
+    /**
+     * Goal-metric lift of the leading variant vs. control, in percent, or `null` when not yet computed. Enriched field: list rows only.
+     */
+    primaryLiftPct?: number | null;
+    /**
+     * Statistical significance (1 − p) as a percent, or `null` when not yet computed. Enriched field: list rows only.
+     */
+    significancePct?: number | null;
+    /**
+     * Total distinct units analysed, or `null` when not yet computed. Enriched field: list rows only.
+     */
+    sampleSize?: number | null;
+    /**
+     * Cumulative unique-users-enrolled series for the exposure sparkline. Enriched field: list rows only.
+     */
+    exposure?: Array<{
+        ds: string;
+        value: number;
+    }>;
+    /**
+     * Total distinct units ever exposed (sparkline headline), or `null`. Enriched field: list rows only.
+     */
+    exposureTotal?: number | null;
+};
+
+export type ListExperimentsResponse = {
+    data: Array<ExperimentApiRow>;
     next_cursor: string | null;
 };
 
@@ -879,64 +959,6 @@ export type CreateExperimentResponse = {
      * Stable experiment key. Single segment or `folder.name` (a-z, 0-9, `_`/`-`; max 128 chars). Used by SDKs as `Shipeasy.getExperiment(user, '<name>')`. Immutable after create.
      */
     name: string;
-};
-
-export type GetExperimentResponse = {
-    /**
-     * Stable opaque experiment id (`exp_…`).
-     */
-    id: string;
-    /**
-     * Stable experiment key. Single segment or `folder.name` (a-z, 0-9, `_`/`-`; max 128 chars). Used by SDKs as `Shipeasy.getExperiment(user, '<name>')`. Immutable after create.
-     */
-    name: string;
-    description: string | null;
-    hypothesis: string | null;
-    tag: string | null;
-    ownerEmail: string | null;
-    audience: string | null;
-    bucketBy: string | null;
-    folder: string | null;
-    status: 'draft' | 'running' | 'stopped' | 'archived';
-    /**
-     * Universe name this experiment draws from.
-     */
-    universe: string;
-    targetingGate: string | null;
-    /**
-     * Allocation in basis points (0–10000).
-     */
-    allocationPct: number;
-    salt: string;
-    params: {
-        [key: string]: 'string' | 'bool' | 'number';
-    };
-    groups: Array<{
-        /**
-         * Group label (e.g. `control`, `treatment_a`). Max 64 chars.
-         */
-        name: string;
-        /**
-         * Allocation weight in basis points (0–10000). The sum across all groups must equal exactly **10000** (100%).
-         */
-        weight: number;
-        /**
-         * Per-group parameter values delivered to the SDK when a caller is hashed into this group. Keys must match the experiment's `params` schema.
-         */
-        params?: {
-            [key: string]: unknown;
-        };
-    }>;
-    significanceThreshold: number;
-    minRuntimeDays: number;
-    minSampleSize: number;
-    sequentialTesting: boolean;
-    /**
-     * ISO-8601 timestamp the experiment last transitioned to `running`, or `null`.
-     */
-    startedAt: string | null;
-    stoppedAt?: string | null;
-    updatedAt: string;
 };
 
 export type DeleteExperimentResponse = {
@@ -5924,10 +5946,10 @@ export type GetExperimentResponses = {
     /**
      * Get one experiment
      */
-    200: GetExperimentResponse;
+    200: ExperimentApiRow;
 };
 
-export type GetExperimentResponse2 = GetExperimentResponses[keyof GetExperimentResponses];
+export type GetExperimentResponse = GetExperimentResponses[keyof GetExperimentResponses];
 
 export type UpdateExperimentData = {
     body: UpdateExperimentRequest;

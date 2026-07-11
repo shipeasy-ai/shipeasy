@@ -361,47 +361,82 @@ export const zDisableGateResponse = z.object({
     enabled: z.boolean()
 });
 
-export const zListExperimentsResponse = z.object({
-    data: z.array(z.object({
-        id: z.string(),
-        name: z.string().max(128).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$/),
-        description: z.string().nullable(),
-        hypothesis: z.string().nullable(),
-        tag: z.string().nullable(),
-        ownerEmail: z.string().nullable(),
-        audience: z.string().nullable(),
-        bucketBy: z.string().min(1).max(128).regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/).nullable(),
-        folder: z.string().nullable(),
-        status: z.enum([
-            'draft',
-            'running',
-            'stopped',
-            'archived'
-        ]),
-        universe: z.string(),
-        targetingGate: z.string().nullable(),
-        holdoutGate: z.string().nullish(),
-        allocationPct: z.int().gte(-9007199254740991).lte(9007199254740991),
-        reservedHeadroom: z.int().gte(0).lte(10000).optional(),
-        salt: z.string(),
-        params: z.record(z.string(), z.enum([
-            'string',
-            'bool',
-            'number'
-        ])),
-        groups: z.array(z.object({
-            name: z.string().min(1).max(64),
-            weight: z.int().gte(0).lte(10000),
-            params: z.record(z.string(), z.unknown()).optional().default({})
-        })),
-        significanceThreshold: z.number(),
-        minRuntimeDays: z.int().gte(-9007199254740991).lte(9007199254740991),
-        minSampleSize: z.int().gte(-9007199254740991).lte(9007199254740991),
-        sequentialTesting: z.boolean(),
-        startedAt: z.string().nullable(),
-        stoppedAt: z.string().nullish(),
-        updatedAt: z.string()
+export const zExperimentApiRow = z.object({
+    id: z.string(),
+    name: z.string().max(128).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$/),
+    description: z.string().nullable(),
+    hypothesis: z.string().nullable(),
+    tag: z.string().nullable(),
+    ownerEmail: z.string().nullable(),
+    audience: z.string().nullable(),
+    bucketBy: z.string().min(1).max(128).regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/).nullable(),
+    folder: z.string().nullable(),
+    status: z.enum([
+        'draft',
+        'running',
+        'stopped',
+        'archived'
+    ]),
+    universe: z.string(),
+    targetingGate: z.string().nullable(),
+    holdoutGate: z.string().nullable(),
+    allocationPct: z.int().gte(-9007199254740991).lte(9007199254740991),
+    reservedHeadroom: z.int().gte(0).lte(10000),
+    hashVersion: z.int().gte(1),
+    poolOffsetBp: z.int().gte(0).lte(10000).nullable(),
+    poolSizeBp: z.int().gte(0).lte(10000).nullable(),
+    salt: z.string(),
+    params: z.record(z.string(), z.enum([
+        'string',
+        'bool',
+        'number'
+    ])),
+    groups: z.array(z.object({
+        name: z.string().min(1).max(64),
+        weight: z.int().gte(0).lte(10000),
+        params: z.record(z.string(), z.unknown()).optional().default({})
     })),
+    significanceThreshold: z.number(),
+    minRuntimeDays: z.int().gte(-9007199254740991).lte(9007199254740991),
+    minSampleSize: z.int().gte(-9007199254740991).lte(9007199254740991),
+    sequentialTesting: z.boolean(),
+    startedAt: z.string().nullable(),
+    stoppedAt: z.string().nullable(),
+    updatedAt: z.string(),
+    version: z.int().nullable(),
+    creatorEmail: z.string().nullish(),
+    updaterEmail: z.string().nullish(),
+    verdict: z.enum([
+        'ship',
+        'hold',
+        'wait',
+        'invalid',
+        'draft'
+    ]).optional(),
+    verdictTitle: z.string().optional(),
+    verdictWhy: z.string().optional(),
+    goalMetric: z.object({
+        id: z.string(),
+        name: z.string()
+    }).nullish(),
+    guardrails: z.array(z.object({
+        id: z.string(),
+        name: z.string(),
+        eventName: z.string().nullish()
+    })).optional(),
+    guardrailCount: z.int().gte(0).optional(),
+    primaryLiftPct: z.number().nullish(),
+    significancePct: z.number().nullish(),
+    sampleSize: z.int().nullish(),
+    exposure: z.array(z.object({
+        ds: z.string(),
+        value: z.number()
+    })).optional(),
+    exposureTotal: z.int().nullish()
+});
+
+export const zListExperimentsResponse = z.object({
+    data: z.array(zExperimentApiRow),
     next_cursor: z.string().nullable()
 });
 
@@ -469,45 +504,6 @@ export const zCreateExperimentRequest = z.object({
 export const zCreateExperimentResponse = z.object({
     id: z.string(),
     name: z.string().max(128).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$/)
-});
-
-export const zGetExperimentResponse = z.object({
-    id: z.string(),
-    name: z.string().max(128).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$/),
-    description: z.string().nullable(),
-    hypothesis: z.string().nullable(),
-    tag: z.string().nullable(),
-    ownerEmail: z.string().nullable(),
-    audience: z.string().nullable(),
-    bucketBy: z.string().min(1).max(128).regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/).nullable(),
-    folder: z.string().nullable(),
-    status: z.enum([
-        'draft',
-        'running',
-        'stopped',
-        'archived'
-    ]),
-    universe: z.string(),
-    targetingGate: z.string().nullable(),
-    allocationPct: z.int().gte(-9007199254740991).lte(9007199254740991),
-    salt: z.string(),
-    params: z.record(z.string(), z.enum([
-        'string',
-        'bool',
-        'number'
-    ])),
-    groups: z.array(z.object({
-        name: z.string().min(1).max(64),
-        weight: z.int().gte(0).lte(10000),
-        params: z.record(z.string(), z.unknown()).optional().default({})
-    })),
-    significanceThreshold: z.number(),
-    minRuntimeDays: z.int().gte(-9007199254740991).lte(9007199254740991),
-    minSampleSize: z.int().gte(-9007199254740991).lte(9007199254740991),
-    sequentialTesting: z.boolean(),
-    startedAt: z.string().nullable(),
-    stoppedAt: z.string().nullish(),
-    updatedAt: z.string()
 });
 
 export const zDeleteExperimentResponse = z.object({
@@ -3092,7 +3088,7 @@ export const zGetExperimentPath = z.object({
 /**
  * Get one experiment
  */
-export const zGetExperimentResponse2 = zGetExperimentResponse;
+export const zGetExperimentResponse = zExperimentApiRow;
 
 export const zUpdateExperimentBody = zUpdateExperimentRequest;
 
