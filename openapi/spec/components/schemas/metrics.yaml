@@ -23,7 +23,43 @@ ListMetricsResponse:
           - type: string
           - type: "null"
       queryIr:
-        $ref: "#/QueryIr"
+        description: Typed query IR, or `null` for a metric whose IR was never populated (re-save it to backfill).
+        anyOf:
+          - $ref: "#/QueryIr"
+          - type: "null"
+      displayName:
+        description: Human-friendly display name shown in the dashboard, or `null` to fall back to `name`.
+        anyOf:
+          - type: string
+          - type: "null"
+      presetId:
+        description: Id of the metric preset this metric was created from, or `null` for a custom metric.
+        anyOf:
+          - type: string
+          - type: "null"
+      unit:
+        description: Display unit (e.g. `ms`, `%`, `$`), or `null` when unitless.
+        anyOf:
+          - type: string
+          - type: "null"
+      version:
+        type: integer
+        description: Monotonic save counter — incremented on every update.
+      deletedAt:
+        description: ISO-8601 soft-delete (archive) timestamp, or `null` while the metric is live.
+        anyOf:
+          - type: string
+          - type: "null"
+      creatorEmail:
+        description: Email of the user who created the metric, or `null` when unknown. List responses only.
+        anyOf:
+          - type: string
+          - type: "null"
+      updaterEmail:
+        description: Email of the user who last edited the metric, or `null` when unknown. List responses only.
+        anyOf:
+          - type: string
+          - type: "null"
       direction:
         type: string
         enum:
@@ -40,8 +76,10 @@ ListMetricsResponse:
           - type: number
           - type: "null"
       createdAt:
-        description: ISO-8601 creation timestamp.
-        type: string
+        description: ISO-8601 creation timestamp, or `null` on legacy rows created before the column existed.
+        anyOf:
+          - type: string
+          - type: "null"
       updatedAt:
         description: ISO-8601 last-update timestamp.
         type: string
@@ -52,6 +90,11 @@ ListMetricsResponse:
       - eventName
       - query
       - queryIr
+      - version
+      - displayName
+      - presetId
+      - unit
+      - deletedAt
     additionalProperties: {}
     description: A metric definition.
   description: Every metric in the project (the list endpoint is not paginated).
@@ -78,7 +121,33 @@ GetMetricResponse:
         - type: string
         - type: "null"
     queryIr:
-      $ref: "#/QueryIr"
+      description: Typed query IR, or `null` for a metric whose IR was never populated (re-save it to backfill).
+      anyOf:
+        - $ref: "#/QueryIr"
+        - type: "null"
+    displayName:
+      description: Human-friendly display name shown in the dashboard, or `null` to fall back to `name`.
+      anyOf:
+        - type: string
+        - type: "null"
+    presetId:
+      description: Id of the metric preset this metric was created from, or `null` for a custom metric.
+      anyOf:
+        - type: string
+        - type: "null"
+    unit:
+      description: Display unit (e.g. `ms`, `%`, `$`), or `null` when unitless.
+      anyOf:
+        - type: string
+        - type: "null"
+    version:
+      type: integer
+      description: Monotonic save counter — incremented on every update.
+    deletedAt:
+      description: ISO-8601 soft-delete (archive) timestamp, or `null` while the metric is live.
+      anyOf:
+        - type: string
+        - type: "null"
     direction:
       type: string
       enum:
@@ -95,8 +164,10 @@ GetMetricResponse:
         - type: number
         - type: "null"
     createdAt:
-      description: ISO-8601 creation timestamp.
-      type: string
+      description: ISO-8601 creation timestamp, or `null` on legacy rows created before the column existed.
+      anyOf:
+        - type: string
+        - type: "null"
     updatedAt:
       description: ISO-8601 last-update timestamp.
       type: string
@@ -107,6 +178,11 @@ GetMetricResponse:
     - eventName
     - query
     - queryIr
+    - version
+    - displayName
+    - presetId
+    - unit
+    - deletedAt
   additionalProperties: {}
   description: A metric definition.
 QueryIr:
@@ -545,3 +621,104 @@ DeleteMetricResponse:
     - ok
   additionalProperties: false
   description: Soft-delete (archive) acknowledgement.
+UnarchiveMetricResponse:
+  type: object
+  properties:
+    ok:
+      type: boolean
+      const: true
+  required:
+    - ok
+  additionalProperties: false
+  description: Unarchive (undo soft-delete) acknowledgement.
+ListMetricExperimentsResponse:
+  type: object
+  description: Experiments that attach this metric, ordered with running experiments first, then by role weight (goal > guardrail > secondary), then by name.
+  properties:
+    experiments:
+      type: array
+      items:
+        type: object
+        properties:
+          id:
+            type: string
+            description: Stable opaque experiment id.
+          name:
+            type: string
+            description: Experiment name.
+          status:
+            type: string
+            enum:
+              - draft
+              - running
+              - stopped
+              - archived
+            description: Experiment lifecycle status.
+          role:
+            type: string
+            enum:
+              - goal
+              - guardrail
+              - secondary
+            description: Role this metric plays in the experiment. `goal` drives the decision, `guardrail` blocks ship if degraded, `secondary` is informational.
+        required:
+          - id
+          - name
+          - status
+          - role
+        additionalProperties: false
+        description: One experiment attaching this metric.
+      description: Every experiment (any status) attaching this metric.
+  required:
+    - experiments
+  additionalProperties: false
+GetMetricSeriesRequest:
+  type: object
+  description: |-
+    Time window for the metric series. Bounds are epoch **seconds** (Analytics Engine stores the event timestamp in seconds). `to` must be strictly greater than `from`.
+  properties:
+    from:
+      type: integer
+      minimum: 0
+      description: Window start, epoch seconds (inclusive).
+    to:
+      type: integer
+      minimum: 0
+      description: Window end, epoch seconds (exclusive). Must be greater than `from`.
+    bucket:
+      type: integer
+      minimum: 60
+      maximum: 86400
+      default: 3600
+      description: Bucket width in seconds (60s–86400s/1d). Defaults to `3600` (hourly). Each returned point is floor-aligned to this width.
+  required:
+    - from
+    - to
+  additionalProperties: false
+GetMetricSeriesResponse:
+  type: object
+  description: Bucketed values for one metric, compiled from its typed IR and executed against the Analytics Engine SQL API, plus the SQL that produced them. Capped at 5000 rows (high-cardinality `groupBy` series are truncated).
+  properties:
+    sql:
+      type: string
+      description: The Analytics Engine SQL executed to produce `rows` (echoed for transparency / debugging).
+    rows:
+      type: array
+      description: Bucketed series, ordered by `t` ascending. For a metric with a `groupBy` clause each bucket has one row per label combination, with the label values as extra string/number properties on the row.
+      items:
+        type: object
+        properties:
+          t:
+            type: integer
+            description: Bucket start, epoch seconds, floor-aligned to `bucket`.
+          v:
+            type: number
+            description: Aggregated metric value in the bucket (sample-interval weighted).
+        required:
+          - t
+          - v
+        additionalProperties: true
+  required:
+    - sql
+    - rows
+  additionalProperties: false

@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ApproveEventData, ApproveEventErrors, ApproveEventResponses, CreateAlertRuleData, CreateAlertRuleErrors, CreateAlertRuleResponses, CreateAttributeData, CreateAttributeErrors, CreateAttributeResponses, CreateConfigData, CreateConfigErrors, CreateConfigResponses, CreateConnectorData, CreateConnectorErrors, CreateConnectorResponses, CreateEventData, CreateEventErrors, CreateEventResponses, CreateExperimentData, CreateExperimentErrors, CreateExperimentResponses, CreateGateData, CreateGateErrors, CreateGateResponses, CreateGateTemplateData, CreateGateTemplateErrors, CreateGateTemplateResponses, CreateI18nDraftData, CreateI18nDraftErrors, CreateI18nDraftResponses, CreateI18nProfileData, CreateI18nProfileErrors, CreateI18nProfileResponses, CreateKeyData, CreateKeyErrors, CreateKeyResponses, CreateKillswitchData, CreateKillswitchErrors, CreateKillswitchResponses, CreateMetricData, CreateMetricErrors, CreateMetricResponses, CreateOpsCommentData, CreateOpsCommentErrors, CreateOpsCommentResponses, CreateOpsItemData, CreateOpsItemErrors, CreateOpsItemResponses, CreateTriggerConnectorData, CreateTriggerConnectorErrors, CreateTriggerConnectorResponses, CreateUniverseData, CreateUniverseErrors, CreateUniverseResponses, DeleteAlertRuleData, DeleteAlertRuleErrors, DeleteAlertRuleResponses, DeleteAttributeData, DeleteAttributeErrors, DeleteAttributeResponses, DeleteConfigData, DeleteConfigErrors, DeleteConfigResponses, DeleteConnectorData, DeleteConnectorErrors, DeleteConnectorResponses, DeleteEventData, DeleteEventErrors, DeleteEventResponses, DeleteExperimentData, DeleteExperimentErrors, DeleteExperimentResponses, DeleteGateData, DeleteGateErrors, DeleteGateResponses, DeleteGateTemplateData, DeleteGateTemplateErrors, DeleteGateTemplateResponses, DeleteKillswitchData, DeleteKillswitchErrors, DeleteKillswitchResponses, DeleteMetricData, DeleteMetricErrors, DeleteMetricResponses, DeleteUniverseData, DeleteUniverseErrors, DeleteUniverseResponses, DisableGateData, DisableGateErrors, DisableGateResponses, DiscardConfigDraftData, DiscardConfigDraftErrors, DiscardConfigDraftResponses, EnableGateData, EnableGateErrors, EnableGateResponses, FileErrorTicketData, FileErrorTicketErrors, FileErrorTicketResponses, FireConnectorData, FireConnectorErrors, FireConnectorResponses, GetAttributeData, GetAttributeErrors, GetAttributeResponses, GetConfigData, GetConfigErrors, GetConfigResponses, GetConnectorData, GetConnectorErrors, GetConnectorResponses, GetCurrentProjectData, GetCurrentProjectErrors, GetCurrentProjectResponses, GetErrorData, GetErrorErrors, GetErrorResponses, GetErrorSeriesData, GetErrorSeriesErrors, GetErrorSeriesResponses, GetEventData, GetEventErrors, GetEventResponses, GetExperimentData, GetExperimentErrors, GetExperimentResponses, GetExperimentResultsData, GetExperimentResultsErrors, GetExperimentResultsResponses, GetExperimentTimeseriesData, GetExperimentTimeseriesErrors, GetExperimentTimeseriesResponses, GetGateTemplateData, GetGateTemplateErrors, GetGateTemplateResponses, GetKillswitchData, GetKillswitchErrors, GetKillswitchResponses, GetMetricData, GetMetricErrors, GetMetricResponses, GetOpsItemData, GetOpsItemErrors, GetOpsItemResponses, LinkPrToOpsItemData, LinkPrToOpsItemErrors, LinkPrToOpsItemResponses, ListAlertRulesData, ListAlertRulesErrors, ListAlertRulesResponses, ListAttributesData, ListAttributesErrors, ListAttributesResponses, ListConfigActivityData, ListConfigActivityErrors, ListConfigActivityResponses, ListConfigsData, ListConfigsErrors, ListConfigsResponses, ListConnectorsData, ListConnectorsErrors, ListConnectorsResponses, ListErrorsData, ListErrorsErrors, ListErrorsResponses, ListEventsData, ListEventsErrors, ListEventsResponses, ListExperimentsData, ListExperimentsErrors, ListExperimentsResponses, ListGatesData, ListGatesErrors, ListGatesResponses, ListGateTemplatesData, ListGateTemplatesErrors, ListGateTemplatesResponses, ListI18nDraftsData, ListI18nDraftsErrors, ListI18nDraftsResponses, ListI18nKeysData, ListI18nKeysErrors, ListI18nKeysResponses, ListI18nProfilesData, ListI18nProfilesErrors, ListI18nProfilesResponses, ListKeysData, ListKeysErrors, ListKeysResponses, ListKillswitchesData, ListKillswitchesErrors, ListKillswitchesResponses, ListMetricsData, ListMetricsErrors, ListMetricsResponses, ListOpsCommentsData, ListOpsCommentsErrors, ListOpsCommentsResponses, ListOpsItemsData, ListOpsItemsErrors, ListOpsItemsResponses, ListSlackChannelsData, ListSlackChannelsErrors, ListSlackChannelsResponses, ListUniversesData, ListUniversesErrors, ListUniversesResponses, NotifyOpsData, NotifyOpsErrors, NotifyOpsResponses, PublishConfigDraftData, PublishConfigDraftErrors, PublishConfigDraftResponses, PublishI18nProfileData, PublishI18nProfileErrors, PublishI18nProfileResponses, PushI18nKeysData, PushI18nKeysErrors, PushI18nKeysResponses, ReanalyzeExperimentData, ReanalyzeExperimentErrors, ReanalyzeExperimentResponses, ResolveErrorData, ResolveErrorErrors, ResolveErrorResponses, RevokeKeyData, RevokeKeyErrors, RevokeKeyResponses, SaveConfigDraftData, SaveConfigDraftErrors, SaveConfigDraftResponses, SearchResourcesData, SearchResourcesErrors, SearchResourcesResponses, SetExperimentMetricsData, SetExperimentMetricsErrors, SetExperimentMetricsResponses, SetExperimentStatusData, SetExperimentStatusErrors, SetExperimentStatusResponses, SetI18nLabelData, SetI18nLabelErrors, SetI18nLabelResponses, SetKillswitchSwitchData, SetKillswitchSwitchErrors, SetKillswitchSwitchResponses, SetKillswitchValueData, SetKillswitchValueErrors, SetKillswitchValueResponses, TestConnectorData, TestConnectorErrors, TestConnectorResponses, UnsetKillswitchSwitchData, UnsetKillswitchSwitchErrors, UnsetKillswitchSwitchResponses, UpdateAlertRuleData, UpdateAlertRuleErrors, UpdateAlertRuleResponses, UpdateAttributeData, UpdateAttributeErrors, UpdateAttributeResponses, UpdateConfigData, UpdateConfigErrors, UpdateConfigResponses, UpdateConfigSchemaData, UpdateConfigSchemaErrors, UpdateConfigSchemaResponses, UpdateConnectorData, UpdateConnectorErrors, UpdateConnectorResponses, UpdateErrorStatusData, UpdateErrorStatusErrors, UpdateErrorStatusResponses, UpdateEventData, UpdateEventErrors, UpdateEventResponses, UpdateExperimentData, UpdateExperimentErrors, UpdateExperimentResponses, UpdateGateData, UpdateGateErrors, UpdateGateResponses, UpdateGateTemplateData, UpdateGateTemplateErrors, UpdateGateTemplateResponses, UpdateI18nDraftData, UpdateI18nDraftErrors, UpdateI18nDraftResponses, UpdateI18nKeyData, UpdateI18nKeyErrors, UpdateI18nKeyResponses, UpdateKillswitchData, UpdateKillswitchErrors, UpdateKillswitchResponses, UpdateMetricData, UpdateMetricErrors, UpdateMetricResponses, UpdateOpsItemData, UpdateOpsItemErrors, UpdateOpsItemResponses, UpdateProjectData, UpdateProjectErrors, UpdateProjectResponses, UpdateTriggerConnectorData, UpdateTriggerConnectorErrors, UpdateTriggerConnectorResponses, UpdateUniverseData, UpdateUniverseErrors, UpdateUniverseResponses, UpsertProjectData, UpsertProjectErrors, UpsertProjectResponses } from './types.gen';
+import type { AckOpsItemData, AckOpsItemErrors, AckOpsItemResponses, ApproveEventData, ApproveEventErrors, ApproveEventResponses, CreateAlertRuleData, CreateAlertRuleErrors, CreateAlertRuleResponses, CreateAttributeData, CreateAttributeErrors, CreateAttributeResponses, CreateConfigData, CreateConfigErrors, CreateConfigResponses, CreateConnectorData, CreateConnectorErrors, CreateConnectorResponses, CreateEventData, CreateEventErrors, CreateEventResponses, CreateExperimentData, CreateExperimentErrors, CreateExperimentReadoutData, CreateExperimentReadoutErrors, CreateExperimentReadoutResponses, CreateExperimentResponses, CreateGateData, CreateGateErrors, CreateGateResponses, CreateGateTemplateData, CreateGateTemplateErrors, CreateGateTemplateResponses, CreateI18nDraftData, CreateI18nDraftErrors, CreateI18nDraftResponses, CreateI18nProfileData, CreateI18nProfileErrors, CreateI18nProfileResponses, CreateKeyData, CreateKeyErrors, CreateKeyResponses, CreateKillswitchData, CreateKillswitchErrors, CreateKillswitchResponses, CreateMetricData, CreateMetricErrors, CreateMetricResponses, CreateOpsCommentData, CreateOpsCommentErrors, CreateOpsCommentResponses, CreateOpsInvestigationData, CreateOpsInvestigationErrors, CreateOpsInvestigationResponses, CreateOpsItemData, CreateOpsItemErrors, CreateOpsItemResponses, CreateTriggerConnectorData, CreateTriggerConnectorErrors, CreateTriggerConnectorResponses, CreateUniverseData, CreateUniverseErrors, CreateUniverseResponses, DeleteAlertRuleData, DeleteAlertRuleErrors, DeleteAlertRuleResponses, DeleteAttributeData, DeleteAttributeErrors, DeleteAttributeResponses, DeleteConfigData, DeleteConfigErrors, DeleteConfigResponses, DeleteConnectorData, DeleteConnectorErrors, DeleteConnectorResponses, DeleteEventData, DeleteEventErrors, DeleteEventResponses, DeleteExperimentData, DeleteExperimentErrors, DeleteExperimentResponses, DeleteGateData, DeleteGateErrors, DeleteGateResponses, DeleteGateTemplateData, DeleteGateTemplateErrors, DeleteGateTemplateResponses, DeleteI18nDraftData, DeleteI18nDraftErrors, DeleteI18nDraftResponses, DeleteI18nKeyData, DeleteI18nKeyErrors, DeleteI18nKeyResponses, DeleteI18nProfileData, DeleteI18nProfileErrors, DeleteI18nProfileResponses, DeleteKillswitchData, DeleteKillswitchErrors, DeleteKillswitchResponses, DeleteMetricData, DeleteMetricErrors, DeleteMetricResponses, DeleteOpsItemData, DeleteOpsItemErrors, DeleteOpsItemResponses, DeleteUniverseData, DeleteUniverseErrors, DeleteUniverseResponses, DisableGateData, DisableGateErrors, DisableGateResponses, DiscardConfigDraftData, DiscardConfigDraftErrors, DiscardConfigDraftResponses, EnableGateData, EnableGateErrors, EnableGateResponses, FileErrorTicketData, FileErrorTicketErrors, FileErrorTicketResponses, FireConnectorData, FireConnectorErrors, FireConnectorResponses, GetAttributeData, GetAttributeErrors, GetAttributeResponses, GetConfigData, GetConfigErrors, GetConfigResponses, GetConnectorData, GetConnectorErrors, GetConnectorResponses, GetCurrentProjectData, GetCurrentProjectErrors, GetCurrentProjectResponses, GetErrorData, GetErrorErrors, GetErrorResponses, GetErrorSeriesData, GetErrorSeriesErrors, GetErrorSeriesResponses, GetEventData, GetEventErrors, GetEventResponses, GetExperimentData, GetExperimentErrors, GetExperimentReadoutData, GetExperimentReadoutErrors, GetExperimentReadoutResponses, GetExperimentResponses, GetExperimentResultsData, GetExperimentResultsErrors, GetExperimentResultsResponses, GetExperimentTimeseriesData, GetExperimentTimeseriesErrors, GetExperimentTimeseriesResponses, GetGateData, GetGateErrors, GetGateResponses, GetGateTemplateData, GetGateTemplateErrors, GetGateTemplateResponses, GetKillswitchData, GetKillswitchErrors, GetKillswitchResponses, GetMetricData, GetMetricErrors, GetMetricResponses, GetMetricSeriesData, GetMetricSeriesErrors, GetMetricSeriesResponses, GetOpsItemData, GetOpsItemErrors, GetOpsItemResponses, GetProjectData, GetProjectErrors, GetProjectErrorSeriesData, GetProjectErrorSeriesErrors, GetProjectErrorSeriesResponses, GetProjectResponses, LinkPrToOpsItemData, LinkPrToOpsItemErrors, LinkPrToOpsItemResponses, ListAlertRulesData, ListAlertRulesErrors, ListAlertRulesResponses, ListAlertsData, ListAlertsErrors, ListAlertsResponses, ListAttributesData, ListAttributesErrors, ListAttributesResponses, ListConfigActivityData, ListConfigActivityErrors, ListConfigActivityResponses, ListConfigsData, ListConfigsErrors, ListConfigsResponses, ListConfigVersionsData, ListConfigVersionsErrors, ListConfigVersionsResponses, ListConnectorsData, ListConnectorsErrors, ListConnectorsResponses, ListErrorsData, ListErrorsErrors, ListErrorsResponses, ListEventsData, ListEventsErrors, ListEventsResponses, ListExperimentsData, ListExperimentsErrors, ListExperimentsResponses, ListGateActivityData, ListGateActivityErrors, ListGateActivityResponses, ListGatesData, ListGatesErrors, ListGatesResponses, ListGateTemplatesData, ListGateTemplatesErrors, ListGateTemplatesResponses, ListI18nDraftKeysData, ListI18nDraftKeysErrors, ListI18nDraftKeysResponses, ListI18nDraftsData, ListI18nDraftsErrors, ListI18nDraftsResponses, ListI18nKeysData, ListI18nKeysErrors, ListI18nKeysResponses, ListI18nProfilesData, ListI18nProfilesErrors, ListI18nProfilesResponses, ListKeysData, ListKeysErrors, ListKeysResponses, ListKillswitchesData, ListKillswitchesErrors, ListKillswitchesResponses, ListMetricExperimentsData, ListMetricExperimentsErrors, ListMetricExperimentsResponses, ListMetricsData, ListMetricsErrors, ListMetricsResponses, ListNotificationFeedData, ListNotificationFeedErrors, ListNotificationFeedResponses, ListOpsAgentsData, ListOpsAgentsErrors, ListOpsAgentsResponses, ListOpsCommentsData, ListOpsCommentsErrors, ListOpsCommentsResponses, ListOpsInvestigationsData, ListOpsInvestigationsErrors, ListOpsInvestigationsResponses, ListOpsItemsData, ListOpsItemsErrors, ListOpsItemsResponses, ListSlackChannelsData, ListSlackChannelsErrors, ListSlackChannelsResponses, ListUniversesData, ListUniversesErrors, ListUniversesResponses, MarkNotificationsReadData, MarkNotificationsReadErrors, MarkNotificationsReadResponses, NotifyOpsData, NotifyOpsErrors, NotifyOpsResponses, PublishConfigDraftData, PublishConfigDraftErrors, PublishConfigDraftResponses, PublishI18nProfileData, PublishI18nProfileErrors, PublishI18nProfileResponses, PushI18nKeysData, PushI18nKeysErrors, PushI18nKeysResponses, ReanalyzeExperimentData, ReanalyzeExperimentErrors, ReanalyzeExperimentResponses, ResolveErrorData, ResolveErrorErrors, ResolveErrorResponses, RevokeKeyData, RevokeKeyErrors, RevokeKeyResponses, SaveConfigDraftData, SaveConfigDraftErrors, SaveConfigDraftResponses, SearchResourcesData, SearchResourcesErrors, SearchResourcesResponses, SetExperimentMetricsData, SetExperimentMetricsErrors, SetExperimentMetricsResponses, SetExperimentStatusData, SetExperimentStatusErrors, SetExperimentStatusResponses, SetI18nLabelData, SetI18nLabelErrors, SetI18nLabelResponses, SetKillswitchSwitchData, SetKillswitchSwitchErrors, SetKillswitchSwitchResponses, SetKillswitchValueData, SetKillswitchValueErrors, SetKillswitchValueResponses, TestConnectorData, TestConnectorErrors, TestConnectorResponses, UnarchiveMetricData, UnarchiveMetricErrors, UnarchiveMetricResponses, UnsetKillswitchSwitchData, UnsetKillswitchSwitchErrors, UnsetKillswitchSwitchResponses, UpdateAlertData, UpdateAlertErrors, UpdateAlertResponses, UpdateAlertRuleData, UpdateAlertRuleErrors, UpdateAlertRuleResponses, UpdateAttributeData, UpdateAttributeErrors, UpdateAttributeResponses, UpdateConfigData, UpdateConfigErrors, UpdateConfigResponses, UpdateConfigSchemaData, UpdateConfigSchemaErrors, UpdateConfigSchemaResponses, UpdateConnectorData, UpdateConnectorErrors, UpdateConnectorResponses, UpdateErrorStatusData, UpdateErrorStatusErrors, UpdateErrorStatusResponses, UpdateEventData, UpdateEventErrors, UpdateEventResponses, UpdateExperimentData, UpdateExperimentErrors, UpdateExperimentResponses, UpdateGateData, UpdateGateErrors, UpdateGateResponses, UpdateGateTemplateData, UpdateGateTemplateErrors, UpdateGateTemplateResponses, UpdateI18nDraftData, UpdateI18nDraftErrors, UpdateI18nDraftResponses, UpdateI18nKeyData, UpdateI18nKeyErrors, UpdateI18nKeyResponses, UpdateKillswitchData, UpdateKillswitchErrors, UpdateKillswitchResponses, UpdateMetricData, UpdateMetricErrors, UpdateMetricResponses, UpdateOpsItemData, UpdateOpsItemErrors, UpdateOpsItemResponses, UpdateProjectData, UpdateProjectErrors, UpdateProjectResponses, UpdateTriggerConnectorData, UpdateTriggerConnectorErrors, UpdateTriggerConnectorResponses, UpdateUniverseData, UpdateUniverseErrors, UpdateUniverseResponses, UpsertI18nDraftKeyData, UpsertI18nDraftKeyErrors, UpsertI18nDraftKeyResponses, UpsertI18nKeysData, UpsertI18nKeysErrors, UpsertI18nKeysResponses, UpsertProjectData, UpsertProjectErrors, UpsertProjectResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -72,6 +72,19 @@ export const deleteGate = <ThrowOnError extends boolean = false>(options: Option
 });
 
 /**
+ * Get one gate
+ *
+ * Returns the full gate row — including the gatekeeper `stack`, resolved creator/last-editor emails, and the edit `version` — for one gate, addressed by id or `name`.
+ *
+ * **Use case:** Inspect a single gate's current rollout, rules, and stack before editing it, without paging through the whole list.
+ */
+export const getGate = <ThrowOnError extends boolean = false>(options: Options<GetGateData, ThrowOnError>): RequestResult<GetGateResponses, GetGateErrors, ThrowOnError> => (options.client ?? client).get<GetGateResponses, GetGateErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/gates/{id}',
+    ...options
+});
+
+/**
  * Update a feature gate
  *
  * Partial update — only supplied fields change. Array fields (`rules`, `stack`) **replace** wholesale; there is no merge or append.
@@ -120,6 +133,19 @@ export const enableGate = <ThrowOnError extends boolean = false>(options: Option
 export const disableGate = <ThrowOnError extends boolean = false>(options: Options<DisableGateData, ThrowOnError>): RequestResult<DisableGateResponses, DisableGateErrors, ThrowOnError> => (options.client ?? client).post<DisableGateResponses, DisableGateErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/admin/gates/{id}/disable',
+    ...options
+});
+
+/**
+ * List gate activity
+ *
+ * Returns recent audit rows for one gate (create, update, enable, disable, delete) ordered newest first. Use the `limit` query parameter to cap the result (1–100, default 20).
+ *
+ * **Use case:** Render the activity feed in the gate detail panel or answer "who ramped this gate, and when?" during an incident review.
+ */
+export const listGateActivity = <ThrowOnError extends boolean = false>(options: Options<ListGateActivityData, ThrowOnError>): RequestResult<ListGateActivityResponses, ListGateActivityErrors, ThrowOnError> => (options.client ?? client).get<ListGateActivityResponses, ListGateActivityErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/gates/{id}/activity',
     ...options
 });
 
@@ -301,6 +327,38 @@ export const reanalyzeExperiment = <ThrowOnError extends boolean = false>(option
 });
 
 /**
+ * Mint a readout snapshot
+ *
+ * Freezes the current results view into an immutable, dated readout snapshot — verdict, headline, per-metric numbers, the caveat list with its acknowledgment state, enrollment, and a hash of the assignment-relevant config. Ship/stop flows mint one automatically; "Share readout" mints one on demand. Snapshots are never updated after insert.
+ *
+ * Pass `requireAllAcknowledged: true` to enforce ship gating server-side — returns `422` while any open caveat is not listed in `acknowledgedCaveatIds`.
+ *
+ * **Use case:** Capture "what the data said when we decided" before shipping or stopping, so the decision stays auditable even after results move.
+ */
+export const createExperimentReadout = <ThrowOnError extends boolean = false>(options: Options<CreateExperimentReadoutData, ThrowOnError>): RequestResult<CreateExperimentReadoutResponses, CreateExperimentReadoutErrors, ThrowOnError> => (options.client ?? client).post<CreateExperimentReadoutResponses, CreateExperimentReadoutErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/experiments/{id}/readouts',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Get a readout snapshot
+ *
+ * Returns one immutable readout snapshot — the frozen results view (verdict, headline, per-metric numbers, caveats, enrollment) captured when it was minted, plus the `configHash` that tells you whether it is still comparable to the live view.
+ *
+ * **Use case:** Render a shared, dated readout exactly as it looked at decision time.
+ */
+export const getExperimentReadout = <ThrowOnError extends boolean = false>(options: Options<GetExperimentReadoutData, ThrowOnError>): RequestResult<GetExperimentReadoutResponses, GetExperimentReadoutErrors, ThrowOnError> => (options.client ?? client).get<GetExperimentReadoutResponses, GetExperimentReadoutErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/experiments/{id}/readouts/{readoutId}',
+    ...options
+});
+
+/**
  * List dynamic configs
  *
  * Returns a single page of configs ordered by `updated_at desc, id desc`. Each row includes the latest published `version` per env and any active drafts.
@@ -468,6 +526,19 @@ export const updateConfigSchema = <ThrowOnError extends boolean = false>(options
         'Content-Type': 'application/json',
         ...options.headers
     }
+});
+
+/**
+ * List config version history
+ *
+ * Returns every published version of the config's value on one env, newest first. The `env` query parameter picks the environment (`dev`, `staging`, or `prod`) and defaults to `prod`; an unknown env returns `400`. The config's JSON Schema is config-level and not versioned — this is value history only.
+ *
+ * **Use case:** Render the History timeline in the config detail pane (value diff + restore), or audit which value was live on prod at a given version.
+ */
+export const listConfigVersions = <ThrowOnError extends boolean = false>(options: Options<ListConfigVersionsData, ThrowOnError>): RequestResult<ListConfigVersionsResponses, ListConfigVersionsErrors, ThrowOnError> => (options.client ?? client).get<ListConfigVersionsResponses, ListConfigVersionsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/configs/{id}/versions',
+    ...options
 });
 
 /**
@@ -913,6 +984,51 @@ export const updateMetric = <ThrowOnError extends boolean = false>(options: Opti
 });
 
 /**
+ * List experiments using a metric
+ *
+ * Returns every experiment that attaches this metric — as `goal`, `guardrail`, or `secondary` — ordered with running experiments first, then by role weight (goal > guardrail > secondary).
+ *
+ * **Use case:** See who depends on a metric before editing or archiving it — e.g. the metric detail panel's "used by" list.
+ */
+export const listMetricExperiments = <ThrowOnError extends boolean = false>(options: Options<ListMetricExperimentsData, ThrowOnError>): RequestResult<ListMetricExperimentsResponses, ListMetricExperimentsErrors, ThrowOnError> => (options.client ?? client).get<ListMetricExperimentsResponses, ListMetricExperimentsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/metrics/{id}/experiments',
+    ...options
+});
+
+/**
+ * Unarchive a metric
+ *
+ * Reverses a soft-delete (archive), making the metric live again. Idempotent — unarchiving a metric that is already live succeeds with no effect.
+ *
+ * **Use case:** Undo an accidental archive (the metrics list "Undo" toast calls this).
+ */
+export const unarchiveMetric = <ThrowOnError extends boolean = false>(options: Options<UnarchiveMetricData, ThrowOnError>): RequestResult<UnarchiveMetricResponses, UnarchiveMetricErrors, ThrowOnError> => (options.client ?? client).post<UnarchiveMetricResponses, UnarchiveMetricErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/metrics/{id}/unarchive',
+    ...options
+});
+
+/**
+ * Get a metric's time series
+ *
+ * Compiles the metric's typed IR into Analytics Engine SQL and returns the bucketed series over the requested window (near-real-time; ingest lag is seconds). The window bounds are epoch **seconds**; `to` must be strictly greater than `from`. The response echoes the SQL that produced the rows.
+ *
+ * Returns `422` when the stored definition can't compile (e.g. a label or event has gone away — re-save the metric), and `502`/`503` when the analytics upstream fails or isn't configured.
+ *
+ * **Use case:** Render the metric trend chart / sparkline, or pull raw bucketed values to feed an external dashboard.
+ */
+export const getMetricSeries = <ThrowOnError extends boolean = false>(options: Options<GetMetricSeriesData, ThrowOnError>): RequestResult<GetMetricSeriesResponses, GetMetricSeriesErrors, ThrowOnError> => (options.client ?? client).post<GetMetricSeriesResponses, GetMetricSeriesErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/metrics/{id}/series',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
  * List events
  *
  * Returns every catalogued event in the project, including pending auto-discovered names. Each row carries its own `pending` flag, so the unapproved queue can be filtered client-side.
@@ -1045,6 +1161,19 @@ export const createOpsItem = <ThrowOnError extends boolean = false>(options: Opt
 });
 
 /**
+ * Delete a queue item
+ *
+ * Permanently delete a queue item — any type — along with its comment thread, attachments, tags, and investigation records. A human (dashboard) action: the route is never allow-listed for restricted ops keys. Irreversible; to take an item out of the queue without destroying it, set its status (`wont_fix`/`resolved`) instead.
+ *
+ * **Use case:** Remove a junk or duplicate report for good.
+ */
+export const deleteOpsItem = <ThrowOnError extends boolean = false>(options: Options<DeleteOpsItemData, ThrowOnError>): RequestResult<DeleteOpsItemResponses, DeleteOpsItemErrors, ThrowOnError> => (options.client ?? client).delete<DeleteOpsItemResponses, DeleteOpsItemErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/ops/{handle}',
+    ...options
+});
+
+/**
  * Get one queue item
  *
  * Fetch a single queue item by its per-project `number` or full id.
@@ -1098,6 +1227,100 @@ export const linkPrToOpsItem = <ThrowOnError extends boolean = false>(options: O
 });
 
 /**
+ * Ack an item (start a run)
+ *
+ * Acknowledge a queue item — a person or an AI agent declaring "I'm on this
+ * now". Opens a run: stamps who picked the item up and when, assigns them as
+ * owner, and moves the item into the matching working status
+ * (`investigating_by_ai` for an AI ack, `in_progress` for a human one). The
+ * dashboard renders the open run as a live working indicator (which agent +
+ * time since the run started).
+ *
+ * **AI ack.** Pass `agent` with your own agent type (`claude`, `cursor`,
+ * `copilot`, `jules`; `gemini` aliases `jules`) and, when you have one, the
+ * run's `sessionId` so the dashboard can deep-link to the session. If the
+ * project has no connected trigger connector of that type the call fails
+ * with `AGENT_NOT_CONNECTED` — list the available agents with `ops agents
+ * list` and use one of those (or connect the agent under Settings →
+ * Triggers).
+ *
+ * **Completion.** The run closes automatically on the loop's final actions —
+ * linking the fixing PR (`link-pr`), an ops-notify escalation, or a
+ * completion status change (`ready_for_qa`/`resolved`) — and the dashboard
+ * then shows the run result (final action, PR, duration, session link).
+ * A repeat ack supersedes the previous open run.
+ *
+ * **Use case:** Call this first when picking an item up, so the team sees
+ * who/what is working on it in real time.
+ */
+export const ackOpsItem = <ThrowOnError extends boolean = false>(options: Options<AckOpsItemData, ThrowOnError>): RequestResult<AckOpsItemResponses, AckOpsItemErrors, ThrowOnError> => (options.client ?? client).post<AckOpsItemResponses, AckOpsItemErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/ops/{handle}/ack',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List an item's investigation records
+ *
+ * The structured, read-only investigation records on a queue item — the
+ * findings / blocking questions / QA notes an AI agent posted while working
+ * it, plus its `working` run rows. Returns `published` records only, newest
+ * first (max 50).
+ *
+ * **Use case:** Read what a previous agent run already found before starting
+ * your own investigation of the item.
+ */
+export const listOpsInvestigations = <ThrowOnError extends boolean = false>(options: Options<ListOpsInvestigationsData, ThrowOnError>): RequestResult<ListOpsInvestigationsResponses, ListOpsInvestigationsErrors, ThrowOnError> => (options.client ?? client).get<ListOpsInvestigationsResponses, ListOpsInvestigationsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/ops/{handle}/investigation',
+    ...options
+});
+
+/**
+ * Record an investigation
+ *
+ * Append one structured investigation record to a queue item — the AI-write
+ * seam the cockpit's detail panel renders read-only. Post your findings
+ * (`kind: investigated`), a blocking question for the team (`kind:
+ * question`), or how to verify the fix (`kind: ready_for_qa` with
+ * `qaNotes`). Append-only and create-only, so it is safe for restricted ops
+ * keys.
+ *
+ * **Use case:** After working an item, leave a findings write-up (summary,
+ * markdown findings, sources inspected, confidence) so the team — and the
+ * next agent run — sees what you learned.
+ */
+export const createOpsInvestigation = <ThrowOnError extends boolean = false>(options: Options<CreateOpsInvestigationData, ThrowOnError>): RequestResult<CreateOpsInvestigationResponses, CreateOpsInvestigationErrors, ThrowOnError> => (options.client ?? client).post<CreateOpsInvestigationResponses, CreateOpsInvestigationErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/ops/{handle}/investigation',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List connected AI agents
+ *
+ * The project's connected AI agents — one per authenticated trigger
+ * connector (Claude / Cursor / Copilot / Jules). These are the agent types
+ * `ops ack` accepts and the agents a queue item can be assigned to.
+ *
+ * **Use case:** Discover which `agent` values an AI ack can use, e.g. after
+ * an `AGENT_NOT_CONNECTED` error.
+ */
+export const listOpsAgents = <ThrowOnError extends boolean = false>(options?: Options<ListOpsAgentsData, ThrowOnError>): RequestResult<ListOpsAgentsResponses, ListOpsAgentsErrors, ThrowOnError> => (options?.client ?? client).get<ListOpsAgentsResponses, ListOpsAgentsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/agent-profiles',
+    ...options
+});
+
+/**
  * List an item's comments
  *
  * List the comment thread on a queue item, oldest first. Each comment
@@ -1148,6 +1371,41 @@ export const notifyOps = <ThrowOnError extends boolean = false>(options: Options
     headers: {
         'Content-Type': 'application/json',
         ...options.headers
+    }
+});
+
+/**
+ * Read the notification feed
+ *
+ * The caller's in-app notification feed — the same list the dashboard bell
+ * renders — plus the unread count. Returns project-wide broadcasts and
+ * notifications addressed to the caller (mentions), newest first (max 30);
+ * events the project muted for the in-app channel are omitted.
+ *
+ * **Use case:** Render the bell — list the latest notifications and badge
+ * the unread count.
+ */
+export const listNotificationFeed = <ThrowOnError extends boolean = false>(options?: Options<ListNotificationFeedData, ThrowOnError>): RequestResult<ListNotificationFeedResponses, ListNotificationFeedErrors, ThrowOnError> => (options?.client ?? client).get<ListNotificationFeedResponses, ListNotificationFeedErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/notifications/feed',
+    ...options
+});
+
+/**
+ * Mark notifications read
+ *
+ * Mark one notification read (`{ "id": "…" }`) or the caller's whole feed
+ * read (empty body `{}`). Idempotent.
+ *
+ * **Use case:** Clear the bell badge after the user opens the feed.
+ */
+export const markNotificationsRead = <ThrowOnError extends boolean = false>(options?: Options<MarkNotificationsReadData, ThrowOnError>): RequestResult<MarkNotificationsReadResponses, MarkNotificationsReadErrors, ThrowOnError> => (options?.client ?? client).post<MarkNotificationsReadResponses, MarkNotificationsReadErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/notifications/feed',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers
     }
 });
 
@@ -1235,6 +1493,47 @@ export const updateAlertRule = <ThrowOnError extends boolean = false>(options: O
 });
 
 /**
+ * List fired alerts
+ *
+ * Returns the project's FIRED alerts as a **bare JSON array** (no pagination envelope), ordered by `createdAt desc`. Defaults to the currently-firing ones (`status=active`); pass a `status` to widen to resolved/dismissed history or `all`.
+ *
+ * Fired alerts are raised only by the platform — the UI's killswitch handlers plus the worker's analysis consumer and alerts cron — never filed by hand, so this surface is list + triage (via PATCH), with no create. The rules that *define* metric-threshold alerts live at `/api/admin/alert-rules`.
+ *
+ * **Use case:** Snapshot what is currently firing for an on-call view or the home Alerts block, or pull `status=all` to audit how a noisy rule has behaved over time.
+ */
+export const listAlerts = <ThrowOnError extends boolean = false>(options?: Options<ListAlertsData, ThrowOnError>): RequestResult<ListAlertsResponses, ListAlertsErrors, ThrowOnError> => (options?.client ?? client).get<ListAlertsResponses, ListAlertsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/alerts',
+    ...options
+});
+
+/**
+ * Update a fired alert
+ *
+ * Triage writes on one fired alert — the only mutations this surface allows. All body fields are optional (at least one required); only the fields present are changed.
+ *
+ * - **`status`** — flip between `active` / `resolved` / `dismissed`. `resolved` and `dismissed` stamp `resolvedAt` / `dismissedAt`; `active` re-opens and clears both. A resolved alert re-fires (as the same row, re-activated) if its condition is raised again.
+ * - **`assigneeId`** — the PERSON owner (a `users.id`), or `null` to unassign.
+ * - **`agent`** — the AGENT owner: a connected trigger connector's id, or the built-in `"jarvis"` (**Enterprise plan only** — `403` otherwise), or `null` to clear. Person and agent halves are independent.
+ *
+ * Returns the updated row; `404` if the alert does not exist in the project.
+ *
+ * **Use cases**
+ *
+ * - **Wave off a known condition** — `{ "status": "dismissed" }` on an alert that needs no action.
+ * - **Hand it to someone** — `{ "assigneeId": "…" }` from the ops cockpit's Owner column.
+ */
+export const updateAlert = <ThrowOnError extends boolean = false>(options: Options<UpdateAlertData, ThrowOnError>): RequestResult<UpdateAlertResponses, UpdateAlertErrors, ThrowOnError> => (options.client ?? client).patch<UpdateAlertResponses, UpdateAlertErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/alerts/{id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
  * Show the current project
  *
  * Returns the project the caller's auth header resolves to — plan, status, billing, and which modules are enabled. The server reads the project from the credential, so there is no id parameter. Powers `whoami`.
@@ -1267,6 +1566,19 @@ export const upsertProject = <ThrowOnError extends boolean = false>(options: Opt
         'Content-Type': 'application/json',
         ...options.headers
     }
+});
+
+/**
+ * Show a project by id
+ *
+ * Returns one project by id — the same full shape as `GET /api/admin/projects/current`. The id in the path must match the project the caller's credential resolves to (a credential can only read its own project); any other id is a 403.
+ *
+ * **Use case:** Re-fetch the project row after a `PATCH` when you already hold its id.
+ */
+export const getProject = <ThrowOnError extends boolean = false>(options: Options<GetProjectData, ThrowOnError>): RequestResult<GetProjectResponses, GetProjectErrors, ThrowOnError> => (options.client ?? client).get<GetProjectResponses, GetProjectErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/projects/{id}',
+    ...options
 });
 
 /**
@@ -1349,6 +1661,38 @@ export const pushI18nKeys = <ThrowOnError extends boolean = false>(options: Opti
 });
 
 /**
+ * Bulk upsert i18n keys (overwrite)
+ *
+ * Bulk upsert keys into a profile — existing keys ARE overwritten, new ones inserted. The profile's KV snapshot is rebuilt and the CDN purged before the call returns, so the edits go live on their own.
+ *
+ * This is the overwrite counterpart of the insert-only `pushI18nKeys`. It backs the devtools overlay's in-product "Apply changes" label editing and is deliberately not surfaced by the CLI or MCP — those surfaces only expose the insert-only push so a whole `en.json` can't wholesale-overwrite prod.
+ *
+ * **Use case:** Apply a batch of in-product label edits (devtools overlay) in one call.
+ */
+export const upsertI18nKeys = <ThrowOnError extends boolean = false>(options: Options<UpsertI18nKeysData, ThrowOnError>): RequestResult<UpsertI18nKeysResponses, UpsertI18nKeysErrors, ThrowOnError> => (options.client ?? client).put<UpsertI18nKeysResponses, UpsertI18nKeysErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/i18n/keys',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete one i18n key
+ *
+ * Permanently delete a single key from its profile. The profile's KV snapshot is rebuilt and the CDN purged as part of this call, so the removal goes live on its own.
+ *
+ * **Use case:** Remove a stale or mistakenly-pushed key without touching the rest of the profile.
+ */
+export const deleteI18nKey = <ThrowOnError extends boolean = false>(options: Options<DeleteI18nKeyData, ThrowOnError>): RequestResult<DeleteI18nKeyResponses, DeleteI18nKeyErrors, ThrowOnError> => (options.client ?? client).delete<DeleteI18nKeyResponses, DeleteI18nKeyErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/i18n/keys/{id}',
+    ...options
+});
+
+/**
  * Update one i18n key
  *
  * Overwrite a single existing key's value — the only overwrite path.
@@ -1398,6 +1742,19 @@ export const createI18nDraft = <ThrowOnError extends boolean = false>(options: O
 });
 
 /**
+ * Delete a translation draft
+ *
+ * Permanently delete a staged translation draft. Its staged keys are removed with it; the target profile's live keys are untouched.
+ *
+ * **Use case:** Discard a draft that will never ship instead of leaving it abandoned.
+ */
+export const deleteI18nDraft = <ThrowOnError extends boolean = false>(options: Options<DeleteI18nDraftData, ThrowOnError>): RequestResult<DeleteI18nDraftResponses, DeleteI18nDraftErrors, ThrowOnError> => (options.client ?? client).delete<DeleteI18nDraftResponses, DeleteI18nDraftErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/i18n/drafts/{draftId}',
+    ...options
+});
+
+/**
  * Update a translation draft
  *
  * Transition a draft's lifecycle state (`open` / `merged` / `abandoned`).
@@ -1407,6 +1764,49 @@ export const createI18nDraft = <ThrowOnError extends boolean = false>(options: O
 export const updateI18nDraft = <ThrowOnError extends boolean = false>(options: Options<UpdateI18nDraftData, ThrowOnError>): RequestResult<UpdateI18nDraftResponses, UpdateI18nDraftErrors, ThrowOnError> => (options.client ?? client).patch<UpdateI18nDraftResponses, UpdateI18nDraftErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/admin/i18n/drafts/{draftId}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete an i18n profile
+ *
+ * Soft-delete a locale profile. The project's default profile cannot be deleted (409). The profile's keys are retained in the database but the profile no longer resolves for listing or publishing.
+ *
+ * **Use case:** Retire a locale that is no longer shipped.
+ */
+export const deleteI18nProfile = <ThrowOnError extends boolean = false>(options: Options<DeleteI18nProfileData, ThrowOnError>): RequestResult<DeleteI18nProfileResponses, DeleteI18nProfileErrors, ThrowOnError> => (options.client ?? client).delete<DeleteI18nProfileResponses, DeleteI18nProfileErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/i18n/profiles/{profileId}',
+    ...options
+});
+
+/**
+ * List a draft's staged keys
+ *
+ * Returns every staged key in a translation draft — the values queued to ship when the draft is merged.
+ *
+ * **Use case:** Review a machine-translation draft's staged strings before marking it merged.
+ */
+export const listI18nDraftKeys = <ThrowOnError extends boolean = false>(options: Options<ListI18nDraftKeysData, ThrowOnError>): RequestResult<ListI18nDraftKeysResponses, ListI18nDraftKeysErrors, ThrowOnError> => (options.client ?? client).get<ListI18nDraftKeysResponses, ListI18nDraftKeysErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/i18n/drafts/{draftId}/keys',
+    ...options
+});
+
+/**
+ * Upsert one staged draft key
+ *
+ * Upsert a single staged key into an **open** draft — inserted when new, overwritten when it already exists. A draft that is `merged` or `abandoned` rejects the write (400). `{{var}}` placeholder names are auto-derived from the value.
+ *
+ * **Use case:** Stage or correct one translation in a draft under review without touching the live profile.
+ */
+export const upsertI18nDraftKey = <ThrowOnError extends boolean = false>(options: Options<UpsertI18nDraftKeyData, ThrowOnError>): RequestResult<UpsertI18nDraftKeyResponses, UpsertI18nDraftKeyErrors, ThrowOnError> => (options.client ?? client).post<UpsertI18nDraftKeyResponses, UpsertI18nDraftKeyErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/i18n/drafts/{draftId}/keys',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -1536,6 +1936,25 @@ export const resolveError = <ThrowOnError extends boolean = false>(options: Opti
 export const getErrorSeries = <ThrowOnError extends boolean = false>(options: Options<GetErrorSeriesData, ThrowOnError>): RequestResult<GetErrorSeriesResponses, GetErrorSeriesErrors, ThrowOnError> => (options.client ?? client).post<GetErrorSeriesResponses, GetErrorSeriesErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/admin/errors/{id}/series',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Get the project-wide error series
+ *
+ * Returns the bucketed occurrence timeseries for the **whole project** — every tracked error folded together — split by `see()` error kind so a chart can stack uncaught vs network vs violation etc. Read from the `shipeasy_errors` Analytics Engine dataset (near-real-time; ingest lag is seconds). The window bounds are epoch **seconds**; `to` must be strictly greater than `from`. The response echoes the SQL that produced the rows.
+ *
+ * Same request/response shape as the per-error series, with one addition: each row also carries a `kind` label column (the occurrence's `see()` kind), so multiple rows can share the same bucket `t` — one per kind.
+ *
+ * **Use case:** Render the project-level error-rate chart at the top of the errors dashboard, stacked by kind, or feed a deploy health check that compares the project's error rate before and after a release.
+ */
+export const getProjectErrorSeries = <ThrowOnError extends boolean = false>(options: Options<GetProjectErrorSeriesData, ThrowOnError>): RequestResult<GetProjectErrorSeriesResponses, GetProjectErrorSeriesErrors, ThrowOnError> => (options.client ?? client).post<GetProjectErrorSeriesResponses, GetProjectErrorSeriesErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/errors/series',
     ...options,
     headers: {
         'Content-Type': 'application/json',

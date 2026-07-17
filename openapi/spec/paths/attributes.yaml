@@ -19,12 +19,30 @@
             schema:
               $ref: ../components/schemas/attributes.yaml#/ListAttributesResponse
             example:
-              - name: plan
+              - id: attr_01j7w8a1b2c3
+                name: plan
+                type: enum
+                enumValues:
+                  - free
+                  - paid
+                required: 1
+                description: Billing plan of the calling user.
+                sdkPath: user.plan
+                createdAt: 2026-06-20T09:14:08.000Z
+                source: manual
+                lastSeenAt: 2026-07-16T22:04:11.000Z
+                deprecated: 0
+              - id: attr_01j7w8a1b2c4
+                name: country
                 type: string
-              - name: country
-                type: string
-              - name: seats
-                type: number
+                enumValues: null
+                required: 0
+                description: null
+                sdkPath: null
+                createdAt: 2026-06-20T09:14:08.000Z
+                source: auto
+                lastSeenAt: 2026-07-16T22:04:11.000Z
+                deprecated: 0
       "400":
         $ref: ../components/responses.yaml#/BadRequest
       "401":

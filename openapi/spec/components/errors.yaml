@@ -28,6 +28,8 @@ ErrorCode:
     # Metrics
     - METRIC_NOT_FOUND
     - METRIC_UNKNOWN_ID
+    # Ops
+    - AGENT_NOT_CONNECTED
   x-enum-descriptions:
     BAD_REQUEST: Malformed request (bad JSON, missing project scope).
     UNAUTHORIZED: Missing or invalid admin SDK key.
@@ -53,6 +55,7 @@ ErrorCode:
     EXPERIMENT_IMMUTABLE_FIELD: A field that is immutable while the experiment is running was modified.
     METRIC_NOT_FOUND: The referenced metric does not exist or is not visible to the caller.
     METRIC_UNKNOWN_ID: The supplied metric id is malformed or not recognised.
+    AGENT_NOT_CONNECTED: The named AI agent type has no connected trigger connector in this project — list the available agents (`ops agents list` / `GET /api/admin/agent-profiles`) and use one of those, or connect the agent under Settings → Triggers.
 Error:
   type: object
   description: Uniform error envelope returned by every admin endpoint on a non-2xx status. `error` is the human-readable message; `code` is the stable machine code (present whenever the failure maps to a catalogued `ErrorCode`); `detail` carries extra context (validation paths, conflicting field); `fields` maps each failing input field to its own message; `instructions` is optional actionable guidance for resolving the error; `schema` echoes back the expected JSON Schema when a value failed schema validation.

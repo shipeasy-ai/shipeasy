@@ -1,0 +1,184 @@
+/api/admin/alerts:
+  get:
+    operationId: listAlerts
+    summary: List fired alerts
+    description: |-
+      Returns the project's FIRED alerts as a **bare JSON array** (no pagination envelope), ordered by `createdAt desc`. Defaults to the currently-firing ones (`status=active`); pass a `status` to widen to resolved/dismissed history or `all`.
+
+      Fired alerts are raised only by the platform — the UI's killswitch handlers plus the worker's analysis consumer and alerts cron — never filed by hand, so this surface is list + triage (via PATCH), with no create. The rules that *define* metric-threshold alerts live at `/api/admin/alert-rules`.
+
+      **Use case:** Snapshot what is currently firing for an on-call view or the home Alerts block, or pull `status=all` to audit how a noisy rule has behaved over time.
+    tags:
+      - Fired Alerts
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: status
+        in: query
+        required: false
+        description: Filter by lifecycle state. Defaults to `active` (currently firing); `all` returns every status.
+        schema:
+          type: string
+          enum:
+            - active
+            - resolved
+            - dismissed
+            - all
+          default: active
+    responses:
+      "200":
+        description: List fired alerts
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/alerts.yaml#/ListAlertsResponse
+            example:
+              - id: al_01j7w9c4d5e6f7g8h9i0j1k2l3
+                source: metric_rule
+                ruleId: ar_01j7w8a1b2c3d4e5f6g7h8i9j0
+                severity: danger
+                dedupeKey: ar_01j7w8a1b2c3d4e5f6g7h8i9j0
+                title: Checkout error rate above threshold
+                detail: checkout_errors was 137 over the trailing 24h — above the rule's threshold of 50.
+                href: /dashboard/metrics/met_01j6abc2d3e4f5g6h7i8j9k0l1
+                observedValue: 137
+                status: active
+                createdAt: 2026-06-28T14:55:31.000Z
+                resolvedAt: null
+                dismissedAt: null
+                assigneeId: null
+                assigneeConnectorId: null
+                assigneeAgent: null
+              - id: al_01j7w9b2a1z0y9x8w7v6u5t4s3
+                source: killswitch_armed
+                ruleId: null
+                severity: warn
+                dedupeKey: ks_01j5checkout_kill
+                title: Kill switch "checkout_kill" is armed
+                detail: The kill switch has been armed for 3 days — confirm it is still intentional.
+                href: /dashboard/killswitches/ks_01j5checkout_kill
+                observedValue: null
+                status: active
+                createdAt: 2026-06-27T09:12:05.000Z
+                resolvedAt: null
+                dismissedAt: null
+                assigneeId: 6f1d2c3b-4a5e-4f60-9b7c-8d9e0f1a2b3c
+                assigneeConnectorId: null
+                assigneeAgent: null
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+    x-cli:
+      name: list
+/api/admin/alerts/{id}:
+  patch:
+    operationId: updateAlert
+    summary: Update a fired alert
+    description: |-
+      Triage writes on one fired alert — the only mutations this surface allows. All body fields are optional (at least one required); only the fields present are changed.
+
+      - **`status`** — flip between `active` / `resolved` / `dismissed`. `resolved` and `dismissed` stamp `resolvedAt` / `dismissedAt`; `active` re-opens and clears both. A resolved alert re-fires (as the same row, re-activated) if its condition is raised again.
+      - **`assigneeId`** — the PERSON owner (a `users.id`), or `null` to unassign.
+      - **`agent`** — the AGENT owner: a connected trigger connector's id, or the built-in `"jarvis"` (**Enterprise plan only** — `403` otherwise), or `null` to clear. Person and agent halves are independent.
+
+      Returns the updated row; `404` if the alert does not exist in the project.
+
+      **Use cases**
+
+      - **Wave off a known condition** — `{ "status": "dismissed" }` on an alert that needs no action.
+      - **Hand it to someone** — `{ "assigneeId": "…" }` from the ops cockpit's Owner column.
+    tags:
+      - Fired Alerts
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque alert id (`al_…`).
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/alerts.yaml#/UpdateAlertRequest
+          examples:
+            resolve:
+              summary: Mark resolved
+              description: Close out a fired alert once the underlying condition is handled.
+              value:
+                status: resolved
+            dismiss:
+              summary: Dismiss a benign alert
+              description: Wave off an alert that needs no action.
+              value:
+                status: dismissed
+            assignPerson:
+              summary: Assign a person owner
+              description: Hand the alert to a teammate from the ops cockpit's Owner column.
+              value:
+                assigneeId: 6f1d2c3b-4a5e-4f60-9b7c-8d9e0f1a2b3c
+            assignAgent:
+              summary: Assign an agent owner
+              description: Hand the alert to a connected coding agent (a connector id, or `"jarvis"` on Enterprise).
+              value:
+                agent: con_01j7wagentclaude0001
+    responses:
+      "200":
+        description: Update a fired alert
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/alerts.yaml#/UpdateAlertResponse
+            example:
+              id: al_01j7w9c4d5e6f7g8h9i0j1k2l3
+              source: metric_rule
+              ruleId: ar_01j7w8a1b2c3d4e5f6g7h8i9j0
+              severity: danger
+              dedupeKey: ar_01j7w8a1b2c3d4e5f6g7h8i9j0
+              title: Checkout error rate above threshold
+              detail: checkout_errors was 137 over the trailing 24h — above the rule's threshold of 50.
+              href: /dashboard/metrics/met_01j6abc2d3e4f5g6h7i8j9k0l1
+              observedValue: 137
+              status: resolved
+              createdAt: 2026-06-28T14:55:31.000Z
+              resolvedAt: 2026-06-28T16:40:12.000Z
+              dismissedAt: null
+              assigneeId: null
+              assigneeConnectorId: null
+              assigneeAgent: null
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: update
+      positional:
+        - id

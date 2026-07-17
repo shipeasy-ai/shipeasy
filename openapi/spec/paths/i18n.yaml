@@ -20,9 +20,9 @@
             example:
               - id: i18n_01j7w8a1b2c3
                 name: en:prod
-                locales:
-                  - en
-                default_locale: en
+                isDefault: 1
+                createdAt: 2026-04-12T10:14:08.000Z
+                deletedAt: null
       "400":
         $ref: ../components/responses.yaml#/BadRequest
       "401":
@@ -60,9 +60,6 @@
             $ref: ../components/schemas/i18n.yaml#/CreateI18nProfileRequest
           example:
             name: fr:prod
-            locales:
-              - fr
-            default_locale: fr
     responses:
       "201":
         description: Create an i18n profile
@@ -229,6 +226,58 @@
       - VALIDATION
     x-cli:
       name: push
+  put:
+    operationId: upsertI18nKeys
+    summary: Bulk upsert i18n keys (overwrite)
+    description: |-
+      Bulk upsert keys into a profile — existing keys ARE overwritten, new ones inserted. The profile's KV snapshot is rebuilt and the CDN purged before the call returns, so the edits go live on their own.
+
+      This is the overwrite counterpart of the insert-only `pushI18nKeys`. It backs the devtools overlay's in-product "Apply changes" label editing and is deliberately not surfaced by the CLI or MCP — those surfaces only expose the insert-only push so a whole `en.json` can't wholesale-overwrite prod.
+
+      **Use case:** Apply a batch of in-product label edits (devtools overlay) in one call.
+    tags:
+      - Keys
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/i18n.yaml#/UpsertI18nKeysRequest
+          example:
+            profile_id: 3f1a6c2e-1b2c-4d5e-8f90-0a1b2c3d4e5f
+            keys:
+              - key: checkout.cta
+                value: Buy it now
+    responses:
+      "200":
+        description: Bulk upsert i18n keys (overwrite)
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/i18n.yaml#/UpsertI18nKeysResponse
+            example:
+              upserted: 1
+              chunk: default
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
 /api/admin/i18n/keys/{id}:
   put:
     operationId: updateI18nKey
@@ -288,6 +337,94 @@
       name: update
       positional:
         - id
+  delete:
+    operationId: deleteI18nKey
+    summary: Delete one i18n key
+    description: |-
+      Permanently delete a single key from its profile. The profile's KV snapshot is rebuilt and the CDN purged as part of this call, so the removal goes live on its own.
+
+      **Use case:** Remove a stale or mistakenly-pushed key without touching the rest of the profile.
+    tags:
+      - Keys
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: The key's id.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    responses:
+      "200":
+        description: Delete one i18n key
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/i18n.yaml#/DeleteI18nKeyResponse
+            example:
+              ok: true
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+/api/admin/i18n/profiles/{profileId}:
+  delete:
+    operationId: deleteI18nProfile
+    summary: Delete an i18n profile
+    description: |-
+      Soft-delete a locale profile. The project's default profile cannot be deleted (409). The profile's keys are retained in the database but the profile no longer resolves for listing or publishing.
+
+      **Use case:** Retire a locale that is no longer shipped.
+    tags:
+      - Profiles
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: profileId
+        in: path
+        required: true
+        description: The profile id to delete.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    responses:
+      "200":
+        description: Delete an i18n profile
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/i18n.yaml#/DeleteI18nProfileResponse
+            example:
+              ok: true
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - READ_ONLY
 /api/admin/i18n/drafts:
   get:
     operationId: listI18nDrafts
@@ -437,6 +574,153 @@
       name: update
       positional:
         - draftId
+  delete:
+    operationId: deleteI18nDraft
+    summary: Delete a translation draft
+    description: |-
+      Permanently delete a staged translation draft. Its staged keys are removed with it; the target profile's live keys are untouched.
+
+      **Use case:** Discard a draft that will never ship instead of leaving it abandoned.
+    tags:
+      - Drafts
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: draftId
+        in: path
+        required: true
+        description: The draft id to delete.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    responses:
+      "200":
+        description: Delete a translation draft
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/i18n.yaml#/DeleteI18nDraftResponse
+            example:
+              ok: true
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+/api/admin/i18n/drafts/{draftId}/keys:
+  get:
+    operationId: listI18nDraftKeys
+    summary: List a draft's staged keys
+    description: |-
+      Returns every staged key in a translation draft — the values queued to ship when the draft is merged.
+
+      **Use case:** Review a machine-translation draft's staged strings before marking it merged.
+    tags:
+      - Drafts
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: draftId
+        in: path
+        required: true
+        description: The draft id to list staged keys for.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    responses:
+      "200":
+        description: List a draft's staged keys
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/i18n.yaml#/ListI18nDraftKeysResponse
+            example:
+              - id: dk_01j7
+                draftId: draft_01j7
+                key: checkout.cta
+                value: Achetez maintenant
+                description: null
+                variables: null
+                updatedBy: owner@acme.com
+                updatedAt: 2026-07-01T10:14:08.000Z
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+  post:
+    operationId: upsertI18nDraftKey
+    summary: Upsert one staged draft key
+    description: |-
+      Upsert a single staged key into an **open** draft — inserted when new, overwritten when it already exists. A draft that is `merged` or `abandoned` rejects the write (400). `{{var}}` placeholder names are auto-derived from the value.
+
+      **Use case:** Stage or correct one translation in a draft under review without touching the live profile.
+    tags:
+      - Drafts
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: draftId
+        in: path
+        required: true
+        description: The draft id to stage the key into.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/i18n.yaml#/UpsertI18nDraftKeyRequest
+          example:
+            key: checkout.cta
+            value: Achetez maintenant
+    responses:
+      "201":
+        description: Upsert one staged draft key
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/i18n.yaml#/UpsertI18nDraftKeyResponse
+            example:
+              ok: true
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
 /api/admin/i18n/profiles/{profileId}/publish:
   post:
     operationId: publishI18nProfile

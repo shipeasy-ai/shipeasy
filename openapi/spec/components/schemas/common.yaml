@@ -49,6 +49,16 @@ NotificationTarget:
       additionalProperties: false
     - type: "null"
   description: Delivery target for a notification; `null` = use the project default.
+OkResponse:
+  type: object
+  properties:
+    ok:
+      type: boolean
+      const: true
+      description: Always `true` — the operation succeeded (errors use the error envelope instead).
+  required: [ok]
+  additionalProperties: false
+  description: Generic success acknowledgement for operations with no meaningful payload.
 PageQuery:
   type: object
   properties:

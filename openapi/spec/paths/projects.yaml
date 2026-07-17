@@ -126,6 +126,66 @@
     x-cli:
       name: upsert
 /api/admin/projects/{id}:
+  get:
+    operationId: getProject
+    summary: Show a project by id
+    description: |-
+      Returns one project by id — the same full shape as `GET /api/admin/projects/current`. The id in the path must match the project the caller's credential resolves to (a credential can only read its own project); any other id is a 403.
+
+      **Use case:** Re-fetch the project row after a `PATCH` when you already hold its id.
+    tags:
+      - Projects
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque project id. Must match the caller's own project.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    responses:
+      "200":
+        description: Show a project by id
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/projects.yaml#/GetCurrentProjectResponse
+            example:
+              id: f81d4fae-7dec-11d0-a765-00a0c91e6bf6
+              name: Acme
+              domain: acme.com
+              ownerEmail: owner@acme.com
+              plan: pro
+              status: active
+              subscriptionStatus: active
+              billingInterval: monthly
+              currentPeriodEnd: 2026-07-12T00:00:00.000Z
+              trialEndsAt: null
+              cancelAtPeriodEnd: 0
+              moduleTranslations: true
+              moduleConfigs: true
+              moduleGates: true
+              moduleExperiments: true
+              moduleFeedback: true
+              createdAt: 2026-04-12T10:14:08.000Z
+              updatedAt: 2026-06-12T08:01:55.000Z
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
   patch:
     operationId: updateProject
     summary: Update the current project

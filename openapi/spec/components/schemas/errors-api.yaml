@@ -3,7 +3,7 @@ ErrorRecord:
   description: |-
     A tracked production error — one row per distinct issue, keyed by `fingerprint`. Rows are never created by hand: an ingestion path (worker log drain / the `see()` SDK reporter) folds each occurrence into the matching row, bumping `count` and `lastSeenAt`. The admin surface only lists them, reads one, and flips `status`.
 
-    Field names are camelCase (the D1 row projected through Drizzle). Many columns are nullable because the reporting source may not supply them.
+    Field names are camelCase (the D1 row projected through Drizzle). Every row column is always present on the wire; many are *nullable* because the reporting source may not supply them — `null`, never absent. Only `occurrences` is conditional (detail reads only).
   properties:
     id:
       type: string
@@ -121,25 +121,62 @@ ErrorRecord:
     updatedAt:
       type: string
       description: ISO-8601 timestamp of the last mutation (e.g. a status flip).
+    assigneeId:
+      description: PERSON owner of the triage — a `users.id` (soft reference, same value space as a feedback item's `assigneeId`), or `null` if unassigned. Set from the ops cockpit's Owner column; independent of the agent half.
+      anyOf:
+        - type: string
+        - type: "null"
+    assigneeConnectorId:
+      description: AGENT owner — the id of a connected trigger connector (`connectors.id`), or `null`. Mutually exclusive with `assigneeAgent`.
+      anyOf:
+        - type: string
+        - type: "null"
+    assigneeAgent:
+      description: AGENT owner — a built-in hosted Shipeasy agent (`"jarvis"`, Enterprise-gated), or `null`. Mutually exclusive with `assigneeConnectorId`.
+      anyOf:
+        - type: string
+        - type: "null"
   required:
     - id
     - projectId
     - fingerprint
+    - causedByFingerprint
     - message
+    - errorType
+    - stack
+    - source
+    - url
+    - seenUrls
+    - subject
+    - outcome
+    - side
+    - env
+    - kind
+    - lastExtrasJson
+    - sdkVersion
     - count
     - status
     - firstSeenAt
     - lastSeenAt
     - createdAt
     - updatedAt
+    - assigneeId
+    - assigneeConnectorId
+    - assigneeAgent
   additionalProperties: false
 ErrorOccurrence:
   type: object
-  description: One sampled instance behind a tracked error — the minimal per-occurrence payload (what varies between instances; everything else lives on the parent `ErrorRecord`).
+  description: One sampled instance behind a tracked error — the minimal per-occurrence payload (what varies between instances; everything else lives on the parent `ErrorRecord`). Every column is always present on the wire; nullable columns are `null`, never absent.
   properties:
     id:
       type: string
       description: Stable opaque occurrence id.
+    projectId:
+      type: string
+      description: Project this occurrence belongs to. Always echoes the parent error's `projectId` — redundant on this nested read (a projection candidate), kept because the raw row is returned as-is today.
+    errorId:
+      type: string
+      description: Id of the parent tracked error (`err_…`). Always echoes the enclosing `ErrorRecord.id` — redundant on this nested read (a projection candidate), kept because the raw row is returned as-is today.
     message:
       type: string
       description: This instance's raw message (unlike the fingerprint, never normalized).
@@ -182,7 +219,15 @@ ErrorOccurrence:
       description: ISO-8601 timestamp this instance was ingested.
   required:
     - id
+    - projectId
+    - errorId
     - message
+    - stack
+    - url
+    - env
+    - side
+    - sdkVersion
+    - extrasJson
     - sampleRate
     - seenAt
   additionalProperties: false
@@ -214,8 +259,10 @@ FileErrorTicketResponse:
       type: string
       description: Feedback ticket id.
     number:
-      type: integer
-      description: Human-facing per-project ticket number.
+      description: Human-facing per-project ticket number. `null` only on the idempotent dedupe path when the pre-existing ticket is a legacy row created before per-project numbering.
+      anyOf:
+        - type: integer
+        - type: "null"
   required:
     - id
     - number

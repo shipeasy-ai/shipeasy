@@ -29,6 +29,7 @@
                   metric: checkout_completed
                   filters: []
                 direction: higher_better
+                version: 1
       "400":
         $ref: ../components/responses.yaml#/BadRequest
       "401":
@@ -184,6 +185,7 @@
                 filters: []
               direction: higher_better
               winsorizePct: 99
+              version: 1
       "400":
         $ref: ../components/responses.yaml#/BadRequest
       "401":
@@ -310,5 +312,189 @@
       - REFERENCED_IN_USE
     x-cli:
       name: archive
+      positional:
+        - id
+/api/admin/metrics/{id}/experiments:
+  get:
+    operationId: listMetricExperiments
+    summary: List experiments using a metric
+    description: |-
+      Returns every experiment that attaches this metric — as `goal`, `guardrail`, or `secondary` — ordered with running experiments first, then by role weight (goal > guardrail > secondary).
+
+      **Use case:** See who depends on a metric before editing or archiving it — e.g. the metric detail panel's "used by" list.
+    tags:
+      - Metrics
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque metric id (`met_…`) or the metric's `name`.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    responses:
+      "200":
+        description: List experiments using a metric
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/metrics.yaml#/ListMetricExperimentsResponse
+            example:
+              experiments:
+                - id: exp_01j7wb12c3d4e5f6g7h8j9k0l1
+                  name: checkout_button_color
+                  status: running
+                  role: goal
+                - id: exp_01j7wb98x7y6z5w4v3u2t1s0r9
+                  name: pricing_page_copy
+                  status: stopped
+                  role: guardrail
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: experiments
+      positional:
+        - id
+/api/admin/metrics/{id}/unarchive:
+  post:
+    operationId: unarchiveMetric
+    summary: Unarchive a metric
+    description: |-
+      Reverses a soft-delete (archive), making the metric live again. Idempotent — unarchiving a metric that is already live succeeds with no effect.
+
+      **Use case:** Undo an accidental archive (the metrics list "Undo" toast calls this).
+    tags:
+      - Metrics
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque metric id (`met_…`) or the metric's `name`.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    responses:
+      "200":
+        description: Unarchive a metric
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/metrics.yaml#/UnarchiveMetricResponse
+            example:
+              ok: true
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: unarchive
+      positional:
+        - id
+/api/admin/metrics/{id}/series:
+  post:
+    operationId: getMetricSeries
+    summary: Get a metric's time series
+    description: |-
+      Compiles the metric's typed IR into Analytics Engine SQL and returns the bucketed series over the requested window (near-real-time; ingest lag is seconds). The window bounds are epoch **seconds**; `to` must be strictly greater than `from`. The response echoes the SQL that produced the rows.
+
+      Returns `422` when the stored definition can't compile (e.g. a label or event has gone away — re-save the metric), and `502`/`503` when the analytics upstream fails or isn't configured.
+
+      **Use case:** Render the metric trend chart / sparkline, or pull raw bucketed values to feed an external dashboard.
+    tags:
+      - Metrics
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque metric id (`met_…`).
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/metrics.yaml#/GetMetricSeriesRequest
+          examples:
+            lastDayHourly:
+              summary: Last 24h, hourly buckets
+              description: Hourly metric values over a one-day window (bounds in epoch seconds).
+              value:
+                from: 1751000400
+                to: 1751086800
+                bucket: 3600
+    responses:
+      "200":
+        description: Get a metric's time series
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/metrics.yaml#/GetMetricSeriesResponse
+            example:
+              sql: |-
+                SELECT intDiv(toUInt32(double2), 3600) * 3600 AS t,
+                  sum(_sample_interval) AS v
+                FROM shipeasy_metric_events
+                WHERE index1 = 'e976b15e-2f0d-4c6e-9b1a-3a7c1f2d8e90'
+                  AND blob1 = 'checkout_completed'
+                  AND double2 >= 1751000400 AND double2 < 1751086800
+                GROUP BY t
+                ORDER BY t
+              rows:
+                - t: 1751000400
+                  v: 412
+                - t: 1751004000
+                  v: 531
+                - t: 1751007600
+                  v: 468
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: series
       positional:
         - id

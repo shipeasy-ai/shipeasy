@@ -25,6 +25,9 @@
                 - id: ksw_01j7w9d8h2k4m6n8p0q2r4s6t8
                   name: payments.checkout
                   description: Master kill for the checkout flow. Trip to fall back to the legacy provider.
+                  folder: payments
+                  creatorEmail: ana@example.com
+                  createdAt: 2026-05-01T10:12:00.000Z
                   updatedAt: 2026-05-09T18:22:11.000Z
                   envs:
                     dev:
@@ -183,6 +186,9 @@
               id: ksw_01j7w9d8h2k4m6n8p0q2r4s6t8
               name: payments.checkout
               description: Master kill for the checkout flow. Trip to fall back to the legacy provider.
+              folder: payments
+              creatorEmail: ana@example.com
+              createdAt: 2026-05-01T10:12:00.000Z
               updatedAt: 2026-05-09T18:22:11.000Z
               envs:
                 dev:

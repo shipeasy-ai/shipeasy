@@ -45,6 +45,17 @@
           type: integer
           minimum: 1
           maximum: 500
+      - name: owner
+        in: query
+        required: false
+        description: >-
+          Narrow to items owned by one person OR one agent. Matches a person by
+          `users.id`, email, or display name, and an agent by connector id,
+          display name, or kebab-case handle — e.g. `owner=Claude` or
+          `owner=alice@acme.dev`. Case-insensitive exact match, applied over the
+          returned page.
+        schema:
+          type: string
     responses:
       "200":
         description: List the operational queue
@@ -59,7 +70,17 @@
                 title: Checkout button misaligned on mobile
                 status: open
                 priority: high
+                source: team
+                owner:
+                  user:
+                    id: usr_01j7w8a1b2c3d4e5f6g7h8i9j0
+                    email: alice@acme.dev
+                    name: Alice
+                  agent: null
+                run: null
+                lastRun: null
                 createdAt: 2026-06-20T09:14:08.000Z
+                updatedAt: 2026-06-21T10:02:44.000Z
       "400":
         $ref: ../components/responses.yaml#/BadRequest
       "401":
@@ -286,6 +307,49 @@
       name: update
       positional:
         - handle
+  delete:
+    operationId: deleteOpsItem
+    summary: Delete a queue item
+    description: |-
+      Permanently delete a queue item — any type — along with its comment thread, attachments, tags, and investigation records. A human (dashboard) action: the route is never allow-listed for restricted ops keys. Irreversible; to take an item out of the queue without destroying it, set its status (`wont_fix`/`resolved`) instead.
+
+      **Use case:** Remove a junk or duplicate report for good.
+    tags:
+      - Ops
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: handle
+        in: path
+        required: true
+        description: Per-project item number (e.g. `7`) or the full ops item id.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    responses:
+      "200":
+        description: Delete a queue item
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/DeleteOpsItemResponse
+            example:
+              ok: true
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
 /api/admin/ops/{handle}/link-pr:
   post:
     operationId: linkPrToOpsItem
@@ -344,6 +408,241 @@
       name: link-pr
       positional:
         - handle
+/api/admin/ops/{handle}/ack:
+  post:
+    operationId: ackOpsItem
+    summary: Ack an item (start a run)
+    description: |-
+      Acknowledge a queue item — a person or an AI agent declaring "I'm on this
+      now". Opens a run: stamps who picked the item up and when, assigns them as
+      owner, and moves the item into the matching working status
+      (`investigating_by_ai` for an AI ack, `in_progress` for a human one). The
+      dashboard renders the open run as a live working indicator (which agent +
+      time since the run started).
+
+      **AI ack.** Pass `agent` with your own agent type (`claude`, `cursor`,
+      `copilot`, `jules`; `gemini` aliases `jules`) and, when you have one, the
+      run's `sessionId` so the dashboard can deep-link to the session. If the
+      project has no connected trigger connector of that type the call fails
+      with `AGENT_NOT_CONNECTED` — list the available agents with `ops agents
+      list` and use one of those (or connect the agent under Settings →
+      Triggers).
+
+      **Completion.** The run closes automatically on the loop's final actions —
+      linking the fixing PR (`link-pr`), an ops-notify escalation, or a
+      completion status change (`ready_for_qa`/`resolved`) — and the dashboard
+      then shows the run result (final action, PR, duration, session link).
+      A repeat ack supersedes the previous open run.
+
+      **Use case:** Call this first when picking an item up, so the team sees
+      who/what is working on it in real time.
+    tags:
+      - Ops
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: handle
+        in: path
+        required: true
+        description: Per-project item number (e.g. `7`) or the full ops item id.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/AckOpsItemRequest
+          example:
+            agent: claude
+            sessionId: session_01CiaFDeDyr37JZ62Gzd8oir
+    responses:
+      "200":
+        description: Ack an item (start a run)
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/AckOpsItemResponse
+            example:
+              id: fb_01j7w8a1b2c3d4e5f6g7h8i9j0
+              number: 7
+              status: investigating_by_ai
+              runId: 6f1f9a1e-8b32-4c8e-9a51-2f3b1c9d0e4a
+              agent: claude
+              connectorName: Claude
+              sessionId: session_01CiaFDeDyr37JZ62Gzd8oir
+              startedAt: 2026-07-17T10:15:00.000Z
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - AGENT_NOT_CONNECTED
+      - VALIDATION
+    x-cli:
+      name: ack
+      positional:
+        - handle
+/api/admin/ops/{handle}/investigation:
+  get:
+    operationId: listOpsInvestigations
+    summary: List an item's investigation records
+    description: |-
+      The structured, read-only investigation records on a queue item — the
+      findings / blocking questions / QA notes an AI agent posted while working
+      it, plus its `working` run rows. Returns `published` records only, newest
+      first (max 50).
+
+      **Use case:** Read what a previous agent run already found before starting
+      your own investigation of the item.
+    tags:
+      - Ops
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: handle
+        in: path
+        required: true
+        description: Per-project item number (e.g. `7`) or the full ops item id.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    responses:
+      "200":
+        description: List an item's investigation records
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/ListOpsInvestigationsResponse
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+  post:
+    operationId: createOpsInvestigation
+    summary: Record an investigation
+    description: |-
+      Append one structured investigation record to a queue item — the AI-write
+      seam the cockpit's detail panel renders read-only. Post your findings
+      (`kind: investigated`), a blocking question for the team (`kind:
+      question`), or how to verify the fix (`kind: ready_for_qa` with
+      `qaNotes`). Append-only and create-only, so it is safe for restricted ops
+      keys.
+
+      **Use case:** After working an item, leave a findings write-up (summary,
+      markdown findings, sources inspected, confidence) so the team — and the
+      next agent run — sees what you learned.
+    tags:
+      - Ops
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: handle
+        in: path
+        required: true
+        description: Per-project item number (e.g. `7`) or the full ops item id.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/CreateOpsInvestigationRequest
+          examples:
+            findings:
+              summary: Post a findings write-up
+              value:
+                kind: investigated
+                summary: Root cause is a stale KV read on the checkout flag.
+                findings: "The `checkout.cta` gate is rebuilt without a CDN purge, so…"
+                agent: claude
+                confidence: high
+                sources:
+                  - path: packages/core/src/kv/rebuild.ts
+                    label: KV rebuild helper
+            question:
+              summary: Ask the team a blocking question
+              value:
+                kind: question
+                question: Should the fix preserve the legacy `?v=1` query param behaviour?
+                agent: claude
+    responses:
+      "200":
+        description: Record an investigation
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/OpsInvestigation
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+/api/admin/agent-profiles:
+  get:
+    operationId: listOpsAgents
+    summary: List connected AI agents
+    description: |-
+      The project's connected AI agents — one per authenticated trigger
+      connector (Claude / Cursor / Copilot / Jules). These are the agent types
+      `ops ack` accepts and the agents a queue item can be assigned to.
+
+      **Use case:** Discover which `agent` values an AI ack can use, e.g. after
+      an `AGENT_NOT_CONNECTED` error.
+    tags:
+      - Agents
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+    responses:
+      "200":
+        description: List connected AI agents
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/ListOpsAgentsResponse
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+    x-cli:
+      name: list
 /api/admin/ops/{handle}/comments:
   get:
     operationId: listOpsComments
@@ -511,6 +810,101 @@
       - VALIDATION
     x-cli:
       name: notify
+/api/admin/notifications/feed:
+  get:
+    operationId: listNotificationFeed
+    summary: Read the notification feed
+    description: |-
+      The caller's in-app notification feed — the same list the dashboard bell
+      renders — plus the unread count. Returns project-wide broadcasts and
+      notifications addressed to the caller (mentions), newest first (max 30);
+      events the project muted for the in-app channel are omitted.
+
+      **Use case:** Render the bell — list the latest notifications and badge
+      the unread count.
+    tags:
+      - Ops
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+    responses:
+      "200":
+        description: Read the notification feed
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/ListNotificationFeedResponse
+            example:
+              notifications:
+                - id: ntf_01j7w8a1b2c3d4e5f6g7h8i9j0
+                  event: ops.attention
+                  title: "Alert rule @alert:checkout-error-rate needs a human edit for #42"
+                  body: "#42 is a false positive — the rule fires on the expected nightly batch spike.\n1. Open the rule in the alerts page.\n2. Raise the threshold to 5%."
+                  href: /dashboard/prj_0abc/bugs/42
+                  createdAt: 2026-07-17T10:15:00.000Z
+                  read: false
+              unread: 1
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+  post:
+    operationId: markNotificationsRead
+    summary: Mark notifications read
+    description: |-
+      Mark one notification read (`{ "id": "…" }`) or the caller's whole feed
+      read (empty body `{}`). Idempotent.
+
+      **Use case:** Clear the bell badge after the user opens the feed.
+    tags:
+      - Ops
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/MarkNotificationsReadRequest
+          examples:
+            one:
+              summary: Mark one notification read
+              value:
+                id: ntf_01j7w8a1b2c3d4e5f6g7h8i9j0
+            all:
+              summary: Mark the whole feed read
+              value: {}
+    responses:
+      "200":
+        description: Mark notifications read
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/common.yaml#/OkResponse
+            example:
+              ok: true
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - VALIDATION
 /api/admin/slack/channels:
   get:
     operationId: listSlackChannels

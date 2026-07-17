@@ -43,6 +43,10 @@
                   groupName: growth
                   ownerEmail: ana@example.com
                   stack: null
+                  creatorEmail: ana@example.com
+                  updaterEmail: bo@example.com
+                  version: 4
+                  createdAt: 2026-05-01T10:12:00.000Z
                   updatedAt: 2026-05-09T16:01:22.000Z
               next_cursor: null
       "400":
@@ -201,6 +205,76 @@
       positional:
         - name
 /api/admin/gates/{id}:
+  get:
+    operationId: getGate
+    summary: Get one gate
+    description: |-
+      Returns the full gate row — including the gatekeeper `stack`, resolved creator/last-editor emails, and the edit `version` — for one gate, addressed by id or `name`.
+
+      **Use case:** Inspect a single gate's current rollout, rules, and stack before editing it, without paging through the whole list.
+    tags:
+      - Flags
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque gate id (`gat_…`) or the gate's `name`.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    responses:
+      "200":
+        description: Get one gate
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/gates.yaml#/GetGateResponse
+            example:
+              id: gat_01j7w7m9q4hxbf6npe6s9zr3vc
+              name: checkout_v2
+              enabled: 1
+              type: targeting
+              rolloutPct: 5000
+              rules:
+                - attr: country
+                  op: in
+                  value:
+                    - US
+                    - CA
+                    - GB
+              salt: 9c1f4f1f2c0c4a5fa1c2b6d3e7c8e3a1
+              title: Checkout v2
+              description: New checkout flow. Pro users in US/CA/GB only.
+              folder: checkout
+              groupName: growth
+              ownerEmail: ana@example.com
+              stack: null
+              creatorEmail: ana@example.com
+              updaterEmail: bo@example.com
+              version: 4
+              createdAt: 2026-05-01T10:12:00.000Z
+              updatedAt: 2026-05-09T16:01:22.000Z
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: get
+      positional:
+        - id
   patch:
     operationId: updateGate
     summary: Update a feature gate
@@ -462,5 +536,68 @@
       - VALIDATION
     x-cli:
       name: disable
+      positional:
+        - id
+/api/admin/gates/{id}/activity:
+  get:
+    operationId: listGateActivity
+    summary: List gate activity
+    description: |-
+      Returns recent audit rows for one gate (create, update, enable, disable, delete) ordered newest first. Use the `limit` query parameter to cap the result (1–100, default 20).
+
+      **Use case:** Render the activity feed in the gate detail panel or answer "who ramped this gate, and when?" during an incident review.
+    tags:
+      - Flags
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque gate id (`gat_…`) or the gate's `name`.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+      - name: limit
+        in: query
+        required: false
+        description: Max rows to return (1–100). Defaults to 20.
+        schema:
+          default: 20
+          type: integer
+          minimum: 1
+          maximum: 100
+    responses:
+      "200":
+        description: List gate activity
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/gates.yaml#/ListGateActivityResponse
+            example:
+              - id: act_01j7waf01a2b3c4d5e6f7g8h9i
+                action: gate.update
+                actorEmail: ana@example.com
+                actorType: user
+                payload:
+                  rollout_pct: 5000
+                createdAt: 2026-05-09T16:01:22.000Z
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: activity
       positional:
         - id

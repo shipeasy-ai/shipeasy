@@ -4,28 +4,83 @@ export type ClientOptions = {
     baseUrl: 'https://shipeasy.ai' | 'http://localhost:3000' | (string & {});
 };
 
-export type ListGatesResponse = {
-    data: Array<{
+/**
+ * The single wire shape for a gate row, shared by `ListGatesResponse` (`data[]` items) and `GET /api/admin/gates/{id}`.
+ */
+export type GateApiRow = {
+    /**
+     * Stable opaque gate id (`gat_…`).
+     */
+    id: string;
+    /**
+     * Stable gate key used by SDKs (`Shipeasy.checkGate(user, '<name>')`). Single segment or `folder.name`. Lowercase letters, digits, `_` or `-`; max 128 chars. Immutable after create — rename = delete + recreate.
+     */
+    name: string;
+    /**
+     * Master switch. Returned as `1`/`0` from D1; treat truthy as enabled.
+     */
+    enabled: boolean | number;
+    /**
+     * Gate kind — `targeting` (normal flag) or `holdout` (restricted public % + whitelist).
+     */
+    type?: 'targeting' | 'holdout';
+    /**
+     * Current rollout in basis points (0–10000).
+     */
+    rolloutPct: number;
+    rules?: Array<{
         /**
-         * Stable opaque gate id (`gat_…`).
+         * Attribute key on the evaluation context (e.g. `country`, `plan`, `email`). Matched case-sensitively against `Shipeasy.checkGate(user, name)` input.
+         */
+        attr: string;
+        /**
+         * Comparison operator. Equality: `eq`/`neq`. Set membership: `in`/`not_in` (value is an array). Numeric order: `gt`/`gte`/`lt`/`lte`. Semver order: `semver_gt`/`semver_gte`/`semver_lt`/`semver_lte` (value is a dotted version like `4.2.0`). String: `contains` (substring), `regex` (JS-flavour pattern, value is the pattern string). Cross-resource references (evaluated only on the worker hot path, where both KV blobs load): `gate_pass` (`value` is another gate's name — true when that gate passes for the same caller); `exp_in` (`attr` is a running experiment's name, `value` is a group name, `"$holdout"`, or `"$any"` — true when the caller is in that variant / the universe holdout / any variant).
+         */
+        op: 'eq' | 'neq' | 'in' | 'not_in' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains' | 'regex' | 'semver_gt' | 'semver_gte' | 'semver_lt' | 'semver_lte' | 'gate_pass' | 'exp_in';
+        /**
+         * Operand. Shape depends on `op`: scalar for `eq/neq/gt/gte/lt/lte/contains/semver_*`; array of scalars for `in/not_in`; string pattern for `regex`; referenced gate name for `gate_pass`; group name / `"$holdout"` / `"$any"` for `exp_in`.
+         */
+        value: unknown;
+    }>;
+    /**
+     * Hash salt used for percentage bucketing.
+     */
+    salt?: string;
+    title?: string | null;
+    description?: string | null;
+    folder?: string | null;
+    /**
+     * Group label (note: `groupName` in response, `group` in request).
+     */
+    groupName?: string | null;
+    /**
+     * Owner email (note: `ownerEmail` in response, `owner_email` in request).
+     */
+    ownerEmail?: string | null;
+    stack?: Array<{
+        /**
+         * Client-supplied stable id for the stack entry (used for React keys, audit diffs, and as the default per-condition rollout salt).
          */
         id: string;
         /**
-         * Stable gate key used by SDKs (`Shipeasy.checkGate(user, '<name>')`). Single segment or `folder.name`. Lowercase letters, digits, `_` or `-`; max 128 chars. Immutable after create — rename = delete + recreate.
+         * Discriminator. `condition` = rule-based predicate sub-gate.
          */
-        name: string;
+        type: 'condition';
         /**
-         * Master switch. Returned as `1`/`0` from D1; treat truthy as enabled.
+         * Human label shown in the dashboard.
          */
-        enabled: boolean | number;
+        name?: string;
         /**
-         * Gate kind — `targeting` (normal flag) or `holdout` (restricted public % + whitelist).
+         * Id of the project template this entry was seeded from, or `null` if hand-authored.
          */
-        type?: 'targeting' | 'holdout';
+        fromTemplate?: string | null;
         /**
-         * Current rollout in basis points (0–10000).
+         * Combinator across `rules`. `all` = AND (default), `any` = OR.
          */
-        rolloutPct: number;
+        pass?: 'all' | 'any';
+        /**
+         * Predicates evaluated under `pass`. Empty array = match nothing.
+         */
         rules?: Array<{
             /**
              * Attribute key on the evaluation context (e.g. `country`, `plan`, `email`). Matched case-sensitively against `Shipeasy.checkGate(user, name)` input.
@@ -41,162 +96,128 @@ export type ListGatesResponse = {
             value: unknown;
         }>;
         /**
-         * Hash salt used for percentage bucketing.
+         * Per-condition rollout in basis points. After the rules match, the caller is bucketed at this %; in-bucket → gate `true`, otherwise fall through to the next entry. Absent ⇒ 10000 (100%, every matching caller passes).
+         */
+        rolloutPct?: number;
+        /**
+         * Attribute used to hash the caller into the per-condition bucket. Default `userID`.
+         */
+        bucketBy?: string;
+        /**
+         * Per-condition hash salt. Defaults to the entry `id`, then the gate salt.
          */
         salt?: string;
-        title?: string | null;
-        description?: string | null;
-        folder?: string | null;
         /**
-         * Group label (note: `groupName` in response, `group` in request).
+         * Linear rollout ramp. The effective rollout % interpolates `from`→`to` over `[startAt, startAt+durationMs]`, clamped outside that window, evaluated against the wall-clock at eval time. Overrides the entry's static `rolloutPct` while present.
          */
-        groupName?: string | null;
+        ramp?: {
+            /**
+             * Start of the ramp in basis points (0–10000).
+             */
+            from: number;
+            /**
+             * End of the ramp in basis points (0–10000).
+             */
+            to: number;
+            /**
+             * Ramp start, epoch milliseconds (UTC).
+             */
+            startAt: number;
+            /**
+             * Ramp length in milliseconds.
+             */
+            durationMs: number;
+        };
         /**
-         * Owner email (note: `ownerEmail` in response, `owner_email` in request).
+         * If `true`, dashboard hides edit controls (e.g. the trailing public-floor entry).
          */
-        ownerEmail?: string | null;
-        stack?: Array<{
-            /**
-             * Client-supplied stable id for the stack entry (used for React keys, audit diffs, and as the default per-condition rollout salt).
-             */
-            id: string;
-            /**
-             * Discriminator. `condition` = rule-based predicate sub-gate.
-             */
-            type: 'condition';
-            /**
-             * Human label shown in the dashboard.
-             */
-            name?: string;
-            /**
-             * Id of the project template this entry was seeded from, or `null` if hand-authored.
-             */
-            fromTemplate?: string | null;
-            /**
-             * Combinator across `rules`. `all` = AND (default), `any` = OR.
-             */
-            pass?: 'all' | 'any';
-            /**
-             * Predicates evaluated under `pass`. Empty array = match nothing.
-             */
-            rules?: Array<{
-                /**
-                 * Attribute key on the evaluation context (e.g. `country`, `plan`, `email`). Matched case-sensitively against `Shipeasy.checkGate(user, name)` input.
-                 */
-                attr: string;
-                /**
-                 * Comparison operator. Equality: `eq`/`neq`. Set membership: `in`/`not_in` (value is an array). Numeric order: `gt`/`gte`/`lt`/`lte`. Semver order: `semver_gt`/`semver_gte`/`semver_lt`/`semver_lte` (value is a dotted version like `4.2.0`). String: `contains` (substring), `regex` (JS-flavour pattern, value is the pattern string). Cross-resource references (evaluated only on the worker hot path, where both KV blobs load): `gate_pass` (`value` is another gate's name — true when that gate passes for the same caller); `exp_in` (`attr` is a running experiment's name, `value` is a group name, `"$holdout"`, or `"$any"` — true when the caller is in that variant / the universe holdout / any variant).
-                 */
-                op: 'eq' | 'neq' | 'in' | 'not_in' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains' | 'regex' | 'semver_gt' | 'semver_gte' | 'semver_lt' | 'semver_lte' | 'gate_pass' | 'exp_in';
-                /**
-                 * Operand. Shape depends on `op`: scalar for `eq/neq/gt/gte/lt/lte/contains/semver_*`; array of scalars for `in/not_in`; string pattern for `regex`; referenced gate name for `gate_pass`; group name / `"$holdout"` / `"$any"` for `exp_in`.
-                 */
-                value: unknown;
-            }>;
-            /**
-             * Per-condition rollout in basis points. After the rules match, the caller is bucketed at this %; in-bucket → gate `true`, otherwise fall through to the next entry. Absent ⇒ 10000 (100%, every matching caller passes).
-             */
-            rolloutPct?: number;
-            /**
-             * Attribute used to hash the caller into the per-condition bucket. Default `userID`.
-             */
-            bucketBy?: string;
-            /**
-             * Per-condition hash salt. Defaults to the entry `id`, then the gate salt.
-             */
-            salt?: string;
-            /**
-             * Linear rollout ramp. The effective rollout % interpolates `from`→`to` over `[startAt, startAt+durationMs]`, clamped outside that window, evaluated against the wall-clock at eval time. Overrides the entry's static `rolloutPct` while present.
-             */
-            ramp?: {
-                /**
-                 * Start of the ramp in basis points (0–10000).
-                 */
-                from: number;
-                /**
-                 * End of the ramp in basis points (0–10000).
-                 */
-                to: number;
-                /**
-                 * Ramp start, epoch milliseconds (UTC).
-                 */
-                startAt: number;
-                /**
-                 * Ramp length in milliseconds.
-                 */
-                durationMs: number;
-            };
-            /**
-             * If `true`, dashboard hides edit controls (e.g. the trailing public-floor entry).
-             */
-            locked?: boolean;
-        } | {
-            /**
-             * Client-supplied stable id for the stack entry.
-             */
-            id: string;
-            /**
-             * Discriminator. `rollout` = percentage-bucket sub-gate.
-             */
-            type: 'rollout';
-            /**
-             * Human label shown in the dashboard.
-             */
-            name?: string;
-            /**
-             * Source template id, or `null`.
-             */
-            fromTemplate?: string | null;
-            /**
-             * Bucket size in basis points (0–10000 = 0%–100%). `5000` = 50%, `100` = 1%, allows sub-1% precision.
-             */
-            rolloutPct: number;
-            /**
-             * Attribute used to hash the caller into a bucket. Defaults to `user.userID`. Use e.g. `accountID` to bucket whole accounts together.
-             */
-            bucketBy?: string;
-            /**
-             * Per-entry hash salt. Defaults to the gate's salt. Set explicitly to keep two rollouts independent or correlated across gates.
-             */
-            salt?: string;
-            /**
-             * Linear rollout ramp. The effective rollout % interpolates `from`→`to` over `[startAt, startAt+durationMs]`, clamped outside that window, evaluated against the wall-clock at eval time. Overrides the entry's static `rolloutPct` while present.
-             */
-            ramp?: {
-                /**
-                 * Start of the ramp in basis points (0–10000).
-                 */
-                from: number;
-                /**
-                 * End of the ramp in basis points (0–10000).
-                 */
-                to: number;
-                /**
-                 * Ramp start, epoch milliseconds (UTC).
-                 */
-                startAt: number;
-                /**
-                 * Ramp length in milliseconds.
-                 */
-                durationMs: number;
-            };
-            /**
-             * If `true`, dashboard hides edit controls.
-             */
-            locked?: boolean;
-        }> | null;
+        locked?: boolean;
+    } | {
         /**
-         * ISO-8601 timestamp of last mutation.
+         * Client-supplied stable id for the stack entry.
          */
-        updatedAt: string;
-    }>;
+        id: string;
+        /**
+         * Discriminator. `rollout` = percentage-bucket sub-gate.
+         */
+        type: 'rollout';
+        /**
+         * Human label shown in the dashboard.
+         */
+        name?: string;
+        /**
+         * Source template id, or `null`.
+         */
+        fromTemplate?: string | null;
+        /**
+         * Bucket size in basis points (0–10000 = 0%–100%). `5000` = 50%, `100` = 1%, allows sub-1% precision.
+         */
+        rolloutPct: number;
+        /**
+         * Attribute used to hash the caller into a bucket. Defaults to `user.userID`. Use e.g. `accountID` to bucket whole accounts together.
+         */
+        bucketBy?: string;
+        /**
+         * Per-entry hash salt. Defaults to the gate's salt. Set explicitly to keep two rollouts independent or correlated across gates.
+         */
+        salt?: string;
+        /**
+         * Linear rollout ramp. The effective rollout % interpolates `from`→`to` over `[startAt, startAt+durationMs]`, clamped outside that window, evaluated against the wall-clock at eval time. Overrides the entry's static `rolloutPct` while present.
+         */
+        ramp?: {
+            /**
+             * Start of the ramp in basis points (0–10000).
+             */
+            from: number;
+            /**
+             * End of the ramp in basis points (0–10000).
+             */
+            to: number;
+            /**
+             * Ramp start, epoch milliseconds (UTC).
+             */
+            startAt: number;
+            /**
+             * Ramp length in milliseconds.
+             */
+            durationMs: number;
+        };
+        /**
+         * If `true`, dashboard hides edit controls.
+         */
+        locked?: boolean;
+    }> | null;
+    /**
+     * ISO-8601 timestamp of last mutation.
+     */
+    updatedAt: string;
+    /**
+     * Resolved email of the user who created the gate (`created_by` → `users.email`), or `null` when the creator is unknown.
+     */
+    creatorEmail: string | null;
+    /**
+     * Resolved email of the user who last edited the gate (`updated_by` → `users.email`), or `null` when the last editor is unknown.
+     */
+    updaterEmail: string | null;
+    /**
+     * Monotonic edit counter — starts at 1 on create (D1 `NOT NULL DEFAULT 1`) and increments on every `PATCH /api/admin/gates/{id}`.
+     */
+    version: number;
+    /**
+     * ISO-8601 creation timestamp, or `null` on legacy rows created before the column existed.
+     */
+    createdAt: string | null;
+};
+
+export type ListGatesResponse = {
+    data: Array<GateApiRow>;
     next_cursor: string | null;
 };
 
 /**
  * Stable, machine-readable error code. Mirrors the `ErrorCode` catalogue in `@shipeasy/core`. Each operation lists the subset it can return under `x-error-codes`.
  */
-export type ErrorCode = 'BAD_REQUEST' | 'UNAUTHORIZED' | 'FORBIDDEN' | 'PLAN_REQUIRED' | 'NOT_FOUND' | 'ALREADY_EXISTS' | 'INVALID_TRANSITION' | 'IMMUTABLE_FIELD' | 'READ_ONLY' | 'REFERENCED_IN_USE' | 'VALIDATION' | 'REFERENCED_NOT_FOUND' | 'GROUPS_WEIGHT_SUM' | 'EVENT_PENDING' | 'INTERNAL' | 'PLAN_LIMIT' | 'EXPERIMENT_NO_GOAL_METRIC' | 'EXPERIMENT_ARCHIVED_RESTART' | 'EXPERIMENT_RESTORE_INVALID' | 'EXPERIMENT_NOT_RUNNING' | 'EXPERIMENT_RUNNING_ARCHIVE' | 'EXPERIMENT_IMMUTABLE_FIELD' | 'METRIC_NOT_FOUND' | 'METRIC_UNKNOWN_ID';
+export type ErrorCode = 'BAD_REQUEST' | 'UNAUTHORIZED' | 'FORBIDDEN' | 'PLAN_REQUIRED' | 'NOT_FOUND' | 'ALREADY_EXISTS' | 'INVALID_TRANSITION' | 'IMMUTABLE_FIELD' | 'READ_ONLY' | 'REFERENCED_IN_USE' | 'VALIDATION' | 'REFERENCED_NOT_FOUND' | 'GROUPS_WEIGHT_SUM' | 'EVENT_PENDING' | 'INTERNAL' | 'PLAN_LIMIT' | 'EXPERIMENT_NO_GOAL_METRIC' | 'EXPERIMENT_ARCHIVED_RESTART' | 'EXPERIMENT_RESTORE_INVALID' | 'EXPERIMENT_NOT_RUNNING' | 'EXPERIMENT_RUNNING_ARCHIVE' | 'EXPERIMENT_IMMUTABLE_FIELD' | 'METRIC_NOT_FOUND' | 'METRIC_UNKNOWN_ID' | 'AGENT_NOT_CONNECTED';
 
 /**
  * Uniform error envelope returned by every admin endpoint on a non-2xx status. `error` is the human-readable message; `code` is the stable machine code (present whenever the failure maps to a catalogued `ErrorCode`); `detail` carries extra context (validation paths, conflicting field); `fields` maps each failing input field to its own message; `instructions` is optional actionable guidance for resolving the error; `schema` echoes back the expected JSON Schema when a value failed schema validation.
@@ -660,6 +681,24 @@ export type DisableGateResponse = {
     enabled: boolean;
 };
 
+/**
+ * Recent audit rows for one gate, newest first.
+ */
+export type ListGateActivityResponse = Array<{
+    id: string;
+    /**
+     * Audit action (e.g. `gate.create`, `gate.update`, `gate.enable`, `gate.disable`, `gate.delete`).
+     */
+    action: string;
+    actorEmail: string;
+    actorType: 'user' | 'cli' | 'system';
+    payload: unknown;
+    /**
+     * ISO-8601 timestamp.
+     */
+    createdAt: string;
+}>;
+
 export type ExperimentApiRow = {
     /**
      * Stable opaque experiment id (`exp_…`).
@@ -1101,6 +1140,104 @@ export type SetExperimentMetricsResponse = {
     }>;
 };
 
+/**
+ * One persisted analysis row (`experiment_results`) for a single metric/group/day slice. Camel-case wire names; nullable statistics are `null` on control rows, empty arms, or when the analysis pass hasn't produced them.
+ */
+export type ExperimentResultRow = {
+    /**
+     * Metric name this row was computed for.
+     */
+    metric: string;
+    /**
+     * Variant (group) label the row belongs to, e.g. `control` or `treatment`.
+     */
+    groupName: string;
+    /**
+     * Date slice (`YYYY-MM-DD`).
+     */
+    ds: string;
+    /**
+     * Sample size (exposed units) in this group for the slice, or `null` when unknown.
+     */
+    n: number | null;
+    /**
+     * Per-unit metric mean in this group, or `null` on empty arms.
+     */
+    mean: number | null;
+    /**
+     * Per-unit metric variance in this group, or `null` on empty arms.
+     */
+    variance: number | null;
+    /**
+     * Absolute difference vs. control (metric units). `null` on the control row.
+     */
+    delta: number | null;
+    /**
+     * Relative difference vs. control, in percent. `null` on the control row.
+     */
+    deltaPct: number | null;
+    /**
+     * Lower bound of the 95% confidence interval on `delta`, or `null`. Kept for back-compat — prefer `ciLow`/`ciHigh`.
+     */
+    ci95Low: number | null;
+    /**
+     * Upper bound of the 95% confidence interval on `delta`, or `null`. Kept for back-compat — prefer `ciLow`/`ciHigh`.
+     */
+    ci95High: number | null;
+    /**
+     * Lower bound of the 99% confidence interval on `delta`, or `null`. Kept for back-compat — prefer `ciLow`/`ciHigh`.
+     */
+    ci99Low: number | null;
+    /**
+     * Upper bound of the 99% confidence interval on `delta`, or `null`. Kept for back-compat — prefer `ciLow`/`ciHigh`.
+     */
+    ci99High: number | null;
+    /**
+     * Lower bound of the confidence interval at the project's configured `ci_confidence` (not always 95%), or `null`. When both `ciLow`/`ciHigh` are `null`, fall back to `ci95Low`/`ci95High` (pre-migration rows).
+     */
+    ciLow: number | null;
+    /**
+     * Upper bound of the confidence interval at the project's configured `ci_confidence` (not always 95%), or `null`. When both `ciLow`/`ciHigh` are `null`, fall back to `ci95Low`/`ci95High` (pre-migration rows).
+     */
+    ciHigh: number | null;
+    /**
+     * Two-sided p-value vs. control, or `null` on the control row / empty arms.
+     */
+    pValue: number | null;
+    /**
+     * Sample size per arm the power calculation expects for a conclusive read, or `null` when not computed.
+     */
+    expectedN: number | null;
+    /**
+     * Realized minimum detectable effect (absolute, in metric units) — the smallest true effect this run could detect at the experiment's significance level and target power GIVEN the observed variance and per-arm sample sizes. A derived OUTPUT, not an input knob; compare it against the metric's minimum effect of interest to judge whether the run is adequately powered. `null` on the control row and on empty arms.
+     */
+    realizedMde: number | null;
+    /**
+     * p-value of the sample-ratio-mismatch chi-squared test, or `null` when not computed.
+     */
+    srmPValue: number | null;
+    /**
+     * `1` if sample-ratio mismatch detected, else `0`.
+     */
+    srmDetected: number;
+    /**
+     * Sequential (mSPRT) significance flag: `1` significant, `0` not, `null` when sequential testing is off or not computed.
+     */
+    msprtSignificant: number | null;
+    /**
+     * mSPRT mixture likelihood-ratio statistic, or `null` when sequential testing is off or not computed.
+     */
+    msprtLambda: number | null;
+    /**
+     * `1` when this row belongs to the final analysis pass after the experiment stopped, else `0`.
+     */
+    isFinal: number;
+    /**
+     * `1` when the row was read before `min_runtime_days`/`min_sample_size` were met (peeking inflates false positives), else `0`.
+     */
+    peekWarning: number;
+};
+
 export type GetExperimentResultsResponse = {
     experiment: {
         id: string;
@@ -1110,26 +1247,10 @@ export type GetExperimentResultsResponse = {
         name: string;
         status: 'draft' | 'running' | 'stopped' | 'archived';
     };
-    results: Array<{
-        metric: string;
-        group_name: string;
-        /**
-         * Date slice (`YYYY-MM-DD`).
-         */
-        ds: string;
-        n: number | null;
-        mean: number | null;
-        delta_pct: number | null;
-        p_value: number | null;
-        /**
-         * `1` if sample-ratio mismatch detected, else `0`.
-         */
-        srm_detected: number | null;
-        /**
-         * Realized minimum detectable effect (absolute, in metric units) — the smallest true effect this run could detect at the experiment's significance level and target power GIVEN the observed variance and per-arm sample sizes. A derived OUTPUT, not an input knob; compare it against the metric's minimum effect of interest to judge whether the run is adequately powered. `null` on the control row and on empty arms.
-         */
-        realized_mde: number | null;
-    }>;
+    /**
+     * One analysis row per metric/group/day — the persisted `experiment_results` rows for this experiment.
+     */
+    results: Array<ExperimentResultRow>;
     /**
      * Server-computed decision from the goal metric + guardrails + SRM vs. the significance threshold and min runtime: `ship` (goal significant + guardrails pass), `hold` (a guardrail regressed), `wait` (inconclusive / under-powered), `invalid` (sample-ratio mismatch), `draft` (never started).
      */
@@ -1145,27 +1266,182 @@ export type GetExperimentTimeseriesResponse = {
         name: string;
         status: 'draft' | 'running' | 'stopped' | 'archived';
     };
-    series: Array<{
-        metric: string;
-        group_name: string;
-        /**
-         * Date slice (`YYYY-MM-DD`).
-         */
-        ds: string;
-        n: number | null;
-        mean: number | null;
-        delta_pct: number | null;
-        p_value: number | null;
-        /**
-         * `1` if sample-ratio mismatch detected, else `0`.
-         */
-        srm_detected: number | null;
-    }>;
+    /**
+     * Every daily analysis slice (same row shape as `/results`), oldest to newest.
+     */
+    series: Array<ExperimentResultRow>;
 };
 
 export type ReanalyzeExperimentResponse = {
     id: string;
-    queued: true;
+    /**
+     * `true` when the analysis job was enqueued; `false` when the worker enqueue failed or the analysis queue is not configured (retry later).
+     */
+    queued: boolean;
+};
+
+/**
+ * Body for `POST /api/admin/experiments/{id}/readouts`. Mints an immutable, dated readout snapshot of the current results view — "this is what we saw when we decided".
+ */
+export type CreateExperimentReadoutRequest = {
+    /**
+     * Why the snapshot is being minted — `manual` ("Share readout"), or automatically on `ship` / `stop`.
+     */
+    kind: 'manual' | 'ship' | 'stop';
+    /**
+     * Ids of the open caveats the caller ticked (decision-gating acknowledgment). Unlisted caveats are stored as unacknowledged.
+     */
+    acknowledgedCaveatIds?: Array<string>;
+    /**
+     * When `true`, refuse (`422`) to mint while any open caveat is not listed in `acknowledgedCaveatIds` — server-side ship gating.
+     */
+    requireAllAcknowledged?: boolean;
+};
+
+export type CreateExperimentReadoutResponse = {
+    /**
+     * Id of the newly minted readout snapshot.
+     */
+    id: string;
+};
+
+/**
+ * Frozen per-metric numbers as rendered at mint time. Display-shaped, not row-shaped — the snapshot keeps rendering exactly what was decided on even if derivations change later.
+ */
+export type ExperimentReadoutMetric = {
+    /**
+     * Metric name.
+     */
+    name: string;
+    /**
+     * Metric role at mint time. `goal` drives the decision, `guardrail` blocks ship if degraded, `secondary` is informational.
+     */
+    role: 'goal' | 'guardrail' | 'secondary';
+    /**
+     * Absolute difference vs. control (metric units), or `null`.
+     */
+    delta: number | null;
+    /**
+     * Relative difference vs. control in percent, or `null`.
+     */
+    deltaPct: number | null;
+    /**
+     * Two-item `[low, high]` confidence interval on the delta at the project's configured confidence, or `null`.
+     */
+    ci: [
+        number,
+        number
+    ] | null;
+    /**
+     * p-value vs. control, or `null`.
+     */
+    p: number | null;
+    /**
+     * Whether the metric was statistically significant at mint time.
+     */
+    sig: boolean;
+    /**
+     * Guardrail pass/fail at mint time. Omitted for metrics where pass/fail doesn't apply.
+     */
+    pass?: boolean;
+};
+
+/**
+ * One caveat from the results view, frozen with its acknowledgment state at mint time.
+ */
+export type ExperimentReadoutCaveat = {
+    /**
+     * Stable caveat id.
+     */
+    id: string;
+    /**
+     * Caveat severity as rendered in the results view.
+     */
+    severity: 'info' | 'warn' | 'danger';
+    /**
+     * Human-readable caveat text.
+     */
+    text: string;
+    /**
+     * Whether the caller ticked this caveat when minting (decision-gating acknowledgment).
+     */
+    acknowledged: boolean;
+};
+
+/**
+ * An immutable, dated readout snapshot — the frozen results view captured when a decision was made. Never updated after insert.
+ */
+export type ExperimentReadoutApiRow = {
+    /**
+     * Stable readout id.
+     */
+    id: string;
+    /**
+     * Id of the experiment the snapshot belongs to.
+     */
+    experimentId: string;
+    /**
+     * Experiment name at mint time (denormalised — survives renames).
+     */
+    experimentName: string;
+    /**
+     * Why the snapshot was minted — `manual` ("Share readout"), or automatically on `ship` / `stop`.
+     */
+    kind: 'manual' | 'ship' | 'stop';
+    /**
+     * Email of the actor who minted the snapshot.
+     */
+    createdBy: string;
+    /**
+     * ISO-8601 mint timestamp.
+     */
+    createdAt: string;
+    /**
+     * Server-computed verdict at mint time (e.g. `ship`, `hold`, `wait`, `invalid`).
+     */
+    verdict: string;
+    /**
+     * Headline of the results view at mint time.
+     */
+    title: string;
+    /**
+     * One-line explanation backing the verdict at mint time.
+     */
+    why: string;
+    /**
+     * sha-256 hex over the assignment-relevant config (salt, groups, allocation, universe, gate) — the snapshot is only comparable to the live view while this hash still matches.
+     */
+    configHash: string;
+    /**
+     * Frozen per-metric numbers as rendered at mint time, or `null` for legacy rows without a metrics slice.
+     */
+    metricsJson: Array<ExperimentReadoutMetric> | null;
+    /**
+     * The caveat list with its acknowledgment state at mint time, or `null` for legacy rows without one.
+     */
+    caveatsJson: Array<ExperimentReadoutCaveat> | null;
+    /**
+     * Enrollment at mint time — per-group sample sizes plus the number of days the experiment had been running — or `null` when not captured.
+     */
+    usersJson: {
+        /**
+         * Per-group enrollment counts.
+         */
+        groups: Array<{
+            /**
+             * Group label.
+             */
+            name: string;
+            /**
+             * Enrolled units in the group at mint time.
+             */
+            n: number;
+        }>;
+        /**
+         * Days the experiment had been running at mint time.
+         */
+        days: number;
+    } | null;
 };
 
 export type ListConfigsResponse = {
@@ -1180,11 +1456,23 @@ export type ListConfigsResponse = {
         name: string;
         description: string | null;
         /**
+         * Folder segment used for dashboard organisation, or `null` when the config lives at the root.
+         */
+        folder: string | null;
+        /**
          * JSON Schema (draft 2020-12) describing the shape of the config value. Top-level `type` must be `'object'`; every published value is validated against this schema.
          */
         schema: {
             [key: string]: unknown;
         };
+        /**
+         * Resolved email of the creator (`created_by` → `users.email`), or `null` when unknown. List-only enrichment — present on `GET /api/admin/configs` rows, absent from the by-id detail — so it is optional, never required.
+         */
+        creatorEmail?: string | null;
+        /**
+         * ISO-8601 creation timestamp, or `null` on legacy rows. List-only enrichment — present on `GET /api/admin/configs` rows, absent from the by-id detail — so it is optional, never required.
+         */
+        createdAt?: string | null;
         /**
          * ISO-8601 timestamp of last mutation.
          */
@@ -1292,11 +1580,23 @@ export type GetConfigResponse = {
     name: string;
     description: string | null;
     /**
+     * Folder segment used for dashboard organisation, or `null` when the config lives at the root.
+     */
+    folder: string | null;
+    /**
      * JSON Schema (draft 2020-12) describing the shape of the config value. Top-level `type` must be `'object'`; every published value is validated against this schema.
      */
     schema: {
         [key: string]: unknown;
     };
+    /**
+     * Resolved email of the creator (`created_by` → `users.email`), or `null` when unknown. List-only enrichment — present on `GET /api/admin/configs` rows, absent from this by-id detail — so it is optional, never required.
+     */
+    creatorEmail?: string | null;
+    /**
+     * ISO-8601 creation timestamp, or `null` on legacy rows. List-only enrichment — present on `GET /api/admin/configs` rows, absent from this by-id detail — so it is optional, never required.
+     */
+    createdAt?: string | null;
     /**
      * ISO-8601 timestamp of last mutation.
      */
@@ -1471,6 +1771,28 @@ export type UpdateConfigSchemaResponse = {
     id: string;
 };
 
+/**
+ * Full published-value history for one (config, env), newest first. The config's schema is config-level and not versioned — this is value history only.
+ */
+export type ListConfigVersionsResponse = Array<{
+    /**
+     * Published version number on the requested env (monotonically increasing per env).
+     */
+    version: number;
+    /**
+     * The full JSON value that was published at this version.
+     */
+    value: unknown;
+    /**
+     * ISO-8601 publish timestamp.
+     */
+    publishedAt: string;
+    /**
+     * Email/id of the actor who published this version.
+     */
+    publishedBy: string;
+}>;
+
 export type ListKillswitchesResponse = {
     data: Array<{
         /**
@@ -1485,6 +1807,18 @@ export type ListKillswitchesResponse = {
          * Free-form description or `null`.
          */
         description: string | null;
+        /**
+         * Folder segment used for dashboard organisation, or `null` when the killswitch lives at the root.
+         */
+        folder: string | null;
+        /**
+         * Resolved email of the creator (`created_by` → `users.email`), or `null` when unknown.
+         */
+        creatorEmail: string | null;
+        /**
+         * ISO-8601 creation timestamp, or `null` on legacy rows created before the column existed.
+         */
+        createdAt: string | null;
         /**
          * ISO-8601 timestamp of last mutation.
          */
@@ -1565,6 +1899,18 @@ export type GetKillswitchResponse = {
      * Free-form description or `null`.
      */
     description: string | null;
+    /**
+     * Folder segment used for dashboard organisation, or `null` when the killswitch lives at the root.
+     */
+    folder: string | null;
+    /**
+     * Resolved email of the creator (`created_by` → `users.email`), or `null` when unknown.
+     */
+    creatorEmail: string | null;
+    /**
+     * ISO-8601 creation timestamp, or `null` on legacy rows created before the column existed.
+     */
+    createdAt: string | null;
     /**
      * ISO-8601 timestamp of last mutation.
      */
@@ -2001,24 +2347,57 @@ export type UpdateGateTemplateResponse = {
 };
 
 /**
- * Every auto-inferred targeting attribute in the project.
+ * Declared value type of a targeting attribute.
+ */
+export type AttributeType = 'string' | 'number' | 'boolean' | 'enum' | 'date';
+
+/**
+ * Every targeting attribute in the project (declared and auto-inferred).
  */
 export type ListAttributesResponse = Array<{
+    /**
+     * Stable opaque attribute id.
+     */
+    id: string;
     /**
      * Attribute key as seen in evaluation context (e.g. `plan`, `country`).
      */
     name: string;
+    type: AttributeType;
     /**
-     * Inferred value type (`string`, `number`, `boolean`, …) when known.
+     * Allowed values for `enum` attributes, else `null`.
      */
-    type?: string;
+    enumValues?: Array<string> | null;
+    /**
+     * Whether the attribute must be present on the evaluation context (D1 stores the flag as `0`/`1`).
+     */
+    required?: 0 | 1;
+    /**
+     * Human note shown in the dashboard, or `null`.
+     */
+    description?: string | null;
+    /**
+     * Dotted path the SDK reads the value from, or `null`.
+     */
+    sdkPath?: string | null;
+    /**
+     * ISO-8601 creation timestamp.
+     */
+    createdAt?: string;
+    /**
+     * How the attribute came to exist — `auto` (inferred by the `/sdk/evaluate` sampler) or `manual` (declared via the UI/API).
+     */
+    source?: 'auto' | 'manual';
+    /**
+     * ISO-8601 timestamp of the most recent SDK sample that carried this attribute, or `null` when never sampled.
+     */
+    lastSeenAt?: string | null;
+    /**
+     * `1` when an auto-discovered attribute has stopped appearing in samples. Deprecated attributes stay listed; pickers may hide or de-rank them.
+     */
+    deprecated?: 0 | 1;
     [key: string]: unknown;
 }>;
-
-/**
- * Declared value type of a targeting attribute.
- */
-export type AttributeType = 'string' | 'number' | 'boolean' | 'enum' | 'date';
 
 /**
  * Body for `POST /api/admin/attributes`. Declares a targeting attribute.
@@ -2300,7 +2679,38 @@ export type ListMetricsResponse = Array<{
      * Rendered DSL text form of the query, or `null` if it could not be rendered.
      */
     query: string | null;
-    queryIr: QueryIr;
+    /**
+     * Typed query IR, or `null` for a metric whose IR was never populated (re-save it to backfill).
+     */
+    queryIr: QueryIr | null;
+    /**
+     * Human-friendly display name shown in the dashboard, or `null` to fall back to `name`.
+     */
+    displayName: string | null;
+    /**
+     * Id of the metric preset this metric was created from, or `null` for a custom metric.
+     */
+    presetId: string | null;
+    /**
+     * Display unit (e.g. `ms`, `%`, `$`), or `null` when unitless.
+     */
+    unit: string | null;
+    /**
+     * Monotonic save counter — incremented on every update.
+     */
+    version: number;
+    /**
+     * ISO-8601 soft-delete (archive) timestamp, or `null` while the metric is live.
+     */
+    deletedAt: string | null;
+    /**
+     * Email of the user who created the metric, or `null` when unknown. List responses only.
+     */
+    creatorEmail?: string | null;
+    /**
+     * Email of the user who last edited the metric, or `null` when unknown. List responses only.
+     */
+    updaterEmail?: string | null;
     /**
      * Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).
      */
@@ -2314,9 +2724,9 @@ export type ListMetricsResponse = Array<{
      */
     defaultMinEffectOfInterest?: number | null;
     /**
-     * ISO-8601 creation timestamp.
+     * ISO-8601 creation timestamp, or `null` on legacy rows created before the column existed.
      */
-    createdAt?: string;
+    createdAt?: string | null;
     /**
      * ISO-8601 last-update timestamp.
      */
@@ -2418,7 +2828,30 @@ export type GetMetricResponse = {
      * Rendered DSL text form of the query, or `null` if it could not be rendered.
      */
     query: string | null;
-    queryIr: QueryIr;
+    /**
+     * Typed query IR, or `null` for a metric whose IR was never populated (re-save it to backfill).
+     */
+    queryIr: QueryIr | null;
+    /**
+     * Human-friendly display name shown in the dashboard, or `null` to fall back to `name`.
+     */
+    displayName: string | null;
+    /**
+     * Id of the metric preset this metric was created from, or `null` for a custom metric.
+     */
+    presetId: string | null;
+    /**
+     * Display unit (e.g. `ms`, `%`, `$`), or `null` when unitless.
+     */
+    unit: string | null;
+    /**
+     * Monotonic save counter — incremented on every update.
+     */
+    version: number;
+    /**
+     * ISO-8601 soft-delete (archive) timestamp, or `null` while the metric is live.
+     */
+    deletedAt: string | null;
     /**
      * Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).
      */
@@ -2432,9 +2865,9 @@ export type GetMetricResponse = {
      */
     defaultMinEffectOfInterest?: number | null;
     /**
-     * ISO-8601 creation timestamp.
+     * ISO-8601 creation timestamp, or `null` on legacy rows created before the column existed.
      */
-    createdAt?: string;
+    createdAt?: string | null;
     /**
      * ISO-8601 last-update timestamp.
      */
@@ -2488,6 +2921,82 @@ export type UpdateMetricFields = {
  * Body for `PATCH /api/admin/metrics/{id}`. Every field is optional (`name` is immutable); provide at most one of `query` / `query_ir` — modelled as a `oneOf` of three disjoint strict variants (query-only, query_ir-only, or neither), so supplying both is rejected.
  */
 export type UpdateMetricRequest = UpdateMetricWithQuery | UpdateMetricWithQueryIr | UpdateMetricFields;
+
+/**
+ * Experiments that attach this metric, ordered with running experiments first, then by role weight (goal > guardrail > secondary), then by name.
+ */
+export type ListMetricExperimentsResponse = {
+    /**
+     * Every experiment (any status) attaching this metric.
+     */
+    experiments: Array<{
+        /**
+         * Stable opaque experiment id.
+         */
+        id: string;
+        /**
+         * Experiment name.
+         */
+        name: string;
+        /**
+         * Experiment lifecycle status.
+         */
+        status: 'draft' | 'running' | 'stopped' | 'archived';
+        /**
+         * Role this metric plays in the experiment. `goal` drives the decision, `guardrail` blocks ship if degraded, `secondary` is informational.
+         */
+        role: 'goal' | 'guardrail' | 'secondary';
+    }>;
+};
+
+/**
+ * Unarchive (undo soft-delete) acknowledgement.
+ */
+export type UnarchiveMetricResponse = {
+    ok: true;
+};
+
+/**
+ * Time window for the metric series. Bounds are epoch **seconds** (Analytics Engine stores the event timestamp in seconds). `to` must be strictly greater than `from`.
+ */
+export type GetMetricSeriesRequest = {
+    /**
+     * Window start, epoch seconds (inclusive).
+     */
+    from: number;
+    /**
+     * Window end, epoch seconds (exclusive). Must be greater than `from`.
+     */
+    to: number;
+    /**
+     * Bucket width in seconds (60s–86400s/1d). Defaults to `3600` (hourly). Each returned point is floor-aligned to this width.
+     */
+    bucket?: number;
+};
+
+/**
+ * Bucketed values for one metric, compiled from its typed IR and executed against the Analytics Engine SQL API, plus the SQL that produced them. Capped at 5000 rows (high-cardinality `groupBy` series are truncated).
+ */
+export type GetMetricSeriesResponse = {
+    /**
+     * The Analytics Engine SQL executed to produce `rows` (echoed for transparency / debugging).
+     */
+    sql: string;
+    /**
+     * Bucketed series, ordered by `t` ascending. For a metric with a `groupBy` clause each bucket has one row per label combination, with the label values as extra string/number properties on the row.
+     */
+    rows: Array<{
+        /**
+         * Bucket start, epoch seconds, floor-aligned to `bucket`.
+         */
+        t: number;
+        /**
+         * Aggregated metric value in the bucket (sample-interval weighted).
+         */
+        v: number;
+        [key: string]: unknown;
+    }>;
+};
 
 /**
  * Every catalogued event in the project (including pending auto-discovered names).
@@ -2733,9 +3242,9 @@ export type ApproveEventResponse = {
 };
 
 /**
- * Lifecycle status of a queue item. The working flow is `open` → `triaged` → `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`, terminal from any earlier stage). `ready_for_qa` is what a developer sets once a fix lands; `resolved` is the QA sign-off, normally flipped in the dashboard after verification — set it directly from code only when the fix has been verified end-to-end. Two human-gated holding states park an item OUT of the work queue until a human promotes it to `open` in the dashboard, so `GET /api/admin/ops` excludes them under `status=all`/default and returns them only when requested as an exact `status`: `pending_approval` is the pre-open approval gate for untriaged inbound (e.g. connector requests filed from a customer's connectors panel) so it never gets auto-implemented — approving = flipping the status to `open`; `triage` is the onboarding-help bucket — questions/errors submitted to the "Stuck in onboarding?" assistant are funnelled into the platform project as `triage` rows so the team can see where people get stuck and follow up, keeping onboarding chatter out of the work queue until a human moves real items to `open`.
+ * Lifecycle status of a queue item. The working flow is `open` → `triaged` → `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`, terminal from any earlier stage). `blocked` marks an item that can't progress until an external dependency clears — a working state a human sets and clears. `ready_for_qa` is what a developer sets once a fix lands; `resolved` is the QA sign-off, normally flipped in the dashboard after verification — set it directly from code only when the fix has been verified end-to-end. `investigating_by_ai` is a system-owned display state — set when the AI agent (Jarvis) picks an item up to investigate, never chosen by a human — so it is shown but not offered as a manual choice. Two human-gated holding states park an item OUT of the work queue until a human promotes it to `open` in the dashboard, so `GET /api/admin/ops` excludes them under `status=all`/default and returns them only when requested as an exact `status`: `pending_approval` is the pre-open approval gate for untriaged inbound (e.g. connector requests filed from a customer's connectors panel) so it never gets auto-implemented — approving = flipping the status to `open`; `triage` is the onboarding-help bucket — questions/errors submitted to the "Stuck in onboarding?" assistant are funnelled into the platform project as `triage` rows so the team can see where people get stuck and follow up, keeping onboarding chatter out of the work queue until a human moves real items to `open`.
  */
-export type OpsItemStatus = 'open' | 'pending_approval' | 'triage' | 'triaged' | 'in_progress' | 'ready_for_qa' | 'resolved' | 'wont_fix';
+export type OpsItemStatus = 'open' | 'pending_approval' | 'triage' | 'triaged' | 'investigating_by_ai' | 'in_progress' | 'blocked' | 'ready_for_qa' | 'resolved' | 'wont_fix';
 
 /**
  * Triage priority of a queue item. The lowest tier is `nice_to_have` (not `low`) — carried over from the feature-request "importance" scale this priority set replaced.
@@ -2743,178 +3252,9 @@ export type OpsItemStatus = 'open' | 'pending_approval' | 'triage' | 'triaged' |
 export type OpsItemPriority = 'nice_to_have' | 'medium' | 'high' | 'critical';
 
 /**
- * A page of queue items, newest first.
+ * Where automation has taken an item in the investigation lifecycle — the signal the ops cockpit renders as "what AI did" plus the one action expected of the user. It is **written as a side-effect of the actions that already happen**, never authored on its own: linking a PR sets `pr_ready`, moving to `in_progress` sets `working`, `ready_for_qa` sets `ready_for_qa`, a system/assistant reply sets `question`, resolving clears it, and creation seeds `needs_triage`/`backlog` (by priority) or `investigated`/`detected` for auto-filed error/alert tickets. `triaged_low` marks a low-signal item AI has looked at but that nothing is moving. Absent on rows filed before the field existed — consumers should treat a missing value as "derive from the other fields".
  */
-export type ListOpsItemsResponse = Array<{
-    /**
-     * Stable opaque item id.
-     */
-    id: string;
-    /**
-     * Per-project item number (the `#7` handle), or `null` if unnumbered.
-     */
-    number: number | null;
-    /**
-     * Queue item type. `bug` and `feature_request` are user-fileable; `error`, `alert`, and `measure_plan` tickets are auto-filed by the platform (a tracked production error, a metric-threshold alert, and an assistant-proposed measurement plan respectively).
-     */
-    type: 'bug' | 'feature_request' | 'error' | 'alert' | 'measure_plan';
-    /**
-     * One-line item title.
-     */
-    title: string;
-    status: OpsItemStatus;
-    /**
-     * Triage priority, or `null` if not yet set.
-     */
-    priority: OpsItemPriority | null;
-    /**
-     * Source reference for auto-filed tickets (e.g. an error fingerprint).
-     */
-    sourceRef?: string | null;
-    /**
-     * ISO-8601 creation timestamp.
-     */
-    createdAt: string;
-    [key: string]: unknown;
-}>;
-
-/**
- * Delivery target for a notification; `null` = use the project default.
- */
-export type NotificationTarget = {
-    slackChannel?: {
-        id: string;
-        name: string;
-    } | null;
-    email?: string | null;
-} | null;
-
-/**
- * Bug-kind fields for `POST /api/admin/ops` (sent with `type: bug`).
- */
-export type CreateBugRequest = {
-    /**
-     * Discriminator — files a bug.
-     */
-    type: 'bug';
-    /**
-     * One-line bug title (no leading/trailing whitespace).
-     */
-    title: string;
-    /**
-     * How to reproduce the bug.
-     */
-    stepsToReproduce?: string;
-    /**
-     * What actually happened.
-     */
-    actualResult?: string;
-    /**
-     * What was expected instead.
-     */
-    expectedResult?: string;
-    /**
-     * Initial triage priority, or `null`.
-     */
-    priority?: OpsItemPriority | null;
-    /**
-     * Email of the reporter, or `null`.
-     */
-    reporterEmail?: string | null;
-    /**
-     * URL of the page the bug relates to, or `null`.
-     */
-    pageUrl?: string | null;
-    /**
-     * Reporter's user-agent string, or `null`.
-     */
-    userAgent?: string | null;
-    /**
-     * Reporter's viewport (e.g. `1280x720`), or `null`.
-     */
-    viewport?: string | null;
-    /**
-     * Arbitrary capture context, or `null`.
-     */
-    context?: {
-        [key: string]: unknown;
-    } | null;
-    /**
-     * Where this bug's completion notification lands.
-     */
-    notify?: NotificationTarget | null;
-};
-
-/**
- * Feature-request-kind fields for `POST /api/admin/ops` (sent with `type: feature_request`).
- */
-export type CreateFeatureRequestRequest = {
-    /**
-     * Discriminator — files a feature request.
-     */
-    type: 'feature_request';
-    /**
-     * One-line feature-request title (no leading/trailing whitespace).
-     */
-    title: string;
-    /**
-     * What the feature is.
-     */
-    description?: string;
-    /**
-     * Why it's needed / the use case.
-     */
-    useCase?: string;
-    /**
-     * Initial triage priority, or `null`.
-     */
-    priority?: OpsItemPriority | null;
-    /**
-     * Email of the reporter, or `null`.
-     */
-    reporterEmail?: string | null;
-    /**
-     * URL of the page the request relates to, or `null`.
-     */
-    pageUrl?: string | null;
-    /**
-     * Reporter's user-agent string, or `null`.
-     */
-    userAgent?: string | null;
-    /**
-     * Arbitrary capture context, or `null`.
-     */
-    context?: {
-        [key: string]: unknown;
-    } | null;
-    /**
-     * Where this request's completion notification lands.
-     */
-    notify?: NotificationTarget | null;
-};
-
-/**
- * Body for `POST /api/admin/ops`. A discriminated union on `type`: `bug` carries the bug fields, `feature_request` the feature fields. Only these two user-fileable types are accepted — `error`, `alert`, and `measure_plan` tickets are auto-filed by the platform and cannot be created over the API.
- */
-export type CreateOpsItemRequest = ({
-    type: 'bug';
-} & CreateBugRequest) | ({
-    type: 'feature_request';
-} & CreateFeatureRequestRequest);
-
-/**
- * Response for `POST /api/admin/ops`.
- */
-export type CreateOpsItemResponse = {
-    /**
-     * Newly created item id.
-     */
-    id: string;
-    /**
-     * Per-project item number assigned to the new item.
-     */
-    number?: number | null;
-};
+export type OpsInvestigationState = 'pr_ready' | 'investigated' | 'detected' | 'question' | 'ready_for_qa' | 'pending_approval' | 'needs_triage' | 'working' | 'triaged_low' | 'backlog';
 
 /**
  * Auto-collected browser environment for a `bug`/`feature_request`, captured at file time.
@@ -3176,7 +3516,463 @@ export type OpsItemContext = {
     error?: OpsErrorContext;
     alert?: OpsAlertContext;
     measurePlan?: OpsMeasurePlanContext;
+    /**
+     * Occurrence timeline for an `error` ticket — hourly buckets over the last 24h from the sampled occurrences, hydrated at read time by the single-item read only. ABSENT (not `null`) on non-error tickets, on list rows (raw context), and when no occurrence landed in the window.
+     */
+    errorChart?: {
+        /**
+         * Hourly occurrence buckets, oldest first. Hours with no occurrences are omitted.
+         */
+        series: Array<{
+            /**
+             * Bucket start — unix epoch **milliseconds** (hourly buckets).
+             */
+            t: number;
+            /**
+             * Occurrence count in the bucket (sample-rate weighted).
+             */
+            v: number;
+            [key: string]: unknown;
+        }>;
+        /**
+         * Chart domain start — unix epoch milliseconds (24h before the read).
+         */
+        domainFrom: number;
+        /**
+         * Chart domain end — unix epoch milliseconds (the read time).
+         */
+        domainTo: number;
+        [key: string]: unknown;
+    };
     [key: string]: unknown;
+};
+
+/**
+ * The pull request linked to a queue item via `link-pr` (stored on `connectorData.github.pr`).
+ */
+export type GithubPrLink = {
+    /**
+     * Pull request number.
+     */
+    number: number;
+    /**
+     * HTML URL of the linked pull request.
+     */
+    url: string;
+    /**
+     * ISO-8601 timestamp the PR was linked.
+     */
+    linkedAt?: string;
+    /**
+     * Whether the PR was wired to the issue on GitHub (via a closing keyword or a comment).
+     */
+    connectedToIssue?: boolean;
+    /**
+     * How the PR was connected to the issue.
+     */
+    method?: 'closes' | 'comment';
+    [key: string]: unknown;
+};
+
+/**
+ * GitHub connector trace — the issue it opened and, once linked, the pull request.
+ */
+export type GithubConnectorData = {
+    /**
+     * The GitHub issue this item opened.
+     */
+    issue?: {
+        /**
+         * GitHub issue number.
+         */
+        number: number;
+        /**
+         * HTML URL of the opened issue.
+         */
+        url: string;
+        /**
+         * Repository owner (org or user).
+         */
+        owner: string;
+        /**
+         * Repository name.
+         */
+        repo: string;
+        /**
+         * ISO-8601 timestamp the issue was opened.
+         */
+        createdAt?: string;
+        [key: string]: unknown;
+    };
+    pr?: GithubPrLink;
+    [key: string]: unknown;
+};
+
+/**
+ * Slack connector trace — the message the driver posted for this item. The linked pull request is recorded on `github.pr`, not here.
+ */
+export type SlackConnectorData = {
+    /**
+     * The Slack message the driver posted for this item.
+     */
+    message?: {
+        /**
+         * Slack channel id the message was posted to.
+         */
+        channel: string;
+        /**
+         * Slack message timestamp (`ts`) — the message handle used for in-place `chat.update`.
+         */
+        ts: string;
+        /**
+         * ISO-8601 timestamp the message was posted.
+         */
+        postedAt?: string;
+        [key: string]: unknown;
+    };
+    [key: string]: unknown;
+};
+
+/**
+ * Connector linkage for one queue item, keyed by provider. Each provider's driver deep-merges its own trace into this blob, so any subset of providers may be present. Unknown/future providers may appear as additional keys.
+ */
+export type ConnectorData = {
+    github?: GithubConnectorData;
+    slack?: SlackConnectorData;
+    [key: string]: unknown;
+};
+
+/**
+ * Delivery target for a notification; `null` = use the project default.
+ */
+export type NotificationTarget = {
+    slackChannel?: {
+        id: string;
+        name: string;
+    } | null;
+    email?: string | null;
+} | null;
+
+/**
+ * The fully-resolved owner of a queue item — a person and/or an AI agent. The two halves are independent: an item may have a person, an agent, both, or neither (both `null`).
+ */
+export type OpsItemOwner = {
+    /**
+     * The PERSON half of the owner (resolved from `assigneeId`), or `null` when no person is assigned.
+     */
+    user: {
+        /**
+         * The `users.id` of the assigned person (what `assigneeId` stores).
+         */
+        id: string;
+        /**
+         * The person's email.
+         */
+        email: string;
+        /**
+         * The person's display name, or `null` when none is set.
+         */
+        name: string | null;
+    } | null;
+    /**
+     * The AGENT half of the owner (resolved from `assigneeConnectorId` / `assigneeAgent`), or `null` when no agent is assigned.
+     */
+    agent: {
+        /**
+         * The `connectors` row id for a connector-backed agent; `null` for the built-in one.
+         */
+        connectorId: string | null;
+        /**
+         * The built-in-agent key (`jarvis`) when this is the hosted Shipeasy agent; `null` for a connector-backed one.
+         */
+        builtin: 'jarvis' | null;
+        /**
+         * The trigger-connector provider backing this agent, or `jarvis` for the built-in hosted agent.
+         */
+        provider: 'claude_trigger' | 'cursor_trigger' | 'copilot_trigger' | 'jules_trigger' | 'jarvis';
+        /**
+         * Display name — the connector's `name`, the provider default (e.g. "Claude"), or "Jarvis".
+         */
+        name: string;
+    } | null;
+};
+
+/**
+ * One run on a queue item — who (person or AI agent) picked it up when, and, once closed, how it ended (final action + PR + session link). Opened by `POST /api/admin/ops/{handle}/ack`.
+ */
+export type OpsRun = {
+    /**
+     * Run record id.
+     */
+    id: string;
+    /**
+     * The AI agent type working the run (`jarvis` | `claude` | `cursor` | `copilot` | `jules`); `null` for a human ack.
+     */
+    agent: string | null;
+    /**
+     * The trigger-connector row id backing the acking agent; `null` for a human ack or the built-in Jarvis agent.
+     */
+    connectorId: string | null;
+    /**
+     * Email of the human who acked; `null` for an AI ack.
+     */
+    ackedBy: string | null;
+    /**
+     * The agent-run session id recorded on the ack (dashboard deep-links to the run page), or `null`.
+     */
+    sessionId: string | null;
+    /**
+     * ISO-8601 timestamp the run started (the ack time).
+     */
+    startedAt: string;
+    /**
+     * ISO-8601 timestamp the run closed, or `null` while still open.
+     */
+    completedAt: string | null;
+    /**
+     * Which final action closed the run — `link_pr`/`notify` are the agent's terminal ops actions, `status` a completion status flip (ready_for_qa/resolved), `superseded` a newer ack replacing it. `null` while the run is open.
+     */
+    completedAction: 'link_pr' | 'notify' | 'status' | 'superseded' | null;
+    /**
+     * The PR the run linked as its final action, or `null`.
+     */
+    prNumber: number | null;
+    /**
+     * HTML URL of that PR, or `null`.
+     */
+    prUrl: string | null;
+};
+
+/**
+ * A page of queue items, newest first.
+ */
+export type ListOpsItemsResponse = Array<{
+    /**
+     * Stable opaque item id.
+     */
+    id: string;
+    /**
+     * Per-project item number (the `#7` handle), or `null` if unnumbered.
+     */
+    number: number | null;
+    /**
+     * Queue item type. `bug` and `feature_request` are user-fileable; `error`, `alert`, and `measure_plan` tickets are auto-filed by the platform (a tracked production error, a metric-threshold alert, and an assistant-proposed measurement plan respectively).
+     */
+    type: 'bug' | 'feature_request' | 'error' | 'alert' | 'measure_plan';
+    /**
+     * One-line item title.
+     */
+    title: string;
+    status: OpsItemStatus;
+    /**
+     * Triage priority, or `null` if not yet set.
+     */
+    priority: OpsItemPriority | null;
+    /**
+     * Source reference for auto-filed tickets (e.g. an error fingerprint).
+     */
+    sourceRef?: string | null;
+    /**
+     * Where automation has taken this item in the investigation lifecycle (see `OpsInvestigationState`). Optional — absent/`null` on rows filed before the field existed; derive from `status`/`type` in that case.
+     */
+    investigationState?: OpsInvestigationState | null;
+    /**
+     * How the item was filed: `team` (a human admin/teammate — bug/feature) or `system` (auto-filed — error/alert/measure_plan).
+     */
+    source: 'team' | 'system';
+    /**
+     * Reporter email (bug/feature), or `null`.
+     */
+    reporterEmail?: string | null;
+    /**
+     * Reproduction steps — populated for `bug`, empty string otherwise.
+     */
+    stepsToReproduce?: string;
+    /**
+     * What actually happened — `bug` only, empty string otherwise.
+     */
+    actualResult?: string;
+    /**
+     * What was expected — `bug` only, empty string otherwise.
+     */
+    expectedResult?: string;
+    /**
+     * Feature description — populated for `feature_request`, empty string otherwise.
+     */
+    description?: string;
+    /**
+     * Feature use case — `feature_request` only, empty string otherwise.
+     */
+    useCase?: string;
+    /**
+     * The RAW stored capture context on the row — NOT hydrated: list rows carry only what was captured at file time (e.g. `context.browser` for bug/feature, the trigger subset for auto-filed tickets). The live `error`/`alert` readings and `errorChart` are added only by the single-item read (`GET /api/admin/ops/{handle}`). `null` when nothing was captured.
+     */
+    context?: OpsItemContext | null;
+    /**
+     * Per-connector linkage recorded for this item, keyed by connector provider. `null` if no connector has touched the item.
+     */
+    connectorData?: ConnectorData | null;
+    /**
+     * Per-item completion-notification target, or `null` (falls back to the project default).
+     */
+    notify?: NotificationTarget | null;
+    /**
+     * The PERSON owner — a `users.id` (resolved into `owner.user`), or `null` when unassigned.
+     */
+    assigneeId?: string | null;
+    /**
+     * The AGENT owner when it is a connected trigger connector — a `connectors` row id (resolved into `owner.agent`), or `null`. Mutually exclusive with `assigneeAgent`.
+     */
+    assigneeConnectorId?: string | null;
+    /**
+     * The AGENT owner when it is a built-in hosted Shipeasy agent — currently only `jarvis` — or `null`. Mutually exclusive with `assigneeConnectorId`.
+     */
+    assigneeAgent?: string | null;
+    owner: OpsItemOwner;
+    /**
+     * The currently OPEN run on this item (someone acked it and is actively working — the cockpit's live working indicator), or `null` when nothing is in flight.
+     */
+    run: OpsRun | null;
+    /**
+     * The most recently COMPLETED run (the run result — final action, PR, duration), excluding superseded runs; `null` when no run has completed yet.
+     */
+    lastRun: OpsRun | null;
+    /**
+     * ISO-8601 creation timestamp.
+     */
+    createdAt: string;
+    /**
+     * ISO-8601 last-update timestamp.
+     */
+    updatedAt: string;
+    [key: string]: unknown;
+}>;
+
+/**
+ * Bug-kind fields for `POST /api/admin/ops` (sent with `type: bug`).
+ */
+export type CreateBugRequest = {
+    /**
+     * Discriminator — files a bug.
+     */
+    type: 'bug';
+    /**
+     * One-line bug title (no leading/trailing whitespace).
+     */
+    title: string;
+    /**
+     * How to reproduce the bug.
+     */
+    stepsToReproduce?: string;
+    /**
+     * What actually happened.
+     */
+    actualResult?: string;
+    /**
+     * What was expected instead.
+     */
+    expectedResult?: string;
+    /**
+     * Initial triage priority, or `null`.
+     */
+    priority?: OpsItemPriority | null;
+    /**
+     * Email of the reporter, or `null`.
+     */
+    reporterEmail?: string | null;
+    /**
+     * URL of the page the bug relates to, or `null`.
+     */
+    pageUrl?: string | null;
+    /**
+     * Reporter's user-agent string, or `null`.
+     */
+    userAgent?: string | null;
+    /**
+     * Reporter's viewport (e.g. `1280x720`), or `null`.
+     */
+    viewport?: string | null;
+    /**
+     * Arbitrary capture context, or `null`.
+     */
+    context?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Where this bug's completion notification lands.
+     */
+    notify?: NotificationTarget | null;
+};
+
+/**
+ * Feature-request-kind fields for `POST /api/admin/ops` (sent with `type: feature_request`).
+ */
+export type CreateFeatureRequestRequest = {
+    /**
+     * Discriminator — files a feature request.
+     */
+    type: 'feature_request';
+    /**
+     * One-line feature-request title (no leading/trailing whitespace).
+     */
+    title: string;
+    /**
+     * What the feature is.
+     */
+    description?: string;
+    /**
+     * Why it's needed / the use case.
+     */
+    useCase?: string;
+    /**
+     * Initial triage priority, or `null`.
+     */
+    priority?: OpsItemPriority | null;
+    /**
+     * Email of the reporter, or `null`.
+     */
+    reporterEmail?: string | null;
+    /**
+     * URL of the page the request relates to, or `null`.
+     */
+    pageUrl?: string | null;
+    /**
+     * Reporter's user-agent string, or `null`.
+     */
+    userAgent?: string | null;
+    /**
+     * Arbitrary capture context, or `null`.
+     */
+    context?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Where this request's completion notification lands.
+     */
+    notify?: NotificationTarget | null;
+};
+
+/**
+ * Body for `POST /api/admin/ops`. A discriminated union on `type`: `bug` carries the bug fields, `feature_request` the feature fields. Only these two user-fileable types are accepted — `error`, `alert`, and `measure_plan` tickets are auto-filed by the platform and cannot be created over the API.
+ */
+export type CreateOpsItemRequest = ({
+    type: 'bug';
+} & CreateBugRequest) | ({
+    type: 'feature_request';
+} & CreateFeatureRequestRequest);
+
+/**
+ * Response for `POST /api/admin/ops`.
+ */
+export type CreateOpsItemResponse = {
+    /**
+     * Newly created item id.
+     */
+    id: string;
+    /**
+     * Per-project item number assigned to the new item.
+     */
+    number?: number | null;
 };
 
 /**
@@ -3242,99 +4038,6 @@ export type OpsItemRelated = {
 };
 
 /**
- * GitHub connector trace — the issue it opened and, once linked, the pull request.
- */
-export type GithubConnectorData = {
-    /**
-     * The GitHub issue this item opened.
-     */
-    issue?: {
-        /**
-         * GitHub issue number.
-         */
-        number: number;
-        /**
-         * HTML URL of the opened issue.
-         */
-        url: string;
-        /**
-         * Repository owner (org or user).
-         */
-        owner: string;
-        /**
-         * Repository name.
-         */
-        repo: string;
-        /**
-         * ISO-8601 timestamp the issue was opened.
-         */
-        createdAt?: string;
-        [key: string]: unknown;
-    };
-    /**
-     * The pull request linked to this item via `link-pr`.
-     */
-    pr?: {
-        /**
-         * Pull request number.
-         */
-        number: number;
-        /**
-         * HTML URL of the linked pull request.
-         */
-        url: string;
-        /**
-         * ISO-8601 timestamp the PR was linked.
-         */
-        linkedAt?: string;
-        /**
-         * Whether the PR was wired to the issue on GitHub (via a closing keyword or a comment).
-         */
-        connectedToIssue?: boolean;
-        /**
-         * How the PR was connected to the issue.
-         */
-        method?: 'closes' | 'comment';
-        [key: string]: unknown;
-    };
-    [key: string]: unknown;
-};
-
-/**
- * Slack connector trace — the message the driver posted for this item. The linked pull request is recorded on `github.pr`, not here.
- */
-export type SlackConnectorData = {
-    /**
-     * The Slack message the driver posted for this item.
-     */
-    message?: {
-        /**
-         * Slack channel id the message was posted to.
-         */
-        channel: string;
-        /**
-         * Slack message timestamp (`ts`) — the message handle used for in-place `chat.update`.
-         */
-        ts: string;
-        /**
-         * ISO-8601 timestamp the message was posted.
-         */
-        postedAt?: string;
-        [key: string]: unknown;
-    };
-    [key: string]: unknown;
-};
-
-/**
- * Connector linkage for one queue item, keyed by provider. Each provider's driver deep-merges its own trace into this blob, so any subset of providers may be present. Unknown/future providers may appear as additional keys.
- */
-export type ConnectorData = {
-    github?: GithubConnectorData;
-    slack?: SlackConnectorData;
-    [key: string]: unknown;
-};
-
-/**
  * One queue item, any of the five types. Shared fields apply to all; `stepsToReproduce`/`actualResult`/`expectedResult` are bug-specific, `description`/`useCase` feature-specific. The auto-collected browser fields (page URL, user-agent, viewport) live under `context.browser` for bug/feature. `context` also carries the hydrated per-type payload for auto-filed `error`/`alert`/`measure_plan` tickets, `attachments` lists any uploaded files, and `related` gives deep links to the underlying resources.
  */
 export type GetOpsItemResponse = {
@@ -3367,6 +4070,10 @@ export type GetOpsItemResponse = {
      * Stable key of the originating record for auto-filed tickets (error fingerprint, `<alert source>:<dedupeKey>`, or measurement-plan ref); `null` for human-filed bugs/features.
      */
     sourceRef?: string | null;
+    /**
+     * Where automation has taken this item in the investigation lifecycle (see `OpsInvestigationState`). Written as a side-effect of the actions that already happen (link a PR, change status, an assistant reply); `null` on rows filed before the field existed — derive from `status`/`type` in that case.
+     */
+    investigationState?: OpsInvestigationState | null;
     /**
      * Reporter email (bug/feature), or `null`.
      */
@@ -3409,6 +4116,19 @@ export type GetOpsItemResponse = {
      */
     notify?: NotificationTarget | null;
     /**
+     * The PERSON owner — a `users.id` (resolved into `owner.user`), or `null` when unassigned.
+     */
+    assigneeId?: string | null;
+    /**
+     * The AGENT owner when it is a connected trigger connector — a `connectors` row id (resolved into `owner.agent`), or `null`. Mutually exclusive with `assigneeAgent`.
+     */
+    assigneeConnectorId?: string | null;
+    /**
+     * The AGENT owner when it is a built-in hosted Shipeasy agent — currently only `jarvis` — or `null`. Mutually exclusive with `assigneeConnectorId`.
+     */
+    assigneeAgent?: string | null;
+    owner: OpsItemOwner;
+    /**
      * ISO-8601 creation timestamp.
      */
     createdAt: string;
@@ -3417,6 +4137,16 @@ export type GetOpsItemResponse = {
      */
     updatedAt?: string;
     [key: string]: unknown;
+};
+
+/**
+ * Response for `DELETE /api/admin/ops/{handle}`.
+ */
+export type DeleteOpsItemResponse = {
+    /**
+     * Always `true` — the item (and its comments, attachments, tags, and investigation records) was deleted.
+     */
+    ok: true;
 };
 
 /**
@@ -3522,14 +4252,308 @@ export type LinkPrToOpsItemRequest = {
 };
 
 /**
- * Response for the update / link-pr endpoints.
+ * Response for `POST /api/admin/ops/{handle}/link-pr` — the item id and the resulting PR link.
  */
 export type LinkPrToOpsItemResponse = {
     /**
      * Item id that was updated.
      */
     id: string;
+    /**
+     * The PR link now recorded on the item (`connectorData.github.pr`), or `null` after an unlink (`prNumber: null`).
+     */
+    pr: GithubPrLink | null;
 };
+
+/**
+ * Body for `POST /api/admin/ops/{handle}/ack`. With `agent` set this is an AI ack — the named agent type must have a connected trigger connector in the project, or the call fails with `AGENT_NOT_CONNECTED` and instructions to query the available agents (`ops agents list`). `gemini` is accepted as an alias for `jules`. Without `agent` it is a HUMAN ack by the authenticated caller.
+ */
+export type AckOpsItemRequest = {
+    /**
+     * The AI agent type acking on the item's behalf — pass your own type when you are a coding agent (Claude Code passes `claude`, Cursor `cursor`, Copilot `copilot`, Jules/Gemini `jules`). Omit entirely for a human ack by the authenticated caller.
+     */
+    agent?: 'claude' | 'cursor' | 'copilot' | 'jules' | 'gemini' | 'jarvis';
+    /**
+     * The agent-run session id (e.g. Claude's `session_01…`), so the dashboard can deep-link to the exact run page. Omit when the harness has no session id.
+     */
+    sessionId?: string;
+};
+
+/**
+ * Response for `POST /api/admin/ops/{handle}/ack` — the opened run.
+ */
+export type AckOpsItemResponse = {
+    /**
+     * Item id that was acked.
+     */
+    id: string;
+    /**
+     * Per-project item number.
+     */
+    number: number | null;
+    /**
+     * The working status the ack moved the item into (`investigating_by_ai` for an AI ack, `in_progress` for a human one).
+     */
+    status: string;
+    /**
+     * Id of the run record the ack opened.
+     */
+    runId: string;
+    /**
+     * The AI agent type working the item; `null` for a human ack.
+     */
+    agent: string | null;
+    /**
+     * Display name of the connected agent (the connector's name); `null` for a human ack.
+     */
+    connectorName: string | null;
+    /**
+     * The session id recorded on the run, if one was supplied.
+     */
+    sessionId: string | null;
+    /**
+     * ISO-8601 timestamp the run started (the ack time).
+     */
+    startedAt: string;
+};
+
+/**
+ * One structured investigation record on a queue item — the read-only write-up an AI agent produces while working it (findings / blocking question / QA notes), rendered by the cockpit's detail panel.
+ */
+export type OpsInvestigation = {
+    /**
+     * Investigation record id.
+     */
+    id: string;
+    /**
+     * The queue item this record hangs off.
+     */
+    feedbackId: string;
+    /**
+     * Which lifecycle stage the record documents — mirrors the investigation-state buckets the cockpit renders. `working` records double as run rows (see `OpsRun`).
+     */
+    kind: 'investigated' | 'detected' | 'question' | 'ready_for_qa' | 'working' | 'note';
+    /**
+     * One-line summary of the record, or `null`.
+     */
+    summary: string | null;
+    /**
+     * The agent's full findings write-up (markdown), or `null`.
+     */
+    findings: string | null;
+    /**
+     * A blocking question for the team (markdown), or `null`.
+     */
+    question: string | null;
+    /**
+     * How to verify the fix — QA notes (markdown), or `null`.
+     */
+    qaNotes: string | null;
+    /**
+     * Which agent produced the record (`jarvis` is the in-house assistant; the rest are trigger-connector coding agents), or `null`.
+     */
+    agent: 'jarvis' | 'claude' | 'cursor' | 'copilot' | 'jules' | null;
+    /**
+     * The model the agent ran on (self-reported), or `null`.
+     */
+    model: string | null;
+    /**
+     * The trigger-connector row id the agent ran through, or `null`.
+     */
+    connectorId: string | null;
+    /**
+     * A PR the record references (e.g. the run's fixing PR), or `null`.
+     */
+    prNumber: number | null;
+    /**
+     * HTML URL of that PR, or `null`.
+     */
+    prUrl: string | null;
+    /**
+     * The files/links the agent inspected, or `null`.
+     */
+    sources: Array<{
+        /**
+         * Repo-relative file path the agent inspected.
+         */
+        path?: string;
+        /**
+         * External link the agent consulted.
+         */
+        url?: string;
+        /**
+         * Human-readable label for the source.
+         */
+        label?: string;
+    }> | null;
+    /**
+     * The agent's self-reported confidence, or `null`.
+     */
+    confidence: 'low' | 'medium' | 'high' | null;
+    /**
+     * Tokens the run consumed (self-reported), or `null`.
+     */
+    tokensUsed: number | null;
+    /**
+     * Run duration in milliseconds, or `null`.
+     */
+    durationMs: number | null;
+    /**
+     * `draft` records are the agent's scratch state; only `published` ones render in the panel (and are returned by default).
+     */
+    visibility: 'draft' | 'published';
+    /**
+     * ISO-8601 timestamp the work started, or `null`.
+     */
+    startedAt: string | null;
+    /**
+     * ISO-8601 timestamp the work finished, or `null`.
+     */
+    completedAt: string | null;
+    /**
+     * The agent-run session id, or `null`.
+     */
+    sessionId: string | null;
+    /**
+     * Email of the human who acked (run records for a human ack), or `null`.
+     */
+    ackedBy: string | null;
+    /**
+     * Which final action closed a `working` run record, or `null` (open run / non-run record).
+     */
+    completedAction: 'link_pr' | 'notify' | 'status' | 'superseded' | null;
+    /**
+     * ISO-8601 creation timestamp.
+     */
+    createdAt: string;
+    /**
+     * ISO-8601 last-update timestamp.
+     */
+    updatedAt: string;
+};
+
+/**
+ * Response for `GET /api/admin/ops/{handle}/investigation` — the item's `published` investigation records, newest first (max 50).
+ */
+export type ListOpsInvestigationsResponse = Array<OpsInvestigation>;
+
+/**
+ * Body for `POST /api/admin/ops/{handle}/investigation`. `kind` is required; include at least one content field (`summary`/`findings`/`question`/`qaNotes`) — the panel renders whatever it gets.
+ */
+export type CreateOpsInvestigationRequest = {
+    /**
+     * Which lifecycle stage the record documents.
+     */
+    kind: 'investigated' | 'detected' | 'question' | 'ready_for_qa' | 'working' | 'note';
+    /**
+     * One-line summary of the record.
+     */
+    summary?: string;
+    /**
+     * The full findings write-up (markdown).
+     */
+    findings?: string;
+    /**
+     * A blocking question for the team (markdown).
+     */
+    question?: string;
+    /**
+     * How to verify the fix — QA notes (markdown).
+     */
+    qaNotes?: string;
+    /**
+     * The agent type producing the record — pass your own type when you are a coding agent.
+     */
+    agent?: 'jarvis' | 'claude' | 'cursor' | 'copilot' | 'jules';
+    /**
+     * The model the agent ran on.
+     */
+    model?: string;
+    /**
+     * The trigger-connector row id the agent ran through.
+     */
+    connectorId?: string;
+    /**
+     * A PR the record references.
+     */
+    prNumber?: number;
+    /**
+     * HTML URL of that PR.
+     */
+    prUrl?: string;
+    /**
+     * The files/links inspected.
+     */
+    sources?: Array<{
+        /**
+         * Repo-relative file path inspected.
+         */
+        path?: string;
+        /**
+         * External link consulted.
+         */
+        url?: string;
+        /**
+         * Human-readable label for the source.
+         */
+        label?: string;
+    }>;
+    /**
+     * Self-reported confidence in the record.
+     */
+    confidence?: 'low' | 'medium' | 'high';
+    /**
+     * Tokens the run consumed.
+     */
+    tokensUsed?: number;
+    /**
+     * Run duration in milliseconds.
+     */
+    durationMs?: number;
+    /**
+     * Record visibility. Defaults to `published`; `draft` keeps it out of the panel.
+     */
+    visibility?: 'draft' | 'published';
+    /**
+     * ISO-8601 timestamp the work started.
+     */
+    startedAt?: string;
+    /**
+     * ISO-8601 timestamp the work finished.
+     */
+    completedAt?: string;
+    /**
+     * The agent-run session id, so the dashboard can deep-link to the run.
+     */
+    sessionId?: string;
+};
+
+/**
+ * One connected, assignable AI agent (an authenticated trigger connector).
+ */
+export type OpsAgentProfile = {
+    /**
+     * The connector row id — what an agent assignment stores.
+     */
+    connectorId: string;
+    /**
+     * The trigger-connector provider backing this agent.
+     */
+    provider: 'claude_trigger' | 'cursor_trigger' | 'copilot_trigger' | 'jules_trigger';
+    /**
+     * Display name — the connector's `name`, or the provider default (e.g. "Claude").
+     */
+    name: string;
+    /**
+     * Mention/search handle — the kebab-cased name (e.g. `claude`).
+     */
+    handle: string;
+};
+
+/**
+ * The project's connected AI agents — the agent types `POST /api/admin/ops/{handle}/ack` accepts. Empty when no trigger connector is connected yet.
+ */
+export type ListOpsAgentsResponse = Array<OpsAgentProfile>;
 
 /**
  * Who wrote a comment. `user` is a teammate (their email is in `authorEmail`); `system` is Jarvis — the AI agent — which authors comments when an ops-notify escalation lands on the item and when it is `@shipeasy`-mentioned in a thread.
@@ -3640,6 +4664,74 @@ export type NotifyOpsResponse = {
      * `true` if a new escalation was dispatched; `false` on an idempotent repeat.
      */
     dispatched: boolean;
+};
+
+/**
+ * One in-app notification as the bell feed renders it.
+ */
+export type NotificationFeedItem = {
+    /**
+     * Notification id (pass to the mark-read `POST` to mark just this one).
+     */
+    id: string;
+    /**
+     * The notification's event key (e.g. `ops.attention`, `feedback.completed`, `comment.mention`).
+     */
+    event: string;
+    /**
+     * One-line headline.
+     */
+    title: string;
+    /**
+     * Notification body. For `ops.attention` escalations: line 1 = summary, following lines = numbered unblock steps.
+     */
+    body: string;
+    /**
+     * Dashboard-relative deep link to the related item, or `null`.
+     */
+    href: string | null;
+    /**
+     * ISO-8601 creation timestamp.
+     */
+    createdAt: string;
+    /**
+     * Whether the notification has been marked read.
+     */
+    read: boolean;
+};
+
+/**
+ * Response for `GET /api/admin/notifications/feed` — the bell feed plus its unread badge count.
+ */
+export type ListNotificationFeedResponse = {
+    /**
+     * The feed, newest first (max 30). Project-wide broadcasts plus notifications addressed to the caller; events muted for the in-app channel are omitted.
+     */
+    notifications: Array<NotificationFeedItem>;
+    /**
+     * Count of the caller's unread (visible, unmuted) notifications.
+     */
+    unread: number;
+};
+
+/**
+ * Body for `POST /api/admin/notifications/feed`. An empty body (`{}`) marks ALL of the caller's notifications read.
+ */
+export type MarkNotificationsReadRequest = {
+    /**
+     * Mark just this notification read. Omit to mark the caller's whole feed read.
+     */
+    id?: string;
+};
+
+/**
+ * Generic success acknowledgement for operations with no meaningful payload.
+ */
+export type OkResponse = {
+    /**
+     * Always `true` — the operation succeeded (errors use the error envelope instead).
+     */
+    ok: true;
 };
 
 /**
@@ -3778,7 +4870,104 @@ export type UpdateAlertRuleResponse = {
 };
 
 /**
- * The project the caller's auth header resolves to. The shape is open — additional project fields may be present.
+ * One FIRED alert — a condition the platform observed and raised, not the rule that defines it (alert *rules* are the `/api/admin/alert-rules` resource). Alerts are never filed by hand: the UI (killswitch flips) and the worker (analysis consumer + alerts cron) raise them, keyed by `(source, dedupeKey)` so re-raising refreshes the active row and a clearing condition auto-resolves it.
+ *
+ * Every field is always present on the wire; nullable fields are `null`, never absent.
+ */
+export type AlertApiRow = {
+    /**
+     * Stable opaque alert id.
+     */
+    id: string;
+    /**
+     * Which platform subsystem raised the alert — a metric-threshold rule crossing (`metric_rule`), an armed kill switch (`killswitch_armed`), a sample-ratio mismatch or peeking guard on an experiment (`experiment_srm` / `experiment_peek`), or a guardrail-metric breach (`guardrail`).
+     */
+    source: 'metric_rule' | 'killswitch_armed' | 'experiment_srm' | 'experiment_peek' | 'guardrail';
+    /**
+     * Id of the alert rule that raised it (`ar_…`), for `source: metric_rule`. `null` for alerts raised outside the rules engine.
+     */
+    ruleId: string | null;
+    /**
+     * How loud the alert is — `danger` pages, `warn` is the default, `info` is FYI-only.
+     */
+    severity: 'danger' | 'warn' | 'info';
+    /**
+     * Idempotency + reconcile key within `(project, source)` — re-raising the same condition refreshes the existing active row instead of stacking duplicates, and the condition clearing flips that row to `resolved`.
+     */
+    dedupeKey: string;
+    /**
+     * Short human-readable headline (what fired).
+     */
+    title: string;
+    /**
+     * Longer human-readable explanation — the observed condition, thresholds, and context.
+     */
+    detail: string;
+    /**
+     * Dashboard-relative link to the surface that explains the alert (e.g. the experiment or kill switch page), or `null` if there is no single destination.
+     */
+    href: string | null;
+    /**
+     * The numeric value that tripped the condition (e.g. the metric aggregate a rule compared against its threshold), or `null` when the source has no scalar observation.
+     */
+    observedValue: number | null;
+    /**
+     * Lifecycle state. `active` means the condition currently holds (shown as "Firing" in the UI); `resolved` means it cleared (auto, when the raiser reconciles, or by hand); `dismissed` means a human waved it off.
+     */
+    status: 'active' | 'resolved' | 'dismissed';
+    /**
+     * ISO-8601 timestamp the alert was first raised.
+     */
+    createdAt: string;
+    /**
+     * ISO-8601 timestamp the alert flipped to `resolved`, or `null` while it hasn't.
+     */
+    resolvedAt: string | null;
+    /**
+     * ISO-8601 timestamp the alert was dismissed, or `null` while it hasn't been.
+     */
+    dismissedAt: string | null;
+    /**
+     * PERSON owner of the triage — a `users.id` (soft reference, same value space as a feedback item's `assigneeId`), or `null` if unassigned. Set from the ops cockpit's Owner column; independent of the agent half.
+     */
+    assigneeId: string | null;
+    /**
+     * AGENT owner — the id of a connected trigger connector (`connectors.id`), or `null`. Mutually exclusive with `assigneeAgent`.
+     */
+    assigneeConnectorId: string | null;
+    /**
+     * AGENT owner — a built-in hosted Shipeasy agent (`"jarvis"`, Enterprise-gated), or `null`. Mutually exclusive with `assigneeConnectorId`.
+     */
+    assigneeAgent: string | null;
+};
+
+/**
+ * A bare JSON array of fired alerts, ordered by `createdAt` descending. There is no pagination envelope.
+ */
+export type ListAlertsResponse = Array<AlertApiRow>;
+
+/**
+ * Body for `PATCH /api/admin/alerts/{id}` — the triage writes the ops cockpit needs on a fired alert. All fields optional, at least one required; only the fields present are changed.
+ *
+ * Flipping `status` stamps the matching timestamp (`resolvedAt` on `resolved`, `dismissedAt` on `dismissed`; both cleared on `active`). The person owner (`assigneeId`) and the agent owner (`agent`) are independent halves — setting one never touches the other.
+ */
+export type UpdateAlertRequest = {
+    /**
+     * New lifecycle state. `resolved` / `dismissed` stamp their timestamp; `active` re-opens and clears both.
+     */
+    status?: 'active' | 'resolved' | 'dismissed';
+    /**
+     * PERSON owner — a `users.id`, or `null` to clear the assignment.
+     */
+    assigneeId?: string | null;
+    /**
+     * AGENT owner — a connected trigger connector's id (`connectors.id`), the built-in `"jarvis"` (Enterprise plan only — rejected with `403` otherwise), or `null` to clear. Stored in `assigneeConnectorId` or `assigneeAgent` depending on the value; the two are mutually exclusive.
+     */
+    agent?: string | null;
+};
+
+/**
+ * The project the caller's auth header resolves to. The shape is open — additional project fields may be present. Stripe billing internals (`stripeCustomerId`, the `stripeItemId*` family) are intentionally undocumented.
  */
 export type GetCurrentProjectResponse = {
     /**
@@ -3866,9 +5055,9 @@ export type GetCurrentProjectResponse = {
      */
     defaultAllocationPct?: number;
     /**
-     * Default holdout carve-out (basis points) that seeds each new universe's holdout.
+     * Default holdout carve-out (basis points) that seeds each new universe's holdout (0 = none).
      */
-    defaultHoldout?: number;
+    defaultHoldoutBp: number;
     /**
      * Default winsorization percentile new metrics start with.
      */
@@ -3901,6 +5090,90 @@ export type GetCurrentProjectResponse = {
      * SRM chi-square p-value below which the run is called invalid.
      */
     srmThreshold?: number;
+    /**
+     * URL-safe project identifier used in app URLs and SDK config, or `null` if unset.
+     */
+    slug: string | null;
+    /**
+     * Cache-busted URL of the project logo (served from the admin logo route), or `null` when no logo is set.
+     */
+    logo: string | null;
+    /**
+     * Default environment new resources are scoped to.
+     */
+    defaultEnv: 'dev' | 'staging' | 'prod';
+    /**
+     * IANA timezone the project's daily analysis runs in.
+     */
+    timezone: string;
+    /**
+     * Statistical method the experiment analyzer uses.
+     */
+    statMethod: 'sequential' | 'fixed' | 'bayesian';
+    /**
+     * Significance threshold (alpha) for experiment analysis, as a decimal string (e.g. `"0.05"`).
+     */
+    sigThreshold: string;
+    /**
+     * Whether a failing guardrail auto-rolls back the experiment.
+     */
+    autoRollback: boolean;
+    /**
+     * Minimum number of days an experiment must run before it can be called.
+     */
+    minSampleDays: number;
+    /**
+     * Whether the user-management module is enabled.
+     */
+    moduleUser: boolean | number;
+    /**
+     * Whether the events module is enabled.
+     */
+    moduleEvents: boolean | number;
+    /**
+     * Whether key-authenticated public ticket creation (`POST /cli/report`) is allowed into this project. Off by default.
+     */
+    allowPublicTickets: boolean | number;
+    /**
+     * Stripe subscription id backing the project's billing, or `null` when unsubscribed.
+     */
+    stripeSubscriptionId: string | null;
+    /**
+     * Pending billing-interval change deferred to period end (only the annual→monthly downgrade), or `null` when no switch is pending.
+     */
+    scheduledInterval: 'monthly' | 'annual' | null;
+    /**
+     * Whether the advisory monthly spend limit is enabled.
+     */
+    spendLimitEnabled: boolean | number;
+    /**
+     * Advisory monthly spend limit in whole USD, or `null` if unset.
+     */
+    spendLimitUsd: number | null;
+    /**
+     * Email address the spend alert is sent to, or `null` if unset.
+     */
+    spendAlertEmail: string | null;
+    /**
+     * Default person owner (user id) auto-assigned to new `pending_approval` feedback items, or `null` when unset.
+     */
+    defaultAssigneePendingApproval: string | null;
+    /**
+     * Default agent owner (connector id) auto-assigned to new `pending_approval` feedback items, or `null` when unset.
+     */
+    defaultAssigneeConnectorPendingApproval: string | null;
+    /**
+     * Default person owner (user id) auto-assigned to new `open` feedback items, or `null` when unset.
+     */
+    defaultAssigneeOpen: string | null;
+    /**
+     * Default agent owner (connector id) auto-assigned to new `open` feedback items, or `null` when unset.
+     */
+    defaultAssigneeConnectorOpen: string | null;
+    /**
+     * ISO-8601 timestamp the project was soft-deleted (purged after a 14-day grace period), or `null` when live.
+     */
+    deletedAt: string | null;
     /**
      * ISO-8601 timestamp of project creation.
      */
@@ -4092,15 +5365,15 @@ export type ListI18nProfilesResponse = Array<{
     /**
      * `1` for the project's single default profile (always seeded as `en:prod`), else `0`.
      */
-    isDefault?: number;
+    isDefault: number;
     /**
      * ISO-8601 timestamp of creation.
      */
-    createdAt?: string;
+    createdAt: string;
     /**
      * ISO-8601 soft-delete timestamp, or `null` if live.
      */
-    deletedAt?: string | null;
+    deletedAt: string | null;
 }>;
 
 /**
@@ -4150,33 +5423,89 @@ export type ListI18nKeysResponse = {
         /**
          * Optional human note stored with the key.
          */
-        description?: string | null;
+        description: string | null;
         /**
          * `{{var}}` placeholder names in the value, or `null` when there are none.
          */
-        variables?: Array<string> | null;
+        variables: Array<string> | null;
         /**
          * Owning profile id.
          */
-        profileId?: string;
+        profileId: string;
+        /**
+         * Name of the owning profile (e.g. `en:prod`), or `null` when it cannot be resolved.
+         */
+        profileName: string | null;
         /**
          * Owning chunk (authoring grouping) id.
          */
-        chunkId?: string;
+        chunkId: string;
+        /**
+         * Name of the owning chunk (authoring grouping), or `null` when it cannot be resolved.
+         */
+        chunkName: string | null;
         /**
          * ISO-8601 timestamp of the last edit.
          */
-        updatedAt?: string;
+        updatedAt: string;
         /**
          * Actor email that last edited the key.
          */
-        updatedBy?: string;
-        [key: string]: unknown;
+        updatedBy: string;
     }>;
     /**
      * Total matching keys across all pages (ignores `limit`/`offset`).
      */
     total: number;
+};
+
+/**
+ * Body for `PUT /api/admin/i18n/keys`. Bulk upsert (overwrite): existing keys are replaced, new ones inserted. Backs the devtools overlay's in-product label editing; deliberately not surfaced by the CLI or MCP.
+ */
+export type UpsertI18nKeysRequest = {
+    /**
+     * Target profile id to upsert keys into.
+     */
+    profile_id: string;
+    /**
+     * Logical grouping the keys are filed under. Defaults to `default`.
+     */
+    chunk?: string;
+    /**
+     * Keys to upsert. Existing keys ARE overwritten — this is the bulk overwrite path.
+     */
+    keys: Array<{
+        /**
+         * Dotted key path, e.g. `home.cta`.
+         */
+        key: string;
+        /**
+         * Translated value for the key.
+         */
+        value: string;
+        /**
+         * Optional human note stored with the key.
+         */
+        description?: string;
+        /**
+         * Optional explicit list of `{{var}}` placeholder names in the value. Auto-derived from the value when omitted.
+         */
+        variables?: Array<string>;
+    }>;
+};
+
+/**
+ * Result of a bulk key upsert. The affected profile's KV snapshot is rebuilt (and the CDN purged) before this returns.
+ */
+export type UpsertI18nKeysResponse = {
+    /**
+     * Number of keys written (inserted or overwritten).
+     */
+    upserted: number;
+    /**
+     * The chunk the keys were filed under.
+     */
+    chunk: string;
 };
 
 /**
@@ -4268,7 +5597,10 @@ export type UpdateI18nKeyResponse = {
     id: string;
 };
 
-export type ListI18nDraftsResponse = Array<{
+/**
+ * One staged translation draft. The shape is open — additional fields may be present.
+ */
+export type I18nDraft = {
     /**
      * Stable opaque draft id.
      */
@@ -4276,33 +5608,38 @@ export type ListI18nDraftsResponse = Array<{
     /**
      * Draft name, e.g. the target locale being staged.
      */
-    name?: string;
+    name: string;
     /**
      * Profile the draft targets.
      */
-    profileId?: string;
+    profileId: string;
     /**
      * Profile the draft was seeded from, or `null`.
      */
-    sourceProfileId?: string | null;
+    sourceProfileId: string | null;
     /**
      * Lifecycle state of the draft.
      */
-    status?: 'open' | 'merged' | 'abandoned';
+    status: 'open' | 'merged' | 'abandoned';
     /**
      * Actor email that created the draft.
      */
-    createdBy?: string;
+    createdBy: string;
     /**
      * ISO-8601 timestamp of creation.
      */
-    createdAt?: string;
+    createdAt: string;
     /**
      * ISO-8601 merge/publish timestamp, or `null`.
      */
-    publishedAt?: string | null;
+    publishedAt: string | null;
     [key: string]: unknown;
-}>;
+};
+
+/**
+ * Bare array of the project's staged translation drafts.
+ */
+export type ListI18nDraftsResponse = Array<I18nDraft>;
 
 /**
  * Body for `POST /api/admin/i18n/drafts`. Stages a new translation draft against a target profile, optionally seeding from a source profile.
@@ -4323,45 +5660,6 @@ export type CreateI18nDraftRequest = {
 };
 
 /**
- * One staged translation draft.
- */
-export type I18nDraft = {
-    /**
-     * Stable opaque draft id.
-     */
-    id: string;
-    /**
-     * Draft name, e.g. the target locale being staged.
-     */
-    name?: string;
-    /**
-     * Profile the draft targets.
-     */
-    profileId?: string;
-    /**
-     * Profile the draft was seeded from, or `null`.
-     */
-    sourceProfileId?: string | null;
-    /**
-     * Lifecycle state of the draft.
-     */
-    status?: 'open' | 'merged' | 'abandoned';
-    /**
-     * Actor email that created the draft.
-     */
-    createdBy?: string;
-    /**
-     * ISO-8601 timestamp of creation.
-     */
-    createdAt?: string;
-    /**
-     * ISO-8601 merge/publish timestamp, or `null`.
-     */
-    publishedAt?: string | null;
-    [key: string]: unknown;
-};
-
-/**
  * Body for `PATCH /api/admin/i18n/drafts/{draftId}`. Transitions the draft's lifecycle state.
  */
 export type UpdateI18nDraftRequest = {
@@ -4369,6 +5667,62 @@ export type UpdateI18nDraftRequest = {
      * New lifecycle state for the draft.
      */
     status?: 'open' | 'merged' | 'abandoned';
+};
+
+/**
+ * Bare array of the draft's staged keys (no pagination envelope).
+ */
+export type ListI18nDraftKeysResponse = Array<{
+    /**
+     * Stable opaque draft-key id.
+     */
+    id: string;
+    /**
+     * Id of the draft the key belongs to.
+     */
+    draftId: string;
+    /**
+     * Dotted key path, e.g. `home.cta`.
+     */
+    key: string;
+    /**
+     * Staged translated value for the key.
+     */
+    value: string;
+    /**
+     * Optional human note stored with the key, or `null`.
+     */
+    description: string | null;
+    /**
+     * `{{var}}` placeholder names in the value, or `null` when there are none.
+     */
+    variables: Array<string> | null;
+    /**
+     * Actor email that last edited the staged key.
+     */
+    updatedBy: string;
+    /**
+     * ISO-8601 timestamp of the last edit.
+     */
+    updatedAt: string;
+}>;
+
+/**
+ * Body for `POST /api/admin/i18n/drafts/{draftId}/keys`. Upserts one staged key into an open draft — inserted when new, overwritten when it already exists. `{{var}}` placeholder names are auto-derived from the value.
+ */
+export type UpsertI18nDraftKeyRequest = {
+    /**
+     * Dotted key path to stage, e.g. `home.cta`.
+     */
+    key: string;
+    /**
+     * Staged translated value for the key.
+     */
+    value: string;
+    /**
+     * Optional human note stored with the staged key.
+     */
+    description?: string;
 };
 
 /**
@@ -4504,7 +5858,7 @@ export type SetI18nLabelResponse = {
 };
 
 /**
- * One sampled instance behind a tracked error — the minimal per-occurrence payload (what varies between instances; everything else lives on the parent `ErrorRecord`).
+ * One sampled instance behind a tracked error — the minimal per-occurrence payload (what varies between instances; everything else lives on the parent `ErrorRecord`). Every column is always present on the wire; nullable columns are `null`, never absent.
  */
 export type ErrorOccurrence = {
     /**
@@ -4512,33 +5866,41 @@ export type ErrorOccurrence = {
      */
     id: string;
     /**
+     * Project this occurrence belongs to. Always echoes the parent error's `projectId` — redundant on this nested read (a projection candidate), kept because the raw row is returned as-is today.
+     */
+    projectId: string;
+    /**
+     * Id of the parent tracked error (`err_…`). Always echoes the enclosing `ErrorRecord.id` — redundant on this nested read (a projection candidate), kept because the raw row is returned as-is today.
+     */
+    errorId: string;
+    /**
      * This instance's raw message (unlike the fingerprint, never normalized).
      */
     message: string;
     /**
      * This instance's stack trace, or `null` if none was captured.
      */
-    stack?: string | null;
+    stack: string | null;
     /**
      * This instance's raw URL (ids intact), or `null`.
      */
-    url?: string | null;
+    url: string | null;
     /**
      * Published env this instance ran against, or `null`.
      */
-    env?: string | null;
+    env: string | null;
     /**
      * Which SDK side reported it — `client` or `server`. `null` if unknown.
      */
-    side?: string | null;
+    side: string | null;
     /**
      * `@shipeasy/sdk` version of this instance, or `null`.
      */
-    sdkVersion?: string | null;
+    sdkVersion: string | null;
     /**
      * This instance's sanitized extras, JSON-encoded. `null` if none.
      */
-    extrasJson?: string | null;
+    extrasJson: string | null;
     /**
      * 1-in-N sampling rate in force when this instance was kept (`1` = the issue was still being recorded exhaustively).
      */
@@ -4552,7 +5914,7 @@ export type ErrorOccurrence = {
 /**
  * A tracked production error — one row per distinct issue, keyed by `fingerprint`. Rows are never created by hand: an ingestion path (worker log drain / the `see()` SDK reporter) folds each occurrence into the matching row, bumping `count` and `lastSeenAt`. The admin surface only lists them, reads one, and flips `status`.
  *
- * Field names are camelCase (the D1 row projected through Drizzle). Many columns are nullable because the reporting source may not supply them.
+ * Field names are camelCase (the D1 row projected through Drizzle). Every row column is always present on the wire; many are *nullable* because the reporting source may not supply them — `null`, never absent. Only `occurrences` is conditional (detail reads only).
  */
 export type ErrorRecord = {
     /**
@@ -4570,7 +5932,7 @@ export type ErrorRecord = {
     /**
      * Fingerprint of the issue this one descends from — set when `see()` reported the same error (re-throw) or its `{ cause }` (wrap) at an inner boundary first. Points at another error's `fingerprint` in the same project (soft reference, no FK). `null` for a root issue.
      */
-    causedByFingerprint?: string | null;
+    causedByFingerprint: string | null;
     /**
      * Error message text.
      */
@@ -4578,51 +5940,51 @@ export type ErrorRecord = {
     /**
      * Error class/name, e.g. `TypeError`. `null` when the source didn't supply one.
      */
-    errorType?: string | null;
+    errorType: string | null;
     /**
      * Stack trace of the latest occurrence, or `null` if none was captured.
      */
-    stack?: string | null;
+    stack: string | null;
     /**
      * Where it surfaced — Worker name (`shipeasy`, `shipeasy-worker`) or `sdk-client` / `sdk-server`. `null` if unknown.
      */
-    source?: string | null;
+    source: string | null;
     /**
      * Latest occurrence's raw URL (with ids intact), or `null`.
      */
-    url?: string | null;
+    url: string | null;
     /**
      * Distinct, id-normalized route templates this issue has surfaced on, as a JSON-encoded string array (e.g. `["https://app/dashboard/#/gates"]`). UUIDs / numeric ids / opaque tokens are collapsed to `#` so the same route under different ids counts once. `null` if none recorded.
      */
-    seenUrls?: string | null;
+    seenUrls: string | null;
     /**
      * Consequence subject — `<errorType> causes the <subject> to <outcome>`. `null` if no consequence was reported.
      */
-    subject?: string | null;
+    subject: string | null;
     /**
      * Consequence outcome — see `subject`. `null` if no consequence was reported.
      */
-    outcome?: string | null;
+    outcome: string | null;
     /**
      * Which SDK side reported it — `client` or `server`. `null` if unknown.
      */
-    side?: string | null;
+    side: string | null;
     /**
      * Published env the reporting SDK ran against (e.g. `dev`, `staging`, `prod`). `null` if unknown.
      */
-    env?: string | null;
+    env: string | null;
     /**
      * `see()` error kind. `null` when the source didn't classify the occurrence.
      */
-    kind?: 'caught' | 'uncaught' | 'unhandled_rejection' | 'network' | 'violation' | null;
+    kind: 'caught' | 'uncaught' | 'unhandled_rejection' | 'network' | 'violation' | null;
     /**
      * Latest occurrence's sanitized extras, JSON-encoded. `null` if none.
      */
-    lastExtrasJson?: string | null;
+    lastExtrasJson: string | null;
     /**
      * `@shipeasy/sdk` version of the latest occurrence, or `null`.
      */
-    sdkVersion?: string | null;
+    sdkVersion: string | null;
     /**
      * EXACT number of folded occurrences for this fingerprint — every occurrence increments it, regardless of detail-row sampling.
      */
@@ -4651,6 +6013,18 @@ export type ErrorRecord = {
      * ISO-8601 timestamp of the last mutation (e.g. a status flip).
      */
     updatedAt: string;
+    /**
+     * PERSON owner of the triage — a `users.id` (soft reference, same value space as a feedback item's `assigneeId`), or `null` if unassigned. Set from the ops cockpit's Owner column; independent of the agent half.
+     */
+    assigneeId: string | null;
+    /**
+     * AGENT owner — the id of a connected trigger connector (`connectors.id`), or `null`. Mutually exclusive with `assigneeAgent`.
+     */
+    assigneeConnectorId: string | null;
+    /**
+     * AGENT owner — a built-in hosted Shipeasy agent (`"jarvis"`, Enterprise-gated), or `null`. Mutually exclusive with `assigneeConnectorId`.
+     */
+    assigneeAgent: string | null;
 };
 
 /**
@@ -4677,9 +6051,9 @@ export type FileErrorTicketResponse = {
      */
     id: string;
     /**
-     * Human-facing per-project ticket number.
+     * Human-facing per-project ticket number. `null` only on the idempotent dedupe path when the pre-existing ticket is a legacy row created before per-project numbering.
      */
-    number: number;
+    number: number | null;
 };
 
 /**
@@ -4735,7 +6109,7 @@ export type ConnectorProvider = 'google_sheets' | 'github' | 'slack' | 'claude_t
 export type ConnectorEvent = 'bug.created' | 'feature_request.created';
 
 /**
- * A connector row. The encrypted credentials cipher backing the connector is intentionally never serialised.
+ * A connector row. The encrypted credentials cipher backing the connector is intentionally never serialised — `hasCredentials` reports only whether one is stored.
  */
 export type ConnectorRecord = {
     /**
@@ -4769,6 +6143,10 @@ export type ConnectorRecord = {
      * Display label for the connected account / target (e.g. the OAuth account email, or a trigger's idempotency key such as its repo url or routine id). `null` until the connector is authenticated/configured.
      */
     accountLabel: string | null;
+    /**
+     * Whether an encrypted credentials cipher is stored for this connector (`true` once OAuth/token setup completed). The cipher itself is never serialised — this boolean is the only signal. `false` for a fresh OAuth stub or a tokenless trigger.
+     */
+    hasCredentials: boolean;
     /**
      * Error message from the most recent failed dispatch/fire attempt, or `null` if the last attempt succeeded (or none has run).
      */
@@ -5552,6 +6930,62 @@ export type DeleteGateResponses = {
 
 export type DeleteGateResponse2 = DeleteGateResponses[keyof DeleteGateResponses];
 
+export type GetGateData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Stable opaque gate id (`gat_…`) or the gate's `name`.
+         */
+        id: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/gates/{id}';
+};
+
+export type GetGateErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type GetGateError = GetGateErrors[keyof GetGateErrors];
+
+export type GetGateResponses = {
+    /**
+     * Get one gate
+     */
+    200: GateApiRow;
+};
+
+export type GetGateResponse = GetGateResponses[keyof GetGateResponses];
+
 export type UpdateGateData = {
     body: UpdateGateRequest;
     headers?: {
@@ -5719,6 +7153,67 @@ export type DisableGateResponses = {
 };
 
 export type DisableGateResponse2 = DisableGateResponses[keyof DisableGateResponses];
+
+export type ListGateActivityData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Stable opaque gate id (`gat_…`) or the gate's `name`.
+         */
+        id: ResourceId;
+    };
+    query?: {
+        /**
+         * Max rows to return (1–100). Defaults to 20.
+         */
+        limit?: number;
+    };
+    url: '/api/admin/gates/{id}/activity';
+};
+
+export type ListGateActivityErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type ListGateActivityError = ListGateActivityErrors[keyof ListGateActivityErrors];
+
+export type ListGateActivityResponses = {
+    /**
+     * List gate activity
+     */
+    200: ListGateActivityResponse;
+};
+
+export type ListGateActivityResponse2 = ListGateActivityResponses[keyof ListGateActivityResponses];
 
 export type ListExperimentsData = {
     body?: never;
@@ -6292,6 +7787,122 @@ export type ReanalyzeExperimentResponses = {
 
 export type ReanalyzeExperimentResponse2 = ReanalyzeExperimentResponses[keyof ReanalyzeExperimentResponses];
 
+export type CreateExperimentReadoutData = {
+    body: CreateExperimentReadoutRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Stable opaque experiment id (`exp_…`) or the experiment's `name`.
+         */
+        id: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/experiments/{id}/readouts';
+};
+
+export type CreateExperimentReadoutErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type CreateExperimentReadoutError = CreateExperimentReadoutErrors[keyof CreateExperimentReadoutErrors];
+
+export type CreateExperimentReadoutResponses = {
+    /**
+     * Mint a readout snapshot
+     */
+    200: CreateExperimentReadoutResponse;
+};
+
+export type CreateExperimentReadoutResponse2 = CreateExperimentReadoutResponses[keyof CreateExperimentReadoutResponses];
+
+export type GetExperimentReadoutData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Stable opaque experiment id (`exp_…`) or the experiment's `name`.
+         */
+        id: ResourceId;
+        /**
+         * Readout snapshot id, as returned by `createExperimentReadout`.
+         */
+        readoutId: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/experiments/{id}/readouts/{readoutId}';
+};
+
+export type GetExperimentReadoutErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type GetExperimentReadoutError = GetExperimentReadoutErrors[keyof GetExperimentReadoutErrors];
+
+export type GetExperimentReadoutResponses = {
+    /**
+     * Get a readout snapshot
+     */
+    200: ExperimentReadoutApiRow;
+};
+
+export type GetExperimentReadoutResponse = GetExperimentReadoutResponses[keyof GetExperimentReadoutResponses];
+
 export type ListConfigsData = {
     body?: never;
     headers?: {
@@ -6859,6 +8470,67 @@ export type UpdateConfigSchemaResponses = {
 };
 
 export type UpdateConfigSchemaResponse2 = UpdateConfigSchemaResponses[keyof UpdateConfigSchemaResponses];
+
+export type ListConfigVersionsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Stable opaque config id (`cfg_…`) or the config's `name`.
+         */
+        id: ResourceId;
+    };
+    query?: {
+        /**
+         * Environment to list history for (`dev`, `staging`, or `prod`). Defaults to `prod` when omitted.
+         */
+        env?: Env;
+    };
+    url: '/api/admin/configs/{id}/versions';
+};
+
+export type ListConfigVersionsErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type ListConfigVersionsError = ListConfigVersionsErrors[keyof ListConfigVersionsErrors];
+
+export type ListConfigVersionsResponses = {
+    /**
+     * List config version history
+     */
+    200: ListConfigVersionsResponse;
+};
+
+export type ListConfigVersionsResponse2 = ListConfigVersionsResponses[keyof ListConfigVersionsResponses];
 
 export type ListKillswitchesData = {
     body?: never;
@@ -8349,6 +10021,174 @@ export type UpdateMetricResponses = {
 
 export type UpdateMetricResponse = UpdateMetricResponses[keyof UpdateMetricResponses];
 
+export type ListMetricExperimentsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Stable opaque metric id (`met_…`) or the metric's `name`.
+         */
+        id: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/metrics/{id}/experiments';
+};
+
+export type ListMetricExperimentsErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type ListMetricExperimentsError = ListMetricExperimentsErrors[keyof ListMetricExperimentsErrors];
+
+export type ListMetricExperimentsResponses = {
+    /**
+     * List experiments using a metric
+     */
+    200: ListMetricExperimentsResponse;
+};
+
+export type ListMetricExperimentsResponse2 = ListMetricExperimentsResponses[keyof ListMetricExperimentsResponses];
+
+export type UnarchiveMetricData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Stable opaque metric id (`met_…`) or the metric's `name`.
+         */
+        id: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/metrics/{id}/unarchive';
+};
+
+export type UnarchiveMetricErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type UnarchiveMetricError = UnarchiveMetricErrors[keyof UnarchiveMetricErrors];
+
+export type UnarchiveMetricResponses = {
+    /**
+     * Unarchive a metric
+     */
+    200: UnarchiveMetricResponse;
+};
+
+export type UnarchiveMetricResponse2 = UnarchiveMetricResponses[keyof UnarchiveMetricResponses];
+
+export type GetMetricSeriesData = {
+    body: GetMetricSeriesRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Stable opaque metric id (`met_…`).
+         */
+        id: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/metrics/{id}/series';
+};
+
+export type GetMetricSeriesErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type GetMetricSeriesError = GetMetricSeriesErrors[keyof GetMetricSeriesErrors];
+
+export type GetMetricSeriesResponses = {
+    /**
+     * Get a metric's time series
+     */
+    200: GetMetricSeriesResponse;
+};
+
+export type GetMetricSeriesResponse2 = GetMetricSeriesResponses[keyof GetMetricSeriesResponses];
+
 export type ListEventsData = {
     body?: never;
     headers?: {
@@ -8702,6 +10542,10 @@ export type ListOpsItemsData = {
          * Max items to return (1–500).
          */
         limit?: number;
+        /**
+         * Narrow to items owned by one person OR one agent. Matches a person by `users.id`, email, or display name, and an agent by connector id, display name, or kebab-case handle — e.g. `owner=Claude` or `owner=alice@acme.dev`. Case-insensitive exact match, applied over the returned page.
+         */
+        owner?: string;
     };
     url: '/api/admin/ops';
 };
@@ -8794,6 +10638,62 @@ export type CreateOpsItemResponses = {
 };
 
 export type CreateOpsItemResponse2 = CreateOpsItemResponses[keyof CreateOpsItemResponses];
+
+export type DeleteOpsItemData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Per-project item number (e.g. `7`) or the full ops item id.
+         */
+        handle: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/ops/{handle}';
+};
+
+export type DeleteOpsItemErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type DeleteOpsItemError = DeleteOpsItemErrors[keyof DeleteOpsItemErrors];
+
+export type DeleteOpsItemResponses = {
+    /**
+     * Delete a queue item
+     */
+    200: DeleteOpsItemResponse;
+};
+
+export type DeleteOpsItemResponse2 = DeleteOpsItemResponses[keyof DeleteOpsItemResponses];
 
 export type GetOpsItemData = {
     body?: never;
@@ -8963,6 +10863,205 @@ export type LinkPrToOpsItemResponses = {
 
 export type LinkPrToOpsItemResponse2 = LinkPrToOpsItemResponses[keyof LinkPrToOpsItemResponses];
 
+export type AckOpsItemData = {
+    body?: AckOpsItemRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Per-project item number (e.g. `7`) or the full ops item id.
+         */
+        handle: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/ops/{handle}/ack';
+};
+
+export type AckOpsItemErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type AckOpsItemError = AckOpsItemErrors[keyof AckOpsItemErrors];
+
+export type AckOpsItemResponses = {
+    /**
+     * Ack an item (start a run)
+     */
+    200: AckOpsItemResponse;
+};
+
+export type AckOpsItemResponse2 = AckOpsItemResponses[keyof AckOpsItemResponses];
+
+export type ListOpsInvestigationsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Per-project item number (e.g. `7`) or the full ops item id.
+         */
+        handle: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/ops/{handle}/investigation';
+};
+
+export type ListOpsInvestigationsErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type ListOpsInvestigationsError = ListOpsInvestigationsErrors[keyof ListOpsInvestigationsErrors];
+
+export type ListOpsInvestigationsResponses = {
+    /**
+     * List an item's investigation records
+     */
+    200: ListOpsInvestigationsResponse;
+};
+
+export type ListOpsInvestigationsResponse2 = ListOpsInvestigationsResponses[keyof ListOpsInvestigationsResponses];
+
+export type CreateOpsInvestigationData = {
+    body: CreateOpsInvestigationRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Per-project item number (e.g. `7`) or the full ops item id.
+         */
+        handle: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/ops/{handle}/investigation';
+};
+
+export type CreateOpsInvestigationErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type CreateOpsInvestigationError = CreateOpsInvestigationErrors[keyof CreateOpsInvestigationErrors];
+
+export type CreateOpsInvestigationResponses = {
+    /**
+     * Record an investigation
+     */
+    200: OpsInvestigation;
+};
+
+export type CreateOpsInvestigationResponse = CreateOpsInvestigationResponses[keyof CreateOpsInvestigationResponses];
+
+export type ListOpsAgentsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/admin/agent-profiles';
+};
+
+export type ListOpsAgentsErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+};
+
+export type ListOpsAgentsError = ListOpsAgentsErrors[keyof ListOpsAgentsErrors];
+
+export type ListOpsAgentsResponses = {
+    /**
+     * List connected AI agents
+     */
+    200: ListOpsAgentsResponse;
+};
+
+export type ListOpsAgentsResponse2 = ListOpsAgentsResponses[keyof ListOpsAgentsResponses];
+
 export type ListOpsCommentsData = {
     body?: never;
     headers?: {
@@ -9113,6 +11212,96 @@ export type NotifyOpsResponses = {
 };
 
 export type NotifyOpsResponse2 = NotifyOpsResponses[keyof NotifyOpsResponses];
+
+export type ListNotificationFeedData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/admin/notifications/feed';
+};
+
+export type ListNotificationFeedErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+};
+
+export type ListNotificationFeedError = ListNotificationFeedErrors[keyof ListNotificationFeedErrors];
+
+export type ListNotificationFeedResponses = {
+    /**
+     * Read the notification feed
+     */
+    200: ListNotificationFeedResponse;
+};
+
+export type ListNotificationFeedResponse2 = ListNotificationFeedResponses[keyof ListNotificationFeedResponses];
+
+export type MarkNotificationsReadData = {
+    body?: MarkNotificationsReadRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/admin/notifications/feed';
+};
+
+export type MarkNotificationsReadErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type MarkNotificationsReadError = MarkNotificationsReadErrors[keyof MarkNotificationsReadErrors];
+
+export type MarkNotificationsReadResponses = {
+    /**
+     * Mark notifications read
+     */
+    200: OkResponse;
+};
+
+export type MarkNotificationsReadResponse = MarkNotificationsReadResponses[keyof MarkNotificationsReadResponses];
 
 export type ListSlackChannelsData = {
     body?: never;
@@ -9384,6 +11573,118 @@ export type UpdateAlertRuleResponses = {
 
 export type UpdateAlertRuleResponse2 = UpdateAlertRuleResponses[keyof UpdateAlertRuleResponses];
 
+export type ListAlertsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Filter by lifecycle state. Defaults to `active` (currently firing); `all` returns every status.
+         */
+        status?: 'active' | 'resolved' | 'dismissed' | 'all';
+    };
+    url: '/api/admin/alerts';
+};
+
+export type ListAlertsErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type ListAlertsError = ListAlertsErrors[keyof ListAlertsErrors];
+
+export type ListAlertsResponses = {
+    /**
+     * List fired alerts
+     */
+    200: ListAlertsResponse;
+};
+
+export type ListAlertsResponse2 = ListAlertsResponses[keyof ListAlertsResponses];
+
+export type UpdateAlertData = {
+    body: UpdateAlertRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Stable opaque alert id (`al_…`).
+         */
+        id: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/alerts/{id}';
+};
+
+export type UpdateAlertErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type UpdateAlertError = UpdateAlertErrors[keyof UpdateAlertErrors];
+
+export type UpdateAlertResponses = {
+    /**
+     * Update a fired alert
+     */
+    200: AlertApiRow;
+};
+
+export type UpdateAlertResponse = UpdateAlertResponses[keyof UpdateAlertResponses];
+
 export type GetCurrentProjectData = {
     body?: never;
     headers?: {
@@ -9485,6 +11786,62 @@ export type UpsertProjectResponses = {
 };
 
 export type UpsertProjectResponse2 = UpsertProjectResponses[keyof UpsertProjectResponses];
+
+export type GetProjectData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Stable opaque project id. Must match the caller's own project.
+         */
+        id: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/projects/{id}';
+};
+
+export type GetProjectErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type GetProjectError = GetProjectErrors[keyof GetProjectErrors];
+
+export type GetProjectResponses = {
+    /**
+     * Show a project by id
+     */
+    200: GetCurrentProjectResponse;
+};
+
+export type GetProjectResponse = GetProjectResponses[keyof GetProjectResponses];
 
 export type UpdateProjectData = {
     body: UpdateProjectRequest;
@@ -9767,6 +12124,113 @@ export type PushI18nKeysResponses = {
 
 export type PushI18nKeysResponse2 = PushI18nKeysResponses[keyof PushI18nKeysResponses];
 
+export type UpsertI18nKeysData = {
+    body: UpsertI18nKeysRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/admin/i18n/keys';
+};
+
+export type UpsertI18nKeysErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type UpsertI18nKeysError = UpsertI18nKeysErrors[keyof UpsertI18nKeysErrors];
+
+export type UpsertI18nKeysResponses = {
+    /**
+     * Bulk upsert i18n keys (overwrite)
+     */
+    200: UpsertI18nKeysResponse;
+};
+
+export type UpsertI18nKeysResponse2 = UpsertI18nKeysResponses[keyof UpsertI18nKeysResponses];
+
+export type DeleteI18nKeyData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The key's id.
+         */
+        id: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/i18n/keys/{id}';
+};
+
+export type DeleteI18nKeyErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type DeleteI18nKeyError = DeleteI18nKeyErrors[keyof DeleteI18nKeyErrors];
+
+export type DeleteI18nKeyResponses = {
+    /**
+     * Delete one i18n key
+     */
+    200: OkResponse;
+};
+
+export type DeleteI18nKeyResponse = DeleteI18nKeyResponses[keyof DeleteI18nKeyResponses];
+
 export type UpdateI18nKeyData = {
     body: UpdateI18nKeyRequest;
     headers?: {
@@ -9925,6 +12389,62 @@ export type CreateI18nDraftResponses = {
 
 export type CreateI18nDraftResponse = CreateI18nDraftResponses[keyof CreateI18nDraftResponses];
 
+export type DeleteI18nDraftData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The draft id to delete.
+         */
+        draftId: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/i18n/drafts/{draftId}';
+};
+
+export type DeleteI18nDraftErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type DeleteI18nDraftError = DeleteI18nDraftErrors[keyof DeleteI18nDraftErrors];
+
+export type DeleteI18nDraftResponses = {
+    /**
+     * Delete a translation draft
+     */
+    200: OkResponse;
+};
+
+export type DeleteI18nDraftResponse = DeleteI18nDraftResponses[keyof DeleteI18nDraftResponses];
+
 export type UpdateI18nDraftData = {
     body: UpdateI18nDraftRequest;
     headers?: {
@@ -9980,6 +12500,174 @@ export type UpdateI18nDraftResponses = {
 };
 
 export type UpdateI18nDraftResponse = UpdateI18nDraftResponses[keyof UpdateI18nDraftResponses];
+
+export type DeleteI18nProfileData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The profile id to delete.
+         */
+        profileId: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/i18n/profiles/{profileId}';
+};
+
+export type DeleteI18nProfileErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type DeleteI18nProfileError = DeleteI18nProfileErrors[keyof DeleteI18nProfileErrors];
+
+export type DeleteI18nProfileResponses = {
+    /**
+     * Delete an i18n profile
+     */
+    200: OkResponse;
+};
+
+export type DeleteI18nProfileResponse = DeleteI18nProfileResponses[keyof DeleteI18nProfileResponses];
+
+export type ListI18nDraftKeysData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The draft id to list staged keys for.
+         */
+        draftId: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/i18n/drafts/{draftId}/keys';
+};
+
+export type ListI18nDraftKeysErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type ListI18nDraftKeysError = ListI18nDraftKeysErrors[keyof ListI18nDraftKeysErrors];
+
+export type ListI18nDraftKeysResponses = {
+    /**
+     * List a draft's staged keys
+     */
+    200: ListI18nDraftKeysResponse;
+};
+
+export type ListI18nDraftKeysResponse2 = ListI18nDraftKeysResponses[keyof ListI18nDraftKeysResponses];
+
+export type UpsertI18nDraftKeyData = {
+    body: UpsertI18nDraftKeyRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The draft id to stage the key into.
+         */
+        draftId: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/i18n/drafts/{draftId}/keys';
+};
+
+export type UpsertI18nDraftKeyErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type UpsertI18nDraftKeyError = UpsertI18nDraftKeyErrors[keyof UpsertI18nDraftKeyErrors];
+
+export type UpsertI18nDraftKeyResponses = {
+    /**
+     * Upsert one staged draft key
+     */
+    201: OkResponse;
+};
+
+export type UpsertI18nDraftKeyResponse = UpsertI18nDraftKeyResponses[keyof UpsertI18nDraftKeyResponses];
 
 export type PublishI18nProfileData = {
     body: PublishI18nProfileRequest;
@@ -10431,6 +13119,57 @@ export type GetErrorSeriesResponses = {
 };
 
 export type GetErrorSeriesResponse = GetErrorSeriesResponses[keyof GetErrorSeriesResponses];
+
+export type GetProjectErrorSeriesData = {
+    body: ErrorSeriesRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/admin/errors/series';
+};
+
+export type GetProjectErrorSeriesErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type GetProjectErrorSeriesError = GetProjectErrorSeriesErrors[keyof GetProjectErrorSeriesErrors];
+
+export type GetProjectErrorSeriesResponses = {
+    /**
+     * Get the project-wide error series
+     */
+    200: ErrorSeriesResponse;
+};
+
+export type GetProjectErrorSeriesResponse = GetProjectErrorSeriesResponses[keyof GetProjectErrorSeriesResponses];
 
 export type ListConnectorsData = {
     body?: never;

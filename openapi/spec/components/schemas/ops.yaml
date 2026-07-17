@@ -35,9 +35,88 @@ ListOpsItemsResponse:
         anyOf:
           - type: string
           - type: "null"
+      investigationState:
+        anyOf:
+          - $ref: "#/OpsInvestigationState"
+          - type: "null"
+        description: >-
+          Where automation has taken this item in the investigation lifecycle
+          (see `OpsInvestigationState`). Optional — absent/`null` on rows filed
+          before the field existed; derive from `status`/`type` in that case.
+      source:
+        type: string
+        enum:
+          - team
+          - system
+        description: "How the item was filed: `team` (a human admin/teammate — bug/feature) or `system` (auto-filed — error/alert/measure_plan)."
+      reporterEmail:
+        anyOf:
+          - type: string
+          - type: "null"
+        description: Reporter email (bug/feature), or `null`.
+      stepsToReproduce:
+        type: string
+        description: Reproduction steps — populated for `bug`, empty string otherwise.
+      actualResult:
+        type: string
+        description: What actually happened — `bug` only, empty string otherwise.
+      expectedResult:
+        type: string
+        description: What was expected — `bug` only, empty string otherwise.
+      description:
+        type: string
+        description: Feature description — populated for `feature_request`, empty string otherwise.
+      useCase:
+        type: string
+        description: Feature use case — `feature_request` only, empty string otherwise.
+      context:
+        anyOf:
+          - $ref: "#/OpsItemContext"
+          - type: "null"
+        description: "The RAW stored capture context on the row — NOT hydrated: list rows carry only what was captured at file time (e.g. `context.browser` for bug/feature, the trigger subset for auto-filed tickets). The live `error`/`alert` readings and `errorChart` are added only by the single-item read (`GET /api/admin/ops/{handle}`). `null` when nothing was captured."
+      connectorData:
+        anyOf:
+          - $ref: "#/ConnectorData"
+          - type: "null"
+        description: "Per-connector linkage recorded for this item, keyed by connector provider. `null` if no connector has touched the item."
+      notify:
+        anyOf:
+          - $ref: ./common.yaml#/NotificationTarget
+          - type: "null"
+        description: Per-item completion-notification target, or `null` (falls back to the project default).
+      assigneeId:
+        anyOf:
+          - type: string
+          - type: "null"
+        description: The PERSON owner — a `users.id` (resolved into `owner.user`), or `null` when unassigned.
+      assigneeConnectorId:
+        anyOf:
+          - type: string
+          - type: "null"
+        description: The AGENT owner when it is a connected trigger connector — a `connectors` row id (resolved into `owner.agent`), or `null`. Mutually exclusive with `assigneeAgent`.
+      assigneeAgent:
+        anyOf:
+          - type: string
+          - type: "null"
+        description: The AGENT owner when it is a built-in hosted Shipeasy agent — currently only `jarvis` — or `null`. Mutually exclusive with `assigneeConnectorId`.
+      owner:
+        $ref: "#/OpsItemOwner"
+      run:
+        anyOf:
+          - $ref: "#/OpsRun"
+          - type: "null"
+        description: The currently OPEN run on this item (someone acked it and is actively working — the cockpit's live working indicator), or `null` when nothing is in flight.
+      lastRun:
+        anyOf:
+          - $ref: "#/OpsRun"
+          - type: "null"
+        description: The most recently COMPLETED run (the run result — final action, PR, duration), excluding superseded runs; `null` when no run has completed yet.
       createdAt:
         type: string
         description: ISO-8601 creation timestamp.
+      updatedAt:
+        type: string
+        description: ISO-8601 last-update timestamp.
     required:
       - id
       - number
@@ -45,9 +124,14 @@ ListOpsItemsResponse:
       - title
       - status
       - priority
+      - source
+      - owner
+      - run
+      - lastRun
       - createdAt
+      - updatedAt
     additionalProperties: {}
-    description: One queue item — any type.
+    description: One queue item — any type — plus its resolved `owner` and run state.
   description: A page of queue items, newest first.
 GetOpsItemResponse:
   type: object
@@ -90,6 +174,16 @@ GetOpsItemResponse:
         - type: string
         - type: "null"
       description: "Stable key of the originating record for auto-filed tickets (error fingerprint, `<alert source>:<dedupeKey>`, or measurement-plan ref); `null` for human-filed bugs/features."
+    investigationState:
+      anyOf:
+        - $ref: "#/OpsInvestigationState"
+        - type: "null"
+      description: >-
+        Where automation has taken this item in the investigation lifecycle
+        (see `OpsInvestigationState`). Written as a side-effect of the actions
+        that already happen (link a PR, change status, an assistant reply);
+        `null` on rows filed before the field existed — derive from
+        `status`/`type` in that case.
     reporterEmail:
       anyOf:
         - type: string
@@ -132,6 +226,23 @@ GetOpsItemResponse:
         - $ref: ./common.yaml#/NotificationTarget
         - type: "null"
       description: Per-item completion-notification target, or `null` (falls back to the project default).
+    assigneeId:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The PERSON owner — a `users.id` (resolved into `owner.user`), or `null` when unassigned.
+    assigneeConnectorId:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The AGENT owner when it is a connected trigger connector — a `connectors` row id (resolved into `owner.agent`), or `null`. Mutually exclusive with `assigneeAgent`.
+    assigneeAgent:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The AGENT owner when it is a built-in hosted Shipeasy agent — currently only `jarvis` — or `null`. Mutually exclusive with `assigneeConnectorId`.
+    owner:
+      $ref: "#/OpsItemOwner"
     createdAt:
       type: string
       description: ISO-8601 creation timestamp.
@@ -148,9 +259,144 @@ GetOpsItemResponse:
     - context
     - attachments
     - related
+    - owner
     - createdAt
   additionalProperties: {}
   description: "One queue item, any of the five types. Shared fields apply to all; `stepsToReproduce`/`actualResult`/`expectedResult` are bug-specific, `description`/`useCase` feature-specific. The auto-collected browser fields (page URL, user-agent, viewport) live under `context.browser` for bug/feature. `context` also carries the hydrated per-type payload for auto-filed `error`/`alert`/`measure_plan` tickets, `attachments` lists any uploaded files, and `related` gives deep links to the underlying resources."
+OpsItemOwner:
+  type: object
+  properties:
+    user:
+      anyOf:
+        - type: object
+          properties:
+            id:
+              type: string
+              description: The `users.id` of the assigned person (what `assigneeId` stores).
+            email:
+              type: string
+              description: The person's email.
+            name:
+              anyOf:
+                - type: string
+                - type: "null"
+              description: The person's display name, or `null` when none is set.
+          required:
+            - id
+            - email
+            - name
+          additionalProperties: false
+          description: The resolved person owner.
+        - type: "null"
+      description: The PERSON half of the owner (resolved from `assigneeId`), or `null` when no person is assigned.
+    agent:
+      anyOf:
+        - type: object
+          properties:
+            connectorId:
+              anyOf:
+                - type: string
+                - type: "null"
+              description: The `connectors` row id for a connector-backed agent; `null` for the built-in one.
+            builtin:
+              anyOf:
+                - type: string
+                  const: jarvis
+                - type: "null"
+              description: The built-in-agent key (`jarvis`) when this is the hosted Shipeasy agent; `null` for a connector-backed one.
+            provider:
+              type: string
+              enum:
+                - claude_trigger
+                - cursor_trigger
+                - copilot_trigger
+                - jules_trigger
+                - jarvis
+              description: The trigger-connector provider backing this agent, or `jarvis` for the built-in hosted agent.
+            name:
+              type: string
+              description: Display name — the connector's `name`, the provider default (e.g. "Claude"), or "Jarvis".
+          required:
+            - connectorId
+            - builtin
+            - provider
+            - name
+          additionalProperties: false
+          description: The resolved agent owner. Exactly one of `connectorId` / `builtin` is set.
+        - type: "null"
+      description: The AGENT half of the owner (resolved from `assigneeConnectorId` / `assigneeAgent`), or `null` when no agent is assigned.
+  required:
+    - user
+    - agent
+  additionalProperties: false
+  description: "The fully-resolved owner of a queue item — a person and/or an AI agent. The two halves are independent: an item may have a person, an agent, both, or neither (both `null`)."
+OpsRun:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Run record id.
+    agent:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: "The AI agent type working the run (`jarvis` | `claude` | `cursor` | `copilot` | `jules`); `null` for a human ack."
+    connectorId:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The trigger-connector row id backing the acking agent; `null` for a human ack or the built-in Jarvis agent.
+    ackedBy:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Email of the human who acked; `null` for an AI ack.
+    sessionId:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The agent-run session id recorded on the ack (dashboard deep-links to the run page), or `null`.
+    startedAt:
+      type: string
+      description: ISO-8601 timestamp the run started (the ack time).
+    completedAt:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: ISO-8601 timestamp the run closed, or `null` while still open.
+    completedAction:
+      anyOf:
+        - type: string
+          enum:
+            - link_pr
+            - notify
+            - status
+            - superseded
+        - type: "null"
+      description: "Which final action closed the run — `link_pr`/`notify` are the agent's terminal ops actions, `status` a completion status flip (ready_for_qa/resolved), `superseded` a newer ack replacing it. `null` while the run is open."
+    prNumber:
+      anyOf:
+        - type: number
+        - type: "null"
+      description: The PR the run linked as its final action, or `null`.
+    prUrl:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: HTML URL of that PR, or `null`.
+  required:
+    - id
+    - agent
+    - connectorId
+    - ackedBy
+    - sessionId
+    - startedAt
+    - completedAt
+    - completedAction
+    - prNumber
+    - prUrl
+  additionalProperties: false
+  description: "One run on a queue item — who (person or AI agent) picked it up when, and, once closed, how it ended (final action + PR + session link). Opened by `POST /api/admin/ops/{handle}/ack`."
 OpsItemContext:
   type: object
   properties:
@@ -162,6 +408,38 @@ OpsItemContext:
       $ref: "#/OpsAlertContext"
     measurePlan:
       $ref: "#/OpsMeasurePlanContext"
+    errorChart:
+      type: object
+      properties:
+        series:
+          type: array
+          items:
+            type: object
+            properties:
+              t:
+                type: number
+                description: Bucket start — unix epoch **milliseconds** (hourly buckets).
+              v:
+                type: number
+                description: Occurrence count in the bucket (sample-rate weighted).
+            required:
+              - t
+              - v
+            additionalProperties: {}
+            description: One hourly occurrence bucket.
+          description: Hourly occurrence buckets, oldest first. Hours with no occurrences are omitted.
+        domainFrom:
+          type: number
+          description: Chart domain start — unix epoch milliseconds (24h before the read).
+        domainTo:
+          type: number
+          description: Chart domain end — unix epoch milliseconds (the read time).
+      required:
+        - series
+        - domainFrom
+        - domainTo
+      additionalProperties: {}
+      description: "Occurrence timeline for an `error` ticket — hourly buckets over the last 24h from the sampled occurrences, hydrated at read time by the single-item read only. ABSENT (not `null`) on non-error tickets, on list rows (raw context), and when no occurrence landed in the window."
   additionalProperties: {}
   description: "Per-type capture context on a queue item. Exactly one of `browser` (bug/feature), `error`, `alert`, or `measurePlan` is populated depending on `type`; other keys (e.g. the AI dedupe block on bugs) may also be present."
 OpsBrowserContext:
@@ -555,33 +833,35 @@ GithubConnectorData:
       additionalProperties: {}
       description: The GitHub issue this item opened.
     pr:
-      type: object
-      properties:
-        number:
-          type: number
-          description: Pull request number.
-        url:
-          type: string
-          description: HTML URL of the linked pull request.
-        linkedAt:
-          type: string
-          description: ISO-8601 timestamp the PR was linked.
-        connectedToIssue:
-          type: boolean
-          description: "Whether the PR was wired to the issue on GitHub (via a closing keyword or a comment)."
-        method:
-          type: string
-          enum:
-            - closes
-            - comment
-          description: How the PR was connected to the issue.
-      required:
-        - number
-        - url
-      additionalProperties: {}
-      description: The pull request linked to this item via `link-pr`.
+      $ref: "#/GithubPrLink"
   additionalProperties: {}
   description: "GitHub connector trace — the issue it opened and, once linked, the pull request."
+GithubPrLink:
+  type: object
+  properties:
+    number:
+      type: number
+      description: Pull request number.
+    url:
+      type: string
+      description: HTML URL of the linked pull request.
+    linkedAt:
+      type: string
+      description: ISO-8601 timestamp the PR was linked.
+    connectedToIssue:
+      type: boolean
+      description: "Whether the PR was wired to the issue on GitHub (via a closing keyword or a comment)."
+    method:
+      type: string
+      enum:
+        - closes
+        - comment
+      description: How the PR was connected to the issue.
+  required:
+    - number
+    - url
+  additionalProperties: {}
+  description: The pull request linked to a queue item via `link-pr` (stored on `connectorData.github.pr`).
 SlackConnectorData:
   type: object
   properties:
@@ -773,17 +1053,23 @@ OpsItemStatus:
     - pending_approval
     - triage
     - triaged
+    - investigating_by_ai
     - in_progress
+    - blocked
     - ready_for_qa
     - resolved
     - wont_fix
   description: >-
     Lifecycle status of a queue item. The working flow is `open` → `triaged` →
     `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`, terminal from
-    any earlier stage). `ready_for_qa` is what a developer sets once a fix
+    any earlier stage). `blocked` marks an item that can't progress until an
+    external dependency clears — a working state a human sets and clears.
+    `ready_for_qa` is what a developer sets once a fix
     lands; `resolved` is the QA sign-off, normally flipped in the dashboard
     after verification — set it directly from code only when the fix has been
-    verified end-to-end. Two
+    verified end-to-end. `investigating_by_ai` is a system-owned display state —
+    set when the AI agent (Jarvis) picks an item up to investigate, never chosen
+    by a human — so it is shown but not offered as a manual choice. Two
     human-gated holding states park an item OUT of the work queue until a human
     promotes it to `open` in the dashboard, so `GET /api/admin/ops` excludes
     them under `status=all`/default and returns them only when requested as an
@@ -806,6 +1092,31 @@ OpsItemPriority:
     Triage priority of a queue item. The lowest tier is `nice_to_have` (not
     `low`) — carried over from the feature-request "importance" scale this
     priority set replaced.
+OpsInvestigationState:
+  type: string
+  enum:
+    - pr_ready
+    - investigated
+    - detected
+    - question
+    - ready_for_qa
+    - pending_approval
+    - needs_triage
+    - working
+    - triaged_low
+    - backlog
+  description: >-
+    Where automation has taken an item in the investigation lifecycle — the
+    signal the ops cockpit renders as "what AI did" plus the one action expected
+    of the user. It is **written as a side-effect of the actions that already
+    happen**, never authored on its own: linking a PR sets `pr_ready`, moving to
+    `in_progress` sets `working`, `ready_for_qa` sets `ready_for_qa`, a
+    system/assistant reply sets `question`, resolving clears it, and creation
+    seeds `needs_triage`/`backlog` (by priority) or `investigated`/`detected`
+    for auto-filed error/alert tickets. `triaged_low` marks a low-signal item AI
+    has looked at but that nothing is moving. Absent on rows filed before the
+    field existed — consumers should treat a missing value as "derive from the
+    other fields".
 OpsItemPriorityOrNull:
   anyOf:
     - $ref: "#/OpsItemPriority"
@@ -933,10 +1244,129 @@ LinkPrToOpsItemResponse:
     id:
       type: string
       description: Item id that was updated.
+    pr:
+      anyOf:
+        - $ref: "#/GithubPrLink"
+        - type: "null"
+      description: "The PR link now recorded on the item (`connectorData.github.pr`), or `null` after an unlink (`prNumber: null`)."
   required:
     - id
+    - pr
   additionalProperties: false
-  description: Response for the update / link-pr endpoints.
+  description: Response for `POST /api/admin/ops/{handle}/link-pr` — the item id and the resulting PR link.
+AckOpsItemRequest:
+  type: object
+  properties:
+    agent:
+      type: string
+      enum:
+        - claude
+        - cursor
+        - copilot
+        - jules
+        - gemini
+        - jarvis
+      description: >-
+        The AI agent type acking on the item's behalf — pass your own type when
+        you are a coding agent (Claude Code passes `claude`, Cursor `cursor`,
+        Copilot `copilot`, Jules/Gemini `jules`). Omit entirely for a human ack
+        by the authenticated caller.
+    sessionId:
+      type: string
+      maxLength: 300
+      description: >-
+        The agent-run session id (e.g. Claude's `session_01…`), so the dashboard
+        can deep-link to the exact run page. Omit when the harness has no
+        session id.
+  additionalProperties: false
+  description: >-
+    Body for `POST /api/admin/ops/{handle}/ack`. With `agent` set this is an AI
+    ack — the named agent type must have a connected trigger connector in the
+    project, or the call fails with `AGENT_NOT_CONNECTED` and instructions to
+    query the available agents (`ops agents list`). `gemini` is accepted as an
+    alias for `jules`. Without `agent` it is a HUMAN ack by the authenticated
+    caller.
+AckOpsItemResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Item id that was acked.
+    number:
+      anyOf:
+        - type: number
+        - type: "null"
+      description: Per-project item number.
+    status:
+      type: string
+      description: The working status the ack moved the item into (`investigating_by_ai` for an AI ack, `in_progress` for a human one).
+    runId:
+      type: string
+      description: Id of the run record the ack opened.
+    agent:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The AI agent type working the item; `null` for a human ack.
+    connectorName:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Display name of the connected agent (the connector's name); `null` for a human ack.
+    sessionId:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The session id recorded on the run, if one was supplied.
+    startedAt:
+      type: string
+      description: ISO-8601 timestamp the run started (the ack time).
+  required:
+    - id
+    - number
+    - status
+    - runId
+    - agent
+    - connectorName
+    - sessionId
+    - startedAt
+  additionalProperties: false
+  description: Response for `POST /api/admin/ops/{handle}/ack` — the opened run.
+OpsAgentProfile:
+  type: object
+  properties:
+    connectorId:
+      type: string
+      description: The connector row id — what an agent assignment stores.
+    provider:
+      type: string
+      enum:
+        - claude_trigger
+        - cursor_trigger
+        - copilot_trigger
+        - jules_trigger
+      description: The trigger-connector provider backing this agent.
+    name:
+      type: string
+      description: Display name — the connector's `name`, or the provider default (e.g. "Claude").
+    handle:
+      type: string
+      description: Mention/search handle — the kebab-cased name (e.g. `claude`).
+  required:
+    - connectorId
+    - provider
+    - name
+    - handle
+  additionalProperties: false
+  description: One connected, assignable AI agent (an authenticated trigger connector).
+ListOpsAgentsResponse:
+  type: array
+  items:
+    $ref: "#/OpsAgentProfile"
+  description: >-
+    The project's connected AI agents — the agent types `POST
+    /api/admin/ops/{handle}/ack` accepts. Empty when no trigger connector is
+    connected yet.
 OpsCommentAuthorType:
   type: string
   enum:
@@ -1112,3 +1542,361 @@ ListSlackChannelsResponse:
     - channels
   additionalProperties: false
   description: Response for `GET /api/admin/slack/channels`.
+DeleteOpsItemResponse:
+  type: object
+  properties:
+    ok:
+      type: boolean
+      const: true
+      description: Always `true` — the item (and its comments, attachments, tags, and investigation records) was deleted.
+  required:
+    - ok
+  additionalProperties: false
+  description: Response for `DELETE /api/admin/ops/{handle}`.
+OpsInvestigation:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Investigation record id.
+    feedbackId:
+      type: string
+      description: The queue item this record hangs off.
+    kind:
+      type: string
+      enum:
+        - investigated
+        - detected
+        - question
+        - ready_for_qa
+        - working
+        - note
+      description: "Which lifecycle stage the record documents — mirrors the investigation-state buckets the cockpit renders. `working` records double as run rows (see `OpsRun`)."
+    summary:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: One-line summary of the record, or `null`.
+    findings:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The agent's full findings write-up (markdown), or `null`.
+    question:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: A blocking question for the team (markdown), or `null`.
+    qaNotes:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: How to verify the fix — QA notes (markdown), or `null`.
+    agent:
+      anyOf:
+        - type: string
+          enum:
+            - jarvis
+            - claude
+            - cursor
+            - copilot
+            - jules
+        - type: "null"
+      description: Which agent produced the record (`jarvis` is the in-house assistant; the rest are trigger-connector coding agents), or `null`.
+    model:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The model the agent ran on (self-reported), or `null`.
+    connectorId:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The trigger-connector row id the agent ran through, or `null`.
+    prNumber:
+      anyOf:
+        - type: number
+        - type: "null"
+      description: A PR the record references (e.g. the run's fixing PR), or `null`.
+    prUrl:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: HTML URL of that PR, or `null`.
+    sources:
+      anyOf:
+        - type: array
+          items:
+            type: object
+            properties:
+              path:
+                type: string
+                description: Repo-relative file path the agent inspected.
+              url:
+                type: string
+                description: External link the agent consulted.
+              label:
+                type: string
+                description: Human-readable label for the source.
+            additionalProperties: false
+            description: One file/link the agent inspected while producing the record.
+        - type: "null"
+      description: The files/links the agent inspected, or `null`.
+    confidence:
+      anyOf:
+        - type: string
+          enum:
+            - low
+            - medium
+            - high
+        - type: "null"
+      description: The agent's self-reported confidence, or `null`.
+    tokensUsed:
+      anyOf:
+        - type: number
+        - type: "null"
+      description: Tokens the run consumed (self-reported), or `null`.
+    durationMs:
+      anyOf:
+        - type: number
+        - type: "null"
+      description: Run duration in milliseconds, or `null`.
+    visibility:
+      type: string
+      enum:
+        - draft
+        - published
+      description: "`draft` records are the agent's scratch state; only `published` ones render in the panel (and are returned by default)."
+    startedAt:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: ISO-8601 timestamp the work started, or `null`.
+    completedAt:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: ISO-8601 timestamp the work finished, or `null`.
+    sessionId:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The agent-run session id, or `null`.
+    ackedBy:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Email of the human who acked (run records for a human ack), or `null`.
+    completedAction:
+      anyOf:
+        - type: string
+          enum:
+            - link_pr
+            - notify
+            - status
+            - superseded
+        - type: "null"
+      description: "Which final action closed a `working` run record, or `null` (open run / non-run record)."
+    createdAt:
+      type: string
+      description: ISO-8601 creation timestamp.
+    updatedAt:
+      type: string
+      description: ISO-8601 last-update timestamp.
+  required:
+    - id
+    - feedbackId
+    - kind
+    - summary
+    - findings
+    - question
+    - qaNotes
+    - agent
+    - model
+    - connectorId
+    - prNumber
+    - prUrl
+    - sources
+    - confidence
+    - tokensUsed
+    - durationMs
+    - visibility
+    - startedAt
+    - completedAt
+    - sessionId
+    - ackedBy
+    - completedAction
+    - createdAt
+    - updatedAt
+  additionalProperties: false
+  description: "One structured investigation record on a queue item — the read-only write-up an AI agent produces while working it (findings / blocking question / QA notes), rendered by the cockpit's detail panel."
+ListOpsInvestigationsResponse:
+  type: array
+  items:
+    $ref: "#/OpsInvestigation"
+  description: Response for `GET /api/admin/ops/{handle}/investigation` — the item's `published` investigation records, newest first (max 50).
+CreateOpsInvestigationRequest:
+  type: object
+  properties:
+    kind:
+      type: string
+      enum:
+        - investigated
+        - detected
+        - question
+        - ready_for_qa
+        - working
+        - note
+      description: Which lifecycle stage the record documents.
+    summary:
+      type: string
+      maxLength: 2000
+      description: One-line summary of the record.
+    findings:
+      type: string
+      maxLength: 50000
+      description: The full findings write-up (markdown).
+    question:
+      type: string
+      maxLength: 10000
+      description: A blocking question for the team (markdown).
+    qaNotes:
+      type: string
+      maxLength: 50000
+      description: How to verify the fix — QA notes (markdown).
+    agent:
+      type: string
+      enum:
+        - jarvis
+        - claude
+        - cursor
+        - copilot
+        - jules
+      description: The agent type producing the record — pass your own type when you are a coding agent.
+    model:
+      type: string
+      maxLength: 200
+      description: The model the agent ran on.
+    connectorId:
+      type: string
+      maxLength: 200
+      description: The trigger-connector row id the agent ran through.
+    prNumber:
+      type: integer
+      description: A PR the record references.
+    prUrl:
+      type: string
+      format: uri
+      maxLength: 2000
+      description: HTML URL of that PR.
+    sources:
+      type: array
+      maxItems: 200
+      items:
+        type: object
+        properties:
+          path:
+            type: string
+            description: Repo-relative file path inspected.
+          url:
+            type: string
+            description: External link consulted.
+          label:
+            type: string
+            description: Human-readable label for the source.
+        additionalProperties: false
+        description: One file/link inspected while producing the record.
+      description: The files/links inspected.
+    confidence:
+      type: string
+      enum:
+        - low
+        - medium
+        - high
+      description: Self-reported confidence in the record.
+    tokensUsed:
+      type: integer
+      description: Tokens the run consumed.
+    durationMs:
+      type: integer
+      description: Run duration in milliseconds.
+    visibility:
+      type: string
+      enum:
+        - draft
+        - published
+      description: Record visibility. Defaults to `published`; `draft` keeps it out of the panel.
+    startedAt:
+      type: string
+      description: ISO-8601 timestamp the work started.
+    completedAt:
+      type: string
+      description: ISO-8601 timestamp the work finished.
+    sessionId:
+      type: string
+      maxLength: 300
+      description: The agent-run session id, so the dashboard can deep-link to the run.
+  required:
+    - kind
+  additionalProperties: false
+  description: "Body for `POST /api/admin/ops/{handle}/investigation`. `kind` is required; include at least one content field (`summary`/`findings`/`question`/`qaNotes`) — the panel renders whatever it gets."
+NotificationFeedItem:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Notification id (pass to the mark-read `POST` to mark just this one).
+    event:
+      type: string
+      description: The notification's event key (e.g. `ops.attention`, `feedback.completed`, `comment.mention`).
+    title:
+      type: string
+      description: One-line headline.
+    body:
+      type: string
+      description: "Notification body. For `ops.attention` escalations: line 1 = summary, following lines = numbered unblock steps."
+    href:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Dashboard-relative deep link to the related item, or `null`.
+    createdAt:
+      type: string
+      description: ISO-8601 creation timestamp.
+    read:
+      type: boolean
+      description: Whether the notification has been marked read.
+  required:
+    - id
+    - event
+    - title
+    - body
+    - href
+    - createdAt
+    - read
+  additionalProperties: false
+  description: One in-app notification as the bell feed renders it.
+ListNotificationFeedResponse:
+  type: object
+  properties:
+    notifications:
+      type: array
+      items:
+        $ref: "#/NotificationFeedItem"
+      description: The feed, newest first (max 30). Project-wide broadcasts plus notifications addressed to the caller; events muted for the in-app channel are omitted.
+    unread:
+      type: integer
+      description: Count of the caller's unread (visible, unmuted) notifications.
+  required:
+    - notifications
+    - unread
+  additionalProperties: false
+  description: Response for `GET /api/admin/notifications/feed` — the bell feed plus its unread badge count.
+MarkNotificationsReadRequest:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Mark just this notification read. Omit to mark the caller's whole feed read.
+  additionalProperties: false
+  description: "Body for `POST /api/admin/notifications/feed`. An empty body (`{}`) marks ALL of the caller's notifications read."

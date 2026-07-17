@@ -49,6 +49,7 @@ All error codes:
 | `EXPERIMENT_IMMUTABLE_FIELD` | A field that is immutable while the experiment is running was modified. |
 | `METRIC_NOT_FOUND` | The referenced metric does not exist or is not visible to the caller. |
 | `METRIC_UNKNOWN_ID` | The supplied metric id is malformed or not recognised. |
+| `AGENT_NOT_CONNECTED` | The named AI agent type has no connected trigger connector in this project — list the available agents (`ops agents list` / `GET /api/admin/agent-profiles`) and use one of those, or connect the agent under Settings → Triggers. |
 
 Hand-written tools (`projects_upsert` and auth) layer the `.shipeasy` bind or the device-auth flow on top of the admin API rather than being plain spec calls, so they don't use this envelope. All filesystem / AST tooling (project detection, i18n source scanners / codemods / loader install) now lives in the `shipeasy` CLI, not this MCP server.
 
@@ -71,6 +72,26 @@ Feature gates: boolean flags evaluated at runtime against project rules + a perc
 **Rollout basis points.** `rollout_pct` is in **basis points**, not percent. `0` = 0%, `100` = 1%, `5000` = 50%, `10000` = 100%. This allows sub-1% precision (e.g. `7` = 0.07%).
 
 **Lifecycle.** Create dark (`rollout_pct: 0`) → attach rules → ramp via PATCH → flip kill-switch via `disable`/`enable` → delete once retired. Deletion is blocked while a running experiment references the gate as a targeting gate.
+
+#### `release_flags_activity`
+
+**List gate activity**
+
+Returns recent audit rows for one gate (create, update, enable, disable, delete) ordered newest first. Use the `limit` query parameter to cap the result (1–100, default 20).
+
+**Use case:** Render the activity feed in the gate detail panel or answer "who ramped this gate, and when?" during an incident review.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `limit` | optional | `integer` | Max rows to return (1–100). Defaults to 20. _(default `20`; 1–100)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 
 #### `release_flags_archive`
 
@@ -175,6 +196,25 @@ _Errors_ — beyond the [common errors](#errors):
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 - `VALIDATION` — The request body failed structural (schema) validation.
+
+#### `release_flags_get`
+
+**Get one gate**
+
+Returns the full gate row — including the gatekeeper `stack`, resolved creator/last-editor emails, and the edit `version` — for one gate, addressed by id or `name`.
+
+**Use case:** Inspect a single gate's current rollout, rules, and stack before editing it, without paging through the whole list.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 
 #### `release_flags_list`
 
@@ -914,6 +954,26 @@ _Errors_ — beyond the [common errors](#errors):
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 - `VALIDATION` — The request body failed structural (schema) validation.
 
+#### `release_configs_versions`
+
+**List config version history**
+
+Returns every published version of the config's value on one env, newest first. The `env` query parameter picks the environment (`dev`, `staging`, or `prod`) and defaults to `prod`; an unknown env returns `400`. The config's JSON Schema is config-level and not versioned — this is value history only.
+
+**Use case:** Render the History timeline in the config detail pane (value diff + restore), or audit which value was live on prod at a given version.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `env` | optional | `"dev" \| "staging" \| "prod"` | Target environment. One of the project's configured envs (`dev`, `staging`, `prod`). |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
 ### Experiments
 
 A/B/n experiments: randomised group assignment plus the analysis pipeline (t-test, sequential testing, SRM detection) on top of a universe.
@@ -1048,6 +1108,51 @@ _Parameters_
 _Errors_ — beyond the [common errors](#errors):
 
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+
+#### `release_experiments_readout_create`
+
+**Mint a readout snapshot**
+
+Freezes the current results view into an immutable, dated readout snapshot — verdict, headline, per-metric numbers, the caveat list with its acknowledgment state, enrollment, and a hash of the assignment-relevant config. Ship/stop flows mint one automatically; "Share readout" mints one on demand. Snapshots are never updated after insert.
+
+Pass `requireAllAcknowledged: true` to enforce ship gating server-side — returns `422` while any open caveat is not listed in `acknowledgedCaveatIds`.
+
+**Use case:** Capture "what the data said when we decided" before shipping or stopping, so the decision stays auditable even after results move.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `kind` | required | `"manual" \| "ship" \| "stop"` | Why the snapshot is being minted — `manual` ("Share readout"), or automatically on `ship` / `stop`. |
+| `acknowledgedCaveatIds` | optional | `string[]` | Ids of the open caveats the caller ticked (decision-gating acknowledgment). Unlisted caveats are stored as unacknowledged. |
+| `requireAllAcknowledged` | optional | `boolean` | When `true`, refuse (`422`) to mint while any open caveat is not listed in `acknowledgedCaveatIds` — server-side ship gating. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+#### `release_experiments_readout_get`
+
+**Get a readout snapshot**
+
+Returns one immutable readout snapshot — the frozen results view (verdict, headline, per-metric numbers, caveats, enrollment) captured when it was minted, plus the `configHash` that tells you whether it is still comparable to the live view.
+
+**Use case:** Render a shared, dated readout exactly as it looked at decision time.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `readoutId` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 
 #### `release_experiments_reanalyze`
 
@@ -1517,6 +1622,25 @@ _Errors_ — beyond the [common errors](#errors):
 - `VALIDATION` — The request body failed structural (schema) validation.
 - `PLAN_LIMIT` — The action would exceed a plan quota (e.g. the tier's maximum experiments, metrics, or configs). Upgrade the plan or archive an existing resource.
 
+### `metrics_experiments`
+
+**List experiments using a metric**
+
+Returns every experiment that attaches this metric — as `goal`, `guardrail`, or `secondary` — ordered with running experiments first, then by role weight (goal > guardrail > secondary).
+
+**Use case:** See who depends on a metric before editing or archiving it — e.g. the metric detail panel's "used by" list.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
 ### `metrics_grammar`
 
 **Print the metric query DSL grammar**
@@ -1545,6 +1669,31 @@ _Errors_ — beyond the [common errors](#errors):
 
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 
+### `metrics_series`
+
+**Get a metric's time series**
+
+Compiles the metric's typed IR into Analytics Engine SQL and returns the bucketed series over the requested window (near-real-time; ingest lag is seconds). The window bounds are epoch **seconds**; `to` must be strictly greater than `from`. The response echoes the SQL that produced the rows.
+
+Returns `422` when the stored definition can't compile (e.g. a label or event has gone away — re-save the metric), and `502`/`503` when the analytics upstream fails or isn't configured.
+
+**Use case:** Render the metric trend chart / sparkline, or pull raw bucketed values to feed an external dashboard.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `from` | required | `integer` | Window start, epoch seconds (inclusive). _(≥ 0)_ |
+| `to` | required | `integer` | Window end, epoch seconds (exclusive). Must be greater than `from`. _(≥ 0)_ |
+| `bucket` | optional | `integer` | Bucket width in seconds (60s–86400s/1d). Defaults to `3600` (hourly). Each returned point is floor-aligned to this width. _(default `3600`; 60–86400)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
 ### `metrics_show`
 
 **Get a metric**
@@ -1552,6 +1701,25 @@ _Errors_ — beyond the [common errors](#errors):
 Fetch one metric by its id or name, including the rendered DSL query and the typed IR.
 
 **Use case:** Inspect a single metric's full definition before reusing it in an experiment or alert rule.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
+### `metrics_unarchive`
+
+**Unarchive a metric**
+
+Reverses a soft-delete (archive), making the metric live again. Idempotent — unarchiving a metric that is already live succeeds with no effect.
+
+**Use case:** Undo an accidental archive (the metrics list "Undo" toast calls this).
 
 _Parameters_
 
@@ -1759,6 +1927,49 @@ resolve alert-rule notification targets.
 **Handles.** A queue item is addressed by its per-project `number` (e.g. `7`)
 or its full id — the API resolves either.
 
+### `ops_ack`
+
+**Ack an item (start a run)**
+
+Acknowledge a queue item — a person or an AI agent declaring "I'm on this
+now". Opens a run: stamps who picked the item up and when, assigns them as
+owner, and moves the item into the matching working status
+(`investigating_by_ai` for an AI ack, `in_progress` for a human one). The
+dashboard renders the open run as a live working indicator (which agent +
+time since the run started).
+
+**AI ack.** Pass `agent` with your own agent type (`claude`, `cursor`,
+`copilot`, `jules`; `gemini` aliases `jules`) and, when you have one, the
+run's `sessionId` so the dashboard can deep-link to the session. If the
+project has no connected trigger connector of that type the call fails
+with `AGENT_NOT_CONNECTED` — list the available agents with `ops agents
+list` and use one of those (or connect the agent under Settings →
+Triggers).
+
+**Completion.** The run closes automatically on the loop's final actions —
+linking the fixing PR (`link-pr`), an ops-notify escalation, or a
+completion status change (`ready_for_qa`/`resolved`) — and the dashboard
+then shows the run result (final action, PR, duration, session link).
+A repeat ack supersedes the previous open run.
+
+**Use case:** Call this first when picking an item up, so the team sees
+who/what is working on it in real time.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `agent` | optional | `"claude" \| "cursor" \| "copilot" \| "jules" \| "gemini" \| "jarvis"` | The AI agent type acking on the item's behalf — pass your own type when you are a coding agent (Claude Code passes `claude`, Cursor `cursor`, Copilot `copilot`, Jules/Gemini `jules`). Omit entirely for a human ack by the authenticated caller. |
+| `sessionId` | optional | `string` | The agent-run session id (e.g. Claude's `session_01…`), so the dashboard can deep-link to the exact run page. Omit when the harness has no session id. _(length 0–300)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `AGENT_NOT_CONNECTED` — The named AI agent type has no connected trigger connector in this project — list the available agents (`ops agents list` / `GET /api/admin/agent-profiles`) and use one of those, or connect the agent under Settings → Triggers.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
 ### `ops_bug`
 
 **File a bug report.**
@@ -1862,6 +2073,58 @@ _Errors_ — beyond the [common errors](#errors):
 - `ALREADY_EXISTS` — A resource with this name already exists in the project.
 - `VALIDATION` — The request body failed structural (schema) validation.
 
+### `ops_fired_alerts_list`
+
+**List fired alerts**
+
+Returns the project's FIRED alerts as a **bare JSON array** (no pagination envelope), ordered by `createdAt desc`. Defaults to the currently-firing ones (`status=active`); pass a `status` to widen to resolved/dismissed history or `all`.
+
+Fired alerts are raised only by the platform — the UI's killswitch handlers plus the worker's analysis consumer and alerts cron — never filed by hand, so this surface is list + triage (via PATCH), with no create. The rules that *define* metric-threshold alerts live at `/api/admin/alert-rules`.
+
+**Use case:** Snapshot what is currently firing for an on-call view or the home Alerts block, or pull `status=all` to audit how a noisy rule has behaved over time.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `status` | optional | `"active" \| "resolved" \| "dismissed" \| "all"` | Filter by lifecycle state. Defaults to `active` (currently firing); `all` returns every status. _(default `"active"`)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+
+### `ops_fired_alerts_update`
+
+**Update a fired alert**
+
+Triage writes on one fired alert — the only mutations this surface allows. All body fields are optional (at least one required); only the fields present are changed.
+
+- **`status`** — flip between `active` / `resolved` / `dismissed`. `resolved` and `dismissed` stamp `resolvedAt` / `dismissedAt`; `active` re-opens and clears both. A resolved alert re-fires (as the same row, re-activated) if its condition is raised again.
+- **`assigneeId`** — the PERSON owner (a `users.id`), or `null` to unassign.
+- **`agent`** — the AGENT owner: a connected trigger connector's id, or the built-in `"jarvis"` (**Enterprise plan only** — `403` otherwise), or `null` to clear. Person and agent halves are independent.
+
+Returns the updated row; `404` if the alert does not exist in the project.
+
+**Use cases**
+
+- **Wave off a known condition** — `{ "status": "dismissed" }` on an alert that needs no action.
+- **Hand it to someone** — `{ "assigneeId": "…" }` from the ops cockpit's Owner column.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `status` | optional | `"active" \| "resolved" \| "dismissed"` | New lifecycle state. `resolved` / `dismissed` stamp their timestamp; `active` re-opens and clears both. |
+| `assigneeId` | optional | `any` | PERSON owner — a `users.id`, or `null` to clear the assignment. |
+| `agent` | optional | `any` | AGENT owner — a connected trigger connector's id (`connectors.id`), the built-in `"jarvis"` (Enterprise plan only — rejected with `403` otherwise), or `null` to clear. Stored in `assigneeConnectorId` or `assigneeAgent` depending on the value; the two are mutually exclusive. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
 ### `ops_get`
 
 **Get one queue item**
@@ -1918,6 +2181,7 @@ _Parameters_
 | `type` | optional | `any` | Filter by item type (`bug`/`feature_request`/`error`/`alert`), or `all`. |
 | `status` | optional | `any` | Filter by lifecycle status, or `all`. The human-gated holding states (`pending_approval`, `triage`) are excluded from `all`/default and returned only when requested as the exact status. |
 | `limit` | optional | `integer` | Max items to return (1–500). _(1–500)_ |
+| `owner` | optional | `string` | Narrow to items owned by one person OR one agent. Matches a person by `users.id`, email, or display name, and an agent by connector id, display name, or kebab-case handle — e.g. `owner=Claude` or `owner=alice@acme.dev`. Case-insensitive exact match, applied over the returned page. |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -2112,6 +2376,33 @@ _Errors_ — beyond the [common errors](#errors):
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 - `IMMUTABLE_FIELD` — A field that is immutable in the current state was modified (e.g. editing allocation while running).
 - `VALIDATION` — The request body failed structural (schema) validation.
+
+### Agents
+
+Connected AI agents — one per authenticated trigger connector (Claude /
+Cursor / Copilot / Jules). The read-only roster behind agent assignment
+and the `ops ack` agent types: an AI ack (`ops ack <handle> --agent
+<type>`) requires the type to appear here, so this list is where an
+`AGENT_NOT_CONNECTED` error sends you.
+
+#### `ops_agents_list`
+
+**List connected AI agents**
+
+The project's connected AI agents — one per authenticated trigger
+connector (Claude / Cursor / Copilot / Jules). These are the agent types
+`ops ack` accepts and the agents a queue item can be assigned to.
+
+**Use case:** Discover which `agent` values an AI ack can use, e.g. after
+an `AGENT_NOT_CONNECTED` error.
+
+_Parameters_
+
+_No parameters._
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 
 ### Comments
 
@@ -2536,6 +2827,28 @@ _Parameters_
 | `status` | optional | `"open" \| "resolved" \| "ignored" \| "all"` | Filter by triage state. `all` (the default) returns every status. _(default `"all"`)_ |
 | `q` | optional | `string` | Case-insensitive substring match against `message`, `errorType`, and `subject`. _(length 0–200)_ |
 | `limit` | optional | `integer` | Maximum number of rows to return (1–500). Defaults to 200. _(default `200`; 1–500)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+
+### `errors_project_series`
+
+**Get the project-wide error series**
+
+Returns the bucketed occurrence timeseries for the **whole project** — every tracked error folded together — split by `see()` error kind so a chart can stack uncaught vs network vs violation etc. Read from the `shipeasy_errors` Analytics Engine dataset (near-real-time; ingest lag is seconds). The window bounds are epoch **seconds**; `to` must be strictly greater than `from`. The response echoes the SQL that produced the rows.
+
+Same request/response shape as the per-error series, with one addition: each row also carries a `kind` label column (the occurrence's `see()` kind), so multiple rows can share the same bucket `t` — one per kind.
+
+**Use case:** Render the project-level error-rate chart at the top of the errors dashboard, stacked by kind, or feed a deploy health check that compares the project's error rate before and after a release.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `from` | required | `integer` | Window start, epoch seconds (inclusive). _(≥ 0)_ |
+| `to` | required | `integer` | Window end, epoch seconds (exclusive). Must be greater than `from`. _(≥ 0)_ |
+| `bucket` | optional | `integer` | Bucket width in seconds (60s–86400s/1d). Defaults to `3600` (hourly). Each returned point is floor-aligned to this width. _(default `3600`; 60–86400)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 

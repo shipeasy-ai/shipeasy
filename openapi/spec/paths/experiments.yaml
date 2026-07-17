@@ -648,21 +648,51 @@
                 status: running
               results:
                 - metric: checkout_completed
-                  group_name: control
+                  groupName: control
                   ds: 2026-05-09
                   n: 12421
                   mean: 0.1834
-                  delta_pct: null
-                  p_value: null
-                  srm_detected: 0
+                  variance: 0.1498
+                  delta: null
+                  deltaPct: null
+                  ci95Low: null
+                  ci95High: null
+                  ci99Low: null
+                  ci99High: null
+                  ciLow: null
+                  ciHigh: null
+                  pValue: null
+                  expectedN: 15000
+                  realizedMde: null
+                  srmPValue: 0.82
+                  srmDetected: 0
+                  msprtSignificant: null
+                  msprtLambda: null
+                  isFinal: 0
+                  peekWarning: 0
                 - metric: checkout_completed
-                  group_name: treatment
+                  groupName: treatment
                   ds: 2026-05-09
                   n: 12519
                   mean: 0.1922
-                  delta_pct: 4.8
-                  p_value: 0.018
-                  srm_detected: 0
+                  variance: 0.1553
+                  delta: 0.0088
+                  deltaPct: 4.8
+                  ci95Low: 0.0015
+                  ci95High: 0.0161
+                  ci99Low: -0.0008
+                  ci99High: 0.0184
+                  ciLow: 0.0015
+                  ciHigh: 0.0161
+                  pValue: 0.018
+                  expectedN: 15000
+                  realizedMde: 0.0079
+                  srmPValue: 0.82
+                  srmDetected: 0
+                  msprtSignificant: null
+                  msprtLambda: null
+                  isFinal: 0
+                  peekWarning: 0
               verdict: ship
       "400":
         $ref: ../components/responses.yaml#/BadRequest
@@ -723,21 +753,51 @@
                 status: running
               series:
                 - metric: checkout_completed
-                  group_name: treatment
+                  groupName: treatment
                   ds: 2026-05-08
                   n: 11200
                   mean: 0.1903
-                  delta_pct: 3.9
-                  p_value: 0.034
-                  srm_detected: 0
+                  variance: 0.1541
+                  delta: 0.0071
+                  deltaPct: 3.9
+                  ci95Low: -0.0004
+                  ci95High: 0.0146
+                  ci99Low: -0.0028
+                  ci99High: 0.017
+                  ciLow: -0.0004
+                  ciHigh: 0.0146
+                  pValue: 0.034
+                  expectedN: 15000
+                  realizedMde: 0.0083
+                  srmPValue: 0.79
+                  srmDetected: 0
+                  msprtSignificant: null
+                  msprtLambda: null
+                  isFinal: 0
+                  peekWarning: 0
                 - metric: checkout_completed
-                  group_name: treatment
+                  groupName: treatment
                   ds: 2026-05-09
                   n: 12519
                   mean: 0.1922
-                  delta_pct: 4.8
-                  p_value: 0.018
-                  srm_detected: 0
+                  variance: 0.1553
+                  delta: 0.0088
+                  deltaPct: 4.8
+                  ci95Low: 0.0015
+                  ci95High: 0.0161
+                  ci99Low: -0.0008
+                  ci99High: 0.0184
+                  ciLow: 0.0015
+                  ciHigh: 0.0161
+                  pValue: 0.018
+                  expectedN: 15000
+                  realizedMde: 0.0079
+                  srmPValue: 0.82
+                  srmDetected: 0
+                  msprtSignificant: null
+                  msprtLambda: null
+                  isFinal: 0
+                  peekWarning: 0
       "400":
         $ref: ../components/responses.yaml#/BadRequest
       "401":
@@ -759,6 +819,166 @@
       name: timeseries
       positional:
         - id
+/api/admin/experiments/{id}/readouts:
+  post:
+    operationId: createExperimentReadout
+    summary: Mint a readout snapshot
+    description: |-
+      Freezes the current results view into an immutable, dated readout snapshot — verdict, headline, per-metric numbers, the caveat list with its acknowledgment state, enrollment, and a hash of the assignment-relevant config. Ship/stop flows mint one automatically; "Share readout" mints one on demand. Snapshots are never updated after insert.
+
+      Pass `requireAllAcknowledged: true` to enforce ship gating server-side — returns `422` while any open caveat is not listed in `acknowledgedCaveatIds`.
+
+      **Use case:** Capture "what the data said when we decided" before shipping or stopping, so the decision stays auditable even after results move.
+    tags:
+      - Experiments
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque experiment id (`exp_…`) or the experiment's `name`.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/experiments.yaml#/CreateExperimentReadoutRequest
+          examples:
+            manual:
+              summary: Manual — "Share readout"
+              description: Snapshot the current results view on demand.
+              value:
+                kind: manual
+            shipGated:
+              summary: Ship — with caveat gating
+              description: Mint a ship readout, acknowledging the open caveats; fails with `422` if any open caveat is missing from the list.
+              value:
+                kind: ship
+                acknowledgedCaveatIds:
+                  - srm
+                  - min_runtime
+                requireAllAcknowledged: true
+    responses:
+      "200":
+        description: Mint a readout snapshot
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/experiments.yaml#/CreateExperimentReadoutResponse
+            example:
+              id: 5f0c1f2d-8e90-4c6e-9b1a-3a7c1f2d8e90
+        links:
+          GetExperimentReadout:
+            operationId: getExperimentReadout
+            parameters: { readoutId: $response.body#/id }
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: readout-create
+      positional:
+        - id
+/api/admin/experiments/{id}/readouts/{readoutId}:
+  get:
+    operationId: getExperimentReadout
+    summary: Get a readout snapshot
+    description: |-
+      Returns one immutable readout snapshot — the frozen results view (verdict, headline, per-metric numbers, caveats, enrollment) captured when it was minted, plus the `configHash` that tells you whether it is still comparable to the live view.
+
+      **Use case:** Render a shared, dated readout exactly as it looked at decision time.
+    tags:
+      - Experiments
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque experiment id (`exp_…`) or the experiment's `name`.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+      - name: readoutId
+        in: path
+        required: true
+        description: Readout snapshot id, as returned by `createExperimentReadout`.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    responses:
+      "200":
+        description: Get a readout snapshot
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/experiments.yaml#/GetExperimentReadoutResponse
+            example:
+              id: 5f0c1f2d-8e90-4c6e-9b1a-3a7c1f2d8e90
+              experimentId: exp_01j7wb12c3d4e5f6g7h8j9k0l1
+              experimentName: checkout_button_color
+              kind: ship
+              createdBy: pm@example.com
+              createdAt: 2026-05-09T18:22:11.000Z
+              verdict: ship
+              title: Treatment wins on checkout conversion
+              why: Goal metric significant with guardrails flat after 8 days.
+              configHash: 9c1f4f1f2c0c4a5fa1c2b6d3e7c8e3a19c1f4f1f2c0c4a5fa1c2b6d3e7c8e3a1
+              metricsJson:
+                - name: checkout_completed
+                  role: goal
+                  delta: 0.0088
+                  deltaPct: 4.8
+                  ci: [0.0015, 0.0161]
+                  p: 0.018
+                  sig: true
+              caveatsJson:
+                - id: min_runtime
+                  severity: warn
+                  text: Below the 14-day minimum runtime.
+                  acknowledged: true
+              usersJson:
+                groups:
+                  - name: control
+                    n: 12421
+                  - name: treatment
+                    n: 12519
+                days: 8
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: readout-get
+      positional:
+        - id
+        - readoutId
 /api/admin/experiments/{id}/reanalyze:
   post:
     operationId: reanalyzeExperiment

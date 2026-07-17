@@ -474,52 +474,8 @@ GetExperimentResultsResponse:
     results:
       type: array
       items:
-        type: object
-        properties:
-          metric:
-            type: string
-          group_name:
-            type: string
-          ds:
-            type: string
-            description: Date slice (`YYYY-MM-DD`).
-          n:
-            anyOf:
-              - type: number
-              - type: "null"
-          mean:
-            anyOf:
-              - type: number
-              - type: "null"
-          delta_pct:
-            anyOf:
-              - type: number
-              - type: "null"
-          p_value:
-            anyOf:
-              - type: number
-              - type: "null"
-          srm_detected:
-            anyOf:
-              - type: number
-              - type: "null"
-            description: "`1` if sample-ratio mismatch detected, else `0`."
-          realized_mde:
-            anyOf:
-              - type: number
-              - type: "null"
-            description: "Realized minimum detectable effect (absolute, in metric units) — the smallest true effect this run could detect at the experiment's significance level and target power GIVEN the observed variance and per-arm sample sizes. A derived OUTPUT, not an input knob; compare it against the metric's minimum effect of interest to judge whether the run is adequately powered. `null` on the control row and on empty arms."
-        required:
-          - metric
-          - group_name
-          - ds
-          - n
-          - mean
-          - delta_pct
-          - p_value
-          - srm_detected
-          - realized_mde
-        additionalProperties: false
+        $ref: "#/ExperimentResultRow"
+      description: One analysis row per metric/group/day — the persisted `experiment_results` rows for this experiment.
     verdict:
       type: string
       enum:
@@ -562,49 +518,143 @@ GetExperimentTimeseriesResponse:
     series:
       type: array
       items:
-        type: object
-        properties:
-          metric:
-            type: string
-          group_name:
-            type: string
-          ds:
-            type: string
-            description: Date slice (`YYYY-MM-DD`).
-          n:
-            anyOf:
-              - type: number
-              - type: "null"
-          mean:
-            anyOf:
-              - type: number
-              - type: "null"
-          delta_pct:
-            anyOf:
-              - type: number
-              - type: "null"
-          p_value:
-            anyOf:
-              - type: number
-              - type: "null"
-          srm_detected:
-            anyOf:
-              - type: number
-              - type: "null"
-            description: "`1` if sample-ratio mismatch detected, else `0`."
-        required:
-          - metric
-          - group_name
-          - ds
-          - n
-          - mean
-          - delta_pct
-          - p_value
-          - srm_detected
-        additionalProperties: false
+        $ref: "#/ExperimentResultRow"
+      description: Every daily analysis slice (same row shape as `/results`), oldest to newest.
   required:
     - experiment
     - series
+  additionalProperties: false
+ExperimentResultRow:
+  type: object
+  description: One persisted analysis row (`experiment_results`) for a single metric/group/day slice. Camel-case wire names; nullable statistics are `null` on control rows, empty arms, or when the analysis pass hasn't produced them.
+  properties:
+    metric:
+      type: string
+      description: Metric name this row was computed for.
+    groupName:
+      type: string
+      description: Variant (group) label the row belongs to, e.g. `control` or `treatment`.
+    ds:
+      type: string
+      description: Date slice (`YYYY-MM-DD`).
+    n:
+      description: Sample size (exposed units) in this group for the slice, or `null` when unknown.
+      anyOf:
+        - type: integer
+        - type: "null"
+    mean:
+      description: Per-unit metric mean in this group, or `null` on empty arms.
+      anyOf:
+        - type: number
+        - type: "null"
+    variance:
+      description: Per-unit metric variance in this group, or `null` on empty arms.
+      anyOf:
+        - type: number
+        - type: "null"
+    delta:
+      description: Absolute difference vs. control (metric units). `null` on the control row.
+      anyOf:
+        - type: number
+        - type: "null"
+    deltaPct:
+      description: Relative difference vs. control, in percent. `null` on the control row.
+      anyOf:
+        - type: number
+        - type: "null"
+    ci95Low:
+      description: Lower bound of the 95% confidence interval on `delta`, or `null`. Kept for back-compat — prefer `ciLow`/`ciHigh`.
+      anyOf:
+        - type: number
+        - type: "null"
+    ci95High:
+      description: Upper bound of the 95% confidence interval on `delta`, or `null`. Kept for back-compat — prefer `ciLow`/`ciHigh`.
+      anyOf:
+        - type: number
+        - type: "null"
+    ci99Low:
+      description: Lower bound of the 99% confidence interval on `delta`, or `null`. Kept for back-compat — prefer `ciLow`/`ciHigh`.
+      anyOf:
+        - type: number
+        - type: "null"
+    ci99High:
+      description: Upper bound of the 99% confidence interval on `delta`, or `null`. Kept for back-compat — prefer `ciLow`/`ciHigh`.
+      anyOf:
+        - type: number
+        - type: "null"
+    ciLow:
+      description: Lower bound of the confidence interval at the project's configured `ci_confidence` (not always 95%), or `null`. When both `ciLow`/`ciHigh` are `null`, fall back to `ci95Low`/`ci95High` (pre-migration rows).
+      anyOf:
+        - type: number
+        - type: "null"
+    ciHigh:
+      description: Upper bound of the confidence interval at the project's configured `ci_confidence` (not always 95%), or `null`. When both `ciLow`/`ciHigh` are `null`, fall back to `ci95Low`/`ci95High` (pre-migration rows).
+      anyOf:
+        - type: number
+        - type: "null"
+    pValue:
+      description: Two-sided p-value vs. control, or `null` on the control row / empty arms.
+      anyOf:
+        - type: number
+        - type: "null"
+    expectedN:
+      description: Sample size per arm the power calculation expects for a conclusive read, or `null` when not computed.
+      anyOf:
+        - type: integer
+        - type: "null"
+    realizedMde:
+      description: "Realized minimum detectable effect (absolute, in metric units) — the smallest true effect this run could detect at the experiment's significance level and target power GIVEN the observed variance and per-arm sample sizes. A derived OUTPUT, not an input knob; compare it against the metric's minimum effect of interest to judge whether the run is adequately powered. `null` on the control row and on empty arms."
+      anyOf:
+        - type: number
+        - type: "null"
+    srmPValue:
+      description: p-value of the sample-ratio-mismatch chi-squared test, or `null` when not computed.
+      anyOf:
+        - type: number
+        - type: "null"
+    srmDetected:
+      type: integer
+      description: "`1` if sample-ratio mismatch detected, else `0`."
+    msprtSignificant:
+      description: "Sequential (mSPRT) significance flag: `1` significant, `0` not, `null` when sequential testing is off or not computed."
+      anyOf:
+        - type: integer
+        - type: "null"
+    msprtLambda:
+      description: mSPRT mixture likelihood-ratio statistic, or `null` when sequential testing is off or not computed.
+      anyOf:
+        - type: number
+        - type: "null"
+    isFinal:
+      type: integer
+      description: "`1` when this row belongs to the final analysis pass after the experiment stopped, else `0`."
+    peekWarning:
+      type: integer
+      description: "`1` when the row was read before `min_runtime_days`/`min_sample_size` were met (peeking inflates false positives), else `0`."
+  required:
+    - metric
+    - groupName
+    - ds
+    - n
+    - mean
+    - variance
+    - delta
+    - deltaPct
+    - ci95Low
+    - ci95High
+    - ci99Low
+    - ci99High
+    - ciLow
+    - ciHigh
+    - pValue
+    - expectedN
+    - realizedMde
+    - srmPValue
+    - srmDetected
+    - msprtSignificant
+    - msprtLambda
+    - isFinal
+    - peekWarning
   additionalProperties: false
 ReanalyzeExperimentResponse:
   type: object
@@ -613,8 +663,218 @@ ReanalyzeExperimentResponse:
       type: string
     queued:
       type: boolean
-      const: true
+      description: "`true` when the analysis job was enqueued; `false` when the worker enqueue failed or the analysis queue is not configured (retry later)."
   required:
     - id
     - queued
   additionalProperties: false
+CreateExperimentReadoutRequest:
+  type: object
+  description: Body for `POST /api/admin/experiments/{id}/readouts`. Mints an immutable, dated readout snapshot of the current results view — "this is what we saw when we decided".
+  properties:
+    kind:
+      type: string
+      enum:
+        - manual
+        - ship
+        - stop
+      description: Why the snapshot is being minted — `manual` ("Share readout"), or automatically on `ship` / `stop`.
+    acknowledgedCaveatIds:
+      type: array
+      items:
+        type: string
+        description: Caveat id, as surfaced in the results view's caveat list.
+      description: Ids of the open caveats the caller ticked (decision-gating acknowledgment). Unlisted caveats are stored as unacknowledged.
+    requireAllAcknowledged:
+      type: boolean
+      description: When `true`, refuse (`422`) to mint while any open caveat is not listed in `acknowledgedCaveatIds` — server-side ship gating.
+  required:
+    - kind
+  additionalProperties: false
+CreateExperimentReadoutResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Id of the newly minted readout snapshot.
+  required:
+    - id
+  additionalProperties: false
+ExperimentReadoutMetric:
+  type: object
+  description: Frozen per-metric numbers as rendered at mint time. Display-shaped, not row-shaped — the snapshot keeps rendering exactly what was decided on even if derivations change later.
+  properties:
+    name:
+      type: string
+      description: Metric name.
+    role:
+      type: string
+      enum:
+        - goal
+        - guardrail
+        - secondary
+      description: Metric role at mint time. `goal` drives the decision, `guardrail` blocks ship if degraded, `secondary` is informational.
+    delta:
+      description: Absolute difference vs. control (metric units), or `null`.
+      anyOf:
+        - type: number
+        - type: "null"
+    deltaPct:
+      description: Relative difference vs. control in percent, or `null`.
+      anyOf:
+        - type: number
+        - type: "null"
+    ci:
+      description: "Two-item `[low, high]` confidence interval on the delta at the project's configured confidence, or `null`."
+      anyOf:
+        - type: array
+          items:
+            type: number
+          minItems: 2
+          maxItems: 2
+        - type: "null"
+    p:
+      description: p-value vs. control, or `null`.
+      anyOf:
+        - type: number
+        - type: "null"
+    sig:
+      type: boolean
+      description: Whether the metric was statistically significant at mint time.
+    pass:
+      type: boolean
+      description: Guardrail pass/fail at mint time. Omitted for metrics where pass/fail doesn't apply.
+  required:
+    - name
+    - role
+    - delta
+    - deltaPct
+    - ci
+    - p
+    - sig
+  additionalProperties: false
+ExperimentReadoutCaveat:
+  type: object
+  description: One caveat from the results view, frozen with its acknowledgment state at mint time.
+  properties:
+    id:
+      type: string
+      description: Stable caveat id.
+    severity:
+      type: string
+      enum:
+        - info
+        - warn
+        - danger
+      description: Caveat severity as rendered in the results view.
+    text:
+      type: string
+      description: Human-readable caveat text.
+    acknowledged:
+      type: boolean
+      description: Whether the caller ticked this caveat when minting (decision-gating acknowledgment).
+  required:
+    - id
+    - severity
+    - text
+    - acknowledged
+  additionalProperties: false
+ExperimentReadoutApiRow:
+  type: object
+  description: An immutable, dated readout snapshot — the frozen results view captured when a decision was made. Never updated after insert.
+  properties:
+    id:
+      type: string
+      description: Stable readout id.
+    experimentId:
+      type: string
+      description: Id of the experiment the snapshot belongs to.
+    experimentName:
+      type: string
+      description: Experiment name at mint time (denormalised — survives renames).
+    kind:
+      type: string
+      enum:
+        - manual
+        - ship
+        - stop
+      description: Why the snapshot was minted — `manual` ("Share readout"), or automatically on `ship` / `stop`.
+    createdBy:
+      type: string
+      description: Email of the actor who minted the snapshot.
+    createdAt:
+      type: string
+      description: ISO-8601 mint timestamp.
+    verdict:
+      type: string
+      description: Server-computed verdict at mint time (e.g. `ship`, `hold`, `wait`, `invalid`).
+    title:
+      type: string
+      description: Headline of the results view at mint time.
+    why:
+      type: string
+      description: One-line explanation backing the verdict at mint time.
+    configHash:
+      type: string
+      description: sha-256 hex over the assignment-relevant config (salt, groups, allocation, universe, gate) — the snapshot is only comparable to the live view while this hash still matches.
+    metricsJson:
+      description: Frozen per-metric numbers as rendered at mint time, or `null` for legacy rows without a metrics slice.
+      anyOf:
+        - type: array
+          items:
+            $ref: "#/ExperimentReadoutMetric"
+        - type: "null"
+    caveatsJson:
+      description: The caveat list with its acknowledgment state at mint time, or `null` for legacy rows without one.
+      anyOf:
+        - type: array
+          items:
+            $ref: "#/ExperimentReadoutCaveat"
+        - type: "null"
+    usersJson:
+      description: Enrollment at mint time — per-group sample sizes plus the number of days the experiment had been running — or `null` when not captured.
+      anyOf:
+        - type: object
+          properties:
+            groups:
+              type: array
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                    description: Group label.
+                  n:
+                    type: number
+                    description: Enrolled units in the group at mint time.
+                required:
+                  - name
+                  - n
+                additionalProperties: false
+                description: One group's enrollment at mint time.
+              description: Per-group enrollment counts.
+            days:
+              type: number
+              description: Days the experiment had been running at mint time.
+          required:
+            - groups
+            - days
+          additionalProperties: false
+        - type: "null"
+  required:
+    - id
+    - experimentId
+    - experimentName
+    - kind
+    - createdBy
+    - createdAt
+    - verdict
+    - title
+    - why
+    - configHash
+    - metricsJson
+    - caveatsJson
+    - usersJson
+  additionalProperties: false
+GetExperimentReadoutResponse:
+  $ref: "#/ExperimentReadoutApiRow"

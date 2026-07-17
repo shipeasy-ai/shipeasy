@@ -47,6 +47,9 @@ ConnectorRecord:
         - type: string
         - type: "null"
       description: "Display label for the connected account / target (e.g. the OAuth account email, or a trigger's idempotency key such as its repo url or routine id). `null` until the connector is authenticated/configured."
+    hasCredentials:
+      type: boolean
+      description: "Whether an encrypted credentials cipher is stored for this connector (`true` once OAuth/token setup completed). The cipher itself is never serialised — this boolean is the only signal. `false` for a fresh OAuth stub or a tokenless trigger."
     lastError:
       anyOf:
         - type: string
@@ -77,13 +80,14 @@ ConnectorRecord:
     - events
     - config
     - accountLabel
+    - hasCredentials
     - lastError
     - lastAttemptAt
     - lastSuccessAt
     - createdAt
     - updatedAt
   additionalProperties: false
-  description: "A connector row. The encrypted credentials cipher backing the connector is intentionally never serialised."
+  description: "A connector row. The encrypted credentials cipher backing the connector is intentionally never serialised — `hasCredentials` reports only whether one is stored."
 ListConnectorsResponse:
   type: array
   items:

@@ -180,6 +180,25 @@ tags:
       **Immutable metric.** The bound metric (and its aggregation) is fixed at create time — there is no update path for `metricId`. Tune `threshold`/`comparator`/`windowHours`/`severity`/`name`/`enabled` instead, or delete + recreate to repoint the rule at a different metric.
 
       **Delivery.** `notify` optionally targets a Slack channel and/or email for this rule; `null` falls back to the project's default notification settings. Slack targets require a connected Slack connector.
+  - name: Fired Alerts
+    parent: Ops
+    description: |-
+      Fired alerts: the conditions the platform has actually raised — metric-rule
+      crossings, armed kill switches, experiment SRM/peek guards, and guardrail
+      breaches. Raised only by the platform (UI killswitch handlers plus the
+      worker analysis consumer and alerts cron), never filed by hand; deduped per
+      `(source, dedupeKey)` with auto-resolve when the condition clears. This
+      surface lists them and triages one (status flip + person/agent owner). The
+      *rules* that define metric-threshold alerts are the sibling alert-rules
+      resource.
+  - name: Agents
+    parent: Ops
+    description: |-
+      Connected AI agents — one per authenticated trigger connector (Claude /
+      Cursor / Copilot / Jules). The read-only roster behind agent assignment
+      and the `ops ack` agent types: an AI ack (`ops ack <handle> --agent
+      <type>`) requires the type to appear here, so this list is where an
+      `AGENT_NOT_CONNECTED` error sends you.
   - name: Comments
     parent: Ops
     description: |-
@@ -252,6 +271,8 @@ paths:
     $ref: ./paths/gates.yaml#/~1api~1admin~1gates~1{id}~1enable
   /api/admin/gates/{id}/disable:
     $ref: ./paths/gates.yaml#/~1api~1admin~1gates~1{id}~1disable
+  /api/admin/gates/{id}/activity:
+    $ref: ./paths/gates.yaml#/~1api~1admin~1gates~1{id}~1activity
   /api/admin/experiments:
     $ref: ./paths/experiments.yaml#/~1api~1admin~1experiments
   /api/admin/experiments/{id}:
@@ -266,6 +287,10 @@ paths:
     $ref: ./paths/experiments.yaml#/~1api~1admin~1experiments~1{id}~1timeseries
   /api/admin/experiments/{id}/reanalyze:
     $ref: ./paths/experiments.yaml#/~1api~1admin~1experiments~1{id}~1reanalyze
+  /api/admin/experiments/{id}/readouts:
+    $ref: ./paths/experiments.yaml#/~1api~1admin~1experiments~1{id}~1readouts
+  /api/admin/experiments/{id}/readouts/{readoutId}:
+    $ref: ./paths/experiments.yaml#/~1api~1admin~1experiments~1{id}~1readouts~1{readoutId}
   /api/admin/configs:
     $ref: ./paths/configs.yaml#/~1api~1admin~1configs
   /api/admin/configs/{id}:
@@ -278,6 +303,8 @@ paths:
     $ref: ./paths/configs.yaml#/~1api~1admin~1configs~1{id}~1activity
   /api/admin/configs/{id}/schema:
     $ref: ./paths/configs.yaml#/~1api~1admin~1configs~1{id}~1schema
+  /api/admin/configs/{id}/versions:
+    $ref: ./paths/configs.yaml#/~1api~1admin~1configs~1{id}~1versions
   /api/admin/killswitches:
     $ref: ./paths/killswitches.yaml#/~1api~1admin~1killswitches
   /api/admin/killswitches/{id}:
@@ -302,6 +329,12 @@ paths:
     $ref: ./paths/metrics.yaml#/~1api~1admin~1metrics
   /api/admin/metrics/{id}:
     $ref: ./paths/metrics.yaml#/~1api~1admin~1metrics~1{id}
+  /api/admin/metrics/{id}/experiments:
+    $ref: ./paths/metrics.yaml#/~1api~1admin~1metrics~1{id}~1experiments
+  /api/admin/metrics/{id}/unarchive:
+    $ref: ./paths/metrics.yaml#/~1api~1admin~1metrics~1{id}~1unarchive
+  /api/admin/metrics/{id}/series:
+    $ref: ./paths/metrics.yaml#/~1api~1admin~1metrics~1{id}~1series
   /api/admin/events:
     $ref: ./paths/events.yaml#/~1api~1admin~1events
   /api/admin/events/{id}:
@@ -314,16 +347,28 @@ paths:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}
   /api/admin/ops/{handle}/link-pr:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1link-pr
+  /api/admin/ops/{handle}/ack:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1ack
+  /api/admin/ops/{handle}/investigation:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1investigation
+  /api/admin/agent-profiles:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1agent-profiles
   /api/admin/ops/{handle}/comments:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1comments
   /api/admin/notifications:
     $ref: ./paths/ops.yaml#/~1api~1admin~1notifications
+  /api/admin/notifications/feed:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1notifications~1feed
   /api/admin/slack/channels:
     $ref: ./paths/ops.yaml#/~1api~1admin~1slack~1channels
   /api/admin/alert-rules:
     $ref: ./paths/alert-rules.yaml#/~1api~1admin~1alert-rules
   /api/admin/alert-rules/{id}:
     $ref: ./paths/alert-rules.yaml#/~1api~1admin~1alert-rules~1{id}
+  /api/admin/alerts:
+    $ref: ./paths/alerts.yaml#/~1api~1admin~1alerts
+  /api/admin/alerts/{id}:
+    $ref: ./paths/alerts.yaml#/~1api~1admin~1alerts~1{id}
   /api/admin/projects/current:
     $ref: ./paths/projects.yaml#/~1api~1admin~1projects~1current
   /api/admin/projects/upsert:
@@ -340,6 +385,10 @@ paths:
     $ref: ./paths/i18n.yaml#/~1api~1admin~1i18n~1drafts
   /api/admin/i18n/drafts/{draftId}:
     $ref: ./paths/i18n.yaml#/~1api~1admin~1i18n~1drafts~1{draftId}
+  /api/admin/i18n/profiles/{profileId}:
+    $ref: ./paths/i18n.yaml#/~1api~1admin~1i18n~1profiles~1{profileId}
+  /api/admin/i18n/drafts/{draftId}/keys:
+    $ref: ./paths/i18n.yaml#/~1api~1admin~1i18n~1drafts~1{draftId}~1keys
   /api/admin/i18n/profiles/{profileId}/publish:
     $ref: ./paths/i18n.yaml#/~1api~1admin~1i18n~1profiles~1{profileId}~1publish
   /api/admin/i18n/set:
@@ -354,6 +403,8 @@ paths:
     $ref: ./paths/errors.yaml#/~1api~1admin~1errors~1{id}~1resolve
   /api/admin/errors/{id}/series:
     $ref: ./paths/errors.yaml#/~1api~1admin~1errors~1{id}~1series
+  /api/admin/errors/series:
+    $ref: ./paths/errors.yaml#/~1api~1admin~1errors~1series
   /api/admin/connectors:
     $ref: ./paths/connectors.yaml#/~1api~1admin~1connectors
   /api/admin/connectors/{id}:

@@ -1,296 +1,327 @@
+# The single wire shape for a gate row, shared by `ListGatesResponse`
+# (`data[]` items) and `GET /api/admin/gates/{id}`. The app projects every gate
+# through one `toGateApiRow` allow-list at the HTTP boundary, so both endpoints
+# return the SAME object — this schema is that allow-list.
+GateApiRow:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Stable opaque gate id (`gat_…`).
+    name:
+      type: string
+      maxLength: 128
+      pattern: ^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$
+      description: Stable gate key used by SDKs (`Shipeasy.checkGate(user, '<name>')`). Single segment or `folder.name`. Lowercase letters, digits, `_` or `-`; max 128 chars. Immutable after create — rename = delete + recreate.
+    enabled:
+      anyOf:
+        - type: boolean
+        - type: integer
+          minimum: 0
+          maximum: 1
+      description: Master switch. Returned as `1`/`0` from D1; treat truthy as enabled.
+    type:
+      type: string
+      enum:
+        - targeting
+        - holdout
+      description: Gate kind — `targeting` (normal flag) or `holdout` (restricted public % + whitelist).
+    rolloutPct:
+      type: integer
+      minimum: 0
+      maximum: 10000
+      description: Current rollout in basis points (0–10000).
+    rules:
+      type: array
+      items:
+        type: object
+        properties:
+          attr:
+            type: string
+            minLength: 1
+            description: Attribute key on the evaluation context (e.g. `country`, `plan`, `email`). Matched case-sensitively against `Shipeasy.checkGate(user, name)` input.
+          op:
+            type: string
+            enum:
+              - eq
+              - neq
+              - in
+              - not_in
+              - gt
+              - gte
+              - lt
+              - lte
+              - contains
+              - regex
+              - semver_gt
+              - semver_gte
+              - semver_lt
+              - semver_lte
+              - gate_pass
+              - exp_in
+            description: "Comparison operator. Equality: `eq`/`neq`. Set membership: `in`/`not_in` (value is an array). Numeric order: `gt`/`gte`/`lt`/`lte`. Semver order: `semver_gt`/`semver_gte`/`semver_lt`/`semver_lte` (value is a dotted version like `4.2.0`). String: `contains` (substring), `regex` (JS-flavour pattern, value is the pattern string). Cross-resource references (evaluated only on the worker hot path, where both KV blobs load): `gate_pass` (`value` is another gate's name — true when that gate passes for the same caller); `exp_in` (`attr` is a running experiment's name, `value` is a group name, `\"$holdout\"`, or `\"$any\"` — true when the caller is in that variant / the universe holdout / any variant)."
+          value:
+            description: 'Operand. Shape depends on `op`: scalar for `eq/neq/gt/gte/lt/lte/contains/semver_*`; array of scalars for `in/not_in`; string pattern for `regex`; referenced gate name for `gate_pass`; group name / `"$holdout"` / `"$any"` for `exp_in`.'
+        required:
+          - attr
+          - op
+          - value
+        additionalProperties: false
+        description: Single targeting predicate. A gate's `rules` array is evaluated with AND semantics; use the gatekeeper `stack` for OR / fall-through logic.
+    salt:
+      description: Hash salt used for percentage bucketing.
+      type: string
+    title:
+      anyOf:
+        - type: string
+        - type: "null"
+    description:
+      anyOf:
+        - type: string
+        - type: "null"
+    folder:
+      anyOf:
+        - type: string
+        - type: "null"
+    groupName:
+      description: "Group label (note: `groupName` in response, `group` in request)."
+      anyOf:
+        - type: string
+        - type: "null"
+    ownerEmail:
+      description: "Owner email (note: `ownerEmail` in response, `owner_email` in request)."
+      anyOf:
+        - type: string
+        - type: "null"
+    stack:
+      anyOf:
+        - type: array
+          items:
+            oneOf:
+              - type: object
+                properties:
+                  id:
+                    type: string
+                    minLength: 1
+                    description: Client-supplied stable id for the stack entry (used for React keys, audit diffs, and as the default per-condition rollout salt).
+                  type:
+                    type: string
+                    const: condition
+                    description: Discriminator. `condition` = rule-based predicate sub-gate.
+                  name:
+                    description: Human label shown in the dashboard.
+                    type: string
+                  fromTemplate:
+                    description: Id of the project template this entry was seeded from, or `null` if hand-authored.
+                    anyOf:
+                      - type: string
+                      - type: "null"
+                  pass:
+                    description: Combinator across `rules`. `all` = AND (default), `any` = OR.
+                    type: string
+                    enum:
+                      - all
+                      - any
+                  rules:
+                    default: []
+                    description: Predicates evaluated under `pass`. Empty array = match nothing.
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        attr:
+                          type: string
+                          minLength: 1
+                          description: Attribute key on the evaluation context (e.g. `country`, `plan`, `email`). Matched case-sensitively against `Shipeasy.checkGate(user, name)` input.
+                        op:
+                          type: string
+                          enum:
+                            - eq
+                            - neq
+                            - in
+                            - not_in
+                            - gt
+                            - gte
+                            - lt
+                            - lte
+                            - contains
+                            - regex
+                            - semver_gt
+                            - semver_gte
+                            - semver_lt
+                            - semver_lte
+                            - gate_pass
+                            - exp_in
+                          description: "Comparison operator. Equality: `eq`/`neq`. Set membership: `in`/`not_in` (value is an array). Numeric order: `gt`/`gte`/`lt`/`lte`. Semver order: `semver_gt`/`semver_gte`/`semver_lt`/`semver_lte` (value is a dotted version like `4.2.0`). String: `contains` (substring), `regex` (JS-flavour pattern, value is the pattern string). Cross-resource references (evaluated only on the worker hot path, where both KV blobs load): `gate_pass` (`value` is another gate's name — true when that gate passes for the same caller); `exp_in` (`attr` is a running experiment's name, `value` is a group name, `\"$holdout\"`, or `\"$any\"` — true when the caller is in that variant / the universe holdout / any variant)."
+                        value:
+                          description: 'Operand. Shape depends on `op`: scalar for `eq/neq/gt/gte/lt/lte/contains/semver_*`; array of scalars for `in/not_in`; string pattern for `regex`; referenced gate name for `gate_pass`; group name / `"$holdout"` / `"$any"` for `exp_in`.'
+                      required:
+                        - attr
+                        - op
+                        - value
+                      additionalProperties: false
+                      description: Single targeting predicate. A gate's `rules` array is evaluated with AND semantics; use the gatekeeper `stack` for OR / fall-through logic.
+                  rolloutPct:
+                    description: Per-condition rollout in basis points. After the rules match, the caller is bucketed at this %; in-bucket → gate `true`, otherwise fall through to the next entry. Absent ⇒ 10000 (100%, every matching caller passes).
+                    type: integer
+                    minimum: 0
+                    maximum: 10000
+                  bucketBy:
+                    description: Attribute used to hash the caller into the per-condition bucket. Default `userID`.
+                    type: string
+                  salt:
+                    description: Per-condition hash salt. Defaults to the entry `id`, then the gate salt.
+                    type: string
+                  ramp:
+                    type: object
+                    properties:
+                      from:
+                        type: integer
+                        minimum: 0
+                        maximum: 10000
+                        description: Start of the ramp in basis points (0–10000).
+                      to:
+                        type: integer
+                        minimum: 0
+                        maximum: 10000
+                        description: End of the ramp in basis points (0–10000).
+                      startAt:
+                        type: integer
+                        minimum: 0
+                        maximum: 9007199254740991
+                        description: Ramp start, epoch milliseconds (UTC).
+                      durationMs:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                        description: Ramp length in milliseconds.
+                    required:
+                      - from
+                      - to
+                      - startAt
+                      - durationMs
+                    additionalProperties: false
+                    description: Linear rollout ramp. The effective rollout % interpolates `from`→`to` over `[startAt, startAt+durationMs]`, clamped outside that window, evaluated against the wall-clock at eval time. Overrides the entry's static `rolloutPct` while present.
+                  locked:
+                    description: If `true`, dashboard hides edit controls (e.g. the trailing public-floor entry).
+                    type: boolean
+                required:
+                  - id
+                  - type
+                additionalProperties: false
+                description: Rule-based sub-gate. When the rules match and the caller falls in the per-condition rollout bucket, evaluation short-circuits and the gate returns `true`; otherwise it falls through to the next entry.
+              - type: object
+                properties:
+                  id:
+                    type: string
+                    minLength: 1
+                    description: Client-supplied stable id for the stack entry.
+                  type:
+                    type: string
+                    const: rollout
+                    description: Discriminator. `rollout` = percentage-bucket sub-gate.
+                  name:
+                    description: Human label shown in the dashboard.
+                    type: string
+                  fromTemplate:
+                    description: Source template id, or `null`.
+                    anyOf:
+                      - type: string
+                      - type: "null"
+                  rolloutPct:
+                    type: integer
+                    minimum: 0
+                    maximum: 10000
+                    description: Bucket size in basis points (0–10000 = 0%–100%). `5000` = 50%, `100` = 1%, allows sub-1% precision.
+                  bucketBy:
+                    description: Attribute used to hash the caller into a bucket. Defaults to `user.userID`. Use e.g. `accountID` to bucket whole accounts together.
+                    type: string
+                  salt:
+                    description: Per-entry hash salt. Defaults to the gate's salt. Set explicitly to keep two rollouts independent or correlated across gates.
+                    type: string
+                  ramp:
+                    type: object
+                    properties:
+                      from:
+                        type: integer
+                        minimum: 0
+                        maximum: 10000
+                        description: Start of the ramp in basis points (0–10000).
+                      to:
+                        type: integer
+                        minimum: 0
+                        maximum: 10000
+                        description: End of the ramp in basis points (0–10000).
+                      startAt:
+                        type: integer
+                        minimum: 0
+                        maximum: 9007199254740991
+                        description: Ramp start, epoch milliseconds (UTC).
+                      durationMs:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                        description: Ramp length in milliseconds.
+                    required:
+                      - from
+                      - to
+                      - startAt
+                      - durationMs
+                    additionalProperties: false
+                    description: Linear rollout ramp. The effective rollout % interpolates `from`→`to` over `[startAt, startAt+durationMs]`, clamped outside that window, evaluated against the wall-clock at eval time. Overrides the entry's static `rolloutPct` while present.
+                  locked:
+                    description: If `true`, dashboard hides edit controls.
+                    type: boolean
+                required:
+                  - id
+                  - type
+                  - rolloutPct
+                additionalProperties: false
+                description: Percentage-rollout sub-gate. Hashes `bucketBy` (default `userID`) with `salt` and returns `true` for `rolloutPct/10000` fraction of callers (or the ramp's effective % when `ramp` is set).
+            description: One entry in the ordered gatekeeper stack. Evaluated top-to-bottom; first matching entry decides. Mix `condition` and `rollout` entries to express `internal-only` + `1% beta` + `50% public` in a single gate.
+        - type: "null"
+    updatedAt:
+      type: string
+      description: ISO-8601 timestamp of last mutation.
+    creatorEmail:
+      description: Resolved email of the user who created the gate (`created_by` → `users.email`), or `null` when the creator is unknown.
+      anyOf:
+        - type: string
+        - type: "null"
+    updaterEmail:
+      description: Resolved email of the user who last edited the gate (`updated_by` → `users.email`), or `null` when the last editor is unknown.
+      anyOf:
+        - type: string
+        - type: "null"
+    version:
+      type: integer
+      minimum: 1
+      maximum: 9007199254740991
+      description: Monotonic edit counter — starts at 1 on create (D1 `NOT NULL DEFAULT 1`) and increments on every `PATCH /api/admin/gates/{id}`.
+    createdAt:
+      description: ISO-8601 creation timestamp, or `null` on legacy rows created before the column existed.
+      anyOf:
+        - type: string
+        - type: "null"
+  required:
+    - id
+    - name
+    - enabled
+    - rolloutPct
+    - updatedAt
+    - creatorEmail
+    - updaterEmail
+    - version
+    - createdAt
+  additionalProperties: false
+  description: The single wire shape for a gate row, shared by `ListGatesResponse` (`data[]` items) and `GET /api/admin/gates/{id}`.
 ListGatesResponse:
   type: object
   properties:
     data:
       type: array
       items:
-        type: object
-        properties:
-          id:
-            type: string
-            description: Stable opaque gate id (`gat_…`).
-          name:
-            type: string
-            maxLength: 128
-            pattern: ^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$
-            description: Stable gate key used by SDKs (`Shipeasy.checkGate(user, '<name>')`). Single segment or `folder.name`. Lowercase letters, digits, `_` or `-`; max 128 chars. Immutable after create — rename = delete + recreate.
-          enabled:
-            anyOf:
-              - type: boolean
-              - type: integer
-                minimum: 0
-                maximum: 1
-            description: Master switch. Returned as `1`/`0` from D1; treat truthy as enabled.
-          type:
-            type: string
-            enum:
-              - targeting
-              - holdout
-            description: Gate kind — `targeting` (normal flag) or `holdout` (restricted public % + whitelist).
-          rolloutPct:
-            type: integer
-            minimum: 0
-            maximum: 10000
-            description: Current rollout in basis points (0–10000).
-          rules:
-            type: array
-            items:
-              type: object
-              properties:
-                attr:
-                  type: string
-                  minLength: 1
-                  description: Attribute key on the evaluation context (e.g. `country`, `plan`, `email`). Matched case-sensitively against `Shipeasy.checkGate(user, name)` input.
-                op:
-                  type: string
-                  enum:
-                    - eq
-                    - neq
-                    - in
-                    - not_in
-                    - gt
-                    - gte
-                    - lt
-                    - lte
-                    - contains
-                    - regex
-                    - semver_gt
-                    - semver_gte
-                    - semver_lt
-                    - semver_lte
-                    - gate_pass
-                    - exp_in
-                  description: "Comparison operator. Equality: `eq`/`neq`. Set membership: `in`/`not_in` (value is an array). Numeric order: `gt`/`gte`/`lt`/`lte`. Semver order: `semver_gt`/`semver_gte`/`semver_lt`/`semver_lte` (value is a dotted version like `4.2.0`). String: `contains` (substring), `regex` (JS-flavour pattern, value is the pattern string). Cross-resource references (evaluated only on the worker hot path, where both KV blobs load): `gate_pass` (`value` is another gate's name — true when that gate passes for the same caller); `exp_in` (`attr` is a running experiment's name, `value` is a group name, `\"$holdout\"`, or `\"$any\"` — true when the caller is in that variant / the universe holdout / any variant)."
-                value:
-                  description: 'Operand. Shape depends on `op`: scalar for `eq/neq/gt/gte/lt/lte/contains/semver_*`; array of scalars for `in/not_in`; string pattern for `regex`; referenced gate name for `gate_pass`; group name / `"$holdout"` / `"$any"` for `exp_in`.'
-              required:
-                - attr
-                - op
-                - value
-              additionalProperties: false
-              description: Single targeting predicate. A gate's `rules` array is evaluated with AND semantics; use the gatekeeper `stack` for OR / fall-through logic.
-          salt:
-            description: Hash salt used for percentage bucketing.
-            type: string
-          title:
-            anyOf:
-              - type: string
-              - type: "null"
-          description:
-            anyOf:
-              - type: string
-              - type: "null"
-          folder:
-            anyOf:
-              - type: string
-              - type: "null"
-          groupName:
-            description: "Group label (note: `groupName` in response, `group` in request)."
-            anyOf:
-              - type: string
-              - type: "null"
-          ownerEmail:
-            description: "Owner email (note: `ownerEmail` in response, `owner_email` in request)."
-            anyOf:
-              - type: string
-              - type: "null"
-          stack:
-            anyOf:
-              - type: array
-                items:
-                  oneOf:
-                    - type: object
-                      properties:
-                        id:
-                          type: string
-                          minLength: 1
-                          description: Client-supplied stable id for the stack entry (used for React keys, audit diffs, and as the default per-condition rollout salt).
-                        type:
-                          type: string
-                          const: condition
-                          description: Discriminator. `condition` = rule-based predicate sub-gate.
-                        name:
-                          description: Human label shown in the dashboard.
-                          type: string
-                        fromTemplate:
-                          description: Id of the project template this entry was seeded from, or `null` if hand-authored.
-                          anyOf:
-                            - type: string
-                            - type: "null"
-                        pass:
-                          description: Combinator across `rules`. `all` = AND (default), `any` = OR.
-                          type: string
-                          enum:
-                            - all
-                            - any
-                        rules:
-                          default: []
-                          description: Predicates evaluated under `pass`. Empty array = match nothing.
-                          type: array
-                          items:
-                            type: object
-                            properties:
-                              attr:
-                                type: string
-                                minLength: 1
-                                description: Attribute key on the evaluation context (e.g. `country`, `plan`, `email`). Matched case-sensitively against `Shipeasy.checkGate(user, name)` input.
-                              op:
-                                type: string
-                                enum:
-                                  - eq
-                                  - neq
-                                  - in
-                                  - not_in
-                                  - gt
-                                  - gte
-                                  - lt
-                                  - lte
-                                  - contains
-                                  - regex
-                                  - semver_gt
-                                  - semver_gte
-                                  - semver_lt
-                                  - semver_lte
-                                  - gate_pass
-                                  - exp_in
-                                description: "Comparison operator. Equality: `eq`/`neq`. Set membership: `in`/`not_in` (value is an array). Numeric order: `gt`/`gte`/`lt`/`lte`. Semver order: `semver_gt`/`semver_gte`/`semver_lt`/`semver_lte` (value is a dotted version like `4.2.0`). String: `contains` (substring), `regex` (JS-flavour pattern, value is the pattern string). Cross-resource references (evaluated only on the worker hot path, where both KV blobs load): `gate_pass` (`value` is another gate's name — true when that gate passes for the same caller); `exp_in` (`attr` is a running experiment's name, `value` is a group name, `\"$holdout\"`, or `\"$any\"` — true when the caller is in that variant / the universe holdout / any variant)."
-                              value:
-                                description: 'Operand. Shape depends on `op`: scalar for `eq/neq/gt/gte/lt/lte/contains/semver_*`; array of scalars for `in/not_in`; string pattern for `regex`; referenced gate name for `gate_pass`; group name / `"$holdout"` / `"$any"` for `exp_in`.'
-                            required:
-                              - attr
-                              - op
-                              - value
-                            additionalProperties: false
-                            description: Single targeting predicate. A gate's `rules` array is evaluated with AND semantics; use the gatekeeper `stack` for OR / fall-through logic.
-                        rolloutPct:
-                          description: Per-condition rollout in basis points. After the rules match, the caller is bucketed at this %; in-bucket → gate `true`, otherwise fall through to the next entry. Absent ⇒ 10000 (100%, every matching caller passes).
-                          type: integer
-                          minimum: 0
-                          maximum: 10000
-                        bucketBy:
-                          description: Attribute used to hash the caller into the per-condition bucket. Default `userID`.
-                          type: string
-                        salt:
-                          description: Per-condition hash salt. Defaults to the entry `id`, then the gate salt.
-                          type: string
-                        ramp:
-                          type: object
-                          properties:
-                            from:
-                              type: integer
-                              minimum: 0
-                              maximum: 10000
-                              description: Start of the ramp in basis points (0–10000).
-                            to:
-                              type: integer
-                              minimum: 0
-                              maximum: 10000
-                              description: End of the ramp in basis points (0–10000).
-                            startAt:
-                              type: integer
-                              minimum: 0
-                              maximum: 9007199254740991
-                              description: Ramp start, epoch milliseconds (UTC).
-                            durationMs:
-                              type: integer
-                              exclusiveMinimum: 0
-                              maximum: 9007199254740991
-                              description: Ramp length in milliseconds.
-                          required:
-                            - from
-                            - to
-                            - startAt
-                            - durationMs
-                          additionalProperties: false
-                          description: Linear rollout ramp. The effective rollout % interpolates `from`→`to` over `[startAt, startAt+durationMs]`, clamped outside that window, evaluated against the wall-clock at eval time. Overrides the entry's static `rolloutPct` while present.
-                        locked:
-                          description: If `true`, dashboard hides edit controls (e.g. the trailing public-floor entry).
-                          type: boolean
-                      required:
-                        - id
-                        - type
-                      additionalProperties: false
-                      description: Rule-based sub-gate. When the rules match and the caller falls in the per-condition rollout bucket, evaluation short-circuits and the gate returns `true`; otherwise it falls through to the next entry.
-                    - type: object
-                      properties:
-                        id:
-                          type: string
-                          minLength: 1
-                          description: Client-supplied stable id for the stack entry.
-                        type:
-                          type: string
-                          const: rollout
-                          description: Discriminator. `rollout` = percentage-bucket sub-gate.
-                        name:
-                          description: Human label shown in the dashboard.
-                          type: string
-                        fromTemplate:
-                          description: Source template id, or `null`.
-                          anyOf:
-                            - type: string
-                            - type: "null"
-                        rolloutPct:
-                          type: integer
-                          minimum: 0
-                          maximum: 10000
-                          description: Bucket size in basis points (0–10000 = 0%–100%). `5000` = 50%, `100` = 1%, allows sub-1% precision.
-                        bucketBy:
-                          description: Attribute used to hash the caller into a bucket. Defaults to `user.userID`. Use e.g. `accountID` to bucket whole accounts together.
-                          type: string
-                        salt:
-                          description: Per-entry hash salt. Defaults to the gate's salt. Set explicitly to keep two rollouts independent or correlated across gates.
-                          type: string
-                        ramp:
-                          type: object
-                          properties:
-                            from:
-                              type: integer
-                              minimum: 0
-                              maximum: 10000
-                              description: Start of the ramp in basis points (0–10000).
-                            to:
-                              type: integer
-                              minimum: 0
-                              maximum: 10000
-                              description: End of the ramp in basis points (0–10000).
-                            startAt:
-                              type: integer
-                              minimum: 0
-                              maximum: 9007199254740991
-                              description: Ramp start, epoch milliseconds (UTC).
-                            durationMs:
-                              type: integer
-                              exclusiveMinimum: 0
-                              maximum: 9007199254740991
-                              description: Ramp length in milliseconds.
-                          required:
-                            - from
-                            - to
-                            - startAt
-                            - durationMs
-                          additionalProperties: false
-                          description: Linear rollout ramp. The effective rollout % interpolates `from`→`to` over `[startAt, startAt+durationMs]`, clamped outside that window, evaluated against the wall-clock at eval time. Overrides the entry's static `rolloutPct` while present.
-                        locked:
-                          description: If `true`, dashboard hides edit controls.
-                          type: boolean
-                      required:
-                        - id
-                        - type
-                        - rolloutPct
-                      additionalProperties: false
-                      description: Percentage-rollout sub-gate. Hashes `bucketBy` (default `userID`) with `salt` and returns `true` for `rolloutPct/10000` fraction of callers (or the ramp's effective % when `ramp` is set).
-                  description: One entry in the ordered gatekeeper stack. Evaluated top-to-bottom; first matching entry decides. Mix `condition` and `rollout` entries to express `internal-only` + `1% beta` + `50% public` in a single gate.
-              - type: "null"
-          updatedAt:
-            type: string
-            description: ISO-8601 timestamp of last mutation.
-        required:
-          - id
-          - name
-          - enabled
-          - rolloutPct
-          - updatedAt
-        additionalProperties: false
+        $ref: "#/GateApiRow"
     next_cursor:
       anyOf:
         - type: string
@@ -907,3 +938,36 @@ DisableGateResponse:
     - id
     - enabled
   additionalProperties: false
+GetGateResponse:
+  $ref: "#/GateApiRow"
+ListGateActivityResponse:
+  type: array
+  items:
+    type: object
+    properties:
+      id:
+        type: string
+      action:
+        type: string
+        description: Audit action (e.g. `gate.create`, `gate.update`, `gate.enable`, `gate.disable`, `gate.delete`).
+      actorEmail:
+        type: string
+      actorType:
+        type: string
+        enum:
+          - user
+          - cli
+          - system
+      payload: {}
+      createdAt:
+        type: string
+        description: ISO-8601 timestamp.
+    required:
+      - id
+      - action
+      - actorEmail
+      - actorType
+      - payload
+      - createdAt
+    additionalProperties: false
+  description: Recent audit rows for one gate, newest first.

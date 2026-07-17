@@ -25,6 +25,9 @@
                 - id: cfg_01j7wae5h6j7k8l9m0n1p2q3r4
                   name: pricing.tiers
                   description: Pricing tier definitions consumed by the checkout flow.
+                  folder: pricing
+                  creatorEmail: ana@example.com
+                  createdAt: 2026-05-01T10:12:00.000Z
                   schema:
                     type: object
                     properties:
@@ -226,6 +229,7 @@
               id: cfg_01j7wae5h6j7k8l9m0n1p2q3r4
               name: pricing.tiers
               description: Pricing tier definitions consumed by the checkout flow.
+              folder: pricing
               schema:
                 type: object
                 properties:
@@ -686,6 +690,72 @@
       - NOT_FOUND
     x-cli:
       name: activity
+      positional:
+        - id
+/api/admin/configs/{id}/versions:
+  get:
+    operationId: listConfigVersions
+    summary: List config version history
+    description: |-
+      Returns every published version of the config's value on one env, newest first. The `env` query parameter picks the environment (`dev`, `staging`, or `prod`) and defaults to `prod`; an unknown env returns `400`. The config's JSON Schema is config-level and not versioned — this is value history only.
+
+      **Use case:** Render the History timeline in the config detail pane (value diff + restore), or audit which value was live on prod at a given version.
+    tags:
+      - Configs
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque config id (`cfg_…`) or the config's `name`.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+      - name: env
+        in: query
+        required: false
+        description: Environment to list history for (`dev`, `staging`, or `prod`). Defaults to `prod` when omitted.
+        schema:
+          $ref: ../components/schemas/common.yaml#/Env
+    responses:
+      "200":
+        description: List config version history
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/configs.yaml#/ListConfigVersionsResponse
+            example:
+              - version: 5
+                value:
+                  tiers:
+                    - name: free
+                    - name: pro
+                publishedAt: 2026-05-09T18:22:11.000Z
+                publishedBy: ana@example.com
+              - version: 4
+                value:
+                  tiers:
+                    - name: free
+                publishedAt: 2026-05-08T11:05:22.000Z
+                publishedBy: bo@example.com
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: versions
       positional:
         - id
 /api/admin/configs/{id}/schema:

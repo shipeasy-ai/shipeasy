@@ -1,0 +1,138 @@
+AlertApiRow:
+  type: object
+  description: |-
+    One FIRED alert — a condition the platform observed and raised, not the rule that defines it (alert *rules* are the `/api/admin/alert-rules` resource). Alerts are never filed by hand: the UI (killswitch flips) and the worker (analysis consumer + alerts cron) raise them, keyed by `(source, dedupeKey)` so re-raising refreshes the active row and a clearing condition auto-resolves it.
+
+    Every field is always present on the wire; nullable fields are `null`, never absent.
+  properties:
+    id:
+      type: string
+      description: Stable opaque alert id.
+    source:
+      type: string
+      enum:
+        - metric_rule
+        - killswitch_armed
+        - experiment_srm
+        - experiment_peek
+        - guardrail
+      description: Which platform subsystem raised the alert — a metric-threshold rule crossing (`metric_rule`), an armed kill switch (`killswitch_armed`), a sample-ratio mismatch or peeking guard on an experiment (`experiment_srm` / `experiment_peek`), or a guardrail-metric breach (`guardrail`).
+    ruleId:
+      description: >-
+        Id of the alert rule that raised it (`ar_…`), for `source: metric_rule`.
+        `null` for alerts raised outside the rules engine.
+      anyOf:
+        - type: string
+        - type: "null"
+    severity:
+      type: string
+      enum:
+        - danger
+        - warn
+        - info
+      description: How loud the alert is — `danger` pages, `warn` is the default, `info` is FYI-only.
+    dedupeKey:
+      type: string
+      description: Idempotency + reconcile key within `(project, source)` — re-raising the same condition refreshes the existing active row instead of stacking duplicates, and the condition clearing flips that row to `resolved`.
+    title:
+      type: string
+      description: Short human-readable headline (what fired).
+    detail:
+      type: string
+      description: Longer human-readable explanation — the observed condition, thresholds, and context.
+    href:
+      description: Dashboard-relative link to the surface that explains the alert (e.g. the experiment or kill switch page), or `null` if there is no single destination.
+      anyOf:
+        - type: string
+        - type: "null"
+    observedValue:
+      description: The numeric value that tripped the condition (e.g. the metric aggregate a rule compared against its threshold), or `null` when the source has no scalar observation.
+      anyOf:
+        - type: number
+        - type: "null"
+    status:
+      type: string
+      enum:
+        - active
+        - resolved
+        - dismissed
+      description: Lifecycle state. `active` means the condition currently holds (shown as "Firing" in the UI); `resolved` means it cleared (auto, when the raiser reconciles, or by hand); `dismissed` means a human waved it off.
+    createdAt:
+      type: string
+      description: ISO-8601 timestamp the alert was first raised.
+    resolvedAt:
+      description: ISO-8601 timestamp the alert flipped to `resolved`, or `null` while it hasn't.
+      anyOf:
+        - type: string
+        - type: "null"
+    dismissedAt:
+      description: ISO-8601 timestamp the alert was dismissed, or `null` while it hasn't been.
+      anyOf:
+        - type: string
+        - type: "null"
+    assigneeId:
+      description: PERSON owner of the triage — a `users.id` (soft reference, same value space as a feedback item's `assigneeId`), or `null` if unassigned. Set from the ops cockpit's Owner column; independent of the agent half.
+      anyOf:
+        - type: string
+        - type: "null"
+    assigneeConnectorId:
+      description: AGENT owner — the id of a connected trigger connector (`connectors.id`), or `null`. Mutually exclusive with `assigneeAgent`.
+      anyOf:
+        - type: string
+        - type: "null"
+    assigneeAgent:
+      description: AGENT owner — a built-in hosted Shipeasy agent (`"jarvis"`, Enterprise-gated), or `null`. Mutually exclusive with `assigneeConnectorId`.
+      anyOf:
+        - type: string
+        - type: "null"
+  required:
+    - id
+    - source
+    - ruleId
+    - severity
+    - dedupeKey
+    - title
+    - detail
+    - href
+    - observedValue
+    - status
+    - createdAt
+    - resolvedAt
+    - dismissedAt
+    - assigneeId
+    - assigneeConnectorId
+    - assigneeAgent
+  additionalProperties: false
+ListAlertsResponse:
+  type: array
+  description: A bare JSON array of fired alerts, ordered by `createdAt` descending. There is no pagination envelope.
+  items:
+    $ref: "#/AlertApiRow"
+UpdateAlertRequest:
+  type: object
+  description: |-
+    Body for `PATCH /api/admin/alerts/{id}` — the triage writes the ops cockpit needs on a fired alert. All fields optional, at least one required; only the fields present are changed.
+
+    Flipping `status` stamps the matching timestamp (`resolvedAt` on `resolved`, `dismissedAt` on `dismissed`; both cleared on `active`). The person owner (`assigneeId`) and the agent owner (`agent`) are independent halves — setting one never touches the other.
+  properties:
+    status:
+      type: string
+      enum:
+        - active
+        - resolved
+        - dismissed
+      description: New lifecycle state. `resolved` / `dismissed` stamp their timestamp; `active` re-opens and clears both.
+    assigneeId:
+      description: PERSON owner — a `users.id`, or `null` to clear the assignment.
+      anyOf:
+        - type: string
+        - type: "null"
+    agent:
+      description: AGENT owner — a connected trigger connector's id (`connectors.id`), the built-in `"jarvis"` (Enterprise plan only — rejected with `403` otherwise), or `null` to clear. Stored in `assigneeConnectorId` or `assigneeAgent` depending on the value; the two are mutually exclusive.
+      anyOf:
+        - type: string
+        - type: "null"
+  minProperties: 1
+  additionalProperties: false
+UpdateAlertResponse:
+  $ref: "#/AlertApiRow"

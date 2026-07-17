@@ -331,6 +331,26 @@ Operational queue: the unified table of bug reports, feature requests, and auto-
 shipeasy ops [options] [command]
 ```
 
+### `shipeasy ops agents`
+
+Connected AI agents — one per authenticated trigger connector (Claude / Cursor / Copilot / Jules).
+
+```bash
+shipeasy ops agents [options] [command]
+```
+
+#### `shipeasy ops agents list`
+
+List connected AI agents
+
+```bash
+shipeasy ops agents list [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
 ### `shipeasy ops alerts`
 
 Alert rules: the metric-threshold definitions the analysis cron evaluates each run.
@@ -709,7 +729,7 @@ shipeasy ops update [options] <handle>
 | `--steps-to-reproduce <value>` | optional | Updated reproduction steps. |
 | `--actual-result <value>` | optional | Updated actual result. |
 | `--expected-result <value>` | optional | Updated expected result. |
-| `--status <value>` | optional | Lifecycle status of a queue item. The working flow is `open` → `triaged` → `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`, terminal from any earlier stage). `ready_for_qa` is what a developer sets once a fix lands; `resolved` is the QA sign-off, normally flipped in the dashboard after verification — set it directly from code only when the fix has been verified end-to-end. Two human-gated holding states park an item OUT of the work queue until a human promotes it to `open` in the dashboard, so `GET /api/admin/ops` excludes them under `status=all`/default and returns them only when requested as an exact `status`: `pending_approval` is the pre-open approval gate for untriaged inbound (e.g. connector requests filed from a customer's connectors panel) so it never gets auto-implemented — approving = flipping the status to `open`; `triage` is the onboarding-help bucket — questions/errors submitted to the "Stuck in onboarding?" assistant are funnelled into the platform project as `triage` rows so the team can see where people get stuck and follow up, keeping onboarding chatter out of the work queue until a human moves real items to `open`. |
+| `--status <value>` | optional | Lifecycle status of a queue item. The working flow is `open` → `triaged` → `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`, terminal from any earlier stage). `blocked` marks an item that can't progress until an external dependency clears — a working state a human sets and clears. `ready_for_qa` is what a developer sets once a fix lands; `resolved` is the QA sign-off, normally flipped in the dashboard after verification — set it directly from code only when the fix has been verified end-to-end. `investigating_by_ai` is a system-owned display state — set when the AI agent (Jarvis) picks an item up to investigate, never chosen by a human — so it is shown but not offered as a manual choice. Two human-gated holding states park an item OUT of the work queue until a human promotes it to `open` in the dashboard, so `GET /api/admin/ops` excludes them under `status=all`/default and returns them only when requested as an exact `status`: `pending_approval` is the pre-open approval gate for untriaged inbound (e.g. connector requests filed from a customer's connectors panel) so it never gets auto-implemented — approving = flipping the status to `open`; `triage` is the onboarding-help bucket — questions/errors submitted to the "Stuck in onboarding?" assistant are funnelled into the platform project as `triage` rows so the team can see where people get stuck and follow up, keeping onboarding chatter out of the work queue until a human moves real items to `open`. |
 | `--priority <value>` | optional | Triage priority, or `null` when not set (in an update, `null` clears it). |
 | `--github-pr-number <value>` | optional | Link (or, when `null`, unlink) a GitHub pull request to this bug. |
 | `--notify <value>` | optional | Where this item's completion notification lands, or `null`. |
@@ -732,6 +752,23 @@ shipeasy ops link-pr [options] <handle>
 | --- | --- | --- |
 | `--pr-number <value>` | optional | PR number to record on the item. `null` unlinks the PR. |
 | `--pr-url <value>` | optional | Explicit PR URL. Required for error/alert tickets (no GitHub issue to derive the URL from). |
+
+### `shipeasy ops ack`
+
+Ack an item (start a run)
+
+```bash
+shipeasy ops ack [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--agent <value>` | optional | The AI agent type acking on the item's behalf — pass your own type when you are a coding agent (Claude Code passes `claude`, Cursor `cursor`, Copilot `copilot`, Jules/Gemini `jules`). Omit entirely for a human ack by the authenticated caller. |
+| `--session-id <value>` | optional | The agent-run session id (e.g. Claude's `session_01…`), so the dashboard can deep-link to the exact run page. Omit when the harness has no session id. |
 
 ### `shipeasy ops notify`
 
