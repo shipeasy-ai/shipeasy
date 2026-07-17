@@ -10,13 +10,14 @@ import {
   MCP_URL,
   SKILLS_CLI_AGENT,
   detectAgents,
+  existingMcpProjectPin,
   installClaudePlugin,
   onPath,
   registerMcp,
 } from "../setup/agents";
 import { fetchSdkSkill, installMarketplaceSkills, installSkill } from "../setup/sdk-docs";
 import { baseSkillNames } from "../setup/skills-registry";
-import { getBoundSdk } from "../util/project-config";
+import { getBoundProjectId, getBoundSdk } from "../util/project-config";
 import { listDirs } from "../util/assets";
 import { detectTargets, type TargetRecommendation } from "./scan";
 import { withDetails, withExamples } from "../util/examples";
@@ -285,13 +286,18 @@ async function refreshSkills(
 // ── MCP refresh (full `upgrade` only) ────────────────────────────────────────
 
 /**
- * Re-point every wired agent at the hosted MCP server. The server is a static
- * remote endpoint (mcp.shipeasy.ai) so there is nothing to "bump" — this just
- * re-asserts the registration (repairing a stale/local entry) and, for Claude
- * at user scope, is already covered by the plugin refresh in the skills step.
+ * Re-point every wired agent at the hosted MCP server, migrating the entry to
+ * the current format — today that means the project-scoped `/p/<id>/mcp` URL
+ * (which pins the project AND pre-selects it at OAuth consent via the RFC 8707
+ * resource parameter). The pin is resolved per agent: the `.shipeasy` binding
+ * wins, else whatever the existing entry already pinned (X-Project-Id header
+ * or an already-scoped URL) is carried forward — an upgrade never drops a pin.
+ * Claude at user scope is covered by the plugin refresh in the skills step.
  */
 function refreshMcp(agents: AgentId[], scope: "user" | "project", opts: UpgradeOpts): void {
-  const ctx: InstallCtx = { cwd: process.cwd(), scope, force: true, dryRun: Boolean(opts.dryRun) };
+  const cwd = process.cwd();
+  const ctx: InstallCtx = { cwd, scope, force: true, dryRun: Boolean(opts.dryRun) };
+  const bound = getBoundProjectId(cwd);
   if (!agents.length) {
     console.log("  • no agents — nothing to re-register");
     return;
@@ -301,9 +307,11 @@ function refreshMcp(agents: AgentId[], scope: "user" | "project", opts: UpgradeO
       console.log("  • Claude: MCP ships in the plugin (refreshed above)");
       continue;
     }
-    const r = registerMcp(agent, ctx);
+    const projectId = bound ?? existingMcpProjectPin(agent, ctx) ?? undefined;
+    const r = registerMcp(agent, { ...ctx, projectId });
     const icon = r.action === "error" ? "✗" : r.action === "manual" ? "→" : "✓";
-    console.log(`  ${icon} ${agent}: ${r.detail}`);
+    const pin = projectId ? ` (project ${projectId})` : "";
+    console.log(`  ${icon} ${agent}: ${r.detail}${pin}`);
   }
 }
 

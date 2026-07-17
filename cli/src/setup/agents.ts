@@ -294,6 +294,28 @@ export function jsonMcpTarget(
   }
 }
 
+/**
+ * The project a previously written MCP entry pins, read back from the agent's
+ * JSON config: the `X-Project-Id` header (legacy pin) or a project-scoped
+ * `/p/<id>/mcp` URL. Lets `shipeasy upgrade` force-rewrite the entry into the
+ * current format without dropping — and while upgrading — an existing pin.
+ * Null for header-less agents (Codex TOML), an absent entry, or no pin.
+ */
+export function existingMcpProjectPin(agent: AgentId, ctx: InstallCtx): string | null {
+  const target = jsonMcpTarget(agent, ctx);
+  if (!target) return null;
+  const cfg = readJsonConfig<Record<string, Record<string, unknown>>>(target.path);
+  const entry = cfg?.[target.key]?.shipeasy as
+    | { url?: unknown; headers?: Record<string, unknown> }
+    | undefined;
+  if (!entry) return null;
+  const header = entry.headers?.["X-Project-Id"];
+  if (typeof header === "string" && header) return header;
+  const match =
+    typeof entry.url === "string" ? /\/p\/([A-Za-z0-9_-]+)\/mcp$/.exec(entry.url) : null;
+  return match ? match[1] : null;
+}
+
 function registerJsonMcp(
   target: { path: string; key: "mcpServers" | "servers" },
   ctx: InstallCtx,

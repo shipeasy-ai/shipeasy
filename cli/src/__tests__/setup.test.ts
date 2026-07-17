@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { mkdtempSync, readFileSync, existsSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, existsSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mergeMcpServer } from "../util/json-config";
@@ -10,6 +10,7 @@ import {
   codexTomlSnippet,
   detectAgents,
   detectHarness,
+  existingMcpProjectPin,
   homePathExists,
   onPath,
   registerMcp,
@@ -248,6 +249,69 @@ describe("registerMcp", () => {
       registerMcp("copilot", ctx(dir));
       const cfg = JSON.parse(readFileSync(join(dir, ".vscode", "mcp.json"), "utf8"));
       expect(cfg.servers.shipeasy.headers["X-Project-Id"]).toBeUndefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("upgrade migration: a legacy header-pinned entry is force-rewritten to the scoped URL", () => {
+    const dir = tmp();
+    try {
+      // A pre-scoped-URL entry: bare /mcp + X-Project-Id header (what older
+      // setups wrote).
+      mkdirSync(join(dir, ".cursor"), { recursive: true });
+      const path = join(dir, ".cursor", "mcp.json");
+      writeFileSync(
+        path,
+        JSON.stringify({
+          mcpServers: {
+            shipeasy: {
+              type: "http",
+              url: "https://mcp.shipeasy.ai/mcp",
+              headers: { "X-Project-Id": "proj_legacy" },
+            },
+          },
+        }),
+      );
+
+      // `shipeasy upgrade` recovers the pin from the old entry…
+      const pin = existingMcpProjectPin("cursor", ctx(dir));
+      expect(pin).toBe("proj_legacy");
+
+      // …and re-registers with force, upgrading the URL while keeping the pin.
+      registerMcp("cursor", ctx(dir, { projectId: pin!, force: true }));
+      const cfg = JSON.parse(readFileSync(path, "utf8"));
+      expect(cfg.mcpServers.shipeasy.url).toBe("https://mcp.shipeasy.ai/p/proj_legacy/mcp");
+      expect(cfg.mcpServers.shipeasy.headers["X-Project-Id"]).toBe("proj_legacy");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("existingMcpProjectPin reads a pin from an already-scoped URL (no header)", () => {
+    const dir = tmp();
+    try {
+      mkdirSync(join(dir, ".vscode"), { recursive: true });
+      writeFileSync(
+        join(dir, ".vscode", "mcp.json"),
+        JSON.stringify({
+          servers: {
+            shipeasy: { type: "http", url: "https://mcp.shipeasy.ai/p/proj_url/mcp", headers: {} },
+          },
+        }),
+      );
+      expect(existingMcpProjectPin("copilot", ctx(dir))).toBe("proj_url");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("existingMcpProjectPin is null when there is no entry or no pin", () => {
+    const dir = tmp();
+    try {
+      expect(existingMcpProjectPin("cursor", ctx(dir))).toBeNull();
+      registerMcp("cursor", ctx(dir)); // unpinned entry
+      expect(existingMcpProjectPin("cursor", ctx(dir))).toBeNull();
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
