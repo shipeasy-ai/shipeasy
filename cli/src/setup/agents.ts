@@ -30,13 +30,24 @@ export interface AgentInfo {
  *  POST /"), which is what a client sees when the path is dropped. */
 export const MCP_URL = "https://mcp.shipeasy.ai/mcp";
 
+/** The project-scoped MCP endpoint. The `/p/<id>/mcp` path pins every tool call
+ *  to that project (same semantics as the `X-Project-Id` header, which wins if
+ *  both are present) — and because OAuth clients echo the configured server URL
+ *  as the RFC 8707 `resource` parameter, the browser consent screen pre-selects
+ *  this exact project instead of the user's session default. */
+export function mcpUrl(projectId?: string): string {
+  return projectId ? `https://mcp.shipeasy.ai/p/${projectId}/mcp` : MCP_URL;
+}
+
 /**
  * The MCP server entry an assistant registers (streamable-HTTP remote). When a
- * bound project is known we pin it with an `X-Project-Id` header, so the
- * connection acts on THAT project regardless of what was picked at OAuth consent
- * — this is what makes a per-repo `.mcp.json` target its own project. The header
- * is not a credential: the server still authenticates you via OAuth and the
- * admin API re-checks your membership of the pinned project on every call.
+ * bound project is known we pin it BOTH ways: the project-scoped `/p/<id>/mcp`
+ * URL (which also pre-selects the project on the OAuth consent screen via the
+ * `resource` parameter) and the `X-Project-Id` header (kept as the explicit,
+ * hand-editable override — it wins over the path on the server). This is what
+ * makes a per-repo `.mcp.json` target its own project. Neither is a credential:
+ * the server still authenticates you via OAuth and the admin API re-checks your
+ * membership of the pinned project on every call.
  */
 export function serverSpec(projectId?: string): {
   type: "http";
@@ -54,7 +65,7 @@ export function serverSpec(projectId?: string): {
   headers["X-Shipeasy-List-Guard"] = "off";
   return {
     type: "http",
-    url: MCP_URL,
+    url: mcpUrl(projectId),
     "//list-guard":
       'Set the "X-Shipeasy-List-Guard" header below to "on" to require a *_list before each ' +
       "*_create — a dedup guard so the agent confirms a resource doesn't already exist before " +
@@ -243,9 +254,11 @@ export interface McpResult {
   detail: string;
 }
 
-/** The exact `[mcp_servers.shipeasy]` block for a hand-edited `~/.codex/config.toml`. */
-export function codexTomlSnippet(): string {
-  return ["[mcp_servers.shipeasy]", `url = "${MCP_URL}"`].join("\n");
+/** The exact `[mcp_servers.shipeasy]` block for a hand-edited `~/.codex/config.toml`.
+ *  A bound project rides in the URL path — Codex's HTTP MCP config carries no
+ *  headers, so the project-scoped URL is its only pin. */
+export function codexTomlSnippet(projectId?: string): string {
+  return ["[mcp_servers.shipeasy]", `url = "${mcpUrl(projectId)}"`].join("\n");
 }
 
 /** Where Codex keeps its (TOML) config — no JSON helper covers this one. */
@@ -318,40 +331,37 @@ export function registerMcp(agent: AgentId, ctx: InstallCtx): McpResult {
 
   if (agent === "codex") {
     // Codex's HTTP MCP config only carries a URL (+ optional bearer-token env
-    // var) — `codex mcp add` has no header flag — so we can't pin the project via
-    // `X-Project-Id` the way the JSON agents do. Codex uses whatever project you
-    // pick at OAuth consent; note that when a specific project was requested.
-    const projectNote = ctx.projectId
-      ? ` (Codex can't pin a project header — approve project ${ctx.projectId} at the browser consent step.)`
-      : "";
+    // var) — `codex mcp add` has no header flag — so the project-scoped URL is
+    // how a bound project gets pinned (and pre-selected at OAuth consent).
+    const url = mcpUrl(ctx.projectId);
     if (!onPath("codex")) {
       return {
         action: "manual",
-        detail: `add to ~/.codex/config.toml:\n\n${codexTomlSnippet()}${projectNote}`,
+        detail: `add to ~/.codex/config.toml:\n\n${codexTomlSnippet(ctx.projectId)}`,
       };
     }
     if (ctx.dryRun) {
       return {
         action: "shell",
-        detail: `would run: codex mcp add shipeasy --url ${MCP_URL}`,
+        detail: `would run: codex mcp add shipeasy --url ${url}`,
       };
     }
-    const res = spawnSync("codex", ["mcp", "add", "shipeasy", "--url", MCP_URL], {
+    const res = spawnSync("codex", ["mcp", "add", "shipeasy", "--url", url], {
       stdio: ["ignore", "pipe", "pipe"],
     });
     if (res.status !== 0) {
       return {
         action: "error",
-        detail: `codex mcp add failed (${res.status ?? "?"}). Add manually:\n\n${codexTomlSnippet()}`,
+        detail: `codex mcp add failed (${res.status ?? "?"}). Add manually:\n\n${codexTomlSnippet(ctx.projectId)}`,
       };
     }
-    return { action: "shell", detail: `codex mcp add shipeasy${projectNote}` };
+    return { action: "shell", detail: `codex mcp add shipeasy` };
   }
 
   if (agent === "jules") {
     return {
       action: "manual",
-      detail: `Jules runs locally in Google Antigravity (\`agy\`) — add the MCP server from Antigravity's settings pointing at ${MCP_URL}. AGENTS.md covers the workflows in the meantime.`,
+      detail: `Jules runs locally in Google Antigravity (\`agy\`) — add the MCP server from Antigravity's settings pointing at ${mcpUrl(ctx.projectId)}. AGENTS.md covers the workflows in the meantime.`,
     };
   }
 

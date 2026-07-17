@@ -128,6 +128,11 @@ describe("codexTomlSnippet", () => {
     expect(s).toContain('url = "https://mcp.shipeasy.ai/mcp"');
     expect(s).not.toContain("npx");
   });
+
+  it("pins a bound project via the project-scoped URL (Codex has no header support)", () => {
+    const s = codexTomlSnippet("proj_42");
+    expect(s).toContain('url = "https://mcp.shipeasy.ai/p/proj_42/mcp"');
+  });
 });
 
 describe("upsertMarkedBlock", () => {
@@ -223,13 +228,15 @@ describe("registerMcp", () => {
     }
   });
 
-  it("pins the bound project via an X-Project-Id header when ctx.projectId is set", () => {
+  it("pins the bound project via the scoped URL AND an X-Project-Id header", () => {
     const dir = tmp();
     try {
       registerMcp("cursor", ctx(dir, { projectId: "proj_42" }));
       const cfg = JSON.parse(readFileSync(join(dir, ".cursor", "mcp.json"), "utf8"));
       expect(cfg.mcpServers.shipeasy.headers["X-Project-Id"]).toBe("proj_42");
-      expect(cfg.mcpServers.shipeasy.url).toBe("https://mcp.shipeasy.ai/mcp");
+      // The scoped path pins tool calls and pre-selects the project at OAuth
+      // consent (it rides the RFC 8707 `resource` parameter).
+      expect(cfg.mcpServers.shipeasy.url).toBe("https://mcp.shipeasy.ai/p/proj_42/mcp");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
