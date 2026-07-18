@@ -1942,8 +1942,7 @@ time since the run started).
 `copilot`, `jules`; `gemini` aliases `jules`) and, when you have one, the
 run's `sessionId` so the dashboard can deep-link to the session. If the
 project has no connected trigger connector of that type the call fails
-with `AGENT_NOT_CONNECTED` — list the available agents with `ops agents
-list` and use one of those (or connect the agent under Settings →
+with `AGENT_NOT_CONNECTED` — list the available agents with `ops agents list` and use one of those (or connect the agent under Settings →
 Triggers).
 
 **Completion.** The run closes automatically on the loop's final actions —
@@ -2381,8 +2380,7 @@ _Errors_ — beyond the [common errors](#errors):
 
 Connected AI agents — one per authenticated trigger connector (Claude /
 Cursor / Copilot / Jules). The read-only roster behind agent assignment
-and the `ops ack` agent types: an AI ack (`ops ack <handle> --agent
-<type>`) requires the type to appear here, so this list is where an
+and the `ops ack` agent types: an AI ack (`ops ack <handle> --agent <type>`) requires the type to appear here, so this list is where an
 `AGENT_NOT_CONNECTED` error sends you.
 
 #### `ops_agents_list`

@@ -260,7 +260,13 @@ function escapeProse(s: string, inTable: boolean): string {
     .split(/(`[^`]*`)/g)
     .map((part) => {
       const isCode = part.startsWith("`") && part.endsWith("`");
-      const out = isCode || !MDX ? part : part.replace(/([{}<])/g, "\\$1");
+      // An inline code span must stay on one line: a newline inside a `...` span
+      // stops it from being parsed as code, so MDX then reads any `<tag>` inside
+      // as JSX and the build fails ("Expected a closing tag for `<handle>`").
+      // Collapse internal whitespace so a hard-wrapped source description (72-col
+      // reflowed prose) still emits a valid single-line span.
+      const code = isCode ? part.replace(/\s*\n\s*/g, " ") : part;
+      const out = isCode || !MDX ? code : code.replace(/([{}<])/g, "\\$1");
       return inTable ? out.replace(/\|/g, "\\|") : out;
     })
     .join("")
