@@ -13120,57 +13120,6 @@ export type GetErrorSeriesResponses = {
 
 export type GetErrorSeriesResponse = GetErrorSeriesResponses[keyof GetErrorSeriesResponses];
 
-export type GetProjectErrorSeriesData = {
-    body: ErrorSeriesRequest;
-    headers?: {
-        /**
-         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
-         */
-        'X-Project-Id'?: string;
-    };
-    path?: never;
-    query?: never;
-    url: '/api/admin/errors/series';
-};
-
-export type GetProjectErrorSeriesErrors = {
-    /**
-     * The request was malformed (bad JSON or missing project scope).
-     */
-    400: Error;
-    /**
-     * Missing or invalid admin SDK key.
-     */
-    401: Error;
-    /**
-     * The key is valid but not allowed to perform this action.
-     */
-    403: Error;
-    /**
-     * The resource does not exist or is not visible to the caller.
-     */
-    404: Error;
-    /**
-     * The mutation conflicts with current state.
-     */
-    409: Error;
-    /**
-     * The request body failed validation.
-     */
-    422: Error;
-};
-
-export type GetProjectErrorSeriesError = GetProjectErrorSeriesErrors[keyof GetProjectErrorSeriesErrors];
-
-export type GetProjectErrorSeriesResponses = {
-    /**
-     * Get the project-wide error series
-     */
-    200: ErrorSeriesResponse;
-};
-
-export type GetProjectErrorSeriesResponse = GetProjectErrorSeriesResponses[keyof GetProjectErrorSeriesResponses];
-
 export type ListConnectorsData = {
     body?: never;
     headers?: {

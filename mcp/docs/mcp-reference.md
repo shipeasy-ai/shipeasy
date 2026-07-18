@@ -2830,28 +2830,6 @@ _Errors_ — beyond the [common errors](#errors):
 
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 
-### `errors_project_series`
-
-**Get the project-wide error series**
-
-Returns the bucketed occurrence timeseries for the **whole project** — every tracked error folded together — split by `see()` error kind so a chart can stack uncaught vs network vs violation etc. Read from the `shipeasy_errors` Analytics Engine dataset (near-real-time; ingest lag is seconds). The window bounds are epoch **seconds**; `to` must be strictly greater than `from`. The response echoes the SQL that produced the rows.
-
-Same request/response shape as the per-error series, with one addition: each row also carries a `kind` label column (the occurrence's `see()` kind), so multiple rows can share the same bucket `t` — one per kind.
-
-**Use case:** Render the project-level error-rate chart at the top of the errors dashboard, stacked by kind, or feed a deploy health check that compares the project's error rate before and after a release.
-
-_Parameters_
-
-| Parameter | | Type | Description |
-| --- | --- | --- | --- |
-| `from` | required | `integer` | Window start, epoch seconds (inclusive). _(≥ 0)_ |
-| `to` | required | `integer` | Window end, epoch seconds (exclusive). Must be greater than `from`. _(≥ 0)_ |
-| `bucket` | optional | `integer` | Bucket width in seconds (60s–86400s/1d). Defaults to `3600` (hourly). Each returned point is floor-aligned to this width. _(default `3600`; 60–86400)_ |
-
-_Errors_ — beyond the [common errors](#errors):
-
-- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
-
 ### `errors_resolve`
 
 **Resolve a tracked error**

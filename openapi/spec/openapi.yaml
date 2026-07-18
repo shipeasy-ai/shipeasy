@@ -403,8 +403,6 @@ paths:
     $ref: ./paths/errors.yaml#/~1api~1admin~1errors~1{id}~1resolve
   /api/admin/errors/{id}/series:
     $ref: ./paths/errors.yaml#/~1api~1admin~1errors~1{id}~1series
-  /api/admin/errors/series:
-    $ref: ./paths/errors.yaml#/~1api~1admin~1errors~1series
   /api/admin/connectors:
     $ref: ./paths/connectors.yaml#/~1api~1admin~1connectors
   /api/admin/connectors/{id}:

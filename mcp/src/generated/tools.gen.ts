@@ -18,11 +18,6 @@ export const GENERATED_TOOLS: Tool[] = [
     inputSchema: {"type":"object","properties":{"status":{"type":"string","enum":["open","resolved","ignored","all"],"default":"all","description":"Filter by triage state. `all` (the default) returns every status."},"q":{"type":"string","maxLength":200,"description":"Case-insensitive substring match against `message`, `errorType`, and `subject`."},"limit":{"type":"integer","minimum":1,"maximum":500,"default":200,"description":"Maximum number of rows to return (1–500). Defaults to 200."}},"required":[]},
   },
   {
-    name: "errors_project_series",
-    description: "Get the project-wide error series. Returns the bucketed occurrence timeseries for the **whole project** — every tracked error folded together — split by `see()` error kind so a chart can stack uncaught vs network vs violation etc. Read from the `shipeasy_errors` Analytics Engine dataset (near-real-time; ingest …",
-    inputSchema: {"type":"object","properties":{"from":{"type":"integer","minimum":0,"description":"Window start, epoch seconds (inclusive)."},"to":{"type":"integer","minimum":0,"description":"Window end, epoch seconds (exclusive). Must be greater than `from`."},"bucket":{"type":"integer","minimum":60,"maximum":86400,"default":3600,"description":"Bucket width in seconds (60s–86400s/1d). Defaults to `3600` (hourly). Each returned point is floor-aligned to this width."}},"required":["from","to"]},
-  },
-  {
     name: "errors_resolve",
     description: "Resolve a tracked error. Marks one tracked error `resolved` — the single-purpose \"close out\" action. Takes no body; it is `PATCH /api/admin/errors/{id}` pinned to `{ \"status\": \"resolved\" }`, exposed so tooling can close an error without being handed the full open/resolved/ignored status machine. A res…",
     inputSchema: {"type":"object","properties":{"id":{"type":"string","minLength":1,"maxLength":128,"description":"A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row."}},"required":["id"]},
@@ -563,7 +558,6 @@ export const GENERATED_TOOLS: Tool[] = [
 export const GENERATED_MUTATES: Record<string, boolean> = {
   "errors_get": false,
   "errors_list": false,
-  "errors_project_series": false,
   "errors_resolve": true,
   "errors_series": false,
   "i18n_drafts_create": true,
@@ -677,7 +671,6 @@ export const GENERATED_MUTATES: Record<string, boolean> = {
 export const GENERATED_DISPATCH: Record<string, (client: Client, args: Record<string, unknown>) => Promise<unknown>> = {
   "errors_get": (client, args) => api.getError({ client, path: { "id": args["id"] as string } }).then(unwrap) as Promise<unknown>,
   "errors_list": (client, args) => api.listErrors({ client, query: clean({ "status": args["status"], "q": args["q"], "limit": args["limit"] }) }).then(unwrap) as Promise<unknown>,
-  "errors_project_series": (client, args) => api.getProjectErrorSeries({ client, body: clean({ "from": args["from"], "to": args["to"], "bucket": args["bucket"] }) }).then(unwrap) as Promise<unknown>,
   "errors_resolve": (client, args) => api.resolveError({ client, path: { "id": args["id"] as string } }).then(unwrap) as Promise<unknown>,
   "errors_series": (client, args) => api.getErrorSeries({ client, path: { "id": args["id"] as string }, body: clean({ "from": args["from"], "to": args["to"], "bucket": args["bucket"] }) }).then(unwrap) as Promise<unknown>,
   "i18n_drafts_create": (client, args) => api.createI18nDraft({ client, body: clean({ "name": args["name"], "profile_id": args["profile_id"], "source_profile_id": args["source_profile_id"] }) }).then(unwrap) as Promise<unknown>,

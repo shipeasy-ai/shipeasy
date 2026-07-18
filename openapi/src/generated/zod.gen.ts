@@ -5162,17 +5162,6 @@ export const zGetErrorSeriesPath = z.object({
  */
 export const zGetErrorSeriesResponse = zErrorSeriesResponse;
 
-export const zGetProjectErrorSeriesBody = zErrorSeriesRequest;
-
-export const zGetProjectErrorSeriesHeaders = z.object({
-    'X-Project-Id': z.string().optional()
-});
-
-/**
- * Get the project-wide error series
- */
-export const zGetProjectErrorSeriesResponse = zErrorSeriesResponse;
-
 export const zListConnectorsHeaders = z.object({
     'X-Project-Id': z.string().optional()
 });
