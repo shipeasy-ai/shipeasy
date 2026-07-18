@@ -147,8 +147,8 @@ importers:
         specifier: workspace:*
         version: link:../mcp
       '@shipeasy/sdk':
-        specifier: ^7.6.0
-        version: 7.6.0(zod@4.4.3)
+        specifier: ^7.7.0
+        version: 7.7.0(zod@4.4.3)
     devDependencies:
       '@types/node':
         specifier: ^20.19.39
@@ -872,8 +872,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@shipeasy/sdk@7.6.0':
-    resolution: {integrity: sha512-TIjz4HOT9qK/SOQw/RvpnJdthhgfUix6rk2MrQDcvIiuQ8UtyQS/rDvVz8Ra662GtGY+dLghhqYkgbUaLY/tgQ==}
+  '@shipeasy/sdk@7.7.0':
+    resolution: {integrity: sha512-fSmgR1uab8XrvfHIhOXl8QuXSgm2HYxByrGPx8oDqVG+iwvnqXeU24D4P9oCNKsOxT7y9IzrhLu3r2cRMf9knA==}
     engines: {node: '>=20'}
     hasBin: true
     peerDependencies:
@@ -2448,7 +2448,7 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.62.2':
     optional: true
 
-  '@shipeasy/sdk@7.6.0(zod@4.4.3)':
+  '@shipeasy/sdk@7.7.0(zod@4.4.3)':
     dependencies:
       murmurhash-js: 1.0.0
     optionalDependencies:
