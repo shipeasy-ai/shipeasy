@@ -3,4 +3,7 @@ dist/
 .turbo/
 *.tsbuildinfo
 
+# Transient openapi-ts codegen error dumps
+openapi-ts-error-*.log
+
 # Committed on purpose (do NOT ignore): openapi.yaml, spec/, src/generated/
