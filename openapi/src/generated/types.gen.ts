@@ -4667,74 +4667,6 @@ export type NotifyOpsResponse = {
 };
 
 /**
- * One in-app notification as the bell feed renders it.
- */
-export type NotificationFeedItem = {
-    /**
-     * Notification id (pass to the mark-read `POST` to mark just this one).
-     */
-    id: string;
-    /**
-     * The notification's event key (e.g. `ops.attention`, `feedback.completed`, `comment.mention`).
-     */
-    event: string;
-    /**
-     * One-line headline.
-     */
-    title: string;
-    /**
-     * Notification body. For `ops.attention` escalations: line 1 = summary, following lines = numbered unblock steps.
-     */
-    body: string;
-    /**
-     * Dashboard-relative deep link to the related item, or `null`.
-     */
-    href: string | null;
-    /**
-     * ISO-8601 creation timestamp.
-     */
-    createdAt: string;
-    /**
-     * Whether the notification has been marked read.
-     */
-    read: boolean;
-};
-
-/**
- * Response for `GET /api/admin/notifications/feed` — the bell feed plus its unread badge count.
- */
-export type ListNotificationFeedResponse = {
-    /**
-     * The feed, newest first (max 30). Project-wide broadcasts plus notifications addressed to the caller; events muted for the in-app channel are omitted.
-     */
-    notifications: Array<NotificationFeedItem>;
-    /**
-     * Count of the caller's unread (visible, unmuted) notifications.
-     */
-    unread: number;
-};
-
-/**
- * Body for `POST /api/admin/notifications/feed`. An empty body (`{}`) marks ALL of the caller's notifications read.
- */
-export type MarkNotificationsReadRequest = {
-    /**
-     * Mark just this notification read. Omit to mark the caller's whole feed read.
-     */
-    id?: string;
-};
-
-/**
- * Generic success acknowledgement for operations with no meaningful payload.
- */
-export type OkResponse = {
-    /**
-     * Always `true` — the operation succeeded (errors use the error envelope instead).
-     */
-    ok: true;
-};
-
-/**
  * Response for `GET /api/admin/slack/channels`.
  */
 export type ListSlackChannelsResponse = {
@@ -5595,6 +5527,16 @@ export type UpdateI18nKeyResponse = {
      * Id of the key that was updated.
      */
     id: string;
+};
+
+/**
+ * Generic success acknowledgement for operations with no meaningful payload.
+ */
+export type OkResponse = {
+    /**
+     * Always `true` — the operation succeeded (errors use the error envelope instead).
+     */
+    ok: true;
 };
 
 /**
@@ -11212,96 +11154,6 @@ export type NotifyOpsResponses = {
 };
 
 export type NotifyOpsResponse2 = NotifyOpsResponses[keyof NotifyOpsResponses];
-
-export type ListNotificationFeedData = {
-    body?: never;
-    headers?: {
-        /**
-         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
-         */
-        'X-Project-Id'?: string;
-    };
-    path?: never;
-    query?: never;
-    url: '/api/admin/notifications/feed';
-};
-
-export type ListNotificationFeedErrors = {
-    /**
-     * The request was malformed (bad JSON or missing project scope).
-     */
-    400: Error;
-    /**
-     * Missing or invalid admin SDK key.
-     */
-    401: Error;
-    /**
-     * The key is valid but not allowed to perform this action.
-     */
-    403: Error;
-    /**
-     * The resource does not exist or is not visible to the caller.
-     */
-    404: Error;
-};
-
-export type ListNotificationFeedError = ListNotificationFeedErrors[keyof ListNotificationFeedErrors];
-
-export type ListNotificationFeedResponses = {
-    /**
-     * Read the notification feed
-     */
-    200: ListNotificationFeedResponse;
-};
-
-export type ListNotificationFeedResponse2 = ListNotificationFeedResponses[keyof ListNotificationFeedResponses];
-
-export type MarkNotificationsReadData = {
-    body?: MarkNotificationsReadRequest;
-    headers?: {
-        /**
-         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
-         */
-        'X-Project-Id'?: string;
-    };
-    path?: never;
-    query?: never;
-    url: '/api/admin/notifications/feed';
-};
-
-export type MarkNotificationsReadErrors = {
-    /**
-     * The request was malformed (bad JSON or missing project scope).
-     */
-    400: Error;
-    /**
-     * Missing or invalid admin SDK key.
-     */
-    401: Error;
-    /**
-     * The key is valid but not allowed to perform this action.
-     */
-    403: Error;
-    /**
-     * The resource does not exist or is not visible to the caller.
-     */
-    404: Error;
-    /**
-     * The request body failed validation.
-     */
-    422: Error;
-};
-
-export type MarkNotificationsReadError = MarkNotificationsReadErrors[keyof MarkNotificationsReadErrors];
-
-export type MarkNotificationsReadResponses = {
-    /**
-     * Mark notifications read
-     */
-    200: OkResponse;
-};
-
-export type MarkNotificationsReadResponse = MarkNotificationsReadResponses[keyof MarkNotificationsReadResponses];
 
 export type ListSlackChannelsData = {
     body?: never;

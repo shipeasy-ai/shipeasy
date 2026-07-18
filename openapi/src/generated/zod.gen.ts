@@ -2513,41 +2513,6 @@ export const zNotifyOpsResponse = z.object({
 });
 
 /**
- * One in-app notification as the bell feed renders it.
- */
-export const zNotificationFeedItem = z.object({
-    id: z.string(),
-    event: z.string(),
-    title: z.string(),
-    body: z.string(),
-    href: z.string().nullable(),
-    createdAt: z.string(),
-    read: z.boolean()
-});
-
-/**
- * Response for `GET /api/admin/notifications/feed` — the bell feed plus its unread badge count.
- */
-export const zListNotificationFeedResponse = z.object({
-    notifications: z.array(zNotificationFeedItem),
-    unread: z.int()
-});
-
-/**
- * Body for `POST /api/admin/notifications/feed`. An empty body (`{}`) marks ALL of the caller's notifications read.
- */
-export const zMarkNotificationsReadRequest = z.object({
-    id: z.string().optional()
-});
-
-/**
- * Generic success acknowledgement for operations with no meaningful payload.
- */
-export const zOkResponse = z.object({
-    ok: z.literal(true)
-});
-
-/**
  * Response for `GET /api/admin/slack/channels`.
  */
 export const zListSlackChannelsResponse = z.object({
@@ -2967,6 +2932,13 @@ export const zUpdateI18nKeyRequest = z.object({
  */
 export const zUpdateI18nKeyResponse = z.object({
     id: z.string()
+});
+
+/**
+ * Generic success acknowledgement for operations with no meaningful payload.
+ */
+export const zOkResponse = z.object({
+    ok: z.literal(true)
 });
 
 /**
@@ -4708,26 +4680,6 @@ export const zNotifyOpsHeaders = z.object({
  * Raise an attention notification
  */
 export const zNotifyOpsResponse2 = zNotifyOpsResponse;
-
-export const zListNotificationFeedHeaders = z.object({
-    'X-Project-Id': z.string().optional()
-});
-
-/**
- * Read the notification feed
- */
-export const zListNotificationFeedResponse2 = zListNotificationFeedResponse;
-
-export const zMarkNotificationsReadBody = zMarkNotificationsReadRequest;
-
-export const zMarkNotificationsReadHeaders = z.object({
-    'X-Project-Id': z.string().optional()
-});
-
-/**
- * Mark notifications read
- */
-export const zMarkNotificationsReadResponse = zOkResponse;
 
 export const zListSlackChannelsHeaders = z.object({
     'X-Project-Id': z.string().optional()

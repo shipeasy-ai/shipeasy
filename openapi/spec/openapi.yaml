@@ -357,8 +357,6 @@ paths:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1comments
   /api/admin/notifications:
     $ref: ./paths/ops.yaml#/~1api~1admin~1notifications
-  /api/admin/notifications/feed:
-    $ref: ./paths/ops.yaml#/~1api~1admin~1notifications~1feed
   /api/admin/slack/channels:
     $ref: ./paths/ops.yaml#/~1api~1admin~1slack~1channels
   /api/admin/alert-rules:
