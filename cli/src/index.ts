@@ -18,6 +18,7 @@ import { upgradeCommand } from "./commands/upgrade";
 import { installCommand } from "./commands/install";
 import { reportIssueCommand } from "./commands/report-issue";
 import { triggerCommand } from "./commands/trigger";
+import { ackCommand } from "./commands/ack";
 import { detectCommand } from "./commands/detect";
 import { bindProject, findProjectConfigDir, readProjectConfig } from "./util/project-config";
 import { printJson } from "./util/output";
@@ -200,6 +201,9 @@ export function buildProgram(): Command {
   // split (mint ops key + emit the RemoteTrigger body; the agent creates the
   // routine via its in-process RemoteTrigger tool).
   triggerCommand(program);
+  // `ops ack` env layer: default --agent/--session-id from the coding-agent
+  // harness driving the shell, so an agent acks as itself with no flags.
+  ackCommand(program);
 
   // ── Custom (non-spec) operations — the shared sugar registry ──────────────
   // metrics grammar + docs list/get/skill. Same registry the MCP server

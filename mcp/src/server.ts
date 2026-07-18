@@ -17,6 +17,7 @@ import { handleAuthCheck, handleAuthLogout } from "./tools/shared/auth.js";
 import { handleUpsertProject } from "./tools/projects/upsert.js";
 import { GENERATED_DISPATCH, GENERATED_MUTATES, CUSTOM_DISPATCH } from "./tools/registry.js";
 import { getGeneratedClient, reviveStructuredArgs } from "./tools/_gen-runtime.js";
+import { detectAckAgent, detectAckSession } from "./tools/ack-agent.js";
 import { wireInBlock } from "./tools/wire-in.js";
 import { notAuthenticated, notBound, ok, apiErr } from "./util/api-client.js";
 import {
@@ -73,6 +74,21 @@ export async function startStdioServer(): Promise<void> {
       // Undo any host-side over-stringification of structured params (the known
       // marshalling bug) using the tool's declared schema before dispatch.
       const args = reviveStructuredArgs(params.arguments ?? {}, toolDef.inputSchema);
+
+      // `ops_ack` with no explicit agent: identify the acking agent from the MCP
+      // client identity (clientInfo.name) / the inherited harness env, so an
+      // agent acks as itself without naming its own type. Same for the run's
+      // session id when the harness exposes one.
+      if (toolName === "ops_ack") {
+        if (args.agent === undefined) {
+          const agent = detectAckAgent(server.getClientVersion()?.name);
+          if (agent) args.agent = agent;
+        }
+        if (args.sessionId === undefined) {
+          const sessionId = detectAckSession();
+          if (sessionId) args.sessionId = sessionId;
+        }
+      }
 
       // List-before-create guard (MCP-only; toggle with SHIPEASY_MCP_LIST_GUARD):
       // a guarded create must carry a fresh `listToken` minted by its sibling
