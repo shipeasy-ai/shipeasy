@@ -12391,6 +12391,10 @@
                         "locked": {
                           "description": "If `true`, dashboard hides edit controls (e.g. the trailing public-floor entry).",
                           "type": "boolean"
+                        },
+                        "whitelist": {
+                          "description": "Cosmetic marker. When `true`, the dashboard renders this condition as the pinned, always-first \"whitelist\" allowlist block (a direct `email`/`user_id` `in […]` list) rather than a numbered targeting step. Purely presentational — ignored by evaluation, which treats the entry as an ordinary condition.",
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -12926,6 +12930,10 @@
                         "locked": {
                           "description": "If `true`, dashboard hides edit controls (e.g. the trailing public-floor entry).",
                           "type": "boolean"
+                        },
+                        "whitelist": {
+                          "description": "Cosmetic marker. When `true`, the dashboard renders this condition as the pinned, always-first \"whitelist\" allowlist block (a direct `email`/`user_id` `in […]` list) rather than a numbered targeting step. Purely presentational — ignored by evaluation, which treats the entry as an ordinary condition.",
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -13321,6 +13329,10 @@
                         },
                         "locked": {
                           "description": "If `true`, dashboard hides edit controls (e.g. the trailing public-floor entry).",
+                          "type": "boolean"
+                        },
+                        "whitelist": {
+                          "description": "Cosmetic marker. When `true`, the dashboard renders this condition as the pinned, always-first \"whitelist\" allowlist block (a direct `email`/`user_id` `in […]` list) rather than a numbered targeting step. Purely presentational — ignored by evaluation, which treats the entry as an ordinary condition.",
                           "type": "boolean"
                         }
                       },

@@ -205,6 +205,9 @@ GateApiRow:
                   locked:
                     description: If `true`, dashboard hides edit controls (e.g. the trailing public-floor entry).
                     type: boolean
+                  whitelist:
+                    description: Cosmetic marker. When `true`, the dashboard renders this condition as the pinned, always-first "whitelist" allowlist block (a direct `email`/`user_id` `in […]` list) rather than a numbered targeting step. Purely presentational — ignored by evaluation, which treats the entry as an ordinary condition.
+                    type: boolean
                 required:
                   - id
                   - type
@@ -517,6 +520,9 @@ CreateGateRequest:
                   locked:
                     description: If `true`, dashboard hides edit controls (e.g. the trailing public-floor entry).
                     type: boolean
+                  whitelist:
+                    description: Cosmetic marker. When `true`, the dashboard renders this condition as the pinned, always-first "whitelist" allowlist block (a direct `email`/`user_id` `in […]` list) rather than a numbered targeting step. Purely presentational — ignored by evaluation, which treats the entry as an ordinary condition.
+                    type: boolean
                 required:
                   - id
                   - type
@@ -801,6 +807,9 @@ UpdateGateRequest:
                     description: Linear rollout ramp. The effective rollout % interpolates `from`→`to` over `[startAt, startAt+durationMs]`, clamped outside that window, evaluated against the wall-clock at eval time. Overrides the entry's static `rolloutPct` while present.
                   locked:
                     description: If `true`, dashboard hides edit controls (e.g. the trailing public-floor entry).
+                    type: boolean
+                  whitelist:
+                    description: Cosmetic marker. When `true`, the dashboard renders this condition as the pinned, always-first "whitelist" allowlist block (a direct `email`/`user_id` `in […]` list) rather than a numbered targeting step. Purely presentational — ignored by evaluation, which treats the entry as an ordinary condition.
                     type: boolean
                 required:
                   - id

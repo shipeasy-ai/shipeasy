@@ -79,7 +79,8 @@ export const zGateApiRow = z.object({
                 startAt: z.int().gte(0).lte(9007199254740991),
                 durationMs: z.int().gt(0).lte(9007199254740991)
             }).optional(),
-            locked: z.boolean().optional()
+            locked: z.boolean().optional(),
+            whitelist: z.boolean().optional()
         }), z.object({
             id: z.string().min(1),
             type: z.literal('rollout'),
@@ -225,7 +226,8 @@ export const zCreateGateRequest = z.object({
                 startAt: z.int().gte(0).lte(9007199254740991),
                 durationMs: z.int().gt(0).lte(9007199254740991)
             }).optional(),
-            locked: z.boolean().optional()
+            locked: z.boolean().optional(),
+            whitelist: z.boolean().optional()
         }), z.object({
             id: z.string().min(1),
             type: z.literal('rollout'),
@@ -330,7 +332,8 @@ export const zUpdateGateRequest = z.object({
                 startAt: z.int().gte(0).lte(9007199254740991),
                 durationMs: z.int().gt(0).lte(9007199254740991)
             }).optional(),
-            locked: z.boolean().optional()
+            locked: z.boolean().optional(),
+            whitelist: z.boolean().optional()
         }), z.object({
             id: z.string().min(1),
             type: z.literal('rollout'),

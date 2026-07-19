@@ -132,6 +132,10 @@ export type GateApiRow = {
          * If `true`, dashboard hides edit controls (e.g. the trailing public-floor entry).
          */
         locked?: boolean;
+        /**
+         * Cosmetic marker. When `true`, the dashboard renders this condition as the pinned, always-first "whitelist" allowlist block (a direct `email`/`user_id` `in […]` list) rather than a numbered targeting step. Purely presentational — ignored by evaluation, which treats the entry as an ordinary condition.
+         */
+        whitelist?: boolean;
     } | {
         /**
          * Client-supplied stable id for the stack entry.
@@ -378,6 +382,10 @@ export type CreateGateRequest = {
          * If `true`, dashboard hides edit controls (e.g. the trailing public-floor entry).
          */
         locked?: boolean;
+        /**
+         * Cosmetic marker. When `true`, the dashboard renders this condition as the pinned, always-first "whitelist" allowlist block (a direct `email`/`user_id` `in […]` list) rather than a numbered targeting step. Purely presentational — ignored by evaluation, which treats the entry as an ordinary condition.
+         */
+        whitelist?: boolean;
     } | {
         /**
          * Client-supplied stable id for the stack entry.
@@ -587,6 +595,10 @@ export type UpdateGateRequest = {
          * If `true`, dashboard hides edit controls (e.g. the trailing public-floor entry).
          */
         locked?: boolean;
+        /**
+         * Cosmetic marker. When `true`, the dashboard renders this condition as the pinned, always-first "whitelist" allowlist block (a direct `email`/`user_id` `in […]` list) rather than a numbered targeting step. Purely presentational — ignored by evaluation, which treats the entry as an ordinary condition.
+         */
+        whitelist?: boolean;
     } | {
         /**
          * Client-supplied stable id for the stack entry.
