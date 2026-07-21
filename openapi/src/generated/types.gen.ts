@@ -3889,6 +3889,22 @@ export type CreateBugRequest = {
      */
     priority?: OpsItemPriority | null;
     /**
+     * Initial lifecycle status; defaults to `open` when omitted.
+     */
+    status?: OpsItemStatus;
+    /**
+     * The `users.id` of the person to assign as owner at creation, or `null`.
+     */
+    assigneeId?: string | null;
+    /**
+     * Emails of teammates to subscribe to this item's Slack pings at creation.
+     */
+    subscribers?: Array<string>;
+    /**
+     * Tag names to attach at creation (get-or-created by name, deduped case-insensitively).
+     */
+    tags?: Array<string>;
+    /**
      * Email of the reporter, or `null`.
      */
     reporterEmail?: string | null;
@@ -3940,6 +3956,22 @@ export type CreateFeatureRequestRequest = {
      * Initial triage priority, or `null`.
      */
     priority?: OpsItemPriority | null;
+    /**
+     * Initial lifecycle status; defaults to `open` when omitted.
+     */
+    status?: OpsItemStatus;
+    /**
+     * The `users.id` of the person to assign as owner at creation, or `null`.
+     */
+    assigneeId?: string | null;
+    /**
+     * Emails of teammates to subscribe to this item's Slack pings at creation.
+     */
+    subscribers?: Array<string>;
+    /**
+     * Tag names to attach at creation (get-or-created by name, deduped case-insensitively).
+     */
+    tags?: Array<string>;
     /**
      * Email of the reporter, or `null`.
      */

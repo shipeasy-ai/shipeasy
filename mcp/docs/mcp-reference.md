@@ -1989,6 +1989,10 @@ _Parameters_
 | `actualResult` | optional | `string` | What actually happened. _(default `""`; length 0–8000)_ |
 | `expectedResult` | optional | `string` | What was expected instead. _(default `""`; length 0–8000)_ |
 | `priority` | optional | `any` | Initial triage priority, or `null`. |
+| `status` | optional | `any` | Initial lifecycle status; defaults to `open` when omitted. |
+| `assigneeId` | optional | `any` | The `users.id` of the person to assign as owner at creation, or `null`. |
+| `subscribers` | optional | `string[]` | Emails of teammates to subscribe to this item's Slack pings at creation. _(default `[]`)_ |
+| `tags` | optional | `string[]` | Tag names to attach at creation (get-or-created by name, deduped case-insensitively). _(default `[]`)_ |
 | `reporterEmail` | optional | `any` | Email of the reporter, or `null`. |
 | `pageUrl` | optional | `any` | URL of the page the bug relates to, or `null`. |
 | `userAgent` | optional | `any` | Reporter's user-agent string, or `null`. |
@@ -2024,6 +2028,10 @@ _Parameters_
 | `actualResult` | optional | `string` | What actually happened. _(default `""`; length 0–8000)_ |
 | `expectedResult` | optional | `string` | What was expected instead. _(default `""`; length 0–8000)_ |
 | `priority` | optional | `any` | Initial triage priority, or `null`. |
+| `status` | optional | `any` | Initial lifecycle status; defaults to `open` when omitted. |
+| `assigneeId` | optional | `any` | The `users.id` of the person to assign as owner at creation, or `null`. |
+| `subscribers` | optional | `string[]` | Emails of teammates to subscribe to this item's Slack pings at creation. _(default `[]`)_ |
+| `tags` | optional | `string[]` | Tag names to attach at creation (get-or-created by name, deduped case-insensitively). _(default `[]`)_ |
 | `reporterEmail` | optional | `any` | Email of the reporter, or `null`. |
 | `pageUrl` | optional | `any` | URL of the page the bug relates to, or `null`. |
 | `userAgent` | optional | `any` | Reporter's user-agent string, or `null`. |
@@ -2059,6 +2067,10 @@ _Parameters_
 | `description` | optional | `string` | What the feature is. _(default `""`; length 0–8000)_ |
 | `useCase` | optional | `string` | Why it's needed / the use case. _(default `""`; length 0–8000)_ |
 | `priority` | optional | `any` | Initial triage priority, or `null`. |
+| `status` | optional | `any` | Initial lifecycle status; defaults to `open` when omitted. |
+| `assigneeId` | optional | `any` | The `users.id` of the person to assign as owner at creation, or `null`. |
+| `subscribers` | optional | `string[]` | Emails of teammates to subscribe to this item's Slack pings at creation. _(default `[]`)_ |
+| `tags` | optional | `string[]` | Tag names to attach at creation (get-or-created by name, deduped case-insensitively). _(default `[]`)_ |
 | `reporterEmail` | optional | `any` | Email of the reporter, or `null`. |
 | `pageUrl` | optional | `any` | URL of the page the request relates to, or `null`. |
 | `userAgent` | optional | `any` | Reporter's user-agent string, or `null`. |

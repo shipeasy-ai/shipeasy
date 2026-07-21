@@ -20363,6 +20363,42 @@
             ],
             "description": "Initial triage priority, or `null`."
           },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpsItemStatus"
+              }
+            ],
+            "description": "Initial lifecycle status; defaults to `open` when omitted."
+          },
+          "assigneeId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The `users.id` of the person to assign as owner at creation, or `null`."
+          },
+          "subscribers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "email"
+            },
+            "default": [],
+            "description": "Emails of teammates to subscribe to this item's Slack pings at creation."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "description": "Tag names to attach at creation (get-or-created by name, deduped case-insensitively)."
+          },
           "reporterEmail": {
             "anyOf": [
               {
@@ -20481,6 +20517,42 @@
               }
             ],
             "description": "Initial triage priority, or `null`."
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpsItemStatus"
+              }
+            ],
+            "description": "Initial lifecycle status; defaults to `open` when omitted."
+          },
+          "assigneeId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The `users.id` of the person to assign as owner at creation, or `null`."
+          },
+          "subscribers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "email"
+            },
+            "default": [],
+            "description": "Emails of teammates to subscribe to this item's Slack pings at creation."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "description": "Tag names to attach at creation (get-or-created by name, deduped case-insensitively)."
           },
           "reporterEmail": {
             "anyOf": [
