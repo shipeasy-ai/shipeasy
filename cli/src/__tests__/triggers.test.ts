@@ -98,17 +98,25 @@ describe("triggerSetupUrl", () => {
 });
 
 describe("buildCopilotAgentFile", () => {
-  it("writes the documented path with the local-stdio MCP server + token secret", () => {
+  it("writes the documented path with the remote-http MCP server + Bearer secret", () => {
     const { path, content } = buildCopilotAgentFile({ projectId: "prj_xyz" });
     expect(path).toBe(".github/agents/shipeasy.agent.md");
     expect(content).toContain("name: shipeasy");
     expect(content).toContain("target: github-copilot");
-    expect(content).toContain("type: local");
-    expect(content).toContain("args: ['-y', '@shipeasy/mcp']");
-    expect(content).toContain("SHIPEASY_PROJECT_ID: 'prj_xyz'");
+    expect(content).toContain("type: http");
+    expect(content).not.toContain("type: local");
+    expect(content).toContain("url: 'https://mcp.shipeasy.ai/p/prj_xyz/mcp'");
     expect(content).toContain(
-      "SHIPEASY_CLI_TOKEN: ${{ secrets.COPILOT_MCP_SHIPEASY_CLI_TOKEN }}",
+      "Authorization: 'Bearer ${{ secrets.COPILOT_MCP_SHIPEASY_CLI_TOKEN }}'",
     );
     expect(content).toContain("shipeasy-ops-work");
+  });
+
+  it("honours a mcpBaseUrl override", () => {
+    const { content } = buildCopilotAgentFile({
+      projectId: "prj_xyz",
+      mcpBaseUrl: "http://127.0.0.1:8788",
+    });
+    expect(content).toContain("url: 'http://127.0.0.1:8788/p/prj_xyz/mcp'");
   });
 });

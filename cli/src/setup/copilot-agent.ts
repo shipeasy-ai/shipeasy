@@ -13,17 +13,22 @@ import { dirname, join } from "node:path";
 export const COPILOT_AGENT_NAME = "shipeasy";
 export const COPILOT_AGENT_FILE_PATH = ".github/agents/shipeasy.agent.md";
 /** The repo Copilot secret the agent file references — must start `COPILOT_MCP_`
- *  (the coding agent only injects `COPILOT_MCP_*` secrets into MCP server env). */
+ *  (the coding agent only injects `COPILOT_MCP_*` secrets into MCP server config).
+ *  Holds a `semcp_` machine token. */
 export const COPILOT_MCP_TOKEN_SECRET = "COPILOT_MCP_SHIPEASY_CLI_TOKEN";
 
-const MCP_PACKAGE = "@shipeasy/mcp";
+/** Origin of the hosted MCP server. Overridable for local/e2e via `mcpBaseUrl`. */
+const MCP_BASE_URL = "https://mcp.shipeasy.ai";
 
 /** Build the `.github/agents/shipeasy.agent.md` contents for a project. */
-export function buildCopilotAgentFile(opts: { projectId: string }): {
+export function buildCopilotAgentFile(opts: { projectId: string; mcpBaseUrl?: string }): {
   path: string;
   content: string;
 } {
   const projectId = opts.projectId;
+  // Project-scoped endpoint — the `/p/<id>/mcp` path pins every tool call to this
+  // project on the server, so the token's project and the URL's project agree.
+  const mcpUrl = `${opts.mcpBaseUrl ?? MCP_BASE_URL}/p/${projectId}/mcp`;
   const frontmatter = [
     "---",
     `name: ${COPILOT_AGENT_NAME}`,
@@ -34,13 +39,13 @@ export function buildCopilotAgentFile(opts: { projectId: string }): {
     "target: github-copilot",
     "mcp-servers:",
     "  shipeasy:",
-    "    type: local",
-    "    command: npx",
-    `    args: ['-y', '${MCP_PACKAGE}']`,
+    "    type: http",
+    // Self-contained: the project-scoped URL is not a credential, inline it.
+    `    url: '${mcpUrl}'`,
     "    tools: ['*']",
-    "    env:",
-    `      SHIPEASY_PROJECT_ID: '${projectId}'`,
-    `      SHIPEASY_CLI_TOKEN: \${{ secrets.${COPILOT_MCP_TOKEN_SECRET} }}`,
+    "    headers:",
+    // The only secret — a `semcp_` machine token from the repo Copilot secret store.
+    `      Authorization: 'Bearer \${{ secrets.${COPILOT_MCP_TOKEN_SECRET} }}'`,
     "---",
   ].join("\n");
 
