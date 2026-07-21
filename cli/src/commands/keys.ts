@@ -146,7 +146,9 @@ export function keysCommand(parent: Command): void {
         }
         // The read environment is derived from the key, so server/client keys
         // must declare which env they're bound to. admin/ops keys are
-        // env-agnostic and ignore --env.
+        // env-agnostic — the server pins them to prod — but the create endpoint
+        // still REQUIRES an `env` field on every type, so we always send one
+        // (defaulting the env-agnostic types to "prod").
         const needsEnv = opts.type === "server" || opts.type === "client";
         if (opts.env !== undefined && !isKeyEnv(opts.env)) {
           throw new ApiError(
@@ -161,6 +163,9 @@ export function keysCommand(parent: Command): void {
             400,
           );
         }
+        // admin/ops are pinned to prod server-side; still send `env` (required by
+        // the endpoint) so the request validates.
+        const env = opts.env ?? "prod";
         // `--scopes` is validated against the spec's scope enum; `--name` is a
         // free label. Both flow straight into the CreateKeyRequest body.
         const scopes = parseScopes(opts.scopes);
@@ -169,7 +174,7 @@ export function keysCommand(parent: Command): void {
         const client = getApiClient(opts.project, { requireBinding: true });
         const created = await client.request<KeyCreated>("POST", "/api/admin/keys", {
           type: opts.type,
-          ...(needsEnv ? { env: opts.env } : {}),
+          env,
           ...(name ? { name } : {}),
           ...(scopes ? { scopes } : {}),
         });
