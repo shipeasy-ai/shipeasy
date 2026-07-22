@@ -2419,6 +2419,7 @@ paths:
         - VALIDATION
       x-cli:
         name: draft
+        hidden: true
         positional:
           - id
     delete:
@@ -2478,6 +2479,7 @@ paths:
         - NOT_FOUND
       x-cli:
         name: discard-draft
+        hidden: true
         positional:
           - id
   /api/admin/configs/{id}/publish:
@@ -2549,6 +2551,7 @@ paths:
         - VALIDATION
       x-cli:
         name: publish
+        hidden: true
         positional:
           - id
   /api/admin/configs/{id}/activity:
@@ -2613,6 +2616,7 @@ paths:
         - NOT_FOUND
       x-cli:
         name: activity
+        hidden: true
         positional:
           - id
   /api/admin/configs/{id}/schema:
@@ -2748,6 +2752,7 @@ paths:
         - NOT_FOUND
       x-cli:
         name: versions
+        hidden: true
         positional:
           - id
   /api/admin/killswitches:

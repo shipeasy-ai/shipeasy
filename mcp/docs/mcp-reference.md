@@ -726,26 +726,6 @@ Dynamic configs: JSON-Schema-validated structured values delivered to SDKs and e
 
 **Versioning.** Each publish bumps the per-env `version` monotonically. SDKs deliver the latest published version for each env.
 
-#### `release_configs_activity`
-
-**List config activity**
-
-Returns recent audit rows for one config (create, update, draft.save, publish, delete) ordered newest first. Use the `limit` query parameter to cap the result (1–100, default 20).
-
-**Use case:** Render the activity panel in the config editor or drive a slack notification on publish events.
-
-_Parameters_
-
-| Parameter | | Type | Description |
-| --- | --- | --- | --- |
-| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
-| `limit` | optional | `integer` | Max rows to return (1–100). Defaults to 20. _(default `20`; 1–100)_ |
-
-_Errors_ — beyond the [common errors](#errors):
-
-- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
-- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
-
 #### `release_configs_archive`
 
 **Delete a dynamic config**
@@ -797,50 +777,6 @@ _Errors_ — beyond the [common errors](#errors):
 - `VALIDATION` — The request body failed structural (schema) validation.
 - `PLAN_LIMIT` — The action would exceed a plan quota (e.g. the tier's maximum experiments, metrics, or configs). Upgrade the plan or archive an existing resource.
 
-#### `release_configs_discard_draft`
-
-**Discard a draft**
-
-Drops the in-flight draft on one env. Published values are unaffected.
-
-**Use case:** Abandon an in-progress draft after deciding not to ship it.
-
-_Parameters_
-
-| Parameter | | Type | Description |
-| --- | --- | --- | --- |
-| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
-| `env` | required | `"dev" \| "staging" \| "prod"` | Target environment. One of the project's configured envs (`dev`, `staging`, `prod`). |
-
-_Errors_ — beyond the [common errors](#errors):
-
-- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
-- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
-
-#### `release_configs_draft`
-
-**Save a draft value**
-
-Stages a value for one env without publishing. The draft is validated against the config's current schema and stored alongside the `baseVersion` it was forked from.
-
-Saving over an existing draft overwrites it. Use `POST /{id}/publish` to promote it to a new published version.
-
-**Use case:** Iterate on a config value on dev without affecting prod — preview in staging, then publish.
-
-_Parameters_
-
-| Parameter | | Type | Description |
-| --- | --- | --- | --- |
-| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
-| `env` | required | `"dev" \| "staging" \| "prod"` | Target environment. One of the project's configured envs (`dev`, `staging`, `prod`). |
-| `value` | required | `object` | Draft value to stage on `env`. Validated against the config's current schema. |
-
-_Errors_ — beyond the [common errors](#errors):
-
-- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
-- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
-- `VALIDATION` — The request body failed structural (schema) validation.
-
 #### `release_configs_get`
 
 **Get one config**
@@ -879,30 +815,6 @@ _Parameters_
 _Errors_ — beyond the [common errors](#errors):
 
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
-
-#### `release_configs_publish`
-
-**Publish a draft**
-
-Promotes the staged draft on one env to a new published version. The draft must still validate against the current schema.
-
-Returns `404` if there is no draft for the given env.
-
-**Use case:** Ship a staged change once you've validated it on a lower env.
-
-_Parameters_
-
-| Parameter | | Type | Description |
-| --- | --- | --- | --- |
-| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
-| `env` | required | `"dev" \| "staging" \| "prod"` | Target environment. One of the project's configured envs (`dev`, `staging`, `prod`). |
-
-_Errors_ — beyond the [common errors](#errors):
-
-- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
-- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
-- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
-- `VALIDATION` — The request body failed structural (schema) validation.
 
 #### `release_configs_update`
 
@@ -953,26 +865,6 @@ _Errors_ — beyond the [common errors](#errors):
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 - `VALIDATION` — The request body failed structural (schema) validation.
-
-#### `release_configs_versions`
-
-**List config version history**
-
-Returns every published version of the config's value on one env, newest first. The `env` query parameter picks the environment (`dev`, `staging`, or `prod`) and defaults to `prod`; an unknown env returns `400`. The config's JSON Schema is config-level and not versioned — this is value history only.
-
-**Use case:** Render the History timeline in the config detail pane (value diff + restore), or audit which value was live on prod at a given version.
-
-_Parameters_
-
-| Parameter | | Type | Description |
-| --- | --- | --- | --- |
-| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
-| `env` | optional | `"dev" \| "staging" \| "prod"` | Target environment. One of the project's configured envs (`dev`, `staging`, `prod`). |
-
-_Errors_ — beyond the [common errors](#errors):
-
-- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
-- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 
 ### Experiments
 

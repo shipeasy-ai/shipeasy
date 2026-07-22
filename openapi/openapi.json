@@ -3186,6 +3186,7 @@
         ],
         "x-cli": {
           "name": "draft",
+          "hidden": true,
           "positional": [
             "id"
           ]
@@ -3272,6 +3273,7 @@
         ],
         "x-cli": {
           "name": "discard-draft",
+          "hidden": true,
           "positional": [
             "id"
           ]
@@ -3371,6 +3373,7 @@
         ],
         "x-cli": {
           "name": "publish",
+          "hidden": true,
           "positional": [
             "id"
           ]
@@ -3462,6 +3465,7 @@
         ],
         "x-cli": {
           "name": "activity",
+          "hidden": true,
           "positional": [
             "id"
           ]
@@ -3668,6 +3672,7 @@
         ],
         "x-cli": {
           "name": "versions",
+          "hidden": true,
           "positional": [
             "id"
           ]

@@ -101,7 +101,7 @@ describe("generated tool catalog", () => {
     // generated CRUD/read
     expect(names).toContain("release_flags_create");
     expect(names).toContain("release_killswitch_set");
-    expect(names).toContain("release_configs_publish");
+    expect(names).toContain("release_configs_update_schema");
     expect(names).toContain("release_experiments_universes_create");
     expect(names).toContain("release_experiments_create");
     expect(names).toContain("metrics_create");
@@ -119,7 +119,6 @@ describe("generated tool catalog", () => {
     // new spec endpoints the old MCP never exposed
     expect(names).toContain("release_experiments_results");
     expect(names).toContain("release_killswitch_get");
-    expect(names).toContain("release_configs_activity");
     // Errors tag — MCP-only read projection (CLI still skips it) so agent skills
     // can read tracked-error analytics; the two mutating error ops stay hidden.
     expect(names).toContain("errors_list");
@@ -139,6 +138,14 @@ describe("generated tool catalog", () => {
       "file_feature",
       "errors_update", // updateErrorStatus stays a dashboard concern (SKIP_OPS)
       "errors_file", // fileErrorTicket stays unprojected (SKIP_OPS)
+      // Config draft/publish/versions/activity — kept in the spec but hidden
+      // from the tool surface via x-cli.hidden (per-env publish flows through
+      // release_configs_create/update instead).
+      "release_configs_draft",
+      "release_configs_discard_draft",
+      "release_configs_publish",
+      "release_configs_versions",
+      "release_configs_activity",
     ]) {
       expect(names).not.toContain(gone);
     }

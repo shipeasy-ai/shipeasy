@@ -136,6 +136,10 @@ for (const [, item] of Object.entries(spec.paths)) {
     if (!op || !op["x-cli"]) continue;
     if (SKIP_OPS.has(op.operationId)) continue;
     const xcli = op["x-cli"];
+    // `x-cli.hidden` keeps an op in the published API spec / reference but drops
+    // it from the CLI + MCP tool surfaces (e.g. config draft/publish/versions,
+    // superseded by per-env publish flags on create/update).
+    if (xcli.hidden) continue;
     const tag = op.tags?.[0];
     if (SKIP_TAGS.has(tag)) continue;
     const segs = tagChain(tag).map((t) => slug(t.name));

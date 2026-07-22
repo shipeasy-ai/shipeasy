@@ -1156,72 +1156,6 @@ shipeasy release configs archive [options] <id>
 | --- | --- | --- |
 | `--data <value>` | optional | Request body as a JSON object. |
 
-#### `shipeasy release configs draft`
-
-Save a draft value
-
-```bash
-shipeasy release configs draft [options] <id>
-```
-
-| Argument | | Description |
-| --- | --- | --- |
-| `id` | required | Stable opaque config id (`cfg_…`) or the config's `name`. |
-
-| Option | | Description |
-| --- | --- | --- |
-| `--env <value>` | optional | Target environment. One of the project's configured envs (`dev`, `staging`, `prod`). |
-| `--value <value>` | optional | Draft value to stage on `env`. Validated against the config's current schema. |
-
-#### `shipeasy release configs discard-draft`
-
-Discard a draft
-
-```bash
-shipeasy release configs discard-draft [options] <id>
-```
-
-| Argument | | Description |
-| --- | --- | --- |
-| `id` | required | Stable opaque config id (`cfg_…`) or the config's `name`. |
-
-| Option | | Description |
-| --- | --- | --- |
-| `--env <value>` | optional | Target environment. One of the project's configured envs (`dev`, `staging`, `prod`). |
-
-#### `shipeasy release configs publish`
-
-Publish a draft
-
-```bash
-shipeasy release configs publish [options] <id>
-```
-
-| Argument | | Description |
-| --- | --- | --- |
-| `id` | required | Stable opaque config id (`cfg_…`) or the config's `name`. |
-
-| Option | | Description |
-| --- | --- | --- |
-| `--env <value>` | optional | Target environment. One of the project's configured envs (`dev`, `staging`, `prod`). |
-
-#### `shipeasy release configs activity`
-
-List config activity
-
-```bash
-shipeasy release configs activity [options] <id>
-```
-
-| Argument | | Description |
-| --- | --- | --- |
-| `id` | required | Stable opaque config id (`cfg_…`) or the config's `name`. |
-
-| Option | | Description |
-| --- | --- | --- |
-| `--limit <value>` | optional | Max rows to return (1–100). Defaults to 20. |
-| `--data <value>` | optional | Request body as a JSON object. |
-
 #### `shipeasy release configs update-schema`
 
 Update a config schema
@@ -1237,23 +1171,6 @@ shipeasy release configs update-schema [options] <id>
 | Option | | Description |
 | --- | --- | --- |
 | `--schema <value>` | optional | Replacement JSON Schema (draft 2020-12). Validated against every published value before it lands. |
-
-#### `shipeasy release configs versions`
-
-List config version history
-
-```bash
-shipeasy release configs versions [options] <id>
-```
-
-| Argument | | Description |
-| --- | --- | --- |
-| `id` | required | Stable opaque config id (`cfg_…`) or the config's `name`. |
-
-| Option | | Description |
-| --- | --- | --- |
-| `--env <value>` | optional | Environment to list history for (`dev`, `staging`, or `prod`). Defaults to `prod` when omitted. |
-| `--data <value>` | optional | Request body as a JSON object. |
 
 ### `shipeasy release experiments`
 

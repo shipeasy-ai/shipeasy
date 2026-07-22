@@ -552,50 +552,12 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .action(async (id, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.deleteConfig({ client, path: { id: id }, body: json(opts.data) as never }) });
     });
-  g_release_configs.command("draft")
-    .description("Save a draft value")
-    .argument("<id>", "Stable opaque config id (`cfg_…`) or the config's `name`.")
-    .option("--env <value>", "Target environment. One of the project's configured envs (`dev`, `staging`, `prod`).")
-    .option("--value <value>", "Draft value to stage on `env`. Validated against the config's current schema.")
-    .action(async (id, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.saveConfigDraft({ client, path: { id: id }, body: clean({ env: str(opts.env), value: json(opts.value) }) }) });
-    });
-  g_release_configs.command("discard-draft")
-    .description("Discard a draft")
-    .argument("<id>", "Stable opaque config id (`cfg_…`) or the config's `name`.")
-    .option("--env <value>", "Target environment. One of the project's configured envs (`dev`, `staging`, `prod`).")
-    .action(async (id, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.discardConfigDraft({ client, path: { id: id }, body: clean({ env: str(opts.env) }) }) });
-    });
-  g_release_configs.command("publish")
-    .description("Publish a draft")
-    .argument("<id>", "Stable opaque config id (`cfg_…`) or the config's `name`.")
-    .option("--env <value>", "Target environment. One of the project's configured envs (`dev`, `staging`, `prod`).")
-    .action(async (id, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.publishConfigDraft({ client, path: { id: id }, body: clean({ env: str(opts.env) }) }) });
-    });
-  g_release_configs.command("activity")
-    .description("List config activity")
-    .argument("<id>", "Stable opaque config id (`cfg_…`) or the config's `name`.")
-    .option("--limit <value>", "Max rows to return (1–100). Defaults to 20.")
-    .option("--data <value>", "Request body as a JSON object.")
-    .action(async (id, opts) => {
-      await ctx.run({ mutates: false, invoke: (client) => api.listConfigActivity({ client, path: { id: id }, query: clean({ limit: num(opts.limit) }), body: json(opts.data) as never }) });
-    });
   g_release_configs.command("update-schema")
     .description("Update a config schema")
     .argument("<id>", "Stable opaque config id (`cfg_…`) or the config's `name`.")
     .option("--schema <value>", "Replacement JSON Schema (draft 2020-12). Validated against every published value before it lands.")
     .action(async (id, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.updateConfigSchema({ client, path: { id: id }, body: clean({ schema: json(opts.schema) }) }) });
-    });
-  g_release_configs.command("versions")
-    .description("List config version history")
-    .argument("<id>", "Stable opaque config id (`cfg_…`) or the config's `name`.")
-    .option("--env <value>", "Environment to list history for (`dev`, `staging`, or `prod`). Defaults to `prod` when omitted.")
-    .option("--data <value>", "Request body as a JSON object.")
-    .action(async (id, opts) => {
-      await ctx.run({ mutates: false, invoke: (client) => api.listConfigVersions({ client, path: { id: id }, query: clean({ env: str(opts.env) }), body: json(opts.data) as never }) });
     });
   g_release_experiments.command("list")
     .description("List experiments")
