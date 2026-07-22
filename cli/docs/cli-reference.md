@@ -1105,6 +1105,9 @@ shipeasy release configs create [options] <name>
 | `--folder <value>` | optional | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `--schema <value>` | optional | JSON Schema (draft 2020-12) describing the shape of the config value. Top-level `type` must be `'object'`; every published value is validated against this schema. |
 | `--value <value>` | optional | Initial config value. Either a single JSON object applied to every env, or a `{ env: value }` map seeding per-env values. Must match `schema`. Defaults to `{}` on every env when omitted. |
+| `--dev <value>` | optional | Seed the **dev** env's initial value (version 1), overriding `value` for dev. Published immediately. Must match `schema`. |
+| `--staging <value>` | optional | Seed the **staging** env's initial value (version 1), overriding `value` for staging. Published immediately. Must match `schema`. |
+| `--prod <value>` | optional | Seed the **prod** env's initial value (version 1), overriding `value` for prod. Published immediately. Must match `schema`. |
 
 #### `shipeasy release configs get`
 
@@ -1137,7 +1140,10 @@ shipeasy release configs update [options] <id>
 | Option | | Description |
 | --- | --- | --- |
 | `--schema <value>` | optional | Replacement schema. When supplied, the new schema is validated against every published value before it lands. |
-| `--value <value>` | optional | Flat value applied to **every** env. Publishes a new version per env. To target one env, use `PUT /{id}/drafts` then `POST /{id}/publish`. |
+| `--value <value>` | optional | Flat value applied to **every** env. Publishes a new version per env. To publish one env only, pass that env's key (`dev`/`staging`/`prod`) instead. |
+| `--dev <value>` | optional | Publish a new version to the **dev** env only, immediately (no draft). Overrides `value` for dev. Must match the effective schema. |
+| `--staging <value>` | optional | Publish a new version to the **staging** env only, immediately (no draft). Overrides `value` for staging. Must match the effective schema. |
+| `--prod <value>` | optional | Publish a new version to the **prod** env only, immediately (no draft). Overrides `value` for prod. Must match the effective schema. |
 | `--folder <value>` | optional | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 
 #### `shipeasy release configs archive`

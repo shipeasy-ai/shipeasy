@@ -526,8 +526,11 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--folder <value>", "Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).")
     .option("--schema <value>", "JSON Schema (draft 2020-12) describing the shape of the config value. Top-level `type` must be `'object'`; every published value is validated against this schema.")
     .option("--value <value>", "Initial config value. Either a single JSON object applied to every env, or a `{ env: value }` map seeding per-env values. Must match `schema`. Defaults to `{}` on every env when omitted.")
+    .option("--dev <value>", "Seed the **dev** env's initial value (version 1), overriding `value` for dev. Published immediately. Must match `schema`.")
+    .option("--staging <value>", "Seed the **staging** env's initial value (version 1), overriding `value` for staging. Published immediately. Must match `schema`.")
+    .option("--prod <value>", "Seed the **prod** env's initial value (version 1), overriding `value` for prod. Published immediately. Must match `schema`.")
     .action(async (name, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createConfig({ client, body: clean({ name: name, description: str(opts.description), folder: str(opts.folder), schema: json(opts.schema), value: json(opts.value) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createConfig({ client, body: clean({ name: name, description: str(opts.description), folder: str(opts.folder), schema: json(opts.schema), value: json(opts.value), dev: json(opts.dev), staging: json(opts.staging), prod: json(opts.prod) }) }) });
     });
   g_release_configs.command("get")
     .description("Get one config")
@@ -540,10 +543,13 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .description("Update a dynamic config")
     .argument("<id>", "Stable opaque config id (`cfg_…`) or the config's `name`.")
     .option("--schema <value>", "Replacement schema. When supplied, the new schema is validated against every published value before it lands.")
-    .option("--value <value>", "Flat value applied to **every** env. Publishes a new version per env. To target one env, use `PUT /{id}/drafts` then `POST /{id}/publish`.")
+    .option("--value <value>", "Flat value applied to **every** env. Publishes a new version per env. To publish one env only, pass that env's key (`dev`/`staging`/`prod`) instead.")
+    .option("--dev <value>", "Publish a new version to the **dev** env only, immediately (no draft). Overrides `value` for dev. Must match the effective schema.")
+    .option("--staging <value>", "Publish a new version to the **staging** env only, immediately (no draft). Overrides `value` for staging. Must match the effective schema.")
+    .option("--prod <value>", "Publish a new version to the **prod** env only, immediately (no draft). Overrides `value` for prod. Must match the effective schema.")
     .option("--folder <value>", "Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).")
     .action(async (id, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateConfig({ client, path: { id: id }, body: clean({ schema: json(opts.schema), value: json(opts.value), folder: str(opts.folder) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.updateConfig({ client, path: { id: id }, body: clean({ schema: json(opts.schema), value: json(opts.value), dev: json(opts.dev), staging: json(opts.staging), prod: json(opts.prod), folder: str(opts.folder) }) }) });
     });
   g_release_configs.command("archive")
     .description("Delete a dynamic config")

@@ -2549,7 +2549,7 @@
       "post": {
         "operationId": "createConfig",
         "summary": "Create a dynamic config",
-        "description": "Creates a new config with the given `schema`. The initial `value` (or an empty object) is published as version 1 on **every** env.\n\nReturns `409` if `name` already exists in the project, `400` if `value` doesn't validate against `schema`.\n\n**Use cases**\n\n- **Minimal create** — `name` + `schema`. Initial value defaults to `{}`.\n- **Seeded create** — supply a flat `value` to publish the same object on every env.\n- **Per-env seed** — supply a `{ env: value }` map for different per-env starting values.",
+        "description": "Creates a new config with the given `schema`. The initial `value` (or an empty object) is published as version 1 on **every** env.\n\nReturns `409` if `name` already exists in the project, `400` if `value` doesn't validate against `schema`.\n\n**Use cases**\n\n- **Minimal create** — `name` + `schema`. Initial value defaults to `{}`.\n- **Seeded create** — supply a flat `value` to publish the same object on every env.\n- **Per-env seed** — supply a `{ env: value }` map under `value`, or pass the env keys `dev`/`staging`/`prod` directly (each overrides `value` for that env and is published at version 1).",
         "tags": [
           "Configs"
         ],
@@ -2614,8 +2614,8 @@
                   }
                 },
                 "perEnvSeed": {
-                  "summary": "Per-env seed",
-                  "description": "Pass a `{ env: value }` map to seed different initial values per env.",
+                  "summary": "Per-env seed (env keys)",
+                  "description": "Pass the env keys directly to seed different initial values per env. Each overrides `value` for that env and is published at version 1.",
                   "value": {
                     "name": "pricing.tiers",
                     "schema": {
@@ -2629,40 +2629,28 @@
                         "tiers"
                       ]
                     },
-                    "value": {
-                      "dev": {
-                        "tiers": [
-                          {
-                            "name": "free"
-                          },
-                          {
-                            "name": "pro"
-                          },
-                          {
-                            "name": "enterprise"
-                          }
-                        ]
-                      },
-                      "stage": {
-                        "tiers": [
-                          {
-                            "name": "free"
-                          },
-                          {
-                            "name": "pro"
-                          }
-                        ]
-                      },
-                      "prod": {
-                        "tiers": [
-                          {
-                            "name": "free"
-                          },
-                          {
-                            "name": "pro"
-                          }
-                        ]
-                      }
+                    "dev": {
+                      "tiers": [
+                        {
+                          "name": "free"
+                        },
+                        {
+                          "name": "pro"
+                        },
+                        {
+                          "name": "enterprise"
+                        }
+                      ]
+                    },
+                    "prod": {
+                      "tiers": [
+                        {
+                          "name": "free"
+                        },
+                        {
+                          "name": "pro"
+                        }
+                      ]
                     }
                   }
                 }
@@ -2906,7 +2894,7 @@
       "patch": {
         "operationId": "updateConfig",
         "summary": "Update a dynamic config",
-        "description": "Partial update. When `value` is supplied it is **republished on every env** (new version per env). When `schema` is supplied it replaces the current schema; every existing value is re-validated.\n\nFor env-scoped edits, use the draft/publish flow (`PUT /{id}/drafts` then `POST /{id}/publish`) instead.\n\n**Use cases**\n\n- **Republish flat value** — `{ \"value\": {…} }` sets the same value on every env.\n- **Schema migration** — `{ \"schema\": {…} }` replaces the schema; existing values are re-validated.\n- **Env-scoped edits** — use `PUT /{id}/drafts` + `POST /{id}/publish` instead of PATCH.",
+        "description": "Partial update. When `value` is supplied it is **republished on every env** (new version per env). A per-env key (`dev`/`staging`/`prod`) publishes a new version to **only that env**, immediately, overriding `value` for it. When `schema` is supplied it replaces the current schema; every existing value is re-validated.\n\n**Use cases**\n\n- **Republish flat value** — `{ \"value\": {…} }` sets the same value on every env.\n- **Publish one env** — `{ \"prod\": {…} }` publishes a new version to prod only, instantly.\n- **Schema migration** — `{ \"schema\": {…} }` replaces the schema; existing values are re-validated.",
         "tags": [
           "Configs"
         ],
@@ -2943,6 +2931,25 @@
                         },
                         {
                           "name": "pro"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "prodOnly": {
+                  "summary": "Per-env — publish prod only",
+                  "description": "Publishes a new version to prod only, immediately. dev/staging untouched.",
+                  "value": {
+                    "prod": {
+                      "tiers": [
+                        {
+                          "name": "free"
+                        },
+                        {
+                          "name": "pro"
+                        },
+                        {
+                          "name": "enterprise"
                         }
                       ]
                     }
@@ -15722,6 +15729,21 @@
             "type": "object",
             "additionalProperties": {},
             "description": "Initial config value. Either a single JSON object applied to every env, or a `{ env: value }` map seeding per-env values. Must match `schema`. Defaults to `{}` on every env when omitted."
+          },
+          "dev": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Seed the **dev** env's initial value (version 1), overriding `value` for dev. Published immediately. Must match `schema`."
+          },
+          "staging": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Seed the **staging** env's initial value (version 1), overriding `value` for staging. Published immediately. Must match `schema`."
+          },
+          "prod": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Seed the **prod** env's initial value (version 1), overriding `value` for prod. Published immediately. Must match `schema`."
           }
         },
         "required": [
@@ -15729,7 +15751,7 @@
           "schema"
         ],
         "additionalProperties": false,
-        "description": "Body for `POST /api/admin/configs`. `name` + `schema` required."
+        "description": "Body for `POST /api/admin/configs`. `name` + `schema` required. Per-env `dev`/`staging`/`prod` values are published to that env at version 1 (overriding `value`)."
       },
       "CreateConfigResponse": {
         "type": "object",
@@ -15919,14 +15941,29 @@
           "value": {
             "type": "object",
             "additionalProperties": {},
-            "description": "Flat value applied to **every** env. Publishes a new version per env. To target one env, use `PUT /{id}/drafts` then `POST /{id}/publish`."
+            "description": "Flat value applied to **every** env. Publishes a new version per env. To publish one env only, pass that env's key (`dev`/`staging`/`prod`) instead."
+          },
+          "dev": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Publish a new version to the **dev** env only, immediately (no draft). Overrides `value` for dev. Must match the effective schema."
+          },
+          "staging": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Publish a new version to the **staging** env only, immediately (no draft). Overrides `value` for staging. Must match the effective schema."
+          },
+          "prod": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Publish a new version to the **prod** env only, immediately (no draft). Overrides `value` for prod. Must match the effective schema."
           },
           "folder": {
             "$ref": "#/components/schemas/Folder"
           }
         },
         "additionalProperties": false,
-        "description": "Body for `PATCH /api/admin/configs/{id}`. Partial — only supplied fields change. `value` republishes on every env."
+        "description": "Body for `PATCH /api/admin/configs/{id}`. Partial — only supplied fields change. `value` republishes on every env; per-env `dev`/`staging`/`prod` publish a new version to just that env."
       },
       "UpdateConfigResponse": {
         "type": "object",

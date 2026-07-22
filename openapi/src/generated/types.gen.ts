@@ -1549,7 +1549,7 @@ export type ListConfigsResponse = {
 export type ConfigName = string;
 
 /**
- * Body for `POST /api/admin/configs`. `name` + `schema` required.
+ * Body for `POST /api/admin/configs`. `name` + `schema` required. Per-env `dev`/`staging`/`prod` values are published to that env at version 1 (overriding `value`).
  */
 export type CreateConfigRequest = {
     name: ConfigName;
@@ -1568,6 +1568,24 @@ export type CreateConfigRequest = {
      * Initial config value. Either a single JSON object applied to every env, or a `{ env: value }` map seeding per-env values. Must match `schema`. Defaults to `{}` on every env when omitted.
      */
     value?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Seed the **dev** env's initial value (version 1), overriding `value` for dev. Published immediately. Must match `schema`.
+     */
+    dev?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Seed the **staging** env's initial value (version 1), overriding `value` for staging. Published immediately. Must match `schema`.
+     */
+    staging?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Seed the **prod** env's initial value (version 1), overriding `value` for prod. Published immediately. Must match `schema`.
+     */
+    prod?: {
         [key: string]: unknown;
     };
 };
@@ -1672,7 +1690,7 @@ export type DeleteConfigResponse = {
 };
 
 /**
- * Body for `PATCH /api/admin/configs/{id}`. Partial — only supplied fields change. `value` republishes on every env.
+ * Body for `PATCH /api/admin/configs/{id}`. Partial — only supplied fields change. `value` republishes on every env; per-env `dev`/`staging`/`prod` publish a new version to just that env.
  */
 export type UpdateConfigRequest = {
     /**
@@ -1682,9 +1700,27 @@ export type UpdateConfigRequest = {
         [key: string]: unknown;
     };
     /**
-     * Flat value applied to **every** env. Publishes a new version per env. To target one env, use `PUT /{id}/drafts` then `POST /{id}/publish`.
+     * Flat value applied to **every** env. Publishes a new version per env. To publish one env only, pass that env's key (`dev`/`staging`/`prod`) instead.
      */
     value?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Publish a new version to the **dev** env only, immediately (no draft). Overrides `value` for dev. Must match the effective schema.
+     */
+    dev?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Publish a new version to the **staging** env only, immediately (no draft). Overrides `value` for staging. Must match the effective schema.
+     */
+    staging?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Publish a new version to the **prod** env only, immediately (no draft). Overrides `value` for prod. Must match the effective schema.
+     */
+    prod?: {
         [key: string]: unknown;
     };
     folder?: Folder;

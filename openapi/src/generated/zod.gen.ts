@@ -809,14 +809,17 @@ export const zListConfigsResponse = z.object({
 export const zConfigName = z.string().max(128).regex(/^(?:_default|[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$/);
 
 /**
- * Body for `POST /api/admin/configs`. `name` + `schema` required.
+ * Body for `POST /api/admin/configs`. `name` + `schema` required. Per-env `dev`/`staging`/`prod` values are published to that env at version 1 (overriding `value`).
  */
 export const zCreateConfigRequest = z.object({
     name: zConfigName,
     description: z.string().max(512).optional(),
     folder: zFolder.optional(),
     schema: z.record(z.string(), z.unknown()),
-    value: z.record(z.string(), z.unknown()).optional()
+    value: z.record(z.string(), z.unknown()).optional(),
+    dev: z.record(z.string(), z.unknown()).optional(),
+    staging: z.record(z.string(), z.unknown()).optional(),
+    prod: z.record(z.string(), z.unknown()).optional()
 });
 
 export const zCreateConfigResponse = z.object({
@@ -852,11 +855,14 @@ export const zDeleteConfigResponse = z.object({
 });
 
 /**
- * Body for `PATCH /api/admin/configs/{id}`. Partial — only supplied fields change. `value` republishes on every env.
+ * Body for `PATCH /api/admin/configs/{id}`. Partial — only supplied fields change. `value` republishes on every env; per-env `dev`/`staging`/`prod` publish a new version to just that env.
  */
 export const zUpdateConfigRequest = z.object({
     schema: z.record(z.string(), z.unknown()).optional(),
     value: z.record(z.string(), z.unknown()).optional(),
+    dev: z.record(z.string(), z.unknown()).optional(),
+    staging: z.record(z.string(), z.unknown()).optional(),
+    prod: z.record(z.string(), z.unknown()).optional(),
     folder: zFolder.optional()
 });
 

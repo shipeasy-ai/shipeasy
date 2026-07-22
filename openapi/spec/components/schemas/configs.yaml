@@ -226,11 +226,23 @@ CreateConfigRequest:
       type: object
       additionalProperties: {}
       description: "Initial config value. Either a single JSON object applied to every env, or a `{ env: value }` map seeding per-env values. Must match `schema`. Defaults to `{}` on every env when omitted."
+    dev:
+      type: object
+      additionalProperties: {}
+      description: "Seed the **dev** env's initial value (version 1), overriding `value` for dev. Published immediately. Must match `schema`."
+    staging:
+      type: object
+      additionalProperties: {}
+      description: "Seed the **staging** env's initial value (version 1), overriding `value` for staging. Published immediately. Must match `schema`."
+    prod:
+      type: object
+      additionalProperties: {}
+      description: "Seed the **prod** env's initial value (version 1), overriding `value` for prod. Published immediately. Must match `schema`."
   required:
     - name
     - schema
   additionalProperties: false
-  description: Body for `POST /api/admin/configs`. `name` + `schema` required.
+  description: "Body for `POST /api/admin/configs`. `name` + `schema` required. Per-env `dev`/`staging`/`prod` values are published to that env at version 1 (overriding `value`)."
 CreateConfigResponse:
   type: object
   properties:
@@ -255,11 +267,23 @@ UpdateConfigRequest:
     value:
       type: object
       additionalProperties: {}
-      description: Flat value applied to **every** env. Publishes a new version per env. To target one env, use `PUT /{id}/drafts` then `POST /{id}/publish`.
+      description: Flat value applied to **every** env. Publishes a new version per env. To publish one env only, pass that env's key (`dev`/`staging`/`prod`) instead.
+    dev:
+      type: object
+      additionalProperties: {}
+      description: "Publish a new version to the **dev** env only, immediately (no draft). Overrides `value` for dev. Must match the effective schema."
+    staging:
+      type: object
+      additionalProperties: {}
+      description: "Publish a new version to the **staging** env only, immediately (no draft). Overrides `value` for staging. Must match the effective schema."
+    prod:
+      type: object
+      additionalProperties: {}
+      description: "Publish a new version to the **prod** env only, immediately (no draft). Overrides `value` for prod. Must match the effective schema."
     folder:
       $ref: ./common.yaml#/Folder
   additionalProperties: false
-  description: Body for `PATCH /api/admin/configs/{id}`. Partial — only supplied fields change. `value` republishes on every env.
+  description: "Body for `PATCH /api/admin/configs/{id}`. Partial — only supplied fields change. `value` republishes on every env; per-env `dev`/`staging`/`prod` publish a new version to just that env."
 UpdateConfigResponse:
   type: object
   properties:

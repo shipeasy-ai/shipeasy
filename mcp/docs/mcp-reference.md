@@ -757,7 +757,7 @@ Returns `409` if `name` already exists in the project, `400` if `value` doesn't 
 
 - **Minimal create** — `name` + `schema`. Initial value defaults to `{}`.
 - **Seeded create** — supply a flat `value` to publish the same object on every env.
-- **Per-env seed** — supply a `{ env: value }` map for different per-env starting values.
+- **Per-env seed** — supply a `{ env: value }` map under `value`, or pass the env keys `dev`/`staging`/`prod` directly (each overrides `value` for that env and is published at version 1).
 
 _Parameters_
 
@@ -768,6 +768,9 @@ _Parameters_
 | `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `schema` | required | `object` | JSON Schema (draft 2020-12) describing the shape of the config value. Top-level `type` must be `'object'`; every published value is validated against this schema. |
 | `value` | optional | `object` | Initial config value. Either a single JSON object applied to every env, or a `{ env: value }` map seeding per-env values. Must match `schema`. Defaults to `{}` on every env when omitted. |
+| `dev` | optional | `object` | Seed the **dev** env's initial value (version 1), overriding `value` for dev. Published immediately. Must match `schema`. |
+| `staging` | optional | `object` | Seed the **staging** env's initial value (version 1), overriding `value` for staging. Published immediately. Must match `schema`. |
+| `prod` | optional | `object` | Seed the **prod** env's initial value (version 1), overriding `value` for prod. Published immediately. Must match `schema`. |
 | `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `release_configs_list` call. It proves you listed existing release configs and confirmed this one doesn't already exist before creating it. Call `release_configs_list` first if you don't have a fresh token. |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -820,15 +823,13 @@ _Errors_ — beyond the [common errors](#errors):
 
 **Update a dynamic config**
 
-Partial update. When `value` is supplied it is **republished on every env** (new version per env). When `schema` is supplied it replaces the current schema; every existing value is re-validated.
-
-For env-scoped edits, use the draft/publish flow (`PUT /{id}/drafts` then `POST /{id}/publish`) instead.
+Partial update. When `value` is supplied it is **republished on every env** (new version per env). A per-env key (`dev`/`staging`/`prod`) publishes a new version to **only that env**, immediately, overriding `value` for it. When `schema` is supplied it replaces the current schema; every existing value is re-validated.
 
 **Use cases**
 
 - **Republish flat value** — `{ "value": {…} }` sets the same value on every env.
+- **Publish one env** — `{ "prod": {…} }` publishes a new version to prod only, instantly.
 - **Schema migration** — `{ "schema": {…} }` replaces the schema; existing values are re-validated.
-- **Env-scoped edits** — use `PUT /{id}/drafts` + `POST /{id}/publish` instead of PATCH.
 
 _Parameters_
 
@@ -836,7 +837,10 @@ _Parameters_
 | --- | --- | --- | --- |
 | `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `schema` | optional | `object` | Replacement schema. When supplied, the new schema is validated against every published value before it lands. |
-| `value` | optional | `object` | Flat value applied to **every** env. Publishes a new version per env. To target one env, use `PUT /{id}/drafts` then `POST /{id}/publish`. |
+| `value` | optional | `object` | Flat value applied to **every** env. Publishes a new version per env. To publish one env only, pass that env's key (`dev`/`staging`/`prod`) instead. |
+| `dev` | optional | `object` | Publish a new version to the **dev** env only, immediately (no draft). Overrides `value` for dev. Must match the effective schema. |
+| `staging` | optional | `object` | Publish a new version to the **staging** env only, immediately (no draft). Overrides `value` for staging. Must match the effective schema. |
+| `prod` | optional | `object` | Publish a new version to the **prod** env only, immediately (no draft). Overrides `value` for prod. Must match the effective schema. |
 | `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 
 _Errors_ — beyond the [common errors](#errors):

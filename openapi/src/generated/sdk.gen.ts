@@ -382,7 +382,7 @@ export const listConfigs = <ThrowOnError extends boolean = false>(options?: Opti
  *
  * - **Minimal create** — `name` + `schema`. Initial value defaults to `{}`.
  * - **Seeded create** — supply a flat `value` to publish the same object on every env.
- * - **Per-env seed** — supply a `{ env: value }` map for different per-env starting values.
+ * - **Per-env seed** — supply a `{ env: value }` map under `value`, or pass the env keys `dev`/`staging`/`prod` directly (each overrides `value` for that env and is published at version 1).
  */
 export const createConfig = <ThrowOnError extends boolean = false>(options: Options<CreateConfigData, ThrowOnError>): RequestResult<CreateConfigResponses, CreateConfigErrors, ThrowOnError> => (options.client ?? client).post<CreateConfigResponses, CreateConfigErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -423,15 +423,13 @@ export const getConfig = <ThrowOnError extends boolean = false>(options: Options
 /**
  * Update a dynamic config
  *
- * Partial update. When `value` is supplied it is **republished on every env** (new version per env). When `schema` is supplied it replaces the current schema; every existing value is re-validated.
- *
- * For env-scoped edits, use the draft/publish flow (`PUT /{id}/drafts` then `POST /{id}/publish`) instead.
+ * Partial update. When `value` is supplied it is **republished on every env** (new version per env). A per-env key (`dev`/`staging`/`prod`) publishes a new version to **only that env**, immediately, overriding `value` for it. When `schema` is supplied it replaces the current schema; every existing value is re-validated.
  *
  * **Use cases**
  *
  * - **Republish flat value** — `{ "value": {…} }` sets the same value on every env.
+ * - **Publish one env** — `{ "prod": {…} }` publishes a new version to prod only, instantly.
  * - **Schema migration** — `{ "schema": {…} }` replaces the schema; existing values are re-validated.
- * - **Env-scoped edits** — use `PUT /{id}/drafts` + `POST /{id}/publish` instead of PATCH.
  */
 export const updateConfig = <ThrowOnError extends boolean = false>(options: Options<UpdateConfigData, ThrowOnError>): RequestResult<UpdateConfigResponses, UpdateConfigErrors, ThrowOnError> => (options.client ?? client).patch<UpdateConfigResponses, UpdateConfigErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
