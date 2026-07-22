@@ -3734,6 +3734,10 @@ export type OpsRun = {
      */
     sessionId: string | null;
     /**
+     * The run's session-page deep link, or `null`. DERIVED (never stored): rebuilt from `sessionId` + the run's trigger connector — Claude's routine id (`?trigger=`), Copilot's repo (`/tasks/`), Cursor/Jules from the id alone.
+     */
+    sessionUrl: string | null;
+    /**
      * ISO-8601 timestamp the run started (the ack time).
      */
     startedAt: string;
@@ -4459,6 +4463,10 @@ export type OpsInvestigation = {
      */
     sessionId: string | null;
     /**
+     * The run's session-page deep link, or `null`. DERIVED (never stored): rebuilt from `sessionId` + the run's trigger connector — Claude's routine id (`?trigger=`), Copilot's repo (`/tasks/`), Cursor/Jules from the id alone. Only `working` run records carry one.
+     */
+    sessionUrl: string | null;
+    /**
      * Email of the human who acked (run records for a human ack), or `null`.
      */
     ackedBy: string | null;
@@ -4564,6 +4572,85 @@ export type CreateOpsInvestigationRequest = {
     startedAt?: string;
     /**
      * ISO-8601 timestamp the work finished.
+     */
+    completedAt?: string;
+    /**
+     * The agent-run session id, so the dashboard can deep-link to the run.
+     */
+    sessionId?: string;
+};
+
+/**
+ * Body for `PATCH /api/admin/ops/{handle}/investigation/{investigationId}` — a partial update of one existing investigation record (typically the `working` run record you were handed). Send only the fields you want to change; at least one is required.
+ */
+export type UpdateOpsInvestigationRequest = {
+    /**
+     * Reclassify the record's lifecycle stage (e.g. flip a `working` run into `investigated` once findings land).
+     */
+    kind?: 'investigated' | 'detected' | 'question' | 'ready_for_qa' | 'working' | 'note';
+    /**
+     * One-line summary of the record.
+     */
+    summary?: string;
+    /**
+     * The full findings write-up (markdown).
+     */
+    findings?: string;
+    /**
+     * A blocking question for the team (markdown).
+     */
+    question?: string;
+    /**
+     * How to verify the fix — QA notes (markdown).
+     */
+    qaNotes?: string;
+    /**
+     * The model the agent ran on.
+     */
+    model?: string;
+    /**
+     * A PR the record references.
+     */
+    prNumber?: number;
+    /**
+     * HTML URL of that PR.
+     */
+    prUrl?: string;
+    /**
+     * The files/links inspected.
+     */
+    sources?: Array<{
+        /**
+         * Repo-relative file path inspected.
+         */
+        path?: string;
+        /**
+         * External link consulted.
+         */
+        url?: string;
+        /**
+         * Human-readable label for the source.
+         */
+        label?: string;
+    }>;
+    /**
+     * Self-reported confidence in the record.
+     */
+    confidence?: 'low' | 'medium' | 'high';
+    /**
+     * Tokens the run consumed.
+     */
+    tokensUsed?: number;
+    /**
+     * Run duration in milliseconds.
+     */
+    durationMs?: number;
+    /**
+     * Record visibility. `draft` keeps it out of the panel; `published` surfaces it.
+     */
+    visibility?: 'draft' | 'published';
+    /**
+     * ISO-8601 timestamp the work finished. Set it (or flip `kind` off `working`) to mark a run record done.
      */
     completedAt?: string;
     /**
@@ -11008,6 +11095,62 @@ export type CreateOpsInvestigationResponses = {
 };
 
 export type CreateOpsInvestigationResponse = CreateOpsInvestigationResponses[keyof CreateOpsInvestigationResponses];
+
+export type UpdateOpsInvestigationData = {
+    body: UpdateOpsInvestigationRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Per-project item number (e.g. `7`) or the full ops item id.
+         */
+        handle: ResourceId;
+        /**
+         * The investigation record id (from `POST`/`GET .../investigation` or the `runId` an ack/launch returned).
+         */
+        investigationId: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/ops/{handle}/investigation/{investigationId}';
+};
+
+export type UpdateOpsInvestigationErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type UpdateOpsInvestigationError = UpdateOpsInvestigationErrors[keyof UpdateOpsInvestigationErrors];
+
+export type UpdateOpsInvestigationResponses = {
+    /**
+     * The updated investigation record
+     */
+    200: OpsInvestigation;
+};
+
+export type UpdateOpsInvestigationResponse = UpdateOpsInvestigationResponses[keyof UpdateOpsInvestigationResponses];
 
 export type ListOpsAgentsData = {
     body?: never;

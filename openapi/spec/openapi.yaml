@@ -209,6 +209,15 @@ tags:
       **Mentions.** `@teammate` in a body raises an in-app notification for that
       person; `@shipeasy` asks Jarvis (the AI agent) to read the item and reply.
       Comments authored by Jarvis carry `authorType: system`.
+  - name: Investigations
+    parent: Ops
+    description: |-
+      Investigation records on a queue item — the structured, read-only write-ups
+      an AI agent produces while working it (findings / a blocking question / QA
+      notes), plus the `working` run rows an ack or an AI hand-off opens. This is
+      the AI-write seam the cockpit's detail panel renders: `list` reads what a
+      previous run found, `create` appends a new record, and `update` fills in the
+      `working` run record you were handed (findings, PR, confidence) as you work.
   - name: Projects
     description: |-
       Projects: the account-level container every other resource is scoped to.
@@ -351,6 +360,8 @@ paths:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1ack
   /api/admin/ops/{handle}/investigation:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1investigation
+  /api/admin/ops/{handle}/investigation/{investigationId}:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1investigation~1{investigationId}
   /api/admin/agent-profiles:
     $ref: ./paths/ops.yaml#/~1api~1admin~1agent-profiles
   /api/admin/ops/{handle}/comments:

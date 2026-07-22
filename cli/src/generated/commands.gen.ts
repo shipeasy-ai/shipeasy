@@ -13,6 +13,8 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   const g_ops_agents = defineGroup(g_ops, "agents", { summary: "Connected AI agents — one per authenticated trigger connector (Claude / Cursor / Copilot / Jules).", help: "Connected AI agents — one per authenticated trigger connector (Claude /\nCursor / Copilot / Jules). The read-only roster behind agent assignment\nand the `ops ack` agent types: an AI ack (`ops ack <handle> --agent\n<type>`) requires the type to appear here, so this list is where an\n`AGENT_NOT_CONNECTED` error sends you.", aliases: [] });
   const g_ops_alerts = defineGroup(g_ops, "alerts", { summary: "Alert rules: the metric-threshold definitions the analysis cron evaluates each run.", help: "Alert rules: the metric-threshold definitions the analysis cron evaluates each run.\n\n**What fires.** Each rule binds a `metricId`, a `comparator` (`gt`/`gte`/`lt`/`lte`), and a `threshold`. On every cron pass the cron aggregates the metric over the trailing `windowHours` and raises an alert at `severity` when `value comparator threshold` holds.\n\n**Immutable metric.** The bound metric (and its aggregation) is fixed at create time — there is no update path for `metricId`. Tune `threshold`/`comparator`/`windowHours`/`severity`/`name`/`enabled` instead, or delete + recreate to repoint the rule at a different metric.\n\n**Delivery.** `notify` optionally targets a Slack channel and/or email for this rule; `null` falls back to the project's default notification settings. Slack targets require a connected Slack connector.", aliases: ["ar"] });
   const g_ops_comments = defineGroup(g_ops, "comments", { summary: "Comments on a queue item — the discussion thread that hangs off any bug, feature request, or auto-filed error/alert ticket.", help: "Comments on a queue item — the discussion thread that hangs off any bug,\nfeature request, or auto-filed error/alert ticket. Append a comment or read\nthe thread; one level of threaded replies via `parentId`.\n\n**Mentions.** `@teammate` in a body raises an in-app notification for that\nperson; `@shipeasy` asks Jarvis (the AI agent) to read the item and reply.\nComments authored by Jarvis carry `authorType: system`.", aliases: [] });
+  const g_ops_fired_alerts = defineGroup(g_ops, "fired-alerts", { summary: "Fired alerts: the conditions the platform has actually raised — metric-rule crossings, armed kill switches, experiment SRM/peek guards, and guardrail breaches.", help: "Fired alerts: the conditions the platform has actually raised — metric-rule\ncrossings, armed kill switches, experiment SRM/peek guards, and guardrail\nbreaches. Raised only by the platform (UI killswitch handlers plus the\nworker analysis consumer and alerts cron), never filed by hand; deduped per\n`(source, dedupeKey)` with auto-resolve when the condition clears. This\nsurface lists them and triages one (status flip + person/agent owner). The\n*rules* that define metric-threshold alerts are the sibling alert-rules\nresource.", aliases: [] });
+  const g_ops_investigations = defineGroup(g_ops, "investigations", { summary: "Investigation records on a queue item — the structured, read-only write-ups an AI agent produces while working it (findings / a blocking question / QA notes), plus the `working` run rows an ack or an AI hand-off opens.", help: "Investigation records on a queue item — the structured, read-only write-ups\nan AI agent produces while working it (findings / a blocking question / QA\nnotes), plus the `working` run rows an ack or an AI hand-off opens. This is\nthe AI-write seam the cockpit's detail panel renders: `list` reads what a\nprevious run found, `create` appends a new record, and `update` fills in the\n`working` run record you were handed (findings, PR, confidence) as you work.", aliases: [] });
   const g_ops_trigger = defineGroup(g_ops, "trigger", { summary: "Recurring coding-agent triggers: the scheduled, unattended runs that burn down the ops queue in `--pr` mode (one PR per fixed item; nothing auto-merges).", help: "Recurring coding-agent triggers: the scheduled, unattended runs that burn\ndown the ops queue in `--pr` mode (one PR per fixed item; nothing\nauto-merges). Shipeasy can fire four providers directly — Claude routines,\nCursor cloud agents, Copilot cloud agents, and Google Jules (the Gemini\npath) — registered here as trigger connectors (idempotent per provider\nkey). Other platforms (Codex, Windsurf, Cline, OpenClaw, OpenCode,\nContinue) schedule on their own surface — typically a GitHub Actions\n`schedule:` cron running the platform's headless CLI with the shared\ntrigger prompt.", aliases: [] });
   const g_release = defineGroup(program, "release", { summary: "Feature delivery — flags, kill switches, dynamic configs, A/B experiments, and the universes they bucket in.", help: "Release: the feature-delivery surface. One roof over the five resources\nthat decide which code path a user gets — feature gates (flags), kill\nswitches, dynamic configs, A/B/n experiments, and the universes that bucket\nthem — each exposed as its own subcommand group.\n\n**Groups.**\n- `flags` — boolean feature gates: AND-combined targeting rules + a percentage rollout (basis points), evaluated on the SDK hot path.\n- `killswitch` (`ks`) — per-env boolean overrides for incident response; no rules, no rollout, versioned per environment.\n- `configs` — JSON-Schema-validated structured values with a draft → publish workflow, delivered per environment.\n- `experiments` — randomised A/B/n assignment plus the analysis pipeline (t-test, sequential testing, SRM detection); `universes` hold the shared bucketing space and holdouts the experiments draw from.\n\n**Delivery model.** Every write rebuilds the project's KV blob and purges\nthe CDN — SDKs poll at the plan interval and never touch the database on\nthe hot path. The destructive verb is `archive` (soft-delete), never\n`delete`.\n\nRun `shipeasy release <group> --help` for the full contract of each group.", aliases: [] });
   const g_release_configs = defineGroup(g_release, "configs", { summary: "Dynamic configs: JSON-Schema-validated structured values delivered to SDKs and editable per environment with a draft/publish workflow.", help: "Dynamic configs: JSON-Schema-validated structured values delivered to SDKs and editable per environment with a draft/publish workflow.\n\n**Identity.** Each config is keyed by `name` in `folder.name` form (e.g. `pricing.tiers`). Immutable after create.\n\n**Schema-first.** Every config carries a JSON Schema (draft 2020-12, top-level `type: 'object'`). Every published value is validated against it.\n\n**Drafts → publish.** Per-env edits go through `PUT /{id}/drafts` (stages a value) then `POST /{id}/publish` (promotes to a new version). The flat `PATCH /{id}` republishes on **every** env in one shot — bypassing drafts.\n\n**Versioning.** Each publish bumps the per-env `version` monotonically. SDKs deliver the latest published version for each env.", aliases: [] });
@@ -70,14 +72,38 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .action(async (id, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.deleteMetric({ client, path: { id: id }, body: json(opts.data) as never }) });
     });
+  g_metrics.command("experiments")
+    .description("List experiments using a metric")
+    .argument("<id>", "Stable opaque metric id (`met_…`) or the metric's `name`.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (id, opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.listMetricExperiments({ client, path: { id: id }, body: json(opts.data) as never }) });
+    });
+  g_metrics.command("unarchive")
+    .description("Unarchive a metric")
+    .argument("<id>", "Stable opaque metric id (`met_…`) or the metric's `name`.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (id, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.unarchiveMetric({ client, path: { id: id }, body: json(opts.data) as never }) });
+    });
+  g_metrics.command("series")
+    .description("Get a metric's time series")
+    .argument("<id>", "Stable opaque metric id (`met_…`).")
+    .option("--from <value>", "Window start, epoch seconds (inclusive).")
+    .option("--to <value>", "Window end, epoch seconds (exclusive). Must be greater than `from`.")
+    .option("--bucket <value>", "Bucket width in seconds (60s–86400s/1d). Defaults to `3600` (hourly). Each returned point is floor-aligned to this width.")
+    .action(async (id, opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.getMetricSeries({ client, path: { id: id }, body: clean({ from: num(opts.from), to: num(opts.to), bucket: num(opts.bucket) }) }) });
+    });
   g_ops.command("list")
     .description("List the operational queue")
     .option("--type <value>", "Filter by item type (`bug`/`feature_request`/`error`/`alert`), or `all`.")
     .option("--status <value>", "Filter by lifecycle status, or `all`. The human-gated holding states (`pending_approval`, `triage`) are excluded from `all`/default and returned only when requested as the exact status.")
     .option("--limit <value>", "Max items to return (1–500).")
+    .option("--owner <value>", "Narrow to items owned by one person OR one agent. Matches a person by `users.id`, email, or display name, and an agent by connector id, display name, or kebab-case handle — e.g. `owner=Claude` or `owner=alice@acme.dev`. Case-insensitive exact match, applied over the returned page.")
     .option("--data <value>", "Request body as a JSON object.")
     .action(async (opts) => {
-      await ctx.run({ mutates: false, invoke: (client) => api.listOpsItems({ client, query: clean({ type: json(opts.type), status: json(opts.status), limit: num(opts.limit) }), body: json(opts.data) as never }) });
+      await ctx.run({ mutates: false, invoke: (client) => api.listOpsItems({ client, query: clean({ type: json(opts.type), status: json(opts.status), limit: num(opts.limit), owner: str(opts.owner) }), body: json(opts.data) as never }) });
     });
   g_ops.command("create")
     .description("File a queue item (bug or feature request) — pass --type.")
@@ -87,6 +113,10 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--actual-result <value>", "What actually happened.")
     .option("--expected-result <value>", "What was expected instead.")
     .option("--priority <value>", "Initial triage priority, or `null`.")
+    .option("--status <value>", "Initial lifecycle status; defaults to `open` when omitted.")
+    .option("--assignee-id <value>", "The `users.id` of the person to assign as owner at creation, or `null`.")
+    .option("--subscribers <value>", "Emails of teammates to subscribe to this item's Slack pings at creation.")
+    .option("--tags <value>", "Tag names to attach at creation (get-or-created by name, deduped case-insensitively).")
     .option("--reporter-email <value>", "Email of the reporter, or `null`.")
     .option("--page-url <value>", "URL of the page the bug relates to, or `null`.")
     .option("--user-agent <value>", "Reporter's user-agent string, or `null`.")
@@ -96,7 +126,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--description <value>", "What the feature is.")
     .option("--use-case <value>", "Why it's needed / the use case.")
     .action(async (title, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, type: str(opts.type), stepsToReproduce: str(opts.stepsToReproduce), actualResult: str(opts.actualResult), expectedResult: str(opts.expectedResult), priority: str(opts.priority), reporterEmail: str(opts.reporterEmail), pageUrl: str(opts.pageUrl), userAgent: str(opts.userAgent), viewport: str(opts.viewport), context: json(opts.context), notify: str(opts.notify), description: str(opts.description), useCase: str(opts.useCase) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, type: str(opts.type), stepsToReproduce: str(opts.stepsToReproduce), actualResult: str(opts.actualResult), expectedResult: str(opts.expectedResult), priority: str(opts.priority), status: str(opts.status), assigneeId: str(opts.assigneeId), subscribers: json(opts.subscribers), tags: json(opts.tags), reporterEmail: str(opts.reporterEmail), pageUrl: str(opts.pageUrl), userAgent: str(opts.userAgent), viewport: str(opts.viewport), context: json(opts.context), notify: str(opts.notify), description: str(opts.description), useCase: str(opts.useCase) }) }) });
     });
   g_ops.command("bug")
     .description("File a bug report.")
@@ -105,6 +135,10 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--actual-result <value>", "What actually happened.")
     .option("--expected-result <value>", "What was expected instead.")
     .option("--priority <value>", "Initial triage priority, or `null`.")
+    .option("--status <value>", "Initial lifecycle status; defaults to `open` when omitted.")
+    .option("--assignee-id <value>", "The `users.id` of the person to assign as owner at creation, or `null`.")
+    .option("--subscribers <value>", "Emails of teammates to subscribe to this item's Slack pings at creation.")
+    .option("--tags <value>", "Tag names to attach at creation (get-or-created by name, deduped case-insensitively).")
     .option("--reporter-email <value>", "Email of the reporter, or `null`.")
     .option("--page-url <value>", "URL of the page the bug relates to, or `null`.")
     .option("--user-agent <value>", "Reporter's user-agent string, or `null`.")
@@ -112,7 +146,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--context <value>", "Arbitrary capture context, or `null`.")
     .option("--notify <value>", "Where this bug's completion notification lands.")
     .action(async (title, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, stepsToReproduce: str(opts.stepsToReproduce), actualResult: str(opts.actualResult), expectedResult: str(opts.expectedResult), priority: str(opts.priority), reporterEmail: str(opts.reporterEmail), pageUrl: str(opts.pageUrl), userAgent: str(opts.userAgent), viewport: str(opts.viewport), context: json(opts.context), notify: str(opts.notify), type: "bug" }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, stepsToReproduce: str(opts.stepsToReproduce), actualResult: str(opts.actualResult), expectedResult: str(opts.expectedResult), priority: str(opts.priority), status: str(opts.status), assigneeId: str(opts.assigneeId), subscribers: json(opts.subscribers), tags: json(opts.tags), reporterEmail: str(opts.reporterEmail), pageUrl: str(opts.pageUrl), userAgent: str(opts.userAgent), viewport: str(opts.viewport), context: json(opts.context), notify: str(opts.notify), type: "bug" }) }) });
     });
   g_ops.command("feature")
     .description("File a feature request.")
@@ -120,13 +154,17 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--description <value>", "What the feature is.")
     .option("--use-case <value>", "Why it's needed / the use case.")
     .option("--priority <value>", "Initial triage priority, or `null`.")
+    .option("--status <value>", "Initial lifecycle status; defaults to `open` when omitted.")
+    .option("--assignee-id <value>", "The `users.id` of the person to assign as owner at creation, or `null`.")
+    .option("--subscribers <value>", "Emails of teammates to subscribe to this item's Slack pings at creation.")
+    .option("--tags <value>", "Tag names to attach at creation (get-or-created by name, deduped case-insensitively).")
     .option("--reporter-email <value>", "Email of the reporter, or `null`.")
     .option("--page-url <value>", "URL of the page the request relates to, or `null`.")
     .option("--user-agent <value>", "Reporter's user-agent string, or `null`.")
     .option("--context <value>", "Arbitrary capture context, or `null`.")
     .option("--notify <value>", "Where this request's completion notification lands.")
     .action(async (title, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, description: str(opts.description), useCase: str(opts.useCase), priority: str(opts.priority), reporterEmail: str(opts.reporterEmail), pageUrl: str(opts.pageUrl), userAgent: str(opts.userAgent), context: json(opts.context), notify: str(opts.notify), type: "feature_request" }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, description: str(opts.description), useCase: str(opts.useCase), priority: str(opts.priority), status: str(opts.status), assigneeId: str(opts.assigneeId), subscribers: json(opts.subscribers), tags: json(opts.tags), reporterEmail: str(opts.reporterEmail), pageUrl: str(opts.pageUrl), userAgent: str(opts.userAgent), context: json(opts.context), notify: str(opts.notify), type: "feature_request" }) }) });
     });
   g_ops.command("get")
     .description("Get one queue item")
@@ -347,6 +385,75 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .action(async (handle, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.createOpsComment({ client, path: { handle: handle }, body: clean({ body: str(opts.body), parentId: str(opts.parentId) }) }) });
     });
+  g_ops_fired_alerts.command("list")
+    .description("List fired alerts")
+    .option("--status <value>", "Filter by lifecycle state. Defaults to `active` (currently firing); `all` returns every status.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.listAlerts({ client, query: clean({ status: str(opts.status) }), body: json(opts.data) as never }) });
+    });
+  g_ops_fired_alerts.command("update")
+    .description("Update a fired alert")
+    .argument("<id>", "Stable opaque alert id (`al_…`).")
+    .option("--status <value>", "New lifecycle state. `resolved` / `dismissed` stamp their timestamp; `active` re-opens and clears both.")
+    .option("--assignee-id <value>", "PERSON owner — a `users.id`, or `null` to clear the assignment.")
+    .option("--agent <value>", "AGENT owner — a connected trigger connector's id (`connectors.id`), the built-in `\"jarvis\"` (Enterprise plan only — rejected with `403` otherwise), or `null` to clear. Stored in `assigneeConnectorId` or `assigneeAgent` depending on the value; the two are mutually exclusive.")
+    .action(async (id, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.updateAlert({ client, path: { id: id }, body: clean({ status: str(opts.status), assigneeId: str(opts.assigneeId), agent: str(opts.agent) }) }) });
+    });
+  g_ops_investigations.command("list")
+    .description("List an item's investigation records")
+    .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.listOpsInvestigations({ client, path: { handle: handle }, body: json(opts.data) as never }) });
+    });
+  g_ops_investigations.command("create")
+    .description("Record an investigation")
+    .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id.")
+    .option("--kind <value>", "Which lifecycle stage the record documents.")
+    .option("--summary <value>", "One-line summary of the record.")
+    .option("--findings <value>", "The full findings write-up (markdown).")
+    .option("--question <value>", "A blocking question for the team (markdown).")
+    .option("--qa-notes <value>", "How to verify the fix — QA notes (markdown).")
+    .option("--agent <value>", "The agent type producing the record — pass your own type when you are a coding agent.")
+    .option("--model <value>", "The model the agent ran on.")
+    .option("--connector-id <value>", "The trigger-connector row id the agent ran through.")
+    .option("--pr-number <value>", "A PR the record references.")
+    .option("--pr-url <value>", "HTML URL of that PR.")
+    .option("--sources <value>", "The files/links inspected.")
+    .option("--confidence <value>", "Self-reported confidence in the record.")
+    .option("--tokens-used <value>", "Tokens the run consumed.")
+    .option("--duration-ms <value>", "Run duration in milliseconds.")
+    .option("--visibility <value>", "Record visibility. Defaults to `published`; `draft` keeps it out of the panel.")
+    .option("--started-at <value>", "ISO-8601 timestamp the work started.")
+    .option("--completed-at <value>", "ISO-8601 timestamp the work finished.")
+    .option("--session-id <value>", "The agent-run session id, so the dashboard can deep-link to the run.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.createOpsInvestigation({ client, path: { handle: handle }, body: clean({ kind: str(opts.kind), summary: str(opts.summary), findings: str(opts.findings), question: str(opts.question), qaNotes: str(opts.qaNotes), agent: str(opts.agent), model: str(opts.model), connectorId: str(opts.connectorId), prNumber: num(opts.prNumber), prUrl: str(opts.prUrl), sources: json(opts.sources), confidence: str(opts.confidence), tokensUsed: num(opts.tokensUsed), durationMs: num(opts.durationMs), visibility: str(opts.visibility), startedAt: str(opts.startedAt), completedAt: str(opts.completedAt), sessionId: str(opts.sessionId) }) }) });
+    });
+  g_ops_investigations.command("update")
+    .description("Update an investigation record")
+    .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id.")
+    .argument("<investigationId>", "The investigation record id (from `POST`/`GET .../investigation` or the `runId` an ack/launch returned).")
+    .option("--kind <value>", "Reclassify the record's lifecycle stage (e.g. flip a `working` run into `investigated` once findings land).")
+    .option("--summary <value>", "One-line summary of the record.")
+    .option("--findings <value>", "The full findings write-up (markdown).")
+    .option("--question <value>", "A blocking question for the team (markdown).")
+    .option("--qa-notes <value>", "How to verify the fix — QA notes (markdown).")
+    .option("--model <value>", "The model the agent ran on.")
+    .option("--pr-number <value>", "A PR the record references.")
+    .option("--pr-url <value>", "HTML URL of that PR.")
+    .option("--sources <value>", "The files/links inspected.")
+    .option("--confidence <value>", "Self-reported confidence in the record.")
+    .option("--tokens-used <value>", "Tokens the run consumed.")
+    .option("--duration-ms <value>", "Run duration in milliseconds.")
+    .option("--visibility <value>", "Record visibility. `draft` keeps it out of the panel; `published` surfaces it.")
+    .option("--completed-at <value>", "ISO-8601 timestamp the work finished. Set it (or flip `kind` off `working`) to mark a run record done.")
+    .option("--session-id <value>", "The agent-run session id, so the dashboard can deep-link to the run.")
+    .action(async (handle, investigationId, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.updateOpsInvestigation({ client, path: { handle: handle, investigationId: investigationId }, body: clean({ kind: str(opts.kind), summary: str(opts.summary), findings: str(opts.findings), question: str(opts.question), qaNotes: str(opts.qaNotes), model: str(opts.model), prNumber: num(opts.prNumber), prUrl: str(opts.prUrl), sources: json(opts.sources), confidence: str(opts.confidence), tokensUsed: num(opts.tokensUsed), durationMs: num(opts.durationMs), visibility: str(opts.visibility), completedAt: str(opts.completedAt), sessionId: str(opts.sessionId) }) }) });
+    });
   const g_ops_trigger_create = defineGroup(g_ops_trigger, "create", { summary: "Create a recurring coding-agent trigger", help: "A trigger is an unattended, scheduled agent run: on a cron cadence it runs the\nshipeasy-ops-work loop in --pr mode against your project — one atomic diff and\nONE pull request per fixed item, nothing auto-merges.\n\nWhatever the provider, the scheduled run executes this trigger prompt (headless\nCLIs take it as the prompt; cloud agents as the task body):\n\n  You are an unattended Shipeasy maintenance run. Authenticate every `shipeasy`\n  call with these env vars (the CLI reads them directly — do NOT run\n  `shipeasy login`, never echo the token). Put them at the top of EVERY shell\n  invocation that calls `shipeasy`; each command runs in a fresh shell:\n\n  export SHIPEASY_CLI_TOKEN=\"<OPS_KEY>\"\n  export SHIPEASY_PROJECT_ID=\"<PROJECT_ID>\"\n\n  Ensure the repo is bound: test -f .shipeasy || printf '{\"project_id\":\"<PROJECT_ID>\"}\\n' > .shipeasy\n  (never commit .shipeasy).\n\n  Refresh to the latest plugin + CLI, then run the ops work loop in --pr mode:\n    <PLUGIN-INSTALL-FOR-THIS-HOST>       # plugin install for claude/copilot, or `npx -y skills add …`\n    npm install -g @shipeasy/cli@latest\n  Then follow the installed shipeasy-ops-work (--pr) workflow verbatim: burn down\n  the queue, one atomic diff per item, open ONE PR per item from a safe branch\n  prefix, flip each to ready_for_qa, add \"Closes #<issue>\" where an item has a\n  connected GitHub issue. If the queue is empty, exit cleanly. Never merge.\n\n<OPS_KEY> is a restricted `ops` key — mint with\n`npx -y @shipeasy/cli@latest keys create --type ops`. It reads the queue, flips\nstatus, links the PR it opens, and creates resources only; it can never edit or\ndelete existing resources, and auto-extends its 7-day expiry on each run.\n<PROJECT_ID> comes from the bound .shipeasy. Never print either value.\n\nSafety: auto-approve flags (--approval-mode=yolo, --dangerously-skip-permissions,\n…) remove the human gate — run only in an isolated env. Unattended loops spend\ntokens/credits on a cadence: start weekly/daily and watch the first runs." });
   g_ops_trigger_create.argument("[provider]", "One of the subcommands below.");
   g_ops_trigger_create.action((provider) => {
@@ -480,6 +587,14 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .action(async (id, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.updateConfigSchema({ client, path: { id: id }, body: clean({ schema: json(opts.schema) }) }) });
     });
+  g_release_configs.command("versions")
+    .description("List config version history")
+    .argument("<id>", "Stable opaque config id (`cfg_…`) or the config's `name`.")
+    .option("--env <value>", "Environment to list history for (`dev`, `staging`, or `prod`). Defaults to `prod` when omitted.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (id, opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.listConfigVersions({ client, path: { id: id }, query: clean({ env: str(opts.env) }), body: json(opts.data) as never }) });
+    });
   g_release_experiments.command("list")
     .description("List experiments")
     .option("--limit <value>", "Page size (1–500). Defaults to 100.")
@@ -608,6 +723,23 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .action(async (id, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.reanalyzeExperiment({ client, path: { id: id }, body: json(opts.data) as never }) });
     });
+  g_release_experiments.command("readout-create")
+    .description("Mint a readout snapshot")
+    .argument("<id>", "Stable opaque experiment id (`exp_…`) or the experiment's `name`.")
+    .option("--kind <value>", "Why the snapshot is being minted — `manual` (\"Share readout\"), or automatically on `ship` / `stop`.")
+    .option("--acknowledged-caveat-ids <value>", "Ids of the open caveats the caller ticked (decision-gating acknowledgment). Unlisted caveats are stored as unacknowledged.")
+    .option("--require-all-acknowledged <value>", "When `true`, refuse (`422`) to mint while any open caveat is not listed in `acknowledgedCaveatIds` — server-side ship gating.")
+    .action(async (id, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.createExperimentReadout({ client, path: { id: id }, body: clean({ kind: str(opts.kind), acknowledgedCaveatIds: json(opts.acknowledgedCaveatIds), requireAllAcknowledged: bool(opts.requireAllAcknowledged) }) }) });
+    });
+  g_release_experiments.command("readout-get")
+    .description("Get a readout snapshot")
+    .argument("<id>", "Stable opaque experiment id (`exp_…`) or the experiment's `name`.")
+    .argument("<readoutId>", "Readout snapshot id, as returned by `createExperimentReadout`.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (id, readoutId, opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.getExperimentReadout({ client, path: { id: id, readoutId: readoutId }, body: json(opts.data) as never }) });
+    });
   g_release_flags.command("list")
     .description("List feature gates")
     .option("--limit <value>", "Page size (1–500). Defaults to 100.")
@@ -634,6 +766,13 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--owner-email <value>", "Owner contact. Displayed verbatim; not used for auth.")
     .action(async (name, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.createGate({ client, body: clean({ name: name, type: str(opts.type), enabled: bool(opts.enabled), rollout_pct: num(opts.rolloutPct), rollout_percent: num(opts.rolloutPercent), rules: json(opts.rules), salt: str(opts.salt), stack: json(opts.stack), title: str(opts.title), description: str(opts.description), folder: str(opts.folder), group: str(opts.group), owner_email: str(opts.ownerEmail) }) }) });
+    });
+  g_release_flags.command("get")
+    .description("Get one gate")
+    .argument("<id>", "Stable opaque gate id (`gat_…`) or the gate's `name`.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (id, opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.getGate({ client, path: { id: id }, body: json(opts.data) as never }) });
     });
   g_release_flags.command("update")
     .description("Update a feature gate")
@@ -672,6 +811,14 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--data <value>", "Request body as a JSON object.")
     .action(async (id, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.disableGate({ client, path: { id: id }, body: json(opts.data) as never }) });
+    });
+  g_release_flags.command("activity")
+    .description("List gate activity")
+    .argument("<id>", "Stable opaque gate id (`gat_…`) or the gate's `name`.")
+    .option("--limit <value>", "Max rows to return (1–100). Defaults to 20.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (id, opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.listGateActivity({ client, path: { id: id }, query: clean({ limit: num(opts.limit) }), body: json(opts.data) as never }) });
     });
   g_release_killswitch.command("list")
     .description("List killswitches")

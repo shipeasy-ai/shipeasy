@@ -505,7 +505,7 @@
       **Use case:** Read what a previous agent run already found before starting
       your own investigation of the item.
     tags:
-      - Ops
+      - Investigations
     parameters:
       - $ref: ../components/parameters.yaml#/ProjectId
       - name: handle
@@ -536,6 +536,10 @@
       - UNAUTHORIZED
       - FORBIDDEN
       - NOT_FOUND
+    x-cli:
+      name: list
+      positional:
+        - handle
   post:
     operationId: createOpsInvestigation
     summary: Record an investigation
@@ -551,7 +555,7 @@
       markdown findings, sources inspected, confidence) so the team — and the
       next agent run — sees what you learned.
     tags:
-      - Ops
+      - Investigations
     parameters:
       - $ref: ../components/parameters.yaml#/ProjectId
       - name: handle
@@ -609,6 +613,85 @@
       - FORBIDDEN
       - NOT_FOUND
       - VALIDATION
+    x-cli:
+      name: create
+      positional:
+        - handle
+/api/admin/ops/{handle}/investigation/{investigationId}:
+  patch:
+    operationId: updateOpsInvestigation
+    summary: Update an investigation record
+    description: |-
+      Update one existing investigation record in place — the write-back seam for
+      the `working` run record you were handed when a run was launched. Fill in
+      the `summary`/`findings`, attach the fixing PR, record your `confidence`
+      and the `sources` you inspected, or flip its `kind` off `working` once the
+      investigation is done. A partial patch: send only the fields you want to
+      change. Safe for restricted ops keys (it never reads or deletes).
+
+      **Use case:** A run started with an empty `working` record; as you work,
+      PATCH it with your findings so the cockpit's detail panel fills in live —
+      no need to append a second record.
+    tags:
+      - Investigations
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: handle
+        in: path
+        required: true
+        description: Per-project item number (e.g. `7`) or the full ops item id.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+      - name: investigationId
+        in: path
+        required: true
+        description: The investigation record id (from `POST`/`GET .../investigation` or the `runId` an ack/launch returned).
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/UpdateOpsInvestigationRequest
+          examples:
+            findings:
+              summary: Fill in the run record's findings
+              value:
+                kind: investigated
+                summary: Root cause is a stale KV read on the checkout flag.
+                findings: "The `checkout.cta` gate is rebuilt without a CDN purge, so…"
+                confidence: high
+                prNumber: 4821
+                prUrl: https://github.com/acme/web/pull/4821
+    responses:
+      "200":
+        description: The updated investigation record
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/OpsInvestigation
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: update
+      positional:
+        - handle
+        - investigationId
 /api/admin/agent-profiles:
   get:
     operationId: listOpsAgents

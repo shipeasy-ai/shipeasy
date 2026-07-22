@@ -356,6 +356,11 @@ OpsRun:
         - type: string
         - type: "null"
       description: The agent-run session id recorded on the ack (dashboard deep-links to the run page), or `null`.
+    sessionUrl:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: "The run's session-page deep link, or `null`. DERIVED (never stored): rebuilt from `sessionId` + the run's trigger connector — Claude's routine id (`?trigger=`), Copilot's repo (`/tasks/`), Cursor/Jules from the id alone."
     startedAt:
       type: string
       description: ISO-8601 timestamp the run started (the ack time).
@@ -390,6 +395,7 @@ OpsRun:
     - connectorId
     - ackedBy
     - sessionId
+    - sessionUrl
     - startedAt
     - completedAt
     - completedAction
@@ -1725,7 +1731,12 @@ OpsInvestigation:
       anyOf:
         - type: string
         - type: "null"
-      description: The agent-run session id, or `null`.
+      description: "The agent-run session id, or `null`."
+    sessionUrl:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: "The run's session-page deep link, or `null`. DERIVED (never stored): rebuilt from `sessionId` + the run's trigger connector — Claude's routine id (`?trigger=`), Copilot's repo (`/tasks/`), Cursor/Jules from the id alone. Only `working` run records carry one."
     ackedBy:
       anyOf:
         - type: string
@@ -1768,6 +1779,7 @@ OpsInvestigation:
     - startedAt
     - completedAt
     - sessionId
+    - sessionUrl
     - ackedBy
     - completedAction
     - createdAt
@@ -1884,6 +1896,94 @@ CreateOpsInvestigationRequest:
     - kind
   additionalProperties: false
   description: "Body for `POST /api/admin/ops/{handle}/investigation`. `kind` is required; include at least one content field (`summary`/`findings`/`question`/`qaNotes`) — the panel renders whatever it gets."
+UpdateOpsInvestigationRequest:
+  type: object
+  properties:
+    kind:
+      type: string
+      enum:
+        - investigated
+        - detected
+        - question
+        - ready_for_qa
+        - working
+        - note
+      description: Reclassify the record's lifecycle stage (e.g. flip a `working` run into `investigated` once findings land).
+    summary:
+      type: string
+      maxLength: 2000
+      description: One-line summary of the record.
+    findings:
+      type: string
+      maxLength: 50000
+      description: The full findings write-up (markdown).
+    question:
+      type: string
+      maxLength: 10000
+      description: A blocking question for the team (markdown).
+    qaNotes:
+      type: string
+      maxLength: 50000
+      description: How to verify the fix — QA notes (markdown).
+    model:
+      type: string
+      maxLength: 200
+      description: The model the agent ran on.
+    prNumber:
+      type: integer
+      description: A PR the record references.
+    prUrl:
+      type: string
+      format: uri
+      maxLength: 2000
+      description: HTML URL of that PR.
+    sources:
+      type: array
+      maxItems: 200
+      items:
+        type: object
+        properties:
+          path:
+            type: string
+            description: Repo-relative file path inspected.
+          url:
+            type: string
+            description: External link consulted.
+          label:
+            type: string
+            description: Human-readable label for the source.
+        additionalProperties: false
+        description: One file/link inspected while producing the record.
+      description: The files/links inspected.
+    confidence:
+      type: string
+      enum:
+        - low
+        - medium
+        - high
+      description: Self-reported confidence in the record.
+    tokensUsed:
+      type: integer
+      description: Tokens the run consumed.
+    durationMs:
+      type: integer
+      description: Run duration in milliseconds.
+    visibility:
+      type: string
+      enum:
+        - draft
+        - published
+      description: Record visibility. `draft` keeps it out of the panel; `published` surfaces it.
+    completedAt:
+      type: string
+      description: ISO-8601 timestamp the work finished. Set it (or flip `kind` off `working`) to mark a run record done.
+    sessionId:
+      type: string
+      maxLength: 300
+      description: The agent-run session id, so the dashboard can deep-link to the run.
+  additionalProperties: false
+  minProperties: 1
+  description: "Body for `PATCH /api/admin/ops/{handle}/investigation/{investigationId}` — a partial update of one existing investigation record (typically the `working` run record you were handed). Send only the fields you want to change; at least one is required."
 NotificationFeedItem:
   type: object
   properties:

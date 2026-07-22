@@ -315,6 +315,56 @@ shipeasy metrics archive [options] <id>
 | --- | --- | --- |
 | `--data <value>` | optional | Request body as a JSON object. |
 
+### `shipeasy metrics experiments`
+
+List experiments using a metric
+
+```bash
+shipeasy metrics experiments [options] <id>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `id` | required | Stable opaque metric id (`met_…`) or the metric's `name`. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+### `shipeasy metrics unarchive`
+
+Unarchive a metric
+
+```bash
+shipeasy metrics unarchive [options] <id>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `id` | required | Stable opaque metric id (`met_…`) or the metric's `name`. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+### `shipeasy metrics series`
+
+Get a metric's time series
+
+```bash
+shipeasy metrics series [options] <id>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `id` | required | Stable opaque metric id (`met_…`). |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--from <value>` | optional | Window start, epoch seconds (inclusive). |
+| `--to <value>` | optional | Window end, epoch seconds (exclusive). Must be greater than `from`. |
+| `--bucket <value>` | optional | Bucket width in seconds (60s–86400s/1d). Defaults to `3600` (hourly). Each returned point is floor-aligned to this width. |
+
 ### `shipeasy metrics grammar`
 
 Print the metric query DSL grammar
@@ -482,6 +532,133 @@ shipeasy ops comments create [options] <handle>
 | `--body <value>` | optional | The comment body as markdown. Mentions (`@teammate`, `@shipeasy`) are parsed from it. |
 | `--parent-id <value>` | optional | Reply under this top-level comment. Omit / `null` for a top-level comment. Replying to a reply attaches to the same top-level parent (threading is one level deep). |
 
+### `shipeasy ops fired-alerts`
+
+Fired alerts: the conditions the platform has actually raised — metric-rule crossings, armed kill switches, experiment SRM/peek guards, and guardrail breaches.
+
+```bash
+shipeasy ops fired-alerts [options] [command]
+```
+
+#### `shipeasy ops fired-alerts list`
+
+List fired alerts
+
+```bash
+shipeasy ops fired-alerts list [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--status <value>` | optional | Filter by lifecycle state. Defaults to `active` (currently firing); `all` returns every status. |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+#### `shipeasy ops fired-alerts update`
+
+Update a fired alert
+
+```bash
+shipeasy ops fired-alerts update [options] <id>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `id` | required | Stable opaque alert id (`al_…`). |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--status <value>` | optional | New lifecycle state. `resolved` / `dismissed` stamp their timestamp; `active` re-opens and clears both. |
+| `--assignee-id <value>` | optional | PERSON owner — a `users.id`, or `null` to clear the assignment. |
+| `--agent <value>` | optional | AGENT owner — a connected trigger connector's id (`connectors.id`), the built-in `"jarvis"` (Enterprise plan only — rejected with `403` otherwise), or `null` to clear. Stored in `assigneeConnectorId` or `assigneeAgent` depending on the value; the two are mutually exclusive. |
+
+### `shipeasy ops investigations`
+
+Investigation records on a queue item — the structured, read-only write-ups an AI agent produces while working it (findings / a blocking question / QA notes), plus the `working` run rows an ack or an AI hand-off opens.
+
+```bash
+shipeasy ops investigations [options] [command]
+```
+
+#### `shipeasy ops investigations list`
+
+List an item's investigation records
+
+```bash
+shipeasy ops investigations list [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+#### `shipeasy ops investigations create`
+
+Record an investigation
+
+```bash
+shipeasy ops investigations create [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--kind <value>` | optional | Which lifecycle stage the record documents. |
+| `--summary <value>` | optional | One-line summary of the record. |
+| `--findings <value>` | optional | The full findings write-up (markdown). |
+| `--question <value>` | optional | A blocking question for the team (markdown). |
+| `--qa-notes <value>` | optional | How to verify the fix — QA notes (markdown). |
+| `--agent <value>` | optional | The agent type producing the record — pass your own type when you are a coding agent. |
+| `--model <value>` | optional | The model the agent ran on. |
+| `--connector-id <value>` | optional | The trigger-connector row id the agent ran through. |
+| `--pr-number <value>` | optional | A PR the record references. |
+| `--pr-url <value>` | optional | HTML URL of that PR. |
+| `--sources <value>` | optional | The files/links inspected. |
+| `--confidence <value>` | optional | Self-reported confidence in the record. |
+| `--tokens-used <value>` | optional | Tokens the run consumed. |
+| `--duration-ms <value>` | optional | Run duration in milliseconds. |
+| `--visibility <value>` | optional | Record visibility. Defaults to `published`; `draft` keeps it out of the panel. |
+| `--started-at <value>` | optional | ISO-8601 timestamp the work started. |
+| `--completed-at <value>` | optional | ISO-8601 timestamp the work finished. |
+| `--session-id <value>` | optional | The agent-run session id, so the dashboard can deep-link to the run. |
+
+#### `shipeasy ops investigations update`
+
+Update an investigation record
+
+```bash
+shipeasy ops investigations update [options] <handle> <investigationId>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
+| `investigationId` | required | The investigation record id (from `POST`/`GET .../investigation` or the `runId` an ack/launch returned). |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--kind <value>` | optional | Reclassify the record's lifecycle stage (e.g. flip a `working` run into `investigated` once findings land). |
+| `--summary <value>` | optional | One-line summary of the record. |
+| `--findings <value>` | optional | The full findings write-up (markdown). |
+| `--question <value>` | optional | A blocking question for the team (markdown). |
+| `--qa-notes <value>` | optional | How to verify the fix — QA notes (markdown). |
+| `--model <value>` | optional | The model the agent ran on. |
+| `--pr-number <value>` | optional | A PR the record references. |
+| `--pr-url <value>` | optional | HTML URL of that PR. |
+| `--sources <value>` | optional | The files/links inspected. |
+| `--confidence <value>` | optional | Self-reported confidence in the record. |
+| `--tokens-used <value>` | optional | Tokens the run consumed. |
+| `--duration-ms <value>` | optional | Run duration in milliseconds. |
+| `--visibility <value>` | optional | Record visibility. `draft` keeps it out of the panel; `published` surfaces it. |
+| `--completed-at <value>` | optional | ISO-8601 timestamp the work finished. Set it (or flip `kind` off `working`) to mark a run record done. |
+| `--session-id <value>` | optional | The agent-run session id, so the dashboard can deep-link to the run. |
+
 ### `shipeasy ops trigger`
 
 Recurring coding-agent triggers: the scheduled, unattended runs that burn down the ops queue in `--pr` mode (one PR per fixed item; nothing auto-merges).
@@ -617,6 +794,7 @@ shipeasy ops list [options]
 | `--type <value>` | optional | Filter by item type (`bug`/`feature_request`/`error`/`alert`), or `all`. |
 | `--status <value>` | optional | Filter by lifecycle status, or `all`. The human-gated holding states (`pending_approval`, `triage`) are excluded from `all`/default and returned only when requested as the exact status. |
 | `--limit <value>` | optional | Max items to return (1–500). |
+| `--owner <value>` | optional | Narrow to items owned by one person OR one agent. Matches a person by `users.id`, email, or display name, and an agent by connector id, display name, or kebab-case handle — e.g. `owner=Claude` or `owner=alice@acme.dev`. Case-insensitive exact match, applied over the returned page. |
 | `--data <value>` | optional | Request body as a JSON object. |
 
 ### `shipeasy ops create`
@@ -638,6 +816,10 @@ shipeasy ops create [options] <title>
 | `--actual-result <value>` | optional | What actually happened. |
 | `--expected-result <value>` | optional | What was expected instead. |
 | `--priority <value>` | optional | Initial triage priority, or `null`. |
+| `--status <value>` | optional | Initial lifecycle status; defaults to `open` when omitted. |
+| `--assignee-id <value>` | optional | The `users.id` of the person to assign as owner at creation, or `null`. |
+| `--subscribers <value>` | optional | Emails of teammates to subscribe to this item's Slack pings at creation. |
+| `--tags <value>` | optional | Tag names to attach at creation (get-or-created by name, deduped case-insensitively). |
 | `--reporter-email <value>` | optional | Email of the reporter, or `null`. |
 | `--page-url <value>` | optional | URL of the page the bug relates to, or `null`. |
 | `--user-agent <value>` | optional | Reporter's user-agent string, or `null`. |
@@ -665,6 +847,10 @@ shipeasy ops bug [options] <title>
 | `--actual-result <value>` | optional | What actually happened. |
 | `--expected-result <value>` | optional | What was expected instead. |
 | `--priority <value>` | optional | Initial triage priority, or `null`. |
+| `--status <value>` | optional | Initial lifecycle status; defaults to `open` when omitted. |
+| `--assignee-id <value>` | optional | The `users.id` of the person to assign as owner at creation, or `null`. |
+| `--subscribers <value>` | optional | Emails of teammates to subscribe to this item's Slack pings at creation. |
+| `--tags <value>` | optional | Tag names to attach at creation (get-or-created by name, deduped case-insensitively). |
 | `--reporter-email <value>` | optional | Email of the reporter, or `null`. |
 | `--page-url <value>` | optional | URL of the page the bug relates to, or `null`. |
 | `--user-agent <value>` | optional | Reporter's user-agent string, or `null`. |
@@ -689,6 +875,10 @@ shipeasy ops feature [options] <title>
 | `--description <value>` | optional | What the feature is. |
 | `--use-case <value>` | optional | Why it's needed / the use case. |
 | `--priority <value>` | optional | Initial triage priority, or `null`. |
+| `--status <value>` | optional | Initial lifecycle status; defaults to `open` when omitted. |
+| `--assignee-id <value>` | optional | The `users.id` of the person to assign as owner at creation, or `null`. |
+| `--subscribers <value>` | optional | Emails of teammates to subscribe to this item's Slack pings at creation. |
+| `--tags <value>` | optional | Tag names to attach at creation (get-or-created by name, deduped case-insensitively). |
 | `--reporter-email <value>` | optional | Email of the reporter, or `null`. |
 | `--page-url <value>` | optional | URL of the page the request relates to, or `null`. |
 | `--user-agent <value>` | optional | Reporter's user-agent string, or `null`. |
@@ -1046,6 +1236,23 @@ shipeasy release configs update-schema [options] <id>
 | --- | --- | --- |
 | `--schema <value>` | optional | Replacement JSON Schema (draft 2020-12). Validated against every published value before it lands. |
 
+#### `shipeasy release configs versions`
+
+List config version history
+
+```bash
+shipeasy release configs versions [options] <id>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `id` | required | Stable opaque config id (`cfg_…`) or the config's `name`. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--env <value>` | optional | Environment to list history for (`dev`, `staging`, or `prod`). Defaults to `prod` when omitted. |
+| `--data <value>` | optional | Request body as a JSON object. |
+
 ### `shipeasy release experiments`
 
 A/B/n experiments: randomised group assignment plus the analysis pipeline (t-test, sequential testing, SRM detection) on top of a universe.
@@ -1358,6 +1565,41 @@ shipeasy release experiments reanalyze [options] <id>
 | --- | --- | --- |
 | `--data <value>` | optional | Request body as a JSON object. |
 
+#### `shipeasy release experiments readout-create`
+
+Mint a readout snapshot
+
+```bash
+shipeasy release experiments readout-create [options] <id>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `id` | required | Stable opaque experiment id (`exp_…`) or the experiment's `name`. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--kind <value>` | optional | Why the snapshot is being minted — `manual` ("Share readout"), or automatically on `ship` / `stop`. |
+| `--acknowledged-caveat-ids <value>` | optional | Ids of the open caveats the caller ticked (decision-gating acknowledgment). Unlisted caveats are stored as unacknowledged. |
+| `--require-all-acknowledged <value>` | optional | When `true`, refuse (`422`) to mint while any open caveat is not listed in `acknowledgedCaveatIds` — server-side ship gating. |
+
+#### `shipeasy release experiments readout-get`
+
+Get a readout snapshot
+
+```bash
+shipeasy release experiments readout-get [options] <id> <readoutId>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `id` | required | Stable opaque experiment id (`exp_…`) or the experiment's `name`. |
+| `readoutId` | required | Readout snapshot id, as returned by `createExperimentReadout`. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
 ### `shipeasy release flags`
 
 Feature gates: boolean flags evaluated at runtime against project rules + a percentage rollout.
@@ -1596,6 +1838,22 @@ shipeasy release flags create [options] <name>
 | `--group <value>` | optional | Group label for dashboard organisation (e.g. team or product area). |
 | `--owner-email <value>` | optional | Owner contact. Displayed verbatim; not used for auth. |
 
+#### `shipeasy release flags get`
+
+Get one gate
+
+```bash
+shipeasy release flags get [options] <id>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `id` | required | Stable opaque gate id (`gat_…`) or the gate's `name`. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
 #### `shipeasy release flags update`
 
 Update a feature gate
@@ -1668,6 +1926,23 @@ shipeasy release flags disable [options] <id>
 
 | Option | | Description |
 | --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+#### `shipeasy release flags activity`
+
+List gate activity
+
+```bash
+shipeasy release flags activity [options] <id>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `id` | required | Stable opaque gate id (`gat_…`) or the gate's `name`. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--limit <value>` | optional | Max rows to return (1–100). Defaults to 20. |
 | `--data <value>` | optional | Request body as a JSON object. |
 
 ### `shipeasy release killswitch`

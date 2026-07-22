@@ -207,6 +207,15 @@ tags:
       **Mentions.** `@teammate` in a body raises an in-app notification for that
       person; `@shipeasy` asks Jarvis (the AI agent) to read the item and reply.
       Comments authored by Jarvis carry `authorType: system`.
+  - name: Investigations
+    parent: Ops
+    description: |-
+      Investigation records on a queue item — the structured, read-only write-ups
+      an AI agent produces while working it (findings / a blocking question / QA
+      notes), plus the `working` run rows an ack or an AI hand-off opens. This is
+      the AI-write seam the cockpit's detail panel renders: `list` reads what a
+      previous run found, `create` appends a new record, and `update` fills in the
+      `working` run record you were handed (findings, PR, confidence) as you work.
   - name: Projects
     description: |-
       Projects: the account-level container every other resource is scoped to.
@@ -5531,7 +5540,7 @@ paths:
         **Use case:** Read what a previous agent run already found before starting
         your own investigation of the item.
       tags:
-        - Ops
+        - Investigations
       parameters:
         - $ref: '#/components/parameters/ProjectId'
         - name: handle
@@ -5562,6 +5571,10 @@ paths:
         - UNAUTHORIZED
         - FORBIDDEN
         - NOT_FOUND
+      x-cli:
+        name: list
+        positional:
+          - handle
     post:
       operationId: createOpsInvestigation
       summary: Record an investigation
@@ -5577,7 +5590,7 @@ paths:
         markdown findings, sources inspected, confidence) so the team — and the
         next agent run — sees what you learned.
       tags:
-        - Ops
+        - Investigations
       parameters:
         - $ref: '#/components/parameters/ProjectId'
         - name: handle
@@ -5635,6 +5648,85 @@ paths:
         - FORBIDDEN
         - NOT_FOUND
         - VALIDATION
+      x-cli:
+        name: create
+        positional:
+          - handle
+  /api/admin/ops/{handle}/investigation/{investigationId}:
+    patch:
+      operationId: updateOpsInvestigation
+      summary: Update an investigation record
+      description: |-
+        Update one existing investigation record in place — the write-back seam for
+        the `working` run record you were handed when a run was launched. Fill in
+        the `summary`/`findings`, attach the fixing PR, record your `confidence`
+        and the `sources` you inspected, or flip its `kind` off `working` once the
+        investigation is done. A partial patch: send only the fields you want to
+        change. Safe for restricted ops keys (it never reads or deletes).
+
+        **Use case:** A run started with an empty `working` record; as you work,
+        PATCH it with your findings so the cockpit's detail panel fills in live —
+        no need to append a second record.
+      tags:
+        - Investigations
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: handle
+          in: path
+          required: true
+          description: Per-project item number (e.g. `7`) or the full ops item id.
+          schema:
+            $ref: '#/components/schemas/ResourceId'
+        - name: investigationId
+          in: path
+          required: true
+          description: The investigation record id (from `POST`/`GET .../investigation` or the `runId` an ack/launch returned).
+          schema:
+            $ref: '#/components/schemas/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOpsInvestigationRequest'
+            examples:
+              findings:
+                summary: Fill in the run record's findings
+                value:
+                  kind: investigated
+                  summary: Root cause is a stale KV read on the checkout flag.
+                  findings: The `checkout.cta` gate is rebuilt without a CDN purge, so…
+                  confidence: high
+                  prNumber: 4821
+                  prUrl: https://github.com/acme/web/pull/4821
+      responses:
+        '200':
+          description: The updated investigation record
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpsInvestigation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+        - VALIDATION
+      x-cli:
+        name: update
+        positional:
+          - handle
+          - investigationId
   /api/admin/agent-profiles:
     get:
       operationId: listOpsAgents
@@ -14364,6 +14456,11 @@ components:
             - type: string
             - type: 'null'
           description: The agent-run session id recorded on the ack (dashboard deep-links to the run page), or `null`.
+        sessionUrl:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: 'The run''s session-page deep link, or `null`. DERIVED (never stored): rebuilt from `sessionId` + the run''s trigger connector — Claude''s routine id (`?trigger=`), Copilot''s repo (`/tasks/`), Cursor/Jules from the id alone.'
         startedAt:
           type: string
           description: ISO-8601 timestamp the run started (the ack time).
@@ -14398,6 +14495,7 @@ components:
         - connectorId
         - ackedBy
         - sessionId
+        - sessionUrl
         - startedAt
         - completedAt
         - completedAction
@@ -15263,6 +15361,11 @@ components:
             - type: string
             - type: 'null'
           description: The agent-run session id, or `null`.
+        sessionUrl:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: 'The run''s session-page deep link, or `null`. DERIVED (never stored): rebuilt from `sessionId` + the run''s trigger connector — Claude''s routine id (`?trigger=`), Copilot''s repo (`/tasks/`), Cursor/Jules from the id alone. Only `working` run records carry one.'
         ackedBy:
           anyOf:
             - type: string
@@ -15305,6 +15408,7 @@ components:
         - startedAt
         - completedAt
         - sessionId
+        - sessionUrl
         - ackedBy
         - completedAction
         - createdAt
@@ -15421,6 +15525,94 @@ components:
         - kind
       additionalProperties: false
       description: Body for `POST /api/admin/ops/{handle}/investigation`. `kind` is required; include at least one content field (`summary`/`findings`/`question`/`qaNotes`) — the panel renders whatever it gets.
+    UpdateOpsInvestigationRequest:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum:
+            - investigated
+            - detected
+            - question
+            - ready_for_qa
+            - working
+            - note
+          description: Reclassify the record's lifecycle stage (e.g. flip a `working` run into `investigated` once findings land).
+        summary:
+          type: string
+          maxLength: 2000
+          description: One-line summary of the record.
+        findings:
+          type: string
+          maxLength: 50000
+          description: The full findings write-up (markdown).
+        question:
+          type: string
+          maxLength: 10000
+          description: A blocking question for the team (markdown).
+        qaNotes:
+          type: string
+          maxLength: 50000
+          description: How to verify the fix — QA notes (markdown).
+        model:
+          type: string
+          maxLength: 200
+          description: The model the agent ran on.
+        prNumber:
+          type: integer
+          description: A PR the record references.
+        prUrl:
+          type: string
+          format: uri
+          maxLength: 2000
+          description: HTML URL of that PR.
+        sources:
+          type: array
+          maxItems: 200
+          items:
+            type: object
+            properties:
+              path:
+                type: string
+                description: Repo-relative file path inspected.
+              url:
+                type: string
+                description: External link consulted.
+              label:
+                type: string
+                description: Human-readable label for the source.
+            additionalProperties: false
+            description: One file/link inspected while producing the record.
+          description: The files/links inspected.
+        confidence:
+          type: string
+          enum:
+            - low
+            - medium
+            - high
+          description: Self-reported confidence in the record.
+        tokensUsed:
+          type: integer
+          description: Tokens the run consumed.
+        durationMs:
+          type: integer
+          description: Run duration in milliseconds.
+        visibility:
+          type: string
+          enum:
+            - draft
+            - published
+          description: Record visibility. `draft` keeps it out of the panel; `published` surfaces it.
+        completedAt:
+          type: string
+          description: ISO-8601 timestamp the work finished. Set it (or flip `kind` off `working`) to mark a run record done.
+        sessionId:
+          type: string
+          maxLength: 300
+          description: The agent-run session id, so the dashboard can deep-link to the run.
+      additionalProperties: false
+      minProperties: 1
+      description: Body for `PATCH /api/admin/ops/{handle}/investigation/{investigationId}` — a partial update of one existing investigation record (typically the `working` run record you were handed). Send only the fields you want to change; at least one is required.
     OpsAgentProfile:
       type: object
       properties:

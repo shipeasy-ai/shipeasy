@@ -2053,6 +2053,7 @@ export const zOpsRun = z.object({
     connectorId: z.string().nullable(),
     ackedBy: z.string().nullable(),
     sessionId: z.string().nullable(),
+    sessionUrl: z.string().nullable(),
     startedAt: z.string(),
     completedAt: z.string().nullable(),
     completedAction: z.enum([
@@ -2382,6 +2383,7 @@ export const zOpsInvestigation = z.object({
     startedAt: z.string().nullable(),
     completedAt: z.string().nullable(),
     sessionId: z.string().nullable(),
+    sessionUrl: z.string().nullable(),
     ackedBy: z.string().nullable(),
     completedAction: z.enum([
         'link_pr',
@@ -2439,6 +2441,42 @@ export const zCreateOpsInvestigationRequest = z.object({
     durationMs: z.int().optional(),
     visibility: z.enum(['draft', 'published']).optional(),
     startedAt: z.string().optional(),
+    completedAt: z.string().optional(),
+    sessionId: z.string().max(300).optional()
+});
+
+/**
+ * Body for `PATCH /api/admin/ops/{handle}/investigation/{investigationId}` — a partial update of one existing investigation record (typically the `working` run record you were handed). Send only the fields you want to change; at least one is required.
+ */
+export const zUpdateOpsInvestigationRequest = z.object({
+    kind: z.enum([
+        'investigated',
+        'detected',
+        'question',
+        'ready_for_qa',
+        'working',
+        'note'
+    ]).optional(),
+    summary: z.string().max(2000).optional(),
+    findings: z.string().max(50000).optional(),
+    question: z.string().max(10000).optional(),
+    qaNotes: z.string().max(50000).optional(),
+    model: z.string().max(200).optional(),
+    prNumber: z.int().optional(),
+    prUrl: z.url().max(2000).optional(),
+    sources: z.array(z.object({
+        path: z.string().optional(),
+        url: z.string().optional(),
+        label: z.string().optional()
+    })).max(200).optional(),
+    confidence: z.enum([
+        'low',
+        'medium',
+        'high'
+    ]).optional(),
+    tokensUsed: z.int().optional(),
+    durationMs: z.int().optional(),
+    visibility: z.enum(['draft', 'published']).optional(),
     completedAt: z.string().optional(),
     sessionId: z.string().max(300).optional()
 });
@@ -4643,6 +4681,22 @@ export const zCreateOpsInvestigationPath = z.object({
  * Record an investigation
  */
 export const zCreateOpsInvestigationResponse = zOpsInvestigation;
+
+export const zUpdateOpsInvestigationBody = zUpdateOpsInvestigationRequest;
+
+export const zUpdateOpsInvestigationHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zUpdateOpsInvestigationPath = z.object({
+    handle: zResourceId,
+    investigationId: zResourceId
+});
+
+/**
+ * The updated investigation record
+ */
+export const zUpdateOpsInvestigationResponse = zOpsInvestigation;
 
 export const zListOpsAgentsHeaders = z.object({
     'X-Project-Id': z.string().optional()

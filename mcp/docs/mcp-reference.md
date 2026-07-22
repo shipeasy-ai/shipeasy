@@ -2473,6 +2473,126 @@ _Errors_ — beyond the [common errors](#errors):
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 
+### Investigations
+
+Investigation records on a queue item — the structured, read-only write-ups
+an AI agent produces while working it (findings / a blocking question / QA
+notes), plus the `working` run rows an ack or an AI hand-off opens. This is
+the AI-write seam the cockpit's detail panel renders: `list` reads what a
+previous run found, `create` appends a new record, and `update` fills in the
+`working` run record you were handed (findings, PR, confidence) as you work.
+
+#### `ops_investigations_create`
+
+**Record an investigation**
+
+Append one structured investigation record to a queue item — the AI-write
+seam the cockpit's detail panel renders read-only. Post your findings
+(`kind: investigated`), a blocking question for the team (`kind: question`), or how to verify the fix (`kind: ready_for_qa` with
+`qaNotes`). Append-only and create-only, so it is safe for restricted ops
+keys.
+
+**Use case:** After working an item, leave a findings write-up (summary,
+markdown findings, sources inspected, confidence) so the team — and the
+next agent run — sees what you learned.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `kind` | required | `"investigated" \| "detected" \| "question" \| "ready_for_qa" \| "working" \| "note"` | Which lifecycle stage the record documents. |
+| `summary` | optional | `string` | One-line summary of the record. _(length 0–2000)_ |
+| `findings` | optional | `string` | The full findings write-up (markdown). _(length 0–50000)_ |
+| `question` | optional | `string` | A blocking question for the team (markdown). _(length 0–10000)_ |
+| `qaNotes` | optional | `string` | How to verify the fix — QA notes (markdown). _(length 0–50000)_ |
+| `agent` | optional | `"jarvis" \| "claude" \| "cursor" \| "copilot" \| "jules"` | The agent type producing the record — pass your own type when you are a coding agent. |
+| `model` | optional | `string` | The model the agent ran on. _(length 0–200)_ |
+| `connectorId` | optional | `string` | The trigger-connector row id the agent ran through. _(length 0–200)_ |
+| `prNumber` | optional | `integer` | A PR the record references. |
+| `prUrl` | optional | `string` | HTML URL of that PR. _(length 0–2000; format: uri)_ |
+| `sources` | optional | `object[]` | The files/links inspected. |
+| `confidence` | optional | `"low" \| "medium" \| "high"` | Self-reported confidence in the record. |
+| `tokensUsed` | optional | `integer` | Tokens the run consumed. |
+| `durationMs` | optional | `integer` | Run duration in milliseconds. |
+| `visibility` | optional | `"draft" \| "published"` | Record visibility. Defaults to `published`; `draft` keeps it out of the panel. |
+| `startedAt` | optional | `string` | ISO-8601 timestamp the work started. |
+| `completedAt` | optional | `string` | ISO-8601 timestamp the work finished. |
+| `sessionId` | optional | `string` | The agent-run session id, so the dashboard can deep-link to the run. _(length 0–300)_ |
+| `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `ops_investigations_list` call. It proves you listed existing ops investigations and confirmed this one doesn't already exist before creating it. Call `ops_investigations_list` first if you don't have a fresh token. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+#### `ops_investigations_list`
+
+**List an item's investigation records**
+
+The structured, read-only investigation records on a queue item — the
+findings / blocking questions / QA notes an AI agent posted while working
+it, plus its `working` run rows. Returns `published` records only, newest
+first (max 50).
+
+**Use case:** Read what a previous agent run already found before starting
+your own investigation of the item.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
+#### `ops_investigations_update`
+
+**Update an investigation record**
+
+Update one existing investigation record in place — the write-back seam for
+the `working` run record you were handed when a run was launched. Fill in
+the `summary`/`findings`, attach the fixing PR, record your `confidence`
+and the `sources` you inspected, or flip its `kind` off `working` once the
+investigation is done. A partial patch: send only the fields you want to
+change. Safe for restricted ops keys (it never reads or deletes).
+
+**Use case:** A run started with an empty `working` record; as you work,
+PATCH it with your findings so the cockpit's detail panel fills in live —
+no need to append a second record.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `investigationId` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `kind` | optional | `"investigated" \| "detected" \| "question" \| "ready_for_qa" \| "working" \| "note"` | Reclassify the record's lifecycle stage (e.g. flip a `working` run into `investigated` once findings land). |
+| `summary` | optional | `string` | One-line summary of the record. _(length 0–2000)_ |
+| `findings` | optional | `string` | The full findings write-up (markdown). _(length 0–50000)_ |
+| `question` | optional | `string` | A blocking question for the team (markdown). _(length 0–10000)_ |
+| `qaNotes` | optional | `string` | How to verify the fix — QA notes (markdown). _(length 0–50000)_ |
+| `model` | optional | `string` | The model the agent ran on. _(length 0–200)_ |
+| `prNumber` | optional | `integer` | A PR the record references. |
+| `prUrl` | optional | `string` | HTML URL of that PR. _(length 0–2000; format: uri)_ |
+| `sources` | optional | `object[]` | The files/links inspected. |
+| `confidence` | optional | `"low" \| "medium" \| "high"` | Self-reported confidence in the record. |
+| `tokensUsed` | optional | `integer` | Tokens the run consumed. |
+| `durationMs` | optional | `integer` | Run duration in milliseconds. |
+| `visibility` | optional | `"draft" \| "published"` | Record visibility. `draft` keeps it out of the panel; `published` surfaces it. |
+| `completedAt` | optional | `string` | ISO-8601 timestamp the work finished. Set it (or flip `kind` off `working`) to mark a run record done. |
+| `sessionId` | optional | `string` | The agent-run session id, so the dashboard can deep-link to the run. _(length 0–300)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
 ### Trigger
 
 Recurring coding-agent triggers: the scheduled, unattended runs that burn
