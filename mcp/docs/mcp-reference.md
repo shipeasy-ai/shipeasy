@@ -1645,7 +1645,7 @@ _Errors_ — beyond the [common errors](#errors):
 
 **Print the metric query DSL grammar**
 
-Print the full metric query DSL reference — grammar, aggregation semantics, filter/group-by rules, and glossed examples — used to author `metrics create --query`.
+Print the full metric query DSL reference — grammar, aggregation semantics, filter/group-by/ratio rules, and glossed examples — used to author `metrics create --query`.
 
 _Parameters_
 
