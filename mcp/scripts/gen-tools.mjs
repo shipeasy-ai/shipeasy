@@ -162,6 +162,22 @@ for (const [, item] of Object.entries(spec.paths)) {
       const name = [...segs, ...nameParts].join("_").replace(/-/g, "_");
       if (OVERRIDDEN.has(name)) continue;
       const mutates = !op.operationId.startsWith("list") && !op.operationId.startsWith("get");
+      // MCP tool annotations — let clients (Claude, etc.) bucket read-only vs
+      // write vs destructive tools instead of dumping everything into "other".
+      // Derived from the HTTP method + x-cli verb: GET/list/get = read-only; the
+      // canonical destructive verb is `archive` (a soft-delete on the `delete`
+      // method — the spec forbids a hard `delete`).
+      const destructive = method === "delete" || String(v.name) === "archive";
+      // Human display name, e.g. `release_flags_create` → "Release Flags Create".
+      const title = name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+      const annotations = !mutates
+        ? { title, readOnlyHint: true }
+        : {
+            title,
+            readOnlyHint: false,
+            destructiveHint: destructive,
+            idempotentHint: method === "put" || method === "patch" || method === "delete",
+          };
 
       // ── inputSchema ──
       const properties = {};
@@ -206,6 +222,7 @@ for (const [, item] of Object.entries(spec.paths)) {
       const tool = {
         name,
         mutates,
+        annotations,
         description: toolDesc(v.summary, op),
         inputSchema: { type: "object", properties, required },
         call,
@@ -216,7 +233,14 @@ for (const [, item] of Object.entries(spec.paths)) {
       // extra tool with the same schema/dispatch under a flat name. Single-verb
       // ops only — synthetic-verb ops never carry one.
       if (xcli.topLevelAlias && !xcli.commands && !OVERRIDDEN.has(xcli.topLevelAlias)) {
-        tools.push({ ...tool, name: xcli.topLevelAlias });
+        const aliasTitle = xcli.topLevelAlias
+          .replace(/_/g, " ")
+          .replace(/\b\w/g, (c) => c.toUpperCase());
+        tools.push({
+          ...tool,
+          name: xcli.topLevelAlias,
+          annotations: { ...tool.annotations, title: aliasTitle },
+        });
       }
     }
   }
@@ -240,6 +264,7 @@ for (const t of tools) {
   lines.push(`    name: ${q(t.name)},`);
   lines.push(`    description: ${q(t.description)},`);
   lines.push(`    inputSchema: ${JSON.stringify(t.inputSchema)},`);
+  lines.push(`    annotations: ${JSON.stringify(t.annotations)},`);
   lines.push(`  },`);
 }
 lines.push("];");

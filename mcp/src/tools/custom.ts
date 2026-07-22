@@ -26,15 +26,25 @@ function paramSchema(p: CustomParam): Record<string, unknown> {
   return schema;
 }
 
-export const CUSTOM_TOOLS: Tool[] = customOperations.map((op) => ({
-  name: customToolName(op),
-  description: op.description ? `${op.summary}. ${firstLine(op.description)}` : op.summary,
-  inputSchema: {
-    type: "object",
-    properties: Object.fromEntries(op.params.map((p) => [p.name, paramSchema(p)])),
-    required: op.params.filter((p) => p.required).map((p) => p.name),
-  },
-}));
+/** `metrics_grammar` → "Metrics Grammar" — human display name for MCP clients. */
+const toolTitle = (name: string): string =>
+  name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+export const CUSTOM_TOOLS: Tool[] = customOperations.map((op) => {
+  const name = customToolName(op);
+  return {
+    name,
+    description: op.description ? `${op.summary}. ${firstLine(op.description)}` : op.summary,
+    inputSchema: {
+      type: "object",
+      properties: Object.fromEntries(op.params.map((p) => [p.name, paramSchema(p)])),
+      required: op.params.filter((p) => p.required).map((p) => p.name),
+    },
+    // Custom ops are pure / outbound-fetch only (grammar print, docs fetch) —
+    // never mutate server state, so they're all read-only.
+    annotations: { title: toolTitle(name), readOnlyHint: true },
+  };
+});
 
 /** tool name → (args) → result. No client; custom ops are auth-free. */
 export const CUSTOM_DISPATCH: Record<string, (args: Record<string, unknown>) => Promise<unknown>> =

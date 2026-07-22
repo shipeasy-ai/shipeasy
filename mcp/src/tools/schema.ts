@@ -63,23 +63,46 @@ const STATIC_TOOLS: Tool[] = [
         },
       },
     },
+    // Find-or-create: re-running with the same domain is a no-op, so idempotent
+    // and non-destructive, but it does write (.shipeasy + maybe a new project).
+    annotations: {
+      title: "Projects Upsert",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+    },
   },
   {
     name: "auth_check",
     description:
       "Report whether ~/.config/shipeasy/config.json holds a valid CLI token. Returns { authenticated, project_id, base_url, user_email }.",
     inputSchema: { type: "object", properties: {} },
+    annotations: { title: "Auth Check", readOnlyHint: true },
   },
   {
     name: "auth_login",
     description:
       "Launch the PKCE device-auth flow via `shipeasy login`. Opens a browser; blocks up to 5 minutes. Caller should render a 'waiting for browser…' spinner.",
     inputSchema: { type: "object", properties: {} },
+    // Writes the local CLI token; not destructive, but not a no-op either.
+    annotations: {
+      title: "Auth Login",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+    },
   },
   {
     name: "auth_logout",
     description: "Delete ~/.config/shipeasy/config.json. No network call.",
     inputSchema: { type: "object", properties: {} },
+    // Deletes the local CLI token.
+    annotations: {
+      title: "Auth Logout",
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+    },
   },
 ];
 
