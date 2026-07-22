@@ -1492,6 +1492,11 @@ export const zMetricDirection = z.enum([
 ]).default('higher_better');
 
 /**
+ * Display unit (e.g. `ms`, `%`, `$`), or `null` when unitless.
+ */
+export const zMetricDisplayUnit = z.string().nullable();
+
+/**
  * Create a metric, supplying the query as a `query` DSL string.
  */
 export const zCreateMetricWithQuery = z.object({
@@ -1501,7 +1506,8 @@ export const zCreateMetricWithQuery = z.object({
     query: zMetricQueryDsl,
     winsorize_pct: zMetricWinsorizePct.optional(),
     default_min_effect_of_interest: zMetricDefaultMinEffectOfInterest.optional(),
-    direction: zMetricDirection.optional()
+    direction: zMetricDirection.optional(),
+    unit: zMetricDisplayUnit.optional()
 });
 
 /**
@@ -1514,7 +1520,8 @@ export const zCreateMetricWithQueryIr = z.object({
     query_ir: zQueryIr,
     winsorize_pct: zMetricWinsorizePct.optional(),
     default_min_effect_of_interest: zMetricDefaultMinEffectOfInterest.optional(),
-    direction: zMetricDirection.optional()
+    direction: zMetricDirection.optional(),
+    unit: zMetricDisplayUnit.optional()
 });
 
 /**
@@ -1575,7 +1582,8 @@ export const zUpdateMetricWithQuery = z.object({
     query: zMetricQueryDsl,
     winsorize_pct: zMetricWinsorizePct.optional(),
     default_min_effect_of_interest: zMetricDefaultMinEffectOfInterest.optional(),
-    direction: zMetricDirection.optional()
+    direction: zMetricDirection.optional(),
+    unit: zMetricDisplayUnit.optional()
 });
 
 /**
@@ -1587,18 +1595,20 @@ export const zUpdateMetricWithQueryIr = z.object({
     query_ir: zQueryIr,
     winsorize_pct: zMetricWinsorizePct.optional(),
     default_min_effect_of_interest: zMetricDefaultMinEffectOfInterest.optional(),
-    direction: zMetricDirection.optional()
+    direction: zMetricDirection.optional(),
+    unit: zMetricDisplayUnit.optional()
 });
 
 /**
- * Update-metric variant that leaves the query untouched (metadata-only edit — folder, event, winsorisation, default minimum effect of interest, direction).
+ * Update-metric variant that leaves the query untouched (metadata-only edit — folder, event, winsorisation, default minimum effect of interest, direction, display unit).
  */
 export const zUpdateMetricFields = z.object({
     folder: zFolder.optional(),
     event_name: zMetricEventName.optional(),
     winsorize_pct: zMetricWinsorizePct.optional(),
     default_min_effect_of_interest: zMetricDefaultMinEffectOfInterest.optional(),
-    direction: zMetricDirection.optional()
+    direction: zMetricDirection.optional(),
+    unit: zMetricDisplayUnit.optional()
 });
 
 /**

@@ -487,6 +487,11 @@ MetricDirection:
     - lower_better
     - neutral
   description: Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).
+MetricDisplayUnit:
+  description: Display unit (e.g. `ms`, `%`, `$`), or `null` when unitless.
+  anyOf:
+    - type: string
+    - type: "null"
 CreateMetricRequest:
   oneOf:
     - $ref: "#/CreateMetricWithQuery"
@@ -509,6 +514,8 @@ CreateMetricWithQuery:
       $ref: "#/MetricDefaultMinEffectOfInterest"
     direction:
       $ref: "#/MetricDirection"
+    unit:
+      $ref: "#/MetricDisplayUnit"
   required:
     - name
     - event_name
@@ -532,6 +539,8 @@ CreateMetricWithQueryIr:
       $ref: "#/MetricDefaultMinEffectOfInterest"
     direction:
       $ref: "#/MetricDirection"
+    unit:
+      $ref: "#/MetricDisplayUnit"
   required:
     - name
     - event_name
@@ -559,6 +568,8 @@ UpdateMetricWithQuery:
       $ref: "#/MetricDefaultMinEffectOfInterest"
     direction:
       $ref: "#/MetricDirection"
+    unit:
+      $ref: "#/MetricDisplayUnit"
   required:
     - query
   additionalProperties: false
@@ -578,6 +589,8 @@ UpdateMetricWithQueryIr:
       $ref: "#/MetricDefaultMinEffectOfInterest"
     direction:
       $ref: "#/MetricDirection"
+    unit:
+      $ref: "#/MetricDisplayUnit"
   required:
     - query_ir
   additionalProperties: false
@@ -595,8 +608,10 @@ UpdateMetricFields:
       $ref: "#/MetricDefaultMinEffectOfInterest"
     direction:
       $ref: "#/MetricDirection"
+    unit:
+      $ref: "#/MetricDisplayUnit"
   additionalProperties: false
-  description: Update-metric variant that leaves the query untouched (metadata-only edit — folder, event, winsorisation, default minimum effect of interest, direction).
+  description: Update-metric variant that leaves the query untouched (metadata-only edit — folder, event, winsorisation, default minimum effect of interest, direction, display unit).
 CreateMetricResponse:
   type: object
   properties:

@@ -1603,6 +1603,7 @@ _Parameters_
 | `winsorize_pct` | optional | `integer` | Winsorise percentile (1–99) to clamp outliers. Defaults to 99. _(default `99`; 1–99)_ |
 | `default_min_effect_of_interest` | optional | `any` | Default minimum effect of interest (relative, 0–1) — the smallest change in this metric worth acting on, used as the power-planning baseline. Intrinsic to the metric; an experiment overrides it per-attachment with `min_effect_of_interest` when a specific decision has a different cost/risk bar. `null` to omit. _(default `null`)_ |
 | `direction` | optional | `"higher_better" \| "lower_better" \| "neutral"` | Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail). _(default `"higher_better"`)_ |
+| `unit` | optional | `any` | Display unit (e.g. `ms`, `%`, `$`), or `null` when unitless. |
 | `query_ir` | optional | `object` | Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body. |
 | `query_ir.agg` | required | `any` | Aggregation function applied to the source event. |
 | `query_ir.metric` | required | `string` | Source event name (must equal `event_name`). _(length 1–128)_ |
@@ -1751,6 +1752,7 @@ _Parameters_
 | `winsorize_pct` | optional | `integer` | Winsorise percentile (1–99) to clamp outliers. Defaults to 99. _(default `99`; 1–99)_ |
 | `default_min_effect_of_interest` | optional | `any` | Default minimum effect of interest (relative, 0–1) — the smallest change in this metric worth acting on, used as the power-planning baseline. Intrinsic to the metric; an experiment overrides it per-attachment with `min_effect_of_interest` when a specific decision has a different cost/risk bar. `null` to omit. _(default `null`)_ |
 | `direction` | optional | `"higher_better" \| "lower_better" \| "neutral"` | Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail). _(default `"higher_better"`)_ |
+| `unit` | optional | `any` | Display unit (e.g. `ms`, `%`, `$`), or `null` when unitless. |
 | `query_ir` | optional | `object` | Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body. |
 | `query_ir.agg` | required | `any` | Aggregation function applied to the source event. |
 | `query_ir.metric` | required | `string` | Source event name (must equal `event_name`). _(length 1–128)_ |

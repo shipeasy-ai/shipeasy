@@ -2772,6 +2772,11 @@ export type MetricDefaultMinEffectOfInterest = number | null;
 export type MetricDirection = 'higher_better' | 'lower_better' | 'neutral';
 
 /**
+ * Display unit (e.g. `ms`, `%`, `$`), or `null` when unitless.
+ */
+export type MetricDisplayUnit = string | null;
+
+/**
  * Create a metric, supplying the query as a `query` DSL string.
  */
 export type CreateMetricWithQuery = {
@@ -2782,6 +2787,7 @@ export type CreateMetricWithQuery = {
     winsorize_pct?: MetricWinsorizePct;
     default_min_effect_of_interest?: MetricDefaultMinEffectOfInterest;
     direction?: MetricDirection;
+    unit?: MetricDisplayUnit;
 };
 
 /**
@@ -2795,6 +2801,7 @@ export type CreateMetricWithQueryIr = {
     winsorize_pct?: MetricWinsorizePct;
     default_min_effect_of_interest?: MetricDefaultMinEffectOfInterest;
     direction?: MetricDirection;
+    unit?: MetricDisplayUnit;
 };
 
 /**
@@ -2904,6 +2911,7 @@ export type UpdateMetricWithQuery = {
     winsorize_pct?: MetricWinsorizePct;
     default_min_effect_of_interest?: MetricDefaultMinEffectOfInterest;
     direction?: MetricDirection;
+    unit?: MetricDisplayUnit;
 };
 
 /**
@@ -2916,10 +2924,11 @@ export type UpdateMetricWithQueryIr = {
     winsorize_pct?: MetricWinsorizePct;
     default_min_effect_of_interest?: MetricDefaultMinEffectOfInterest;
     direction?: MetricDirection;
+    unit?: MetricDisplayUnit;
 };
 
 /**
- * Update-metric variant that leaves the query untouched (metadata-only edit — folder, event, winsorisation, default minimum effect of interest, direction).
+ * Update-metric variant that leaves the query untouched (metadata-only edit — folder, event, winsorisation, default minimum effect of interest, direction, display unit).
  */
 export type UpdateMetricFields = {
     folder?: Folder;
@@ -2927,6 +2936,7 @@ export type UpdateMetricFields = {
     winsorize_pct?: MetricWinsorizePct;
     default_min_effect_of_interest?: MetricDefaultMinEffectOfInterest;
     direction?: MetricDirection;
+    unit?: MetricDisplayUnit;
 };
 
 /**

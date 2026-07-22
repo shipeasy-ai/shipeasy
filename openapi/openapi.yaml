@@ -13224,6 +13224,11 @@ components:
         - lower_better
         - neutral
       description: Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).
+    MetricDisplayUnit:
+      description: Display unit (e.g. `ms`, `%`, `$`), or `null` when unitless.
+      anyOf:
+        - type: string
+        - type: 'null'
     CreateMetricWithQuery:
       type: object
       properties:
@@ -13241,6 +13246,8 @@ components:
           $ref: '#/components/schemas/MetricDefaultMinEffectOfInterest'
         direction:
           $ref: '#/components/schemas/MetricDirection'
+        unit:
+          $ref: '#/components/schemas/MetricDisplayUnit'
       required:
         - name
         - event_name
@@ -13264,6 +13271,8 @@ components:
           $ref: '#/components/schemas/MetricDefaultMinEffectOfInterest'
         direction:
           $ref: '#/components/schemas/MetricDirection'
+        unit:
+          $ref: '#/components/schemas/MetricDisplayUnit'
       required:
         - name
         - event_name
@@ -13401,6 +13410,8 @@ components:
           $ref: '#/components/schemas/MetricDefaultMinEffectOfInterest'
         direction:
           $ref: '#/components/schemas/MetricDirection'
+        unit:
+          $ref: '#/components/schemas/MetricDisplayUnit'
       required:
         - query
       additionalProperties: false
@@ -13420,6 +13431,8 @@ components:
           $ref: '#/components/schemas/MetricDefaultMinEffectOfInterest'
         direction:
           $ref: '#/components/schemas/MetricDirection'
+        unit:
+          $ref: '#/components/schemas/MetricDisplayUnit'
       required:
         - query_ir
       additionalProperties: false
@@ -13437,8 +13450,10 @@ components:
           $ref: '#/components/schemas/MetricDefaultMinEffectOfInterest'
         direction:
           $ref: '#/components/schemas/MetricDirection'
+        unit:
+          $ref: '#/components/schemas/MetricDisplayUnit'
       additionalProperties: false
-      description: Update-metric variant that leaves the query untouched (metadata-only edit — folder, event, winsorisation, default minimum effect of interest, direction).
+      description: Update-metric variant that leaves the query untouched (metadata-only edit — folder, event, winsorisation, default minimum effect of interest, direction, display unit).
     UpdateMetricRequest:
       oneOf:
         - $ref: '#/components/schemas/UpdateMetricWithQuery'
