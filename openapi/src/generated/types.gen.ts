@@ -3762,6 +3762,16 @@ export type OpsItemOwner = {
 };
 
 /**
+ * The final action that closed a run record — `link_pr`/`notify` are the agent's terminal ops actions, `status` a completion status flip (ready_for_qa/resolved), `superseded` a newer ack replacing an open run.
+ */
+export type OpsRunAction = 'link_pr' | 'notify' | 'status' | 'superseded';
+
+/**
+ * Which final action closed the run, or `null` while it is open (or a non-run record).
+ */
+export type OpsRunActionOrNull = OpsRunAction | null;
+
+/**
  * One run on a queue item — who (person or AI agent) picked it up when, and, once closed, how it ended (final action + PR + session link). Opened by `POST /api/admin/ops/{handle}/ack`.
  */
 export type OpsRun = {
@@ -3797,10 +3807,7 @@ export type OpsRun = {
      * ISO-8601 timestamp the run closed, or `null` while still open.
      */
     completedAt: string | null;
-    /**
-     * Which final action closed the run — `link_pr`/`notify` are the agent's terminal ops actions, `status` a completion status flip (ready_for_qa/resolved), `superseded` a newer ack replacing it. `null` while the run is open.
-     */
-    completedAction: 'link_pr' | 'notify' | 'status' | 'superseded' | null;
+    completedAction: OpsRunActionOrNull;
     /**
      * The PR the run linked as its final action, or `null`.
      */
@@ -4522,10 +4529,7 @@ export type OpsInvestigation = {
      * Email of the human who acked (run records for a human ack), or `null`.
      */
     ackedBy: string | null;
-    /**
-     * Which final action closed a `working` run record, or `null` (open run / non-run record).
-     */
-    completedAction: 'link_pr' | 'notify' | 'status' | 'superseded' | null;
+    completedAction: OpsRunActionOrNull;
     /**
      * ISO-8601 creation timestamp.
      */

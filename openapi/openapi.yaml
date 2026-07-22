@@ -14482,6 +14482,19 @@ components:
         - agent
       additionalProperties: false
       description: 'The fully-resolved owner of a queue item — a person and/or an AI agent. The two halves are independent: an item may have a person, an agent, both, or neither (both `null`).'
+    OpsRunAction:
+      type: string
+      enum:
+        - link_pr
+        - notify
+        - status
+        - superseded
+      description: The final action that closed a run record — `link_pr`/`notify` are the agent's terminal ops actions, `status` a completion status flip (ready_for_qa/resolved), `superseded` a newer ack replacing an open run.
+    OpsRunActionOrNull:
+      anyOf:
+        - $ref: '#/components/schemas/OpsRunAction'
+        - type: 'null'
+      description: Which final action closed the run, or `null` while it is open (or a non-run record).
     OpsRun:
       type: object
       properties:
@@ -14522,15 +14535,7 @@ components:
             - type: 'null'
           description: ISO-8601 timestamp the run closed, or `null` while still open.
         completedAction:
-          anyOf:
-            - type: string
-              enum:
-                - link_pr
-                - notify
-                - status
-                - superseded
-            - type: 'null'
-          description: Which final action closed the run — `link_pr`/`notify` are the agent's terminal ops actions, `status` a completion status flip (ready_for_qa/resolved), `superseded` a newer ack replacing it. `null` while the run is open.
+          $ref: '#/components/schemas/OpsRunActionOrNull'
         prNumber:
           anyOf:
             - type: number
@@ -15424,15 +15429,7 @@ components:
             - type: 'null'
           description: Email of the human who acked (run records for a human ack), or `null`.
         completedAction:
-          anyOf:
-            - type: string
-              enum:
-                - link_pr
-                - notify
-                - status
-                - superseded
-            - type: 'null'
-          description: Which final action closed a `working` run record, or `null` (open run / non-run record).
+          $ref: '#/components/schemas/OpsRunActionOrNull'
         createdAt:
           type: string
           description: ISO-8601 creation timestamp.

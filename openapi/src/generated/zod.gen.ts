@@ -2061,6 +2061,21 @@ export const zOpsItemOwner = z.object({
 });
 
 /**
+ * The final action that closed a run record — `link_pr`/`notify` are the agent's terminal ops actions, `status` a completion status flip (ready_for_qa/resolved), `superseded` a newer ack replacing an open run.
+ */
+export const zOpsRunAction = z.enum([
+    'link_pr',
+    'notify',
+    'status',
+    'superseded'
+]);
+
+/**
+ * Which final action closed the run, or `null` while it is open (or a non-run record).
+ */
+export const zOpsRunActionOrNull = zOpsRunAction.nullable();
+
+/**
  * One run on a queue item — who (person or AI agent) picked it up when, and, once closed, how it ended (final action + PR + session link). Opened by `POST /api/admin/ops/{handle}/ack`.
  */
 export const zOpsRun = z.object({
@@ -2072,12 +2087,7 @@ export const zOpsRun = z.object({
     sessionUrl: z.string().nullable(),
     startedAt: z.string(),
     completedAt: z.string().nullable(),
-    completedAction: z.enum([
-        'link_pr',
-        'notify',
-        'status',
-        'superseded'
-    ]).nullable(),
+    completedAction: zOpsRunActionOrNull,
     prNumber: z.number().nullable(),
     prUrl: z.string().nullable()
 });
@@ -2401,12 +2411,7 @@ export const zOpsInvestigation = z.object({
     sessionId: z.string().nullable(),
     sessionUrl: z.string().nullable(),
     ackedBy: z.string().nullable(),
-    completedAction: z.enum([
-        'link_pr',
-        'notify',
-        'status',
-        'superseded'
-    ]).nullable(),
+    completedAction: zOpsRunActionOrNull,
     createdAt: z.string(),
     updatedAt: z.string()
 });

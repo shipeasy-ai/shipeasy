@@ -370,15 +370,7 @@ OpsRun:
         - type: "null"
       description: ISO-8601 timestamp the run closed, or `null` while still open.
     completedAction:
-      anyOf:
-        - type: string
-          enum:
-            - link_pr
-            - notify
-            - status
-            - superseded
-        - type: "null"
-      description: "Which final action closed the run — `link_pr`/`notify` are the agent's terminal ops actions, `status` a completion status flip (ready_for_qa/resolved), `superseded` a newer ack replacing it. `null` while the run is open."
+      $ref: "#/OpsRunActionOrNull"
     prNumber:
       anyOf:
         - type: number
@@ -1177,6 +1169,22 @@ OpsItemNotifyOrNull:
     - $ref: ./common.yaml#/NotificationTarget
     - type: "null"
   description: Where this item's completion notification lands, or `null`.
+OpsRunAction:
+  type: string
+  enum:
+    - link_pr
+    - notify
+    - status
+    - superseded
+  description: >-
+    The final action that closed a run record — `link_pr`/`notify` are the
+    agent's terminal ops actions, `status` a completion status flip
+    (ready_for_qa/resolved), `superseded` a newer ack replacing an open run.
+OpsRunActionOrNull:
+  anyOf:
+    - $ref: "#/OpsRunAction"
+    - type: "null"
+  description: Which final action closed the run, or `null` while it is open (or a non-run record).
 UpdateOpsItemStatusRequest:
   type: object
   properties:
@@ -1743,15 +1751,7 @@ OpsInvestigation:
         - type: "null"
       description: Email of the human who acked (run records for a human ack), or `null`.
     completedAction:
-      anyOf:
-        - type: string
-          enum:
-            - link_pr
-            - notify
-            - status
-            - superseded
-        - type: "null"
-      description: "Which final action closed a `working` run record, or `null` (open run / non-run record)."
+      $ref: "#/OpsRunActionOrNull"
     createdAt:
       type: string
       description: ISO-8601 creation timestamp.
