@@ -41,9 +41,10 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--winsorize-pct <value>", "Winsorise percentile (1–99) to clamp outliers. Defaults to 99.")
     .option("--default-min-effect-of-interest <value>", "Default minimum effect of interest (relative, 0–1) — the smallest change in this metric worth acting on, used as the power-planning baseline. Intrinsic to the metric; an experiment overrides it per-attachment with `min_effect_of_interest` when a specific decision has a different cost/risk bar. `null` to omit.")
     .option("--direction <value>", "Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).")
+    .option("--unit <value>", "Display unit (e.g. `ms`, `%`, `$`), or `null` when unitless.")
     .option("--query-ir <value>", "Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body.")
     .action(async (name, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createMetric({ client, body: clean({ name: name, folder: str(opts.folder), event_name: str(opts.eventName), query: str(opts.query), winsorize_pct: num(opts.winsorizePct), default_min_effect_of_interest: num(opts.defaultMinEffectOfInterest), direction: str(opts.direction), query_ir: json(opts.queryIr) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createMetric({ client, body: clean({ name: name, folder: str(opts.folder), event_name: str(opts.eventName), query: str(opts.query), winsorize_pct: num(opts.winsorizePct), default_min_effect_of_interest: num(opts.defaultMinEffectOfInterest), direction: str(opts.direction), unit: str(opts.unit), query_ir: json(opts.queryIr) }) }) });
     });
   g_metrics.command("show")
     .description("Get a metric")
@@ -61,9 +62,10 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--winsorize-pct <value>", "Winsorise percentile (1–99) to clamp outliers. Defaults to 99.")
     .option("--default-min-effect-of-interest <value>", "Default minimum effect of interest (relative, 0–1) — the smallest change in this metric worth acting on, used as the power-planning baseline. Intrinsic to the metric; an experiment overrides it per-attachment with `min_effect_of_interest` when a specific decision has a different cost/risk bar. `null` to omit.")
     .option("--direction <value>", "Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).")
+    .option("--unit <value>", "Display unit (e.g. `ms`, `%`, `$`), or `null` when unitless.")
     .option("--query-ir <value>", "Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body.")
     .action(async (id, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateMetric({ client, path: { id: id }, body: clean({ folder: str(opts.folder), event_name: str(opts.eventName), query: str(opts.query), winsorize_pct: num(opts.winsorizePct), default_min_effect_of_interest: num(opts.defaultMinEffectOfInterest), direction: str(opts.direction), query_ir: json(opts.queryIr) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.updateMetric({ client, path: { id: id }, body: clean({ folder: str(opts.folder), event_name: str(opts.eventName), query: str(opts.query), winsorize_pct: num(opts.winsorizePct), default_min_effect_of_interest: num(opts.defaultMinEffectOfInterest), direction: str(opts.direction), unit: str(opts.unit), query_ir: json(opts.queryIr) }) }) });
     });
   g_metrics.command("archive")
     .description("Archive a metric")
@@ -525,7 +527,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--schema <value>", "JSON Schema (draft 2020-12) describing the shape of the config value. Top-level `type` must be `'object'`; every published value is validated against this schema.")
     .option("--value <value>", "Initial config value. Either a single JSON object applied to every env, or a `{ env: value }` map seeding per-env values. Must match `schema`. Defaults to `{}` on every env when omitted.")
     .action(async (name, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createConfig({ client, body: clean({ name: name, description: str(opts.description), folder: str(opts.folder), schema: json(opts.schema), value: str(opts.value) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createConfig({ client, body: clean({ name: name, description: str(opts.description), folder: str(opts.folder), schema: json(opts.schema), value: json(opts.value) }) }) });
     });
   g_release_configs.command("get")
     .description("Get one config")
@@ -541,7 +543,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--value <value>", "Flat value applied to **every** env. Publishes a new version per env. To target one env, use `PUT /{id}/drafts` then `POST /{id}/publish`.")
     .option("--folder <value>", "Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).")
     .action(async (id, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateConfig({ client, path: { id: id }, body: clean({ schema: json(opts.schema), value: str(opts.value), folder: str(opts.folder) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.updateConfig({ client, path: { id: id }, body: clean({ schema: json(opts.schema), value: json(opts.value), folder: str(opts.folder) }) }) });
     });
   g_release_configs.command("archive")
     .description("Delete a dynamic config")
@@ -556,7 +558,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--env <value>", "Target environment. One of the project's configured envs (`dev`, `staging`, `prod`).")
     .option("--value <value>", "Draft value to stage on `env`. Validated against the config's current schema.")
     .action(async (id, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.saveConfigDraft({ client, path: { id: id }, body: clean({ env: str(opts.env), value: str(opts.value) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.saveConfigDraft({ client, path: { id: id }, body: clean({ env: str(opts.env), value: json(opts.value) }) }) });
     });
   g_release_configs.command("discard-draft")
     .description("Discard a draft")

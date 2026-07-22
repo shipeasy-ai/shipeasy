@@ -816,7 +816,7 @@ export const zCreateConfigRequest = z.object({
     description: z.string().max(512).optional(),
     folder: zFolder.optional(),
     schema: z.record(z.string(), z.unknown()),
-    value: z.unknown().optional()
+    value: z.record(z.string(), z.unknown()).optional()
 });
 
 export const zCreateConfigResponse = z.object({
@@ -856,7 +856,7 @@ export const zDeleteConfigResponse = z.object({
  */
 export const zUpdateConfigRequest = z.object({
     schema: z.record(z.string(), z.unknown()).optional(),
-    value: z.unknown().optional(),
+    value: z.record(z.string(), z.unknown()).optional(),
     folder: zFolder.optional()
 });
 
@@ -878,7 +878,7 @@ export const zEnv = z.enum([
  */
 export const zSaveConfigDraftRequest = z.object({
     env: zEnv,
-    value: z.unknown()
+    value: z.record(z.string(), z.unknown())
 });
 
 export const zSaveConfigDraftResponse = z.object({

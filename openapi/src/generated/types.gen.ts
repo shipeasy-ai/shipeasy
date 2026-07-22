@@ -1567,7 +1567,9 @@ export type CreateConfigRequest = {
     /**
      * Initial config value. Either a single JSON object applied to every env, or a `{ env: value }` map seeding per-env values. Must match `schema`. Defaults to `{}` on every env when omitted.
      */
-    value?: unknown;
+    value?: {
+        [key: string]: unknown;
+    };
 };
 
 export type CreateConfigResponse = {
@@ -1682,7 +1684,9 @@ export type UpdateConfigRequest = {
     /**
      * Flat value applied to **every** env. Publishes a new version per env. To target one env, use `PUT /{id}/drafts` then `POST /{id}/publish`.
      */
-    value?: unknown;
+    value?: {
+        [key: string]: unknown;
+    };
     folder?: Folder;
 };
 
@@ -1706,7 +1710,9 @@ export type SaveConfigDraftRequest = {
     /**
      * Draft value to stage on `env`. Validated against the config's current schema.
      */
-    value: unknown;
+    value: {
+        [key: string]: unknown;
+    };
 };
 
 export type SaveConfigDraftResponse = {

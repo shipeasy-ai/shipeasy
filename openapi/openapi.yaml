@@ -11506,6 +11506,8 @@ components:
           additionalProperties: {}
           description: JSON Schema (draft 2020-12) describing the shape of the config value. Top-level `type` must be `'object'`; every published value is validated against this schema.
         value:
+          type: object
+          additionalProperties: {}
           description: 'Initial config value. Either a single JSON object applied to every env, or a `{ env: value }` map seeding per-env values. Must match `schema`. Defaults to `{}` on every env when omitted.'
       required:
         - name
@@ -11641,6 +11643,8 @@ components:
           type: object
           additionalProperties: {}
         value:
+          type: object
+          additionalProperties: {}
           description: Flat value applied to **every** env. Publishes a new version per env. To target one env, use `PUT /{id}/drafts` then `POST /{id}/publish`.
         folder:
           $ref: '#/components/schemas/Folder'
@@ -11668,6 +11672,8 @@ components:
         env:
           $ref: '#/components/schemas/Env'
         value:
+          type: object
+          additionalProperties: {}
           description: Draft value to stage on `env`. Validated against the config's current schema.
       required:
         - env

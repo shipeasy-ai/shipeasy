@@ -787,7 +787,7 @@ _Parameters_
 | `description` | optional | `string` | Optional free-form description shown in the dashboard. Max 512 chars. _(length 0–512)_ |
 | `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `schema` | required | `object` | JSON Schema (draft 2020-12) describing the shape of the config value. Top-level `type` must be `'object'`; every published value is validated against this schema. |
-| `value` | optional | `any` | Initial config value. Either a single JSON object applied to every env, or a `{ env: value }` map seeding per-env values. Must match `schema`. Defaults to `{}` on every env when omitted. |
+| `value` | optional | `object` | Initial config value. Either a single JSON object applied to every env, or a `{ env: value }` map seeding per-env values. Must match `schema`. Defaults to `{}` on every env when omitted. |
 | `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `release_configs_list` call. It proves you listed existing release configs and confirmed this one doesn't already exist before creating it. Call `release_configs_list` first if you don't have a fresh token. |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -833,7 +833,7 @@ _Parameters_
 | --- | --- | --- | --- |
 | `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `env` | required | `"dev" \| "staging" \| "prod"` | Target environment. One of the project's configured envs (`dev`, `staging`, `prod`). |
-| `value` | required | `any` | Draft value to stage on `env`. Validated against the config's current schema. |
+| `value` | required | `object` | Draft value to stage on `env`. Validated against the config's current schema. |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -924,7 +924,7 @@ _Parameters_
 | --- | --- | --- | --- |
 | `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `schema` | optional | `object` | Replacement schema. When supplied, the new schema is validated against every published value before it lands. |
-| `value` | optional | `any` | Flat value applied to **every** env. Publishes a new version per env. To target one env, use `PUT /{id}/drafts` then `POST /{id}/publish`. |
+| `value` | optional | `object` | Flat value applied to **every** env. Publishes a new version per env. To target one env, use `PUT /{id}/drafts` then `POST /{id}/publish`. |
 | `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 
 _Errors_ — beyond the [common errors](#errors):

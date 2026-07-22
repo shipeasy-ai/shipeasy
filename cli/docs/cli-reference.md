@@ -259,6 +259,7 @@ shipeasy metrics create [options] <name>
 | `--winsorize-pct <value>` | optional | Winsorise percentile (1–99) to clamp outliers. Defaults to 99. |
 | `--default-min-effect-of-interest <value>` | optional | Default minimum effect of interest (relative, 0–1) — the smallest change in this metric worth acting on, used as the power-planning baseline. Intrinsic to the metric; an experiment overrides it per-attachment with `min_effect_of_interest` when a specific decision has a different cost/risk bar. `null` to omit. |
 | `--direction <value>` | optional | Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail). |
+| `--unit <value>` | optional | Display unit (e.g. `ms`, `%`, `$`), or `null` when unitless. |
 | `--query-ir <value>` | optional | Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body. |
 
 ### `shipeasy metrics show`
@@ -297,6 +298,7 @@ shipeasy metrics update [options] <id>
 | `--winsorize-pct <value>` | optional | Winsorise percentile (1–99) to clamp outliers. Defaults to 99. |
 | `--default-min-effect-of-interest <value>` | optional | Default minimum effect of interest (relative, 0–1) — the smallest change in this metric worth acting on, used as the power-planning baseline. Intrinsic to the metric; an experiment overrides it per-attachment with `min_effect_of_interest` when a specific decision has a different cost/risk bar. `null` to omit. |
 | `--direction <value>` | optional | Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail). |
+| `--unit <value>` | optional | Display unit (e.g. `ms`, `%`, `$`), or `null` when unitless. |
 | `--query-ir <value>` | optional | Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body. |
 
 ### `shipeasy metrics archive`
