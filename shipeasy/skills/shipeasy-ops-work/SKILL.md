@@ -92,10 +92,27 @@ Do the steps below for **one** item, then restart with the next. Do not
 interleave. Do not parallelise. Different items almost always touch different
 files; serial keeps blame clean and lets the user halt mid-loop.
 
-Every item — **any type** — takes the same status write:
-`shipeasy ops update <handle> --status <status>` (the `<handle>` is the
-per-item `#number` or the full id; the API resolves either).
-Flip to `in_progress` when you start an item.
+**Ack the item the moment you pick it up — always, before any work.** Run
+`shipeasy ops ack <handle>` (MCP `ops_ack`). This is the ONE call that records
+who's on the item: it opens a **run** — the record the dashboard renders as a
+live "agent working" indicator and, on completion, the thing that lands the
+item in the **Action-required** lane instead of **No progress**. Without the
+ack there is no run, so even a finished, PR'd item reads as untouched.
+
+- **You do not pass `--agent`.** The CLI/MCP auto-detect it from your harness
+  (Claude Code → `claude`, Cursor → `cursor`, Copilot → `copilot`; override
+  with `SHIPEASY_ACK_AGENT=<type>`, or `=none` to force a human ack). This is
+  why the ack works the same whether you run interactively, from an internal
+  terminal, or unattended on a schedule.
+- **No trigger connector needed.** The ack opens the run even when the project
+  has no configured trigger connector for your agent type — it just records the
+  run connector-less. Never skip the ack because "the agent isn't set up".
+- The ack moves the item into its working status for you
+  (`investigating_by_ai` for an agent, `in_progress` for a human) — so you do
+  **not** also issue a separate `--status in_progress` write.
+
+Later status writes use `shipeasy ops update <handle> --status <status>` (the
+`<handle>` is the per-item `#number` or the full id; the API resolves either).
 
 ### 1a. Work the item per its type runbook
 
@@ -116,11 +133,13 @@ repeated in the runbooks:
 - **Run the gate.** Unit tests touching the file, `pnpm type-check` if TS
   changed, reload the page for UI fixes, an e2e spec for new UI workflows —
   follow the repo's own contributor/test conventions.
-- **Status lifecycle (every type).** `in_progress` when you start (§1);
-  `resolved` only if confidently fixed + verified, else **`ready_for_qa` when
-  implemented** and a human must verify (in `--pr` mode always `ready_for_qa`,
-  never auto-`resolved` — [§2](#2-pr-mode---pr).5). Can't fix? Leave it
-  `in_progress` with a one-paragraph hand-off note **and
+- **Status lifecycle (every type).** **Ack** when you start (§1 — opens the run
+  and moves the item into its working status); `resolved` only if confidently
+  fixed + verified, else **`ready_for_qa` when implemented** and a human must
+  verify (in `--pr` mode always `ready_for_qa`, never auto-`resolved` —
+  [§2](#2-pr-mode---pr).5). These completion writes also **close the run** — so
+  the finished item reads as done (Action required), not still-working. Can't
+  fix? Leave it `in_progress` with a one-paragraph hand-off note **and
   [escalate](#escalate-raise-a-bell-notification-when-the-fix-isnt-in-code)**
   — then move on.
 
