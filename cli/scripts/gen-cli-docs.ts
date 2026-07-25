@@ -29,6 +29,11 @@ const APPS_DOCS_OUT = join(
   APPS_DOCS_ROOT,
   "content/docs/get-started/cli-reference.mdx",
 );
+// Machine-readable projection of the same tree. The docs site's <Cmd> component
+// validates every command it renders against this at build time, so a prose
+// mention of a command or flag that doesn't exist fails the build instead of
+// shipping. Regenerated together with the reference so the two can't diverge.
+const APPS_DOCS_MANIFEST = join(APPS_DOCS_ROOT, "src/lib/cli-commands.json");
 
 /**
  * Render target for one output file. `mdx` toggles MDX-only escaping (`{`/`<`)
@@ -137,6 +142,44 @@ function renderCmd(cmd: Command, depth: number): string {
   return out.join("\n");
 }
 
+/**
+ * One manifest entry per command node. `options` holds the long flags only
+ * (`--rollout-pct`), since that's what prose cites; short aliases are dropped
+ * because they're ambiguous across commands. `aliases` are the alternate names
+ * Commander accepts at that position (e.g. `ks` for `release killswitch`), so
+ * the validator can resolve `shipeasy ks list` too.
+ */
+interface ManifestCmd {
+  path: string;
+  aliases: string[];
+  args: { name: string; required: boolean; variadic: boolean }[];
+  options: string[];
+}
+
+/** Long flag names declared on a command, e.g. `["--rollout-pct", "--rules"]`. */
+function longFlags(cmd: Command): string[] {
+  const flags = cmd.options
+    .filter((o) => o.flags !== "-h, --help")
+    .flatMap((o) => o.flags.split(/[ ,|]+/))
+    .filter((t) => t.startsWith("--"));
+  return [...new Set(flags)].sort();
+}
+
+function collectManifest(cmd: Command, out: ManifestCmd[]): ManifestCmd[] {
+  out.push({
+    path: path(cmd),
+    aliases: cmd.aliases(),
+    args: (cmd.registeredArguments as readonly Argument[]).map((a) => ({
+      name: a.name(),
+      required: a.required,
+      variadic: a.variadic,
+    })),
+    options: longFlags(cmd),
+  });
+  for (const sub of cmd.commands) collectManifest(sub, out);
+  return out;
+}
+
 /** Page header — MDX frontmatter for the site, a plain heading for the repo. */
 function header(mdx: boolean): string {
   if (mdx) {
@@ -193,6 +236,21 @@ function main() {
     mkdirSync(dirname(t.out), { recursive: true });
     writeFileSync(t.out, `${header(t.mdx)}\n${body}`);
     console.log(`Wrote ${t.out}\n  ${groups.length} command group(s): ${names}`);
+  }
+
+  // The manifest always describes the WHOLE tree, never the `filter` subset —
+  // a partial run (`pnpm docs flags`) must not silently shrink what the docs
+  // site considers a valid command.
+  if (existsSync(APPS_DOCS_ROOT)) {
+    const commands = buildProgram()
+      .commands.flatMap((g) => collectManifest(g, []))
+      .sort((a, b) => a.path.localeCompare(b.path));
+    mkdirSync(dirname(APPS_DOCS_MANIFEST), { recursive: true });
+    writeFileSync(
+      APPS_DOCS_MANIFEST,
+      `${JSON.stringify({ generator: "marketplace/cli/scripts/gen-cli-docs.ts", commands }, null, 2)}\n`,
+    );
+    console.log(`Wrote ${APPS_DOCS_MANIFEST}\n  ${commands.length} commands`);
   }
 }
 
