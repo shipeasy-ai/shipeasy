@@ -18,6 +18,7 @@ import {
   installClaudePlugin,
   onPath,
   registerMcp,
+  runMcpAuth,
 } from "../setup/agents";
 import {
   fetchSdkDoc,
@@ -25,7 +26,7 @@ import {
   installMarketplaceSkills,
   installSkill,
 } from "../setup/sdk-docs";
-import { setupSkillNames } from "../setup/skills-registry";
+import { ensureSkillsCli, setupSkillNames } from "../setup/skills-registry";
 import {
   type FileResult,
   writeAgentsMd,
@@ -50,11 +51,7 @@ import {
 } from "../setup/onboard";
 import { buildWiringDoc, type WiringTarget } from "../setup/wiring-doc";
 import { promptAndSend, reportConfigured } from "../setup/report-issue";
-import {
-  runTriggerStep,
-  type TriggerStepResult,
-  type CliSession,
-} from "../setup/triggers";
+import { runTriggerStep, type TriggerStepResult, type CliSession } from "../setup/triggers";
 
 /** Project the loaded CLI credentials onto the minimal session the trigger step
  *  needs (token + admin-API origin). Null-safe: no creds → no session. */
@@ -444,16 +441,72 @@ export function agentDirective(root: string): string {
   ].join("\n");
 }
 
+/** What this run actually asked for, in the terms the wiring doc will act on.
+ *  Feeds the plain-English "here's what the agent is about to do" block. */
+export interface WiringPlan {
+  targets: WiringTarget[];
+  devtools: boolean;
+  features: string[];
+}
+
+/**
+ * The plain-English list of what the wiring agent will do, derived from THIS
+ * run's choices (targets, overlay, enabled modules) rather than a canned blurb —
+ * so the confirmation before we hand over the terminal is honest about the edits
+ * that are coming. Mirrors the sections `buildWiringDoc` emits.
+ */
+export function wiringPlanLines(plan: WiringPlan): string[] {
+  const lines: string[] = [];
+  const dirs = plan.targets.map((t) => (t.relPath === "." ? "the repo root" : `${t.relPath}/`));
+  const pending = plan.targets.filter((t) => !t.sdkInstalled && t.installCmd);
+  if (pending.length) {
+    lines.push(
+      `finish the SDK package install in ${pending
+        .map((t) => (t.relPath === "." ? "the repo root" : `${t.relPath}/`))
+        .join(", ")}`,
+    );
+  }
+  if (plan.targets.length) {
+    lines.push(
+      `configure the SDK once at the startup entry point in ${dirs.join(", ")} (server key from env)`,
+      "wire your user identity + targeting attributes into the SDK, read from your own auth/session model",
+    );
+  }
+  if (plan.targets.some((t) => t.browser)) {
+    lines.push("initialise the browser SDK with the public client key");
+  }
+  if (plan.targets.some((t) => t.secretStoreMove)) {
+    lines.push("move the minted keys into this project's idiomatic secret store");
+  }
+  if (plan.devtools) {
+    lines.push(
+      "add the devtools overlay <script> tag to your layout (the ?se=1 panel + end-user bug reports)",
+    );
+  }
+  if (plan.features.includes("ops")) {
+    lines.push("report caught errors through the SDK's see() primitive so they reach your ops queue");
+  }
+  if (plan.features.includes("i18n")) {
+    lines.push("wrap user-facing copy as translatable i18n keys");
+  }
+  lines.push(
+    "check the app still builds, then hand you the `git add` list — it stops short of committing",
+  );
+  return lines;
+}
+
 /**
  * The hand-off addressed to a HUMAN at a terminal: plain instructions. The
  * code edits are best done by an assistant, so we show how to hand the file
- * off — and (interactively) offer to launch one that's on PATH.
+ * off — and (interactively) explain exactly what it will change, then offer to
+ * launch one that's on PATH.
  */
 async function humanHandoff(
   root: string,
   opts: SetupOpts,
   interactive: boolean,
   selected: AgentId[],
+  plan: WiringPlan,
 ): Promise<void> {
   // Only offer to launch agents the user chose in step 3 that are also on PATH.
   const available = RUNNABLE_AGENTS.filter((a) => selected.includes(a.id) && onPath(a.bin));
@@ -474,18 +527,40 @@ async function humanHandoff(
   const noRun = opts.agentRun === false || opts.claudeRun === false || opts.dryRun;
   if (!interactive || noRun || available.length === 0) return;
 
-  const { pick } = await prompts({
-    type: "select",
-    name: "pick",
-    message: "Launch a coding agent on the wiring steps now?",
-    choices: [
-      ...available.map((a) => ({ title: `Yes — ${a.label} (${a.bin})`, value: a.bin })),
-      { title: "No — I'll run it myself later", value: "" },
-    ],
-    initial: 0,
+  // Say what the agent is about to change BEFORE we hand it the terminal — it
+  // runs with permission prompts disabled, so this is the user's one gate.
+  console.log(
+    "\n  We'll now launch your coding agent to wire Shipeasy into the app, using the\n" +
+      "  settings you chose here, to complete the installation. It would:\n",
+  );
+  for (const line of wiringPlanLines(plan)) console.log(`    • ${line}`);
+  console.log("");
+
+  const { ok } = await prompts({
+    type: "confirm",
+    name: "ok",
+    message: "OK to launch it now?",
+    initial: true,
   });
-  const chosen = available.find((a) => a.bin === pick);
-  if (!chosen) return;
+  if (!ok) return;
+
+  // One available agent → just run it; several → let the user say which.
+  let chosen = available[0];
+  if (available.length > 1) {
+    const { pick } = await prompts({
+      type: "select",
+      name: "pick",
+      message: "Which agent should run it?",
+      choices: [
+        ...available.map((a) => ({ title: `${a.label} (${a.bin})`, value: a.bin })),
+        { title: "None — I'll run it myself later", value: "" },
+      ],
+      initial: 0,
+    });
+    const picked = available.find((a) => a.bin === pick);
+    if (!picked) return;
+    chosen = picked;
+  }
 
   console.log(`\nLaunching: ${chosen.bin} …\n`);
   const code = await spawnAgent(chosen.bin, chosen.argv(WIRING_PROMPT));
@@ -497,38 +572,59 @@ async function humanHandoff(
 /**
  * The one-time MCP OAuth authorization step. The hosted MCP server
  * (mcp.shipeasy.ai) authenticates with OAuth 2.1 — a browser sign-in per client,
- * no key to paste — but the flow is client-driven, so the CLI can't complete it
- * for another app. It prints the exact per-agent trigger and, for a human, pauses
- * until they've done it; for a coding agent driving the CLI, it emits a directive
- * to authorize its OWN connection. Runs BEFORE the wiring hand-off so the MCP
- * tools are usable the moment the agent picks up shipeasy-wiring.md.
+ * no key to paste. Where the agent ships a login command (`claude mcp login`,
+ * `cursor-agent mcp login`) setup RUNS it, so the user never has to go find a
+ * settings pane; the rest get the printed one-liner. A coding agent driving the
+ * CLI gets a directive to authorize its OWN connection instead (we must not
+ * hijack its terminal with a browser flow). Runs BEFORE the wiring hand-off so
+ * the MCP tools are usable the moment the agent picks up shipeasy-wiring.md.
  */
-export async function mcpAuthHandoff(selected: AgentId[], interactive: boolean): Promise<void> {
+export async function mcpAuthHandoff(
+  selected: AgentId[],
+  interactive: boolean,
+  opts: { dryRun?: boolean } = {},
+): Promise<void> {
   if (selected.length === 0) return;
   heading("Authorize the MCP connection");
   console.log(
     "  The hosted Shipeasy MCP server (mcp.shipeasy.ai) authenticates with OAuth — a\n" +
-      "  one-time browser sign-in per client, no key to paste. Authorize it now so the\n" +
-      "  MCP tools work when the wiring steps run:\n",
+      "  one-time browser sign-in per client, no key to paste. Authorizing it now so the\n" +
+      "  MCP tools work when the wiring steps run.\n",
   );
-  for (const id of selected) {
-    console.log(`    • ${MCP_AUTH_INSTRUCTIONS[id]}`);
-  }
-  console.log("");
 
   if (detectHarness().inside) {
+    // A coding agent is driving this terminal — we must not seize it with a
+    // browser flow, so it authorizes its own connection from the instructions.
+    for (const id of selected) console.log(`    • ${MCP_AUTH_INSTRUCTIONS[id]}`);
     console.log(
-      "  ▶ CODING AGENT: authorize your OWN shipeasy MCP connection now — run your\n" +
+      "\n  ▶ CODING AGENT: authorize your OWN shipeasy MCP connection now — run your\n" +
         "    client's MCP Authenticate step (above) and approve in the browser BEFORE\n" +
         "    starting the wiring steps, or every shipeasy_* tool call will 401.",
     );
     return;
   }
-  if (interactive) {
+
+  // Drive each agent's own login command where one exists — that's the whole
+  // point: no hand-configuration. Only what's left over (Codex/Copilot/Jules, or
+  // a binary that isn't on PATH) gets an instruction to follow by hand.
+  const manual: AgentId[] = [];
+  for (const id of selected) {
+    const r = runMcpAuth(id, { dryRun: opts.dryRun });
+    if (r.action === "authorized") {
+      console.log(`  ✓ ${id}: ${r.detail}`);
+      continue;
+    }
+    if (r.action === "failed") console.log(`  ✗ ${id}: ${r.detail} — do it by hand:`);
+    else if (r.action === "unavailable") console.log(`  • ${id}: ${r.detail}:`);
+    console.log(`    • ${MCP_AUTH_INSTRUCTIONS[id]}`);
+    manual.push(id);
+  }
+
+  if (interactive && !opts.dryRun && manual.length) {
     await prompts({
       type: "confirm",
       name: "done",
-      message: "Press Enter once you've authorized the MCP connection (or skip to do it later)",
+      message: `Press Enter once you've authorized ${manual.join(", ")} (or skip to do it later)`,
       initial: true,
     });
   }
@@ -544,12 +640,13 @@ async function wiringHandoff(
   opts: SetupOpts,
   interactive: boolean,
   selected: AgentId[],
+  plan: WiringPlan,
 ): Promise<void> {
   if (detectHarness().inside) {
     console.log(agentDirective(root));
     return;
   }
-  await humanHandoff(root, opts, interactive, selected);
+  await humanHandoff(root, opts, interactive, selected, plan);
 }
 
 // ── command ─────────────────────────────────────────────────────────────────
@@ -839,7 +936,8 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   const skillSdk = uniqueSdks[0] ?? actionable[0]?.language ?? "typescript";
   if (dryRun) {
     console.log(
-      `  (dry run — would \`npx skills add\` the SDK how-to skills into: ${skillsCliAgents.join(", ") || "—"})`,
+      `  (dry run — would ensure the \`skills\` CLI, then install the SDK how-to skills` +
+        ` at ${skillsGlobal ? "user-global (-g)" : "project"} scope into: ${skillsCliAgents.join(", ") || "—"})`,
     );
   } else if (!skillsCliAgents.length) {
     console.log(
@@ -848,6 +946,14 @@ async function runSetup(opts: SetupOpts): Promise<void> {
         : "  • no skills-CLI agents — skipping (install later: shipeasy docs skill --sdk <lang> --install)",
     );
   } else {
+    // Make sure the `skills` CLI can actually run before we lean on it (it's
+    // installed here if it's missing) — otherwise every `skills add` below would
+    // fail one at a time and silently fall back to writing `.claude/skills/`.
+    const cli = ensureSkillsCli();
+    console.log(`  ${cli.source === "missing" ? "✗" : "✓"} skills CLI: ${cli.detail}`);
+    console.log(
+      `  scope: ${skillsGlobal ? "-g (user-global)" : "project (in-repo)"} — passed through, not asked`,
+    );
     // SDK how-to skill(s) — one per distinct SDK in the tree. Snippets are baked
     // in for that SDK's language at install.
     for (const sdk of uniqueSdks) {
@@ -1208,8 +1314,12 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     console.log(`  ✓ wrote ${wiringPath}\n`);
     // Authorize the hosted MCP connection (OAuth) BEFORE handing off the wiring
     // steps — otherwise every shipeasy_* tool the agent tries during wiring 401s.
-    await mcpAuthHandoff(selected, interactive);
-    await wiringHandoff(root, opts, interactive, selected);
+    await mcpAuthHandoff(selected, interactive, { dryRun });
+    await wiringHandoff(root, opts, interactive, selected, {
+      targets: wiringTargets,
+      devtools: devtoolsAccepted,
+      features: enabledFeatures,
+    });
   }
 
   // 10. Automation trigger (unattended auto-apply — the queue burn-down loop)

@@ -6,6 +6,7 @@ import { mergeMcpServer } from "../util/json-config";
 import {
   type AgentId,
   type InstallCtx,
+  MCP_AUTH_COMMANDS,
   MCP_AUTH_INSTRUCTIONS,
   codexTomlSnippet,
   detectAgents,
@@ -14,6 +15,7 @@ import {
   homePathExists,
   onPath,
   registerMcp,
+  runMcpAuth,
 } from "../setup/agents";
 import {
   upsertMarkedBlock,
@@ -21,7 +23,7 @@ import {
   writeCopilotInstructions,
   writeCursorRule,
 } from "../setup/instructions";
-import { applyAgent, agentDirective, mcpAuthHandoff } from "../commands/setup";
+import { applyAgent, agentDirective, mcpAuthHandoff, wiringPlanLines } from "../commands/setup";
 import { buildWiringDoc, type WiringTarget } from "../setup/wiring-doc";
 
 function wiringTarget(over: Partial<WiringTarget> = {}): WiringTarget {
@@ -449,5 +451,53 @@ describe("mcpAuthHandoff — the one-time MCP OAuth authorization step", () => {
     const spy = vi.spyOn(console, "log").mockImplementation(() => {});
     await mcpAuthHandoff([], false);
     expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("scripts the login for agents whose CLI can do it, and only those", () => {
+    // Claude + Cursor ship a `mcp login`; the rest authorize from their own UI,
+    // so they keep the printed instruction instead of a bogus shell-out.
+    expect(MCP_AUTH_COMMANDS.claude?.argv).toEqual(["mcp", "login", "shipeasy"]);
+    expect(MCP_AUTH_COMMANDS.cursor?.argv).toEqual(["mcp", "login", "shipeasy"]);
+    for (const a of ["codex", "copilot", "jules"] as AgentId[]) {
+      expect(MCP_AUTH_COMMANDS[a]).toBeUndefined();
+      expect(runMcpAuth(a)).toEqual({ action: "manual", detail: MCP_AUTH_INSTRUCTIONS[a] });
+    }
+  });
+});
+
+describe("wiringPlanLines — what we promise the launched agent will do", () => {
+  const plan = (over: Partial<Parameters<typeof wiringPlanLines>[0]> = {}) => ({
+    targets: [wiringTarget()],
+    devtools: false,
+    features: [] as string[],
+    ...over,
+  });
+
+  it("always covers the SDK init, identity wiring, and the stop-before-commit rule", () => {
+    const lines = wiringPlanLines(plan());
+    expect(lines.join("\n")).toMatch(/configure the SDK once at the startup entry point/);
+    expect(lines.join("\n")).toMatch(/identity \+ targeting attributes/);
+    expect(lines.at(-1)).toMatch(/stops short of committing/);
+  });
+
+  it("reflects THIS run's choices — overlay, ops, i18n, deferred install", () => {
+    const lines = wiringPlanLines(
+      plan({
+        targets: [wiringTarget({ sdkInstalled: false, installCmd: "pnpm add @shipeasy/sdk" })],
+        devtools: true,
+        features: ["ops", "i18n"],
+      }),
+    ).join("\n");
+    expect(lines).toMatch(/finish the SDK package install in apps\/web\//);
+    expect(lines).toMatch(/devtools overlay <script> tag/);
+    expect(lines).toMatch(/see\(\) primitive/);
+    expect(lines).toMatch(/translatable i18n keys/);
+  });
+
+  it("omits what wasn't chosen (no overlay/ops/i18n lines when they're off)", () => {
+    const lines = wiringPlanLines(plan({ features: ["flags"] })).join("\n");
+    expect(lines).not.toMatch(/devtools overlay/);
+    expect(lines).not.toMatch(/see\(\)/);
+    expect(lines).not.toMatch(/i18n/);
   });
 });
