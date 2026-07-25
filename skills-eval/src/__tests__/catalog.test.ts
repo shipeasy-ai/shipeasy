@@ -1,34 +1,47 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
+import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 import { KNOWN_TOOLS } from "../catalog.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-// Sibling package's generated tool source is the source of truth for the
-// snapshot in catalog.ts. Read it directly (no build/dep needed).
-const GEN = resolve(__dirname, "../../../mcp/src/generated/tools.gen.ts");
+const require = createRequire(import.meta.url);
+
+/** The live MCP surface, or null when `@shipeasy/mcp` hasn't been built yet. */
+async function liveToolNames(): Promise<string[] | null> {
+  let entry: string;
+  try {
+    entry = require.resolve("@shipeasy/mcp/tools-manifest");
+  } catch {
+    return null; // dist not built (fast local run) — nothing to verify against
+  }
+  const { ALL_TOOLS } = (await import(entry)) as { ALL_TOOLS: { name: string }[] };
+  return [...new Set(ALL_TOOLS.map((t) => t.name))].sort();
+}
 
 /**
- * Drift guard: every KNOWN_TOOLS entry must still exist as a real generated
- * tool. Catches the exact class of bug we just hit — a tool renamed under the
- * feet of the snapshot (events_* → metrics_events_*, release_flags_rollout gone).
- * On drift, the failure lists the stale names to remove/rename in catalog.ts.
+ * Drift guard on the GENERATED catalogue (`src/generated/tools.ts`). Equality in
+ * BOTH directions, because either half is a real bug: a stale name means a tool
+ * was renamed or hidden under our feet, and a MISSING name means the eval
+ * silently drops a legitimate tool reference while scraping a skill — which is
+ * how the snapshot quietly fell 26 tools behind the surface.
+ *
+ * On failure: `pnpm --filter @shipeasy/skills-eval gen:catalog`.
  */
-describe("KNOWN_TOOLS snapshot ⊆ live MCP tool catalogue", () => {
-  it("has no stale tool names", () => {
-    let src: string;
-    try {
-      src = readFileSync(GEN, "utf8");
-    } catch {
-      // MCP source not present (shallow checkout) — nothing to verify against.
-      console.warn(`skip: ${GEN} not found`);
+describe("KNOWN_TOOLS === live MCP tool catalogue", () => {
+  it("matches the manifest exactly", async () => {
+    const live = await liveToolNames();
+    if (!live) {
+      console.warn("skip: @shipeasy/mcp not built — cannot verify the tool catalogue");
       return;
     }
-    const live = new Set(
-      [...src.matchAll(/name:\s*"([a-z][a-z0-9_-]+)"/g)].map((m) => m[1]!),
-    );
-    const stale = KNOWN_TOOLS.filter((t) => !live.has(t));
-    expect(stale, `stale tool names in catalog.ts — remove or rename: ${stale.join(", ")}`).toEqual([]);
+    const known = new Set(KNOWN_TOOLS);
+    const stale = KNOWN_TOOLS.filter((t) => !live.includes(t));
+    const missing = live.filter((t) => !known.has(t));
+    expect(
+      { stale, missing },
+      "src/generated/tools.ts is out of date — run `pnpm --filter @shipeasy/skills-eval gen:catalog`",
+    ).toEqual({ stale: [], missing: [] });
+  });
+
+  it("is sorted and deduplicated, as the generator emits it", () => {
+    expect([...KNOWN_TOOLS]).toEqual([...new Set(KNOWN_TOOLS)].sort());
   });
 });

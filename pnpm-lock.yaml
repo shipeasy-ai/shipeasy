@@ -165,6 +165,9 @@ importers:
 
   skills-eval:
     devDependencies:
+      '@shipeasy/mcp':
+        specifier: workspace:*
+        version: link:../mcp
       '@types/node':
         specifier: ^20.19.39
         version: 20.19.43
