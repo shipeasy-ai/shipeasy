@@ -1,9 +1,19 @@
 name: CI
 on:
   push:
-    paths: ["openapi/**", "mcp/**", "cli/**", "package.json", "pnpm-workspace.yaml", "turbo.json"]
+    # Every workspace package `pnpm test` covers must be listed, or a change in
+    # one package can break another's test with no CI run to catch it — and the
+    # fix (touching only the unlisted package) never re-runs CI either. That is
+    # exactly how `mcp/**` hiding four config ops left main red for three days
+    # on a `skills-eval/**` assertion.
+    paths: ["openapi/**", "mcp/**", "cli/**", "skills-contract/**", "skills-eval/**", "package.json", "pnpm-workspace.yaml", "pnpm-lock.yaml", "turbo.json", ".github/workflows/ci.yml"]
   pull_request:
-    paths: ["openapi/**", "mcp/**", "cli/**", "package.json", "pnpm-workspace.yaml", "turbo.json"]
+    # Every workspace package `pnpm test` covers must be listed, or a change in
+    # one package can break another's test with no CI run to catch it — and the
+    # fix (touching only the unlisted package) never re-runs CI either. That is
+    # exactly how `mcp/**` hiding four config ops left main red for three days
+    # on a `skills-eval/**` assertion.
+    paths: ["openapi/**", "mcp/**", "cli/**", "skills-contract/**", "skills-eval/**", "package.json", "pnpm-workspace.yaml", "pnpm-lock.yaml", "turbo.json", ".github/workflows/ci.yml"]
 
 jobs:
   check:
