@@ -8,6 +8,7 @@ import {
   type InstallCtx,
   MCP_AUTH_COMMANDS,
   approveProjectMcpServer,
+  parseClaudeServerState,
   MCP_AUTH_INSTRUCTIONS,
   codexTomlSnippet,
   detectAgents,
@@ -431,6 +432,41 @@ describe("applyAgent", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("parseClaudeServerState — read against real `claude mcp get` output", () => {
+  // Captured verbatim from claude 2.1.220; the wording is what we branch on.
+  const PENDING = [
+    "shipeasy:",
+    "  Scope: Project config (shared via .mcp.json)",
+    "  Status: ⏸ Pending approval (run `claude` to approve)",
+    "  Type: http",
+  ].join("\n");
+  const CONNECTED = [
+    "shipeasy:",
+    "  Scope: Project config (shared via .mcp.json)",
+    "  Status: ✔ Connected",
+    "  Type: http",
+  ].join("\n");
+
+  it("tells a pending server from a connected one", () => {
+    expect(parseClaudeServerState(PENDING)).toBe("pending");
+    expect(parseClaudeServerState(CONNECTED)).toBe("connected");
+  });
+
+  it("never reads the pending line as connected", () => {
+    // It mentions the server and a status; only the pending phrase may win.
+    expect(parseClaudeServerState(PENDING)).not.toBe("connected");
+  });
+
+  it("returns null on no output, so we fall back instead of guessing", () => {
+    expect(parseClaudeServerState("")).toBeNull();
+    expect(parseClaudeServerState("   \n ")).toBeNull();
+  });
+
+  it("reports anything else as other", () => {
+    expect(parseClaudeServerState("No MCP server named shipeasy")).toBe("other");
   });
 });
 

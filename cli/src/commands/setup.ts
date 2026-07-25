@@ -10,9 +10,11 @@ import { getApiClient } from "../api/client";
 import {
   type AgentId,
   type InstallCtx,
+  type McpAuthResult,
   type McpResult,
   MCP_AUTH_INSTRUCTIONS,
   approveProjectMcpServer,
+  claudeServerState,
   SKILLS_CLI_AGENT,
   detectAgents,
   detectHarness,
@@ -587,6 +589,50 @@ async function humanHandoff(
  * hijack its terminal with a browser flow). Runs BEFORE the wiring hand-off so
  * the MCP tools are usable the moment the agent picks up shipeasy-wiring.md.
  */
+/**
+ * Hand the terminal to an interactive Claude session so the user can trust this
+ * folder — the one thing no config file can do for them. Claude only shows its
+ * trust prompt in an interactive session; until it's accepted, a `.mcp.json`
+ * server stays "⏸ Pending approval" no matter what `enabledMcpjsonServers`
+ * says, which is why `claude mcp login` exits 1. Once trusted, the server we
+ * pre-approved connects, and `/mcp` authenticates it in the same session.
+ *
+ * Re-probes on exit so we report what actually happened rather than assuming
+ * the user completed it.
+ */
+async function trustClaudeInteractively(pending: McpAuthResult): Promise<McpAuthResult> {
+  console.log(
+    "\n  Claude hasn't trusted this folder yet — that prompt only appears in an\n" +
+      "  interactive session, so its .mcp.json server stays pending until then.\n" +
+      "  I can open Claude here now. In that session:\n" +
+      "    1. accept the trust prompt (the `shipeasy` server is already approved)\n" +
+      "    2. run `/mcp` → shipeasy → Authenticate, and approve in the browser\n" +
+      "    3. `/exit` to come back and finish setup\n",
+  );
+  const { open } = await prompts({
+    type: "confirm",
+    name: "open",
+    message: "Open Claude here now to trust the folder and authorize?",
+    initial: true,
+  });
+  if (!open) return pending;
+
+  console.log("\nLaunching: claude …\n");
+  await spawnAgent("claude", []);
+
+  const after = claudeServerState("shipeasy");
+  if (after === "connected") {
+    return { action: "authorized", detail: "trusted + connected in the Claude session" };
+  }
+  return {
+    action: "manual",
+    detail:
+      after === "pending"
+        ? "still pending — re-open `claude` here, accept the trust prompt, then `/mcp` → Authenticate"
+        : "could not confirm the connection — check with `claude mcp get shipeasy`",
+  };
+}
+
 export async function mcpAuthHandoff(
   selected: AgentId[],
   interactive: boolean,
@@ -617,14 +663,22 @@ export async function mcpAuthHandoff(
   // a binary that isn't on PATH) gets an instruction to follow by hand.
   const manual: AgentId[] = [];
   for (const id of selected) {
-    const r = runMcpAuth(id, { dryRun: opts.dryRun });
+    let r = runMcpAuth(id, { dryRun: opts.dryRun });
+    // A pending Claude server means the FOLDER isn't trusted yet, and the trust
+    // prompt only exists inside an interactive session — so offer to open one
+    // right here rather than ending setup with a to-do. One session covers
+    // everything: trust, the (pre-approved) server, and `/mcp` authentication.
+    if (id === "claude" && r.action === "manual" && interactive && !opts.dryRun && onPath("claude")) {
+      r = await trustClaudeInteractively(r);
+    }
     if (r.action === "authorized") {
       console.log(`  ✓ ${id}: ${r.detail}`);
       continue;
     }
     if (r.action === "failed") console.log(`  ✗ ${id}: ${r.detail} — do it by hand:`);
     else if (r.action === "unavailable") console.log(`  • ${id}: ${r.detail}:`);
-    console.log(`    • ${MCP_AUTH_INSTRUCTIONS[id]}`);
+    else if (id === "claude") console.log(`  • claude: ${r.detail}`);
+    else console.log(`    • ${MCP_AUTH_INSTRUCTIONS[id]}`);
     manual.push(id);
   }
 

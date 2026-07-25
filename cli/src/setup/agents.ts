@@ -166,18 +166,34 @@ export function approveProjectMcpServer(ctx: InstallCtx, name = "shipeasy"): Mcp
   return { action: "updated", detail: `approved ${name} in ${path}` };
 }
 
-/** Claude's view of a configured server: is it pending approval, or already
- *  connected (approved AND authenticated)? Null when we can't tell. */
-function claudeServerState(name: string): "pending" | "connected" | "other" | null {
+/**
+ * Claude's view of a configured server: pending approval, or already connected
+ * (approved AND authenticated)? Null when we can't tell.
+ *
+ * NOTE this is resolved from the CWD — Claude reads its settings for the folder
+ * you are standing in, so the same `.mcp.json` server reads `Connected` at the
+ * repo root and `Pending approval` from a subdirectory. Always probe from the
+ * folder we wrote `.mcp.json` into.
+ */
+export function claudeServerState(name: string): "pending" | "connected" | "other" | null {
   if (!onPath("claude")) return null;
   const res = spawnSync("claude", ["mcp", "get", name], {
     stdio: ["ignore", "pipe", "pipe"],
     encoding: "utf8",
   });
-  const out = `${res.stdout ?? ""}${res.stderr ?? ""}`;
-  if (!out) return null;
-  if (/pending approval|awaiting approval/i.test(out)) return "pending";
-  if (/✔|connected/i.test(out)) return "connected";
+  return parseClaudeServerState(`${res.stdout ?? ""}${res.stderr ?? ""}`);
+}
+
+/** Parse `claude mcp get <name>` output. Split out from the spawn so the match
+ *  against Claude's exact wording is testable without a `claude` binary. */
+export function parseClaudeServerState(
+  output: string,
+): "pending" | "connected" | "other" | null {
+  if (!output.trim()) return null;
+  // "⏸ Pending approval (run `claude` to approve)" — check first: that line also
+  // carries a "not connected"-ish status we must not read as connected.
+  if (/pending approval|awaiting approval/i.test(output)) return "pending";
+  if (/✔|connected/i.test(output)) return "connected"; // "✔ Connected"
   return "other";
 }
 
@@ -207,11 +223,15 @@ export function runMcpAuth(agent: AgentId, opts: { dryRun?: boolean } = {}): Mcp
       return { action: "authorized", detail: "already connected — no sign-in needed" };
     }
     if (state === "pending") {
+      // Not fixable from here: `.mcp.json` servers stay pending until the FOLDER
+      // is trusted, and the trust dialog only exists in an interactive session.
+      // `mcpAuthHandoff` offers to open one; this is the fallback wording.
       return {
         action: "manual",
         detail:
-          "Claude hasn't approved this project's .mcp.json yet (it must be opened in Claude once).\n" +
-          "      Run `claude` in this folder, approve the `shipeasy` server, then: claude mcp login shipeasy",
+          "Claude hasn't trusted this folder yet, so its .mcp.json server is pending.\n" +
+          "      Open `claude` here once and accept the trust prompt — the `shipeasy` server is\n" +
+          "      pre-approved, so it connects; then `/mcp` → shipeasy → Authenticate.",
       };
     }
   }
