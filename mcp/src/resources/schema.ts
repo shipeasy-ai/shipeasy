@@ -26,13 +26,7 @@ export const RESOURCE_TEMPLATES: ResourceTemplate[] = [
   {
     uriTemplate: "shipeasy://i18n/profiles/{profile}",
     name: "i18n-profile",
-    description: "i18n profile metadata + chunk list + coverage %.",
-    mimeType: "application/json",
-  },
-  {
-    uriTemplate: "shipeasy://i18n/profiles/{profile}/{chunk}",
-    name: "i18n-chunk",
-    description: "Published label strings for one chunk.",
+    description: "i18n profile metadata + published label strings + coverage %.",
     mimeType: "application/json",
   },
   {

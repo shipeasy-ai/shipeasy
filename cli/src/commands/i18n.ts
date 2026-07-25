@@ -112,9 +112,9 @@ export function i18nCommand(parent: Command): Command {
       "**Authoring flow.**\n" +
       "- `scan` — find translatable strings in your source.\n" +
       "- `codemod` / `extract` / `migrate` — rewrite literals to `t('key')` calls and register the keys (extract/migrate run scan → codemod → push → publish in one shot).\n" +
-      "- `push <file>` — insert new keys (insert-only; never overwrites an existing value).\n" +
+      "- `push <file>` — insert new keys (insert-only; add `--force` to overwrite existing values).\n" +
       "- `update <key> <value>` — overwrite a single key's value.\n" +
-      "- `publish` — publish a profile's chunk to the CDN (rebuilds the KV manifest, purges cache).\n" +
+      "- `publish` — publish a profile to the CDN (rebuilds the KV manifest, purges cache).\n" +
       "- `validate` — check every `t('key')` in code still exists on the server.\n\n" +
       "**Profiles & loader.**\n" +
       "- `profiles list/create` — manage locale profiles (e.g. `default`, `en:prod`).\n" +
@@ -297,16 +297,20 @@ export function i18nCommand(parent: Command): Command {
       "Add NEW keys from a JSON file to the i18n profile. The file is a flat " +
         '{ "<key>": "<value>" } map. This only ADDS keys that do not already exist — ' +
         "existing keys are never overwritten. To change a value, update one key at a " +
-        "time with `shipeasy i18n update <key> <value>`.",
+        "time with `shipeasy i18n update <key> <value>`, or re-push the file with " +
+        "`--force` to overwrite every colliding key at once.",
     )
     .requiredOption("--profile <name>", "Profile name (e.g. 'default')")
-    .option("--chunk <name>", "Logical grouping for the keys", "default")
+    .option(
+      "--force",
+      "Overwrite keys that already exist with the values in the file, instead of skipping them",
+    )
     .option("--json", "Output as JSON")
     .option("--project <id>", "Project ID override")
     .action(
       async (
         file: string,
-        opts: { profile: string; chunk: string; json?: boolean; project?: string },
+        opts: { profile: string; force?: boolean; json?: boolean; project?: string },
       ) => {
         try {
           const filePath = resolve(file);
@@ -342,7 +346,7 @@ export function i18nCommand(parent: Command): Command {
             process.exit(1);
           }
 
-          // Chunk the upload — large key sets (>200 keys / >50KB payload)
+          // Batch the upload — large key sets (>200 keys / >50KB payload)
           // tend to 500 against admin endpoints. Send in slices of 100 and
           // aggregate results. Each batch is still a single transaction
           // server-side; if any fails the CLI reports which slice errored.
@@ -350,10 +354,12 @@ export function i18nCommand(parent: Command): Command {
           const slices: (typeof keys)[] = [];
           for (let i = 0; i < keys.length; i += BATCH) slices.push(keys.slice(i, i + BATCH));
 
-          // The push endpoint is insert-only: it returns the keys it actually
-          // added (new) and the ones it skipped (already exist — left untouched).
+          // The push endpoint is insert-only unless `force` is set: it returns
+          // the keys it actually added (new), the ones it skipped (already
+          // exist — left untouched), and, with --force, the ones it overwrote.
           const added: string[] = [];
           const skipped: string[] = [];
+          const updated: string[] = [];
           const failed_keys: string[] = [];
 
           for (let i = 0; i < slices.length; i++) {
@@ -362,15 +368,18 @@ export function i18nCommand(parent: Command): Command {
               const result = await client.request<{
                 added?: string[];
                 skipped?: string[];
+                updated?: string[];
                 pushed_count?: number;
                 skipped_count?: number;
+                updated_count?: number;
               }>("POST", "/api/admin/i18n/keys", {
                 profile_id: profile.id,
-                chunk: opts.chunk,
                 keys: batch,
+                force: opts.force ?? false,
               });
               if (result.added) added.push(...result.added);
               if (result.skipped) skipped.push(...result.skipped);
+              if (result.updated) updated.push(...result.updated);
             } catch (err) {
               const status = err instanceof ApiError ? err.status : 0;
               const msg = err instanceof Error ? err.message : String(err);
@@ -383,18 +392,25 @@ export function i18nCommand(parent: Command): Command {
             }
           }
 
-          if (opts.json) return printJson({ added, skipped, failed_keys });
+          if (opts.json) return printJson({ added, skipped, updated, failed_keys });
 
           if (added.length > 0) {
             console.log(`Added ${added.length} new key${added.length === 1 ? "" : "s"}:`);
             for (const k of added) console.log(`  + ${k}`);
-          } else {
+          } else if (updated.length === 0) {
             console.log("No new keys to add.");
+          }
+          if (updated.length > 0) {
+            console.log(
+              `\nOverwrote ${updated.length} existing key${updated.length === 1 ? "" : "s"} (--force):`,
+            );
+            for (const k of updated) console.log(`  ~ ${k}`);
           }
           if (skipped.length > 0) {
             console.log(
               `\n${skipped.length} existing key${skipped.length === 1 ? "" : "s"} left unchanged ` +
-                "(push never overwrites values — use `shipeasy i18n update <key> <value>`):",
+                "(push never overwrites values — use `shipeasy i18n update <key> <value>`, " +
+                "or re-run with `--force` to overwrite them all):",
             );
             for (const k of skipped) console.log(`  · ${k}`);
           }
@@ -411,7 +427,7 @@ export function i18nCommand(parent: Command): Command {
 
   withExamples(push, [
     { note: "Add new keys from a flat JSON map", run: "shipeasy i18n push ./locales/en.json --profile en:prod" },
-    { note: "Group the keys under a chunk", run: "shipeasy i18n push ./locales/en.json --profile en:prod --chunk marketing" },
+    { note: "Re-push the file over existing keys (overwrites values)", run: "shipeasy i18n push ./locales/en.json --profile en:prod --force" },
   ]);
 
   // ── i18n update ──────────────────────────────────────────────────────────────
@@ -493,12 +509,11 @@ export function i18nCommand(parent: Command): Command {
   // ── i18n publish ───────────────────────────────────────────────────────────
   const publish = i18n
     .command("publish")
-    .description("Publish a profile chunk to the CDN (rebuilds KV manifest, purges cache)")
+    .description("Publish a profile to the CDN (rebuilds KV manifest, purges cache)")
     .requiredOption("--profile <name>", "Profile name (e.g. 'default')")
-    .option("--chunk <name>", "Chunk to publish", "default")
     .option("--json", "Output as JSON")
     .option("--project <id>", "Project ID override")
-    .action(async (opts: { profile: string; chunk: string; json?: boolean; project?: string }) => {
+    .action(async (opts: { profile: string; json?: boolean; project?: string }) => {
       try {
         const client = getApiClient(opts.project, { requireBinding: true });
         const profiles = await client.request<Array<{ id: string; name: string }>>(
@@ -517,10 +532,10 @@ export function i18nCommand(parent: Command): Command {
         const result = await client.request<unknown>(
           "POST",
           `/api/admin/i18n/profiles/${profile.id}/publish`,
-          { chunk: opts.chunk },
+          {},
         );
         if (opts.json) return printJson(result);
-        console.log(`Published profile '${opts.profile}' chunk '${opts.chunk}'.`);
+        console.log(`Published profile '${opts.profile}'.`);
       } catch (e) {
         printApiError(e);
         process.exit(1);
@@ -528,8 +543,7 @@ export function i18nCommand(parent: Command): Command {
     });
 
   withExamples(publish, [
-    { note: "Publish the default chunk", run: "shipeasy i18n publish --profile en:prod" },
-    { note: "Publish a specific chunk", run: "shipeasy i18n publish --profile fr:prod --chunk marketing" },
+    { note: "Publish a profile", run: "shipeasy i18n publish --profile en:prod" },
   ]);
 
   // ── i18n validate ──────────────────────────────────────────────────────────

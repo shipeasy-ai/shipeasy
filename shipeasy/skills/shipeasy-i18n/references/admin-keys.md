@@ -8,6 +8,9 @@ fits which job and the call shapes the workflow uses.
 
 - Push a batch of NEW keys (insert-only) → `i18n_keys_push`
   (or `shipeasy i18n push <file>`).
+- Re-push a whole file OVER the keys already there → the same push with
+  `force: true` (or `shipeasy i18n push <file> --force`). Existing keys are
+  overwritten and come back as `updated`.
 - Set one key's value (upsert) and ship it live in a single call →
   `i18n_keys_set`.
 - Overwrite one existing key's value (needs the key's id) →
@@ -62,17 +65,29 @@ For a batch of NEW keys (insert-only; publish separately), push a flat
 
 ```bash
 echo '{"landing.hero.title":"Ship faster with Shipeasy"}' > /tmp/keys.json
-shipeasy i18n push /tmp/keys.json --profile en:prod --chunk landing
+shipeasy i18n push /tmp/keys.json --profile en:prod
 ```
 
-(MCP equivalent: `i18n_keys_push { profile_id, chunk, keys: [{ key, value }] }`.)
+(MCP equivalent: `i18n_keys_push { profile_id, keys: [{ key, value }] }`.)
+
+A plain push never touches a key that already exists — it reports those back as
+`skipped`. When the file IS the new source of truth (the copy changed and you
+want every colliding key rewritten), add `--force` / `force: true`:
+
+```bash
+shipeasy i18n push /tmp/keys.json --profile en:prod --force
+```
+
+The overwritten keys come back as `updated` instead of `skipped`. Only reach
+for it when overwriting live values is what the user asked for — for a single
+string prefer `i18n_keys_set` or `i18n_keys_update`.
 
 Then publish the profile:
 
 ```
-mcp tool: i18n_profiles_publish { "profileId": "<profile id>", "chunk": "landing" }
+mcp tool: i18n_profiles_publish { "profileId": "<profile id>" }
 ```
 
-(Or `shipeasy i18n publish --profile en:prod --chunk landing`.) This rebuilds
+(Or `shipeasy i18n publish --profile en:prod`.) This rebuilds
 the KV manifest and purges the CDN cache. Skip this if you used
 `i18n_keys_set`, which already publishes.

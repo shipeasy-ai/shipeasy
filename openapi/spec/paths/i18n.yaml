@@ -5,7 +5,7 @@
     description: |-
       Returns every locale profile in the project (e.g. `en:prod`, `fr:prod`).
 
-      **Use case:** Discover which locale profiles exist before pushing keys or publishing a chunk.
+      **Use case:** Discover which locale profiles exist before pushing keys or publishing.
     tags:
       - Profiles
     parameters:
@@ -173,11 +173,13 @@
       name: list
   post:
     operationId: pushI18nKeys
-    summary: Push new i18n keys (insert-only)
+    summary: Push i18n keys (insert-only, or `force` to overwrite)
     description: |-
-      Add NEW keys to a profile. Insert-only — existing keys are left untouched (overwrite one with `updateI18nKey`).
+      Add NEW keys to a profile. Insert-only by default — existing keys are left untouched and reported back as `skipped`.
 
-      **Use case:** Seed newly-extracted keys without clobbering translations already in the profile.
+      Pass `force: true` to overwrite the existing ones in bulk with the submitted values: they come back as `updated` instead of `skipped`. Without `force` the only overwrite paths are `updateI18nKey` (one key) and the devtools-only `upsertI18nKeys`.
+
+      **Use case:** Seed newly-extracted keys without clobbering translations already in the profile — or re-push a whole source-language file with `force` after the copy changed.
     tags:
       - Keys
     parameters:
@@ -195,7 +197,7 @@
                 value: Buy now
     responses:
       "201":
-        description: Push new i18n keys (insert-only)
+        description: Push i18n keys (insert-only, or `force` to overwrite)
         content:
           application/json:
             schema:
@@ -204,8 +206,10 @@
               added:
                 - checkout.cta
               skipped: []
+              updated: []
               pushed_count: 1
               skipped_count: 0
+              updated_count: 0
       "400":
         $ref: ../components/responses.yaml#/BadRequest
       "401":
@@ -259,7 +263,6 @@
               $ref: ../components/schemas/i18n.yaml#/UpsertI18nKeysResponse
             example:
               upserted: 1
-              chunk: default
       "400":
         $ref: ../components/responses.yaml#/BadRequest
       "401":
@@ -726,7 +729,7 @@
     operationId: publishI18nProfile
     summary: Publish a profile live
     description: |-
-      Publish a profile to the CDN — rebuild its KV snapshot + purge the edge. Publishing is PROFILE-WIDE: the whole profile is snapshotted into one KV blob, so the optional `chunk` in the body is an audit label only (it does not scope what ships).
+      Publish a profile to the CDN — rebuild its KV snapshot + purge the edge. Publishing is PROFILE-WIDE: the whole profile is snapshotted into one KV blob, so the body takes no options.
 
       **Use case:** Ship the latest translations live after pushing/updating keys.
     tags:
@@ -740,16 +743,15 @@
         schema:
           $ref: ../components/schemas/common.yaml#/ResourceId
     requestBody:
-      required: true
+      required: false
       content:
         application/json:
           schema:
             $ref: ../components/schemas/i18n.yaml#/PublishI18nProfileRequest
-          example:
-            chunk: default
+          example: {}
     responses:
       "200":
-        description: Publish a profile chunk
+        description: Publish a profile
         content:
           application/json:
             schema:

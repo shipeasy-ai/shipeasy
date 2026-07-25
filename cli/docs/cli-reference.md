@@ -2629,7 +2629,7 @@ shipeasy i18n scan ./src --keys-only
 
 ### `shipeasy i18n push`
 
-Add NEW keys from a JSON file to the i18n profile. The file is a flat { "<key>": "<value>" } map. This only ADDS keys that do not already exist — existing keys are never overwritten. To change a value, update one key at a time with `shipeasy i18n update <key> <value>`.
+Add NEW keys from a JSON file to the i18n profile. The file is a flat { "<key>": "<value>" } map. This only ADDS keys that do not already exist — existing keys are never overwritten. To change a value, update one key at a time with `shipeasy i18n update <key> <value>`, or re-push the file with `--force` to overwrite every colliding key at once.
 
 ```bash
 shipeasy i18n push [options] <file>
@@ -2642,7 +2642,7 @@ shipeasy i18n push [options] <file>
 | Option | | Description |
 | --- | --- | --- |
 | `--profile <name>` | required | Profile name (e.g. 'default') |
-| `--chunk <name>` | optional | Logical grouping for the keys (default: `"default"`) |
+| `--force` | optional | Overwrite keys that already exist with the values in the file, instead of skipping them |
 | `--json` | optional | Output as JSON |
 | `--project <id>` | optional | Project ID override |
 
@@ -2652,8 +2652,8 @@ Examples:
 # Add new keys from a flat JSON map
 shipeasy i18n push ./locales/en.json --profile en:prod
 
-# Group the keys under a chunk
-shipeasy i18n push ./locales/en.json --profile en:prod --chunk marketing
+# Re-push the file over existing keys (overwrites values)
+shipeasy i18n push ./locales/en.json --profile en:prod --force
 ```
 
 ### `shipeasy i18n update`
@@ -2688,7 +2688,7 @@ shipeasy i18n update home.title 'Welcome to "ShipEasy"' --profile en:prod
 
 ### `shipeasy i18n publish`
 
-Publish a profile chunk to the CDN (rebuilds KV manifest, purges cache)
+Publish a profile to the CDN (rebuilds KV manifest, purges cache)
 
 ```bash
 shipeasy i18n publish [options]
@@ -2697,18 +2697,14 @@ shipeasy i18n publish [options]
 | Option | | Description |
 | --- | --- | --- |
 | `--profile <name>` | required | Profile name (e.g. 'default') |
-| `--chunk <name>` | optional | Chunk to publish (default: `"default"`) |
 | `--json` | optional | Output as JSON |
 | `--project <id>` | optional | Project ID override |
 
 Examples:
 
 ```bash
-# Publish the default chunk
+# Publish a profile
 shipeasy i18n publish --profile en:prod
-
-# Publish a specific chunk
-shipeasy i18n publish --profile fr:prod --chunk marketing
 ```
 
 ### `shipeasy i18n validate`
@@ -2853,7 +2849,6 @@ shipeasy i18n extract [options] [target]
 | Option | | Description |
 | --- | --- | --- |
 | `--profile <name>` | optional | Profile to push keys to (default: `"en:prod"`) |
-| `--chunk <name>` | optional | Chunk for the keys (default: `"default"`) |
 | `--dry-run` | optional | Preview the codemod without writing or pushing |
 | `--no-publish` | optional | Push keys but don't publish to the CDN |
 | `--project <id>` | optional | Project ID override |
@@ -2889,7 +2884,6 @@ shipeasy i18n migrate [options] <library>
 | Option | | Description |
 | --- | --- | --- |
 | `--profile <name>` | optional | Profile to push existing translations to (default: `"en:prod"`) |
-| `--chunk <name>` | optional | Chunk for the keys (default: `"default"`) |
 | `--dry-run` | optional | Preview the migration without writing or pushing |
 | `--no-publish` | optional | Push keys but don't publish to the CDN |
 | `--project <id>` | optional | Project ID override |

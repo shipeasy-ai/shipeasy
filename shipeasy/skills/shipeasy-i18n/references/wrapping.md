@@ -20,9 +20,9 @@ i18n.t(
 
 ## Key naming
 
-`<chunk>.<component>.<element>`
+`<area>.<component>.<element>`
 
-- **chunk** groups related keys so they load in a single CDN fetch (e.g. `landing`, `auth`, `dashboard`, `pricing`).
+- **area** is the broad surface the key belongs to (e.g. `landing`, `auth`, `dashboard`, `pricing`) — it keeps related keys sorted together in the dashboard.
 - **component** is the section or component name (e.g. `hero`, `nav`, `footer`).
 - **element** is the specific piece (e.g. `cta`, `title`, `badge`).
 

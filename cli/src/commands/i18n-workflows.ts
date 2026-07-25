@@ -80,7 +80,6 @@ function resolveKeysFile(cwd: string): string | null {
 async function pushKeysToProfile(
   client: ReturnType<typeof getApiClient>,
   profileId: string,
-  chunk: string,
   keys: Keys,
 ): Promise<{ added: string[]; skipped: string[]; failed: string[] }> {
   const BATCH = 100;
@@ -93,7 +92,7 @@ async function pushKeysToProfile(
       const r = await client.request<{ added?: string[]; skipped?: string[] }>(
         "POST",
         "/api/admin/i18n/keys",
-        { profile_id: profileId, chunk, keys: batch },
+        { profile_id: profileId, keys: batch },
       );
       if (r.added) added.push(...r.added);
       if (r.skipped) skipped.push(...r.skipped);
@@ -128,7 +127,7 @@ async function resolveProfileId(
 // optionally publish, and report. `publish` is on by default for extract.
 async function pushAndPublish(
   cwd: string,
-  opts: { profile: string; chunk: string; project?: string; publish: boolean },
+  opts: { profile: string; project?: string; publish: boolean },
 ): Promise<void> {
   const file = resolveKeysFile(cwd);
   if (!file) {
@@ -152,16 +151,14 @@ async function pushAndPublish(
 
   const client = getApiClient(opts.project, { requireBinding: true });
   const profileId = await resolveProfileId(client, opts.profile);
-  const { added, skipped, failed } = await pushKeysToProfile(client, profileId, opts.chunk, keys);
+  const { added, skipped, failed } = await pushKeysToProfile(client, profileId, keys);
   console.log(
     `\nPushed ${added.length} new key(s); ${skipped.length} already existed; ${failed.length} failed.`,
   );
 
   if (opts.publish && failed.length === 0) {
-    await client.request("POST", `/api/admin/i18n/profiles/${profileId}/publish`, {
-      chunk: opts.chunk,
-    });
-    console.log(`Published profile '${opts.profile}' chunk '${opts.chunk}' to the CDN.`);
+    await client.request("POST", `/api/admin/i18n/profiles/${profileId}/publish`, {});
+    console.log(`Published profile '${opts.profile}' to the CDN.`);
   }
   if (failed.length > 0) process.exit(1);
 }
@@ -172,7 +169,6 @@ export function i18nWorkflowCommands(i18n: Command): void {
     .command("extract [target]")
     .description("Extract hardcoded strings → wrap with i18n.t() → push + publish keys (JS/TS)")
     .option("--profile <name>", "Profile to push keys to", "en:prod")
-    .option("--chunk <name>", "Chunk for the keys", "default")
     .option("--dry-run", "Preview the codemod without writing or pushing")
     .option("--no-publish", "Push keys but don't publish to the CDN")
     .option("--project <id>", "Project ID override")
@@ -181,7 +177,6 @@ export function i18nWorkflowCommands(i18n: Command): void {
         target: string | undefined,
         opts: {
           profile: string;
-          chunk: string;
           dryRun?: boolean;
           publish: boolean;
           project?: string;
@@ -197,7 +192,6 @@ export function i18nWorkflowCommands(i18n: Command): void {
           }
           await pushAndPublish(cwd, {
             profile: opts.profile,
-            chunk: opts.chunk,
             project: opts.project,
             publish: opts.publish,
           });
@@ -230,7 +224,6 @@ export function i18nWorkflowCommands(i18n: Command): void {
     .command("migrate <library>")
     .description(`Migrate an existing i18n library to Shipeasy (${SUPPORTED.join(", ")})`)
     .option("--profile <name>", "Profile to push existing translations to", "en:prod")
-    .option("--chunk <name>", "Chunk for the keys", "default")
     .option("--dry-run", "Preview the migration without writing or pushing")
     .option("--no-publish", "Push keys but don't publish to the CDN")
     .option("--project <id>", "Project ID override")
@@ -239,7 +232,6 @@ export function i18nWorkflowCommands(i18n: Command): void {
         library: string,
         opts: {
           profile: string;
-          chunk: string;
           dryRun?: boolean;
           publish: boolean;
           project?: string;
@@ -260,7 +252,6 @@ export function i18nWorkflowCommands(i18n: Command): void {
           // Migrations rewrite call sites; existing en.json (if any) is pushed.
           await pushAndPublish(cwd, {
             profile: opts.profile,
-            chunk: opts.chunk,
             project: opts.project,
             publish: opts.publish,
           });

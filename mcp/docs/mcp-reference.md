@@ -2681,7 +2681,7 @@ _Errors_ — beyond the [common errors](#errors):
 ## i18n
 
 String Manager (i18n): the worker-safe REST surface — locale profiles, the
-insert-only key push, single-key overwrite, chunk publish, and the read-only
+insert-only key push, single-key overwrite, profile publish, and the read-only
 key/draft listings.
 
 The fs/AST parts (scan, validate, install-loader, codemod) are NOT part of
@@ -2689,7 +2689,7 @@ this API — they stay in the fs-having CLI/MCP.
 
 ### Profiles
 
-Locale profiles (e.g. `en:prod`) — create, list, and publish a profile's chunks to the CDN.
+Locale profiles (e.g. `en:prod`) — create, list, and publish a profile to the CDN.
 
 #### `i18n_profiles_create`
 
@@ -2712,14 +2712,13 @@ _No parameters._
 
 #### `i18n_profiles_publish`
 
-Publish a profile live. Publish a profile to the CDN — rebuild its KV snapshot + purge the edge. Publishing is PROFILE-WIDE: the whole profile is snapshotted into one KV blob, so the optional `chunk` in the body is an audit label only (it does not scope what ships).
+Publish a profile live. Publish a profile to the CDN — rebuild its KV snapshot + purge the edge. Publishing is PROFILE-WIDE: the whole profile is snapshotted into one KV blob, so the body takes no options.
 
 _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
 | `profileId` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
-| `chunk` | optional | `string` | Optional chunk label to stamp on the audit log. Publishing is profile-wide regardless — the whole profile is snapshotted into one KV blob. |
 
 ### Keys
 
@@ -2741,15 +2740,15 @@ _Parameters_
 
 #### `i18n_keys_push`
 
-Push new i18n keys (insert-only). Add NEW keys to a profile. Insert-only — existing keys are left untouched (overwrite one with `updateI18nKey`).
+Push i18n keys (insert-only, or `force` to overwrite). Add NEW keys to a profile. Insert-only by default — existing keys are left untouched and reported back as `skipped`.
 
 _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
 | `profile_id` | required | `string` | Target profile id to add keys to. _(format: uuid)_ |
-| `chunk` | optional | `string` | Logical grouping the new keys are filed under. Defaults to `default`. _(default `"default"`; length 1–64)_ |
-| `keys` | required | `object[]` | Keys to add. Insert-only — existing keys are reported back as `skipped`. |
+| `keys` | required | `object[]` | Keys to add. Insert-only by default — existing keys are reported back as `skipped` (set `force` to overwrite them instead). |
+| `force` | optional | `boolean` | Overwrite keys that already exist with the submitted value instead of skipping them. Overwritten keys come back as `updated`. Off by default so a routine push can never clobber live translations. _(default `false`)_ |
 
 #### `i18n_keys_set`
 

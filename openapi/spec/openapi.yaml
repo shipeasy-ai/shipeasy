@@ -228,14 +228,14 @@ tags:
   - name: i18n
     description: |-
       String Manager (i18n): the worker-safe REST surface — locale profiles, the
-      insert-only key push, single-key overwrite, chunk publish, and the read-only
+      insert-only key push, single-key overwrite, profile publish, and the read-only
       key/draft listings.
 
       The fs/AST parts (scan, validate, install-loader, codemod) are NOT part of
       this API — they stay in the fs-having CLI/MCP.
   - name: Profiles
     parent: i18n
-    description: Locale profiles (e.g. `en:prod`) — create, list, and publish a profile's chunks to the CDN.
+    description: Locale profiles (e.g. `en:prod`) — create, list, and publish a profile to the CDN.
   - name: Keys
     parent: i18n
     description: Translation keys — the insert-only push, single-key overwrite, and key listing.

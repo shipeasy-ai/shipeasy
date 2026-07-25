@@ -40,7 +40,8 @@ source profile (default `en:prod`).
    the model doesn't paraphrase them).
 
 4. **Push the translated values** into the target profile (insert-only — this
-   never clobbers human edits already made there):
+   never clobbers human edits already made there; only add `"force": true` if
+   the user explicitly asked to re-translate over the existing values):
 
    ```
    mcp tool: i18n_keys_push {

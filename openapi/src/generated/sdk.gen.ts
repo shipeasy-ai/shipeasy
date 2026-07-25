@@ -1592,7 +1592,7 @@ export const updateProject = <ThrowOnError extends boolean = false>(options: Opt
  *
  * Returns every locale profile in the project (e.g. `en:prod`, `fr:prod`).
  *
- * **Use case:** Discover which locale profiles exist before pushing keys or publishing a chunk.
+ * **Use case:** Discover which locale profiles exist before pushing keys or publishing.
  */
 export const listI18nProfiles = <ThrowOnError extends boolean = false>(options?: Options<ListI18nProfilesData, ThrowOnError>): RequestResult<ListI18nProfilesResponses, ListI18nProfilesErrors, ThrowOnError> => (options?.client ?? client).get<ListI18nProfilesResponses, ListI18nProfilesErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -1631,11 +1631,13 @@ export const listI18nKeys = <ThrowOnError extends boolean = false>(options?: Opt
 });
 
 /**
- * Push new i18n keys (insert-only)
+ * Push i18n keys (insert-only, or `force` to overwrite)
  *
- * Add NEW keys to a profile. Insert-only — existing keys are left untouched (overwrite one with `updateI18nKey`).
+ * Add NEW keys to a profile. Insert-only by default — existing keys are left untouched and reported back as `skipped`.
  *
- * **Use case:** Seed newly-extracted keys without clobbering translations already in the profile.
+ * Pass `force: true` to overwrite the existing ones in bulk with the submitted values: they come back as `updated` instead of `skipped`. Without `force` the only overwrite paths are `updateI18nKey` (one key) and the devtools-only `upsertI18nKeys`.
+ *
+ * **Use case:** Seed newly-extracted keys without clobbering translations already in the profile — or re-push a whole source-language file with `force` after the copy changed.
  */
 export const pushI18nKeys = <ThrowOnError extends boolean = false>(options: Options<PushI18nKeysData, ThrowOnError>): RequestResult<PushI18nKeysResponses, PushI18nKeysErrors, ThrowOnError> => (options.client ?? client).post<PushI18nKeysResponses, PushI18nKeysErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -1804,7 +1806,7 @@ export const upsertI18nDraftKey = <ThrowOnError extends boolean = false>(options
 /**
  * Publish a profile live
  *
- * Publish a profile to the CDN — rebuild its KV snapshot + purge the edge. Publishing is PROFILE-WIDE: the whole profile is snapshotted into one KV blob, so the optional `chunk` in the body is an audit label only (it does not scope what ships).
+ * Publish a profile to the CDN — rebuild its KV snapshot + purge the edge. Publishing is PROFILE-WIDE: the whole profile is snapshotted into one KV blob, so the body takes no options.
  *
  * **Use case:** Ship the latest translations live after pushing/updating keys.
  */

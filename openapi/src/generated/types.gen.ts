@@ -5556,14 +5556,6 @@ export type ListI18nKeysResponse = {
          */
         profileName: string | null;
         /**
-         * Owning chunk (authoring grouping) id.
-         */
-        chunkId: string;
-        /**
-         * Name of the owning chunk (authoring grouping), or `null` when it cannot be resolved.
-         */
-        chunkName: string | null;
-        /**
          * ISO-8601 timestamp of the last edit.
          */
         updatedAt: string;
@@ -5586,10 +5578,6 @@ export type UpsertI18nKeysRequest = {
      * Target profile id to upsert keys into.
      */
     profile_id: string;
-    /**
-     * Logical grouping the keys are filed under. Defaults to `default`.
-     */
-    chunk?: string;
     /**
      * Keys to upsert. Existing keys ARE overwritten — this is the bulk overwrite path.
      */
@@ -5621,14 +5609,10 @@ export type UpsertI18nKeysResponse = {
      * Number of keys written (inserted or overwritten).
      */
     upserted: number;
-    /**
-     * The chunk the keys were filed under.
-     */
-    chunk: string;
 };
 
 /**
- * Body for `POST /api/admin/i18n/keys`. Insert-only: keys that already exist are never overwritten — use `PUT /keys/{id}` to change a value.
+ * Body for `POST /api/admin/i18n/keys`. Insert-only by default: keys that already exist are never overwritten — pass `force: true` to overwrite them in bulk, or use `PUT /keys/{id}` to change one value.
  */
 export type PushI18nKeysRequest = {
     /**
@@ -5636,11 +5620,7 @@ export type PushI18nKeysRequest = {
      */
     profile_id: string;
     /**
-     * Logical grouping the new keys are filed under. Defaults to `default`.
-     */
-    chunk?: string;
-    /**
-     * Keys to add. Insert-only — existing keys are reported back as `skipped`.
+     * Keys to add. Insert-only by default — existing keys are reported back as `skipped` (set `force` to overwrite them instead).
      */
     keys: Array<{
         /**
@@ -5660,10 +5640,14 @@ export type PushI18nKeysRequest = {
          */
         variables?: Array<string>;
     }>;
+    /**
+     * Overwrite keys that already exist with the submitted value instead of skipping them. Overwritten keys come back as `updated`. Off by default so a routine push can never clobber live translations.
+     */
+    force?: boolean;
 };
 
 /**
- * Result of an insert-only key push.
+ * Result of a key push — what was inserted, what was left alone, and (with `force`) what was overwritten.
  */
 export type PushI18nKeysResponse = {
     /**
@@ -5671,9 +5655,13 @@ export type PushI18nKeysResponse = {
      */
     added: Array<string>;
     /**
-     * Key names that already existed and were left untouched.
+     * Key names that already existed and were left untouched. Always empty when `force` was set — those key names come back under `updated` instead.
      */
     skipped: Array<string>;
+    /**
+     * Key names that already existed and were overwritten with the submitted value. Only ever non-empty when the push set `force`.
+     */
+    updated: Array<string>;
     /**
      * Number of keys inserted (== `added.length`).
      */
@@ -5683,9 +5671,9 @@ export type PushI18nKeysResponse = {
      */
     skipped_count: number;
     /**
-     * The chunk the keys were filed under.
+     * Number of existing keys overwritten (== `updated.length`).
      */
-    chunk?: string;
+    updated_count: number;
 };
 
 /**
@@ -5855,13 +5843,10 @@ export type UpsertI18nDraftKeyRequest = {
 };
 
 /**
- * Body for `POST /api/admin/i18n/profiles/{profileId}/publish`. The `chunk` is an audit label only.
+ * Body for `POST /api/admin/i18n/profiles/{profileId}/publish`. Publishing is profile-wide — the whole profile is snapshotted into one KV blob — so the body takes no options.
  */
 export type PublishI18nProfileRequest = {
-    /**
-     * Optional chunk label to stamp on the audit log. Publishing is profile-wide regardless — the whole profile is snapshotted into one KV blob.
-     */
-    chunk?: string;
+    [key: string]: never;
 };
 
 /**
@@ -5876,10 +5861,6 @@ export type PublishI18nProfileResponse = {
      * Profile that was published.
      */
     profile_id: string;
-    /**
-     * Audit chunk label, or `null` when none was given.
-     */
-    chunk: string | null;
     /**
      * ISO-8601 timestamp of the publish.
      */
@@ -12212,7 +12193,7 @@ export type PushI18nKeysError = PushI18nKeysErrors[keyof PushI18nKeysErrors];
 
 export type PushI18nKeysResponses = {
     /**
-     * Push new i18n keys (insert-only)
+     * Push i18n keys (insert-only, or `force` to overwrite)
      */
     201: PushI18nKeysResponse;
 };
@@ -12765,7 +12746,7 @@ export type UpsertI18nDraftKeyResponses = {
 export type UpsertI18nDraftKeyResponse = UpsertI18nDraftKeyResponses[keyof UpsertI18nDraftKeyResponses];
 
 export type PublishI18nProfileData = {
-    body: PublishI18nProfileRequest;
+    body?: PublishI18nProfileRequest;
     headers?: {
         /**
          * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
@@ -12813,7 +12794,7 @@ export type PublishI18nProfileError = PublishI18nProfileErrors[keyof PublishI18n
 
 export type PublishI18nProfileResponses = {
     /**
-     * Publish a profile chunk
+     * Publish a profile
      */
     200: PublishI18nProfileResponse;
 };

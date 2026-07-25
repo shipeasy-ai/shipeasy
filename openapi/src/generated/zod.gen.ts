@@ -2933,8 +2933,6 @@ export const zListI18nKeysResponse = z.object({
         variables: z.array(z.string()).nullable(),
         profileId: z.string(),
         profileName: z.string().nullable(),
-        chunkId: z.string(),
-        chunkName: z.string().nullable(),
         updatedAt: z.string(),
         updatedBy: z.string()
     })),
@@ -2946,7 +2944,6 @@ export const zListI18nKeysResponse = z.object({
  */
 export const zUpsertI18nKeysRequest = z.object({
     profile_id: z.uuid(),
-    chunk: z.string().min(1).max(64).optional().default('default'),
     keys: z.array(z.object({
         key: z.string().min(1).max(256),
         value: z.string(),
@@ -2959,33 +2956,33 @@ export const zUpsertI18nKeysRequest = z.object({
  * Result of a bulk key upsert. The affected profile's KV snapshot is rebuilt (and the CDN purged) before this returns.
  */
 export const zUpsertI18nKeysResponse = z.object({
-    upserted: z.number(),
-    chunk: z.string()
+    upserted: z.number()
 });
 
 /**
- * Body for `POST /api/admin/i18n/keys`. Insert-only: keys that already exist are never overwritten — use `PUT /keys/{id}` to change a value.
+ * Body for `POST /api/admin/i18n/keys`. Insert-only by default: keys that already exist are never overwritten — pass `force: true` to overwrite them in bulk, or use `PUT /keys/{id}` to change one value.
  */
 export const zPushI18nKeysRequest = z.object({
     profile_id: z.uuid(),
-    chunk: z.string().min(1).max(64).optional().default('default'),
     keys: z.array(z.object({
         key: z.string().min(1).max(256),
         value: z.string(),
         description: z.string().optional(),
         variables: z.array(z.string().min(1).max(64)).max(32).optional()
-    })).min(1).max(5000)
+    })).min(1).max(5000),
+    force: z.boolean().optional().default(false)
 });
 
 /**
- * Result of an insert-only key push.
+ * Result of a key push — what was inserted, what was left alone, and (with `force`) what was overwritten.
  */
 export const zPushI18nKeysResponse = z.object({
     added: z.array(z.string()),
     skipped: z.array(z.string()),
+    updated: z.array(z.string()),
     pushed_count: z.number(),
     skipped_count: z.number(),
-    chunk: z.string().optional()
+    updated_count: z.number()
 });
 
 /**
@@ -3078,11 +3075,9 @@ export const zUpsertI18nDraftKeyRequest = z.object({
 });
 
 /**
- * Body for `POST /api/admin/i18n/profiles/{profileId}/publish`. The `chunk` is an audit label only.
+ * Body for `POST /api/admin/i18n/profiles/{profileId}/publish`. Publishing is profile-wide — the whole profile is snapshotted into one KV blob — so the body takes no options.
  */
-export const zPublishI18nProfileRequest = z.object({
-    chunk: z.string().optional()
-});
+export const zPublishI18nProfileRequest = z.record(z.string(), z.never());
 
 /**
  * Result of a profile-wide publish.
@@ -3090,7 +3085,6 @@ export const zPublishI18nProfileRequest = z.object({
 export const zPublishI18nProfileResponse = z.object({
     ok: z.literal(true),
     profile_id: z.string(),
-    chunk: z.string().nullable(),
     published_at: z.string(),
     version: z.string(),
     key_count: z.number(),
@@ -4953,7 +4947,7 @@ export const zPushI18nKeysHeaders = z.object({
 });
 
 /**
- * Push new i18n keys (insert-only)
+ * Push i18n keys (insert-only, or `force` to overwrite)
  */
 export const zPushI18nKeysResponse2 = zPushI18nKeysResponse;
 
@@ -5096,7 +5090,7 @@ export const zPublishI18nProfilePath = z.object({
 });
 
 /**
- * Publish a profile chunk
+ * Publish a profile
  */
 export const zPublishI18nProfileResponse2 = zPublishI18nProfileResponse;
 

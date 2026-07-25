@@ -231,7 +231,7 @@ Unified listing across both subsystems.
 ```json
 // input
 {
-  "kind": "gates|configs|experiments|events|metrics|universes|attributes|profiles|chunks|keys|drafts|sdk_keys|all",
+  "kind": "gates|configs|experiments|events|metrics|universes|attributes|profiles|keys|drafts|sdk_keys|all",
   "limit": 50,
   "search": "checkout" // optional name filter
 }
@@ -405,8 +405,7 @@ Read-only project context streamed to the assistant via MCP's `resources/read`. 
 | `shipeasy://experiments/{name}`              | Experiment config + latest stats JSON.                              |
 | `shipeasy://gates/{name}`                    | Gate config + rollout state.                                        |
 | `shipeasy://configs/{name}`                  | Config value + history.                                             |
-| `shipeasy://i18n/profiles/{profile}`         | Profile metadata + chunk list + coverage %.                         |
-| `shipeasy://i18n/profiles/{profile}/{chunk}` | Published strings for one chunk.                                    |
+| `shipeasy://i18n/profiles/{profile}`         | Profile metadata + published strings + coverage %.                  |
 | `shipeasy://i18n/drafts/{draft_id}`          | Draft metadata + per-key diff vs. source profile.                   |
 | `shipeasy://plans/current`                   | Plan tier + current-month usage + remaining quota.                  |
 | `shipeasy://docs/{slug}`                     | Pre-rendered markdown page from `docs.shipeasy.ai` — AI-consumable. |
@@ -454,7 +453,6 @@ packages/mcp/
         scan.ts                     ← i18n_scan_code (ast-grep driver)
         discover.ts                 ← i18n_discover_site
         profiles.ts
-        chunks.ts
         keys.ts
         drafts.ts
         translate.ts                ← i18n_translate_draft (Anthropic shell-out)

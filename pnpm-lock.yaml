@@ -27,7 +27,7 @@ importers:
         specifier: ^7.29.0
         version: 7.29.7
       '@shipeasy/openapi':
-        specifier: workspace:^2.5.0
+        specifier: workspace:^3.0.0
         version: link:../openapi
       '@shipeasy/sdk':
         specifier: ^7.9.0
@@ -88,7 +88,7 @@ importers:
         specifier: ^1.29.0
         version: 1.29.0(zod@4.4.3)
       '@shipeasy/openapi':
-        specifier: workspace:^2.3.0
+        specifier: workspace:^3.0.0
         version: link:../openapi
       package-manager-detector:
         specifier: ^1.6.0

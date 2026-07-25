@@ -124,12 +124,12 @@
     },
     {
       "name": "i18n",
-      "description": "String Manager (i18n): the worker-safe REST surface — locale profiles, the\ninsert-only key push, single-key overwrite, chunk publish, and the read-only\nkey/draft listings.\n\nThe fs/AST parts (scan, validate, install-loader, codemod) are NOT part of\nthis API — they stay in the fs-having CLI/MCP."
+      "description": "String Manager (i18n): the worker-safe REST surface — locale profiles, the\ninsert-only key push, single-key overwrite, profile publish, and the read-only\nkey/draft listings.\n\nThe fs/AST parts (scan, validate, install-loader, codemod) are NOT part of\nthis API — they stay in the fs-having CLI/MCP."
     },
     {
       "name": "Profiles",
       "parent": "i18n",
-      "description": "Locale profiles (e.g. `en:prod`) — create, list, and publish a profile's chunks to the CDN."
+      "description": "Locale profiles (e.g. `en:prod`) — create, list, and publish a profile to the CDN."
     },
     {
       "name": "Keys",
@@ -9099,7 +9099,7 @@
       "get": {
         "operationId": "listI18nProfiles",
         "summary": "List i18n profiles",
-        "description": "Returns every locale profile in the project (e.g. `en:prod`, `fr:prod`).\n\n**Use case:** Discover which locale profiles exist before pushing keys or publishing a chunk.",
+        "description": "Returns every locale profile in the project (e.g. `en:prod`, `fr:prod`).\n\n**Use case:** Discover which locale profiles exist before pushing keys or publishing.",
         "tags": [
           "Profiles"
         ],
@@ -9348,8 +9348,8 @@
       },
       "post": {
         "operationId": "pushI18nKeys",
-        "summary": "Push new i18n keys (insert-only)",
-        "description": "Add NEW keys to a profile. Insert-only — existing keys are left untouched (overwrite one with `updateI18nKey`).\n\n**Use case:** Seed newly-extracted keys without clobbering translations already in the profile.",
+        "summary": "Push i18n keys (insert-only, or `force` to overwrite)",
+        "description": "Add NEW keys to a profile. Insert-only by default — existing keys are left untouched and reported back as `skipped`.\n\nPass `force: true` to overwrite the existing ones in bulk with the submitted values: they come back as `updated` instead of `skipped`. Without `force` the only overwrite paths are `updateI18nKey` (one key) and the devtools-only `upsertI18nKeys`.\n\n**Use case:** Seed newly-extracted keys without clobbering translations already in the profile — or re-push a whole source-language file with `force` after the copy changed.",
         "tags": [
           "Keys"
         ],
@@ -9379,7 +9379,7 @@
         },
         "responses": {
           "201": {
-            "description": "Push new i18n keys (insert-only)",
+            "description": "Push i18n keys (insert-only, or `force` to overwrite)",
             "content": {
               "application/json": {
                 "schema": {
@@ -9390,8 +9390,10 @@
                     "checkout.cta"
                   ],
                   "skipped": [],
+                  "updated": [],
                   "pushed_count": 1,
-                  "skipped_count": 0
+                  "skipped_count": 0,
+                  "updated_count": 0
                 }
               }
             }
@@ -9466,8 +9468,7 @@
                   "$ref": "#/components/schemas/UpsertI18nKeysResponse"
                 },
                 "example": {
-                  "upserted": 1,
-                  "chunk": "default"
+                  "upserted": 1
                 }
               }
             }
@@ -10136,7 +10137,7 @@
       "post": {
         "operationId": "publishI18nProfile",
         "summary": "Publish a profile live",
-        "description": "Publish a profile to the CDN — rebuild its KV snapshot + purge the edge. Publishing is PROFILE-WIDE: the whole profile is snapshotted into one KV blob, so the optional `chunk` in the body is an audit label only (it does not scope what ships).\n\n**Use case:** Ship the latest translations live after pushing/updating keys.",
+        "description": "Publish a profile to the CDN — rebuild its KV snapshot + purge the edge. Publishing is PROFILE-WIDE: the whole profile is snapshotted into one KV blob, so the body takes no options.\n\n**Use case:** Ship the latest translations live after pushing/updating keys.",
         "tags": [
           "Profiles"
         ],
@@ -10155,21 +10156,19 @@
           }
         ],
         "requestBody": {
-          "required": true,
+          "required": false,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PublishI18nProfileRequest"
               },
-              "example": {
-                "chunk": "default"
-              }
+              "example": {}
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Publish a profile chunk",
+            "description": "Publish a profile",
             "content": {
               "application/json": {
                 "schema": {
@@ -23611,21 +23610,6 @@
                     }
                   ]
                 },
-                "chunkId": {
-                  "description": "Owning chunk (authoring grouping) id.",
-                  "type": "string"
-                },
-                "chunkName": {
-                  "description": "Name of the owning chunk (authoring grouping), or `null` when it cannot be resolved.",
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
                 "updatedAt": {
                   "description": "ISO-8601 timestamp of the last edit.",
                   "type": "string"
@@ -23643,8 +23627,6 @@
                 "variables",
                 "profileId",
                 "profileName",
-                "chunkId",
-                "chunkName",
                 "updatedAt",
                 "updatedBy"
               ],
@@ -23672,13 +23654,6 @@
             "type": "string",
             "format": "uuid",
             "description": "Target profile id to upsert keys into."
-          },
-          "chunk": {
-            "description": "Logical grouping the keys are filed under. Defaults to `default`.",
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 64,
-            "default": "default"
           },
           "keys": {
             "type": "array",
@@ -23734,15 +23709,10 @@
           "upserted": {
             "type": "number",
             "description": "Number of keys written (inserted or overwritten)."
-          },
-          "chunk": {
-            "type": "string",
-            "description": "The chunk the keys were filed under."
           }
         },
         "required": [
-          "upserted",
-          "chunk"
+          "upserted"
         ],
         "additionalProperties": false,
         "description": "Result of a bulk key upsert. The affected profile's KV snapshot is rebuilt (and the CDN purged) before this returns."
@@ -23754,13 +23724,6 @@
             "type": "string",
             "format": "uuid",
             "description": "Target profile id to add keys to."
-          },
-          "chunk": {
-            "description": "Logical grouping the new keys are filed under. Defaults to `default`.",
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 64,
-            "default": "default"
           },
           "keys": {
             "type": "array",
@@ -23800,7 +23763,12 @@
               ],
               "additionalProperties": false
             },
-            "description": "Keys to add. Insert-only — existing keys are reported back as `skipped`."
+            "description": "Keys to add. Insert-only by default — existing keys are reported back as `skipped` (set `force` to overwrite them instead)."
+          },
+          "force": {
+            "type": "boolean",
+            "default": false,
+            "description": "Overwrite keys that already exist with the submitted value instead of skipping them. Overwritten keys come back as `updated`. Off by default so a routine push can never clobber live translations."
           }
         },
         "required": [
@@ -23808,7 +23776,7 @@
           "keys"
         ],
         "additionalProperties": false,
-        "description": "Body for `POST /api/admin/i18n/keys`. Insert-only: keys that already exist are never overwritten — use `PUT /keys/{id}` to change a value."
+        "description": "Body for `POST /api/admin/i18n/keys`. Insert-only by default: keys that already exist are never overwritten — pass `force: true` to overwrite them in bulk, or use `PUT /keys/{id}` to change one value."
       },
       "PushI18nKeysResponse": {
         "type": "object",
@@ -23825,7 +23793,14 @@
             "items": {
               "type": "string"
             },
-            "description": "Key names that already existed and were left untouched."
+            "description": "Key names that already existed and were left untouched. Always empty when `force` was set — those key names come back under `updated` instead."
+          },
+          "updated": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Key names that already existed and were overwritten with the submitted value. Only ever non-empty when the push set `force`."
           },
           "pushed_count": {
             "type": "number",
@@ -23835,19 +23810,21 @@
             "type": "number",
             "description": "Number of keys skipped (== `skipped.length`)."
           },
-          "chunk": {
-            "description": "The chunk the keys were filed under.",
-            "type": "string"
+          "updated_count": {
+            "type": "number",
+            "description": "Number of existing keys overwritten (== `updated.length`)."
           }
         },
         "required": [
           "added",
           "skipped",
+          "updated",
           "pushed_count",
-          "skipped_count"
+          "skipped_count",
+          "updated_count"
         ],
         "additionalProperties": false,
-        "description": "Result of an insert-only key push."
+        "description": "Result of a key push — what was inserted, what was left alone, and (with `force`) what was overwritten."
       },
       "UpdateI18nKeyRequest": {
         "type": "object",
@@ -24121,14 +24098,9 @@
       },
       "PublishI18nProfileRequest": {
         "type": "object",
-        "properties": {
-          "chunk": {
-            "description": "Optional chunk label to stamp on the audit log. Publishing is profile-wide regardless — the whole profile is snapshotted into one KV blob.",
-            "type": "string"
-          }
-        },
+        "properties": {},
         "additionalProperties": false,
-        "description": "Body for `POST /api/admin/i18n/profiles/{profileId}/publish`. The `chunk` is an audit label only."
+        "description": "Body for `POST /api/admin/i18n/profiles/{profileId}/publish`. Publishing is profile-wide — the whole profile is snapshotted into one KV blob — so the body takes no options."
       },
       "PublishI18nProfileResponse": {
         "type": "object",
@@ -24141,17 +24113,6 @@
           "profile_id": {
             "type": "string",
             "description": "Profile that was published."
-          },
-          "chunk": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Audit chunk label, or `null` when none was given."
           },
           "published_at": {
             "type": "string",
@@ -24190,7 +24151,6 @@
         "required": [
           "ok",
           "profile_id",
-          "chunk",
           "published_at",
           "version",
           "key_count",

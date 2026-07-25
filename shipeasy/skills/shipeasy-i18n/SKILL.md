@@ -61,7 +61,9 @@ The i18n surface splits in two:
    other languages the same command prints the language-correct doc to follow.
 3. **Push the keys** — one key that should go live immediately:
    `i18n_keys_set`. A batch of NEW keys: `shipeasy i18n push <file>` /
-   `i18n_keys_push` (insert-only). Call shapes: <references/admin-keys.md>.
+   `i18n_keys_push` (insert-only; add `--force` / `force: true` only when the
+   file is meant to overwrite the values already there). Call shapes:
+   <references/admin-keys.md>.
 4. **Publish the profile** — `i18n_profiles_publish` (skip if you used
    `i18n_keys_set`, which already publishes).
 5. **Validate** — `shipeasy i18n validate src --profile en:prod` (CLI-only;
@@ -75,8 +77,8 @@ The i18n surface splits in two:
   the exact call form is in <references/wrapping.md>.
 - One `shipeasy()` configure call per runtime. Never add a separate
   `i18n.init()`, `fetchLabels()`, or a custom SDK-config wrapper.
-- One `publish` per chunk, after all keys are created — not once per key.
-- Never edit chunks the agent didn't create unless explicitly asked.
+- One `publish` per profile, after all keys are created — not once per key.
+- Never edit keys the agent didn't create unless explicitly asked.
 - Call `i18n.t()` at render time, never at module load. In static config
   arrays (nav/menu/tab/command definitions) store a `() => i18n.t(...)` thunk
   and resolve it during render — an eagerly-evaluated label is frozen,
