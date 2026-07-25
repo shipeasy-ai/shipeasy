@@ -132,10 +132,53 @@ export const MCP_AUTH_COMMANDS: Partial<Record<AgentId, { bin: string; pre?: str
   };
 
 export interface McpAuthResult {
-  /** authorized: the CLI completed OAuth. failed: it ran and errored. manual /
-   *  unavailable: nothing to run here, so the printed instruction stands. */
+  /** authorized: the CLI completed OAuth (or was already authenticated).
+   *  failed: it ran and errored. manual / unavailable: nothing we can run here,
+   *  so the caller's instruction stands. */
   action: "authorized" | "failed" | "unavailable" | "manual";
   detail: string;
+}
+
+/**
+ * Claude Code will not connect to — or log into — a `.mcp.json` server until the
+ * user has approved it for that project ("⏸ Pending approval"), so a fresh
+ * `claude mcp login shipeasy` exits 1 with *"is from .mcp.json and awaiting
+ * approval"*. Approval is recorded per project in `.claude/settings.local.json`
+ * as `enabledMcpjsonServers`, so setup writes it: the user already opted into
+ * this server by choosing Claude here.
+ *
+ * `settings.local.json` (personal, gitignored) rather than the committed
+ * `settings.json` on purpose — trusting a server is each developer's own call,
+ * so a teammate cloning the repo still approves it themselves. Merges: other
+ * keys and any already-enabled servers are preserved.
+ */
+export function approveProjectMcpServer(ctx: InstallCtx, name = "shipeasy"): McpResult {
+  const path = join(ctx.cwd, ".claude", "settings.local.json");
+  const cfg = readJsonConfig<Record<string, unknown>>(path) ?? {};
+  const enabled = Array.isArray(cfg.enabledMcpjsonServers)
+    ? (cfg.enabledMcpjsonServers as unknown[]).filter((s): s is string => typeof s === "string")
+    : [];
+  if (enabled.includes(name)) {
+    return { action: "skipped", detail: `${name} already approved in ${path}` };
+  }
+  if (ctx.dryRun) return { action: "updated", detail: path };
+  writeJsonConfig(path, { ...cfg, enabledMcpjsonServers: [...enabled, name] });
+  return { action: "updated", detail: `approved ${name} in ${path}` };
+}
+
+/** Claude's view of a configured server: is it pending approval, or already
+ *  connected (approved AND authenticated)? Null when we can't tell. */
+function claudeServerState(name: string): "pending" | "connected" | "other" | null {
+  if (!onPath("claude")) return null;
+  const res = spawnSync("claude", ["mcp", "get", name], {
+    stdio: ["ignore", "pipe", "pipe"],
+    encoding: "utf8",
+  });
+  const out = `${res.stdout ?? ""}${res.stderr ?? ""}`;
+  if (!out) return null;
+  if (/pending approval|awaiting approval/i.test(out)) return "pending";
+  if (/✔|connected/i.test(out)) return "connected";
+  return "other";
 }
 
 /**
@@ -153,6 +196,25 @@ export function runMcpAuth(agent: AgentId, opts: { dryRun?: boolean } = {}): Mcp
   }
   const line = `${cmd.bin} ${cmd.argv.join(" ")}`;
   if (opts.dryRun) return { action: "authorized", detail: `would run: ${line}` };
+
+  // Ask Claude what it thinks of the server before driving a login at it: a
+  // still-pending `.mcp.json` entry makes `claude mcp login` exit 1 (the project
+  // has never been opened in Claude, so our approval write can't apply), and an
+  // already-connected one needs no browser round-trip at all.
+  if (agent === "claude") {
+    const state = claudeServerState("shipeasy");
+    if (state === "connected") {
+      return { action: "authorized", detail: "already connected — no sign-in needed" };
+    }
+    if (state === "pending") {
+      return {
+        action: "manual",
+        detail:
+          "Claude hasn't approved this project's .mcp.json yet (it must be opened in Claude once).\n" +
+          "      Run `claude` in this folder, approve the `shipeasy` server, then: claude mcp login shipeasy",
+      };
+    }
+  }
   for (const pre of cmd.pre ?? []) {
     spawnSync(cmd.bin, pre, { stdio: ["ignore", "ignore", "ignore"] });
   }

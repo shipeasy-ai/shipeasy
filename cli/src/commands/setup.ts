@@ -12,6 +12,7 @@ import {
   type InstallCtx,
   type McpResult,
   MCP_AUTH_INSTRUCTIONS,
+  approveProjectMcpServer,
   SKILLS_CLI_AGENT,
   detectAgents,
   detectHarness,
@@ -143,6 +144,10 @@ export function applyAgent(agent: AgentId, ctx: InstallCtx): string[] {
     // `~/.claude`), which bundles MCP + skills + slash commands in one step.
     if (ctx.scope === "project") {
       lines.push(formatMcp(registerMcp("claude", ctx)));
+      // A `.mcp.json` server stays "⏸ Pending approval" until the user approves
+      // it for this project — which blocks `claude mcp login` outright — so
+      // record the approval they already gave by picking Claude here.
+      lines.push(formatMcp(approveProjectMcpServer(ctx)));
       lines.push(
         "  • skills → ./.claude/skills in the skills step (no global plugin at project scope)",
       );
@@ -273,16 +278,21 @@ async function selectAgents(opts: SetupOpts, interactive: boolean): Promise<Agen
     return auto;
   }
 
+  // Nothing preselected: wiring an agent writes real files into the repo (MCP
+  // config, rules, skills), so it's an explicit choice, not something detection
+  // opts you into. `min: 1` keeps enter-on-an-empty-list from silently wiring
+  // nothing — the detected ones are still labelled, so picking is quick.
   const { picked } = await prompts({
     type: "multiselect",
     name: "picked",
     message: "Which coding agents should I wire Shipeasy into?",
     choices: detected.map((a) => ({
-      title: a.label,
+      title: a.detected ? `${a.label}  (detected)` : a.label,
       value: a.id,
-      selected: a.detected,
+      selected: false,
     })),
-    hint: "space to toggle, enter to confirm",
+    min: 1,
+    hint: "space to toggle, enter to confirm — pick at least one",
     instructions: false,
   });
   return (picked as AgentId[] | undefined) ?? [];
@@ -330,22 +340,20 @@ interface KeyCreated {
 
 const VALID_ENVS = ["dev", "staging", "prod"] as const;
 
-async function resolveKeyEnv(opts: SetupOpts, interactive: boolean): Promise<string> {
+/**
+ * Environment the minted keys read. `prod` unless `--env` says otherwise — we
+ * don't ask: it's the right answer for a first install (the SDK reads live flag
+ * state), and a wrong pick here is invisible until evaluations mysteriously
+ * return defaults. Switching later is `shipeasy keys create --env <env>`.
+ */
+function resolveKeyEnv(opts: SetupOpts): string {
   if (opts.env) {
     if (!(VALID_ENVS as readonly string[]).includes(opts.env)) {
       throw new Error(`Invalid --env '${opts.env}'. Must be one of: ${VALID_ENVS.join(", ")}`);
     }
     return opts.env;
   }
-  if (!interactive) return "prod";
-  const { env } = await prompts({
-    type: "select",
-    name: "env",
-    message: "Which environment should the SDK keys read?",
-    choices: VALID_ENVS.map((e) => ({ title: e, value: e })),
-    initial: VALID_ENVS.indexOf("prod"),
-  });
-  return (env as string | undefined) ?? "prod";
+  return "prod";
 }
 
 async function mintKey(
@@ -795,7 +803,8 @@ async function runSetup(opts: SetupOpts): Promise<void> {
           `    project ${projectId}. Run \`shipeasy bind ${session.project_id}\` if that's wrong.`,
       );
     }
-    const keyEnv = await resolveKeyEnv(opts, interactive);
+    const keyEnv = resolveKeyEnv(opts);
+    console.log(`  → keys read the \`${keyEnv}\` environment (change with --env)`);
     if (needServer) {
       serverKey = await mintKey("server", keyEnv, projectId);
       console.log(`  ✓ server key minted (${keyEnv}): ${maskKey(serverKey.key)}`);

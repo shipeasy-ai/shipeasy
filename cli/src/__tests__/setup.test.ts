@@ -1,12 +1,13 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { mkdirSync, mkdtempSync, readFileSync, existsSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { mergeMcpServer } from "../util/json-config";
 import {
   type AgentId,
   type InstallCtx,
   MCP_AUTH_COMMANDS,
+  approveProjectMcpServer,
   MCP_AUTH_INSTRUCTIONS,
   codexTomlSnippet,
   detectAgents,
@@ -413,6 +414,60 @@ describe("applyAgent", () => {
       expect(lines.join("\n")).toMatch(/MCP/);
       expect(existsSync(join(dir, ".cursor", "mcp.json"))).toBe(true);
       expect(existsSync(join(dir, ".cursor", "rules", "shipeasy.mdc"))).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("pre-approves the .mcp.json server for Claude at project scope", () => {
+    const dir = tmp();
+    try {
+      applyAgent("claude", ctx(dir));
+      const settings = JSON.parse(
+        readFileSync(join(dir, ".claude", "settings.local.json"), "utf8"),
+      );
+      // Without this Claude reports "⏸ Pending approval" and `claude mcp login` exits 1.
+      expect(settings.enabledMcpjsonServers).toEqual(["shipeasy"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("approveProjectMcpServer", () => {
+  it("merges into existing settings instead of clobbering them", () => {
+    const dir = tmp();
+    try {
+      const path = join(dir, ".claude", "settings.local.json");
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(
+        path,
+        JSON.stringify({ enabledMcpjsonServers: ["shadcn"], permissions: { allow: ["Bash"] } }),
+      );
+
+      approveProjectMcpServer(ctx(dir));
+
+      const settings = JSON.parse(readFileSync(path, "utf8"));
+      expect(settings.enabledMcpjsonServers).toEqual(["shadcn", "shipeasy"]);
+      expect(settings.permissions).toEqual({ allow: ["Bash"] }); // unrelated keys survive
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("is idempotent and writes nothing under dryRun", () => {
+    const dir = tmp();
+    try {
+      expect(approveProjectMcpServer(ctx(dir, { dryRun: true })).action).toBe("updated");
+      expect(existsSync(join(dir, ".claude", "settings.local.json"))).toBe(false);
+
+      approveProjectMcpServer(ctx(dir));
+      const again = approveProjectMcpServer(ctx(dir));
+      expect(again.action).toBe("skipped");
+      const settings = JSON.parse(
+        readFileSync(join(dir, ".claude", "settings.local.json"), "utf8"),
+      );
+      expect(settings.enabledMcpjsonServers).toEqual(["shipeasy"]); // not duplicated
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
