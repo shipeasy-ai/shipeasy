@@ -55,9 +55,10 @@ export const KNOWN_TOOLS: readonly string[] = [
   "release_flags_templates_create", "release_flags_templates_update",
   "release_flags_templates_archive",
   // release / configs
+  // draft/discard_draft/publish/activity are `x-cli.hidden` — still in the API
+  // spec, but no longer generated as CLI commands or MCP tools.
   "release_configs_create", "release_configs_list", "release_configs_get",
-  "release_configs_update", "release_configs_update_schema", "release_configs_draft",
-  "release_configs_discard_draft", "release_configs_publish", "release_configs_activity",
+  "release_configs_update", "release_configs_update_schema",
   "release_configs_archive",
   // release / killswitch
   "release_killswitch_create", "release_killswitch_list", "release_killswitch_get",
