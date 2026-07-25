@@ -65,6 +65,7 @@ import { BROWSER_FRAMEWORKS, detectTargets, type TargetRecommendation } from "./
 import { recordDetection } from "./detect";
 import { enableModuleGroup, type EnableResult } from "./install";
 import { withExamples, withDetails } from "../util/examples";
+import { getPlatformModuleGates } from "../util/platform-gates";
 
 const ALL_AGENTS: AgentId[] = ["claude", "cursor", "codex", "copilot", "jules"];
 const FEATURE_GROUPS = ["flags", "i18n", "ops"] as const;
@@ -970,9 +971,16 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   // 7. Feature installs (server-side module groups; pure API calls)
   heading("7. Feature installs");
   let features: FeatureGroup[] = [];
+  // Translations ships behind the platform's `translation_module` rollout gate.
+  // Until it's flipped on for this project, the module is neither offered nor
+  // installable — the gate is evaluated through @shipeasy/sdk against shipeasy's
+  // own project, so the rollout widens without republishing the CLI.
+  // Unreachable ⇒ not offered.
+  const { translations: i18nRolledOut } = await getPlatformModuleGates(projectId || undefined);
+  const offered = FEATURE_GROUPS.filter((f) => f !== "i18n" || i18nRolledOut);
   if (dryRun) {
     console.log(
-      "  (dry run — would offer flags / i18n / ops module enables, then install each enabled feature's how-to skills + shipeasy-setup)",
+      `  (dry run — would offer ${offered.join(" / ")} module enables, then install each enabled feature's how-to skills + shipeasy-setup)`,
     );
   } else {
     if (opts.features) {
@@ -986,39 +994,49 @@ async function runSetup(opts: SetupOpts): Promise<void> {
           `Unknown feature(s): ${unknown.join(", ")}. Known: ${FEATURE_GROUPS.join(", ")}`,
         );
       }
-      features = requested as FeatureGroup[];
+      features = requested.filter((f) =>
+        (offered as readonly string[]).includes(f),
+      ) as FeatureGroup[];
+      for (const f of requested.filter((f) => !(offered as readonly string[]).includes(f))) {
+        console.log(`  • ${f} — not available yet, skipped`);
+      }
     } else if (interactive) {
+      const choices = [
+        {
+          title: "Flags & experiments — gates, configs, kill switches, A/B, metrics",
+          value: "flags",
+          description:
+            "Ship features behind flags, roll out by %/country/attribute, run A/B experiments with" +
+            " stats, plus remote configs and one-flip kill switches. Docs: https://docs.shipeasy.ai/flags-experiments",
+          selected: true,
+        },
+        {
+          title: "Feedback, errors & alerts (ops)",
+          value: "ops",
+          description:
+            "One queue for end-user bug reports and auto-captured production errors, plus" +
+            " metric-threshold alerts that ping you when something moves. Docs: https://docs.shipeasy.ai/feedback",
+          selected: true,
+        },
+        ...(i18nRolledOut
+          ? [
+              {
+                title: "Translations (i18n)",
+                value: "i18n",
+                description:
+                  "Manage every user-facing string as a translatable key, publish to the CDN, and" +
+                  " machine-translate into new locales without a redeploy. Docs: https://docs.shipeasy.ai/translations",
+                selected: true,
+              },
+            ]
+          : []),
+      ];
       const { picked } = await prompts({
         type: "multiselect",
         name: "picked",
         message:
           "Enable feature modules now? (all preselected — space to deselect any you don't want)",
-        choices: [
-          {
-            title: "Flags & experiments — gates, configs, kill switches, A/B, metrics",
-            value: "flags",
-            description:
-              "Ship features behind flags, roll out by %/country/attribute, run A/B experiments with" +
-              " stats, plus remote configs and one-flip kill switches. Docs: https://docs.shipeasy.ai/flags-experiments",
-            selected: true,
-          },
-          {
-            title: "Feedback, errors & alerts (ops)",
-            value: "ops",
-            description:
-              "One queue for end-user bug reports and auto-captured production errors, plus" +
-              " metric-threshold alerts that ping you when something moves. Docs: https://docs.shipeasy.ai/feedback",
-            selected: true,
-          },
-          {
-            title: "Translations (i18n)",
-            value: "i18n",
-            description:
-              "Manage every user-facing string as a translatable key, publish to the CDN, and" +
-              " machine-translate into new locales without a redeploy. Docs: https://docs.shipeasy.ai/translations",
-            selected: true,
-          },
-        ],
+        choices,
         hint: "space to toggle, enter to confirm",
         instructions: false,
       });
@@ -1026,7 +1044,9 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     }
 
     if (!features.length) {
-      console.log("  • none selected — enable later with `shipeasy install <flags|i18n|ops>`");
+      console.log(
+        `  • none selected — enable later with \`shipeasy install <${offered.join("|")}>\``,
+      );
     }
     for (const f of features) {
       if (f === "ops" && opsEnabled) {

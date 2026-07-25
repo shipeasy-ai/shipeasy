@@ -29,6 +29,9 @@ importers:
       '@shipeasy/openapi':
         specifier: workspace:^2.1.0
         version: link:../openapi
+      '@shipeasy/sdk':
+        specifier: ^7.9.0
+        version: 7.9.0(zod@4.4.3)
       chalk:
         specifier: ^5.3.0
         version: 5.6.2
@@ -874,6 +877,55 @@ packages:
 
   '@shipeasy/sdk@7.7.0':
     resolution: {integrity: sha512-fSmgR1uab8XrvfHIhOXl8QuXSgm2HYxByrGPx8oDqVG+iwvnqXeU24D4P9oCNKsOxT7y9IzrhLu3r2cRMf9knA==}
+    engines: {node: '>=20'}
+    hasBin: true
+    peerDependencies:
+      '@hookform/resolvers': '>=3'
+      '@openfeature/server-sdk': '>=1.13.0'
+      '@openfeature/web-sdk': '>=1.2.0'
+      expo-crypto: '>=13'
+      expo-image-picker: '>=15'
+      expo-secure-store: '>=13'
+      expo-sensors: '>=13'
+      expo-web-browser: '>=13'
+      next: '>=13'
+      react: '>=18'
+      react-hook-form: '>=7.50'
+      react-native: '>=0.73'
+      react-native-svg: '>=12'
+      zod: '>=4'
+    peerDependenciesMeta:
+      '@hookform/resolvers':
+        optional: true
+      '@openfeature/server-sdk':
+        optional: true
+      '@openfeature/web-sdk':
+        optional: true
+      expo-crypto:
+        optional: true
+      expo-image-picker:
+        optional: true
+      expo-secure-store:
+        optional: true
+      expo-sensors:
+        optional: true
+      expo-web-browser:
+        optional: true
+      next:
+        optional: true
+      react:
+        optional: true
+      react-hook-form:
+        optional: true
+      react-native:
+        optional: true
+      react-native-svg:
+        optional: true
+      zod:
+        optional: true
+
+  '@shipeasy/sdk@7.9.0':
+    resolution: {integrity: sha512-7D1WNv0kyNELHRU/+4tqxy2jXpei6bImP16pLpQv6YNqyXzNgnXlVbzKr9DzbGp+9K4HrlGHAypi0e7htzob5Q==}
     engines: {node: '>=20'}
     hasBin: true
     peerDependencies:
@@ -2449,6 +2501,12 @@ snapshots:
     optional: true
 
   '@shipeasy/sdk@7.7.0(zod@4.4.3)':
+    dependencies:
+      murmurhash-js: 1.0.0
+    optionalDependencies:
+      zod: 4.4.3
+
+  '@shipeasy/sdk@7.9.0(zod@4.4.3)':
     dependencies:
       murmurhash-js: 1.0.0
     optionalDependencies:

@@ -2,6 +2,8 @@ import { Command } from "commander";
 import { getApiClient, ApiError, printApiError } from "../api/client";
 import { printJson } from "../util/output";
 import { withExamples, withDetails } from "../util/examples";
+import { getPlatformModuleGates } from "../util/platform-gates";
+import { getBoundProjectId } from "../util/project-config";
 
 /**
  * `shipeasy install <module>` — the platform installer.
@@ -158,10 +160,7 @@ export function installCommand(parent: Command): Command {
     .option("--json", "Output as JSON")
     .option("--project <id>", "Project ID override")
     .action(
-      async (
-        moduleArg: string,
-        opts: { profile: string; json?: boolean; project?: string },
-      ) => {
+      async (moduleArg: string, opts: { profile: string; json?: boolean; project?: string }) => {
         const target = moduleArg as TargetName;
         if (!(target in TARGETS)) {
           console.error(
@@ -170,6 +169,20 @@ export function installCommand(parent: Command): Command {
           process.exit(1);
         }
         const spec = TARGETS[target];
+
+        // Translations is held behind the platform's `translation_module`
+        // rollout gate, evaluated through @shipeasy/sdk with the CLI's platform
+        // client key and this project as `project_id`. Not rolled out — or
+        // unreachable — ⇒ refuse rather than half-enable a module whose
+        // dashboard surfaces are still hidden.
+        const boundProject = opts.project ?? getBoundProjectId(process.cwd()) ?? undefined;
+        if (target === "i18n" && !(await getPlatformModuleGates(boundProject)).translations) {
+          console.error(
+            "The translations module isn't available yet — it's still rolling out.\n" +
+              "Nothing was changed. Try again once it's live, or contact support@shipeasy.ai.",
+          );
+          process.exit(1);
+        }
 
         try {
           const result = await enableModuleGroup(target, {
