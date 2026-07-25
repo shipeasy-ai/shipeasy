@@ -110,6 +110,58 @@ export const MCP_AUTH_INSTRUCTIONS: Record<AgentId, string> = {
   jules: "Antigravity (Jules): open MCP settings, authorize `shipeasy`, then approve in the browser.",
 };
 
+/**
+ * Agents whose CLI can complete the MCP OAuth handshake for us, so setup runs
+ * the authorization itself instead of telling the user to go click through a
+ * settings pane. Each command opens the browser sign-in and exits when it's
+ * approved. `pre` runs first (best-effort) to get the server out of "pending
+ * approval" so `login` has something to authenticate against.
+ *
+ * Codex/Copilot/Jules are absent on purpose: neither ships a login subcommand
+ * (Codex prompts on first tool use; the other two authorize from their UI), so
+ * they keep the printed {@link MCP_AUTH_INSTRUCTIONS} one-liner.
+ */
+export const MCP_AUTH_COMMANDS: Partial<Record<AgentId, { bin: string; pre?: string[][]; argv: string[] }>> =
+  {
+    claude: { bin: "claude", argv: ["mcp", "login", "shipeasy"] },
+    cursor: {
+      bin: "cursor-agent",
+      pre: [["mcp", "enable", "shipeasy"]],
+      argv: ["mcp", "login", "shipeasy"],
+    },
+  };
+
+export interface McpAuthResult {
+  /** authorized: the CLI completed OAuth. failed: it ran and errored. manual /
+   *  unavailable: nothing to run here, so the printed instruction stands. */
+  action: "authorized" | "failed" | "unavailable" | "manual";
+  detail: string;
+}
+
+/**
+ * Authorize one agent's MCP connection by running that agent's own CLI. The
+ * hosted server (mcp.shipeasy.ai) speaks OAuth 2.1, and each client owns its own
+ * token store — so the only way to script this is to drive the client's login
+ * command, which is exactly what this does. Inherits stdio: the login flow
+ * prints a URL and waits for the browser approval.
+ */
+export function runMcpAuth(agent: AgentId, opts: { dryRun?: boolean } = {}): McpAuthResult {
+  const cmd = MCP_AUTH_COMMANDS[agent];
+  if (!cmd) return { action: "manual", detail: MCP_AUTH_INSTRUCTIONS[agent] };
+  if (!onPath(cmd.bin)) {
+    return { action: "unavailable", detail: `\`${cmd.bin}\` not on PATH — do it manually instead` };
+  }
+  const line = `${cmd.bin} ${cmd.argv.join(" ")}`;
+  if (opts.dryRun) return { action: "authorized", detail: `would run: ${line}` };
+  for (const pre of cmd.pre ?? []) {
+    spawnSync(cmd.bin, pre, { stdio: ["ignore", "ignore", "ignore"] });
+  }
+  const res = spawnSync(cmd.bin, cmd.argv, { stdio: "inherit" });
+  return res.status === 0
+    ? { action: "authorized", detail: line }
+    : { action: "failed", detail: `${line} exited ${res.status ?? "?"}` };
+}
+
 /** Is `bin` resolvable on PATH? Cross-platform (honors PATHEXT on win32). */
 export function onPath(bin: string): boolean {
   const PATH = process.env.PATH ?? "";

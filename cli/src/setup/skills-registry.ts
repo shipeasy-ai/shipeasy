@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { MARKETPLACE_SLUG } from "./agents";
+import { MARKETPLACE_SLUG, onPath } from "./agents";
 
 /**
  * The single source of truth mapping a Shipeasy feature to the marketplace
@@ -110,25 +110,111 @@ export interface SkillsCliResult {
   ok: boolean;
 }
 
+/** How the `skills` CLI is reachable on this machine. `argv0` + `prefix` is the
+ *  exact command to spawn (`skills …` when it's on PATH, else `npx -y skills …`). */
+export interface SkillsCli {
+  argv0: string;
+  prefix: string[];
+  /** Where it came from — `installed` means we ran `npm i -g skills` just now. */
+  source: "path" | "npx" | "installed" | "missing";
+  detail: string;
+}
+
+/** Probe: does `<argv0> <prefix> --version` actually run? */
+function skillsCliWorks(argv0: string, prefix: string[]): boolean {
+  const res = spawnSync(argv0, [...prefix, "--version"], {
+    stdio: ["ignore", "ignore", "ignore"],
+    timeout: 120_000,
+  });
+  return res.status === 0;
+}
+
+let cachedSkillsCli: SkillsCli | null = null;
+
+/**
+ * Make sure the `skills` CLI is actually available BEFORE we depend on it, and
+ * install it when it isn't. Order matters: an already-installed binary wins, then
+ * `npx skills` (which self-fetches into the npx cache), and only if neither can
+ * run do we install the package globally (`npm i -g skills`) — so we never do a
+ * surprise global install on a machine where `npx` already works. Memoized: the
+ * probe spawns a process, and setup calls this once per skill batch.
+ *
+ * Never throws — `source: "missing"` lets the caller fall back to writing the
+ * skill files straight into `.claude/skills/`.
+ */
+export function ensureSkillsCli(): SkillsCli {
+  if (cachedSkillsCli) return cachedSkillsCli;
+
+  if (onPath("skills") && skillsCliWorks("skills", [])) {
+    cachedSkillsCli = { argv0: "skills", prefix: [], source: "path", detail: "`skills` on PATH" };
+    return cachedSkillsCli;
+  }
+  if (onPath("npx") && skillsCliWorks("npx", ["-y", "skills"])) {
+    cachedSkillsCli = {
+      argv0: "npx",
+      prefix: ["-y", "skills"],
+      source: "npx",
+      detail: "via `npx -y skills`",
+    };
+    return cachedSkillsCli;
+  }
+  // Neither path works — install the package so the rest of setup can use it.
+  const install = spawnSync("npm", ["install", "-g", "skills"], {
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: 300_000,
+  });
+  if (install.status === 0 && onPath("skills")) {
+    cachedSkillsCli = {
+      argv0: "skills",
+      prefix: [],
+      source: "installed",
+      detail: "installed `skills` globally (npm i -g skills)",
+    };
+    return cachedSkillsCli;
+  }
+  cachedSkillsCli = {
+    argv0: "skills",
+    prefix: [],
+    source: "missing",
+    detail:
+      "`skills` CLI unavailable" +
+      (install.status === 0 ? "" : ` (npm i -g skills failed: ${install.status ?? "?"})`),
+  };
+  return cachedSkillsCli;
+}
+
+/** Reset the memoized CLI probe (tests). */
+export function resetSkillsCliCache(): void {
+  cachedSkillsCli = null;
+}
+
 /**
  * Run the `skills` CLI ourselves to install one source into agents. With
  * `agents` we install into each named agent non-interactively; with none we let
- * `skills` auto-detect + prompt. Best-effort: a missing `npx`/`skills`/network
- * yields `ok:false` rather than throwing, so setup surfaces it and moves on.
+ * `skills` auto-detect. Best-effort: a missing `npx`/`skills`/network yields
+ * `ok:false` rather than throwing, so setup surfaces it and moves on.
+ *
+ * Every invocation is fully non-interactive: `-y` skips the confirmation AND the
+ * scope prompt, and the scope the user already picked in setup is passed through
+ * explicitly — `-g` for user-global, nothing for project (the CLI's default, and
+ * what `-y` auto-detects inside a repo). `skills add` has no `-p` counterpart.
  */
 export function runSkillsAdd(
   source: string,
   opts: { agents?: string[]; global?: boolean; skills?: string[] } = {},
 ): SkillsCliResult[] {
+  const cli = ensureSkillsCli();
   const runs = opts.agents && opts.agents.length ? opts.agents : [null];
   return runs.map((agent) => {
-    const args = ["-y", "skills", "add", source];
+    if (cli.source === "missing") return { source, agent, ok: false };
+    const args = [...cli.prefix, "add", source];
     if (opts.global) args.push("-g");
+    args.push("-y"); // never stop to ask about scope or confirmation — setup already asked
     if (agent) args.push("-a", agent);
     // Variadic `--skill a b c` installs several named skills from one source in a
     // single invocation. Keep it LAST so it doesn't swallow the flags above.
     if (opts.skills?.length) args.push("--skill", ...opts.skills);
-    const res = spawnSync("npx", args, { stdio: "inherit" });
+    const res = spawnSync(cli.argv0, args, { stdio: "inherit" });
     return { source, agent, ok: res.status === 0 };
   });
 }
