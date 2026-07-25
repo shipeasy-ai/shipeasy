@@ -222,27 +222,34 @@ export function runMcpAuth(agent: AgentId, opts: { dryRun?: boolean } = {}): Mcp
     if (state === "connected") {
       return { action: "authorized", detail: "already connected — no sign-in needed" };
     }
-    if (state === "pending") {
-      // Not fixable from here: `.mcp.json` servers stay pending until the FOLDER
-      // is trusted, and the trust dialog only exists in an interactive session.
-      // `mcpAuthHandoff` offers to open one; this is the fallback wording.
-      return {
-        action: "manual",
-        detail:
-          "Claude hasn't trusted this folder yet, so its .mcp.json server is pending.\n" +
-          "      Open `claude` here once and accept the trust prompt — the `shipeasy` server is\n" +
-          "      pre-approved, so it connects; then `/mcp` → shipeasy → Authenticate.",
-      };
-    }
+    if (state === "pending") return CLAUDE_PENDING;
   }
   for (const pre of cmd.pre ?? []) {
     spawnSync(cmd.bin, pre, { stdio: ["ignore", "ignore", "ignore"] });
   }
   const res = spawnSync(cmd.bin, cmd.argv, { stdio: "inherit" });
-  return res.status === 0
-    ? { action: "authorized", detail: line }
-    : { action: "failed", detail: `${line} exited ${res.status ?? "?"}` };
+  if (res.status === 0) return { action: "authorized", detail: line };
+  // The login itself can be what discovers the pending state (`claude mcp login`
+  // exits 1 with *"is from .mcp.json and awaiting approval"*). Its stdio is
+  // inherited — we can't read that text without swallowing the OAuth URL the
+  // user needs to see — so re-probe instead and report the fixable cause rather
+  // than a bare exit code.
+  if (agent === "claude" && claudeServerState("shipeasy") === "pending") return CLAUDE_PENDING;
+  return { action: "failed", detail: `${line} exited ${res.status ?? "?"}` };
 }
+
+/**
+ * Not fixable from here: `.mcp.json` servers stay pending until the FOLDER is
+ * trusted, and the trust dialog only exists in an interactive session.
+ * `mcpAuthHandoff` offers to open one; this is the fallback wording.
+ */
+const CLAUDE_PENDING: McpAuthResult = {
+  action: "manual",
+  detail:
+    "Claude hasn't trusted this folder yet, so its .mcp.json server is pending.\n" +
+    "      Open `claude` here once and accept the trust prompt — the `shipeasy` server is\n" +
+    "      pre-approved, so it connects; then `/mcp` → shipeasy → Authenticate.",
+};
 
 /** Is `bin` resolvable on PATH? Cross-platform (honors PATHEXT on win32). */
 export function onPath(bin: string): boolean {

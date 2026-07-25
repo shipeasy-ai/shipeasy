@@ -287,14 +287,33 @@ export interface InstallOutcome {
   frameworkStep?: { status: "ran" | "failed"; cmd: string };
 }
 
+/**
+ * npm's strict peer resolver (v7+) aborts the whole install with `ERESOLVE` when
+ * anything ALREADY in the tree has an unsatisfiable peer — a pre-existing
+ * conflict between the app's own packages, nothing to do with the SDK we're
+ * adding (`@shipeasy/sdk`'s only peers are optional). That must not be where
+ * onboarding stops, so npm installs get one retry with the escape hatch npm
+ * itself suggests. Only npm has this failure mode: pnpm/yarn/bun warn instead of
+ * failing, so they get no retry argv.
+ */
+export function peerConflictRetryArgv(argv: string[]): string[] | null {
+  return argv[0] === "npm" ? [...argv, "--legacy-peer-deps"] : null;
+}
+
 /** Run the SDK install in the target dir (streaming output to the terminal),
  *  then the framework's own generator (rails/laravel) when it ships one. */
 export function runSdkInstall(target: TargetRecommendation): InstallOutcome {
-  const argv = installArgv(target.language, target.package_manager, target.frameworks);
+  let argv = installArgv(target.language, target.package_manager, target.frameworks);
   const fallback = target.recommendation.install ?? "(see wiring instructions)";
   if (!argv || !onPath(argv[0]!)) return { status: "deferred", cmd: fallback };
 
-  const res = spawnSync(argv[0]!, argv.slice(1), { cwd: target.path, stdio: "inherit" });
+  let res = spawnSync(argv[0]!, argv.slice(1), { cwd: target.path, stdio: "inherit" });
+  const retry = res.status !== 0 ? peerConflictRetryArgv(argv) : null;
+  if (retry) {
+    console.log(`\n  install failed — retrying: ${retry.join(" ")}`);
+    res = spawnSync(retry[0]!, retry.slice(1), { cwd: target.path, stdio: "inherit" });
+    if (res.status === 0) argv = retry;
+  }
   if (res.status !== 0) return { status: "failed", cmd: argv.join(" ") };
 
   // Package recorded — run the framework's own generator if it ships one and its

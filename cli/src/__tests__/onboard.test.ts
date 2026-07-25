@@ -12,6 +12,7 @@ import {
   installArgv,
   maskKey,
   needsStoreMove,
+  peerConflictRetryArgv,
   persistEnv,
   projectIdVar,
 } from "../setup/onboard";
@@ -113,6 +114,31 @@ describe("ensureGitignored", () => {
       expect(readFileSync(join(dir, ".gitignore"), "utf8").trim()).toBe(".env");
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("peerConflictRetryArgv", () => {
+  it("retries an npm install with --legacy-peer-deps", () => {
+    // npm aborts on ERESOLVE for a peer conflict the app already had — that must
+    // not be where onboarding stops.
+    expect(peerConflictRetryArgv(["npm", "install", "@shipeasy/sdk"])).toEqual([
+      "npm",
+      "install",
+      "@shipeasy/sdk",
+      "--legacy-peer-deps",
+    ]);
+  });
+
+  it("has no retry for managers that don't fail on peer conflicts", () => {
+    for (const argv of [
+      ["pnpm", "add", "@shipeasy/sdk"],
+      ["yarn", "add", "@shipeasy/sdk"],
+      ["bun", "add", "@shipeasy/sdk"],
+      ["bundle", "add", "shipeasy-sdk"],
+      ["composer", "require", "shipeasy/shipeasy"],
+    ]) {
+      expect(peerConflictRetryArgv(argv)).toBeNull();
     }
   });
 });

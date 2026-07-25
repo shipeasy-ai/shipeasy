@@ -887,7 +887,14 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     // as the agent picker). Unpicked targets fall through to the deferred path.
     const needing = actionable.filter((t) => t.recommendation.action === "install");
     const installTargets = new Set(needing.map((t) => t.path));
-    if (runInstalls && interactive && needing.length) {
+    // One target = no choice to make: the multiselect would ask the user to
+    // confirm the only thing setup can do. Skip it and say what we picked.
+    if (runInstalls && interactive && needing.length === 1) {
+      const only = needing[0]!;
+      console.log(
+        `  → onboarding ${relPath(root, only.path)}/  (${only.recommendation.sdk ?? only.language})`,
+      );
+    } else if (runInstalls && interactive && needing.length > 1) {
       const { picked } = await prompts({
         type: "multiselect",
         name: "picked",
