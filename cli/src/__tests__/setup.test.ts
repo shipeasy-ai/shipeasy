@@ -622,16 +622,42 @@ describe("copilotMcpAddArgv — the Copilot CLI's own `mcp add`", () => {
     expect(argv).toContain("X-Project-Id: p-1");
   });
 
+  // The header rides along only when the Copilot CLI is actually installed —
+  // `mcpBearer` gates on it, because the credential belongs in that CLI's own
+  // private user config and never in the committable `.vscode/mcp.json`. So
+  // PATH is an INPUT here: stub the binary rather than inherit the dev machine's
+  // (which is why this passed locally and failed in CI, where copilot is absent).
+  const withCopilotOnPath = <T>(present: boolean, fn: () => T): T => {
+    const prev = process.env.PATH;
+    const dir = mkdtempSync(join(tmpdir(), "se-path-"));
+    try {
+      if (present) writeFileSync(join(dir, "copilot"), "#!/bin/sh\n", { mode: 0o755 });
+      process.env.PATH = dir;
+      return fn();
+    } finally {
+      process.env.PATH = prev;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+
+  const ctxWithToken = {
+    cwd: "/tmp/x",
+    scope: "project" as const,
+    force: false,
+    dryRun: false,
+    projectId: "p-1",
+    mcpToken: "sdk_admin_x",
+  };
+
   it("carries the bearer when setup has a session key", () => {
-    const argv = copilotMcpAddArgv({
-      cwd: "/tmp/x",
-      scope: "project",
-      force: false,
-      dryRun: false,
-      projectId: "p-1",
-      mcpToken: "sdk_admin_x",
-    });
+    const argv = withCopilotOnPath(true, () => copilotMcpAddArgv(ctxWithToken));
     expect(argv).toContain("Authorization: Bearer sdk_admin_x");
+  });
+
+  it("omits the bearer when the Copilot CLI isn't installed", () => {
+    const argv = withCopilotOnPath(false, () => copilotMcpAddArgv(ctxWithToken));
+    expect(argv.join(" ")).not.toContain("Authorization");
+    expect(argv).toContain("X-Project-Id: p-1"); // still a valid registration
   });
 });
 
