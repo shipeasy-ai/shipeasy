@@ -107,6 +107,10 @@ export const SERVER_KEY_VAR = "SHIPEASY_SERVER_KEY";
 
 /** Public client-key var name per framework's env-exposure convention. */
 export function clientKeyVar(frameworks: string[]): string {
+  // Expo inlines `EXPO_PUBLIC_*` into the bundle at build time; a bare React
+  // Native app has no env convention at all, so it keeps the plain name and
+  // the value gets wired through the app's own config.
+  if (frameworks.includes("expo")) return "EXPO_PUBLIC_SHIPEASY_CLIENT_KEY";
   if (frameworks.includes("nextjs")) return "NEXT_PUBLIC_SHIPEASY_CLIENT_KEY";
   if (frameworks.includes("nuxt")) return "NUXT_PUBLIC_SHIPEASY_CLIENT_KEY";
   if (frameworks.includes("sveltekit")) return "PUBLIC_SHIPEASY_CLIENT_KEY";
@@ -300,21 +304,31 @@ export function peerConflictRetryArgv(argv: string[]): string[] | null {
   return argv[0] === "npm" ? [...argv, "--legacy-peer-deps"] : null;
 }
 
-/** Run the SDK install in the target dir (streaming output to the terminal),
- *  then the framework's own generator (rails/laravel) when it ships one. */
-export function runSdkInstall(target: TargetRecommendation): InstallOutcome {
-  let argv = installArgv(target.language, target.package_manager, target.frameworks);
-  const fallback = target.recommendation.install ?? "(see wiring instructions)";
-  if (!argv || !onPath(argv[0]!)) return { status: "deferred", cmd: fallback };
-
-  let res = spawnSync(argv[0]!, argv.slice(1), { cwd: target.path, stdio: "inherit" });
+/**
+ * Run one package install in `cwd`, streaming its output, with npm's
+ * ERESOLVE retry. Returns the argv that actually succeeded (or the last one
+ * tried) so callers report the command the user can re-run themselves.
+ */
+function runInstallArgv(argv: string[], cwd: string): { ok: boolean; argv: string[] } {
+  let res = spawnSync(argv[0]!, argv.slice(1), { cwd, stdio: "inherit" });
   const retry = res.status !== 0 ? peerConflictRetryArgv(argv) : null;
   if (retry) {
     console.log(`\n  install failed — retrying: ${retry.join(" ")}`);
-    res = spawnSync(retry[0]!, retry.slice(1), { cwd: target.path, stdio: "inherit" });
-    if (res.status === 0) argv = retry;
+    res = spawnSync(retry[0]!, retry.slice(1), { cwd, stdio: "inherit" });
+    if (res.status === 0) return { ok: true, argv: retry };
   }
-  if (res.status !== 0) return { status: "failed", cmd: argv.join(" ") };
+  return { ok: res.status === 0, argv };
+}
+
+/** Run the SDK install in the target dir (streaming output to the terminal),
+ *  then the framework's own generator (rails/laravel) when it ships one. */
+export function runSdkInstall(target: TargetRecommendation): InstallOutcome {
+  const initial = installArgv(target.language, target.package_manager, target.frameworks);
+  const fallback = target.recommendation.install ?? "(see wiring instructions)";
+  if (!initial || !onPath(initial[0]!)) return { status: "deferred", cmd: fallback };
+
+  const { ok, argv } = runInstallArgv(initial, target.path);
+  if (!ok) return { status: "failed", cmd: argv.join(" ") };
 
   // Package recorded — run the framework's own generator if it ships one and its
   // tool is available. Best-effort: a failure here doesn't fail the install (the
@@ -326,6 +340,83 @@ export function runSdkInstall(target: TargetRecommendation): InstallOutcome {
       status: "ran",
       cmd: argv.join(" "),
       frameworkStep: { status: fwRes.status === 0 ? "ran" : "failed", cmd: fw.join(" ") },
+    };
+  }
+  return { status: "ran", cmd: argv.join(" ") };
+}
+
+// ── React Native devtools overlay ────────────────────────────────────────────
+
+/**
+ * The RN devtools overlay ships as its OWN package, deliberately not part of
+ * `@shipeasy/sdk` — an app that only reads flags never pulls a UI toolchain
+ * into its bundle. So unlike the browser overlay (a `<script>` tag, nothing to
+ * install) the native one needs a real install before it can be mounted.
+ */
+export const RN_DEVTOOLS_PACKAGE = "@shipeasy/react-native-devtools";
+
+/** Required peers — the form stack the bug/feature forms validate against. */
+const RN_DEVTOOLS_REQUIRED_PEERS = ["react-hook-form", "@hookform/resolvers", "zod"];
+
+/**
+ * Optional peers, each degrading gracefully when absent (shake-to-open, the
+ * login browser round-trip, session persistence, screenshots, menu icons).
+ * They are expo modules, so they go through `expo install`, which resolves the
+ * version matching the app's Expo SDK — a plain `npm install` of these is how
+ * you break a native build.
+ */
+const RN_DEVTOOLS_EXPO_PEERS = [
+  "expo-web-browser",
+  "expo-crypto",
+  "expo-secure-store",
+  "expo-sensors",
+  "expo-image-picker",
+  "react-native-view-shot",
+  "react-native-svg",
+];
+
+export interface RnDevtoolsInstallPlan {
+  /** Overlay + required peers — any JS package manager can run this. */
+  main: string[];
+  /** Optional expo-module peers; null for a bare React Native app. */
+  expoPeers: string[] | null;
+}
+
+export function rnDevtoolsInstallArgv(
+  packageManager: string,
+  frameworks: string[],
+): RnDevtoolsInstallPlan {
+  const mgr = packageManager && packageManager !== "unknown" ? packageManager : "npm";
+  const verb = mgr === "npm" ? "install" : "add";
+  return {
+    main: [mgr, verb, RN_DEVTOOLS_PACKAGE, ...RN_DEVTOOLS_REQUIRED_PEERS],
+    expoPeers: frameworks.includes("expo")
+      ? ["npx", "expo", "install", ...RN_DEVTOOLS_EXPO_PEERS]
+      : null,
+  };
+}
+
+/** Install the overlay in a React Native target, then its optional expo peers
+ *  (reported as the `frameworkStep`, exactly like a rails/laravel generator). */
+export function runRnDevtoolsInstall(target: TargetRecommendation): InstallOutcome {
+  const plan = rnDevtoolsInstallArgv(target.package_manager, target.frameworks);
+  if (!onPath(plan.main[0]!)) return { status: "deferred", cmd: plan.main.join(" ") };
+
+  const { ok, argv } = runInstallArgv(plan.main, target.path);
+  if (!ok) return { status: "failed", cmd: argv.join(" ") };
+
+  if (plan.expoPeers && onPath(plan.expoPeers[0]!)) {
+    const res = spawnSync(plan.expoPeers[0]!, plan.expoPeers.slice(1), {
+      cwd: target.path,
+      stdio: "inherit",
+    });
+    return {
+      status: "ran",
+      cmd: argv.join(" "),
+      frameworkStep: {
+        status: res.status === 0 ? "ran" : "failed",
+        cmd: plan.expoPeers.join(" "),
+      },
     };
   }
   return { status: "ran", cmd: argv.join(" ") };

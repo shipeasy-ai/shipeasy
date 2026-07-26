@@ -125,6 +125,8 @@ async function detectFromPackageJson(
 
   const FRAMEWORK_SIGNALS: Array<[string, string]> = [
     ["next", "nextjs"],
+    ["react-native", "react-native"],
+    ["expo", "expo"],
     ["react", "react"],
     ["react-dom", "react"],
     ["vue", "vue"],
@@ -157,6 +159,12 @@ async function detectFromPackageJson(
     "app/layout.tsx",
     "pages/_app.tsx",
     "pages/_document.tsx",
+    // React Native / Expo roots — where <ShipeasyDevtools/> and the client
+    // configure() call go (expo-router's `app/_layout.tsx`, or a bare App root).
+    "app/_layout.tsx",
+    "src/app/_layout.tsx",
+    "App.tsx",
+    "src/App.tsx",
     "index.ts",
     "index.js",
   ];
@@ -517,6 +525,25 @@ export const BROWSER_FRAMEWORKS = new Set([
   "laravel",
 ]);
 
+// Frameworks whose surface is a NATIVE app rather than a page: they run the
+// client SDK (so they need a public client key) but they can never host the
+// `<script>` overlay — they take `@shipeasy/react-native-devtools` instead.
+export const NATIVE_FRAMEWORKS = new Set(["react-native"]);
+
+/** Which client surface a target presents — what it can host devtools on. */
+export type TargetSurface = "browser" | "react-native" | "none";
+
+/**
+ * Native wins over browser: every React Native app also depends on `react`
+ * (and an Expo app that enables web pulls `react-dom` too), so matching the
+ * browser set first would offer a phone app a `<script>` tag it cannot mount.
+ */
+export function targetSurface(frameworks: string[]): TargetSurface {
+  if (frameworks.some((f) => NATIVE_FRAMEWORKS.has(f))) return "react-native";
+  if (frameworks.some((f) => BROWSER_FRAMEWORKS.has(f))) return "browser";
+  return "none";
+}
+
 function installHint(language: string, pm: string, frameworks: string[]): string {
   switch (language) {
     case "typescript":
@@ -566,6 +593,12 @@ function installHint(language: string, pm: string, frameworks: string[]): string
 }
 
 function secretStoreHint(language: string, frameworks: string[], root: string): string {
+  // Native apps hold no secret at all — the only key they carry is the public
+  // client key, which belongs in the bundler's public env (EXPO_PUBLIC_*).
+  if (targetSurface(frameworks) === "react-native")
+    return frameworks.includes("expo")
+      ? "<dir>/.env — EXPO_PUBLIC_* only (public client key; never a server key in an app bundle)"
+      : "the app's own build config — public client key only (never a server key in an app bundle)";
   if (fs.existsSync(path.join(root, "wrangler.toml")) || fs.existsSync(path.join(root, "wrangler.jsonc")))
     return "wrangler secret put SHIPEASY_SERVER_KEY";
   if (frameworks.includes("rails") || language === "ruby")
@@ -648,8 +681,12 @@ function recommend(info: ProjectInfo, hasNestedTargets: boolean): SkillRecommend
     };
   }
 
-  const needsClient = info.frameworks.some((f) => BROWSER_FRAMEWORKS.has(f));
-  const keys: Array<"server" | "client"> = needsClient ? ["server", "client"] : ["server"];
+  // A native app ships its whole bundle to the device, so it gets the PUBLIC
+  // client key and nothing else — a `sdk_server_*` in an app binary is a leaked
+  // secret, not a config value.
+  const surface = targetSurface(info.frameworks);
+  const keys: Array<"server" | "client"> =
+    surface === "react-native" ? ["client"] : surface === "browser" ? ["server", "client"] : ["server"];
   const docs = `shipeasy docs get --sdk ${sdk} installation`;
 
   if (info.shipeasy.experimentation_sdk.installed) {

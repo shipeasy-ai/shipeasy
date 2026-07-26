@@ -100,10 +100,13 @@ function tokenize(paragraph: string): string[] {
   let last = 0;
   for (const m of paragraph.matchAll(SPAN)) {
     const before = paragraph.slice(last, m.index);
-    out.push(...before.split(/\s+/).filter(Boolean));
-    // A span glued to neighbouring punctuation (`**bold**,`) travels with it.
+    const words = before.split(/\s+/).filter(Boolean);
+    // Punctuation glued to EITHER side of a span travels with it, so "(`?se=1`)"
+    // wraps as one token instead of leaving a stranded "(" at the line end.
+    const leading = before === "" || /\s$/.test(before) ? "" : (words.pop() ?? "");
+    out.push(...words);
     const trailing = /^\S*/.exec(paragraph.slice(m.index + m[0].length))![0];
-    out.push(m[0] + trailing);
+    out.push(leading + m[0] + trailing);
     last = m.index + m[0].length + trailing.length;
   }
   out.push(...paragraph.slice(last).split(/\s+/).filter(Boolean));

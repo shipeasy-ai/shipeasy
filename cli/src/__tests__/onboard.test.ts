@@ -15,6 +15,7 @@ import {
   peerConflictRetryArgv,
   persistEnv,
   projectIdVar,
+  rnDevtoolsInstallArgv,
 } from "../setup/onboard";
 import { buildWiringDoc, type WiringDocInput } from "../setup/wiring-doc";
 import type { TargetRecommendation } from "../commands/scan";
@@ -43,10 +44,18 @@ describe("key var naming", () => {
     expect(clientKeyVar(["nuxt", "vue"])).toBe("NUXT_PUBLIC_SHIPEASY_CLIENT_KEY");
     expect(clientKeyVar(["sveltekit"])).toBe("PUBLIC_SHIPEASY_CLIENT_KEY");
     expect(clientKeyVar(["express"])).toBe("SHIPEASY_CLIENT_KEY");
+    // Expo inlines EXPO_PUBLIC_* at build time; the `react` an RN app also
+    // carries must not win and hand it a bare name the bundler ignores.
+    expect(clientKeyVar(["react-native", "expo", "react"])).toBe(
+      "EXPO_PUBLIC_SHIPEASY_CLIENT_KEY",
+    );
+    // Bare React Native has no env convention at all.
+    expect(clientKeyVar(["react-native", "react"])).toBe("SHIPEASY_CLIENT_KEY");
   });
 
   it("derives the project-id var with the same prefix", () => {
     expect(projectIdVar(["nextjs"])).toBe("NEXT_PUBLIC_SHIPEASY_PROJECT_ID");
+    expect(projectIdVar(["expo"])).toBe("EXPO_PUBLIC_SHIPEASY_PROJECT_ID");
     expect(projectIdVar([])).toBe("SHIPEASY_PROJECT_ID");
   });
 
@@ -189,6 +198,37 @@ describe("installArgv", () => {
       "add",
       "shipeasy[django]",
     ]);
+  });
+});
+
+describe("rnDevtoolsInstallArgv", () => {
+  it("installs the overlay + its required form peers with the detected manager", () => {
+    const plan = rnDevtoolsInstallArgv("pnpm", ["react-native", "expo"]);
+    expect(plan.main).toEqual([
+      "pnpm",
+      "add",
+      "@shipeasy/react-native-devtools",
+      "react-hook-form",
+      "@hookform/resolvers",
+      "zod",
+    ]);
+    // The overlay is NOT part of @shipeasy/sdk — that's the whole point of the
+    // native branch of the devtools step.
+    expect(plan.main).not.toContain("@shipeasy/sdk");
+  });
+
+  it("routes the expo-module peers through `expo install`, and only for Expo apps", () => {
+    // `expo install` resolves the version matching the app's Expo SDK; a plain
+    // `npm install` of these is how you break a native build.
+    const expo = rnDevtoolsInstallArgv("npm", ["react-native", "expo"]);
+    expect(expo.main[1]).toBe("install");
+    expect(expo.expoPeers?.slice(0, 3)).toEqual(["npx", "expo", "install"]);
+    expect(expo.expoPeers).toContain("expo-sensors"); // shake-to-open
+    expect(expo.expoPeers).toContain("expo-web-browser"); // login round-trip
+
+    // Bare React Native: no expo CLI to call, so the optional peers are skipped
+    // and the wiring doc explains the imperative `ref.open()` fallback.
+    expect(rnDevtoolsInstallArgv("yarn", ["react-native"]).expoPeers).toBeNull();
   });
 });
 
@@ -409,5 +449,102 @@ describe("buildWiringDoc", () => {
     const doc = buildWiringDoc({ ...input, featureDocs: {} });
     expect(doc).toContain("shipeasy docs get --sdk typescript error-reporting");
     expect(doc).toContain("shipeasy docs get --sdk typescript i18n");
+  });
+
+  describe("React Native surface", () => {
+    const nativeInput: WiringDocInput = {
+      ...input,
+      targets: [
+        {
+          relPath: "apps/mobile",
+          language: "typescript",
+          sdk: "typescript",
+          frameworks: ["react-native", "expo", "react"],
+          packageManager: "npm",
+          entryPoints: ["app/_layout.tsx"],
+          sdkInstalled: true,
+          installCmd: null,
+          installationDoc: null,
+          envFile: ".env",
+          envVars: ["EXPO_PUBLIC_SHIPEASY_CLIENT_KEY"],
+          secretStoreMove: null,
+          browser: true,
+          native: true,
+        },
+      ],
+      devtools: {
+        surfaces: ["react-native"],
+        clientKeyVar: "EXPO_PUBLIC_SHIPEASY_CLIENT_KEY",
+        projectIdVar: "EXPO_PUBLIC_SHIPEASY_PROJECT_ID",
+        clientKey: "sdk_client_devtools_val",
+        native: {
+          relPath: "apps/mobile",
+          installCmd: null,
+          expoPeersCmd: "npx expo install expo-web-browser expo-sensors",
+          doc: "# React Native devtools\n\nMount `<ShipeasyDevtools/>`.",
+        },
+      },
+    };
+
+    it("emits the mount + scheme steps and never the browser <script> tag", () => {
+      const doc = buildWiringDoc(nativeInput);
+      expect(doc).toContain("## Devtools overlay — React Native");
+      expect(doc).toContain("<ShipeasyDevtools");
+      expect(doc).toContain("expo.scheme"); // where the deep-link scheme comes from
+      expect(doc).toContain("npx expo install expo-web-browser");
+      expect(doc).toContain("Mount `<ShipeasyDevtools/>`."); // embedded doc
+      // A phone app can't host the <script> overlay — offering it would send the
+      // agent editing an HTML shell that doesn't exist.
+      expect(doc).not.toContain("cdn.shipeasy.ai/se-devtools.js");
+      expect(doc).not.toContain("?se=1");
+    });
+
+    it("reads the key from EXPO_PUBLIC env, and inlines it for a bare RN app", () => {
+      expect(buildWiringDoc(nativeInput)).toContain(
+        "process.env.EXPO_PUBLIC_SHIPEASY_CLIENT_KEY",
+      );
+      const bare = buildWiringDoc({
+        ...nativeInput,
+        devtools: { ...nativeInput.devtools!, clientKeyVar: "SHIPEASY_CLIENT_KEY" },
+      });
+      // No bundler env channel → the (public) key goes in literally, or the
+      // mount would silently read `undefined`.
+      expect(bare).toContain('clientKey={"sdk_client_devtools_val"}');
+      expect(bare).not.toContain("process.env.SHIPEASY_CLIENT_KEY");
+    });
+
+    it("wires a native target to the CLIENT key only — never a server key", () => {
+      const doc = buildWiringDoc(nativeInput);
+      expect(doc).toContain("EXPO_PUBLIC_SHIPEASY_CLIENT_KEY");
+      expect(doc).toContain("a server key in an app bundle is a leaked secret");
+      expect(doc).not.toContain("reading the\n      server key");
+      expect(doc).not.toContain("Also initialise the browser SDK");
+    });
+
+    it("keeps the install step open when the CLI could not run it", () => {
+      const doc = buildWiringDoc({
+        ...nativeInput,
+        devtools: {
+          ...nativeInput.devtools!,
+          native: {
+            ...nativeInput.devtools!.native!,
+            installCmd: "npm install @shipeasy/react-native-devtools react-hook-form",
+            expoPeersCmd: null,
+          },
+        },
+      });
+      expect(doc).toContain("- [ ] Install it (the CLI could not run this one)");
+      expect(doc).toContain("Bare React Native (no Expo)");
+      expect(doc).toContain("ref.current?.open()");
+    });
+
+    it("emits BOTH sections when the repo has a web app and a mobile app", () => {
+      const doc = buildWiringDoc({
+        ...nativeInput,
+        devtools: { ...nativeInput.devtools!, surfaces: ["browser", "react-native"] },
+      });
+      expect(doc).toContain("## Devtools overlay (user accepted — wire it)");
+      expect(doc).toContain("## Devtools overlay — React Native");
+    });
   });
 });

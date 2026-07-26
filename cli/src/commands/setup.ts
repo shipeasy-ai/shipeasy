@@ -50,15 +50,23 @@ import {
   ensureGitignored,
   envFileFor,
   gitInit,
+  type InstallOutcome,
   maskKey,
   needsStoreMove,
   persistEnv,
   projectIdVar,
   relPath,
+  RN_DEVTOOLS_PACKAGE,
+  rnDevtoolsInstallArgv,
+  runRnDevtoolsInstall,
   runSdkInstall,
   SERVER_KEY_VAR,
 } from "../setup/onboard";
-import { buildWiringDoc, type WiringTarget } from "../setup/wiring-doc";
+import {
+  buildWiringDoc,
+  type DevtoolsSurface,
+  type WiringTarget,
+} from "../setup/wiring-doc";
 import { promptAndSend, reportConfigured } from "../setup/report-issue";
 import { runTriggerStep, type TriggerStepResult, type CliSession } from "../setup/triggers";
 
@@ -67,7 +75,12 @@ import { runTriggerStep, type TriggerStepResult, type CliSession } from "../setu
 function sessionFromCreds(creds: ShipeasyConfig | null): CliSession | null {
   return creds ? { token: creds.cli_token, appBaseUrl: creds.app_base_url } : null;
 }
-import { BROWSER_FRAMEWORKS, detectTargets, type TargetRecommendation } from "./scan";
+import {
+  BROWSER_FRAMEWORKS,
+  detectTargets,
+  targetSurface,
+  type TargetRecommendation,
+} from "./scan";
 import { recordDetection } from "./detect";
 import { enableModuleGroup, type EnableResult } from "./install";
 import { withExamples, withDetails } from "../util/examples";
@@ -564,7 +577,8 @@ export function agentDirective(root: string): string {
  *  Feeds the plain-English "here's what the agent is about to do" block. */
 export interface WiringPlan {
   targets: WiringTarget[];
-  devtools: boolean;
+  /** Devtools surfaces accepted this run — empty when declined. */
+  devtools: DevtoolsSurface[];
   features: string[];
 }
 
@@ -597,9 +611,14 @@ export function wiringPlanLines(plan: WiringPlan): string[] {
   if (plan.targets.some((t) => t.secretStoreMove)) {
     lines.push("move the minted keys into this project's idiomatic secret store");
   }
-  if (plan.devtools) {
+  if (plan.devtools.includes("browser")) {
     lines.push(
       "add the devtools overlay <script> tag to your layout (the ?se=1 panel + end-user bug reports)",
+    );
+  }
+  if (plan.devtools.includes("react-native")) {
+    lines.push(
+      "mount the React Native devtools overlay at your app root, wired to a deep-link scheme this app registers (shake to open + in-app bug reports)",
     );
   }
   if (plan.features.includes("ops")) {
@@ -1020,14 +1039,23 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   let clientKey: KeyCreated | null = null;
   const browserTarget = (t: TargetRecommendation): boolean =>
     t.recommendation.keys.includes("client");
-  const needServer = actionable.some((t) => !t.shipeasy.env_keys_detected.includes(SERVER_KEY_VAR));
+  // Native targets ask for a client key ONLY — never mint a server key just
+  // because a React Native app happens to lack one.
+  const needServer = actionable.some(
+    (t) =>
+      t.recommendation.keys.includes("server") &&
+      !t.shipeasy.env_keys_detected.includes(SERVER_KEY_VAR),
+  );
   const needClient = actionable.some(
     (t) => browserTarget(t) && !t.shipeasy.env_keys_detected.some((k) => k.includes("CLIENT")),
   );
   if (!actionable.length) {
     say("  • no targets need keys — skipping");
   } else if (dryRun) {
-    say("  (dry run — would mint server" + (needClient ? " + client" : "") + " keys)");
+    // Name the keys this repo actually asks for — a native-only repo gets the
+    // public client key and no server key at all.
+    const kinds = [needServer ? "server" : null, needClient ? "client" : null].filter(Boolean);
+    say(`  (dry run — would mint ${kinds.length ? kinds.join(" + ") : "no"} key(s))`);
   } else if (!needServer && !needClient) {
     say("  • every target already has its keys in env — skipping");
   } else {
@@ -1147,7 +1175,9 @@ async function runSetup(opts: SetupOpts): Promise<void> {
       }
 
       const entries: Record<string, string> = {};
-      if (serverKey) entries[SERVER_KEY_VAR] = serverKey.key;
+      // Per-target, not per-run: a server key never lands in an app bundle's env.
+      if (serverKey && t.recommendation.keys.includes("server"))
+        entries[SERVER_KEY_VAR] = serverKey.key;
       if (clientKey && browserTarget(t)) entries[clientKeyVar(t.frameworks)] = clientKey.key;
       const file = envFileFor(t);
       if (Object.keys(entries).length) {
@@ -1226,110 +1256,206 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     }
   }
 
-  // 6. Devtools overlay (in-page panel + end-user feedback surface)
-  heading("6. Devtools overlay");
-  // Lead with what it is so the customer can decide before we ask anything.
-  explain(
-    "**What it is:** a tiny in-page panel your team opens with `?se=1` to see and toggle the " +
-      "live flags/experiments the current user is getting, plus a widget end users can use to " +
-      "file bug reports straight into your ops queue. It's a single opt-in `<script>` tag — it " +
-      "loads only when invoked, so there's no impact on your normal bundle.",
-  );
-  explain("Docs: https://docs.shipeasy.ai/feedback/devtools");
-  say();
+  // 6. Devtools (the flag/experiment panel + end-user feedback surface)
+  heading("6. Devtools");
   // Non-skip targets (includes already-onboarded ones, which may still want the
   // overlay even though their recommendation.keys is empty).
   const nonSkipTargets = detected.targets.filter(
     (t) => !t.recommendation.action.startsWith("skip"),
   );
-  // Targets whose framework we recognise as browser-facing. This drives the
-  // *default* answer only — the overlay just needs an HTML surface to inject
-  // its <script> into, which is broader than the frameworks we pattern-match,
-  // so we ask rather than hard-gate on detection.
-  const frameworkBrowser = nonSkipTargets.filter((t) =>
-    t.frameworks.some((f) => BROWSER_FRAMEWORKS.has(f)),
+  // Which overlay this repo can actually host, from what step 1 detected. Native
+  // wins over browser (every RN app also depends on `react`), and the two are
+  // different deliverables: a `<script>` tag vs a package + a root mount.
+  const nativeTargets = nonSkipTargets.filter(
+    (t) => targetSurface(t.frameworks) === "react-native",
   );
+  const frameworkBrowser = nonSkipTargets.filter(
+    (t) => targetSurface(t.frameworks) === "browser",
+  );
+
+  // Lead with what it is so the customer can decide before we ask anything.
+  explain(
+    "**What it is:** a panel your team opens on top of the running app to see and toggle the " +
+      "live flags/experiments the current user is getting, plus a widget end users can use to " +
+      "file bug reports straight into your ops queue",
+  );
+  if (nativeTargets.length) {
+    explain(
+      "**React Native** — the `@shipeasy/react-native-devtools` package, mounted once at your " +
+        "app root; shake the device to open it on-device",
+      { first: "  • ", indent: "    " },
+    );
+  }
+  if (frameworkBrowser.length || !nativeTargets.length) {
+    explain(
+      "**Browser** — a single opt-in `<script>` tag (`?se=1` or Shift+Alt+S); it loads only " +
+        "when invoked, so there's no impact on your normal bundle",
+      { first: "  • ", indent: "    " },
+    );
+  }
+  explain("Docs: https://docs.shipeasy.ai/feedback/devtools");
+  say();
+
   let browserCandidates = frameworkBrowser;
-  let devtoolsAccepted = false;
+  const devtoolsSurfaces: DevtoolsSurface[] = [];
+  // Per native target: what the overlay install actually did (drives the wiring doc).
+  const nativeInstalls = new Map<string, InstallOutcome>();
   let opsEnabled: EnableResult | null = null;
+  // Targets that need the project id in public env for whichever overlay they host.
+  const devtoolsEnvTargets: TargetRecommendation[] = [];
 
   if (dryRun) {
-    say(
-      "  (dry run — would confirm the HTML surface, then offer the overlay + ops module)",
-    );
+    const surfaces = [
+      nativeTargets.length ? "React Native (install the overlay package)" : null,
+      frameworkBrowser.length || !nativeTargets.length ? "browser (<script> tag)" : null,
+    ].filter(Boolean);
+    say(`  (dry run — would offer ${surfaces.join(" + ")}, then enable the ops module)`);
   } else {
-    // Does the project render HTML in a browser? Default from detection; an
-    // explicit --devtools / --no-devtools flag skips the question outright.
-    let servesHtml = frameworkBrowser.length > 0;
-    if (opts.devtools !== undefined) {
-      servesHtml = opts.devtools;
-    } else if (interactive) {
-      const detectedFw = [
-        ...new Set(
-          frameworkBrowser.flatMap((t) => t.frameworks.filter((f) => BROWSER_FRAMEWORKS.has(f))),
-        ),
-      ];
+    // ── React Native ──────────────────────────────────────────────────────────
+    // A phone app has no HTML surface, so it never gets the browser question.
+    if (nativeTargets.length) {
+      const dirs = nativeTargets.map((t) => `${relPath(root, t.path)}/`).join(", ");
       explain(
-        detectedFw.length
-          ? `Detected **${detectedFw.join(", ")}** — renders pages in a browser, so the overlay can mount.`
-          : "No browser framework detected — looks like a backend/API. The overlay still works in " +
-              "any HTML you serve (server-rendered templates, an embedded SPA, a static frontend).",
+        `Detected **React Native**${nativeTargets.some((t) => t.frameworks.includes("expo")) ? " (Expo)" : ""} in ${dirs}`,
       );
-      const { html } = await prompts({
-        type: "confirm",
-        name: "html",
-        message:
-          "Does your project serve HTML to a browser? (yes → offer the in-page devtools overlay + end-user bug reports; no → headless service, skip it)",
-        initial: servesHtml,
-      });
-      servesHtml = Boolean(html);
-    }
-
-    if (!servesHtml) {
-      say("  • headless / no browser surface — skipping the overlay");
-    } else {
-      // Affirmed an HTML surface we didn't pattern-match → host it on every
-      // actionable target rather than skipping.
-      if (!browserCandidates.length) browserCandidates = nonSkipTargets;
-
-      if (opts.devtools !== undefined) {
-        devtoolsAccepted = opts.devtools;
-      } else if (interactive) {
+      // An explicit --devtools / --no-devtools skips the question outright.
+      let accept = opts.devtools ?? false;
+      if (opts.devtools === undefined && interactive) {
         const { yes } = await prompts({
           type: "confirm",
           name: "yes",
           message:
-            "Add the Shipeasy devtools overlay? (in-page flag/experiment panel via ?se=1 + end-user bug reports)",
+            "Add the Shipeasy devtools to your React Native app? (installs the overlay package — shake to open the on-device panel + in-app bug reports)",
           initial: true,
         });
-        devtoolsAccepted = Boolean(yes);
+        accept = Boolean(yes);
       }
 
-      if (devtoolsAccepted) {
-        try {
-          opsEnabled = await enableModuleGroup("ops");
-          say(`  ✓ ops module enabled (${opsEnabled.enabled_modules.join(", ")})`);
-        } catch (e) {
+      if (!accept) {
+        say(`  • declined — add later with \`${RN_DEVTOOLS_PACKAGE}\``);
+      } else {
+        devtoolsSurfaces.push("react-native");
+        for (const t of nativeTargets) {
+          if (deselectedTargets.has(t.path)) continue;
+          const rp = relPath(root, t.path);
+          // `--skip-install` means "don't run package managers" — it applies to
+          // the overlay package just as much as to the SDK itself.
+          const res: InstallOutcome = opts.skipInstall
+            ? {
+                status: "deferred",
+                cmd: rnDevtoolsInstallArgv(t.package_manager, t.frameworks).main.join(" "),
+              }
+            : runRnDevtoolsInstall(t);
+          nativeInstalls.set(t.path, res);
           say(
-            `  ✗ ops module enable failed: ${e instanceof Error ? e.message : String(e)}`,
+            res.status === "ran"
+              ? `  ✓ ${rp}/: installed (${res.cmd})`
+              : res.status === "failed"
+                ? `  ✗ ${rp}/: install failed (${res.cmd}) — added to the wiring steps`
+                : `  → ${rp}/: install deferred to the wiring steps: ${res.cmd}`,
+          );
+          if (res.frameworkStep) {
+            say(
+              res.frameworkStep.status === "ran"
+                ? `  ✓ ${rp}/: optional peers (${res.frameworkStep.cmd})`
+                : `  ✗ ${rp}/: optional peers failed — re-run: ${res.frameworkStep.cmd}`,
+            );
+          }
+          devtoolsEnvTargets.push(t);
+        }
+        say("  → the root mount + deep-link scheme are in the wiring steps (needs your app root)");
+      }
+    }
+
+    // ── Browser ───────────────────────────────────────────────────────────────
+    // Skipped outright for a native-only repo — there is no HTML to mount into.
+    // Otherwise: does the project render HTML? Default from detection; an
+    // explicit --devtools / --no-devtools flag skips the question outright.
+    if (nativeTargets.length && !frameworkBrowser.length) {
+      say("  • native app — no HTML surface, skipping the browser overlay");
+    } else {
+      let servesHtml = frameworkBrowser.length > 0;
+      if (opts.devtools !== undefined) {
+        servesHtml = opts.devtools;
+      } else if (interactive) {
+        const detectedFw = [
+          ...new Set(
+            frameworkBrowser.flatMap((t) => t.frameworks.filter((f) => BROWSER_FRAMEWORKS.has(f))),
+          ),
+        ];
+        explain(
+          detectedFw.length
+            ? `Detected **${detectedFw.join(", ")}** — renders pages in a browser, so the overlay can mount.`
+            : "No browser framework detected — looks like a backend/API. The overlay still works in " +
+                "any HTML you serve (server-rendered templates, an embedded SPA, a static frontend).",
+        );
+        const { html } = await prompts({
+          type: "confirm",
+          name: "html",
+          message:
+            "Does your project serve HTML to a browser? (yes → offer the in-page devtools overlay + end-user bug reports; no → headless service, skip it)",
+          initial: servesHtml,
+        });
+        servesHtml = Boolean(html);
+      }
+
+      if (!servesHtml) {
+        say("  • headless / no browser surface — skipping the overlay");
+      } else {
+        // Affirmed an HTML surface we didn't pattern-match → host it on every
+        // actionable target rather than skipping. Native targets are excluded:
+        // they cannot mount a <script> tag.
+        if (!browserCandidates.length) {
+          browserCandidates = nonSkipTargets.filter(
+            (t) => targetSurface(t.frameworks) !== "react-native",
           );
         }
-        // The overlay script reads the project id from public env — persist it now.
-        for (const t of browserCandidates) {
-          const w = persistEnv(t.path, envFileFor(t), {
-            [projectIdVar(t.frameworks)]: projectId,
+
+        let accept = false;
+        if (opts.devtools !== undefined) {
+          accept = opts.devtools;
+        } else if (interactive) {
+          const { yes } = await prompts({
+            type: "confirm",
+            name: "yes",
+            message:
+              "Add the Shipeasy devtools overlay? (in-page flag/experiment panel via ?se=1 + end-user bug reports)",
+            initial: true,
           });
-          if (w.added.length)
-            say(`  ✓ ${relPath(root, t.path)}/${w.file}: added ${w.added.join(", ")}`);
+          accept = Boolean(yes);
         }
-        say("  → the <script> tag injection is in the wiring steps (needs your layout)");
-      } else {
-        say(
-          "  • declined — add later with `shipeasy install ops` (see the shipeasy-ops skill)",
-        );
+
+        if (accept) {
+          devtoolsSurfaces.push("browser");
+          devtoolsEnvTargets.push(...browserCandidates);
+          say("  → the <script> tag injection is in the wiring steps (needs your layout)");
+        } else {
+          say(
+            "  • declined — add later with `shipeasy install ops` (see the shipeasy-ops skill)",
+          );
+        }
+      }
+    }
+
+    // Either overlay files into the ops queue, and both read the project id from
+    // public env — so the server-side enable + the env write happen once, here.
+    if (devtoolsSurfaces.length) {
+      try {
+        opsEnabled = await enableModuleGroup("ops");
+        say(`  ✓ ops module enabled (${opsEnabled.enabled_modules.join(", ")})`);
+      } catch (e) {
+        say(`  ✗ ops module enable failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
+      for (const t of new Set(devtoolsEnvTargets)) {
+        const w = persistEnv(t.path, envFileFor(t), {
+          [projectIdVar(t.frameworks)]: projectId,
+        });
+        if (w.added.length)
+          say(`  ✓ ${relPath(root, t.path)}/${w.file}: added ${w.added.join(", ")}`);
       }
     }
   }
+  const devtoolsAccepted = devtoolsSurfaces.length > 0;
 
   // 7. Feature installs (server-side module groups; pure API calls)
   heading("7. Feature installs");
@@ -1547,6 +1673,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
           ? t.recommendation.secret_store
           : null,
         browser: browserTarget(t),
+        native: targetSurface(t.frameworks) === "react-native",
       };
     });
 
@@ -1571,18 +1698,52 @@ async function runSetup(opts: SetupOpts): Promise<void> {
       featureDocs.errorReporting = await fetchSdkDoc(primarySdk, "error-reporting");
     }
 
-    const sampleBrowser =
-      browserCandidates.find((t) => !deselectedTargets.has(t.path)) ??
-      actionable.find((t) => browserTarget(t) && !deselectedTargets.has(t.path));
+    // The target the devtools section writes for: the native one when that's the
+    // surface (its env prefix + install state differ), else a browser target.
+    const sampleNative = devtoolsSurfaces.includes("react-native")
+      ? nativeTargets.find((t) => !deselectedTargets.has(t.path))
+      : undefined;
+    const sampleBrowser = devtoolsSurfaces.includes("browser")
+      ? (browserCandidates.find((t) => !deselectedTargets.has(t.path)) ??
+        actionable.find((t) => browserTarget(t) && !deselectedTargets.has(t.path)))
+      : undefined;
+    const devtoolsTarget = sampleNative ?? sampleBrowser;
+    // The RN overlay's own doc page — same embed treatment as the feature docs.
+    const nativeDoc = sampleNative
+      ? await fetchSdkDoc(
+          sampleNative.recommendation.sdk ?? sampleNative.language,
+          "react-native-devtools",
+        )
+      : null;
     const doc = buildWiringDoc({
       projectId,
       targets: wiringTargets,
       devtools:
-        devtoolsAccepted && sampleBrowser
+        devtoolsAccepted && devtoolsTarget
           ? {
-              clientKeyVar: clientKeyVar(sampleBrowser.frameworks),
-              projectIdVar: projectIdVar(sampleBrowser.frameworks),
+              surfaces: devtoolsSurfaces,
+              clientKeyVar: clientKeyVar(devtoolsTarget.frameworks),
+              projectIdVar: projectIdVar(devtoolsTarget.frameworks),
               clientKey: clientKey?.key ?? null,
+              native: sampleNative
+                ? {
+                    relPath: relPath(root, sampleNative.path),
+                    installCmd:
+                      nativeInstalls.get(sampleNative.path)?.status === "ran"
+                        ? null
+                        : (nativeInstalls.get(sampleNative.path)?.cmd ??
+                          rnDevtoolsInstallArgv(
+                            sampleNative.package_manager,
+                            sampleNative.frameworks,
+                          ).main.join(" ")),
+                    expoPeersCmd:
+                      rnDevtoolsInstallArgv(
+                        sampleNative.package_manager,
+                        sampleNative.frameworks,
+                      ).expoPeers?.join(" ") ?? null,
+                    doc: nativeDoc,
+                  }
+                : null,
             }
           : null,
       enabledFeatures,
@@ -1598,7 +1759,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     say(`  ✓ wrote ${wiringPath}\n`);
     await wiringHandoff(root, opts, interactive, selected, {
       targets: wiringTargets,
-      devtools: devtoolsAccepted,
+      devtools: devtoolsSurfaces,
       features: enabledFeatures,
     });
   }
@@ -1653,7 +1814,11 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   row("Agents:", selected.length ? `${selected.join(", ")} (${scope} scope)` : "none wired");
   row(
     "Devtools:",
-    devtoolsAccepted ? "enabled (wire the script tag — see wiring steps)" : "declined",
+    devtoolsAccepted
+      ? `${devtoolsSurfaces.join(" + ")} — see the wiring steps${
+          devtoolsSurfaces.includes("react-native") ? " (package installed, mount it)" : ""
+        }`
+      : "declined",
   );
   row("Features:", features.length ? features.join(", ") : "none enabled");
   row(
@@ -1785,8 +1950,11 @@ export function setupCommand(parent: Command, version = "unknown"): void {
       "MCP + skills scope: project (in-repo, default) | user (global). Omit to be asked.",
     )
     .option("--env <env>", "Environment the minted SDK keys read: dev | staging | prod")
-    .option("--devtools", "Enable the devtools overlay without asking")
-    .option("--no-devtools", "Skip the devtools overlay without asking")
+    .option(
+      "--devtools",
+      "Enable devtools without asking (browser <script> and/or the React Native overlay, per detection)",
+    )
+    .option("--no-devtools", "Skip devtools without asking")
     .option("--features <list>", "Module groups to enable non-interactively (flags,i18n,ops)")
     .option("--skip-install", "Don't run SDK package installs (they go into the wiring steps)")
     .option("--no-agent-run", "Don't offer to launch a coding agent on the wiring steps")
@@ -1860,7 +2028,10 @@ export function setupCommand(parent: Command, version = "unknown"): void {
       "4. Mints env-locked server/client SDK keys.\n" +
       "5. Runs the SDK package install per target and persists the keys to each " +
       "target's gitignored env file.\n" +
-      "6-7. Offers the devtools overlay + feature module enables (flags/i18n/ops).\n" +
+      "6-7. Offers devtools — the browser `<script>` overlay, or, for a React " +
+      "Native/Expo target, installs `@shipeasy/react-native-devtools` (+ its Expo " +
+      "peers) for the shake-to-open on-device panel; the surface comes from step 1's " +
+      "detection, not a question. Then the feature module enables (flags/i18n/ops).\n" +
       "8. Verification gate — session, keys, and every target's binding.\n" +
       "9. Trusts the folder in Claude when its `.mcp.json` server is still pending " +
       "— opens one interactive session prefilled with `/exit`, so it closes itself " +

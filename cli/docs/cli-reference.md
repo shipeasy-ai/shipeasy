@@ -2039,7 +2039,7 @@ One-command onboarding for this repo. Logs you in and binds a project, detects a
 3. Wires your coding agents — each through its own `mcp add --transport http` command where one exists (Claude, Copilot, Codex), else a merged config file — plus instruction files + universal AGENTS.md, installed in-repo by default (confirms interactively; offers user-global). At project scope even Claude stays in-repo (.mcp.json + ./.claude/skills); user scope takes the native Claude plugin. Base workflow skills go to every non-plugin agent via `npx skills add`.
 4. Mints env-locked server/client SDK keys.
 5. Runs the SDK package install per target and persists the keys to each target's gitignored env file.
-6-7. Offers the devtools overlay + feature module enables (flags/i18n/ops).
+6-7. Offers devtools — the browser `<script>` overlay, or, for a React Native/Expo target, installs `@shipeasy/react-native-devtools` (+ its Expo peers) for the shake-to-open on-device panel; the surface comes from step 1's detection, not a question. Then the feature module enables (flags/i18n/ops).
 8. Verification gate — session, keys, and every target's binding.
 9. Trusts the folder in Claude when its `.mcp.json` server is still pending — opens one interactive session prefilled with `/exit`, so it closes itself the moment you accept the prompt.
 10. Authorizes the hosted MCP connection: entries written to a config that is private to your machine carry an `Authorization: Bearer` header (your CLI session key) and need no sign-in at all; committable ones (`.mcp.json`, `.cursor/mcp.json`, `.vscode/mcp.json`) never hold a credential, so those take the OAuth browser flow via each agent's own `mcp login`.
@@ -2059,8 +2059,8 @@ shipeasy setup [options] [command]
 | `--domain <domain>` | optional | Production domain (used when creating a new project at login) |
 | `--scope <scope>` | optional | MCP + skills scope: project (in-repo, default) \| user (global). Omit to be asked. |
 | `--env <env>` | optional | Environment the minted SDK keys read: dev \| staging \| prod |
-| `--devtools` | optional | Enable the devtools overlay without asking |
-| `--no-devtools` | optional | Skip the devtools overlay without asking |
+| `--devtools` | optional | Enable devtools without asking (browser <script> and/or the React Native overlay, per detection) |
+| `--no-devtools` | optional | Skip devtools without asking |
 | `--features <list>` | optional | Module groups to enable non-interactively (flags,i18n,ops) |
 | `--skip-install` | optional | Don't run SDK package installs (they go into the wiring steps) |
 | `--no-agent-run` | optional | Don't offer to launch a coding agent on the wiring steps |

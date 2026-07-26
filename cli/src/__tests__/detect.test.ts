@@ -2,7 +2,12 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { discoverTargets, detectTargets, type TargetRecommendation } from "../commands/scan";
+import {
+  discoverTargets,
+  detectTargets,
+  targetSurface,
+  type TargetRecommendation,
+} from "../commands/scan";
 
 /**
  * `shipeasy detect` engine — recursive monorepo discovery + per-folder
@@ -41,6 +46,18 @@ describe("detect (detectTargets / discoverTargets)", () => {
     // client keys (the client key powers the in-page devtools overlay).
     mkdirSync(join(dir, "apps/admin"), { recursive: true });
     writeFileSync(join(dir, "apps/admin/requirements.txt"), "Django>=5.0\n");
+
+    // Expo app → a NATIVE surface: it depends on `react` like any web app, so
+    // the classifier has to prefer react-native over the browser match.
+    mkdirSync(join(dir, "apps/mobile/app"), { recursive: true });
+    writeFileSync(
+      join(dir, "apps/mobile/package.json"),
+      JSON.stringify({
+        name: "mobile",
+        dependencies: { expo: "54", react: "19", "react-native": "0.81", typescript: "5" },
+      }),
+    );
+    writeFileSync(join(dir, "apps/mobile/app/_layout.tsx"), "export default function L() {}");
 
     // Pruned dir — a manifest inside node_modules must never be discovered.
     mkdirSync(join(dir, "node_modules/pkg"), { recursive: true });
@@ -84,6 +101,18 @@ describe("detect (detectTargets / discoverTargets)", () => {
     expect(admin.recommendation.sdk).toBe("python");
     expect(admin.frameworks).toContain("django");
     expect(admin.recommendation.keys).toEqual(["server", "client"]);
+  });
+
+  it("classifies an Expo app as react-native, client key ONLY", async () => {
+    // The bundle ships to devices: a `sdk_server_*` in it is a leaked secret,
+    // so a native target must never be recommended a server key.
+    const { targets } = await detectTargets([dir + "/apps/mobile"]);
+    const mobile = byPath(targets, "/apps/mobile")!;
+    expect(mobile.frameworks).toEqual(expect.arrayContaining(["react-native", "expo", "react"]));
+    expect(targetSurface(mobile.frameworks)).toBe("react-native");
+    expect(mobile.recommendation.keys).toEqual(["client"]);
+    expect(mobile.recommendation.secret_store).not.toContain("SHIPEASY_SERVER_KEY");
+    expect(mobile.entry_points).toContain("app/_layout.tsx");
   });
 
   it("flags the workspace root as skip when scanning the whole tree", async () => {

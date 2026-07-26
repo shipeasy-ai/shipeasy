@@ -40,7 +40,11 @@ import {
   wiringPlanLines,
   TRUST_SESSION_PROMPT,
 } from "../commands/setup";
-import { buildWiringDoc, type WiringTarget } from "../setup/wiring-doc";
+import {
+  buildWiringDoc,
+  type DevtoolsSurface,
+  type WiringTarget,
+} from "../setup/wiring-doc";
 
 function wiringTarget(over: Partial<WiringTarget> = {}): WiringTarget {
   return {
@@ -812,7 +816,7 @@ describe("mcpAuthHandoff — the one-time MCP OAuth authorization step", () => {
 describe("wiringPlanLines — what we promise the launched agent will do", () => {
   const plan = (over: Partial<Parameters<typeof wiringPlanLines>[0]> = {}) => ({
     targets: [wiringTarget()],
-    devtools: false,
+    devtools: [] as DevtoolsSurface[],
     features: [] as string[],
     ...over,
   });
@@ -828,7 +832,7 @@ describe("wiringPlanLines — what we promise the launched agent will do", () =>
     const lines = wiringPlanLines(
       plan({
         targets: [wiringTarget({ sdkInstalled: false, installCmd: "pnpm add @shipeasy/sdk" })],
-        devtools: true,
+        devtools: ["browser"],
         features: ["ops", "i18n"],
       }),
     ).join("\n");
@@ -836,6 +840,15 @@ describe("wiringPlanLines — what we promise the launched agent will do", () =>
     expect(lines).toMatch(/devtools overlay <script> tag/);
     expect(lines).toMatch(/see\(\) primitive/);
     expect(lines).toMatch(/translatable i18n keys/);
+  });
+
+  it("promises the RN mount, not a <script> tag, on a React Native run", () => {
+    // The two surfaces are different work: one edits an HTML shell, the other
+    // mounts a component and needs a registered deep-link scheme.
+    const lines = wiringPlanLines(plan({ devtools: ["react-native"] })).join("\n");
+    expect(lines).toMatch(/React Native devtools overlay at your app root/);
+    expect(lines).toMatch(/deep-link scheme/);
+    expect(lines).not.toMatch(/<script> tag/);
   });
 
   it("omits what wasn't chosen (no overlay/ops/i18n lines when they're off)", () => {

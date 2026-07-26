@@ -92,6 +92,18 @@ describe("wrapText", () => {
     for (const line of out.split("\n")) expect((line.match(/\*\*/g) ?? []).length % 2).toBe(0);
   });
 
+  it("keeps punctuation glued to a span in the same token", () => {
+    // Wrapping split "(`?se=1`)" into "(" + the span, and the joiner then put a
+    // space between them — visible as "( `?se=1`)" in the setup log.
+    setColorEnabled(false);
+    expect(wrapText("opened with (`?se=1`) today", { width: 40, indent: "" })).toBe(
+      "opened with (`?se=1`) today",
+    );
+    expect(wrapText("see **[docs]** now", { width: 40, indent: "" })).toBe(
+      "see **[docs]** now",
+    );
+  });
+
   it("measures a span by its rendered width, not its source length", () => {
     setColorEnabled(false);
     // "`abcdefgh`" is 10 source chars but renders as 8 — it fits in a width of 8.

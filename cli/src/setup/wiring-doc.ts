@@ -10,6 +10,8 @@
  * target's gitignored env file); the doc references var names only.
  */
 
+import type { TargetSurface } from "../commands/scan";
+
 export interface WiringTarget {
   /** Path relative to the repo root ("." for the root itself). */
   relPath: string;
@@ -33,17 +35,35 @@ export interface WiringTarget {
   secretStoreMove: string | null;
   /** Browser-exposed target → also wire the client side. */
   browser: boolean;
+  /** Native app (React Native) → the client SDK is the ONLY runtime here. */
+  native?: boolean;
 }
+
+/** The surface the user accepted devtools on — a page, or a native app. */
+export type DevtoolsSurface = Exclude<TargetSurface, "none">;
 
 export interface WiringDocInput {
   projectId: string;
   targets: WiringTarget[];
   devtools: {
+    /** Which overlay(s) to wire; `["browser"]` when omitted. */
+    surfaces?: DevtoolsSurface[];
     clientKeyVar: string;
     projectIdVar: string;
     /** Literal client key minted this run — null if the target was already
      * onboarded and the key wasn't re-minted (fall back to the env var name). */
     clientKey: string | null;
+    /** React Native only: where the overlay package landed, and what the CLI
+     *  could not run itself. */
+    native?: {
+      relPath: string;
+      /** Install command still to run, null when the CLI already ran it. */
+      installCmd: string | null;
+      /** `expo install …` for the optional peers; null for a bare RN app. */
+      expoPeersCmd: string | null;
+      /** The SDK's `react-native-devtools` doc, embedded inline. */
+      doc: string | null;
+    } | null;
   } | null;
   /** Module groups already enabled server-side by the CLI (flags/i18n/ops). */
   enabledFeatures: string[];
@@ -183,10 +203,16 @@ function targetSection(i: number, t: WiringTarget): string {
     );
   }
   lines.push(
-    `- [ ] Initialise the SDK once at the app's startup entry point, reading the` +
-      ` server key from \`SHIPEASY_SERVER_KEY\`; then create a per-user client for each` +
-      ` evaluation. Copy the exact init call, class, and imports from the doc above` +
-      ` (prefer a framework generator when the doc lists one).`,
+    t.native
+      ? `- [ ] Initialise the SDK once at the app's root, reading the PUBLIC client key` +
+          ` from \`${t.envVars.find((v) => v.includes("CLIENT")) ?? "SHIPEASY_CLIENT_KEY"}\`.` +
+          ` This app ships to devices, so it gets the client key and **never** a` +
+          ` \`sdk_server_*\` one — a server key in an app bundle is a leaked secret.` +
+          ` Copy the exact init call and imports from the doc above.`
+      : `- [ ] Initialise the SDK once at the app's startup entry point, reading the` +
+          ` server key from \`SHIPEASY_SERVER_KEY\`; then create a per-user client for each` +
+          ` evaluation. Copy the exact init call, class, and imports from the doc above` +
+          ` (prefer a framework generator when the doc lists one).`,
   );
   if (t.entryPoints.length) {
     lines.push(
@@ -209,7 +235,7 @@ function targetSection(i: number, t: WiringTarget): string {
       ` doc above (full reference: \`shipeasy docs get --sdk ${t.sdk} configuration\`).` +
       ` Never hard-code a single user; the transform runs per bound client.`,
   );
-  if (t.browser) {
+  if (t.browser && !t.native) {
     lines.push(
       `- [ ] Also initialise the browser SDK once at client startup with the PUBLIC client` +
         ` key (\`${t.envVars.find((v) => v.includes("CLIENT")) ?? "SHIPEASY_CLIENT_KEY"}\`), per the same doc,` +
@@ -234,6 +260,81 @@ function buildHint(t: WiringTarget): string {
     return `\`${pm} run build\``;
   }
   return "the project's build/test command";
+}
+
+/**
+ * The React Native overlay: a real package mount, not a `<script>` tag. The
+ * two judgement calls a harness must make here are the deep-link scheme (it has
+ * to be one the app actually registers, or sign-in can never return) and where
+ * the single root mount goes — everything mechanical the CLI already did.
+ */
+function nativeDevtoolsSection(
+  d: NonNullable<WiringDocInput["devtools"]>,
+  n: NonNullable<NonNullable<WiringDocInput["devtools"]>["native"]>,
+  projectId: string,
+  sdk: string,
+): string {
+  // Expo inlines EXPO_PUBLIC_* at build time, so read it from env there; a bare
+  // RN app has no env channel, so the (public) key is inlined literally.
+  const keyExpr = d.clientKeyVar.startsWith("EXPO_PUBLIC_")
+    ? `process.env.${d.clientKeyVar} ?? ""`
+    : JSON.stringify(d.clientKey ?? `<value of ${d.clientKeyVar} in env>`);
+  const lines = [
+    `## Devtools overlay — React Native (user accepted — wire it)`,
+    "",
+    `Shake-to-open, on-device: every gate/config/experiment with live overrides`,
+    `(no reload), the identified user, the SDK event stream, the ops queue, and`,
+    `the in-app bug/feature report form. It ships as its own package so an app`,
+    `that only reads flags never pulls a UI toolchain into its bundle.`,
+    "",
+    n.installCmd
+      ? `- [ ] Install it (the CLI could not run this one): in \`${n.relPath}/\`, \`${n.installCmd}\``
+      : `- [x] \`@shipeasy/react-native-devtools\` + its form peers installed in \`${n.relPath}/\` (done by \`shipeasy setup\`).`,
+  ];
+  if (n.expoPeersCmd) {
+    lines.push(
+      `- [x] Optional Expo peers offered: \`${n.expoPeersCmd}\` — shake-to-open,` +
+        ` login, session persistence, screenshots, icons. Re-run it in \`${n.relPath}/\`` +
+        ` if any were skipped; each degrades gracefully when absent.`,
+    );
+  } else {
+    lines.push(
+      `- [ ] Bare React Native (no Expo): the optional \`expo-*\` peers are skipped, so` +
+        ` shake-to-open and the login round-trip are unavailable until you add them.` +
+        ` Open the panel imperatively instead — \`ref.current?.open()\` from your dev menu.`,
+    );
+  }
+  lines.push(
+    `- [ ] Mount it **once** at the app root (below your providers, above nothing else` +
+      ` — it renders its own modal):`,
+    "",
+    "  ```tsx",
+    `  import { ShipeasyDevtools } from "@shipeasy/react-native-devtools";`,
+    "",
+    `  <ShipeasyDevtools`,
+    `    scheme="<a URL scheme THIS app registers>://se-auth"`,
+    `    clientKey={${keyExpr}}`,
+    `    projectId=${JSON.stringify(projectId || `<${d.projectIdVar}>`)}`,
+    `  />`,
+    "  ```",
+    "",
+    `  Detected root(s) are listed in this target's section above. The client key is` +
+      ` public by design and the project id is not a secret, so both may be inlined.`,
+    `- [ ] \`scheme\` must be a scheme the app really registers (Expo: \`expo.scheme\`` +
+      ` in \`app.json\`; bare RN: the iOS \`CFBundleURLTypes\` entry + the Android` +
+      ` \`intent-filter\`). Sign-in deep-links back through it — a scheme the app does` +
+      ` not own means the round-trip never returns. READ the app config and use its` +
+      ` existing scheme; do not invent one.`,
+    `- [ ] Decide the build gate: wrap the mount in \`__DEV__\` for an internal-only` +
+      ` tool, or leave it mounted in production if you want the end-user bug/feature` +
+      ` report path (that path needs the client key to carry \`tickets:public_create\`).`,
+    `- [ ] Gate: shake the device several times quickly (iOS simulator: Ctrl+Cmd+Z)` +
+      ` and the panel opens; **Connect to Shipeasy** completes the login round-trip.`,
+    "",
+    embeddedDocOr("react-native-devtools", sdk, "react-native-devtools", n.doc),
+    "",
+  );
+  return lines.join("\n");
 }
 
 function devtoolsSection(d: NonNullable<WiringDocInput["devtools"]>, projectId: string): string {
@@ -334,7 +435,20 @@ delete this file once everything passes.`,
   // Module-dependent sections — only what was actually enabled. `sdk` for the
   // doc handles comes from the first target (falls back to a placeholder).
   const primarySdk = input.targets[0]?.sdk ?? "<lang>";
-  if (input.devtools) sections.push(devtoolsSection(input.devtools, input.projectId));
+  if (input.devtools) {
+    const surfaces = input.devtools.surfaces ?? ["browser"];
+    if (surfaces.includes("browser"))
+      sections.push(devtoolsSection(input.devtools, input.projectId));
+    if (surfaces.includes("react-native") && input.devtools.native)
+      sections.push(
+        nativeDevtoolsSection(
+          input.devtools,
+          input.devtools.native,
+          input.projectId,
+          primarySdk,
+        ),
+      );
+  }
   if (input.enabledFeatures.includes("ops"))
     sections.push(opsSection(primarySdk, input.featureDocs?.errorReporting));
   if (input.enabledFeatures.includes("i18n"))
