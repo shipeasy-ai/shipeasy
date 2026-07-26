@@ -590,16 +590,31 @@ async function humanHandoff(
  * the MCP tools are usable the moment the agent picks up shipeasy-wiring.md.
  */
 /**
+ * First prompt handed to the trust session, exactly as the wiring hand-off
+ * passes {@link WIRING_PROMPT}: Claude queues a positional prompt behind the
+ * trust dialog, so accepting trust drops the user straight into the MCP panel
+ * with `shipeasy` selected and its auth state showing — no `/mcp` to remember.
+ *
+ * It is deliberately bare `/mcp`. Claude has no `/mcp add`: the in-session
+ * command is `/mcp [reconnect|enable|disable [<server>|all]]` (verified against
+ * claude 2.1.220), and adding a server is a CLI-level `claude mcp add` /
+ * `claude plugin install` — which `shipeasy setup` has already done by the time
+ * we get here. That's precisely why the entry is *pending* rather than missing,
+ * so the only thing left for this session is trust + Authenticate.
+ */
+export const TRUST_SESSION_PROMPT = "/mcp";
+
+/**
  * Hand the terminal to an interactive Claude session so the user can trust this
  * folder — the one thing no config file can do for them. Claude only shows its
  * trust prompt in an interactive session; until it's accepted, a `.mcp.json`
  * server stays "⏸ Pending approval" no matter what `enabledMcpjsonServers`
  * says, which is why `claude mcp login` exits 1.
  *
- * Trust is the ONLY thing that needs the session, so that's all we ask for: on
- * exit we re-probe and drive `claude mcp login` ourselves, which opens the same
- * browser sign-in `/mcp` → Authenticate would. The user accepts one prompt and
- * `/exit`s; the OAuth round-trip is the CLI's job.
+ * Trust is the ONLY thing that needs the session, so that's all we ask for —
+ * and we prefill {@link TRUST_SESSION_PROMPT} so the MCP panel is already open
+ * when the dialog clears. Either way we win: authorize there, or `/exit` and we
+ * re-probe and drive `claude mcp login` ourselves (the same browser sign-in).
  */
 async function trustClaudeInteractively(pending: McpAuthResult): Promise<McpAuthResult> {
   console.log(
@@ -607,8 +622,8 @@ async function trustClaudeInteractively(pending: McpAuthResult): Promise<McpAuth
       "  interactive session, so its .mcp.json server stays pending until then.\n" +
       "  I can open Claude here now. All you do in that session:\n" +
       "    1. accept the trust prompt (the `shipeasy` server is already approved)\n" +
-      "    2. `/exit` straight back here\n" +
-      "  Then I run the browser sign-in for you — no `/mcp` to hunt for.\n",
+      "    2. the MCP panel opens on `shipeasy` — Authenticate there, or just `/exit`\n" +
+      "  Either way you're covered: if you skip it I run the browser sign-in from here\n",
   );
   const { open } = await prompts({
     type: "confirm",
@@ -619,7 +634,7 @@ async function trustClaudeInteractively(pending: McpAuthResult): Promise<McpAuth
   if (!open) return pending;
 
   console.log("\nLaunching: claude …\n");
-  await spawnAgent("claude", []);
+  await spawnAgent("claude", [TRUST_SESSION_PROMPT]);
 
   // Trust granted, so the server is no longer pending — which is the ONLY thing
   // that was blocking `claude mcp login`. Drive it now instead of handing the

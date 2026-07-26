@@ -25,7 +25,13 @@ import {
   writeCopilotInstructions,
   writeCursorRule,
 } from "../setup/instructions";
-import { applyAgent, agentDirective, mcpAuthHandoff, wiringPlanLines } from "../commands/setup";
+import {
+  applyAgent,
+  agentDirective,
+  mcpAuthHandoff,
+  wiringPlanLines,
+  TRUST_SESSION_PROMPT,
+} from "../commands/setup";
 import { buildWiringDoc, type WiringTarget } from "../setup/wiring-doc";
 
 function wiringTarget(over: Partial<WiringTarget> = {}): WiringTarget {
@@ -432,6 +438,28 @@ describe("applyAgent", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("TRUST_SESSION_PROMPT", () => {
+  // Claude queues a positional prompt behind the trust dialog, so this is what
+  // the user lands on the moment they accept it.
+  it("is a slash command, so the trust session does no agent work", () => {
+    expect(TRUST_SESSION_PROMPT.startsWith("/")).toBe(true);
+    // Prose would start a turn in a session we opened purely to collect trust —
+    // and that session runs WITHOUT --dangerously-skip-permissions.
+    expect(TRUST_SESSION_PROMPT).not.toMatch(/\s/);
+  });
+
+  it("stays bare `/mcp` — Claude has no `/mcp add` subcommand", () => {
+    // claude 2.1.220: "Usage: /mcp [reconnect|enable|disable [<server>|all]]".
+    // Registering a server is CLI-level (`claude mcp add` / `claude plugin
+    // install`) and setup has already done it — the entry is pending, not
+    // missing. An invented `/mcp add …` here would fail at RUNTIME, inside the
+    // one session we ask the user to open.
+    expect(TRUST_SESSION_PROMPT).toBe("/mcp");
+    const [, ...args] = TRUST_SESSION_PROMPT.split(" ");
+    for (const a of args) expect(["reconnect", "enable", "disable"]).toContain(a);
   });
 });
 
