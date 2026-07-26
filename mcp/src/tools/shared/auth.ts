@@ -30,9 +30,43 @@ export async function handleAuthCheck() {
   };
 }
 
-export async function handleAuthLogout() {
+/**
+ * `auth_logout` MCP tool handler.
+ *
+ * Schema-level `required: ["confirm"]` is advisory — a client that ignores it
+ * still reaches this handler — so the guard is enforced here too. The cost of a
+ * stray call is high and asymmetric: the deleted file is the session the CLI and
+ * every MCP client share, and `auth_login` cannot run over stdio, so nothing on
+ * this transport can put it back. A refusal costs one retry; a wrong deletion
+ * costs a human a browser round-trip.
+ */
+export async function handleAuthLogout(args: { confirm?: unknown } = {}) {
+  if (args.confirm !== true) {
+    return {
+      isError: true,
+      content: [
+        {
+          type: "text" as const,
+          text:
+            `Refused: auth_logout deletes ${configPath()}, the session shared by the ` +
+            "`shipeasy` CLI and every MCP client on this machine, and it cannot be " +
+            "restored from MCP (browser sign-in only runs in a terminal).\n\n" +
+            "If a call is failing with 401/403, sign in — do not log out first; the " +
+            "credential you would delete is the one you still need.\n\n" +
+            "If the user explicitly asked to sign out, call again with confirm: true.",
+        },
+      ],
+    };
+  }
   await runLogout();
   return {
-    content: [{ type: "text" as const, text: "Signed out locally." }],
+    content: [
+      {
+        type: "text" as const,
+        text:
+          "Signed out locally. Restoring the session needs `shipeasy login` (or " +
+          "`shipeasy-mcp install`) in a terminal — a browser sign-in this transport cannot do.",
+      },
+    ],
   };
 }

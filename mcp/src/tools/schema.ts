@@ -94,9 +94,26 @@ const STATIC_TOOLS: Tool[] = [
   },
   {
     name: "auth_logout",
-    description: "Delete ~/.config/shipeasy/config.json. No network call.",
-    inputSchema: { type: "object", properties: {} },
-    // Deletes the local CLI token.
+    description:
+      "Delete ~/.config/shipeasy/config.json — the ONE session shared by the `shipeasy` CLI and " +
+      "every MCP client on this machine. No network call. **This is not restorable from MCP**: " +
+      "re-authenticating needs a browser sign-in in a terminal (`shipeasy login`), which this " +
+      "transport cannot perform, so calling this strands the current task and every other tool " +
+      "until a human signs in again. Do NOT call it to 'reset' or troubleshoot a failing " +
+      "call — a 401/403 is fixed by signing in, not by deleting the credential first. Only call " +
+      "it when the user explicitly asked to sign out, and pass confirm: true to acknowledge that.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        confirm: {
+          type: "boolean",
+          description:
+            "Must be true. Acknowledges that this deletes the machine-wide session and that only a human at a terminal can restore it.",
+        },
+      },
+      required: ["confirm"],
+    },
+    // Deletes the local CLI token — machine-wide, and unrecoverable over stdio.
     annotations: {
       title: "Auth Logout",
       readOnlyHint: false,

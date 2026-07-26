@@ -104,10 +104,34 @@ export function diagnoseMissingCredentials(): string {
   return `no ${p} and no SHIPEASY_CLI_TOKEN / SHIPEASY_PROJECT_ID env vars.`;
 }
 
+/**
+ * Write the session ATOMICALLY — temp file in the same directory, then rename.
+ *
+ * A plain `writeFileSync` truncates before it writes, so anything that
+ * interrupts it (a second `shipeasy` process writing concurrently, a Ctrl-C, a
+ * harness killing the run) leaves a zero-byte or half-written config. Every
+ * later read then fails `JSON.parse` and reports "no credentials" — which looks
+ * exactly like a vanished session, and is unrecoverable without a browser.
+ * `rename(2)` within one filesystem is atomic: readers see the old file or the
+ * new one, never a torn one.
+ */
 export function saveCredentials(creds: ShipeasyConfig): void {
   const p = configPath();
-  fs.mkdirSync(path.dirname(p), { recursive: true });
-  fs.writeFileSync(p, JSON.stringify(creds, null, 2) + "\n", { mode: 0o600 });
+  fs.mkdirSync(path.dirname(p), { recursive: true, mode: 0o700 });
+  // Same directory, so the rename can't cross a filesystem boundary; pid-suffixed
+  // so two concurrent writers can't collide on the temp file itself.
+  const tmp = `${p}.${process.pid}.tmp`;
+  try {
+    fs.writeFileSync(tmp, JSON.stringify(creds, null, 2) + "\n", { mode: 0o600 });
+    fs.renameSync(tmp, p);
+  } catch (err) {
+    try {
+      fs.unlinkSync(tmp);
+    } catch {
+      // nothing to clean up
+    }
+    throw err;
+  }
 }
 
 export function clearCredentials(): void {

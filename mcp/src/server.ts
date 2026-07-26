@@ -158,7 +158,8 @@ export async function startStdioServer(): Promise<void> {
       return handleUpsertProject(args as Parameters<typeof handleUpsertProject>[0]);
     }
     if (toolName === "auth_check") return handleAuthCheck();
-    if (toolName === "auth_logout") return handleAuthLogout();
+    if (toolName === "auth_logout")
+      return handleAuthLogout((params.arguments ?? {}) as { confirm?: unknown });
     // Everything else — every CRUD/read/docs surface incl. the i18n admin API
     // (`i18n_profiles_*`/`i18n_keys_*`/`i18n_drafts_list`), alert rules, the
     // unified queue (`ops_create`/`ops_notify`), metrics, events — is handled by

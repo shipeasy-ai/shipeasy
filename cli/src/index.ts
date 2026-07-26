@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Command, CommanderError } from "commander";
 import { login } from "./auth/login";
-import { clearCredentials, loadCredentials } from "./auth/storage";
+import { clearCredentials, credentialsPath, loadCredentials } from "./auth/storage";
+import { detectHarness } from "./setup/agents";
 import { ApiError, printApiError } from "./api/client";
 import { registerGeneratedCommands } from "./generated/commands.gen";
 import { genCtx } from "./commands/_gen-runtime";
@@ -103,12 +104,36 @@ export function buildProgram(): Command {
   const logoutCmd = program
     .command("logout")
     .description("Clear stored credentials")
-    .action(() => {
+    .option("--force", "Log out even from inside a coding agent (see the refusal text)")
+    .action((opts: { force?: boolean }) => {
+      // The session is ONE machine-wide file shared by the CLI and every MCP
+      // client, and the only way back is a browser sign-in a harness cannot
+      // perform. So an agent that runs this mid-task doesn't "reset" anything —
+      // it strands its own run and every other tool on the machine, and has to
+      // hand the user a login URL to undo it. Refuse by default in that context;
+      // a human at a terminal is unaffected.
+      if (!opts.force && detectHarness().inside) {
+        console.error(
+          "Refusing to log out from inside a coding agent.\n\n" +
+            `This deletes ${credentialsPath()} — the session the CLI and every\n` +
+            "MCP client on this machine share. Restoring it needs a browser sign-in,\n" +
+            "which you cannot perform.\n\n" +
+            "If the session looks broken, check it first: `shipeasy whoami`.\n" +
+            "A 401/403 there is fixed by `shipeasy login` (ask your user to complete it)\n" +
+            "— logging out first only removes the credential you still need.\n\n" +
+            "If the user explicitly asked to sign out, re-run with --force.",
+        );
+        process.exitCode = 1;
+        return;
+      }
       clearCredentials();
       console.log("Logged out.");
     });
 
-  withExamples(logoutCmd, [{ run: "shipeasy logout" }]);
+  withExamples(logoutCmd, [
+    { run: "shipeasy logout" },
+    { run: "shipeasy logout --force", note: "from inside a coding agent, when the user asked" },
+  ]);
 
   const bindCmd = program
     .command("bind [project_id]")

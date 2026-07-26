@@ -205,6 +205,62 @@ describe("generated dispatch", () => {
   });
 });
 
+// ── auth_logout: the one tool that can strand its own caller ─────────────────
+
+/**
+ * Deleting the config file is machine-wide (the CLI and every MCP client share
+ * it) and cannot be undone from MCP — `auth_login` explicitly refuses on stdio,
+ * because a browser round-trip needs a terminal. So an agent that calls this
+ * while troubleshooting takes out its own session plus every other tool's, and
+ * has to hand a login URL back to a human. It must not be a one-call action.
+ */
+describe("auth_logout requires explicit confirmation", () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it("refuses without confirm, and does NOT touch the config file", async () => {
+    const { handleAuthLogout } = await import("../tools/shared/auth.js");
+    const { clearConfig } = await import("../auth/config.js");
+
+    const res = await handleAuthLogout({});
+    expect(res.isError).toBe(true);
+    expect(clearConfig).not.toHaveBeenCalled();
+    const text = JSON.stringify(res.content);
+    expect(text).toContain("confirm: true");
+    // The refusal has to redirect the likely intent, or the agent just retries
+    // with confirm:true and we've achieved nothing.
+    expect(text).toMatch(/401\/403/);
+    expect(text).toContain("cannot be restored from MCP");
+  });
+
+  it("refuses a truthy-but-not-true confirm (no accidental coercion)", async () => {
+    const { handleAuthLogout } = await import("../tools/shared/auth.js");
+    const { clearConfig } = await import("../auth/config.js");
+    for (const confirm of ["true", 1, {}] as unknown[]) {
+      const res = await handleAuthLogout({ confirm });
+      expect(res.isError, `confirm=${JSON.stringify(confirm)} must be refused`).toBe(true);
+    }
+    expect(clearConfig).not.toHaveBeenCalled();
+  });
+
+  it("signs out with confirm: true, and says how to get back in", async () => {
+    const { handleAuthLogout } = await import("../tools/shared/auth.js");
+    const { clearConfig } = await import("../auth/config.js");
+    const res = await handleAuthLogout({ confirm: true });
+    expect(res.isError).toBeUndefined();
+    expect(clearConfig).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(res.content)).toMatch(/shipeasy login|shipeasy-mcp install/);
+  });
+
+  it("declares confirm as required in its schema", async () => {
+    const { TOOLS } = await import("../tools/schema.js");
+    const tool = TOOLS.find((t) => t.name === "auth_logout")!;
+    expect(tool.inputSchema.required).toEqual(["confirm"]);
+    expect(tool.annotations?.destructiveHint).toBe(true);
+    // The description carries the blast radius — clients surface it verbatim.
+    expect(tool.description).toContain("not restorable from MCP");
+  });
+});
+
 // ── custom (non-spec) tools ──────────────────────────────────────────────────
 
 describe("custom tools", () => {

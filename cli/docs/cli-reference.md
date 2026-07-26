@@ -51,10 +51,17 @@ Clear stored credentials
 shipeasy logout [options]
 ```
 
+| Option | | Description |
+| --- | --- | --- |
+| `--force` | optional | Log out even from inside a coding agent (see the refusal text) |
+
 Examples:
 
 ```bash
 shipeasy logout
+
+# from inside a coding agent, when the user asked
+shipeasy logout --force
 ```
 
 ## `shipeasy bind`

@@ -1,4 +1,4 @@
-import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -81,10 +81,26 @@ export async function diagnoseMissingConfig(): Promise<string> {
   return `no ${p}`;
 }
 
+/**
+ * Write the session ATOMICALLY — temp file in the same directory, then rename.
+ *
+ * `writeFile` truncates first, so a concurrent writer (the CLI and any number of
+ * MCP clients share this one path) or an interrupted write leaves a torn or
+ * empty file. Readers then fail to parse it and report "not authenticated",
+ * which is indistinguishable from a deleted session and just as unrecoverable
+ * without a browser. `rename` within a directory is atomic.
+ */
 export async function writeConfig(cfg: ShipeasyConfig): Promise<void> {
   const path = configPath();
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-  await writeFile(path, JSON.stringify(cfg, null, 2) + "\n", { mode: 0o600 });
+  const tmp = `${path}.${process.pid}.tmp`;
+  try {
+    await writeFile(tmp, JSON.stringify(cfg, null, 2) + "\n", { mode: 0o600 });
+    await rename(tmp, path);
+  } catch (err) {
+    await unlink(tmp).catch(() => {});
+    throw err;
+  }
 }
 
 export async function clearConfig(): Promise<boolean> {

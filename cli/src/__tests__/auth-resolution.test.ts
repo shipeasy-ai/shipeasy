@@ -1,9 +1,22 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync } from "node:fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+  rmSync,
+  realpathSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getGeneratedClient } from "../api/client";
-import { credentialsPath, credentialsSource, loadCredentials } from "../auth/storage";
+import {
+  credentialsPath,
+  credentialsSource,
+  loadCredentials,
+  saveCredentials,
+} from "../auth/storage";
 import { bindProject, getBoundProjectId, findProjectConfigDir } from "../util/project-config";
 
 /**
@@ -96,5 +109,47 @@ describe("auth + .shipeasy resolution", () => {
     rmSync(join(cfgHome, "shipeasy", "config.json"));
     expect(credentialsSource()).toBeNull();
     expect(credentialsPath()).toBe(join(cfgHome, "shipeasy", "config.json"));
+  });
+
+  /**
+   * The session file is written by the CLI AND by every MCP client on the
+   * machine, so concurrent writes are normal, not exotic. A truncating write
+   * that loses a race leaves an empty/torn file, every later read reports "no
+   * credentials", and the only way back is a browser — which reads to the user
+   * as "my session vanished mid-run".
+   */
+  describe("saveCredentials is atomic", () => {
+    const creds = (token: string) => ({
+      project_id: "proj_session",
+      cli_token: token,
+      api_base_url: "https://api.test",
+      app_base_url: "https://app.test",
+      created_at: new Date(0).toISOString(),
+    });
+
+    it("never leaves a torn file — a reader sees the old session or the new one", () => {
+      // Interrupt the write itself: whatever happens, what's on disk must still
+      // parse. A truncate-in-place would leave zero bytes here.
+      saveCredentials(creds("sdk_first"));
+      const spy = vi.spyOn(JSON, "stringify").mockImplementationOnce(() => {
+        throw new Error("interrupted mid-write");
+      });
+      expect(() => saveCredentials(creds("sdk_second"))).toThrow();
+      spy.mockRestore();
+      expect(loadCredentials()?.cli_token).toBe("sdk_first");
+    });
+
+    it("leaves no temp file behind on success", () => {
+      saveCredentials(creds("sdk_ok"));
+      const dir = join(cfgHome, "shipeasy");
+      expect(readdirSync(dir).filter((f) => f.endsWith(".tmp"))).toEqual([]);
+      expect(loadCredentials()?.cli_token).toBe("sdk_ok");
+    });
+
+    it("writes 0600 — the file holds a live admin token", () => {
+      saveCredentials(creds("sdk_perm"));
+      const mode = statSync(credentialsPath()).mode & 0o777;
+      expect(mode).toBe(0o600);
+    });
   });
 });
