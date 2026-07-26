@@ -1,6 +1,7 @@
 import { execSync } from "node:child_process";
 import prompts from "prompts";
 import { tryOpenBrowser } from "../auth/login";
+import { format, underline, wrapText } from "../util/format";
 import {
   COPILOT_AGENT_NAME,
   COPILOT_MCP_TOKEN_SECRET,
@@ -19,6 +20,12 @@ import {
 export interface CliSession {
   token: string;
   appBaseUrl: string;
+}
+
+/** Same contract as `shipeasy setup`'s printer: inline markdown + coloured
+ *  status glyphs on a TTY, byte-identical plain text anywhere else. */
+function say(text = ""): void {
+  console.log(format(text));
 }
 
 /**
@@ -272,10 +279,10 @@ async function provisionCopilotMcpSecret(
     // reusing the session token already retrieved this run, not a fresh re-resolve.
     const opsKey = await mintOpsKey(session, projectId);
     ghSetAgentsSecret(COPILOT_MCP_TOKEN_SECRET, opsKey, slug);
-    console.log(`\n  ✓ Set Copilot MCP secret in ${slug}: ${COPILOT_MCP_TOKEN_SECRET}.`);
+    say(`\n  ✓ Set Copilot MCP secret in ${slug}: ${COPILOT_MCP_TOKEN_SECRET}.`);
     return true;
   } catch (e) {
-    console.log(
+    say(
       `\n  • Couldn't set the Copilot MCP secret automatically (${
         (e as Error).message.split("\n")[0]
       }).\n    The wizard will show the manual step instead.`,
@@ -294,14 +301,14 @@ async function provisionCopilotMcpSecret(
 function provisionCopilotAgentFile(projectId: string, dryRun: boolean): string | null {
   const res = writeCopilotAgentFile({ projectId, dryRun });
   if (res.action === "wrote") {
-    console.log(`\n  ✓ ${dryRun ? "Would write" : "Wrote"} ${res.path} (agent \`${COPILOT_AGENT_NAME}\`).`);
+    say(`\n  ✓ ${dryRun ? "Would write" : "Wrote"} ${res.path} (agent \`${COPILOT_AGENT_NAME}\`).`);
     return COPILOT_AGENT_NAME;
   }
   if (res.action === "skipped") {
-    console.log(`\n  • ${res.path} ${res.detail}. Leaving it as-is (agent \`${COPILOT_AGENT_NAME}\`).`);
+    say(`\n  • ${res.path} ${res.detail}. Leaving it as-is (agent \`${COPILOT_AGENT_NAME}\`).`);
     return COPILOT_AGENT_NAME;
   }
-  console.log(
+  say(
     `\n  • Couldn't write the agent file (${res.detail}). The wizard will show its contents to copy.`,
   );
   return null;
@@ -329,22 +336,29 @@ async function openWizard(
   }
   const url = triggerSetupUrl(appBaseUrl, projectId, platform, { secretsDone, agent });
   const picked = platform ? TRIGGER_PLATFORMS.find((p) => p.id === platform)?.label : "the picker";
-  console.log(
-    `\n  Opening the hosted trigger setup${platform ? ` for ${picked}` : ""}:\n\n    ${url}\n`,
-  );
-  console.log("  Paste the URL above if the browser doesn't open.");
+  say();
+  say(`  Opening the hosted trigger setup${platform ? ` for **${picked}**` : ""}:`);
+  say();
+  // Underlined verbatim rather than markdown-rendered: this is the one line the
+  // user may have to copy out by hand, so it must stay a bare, unstyled URL.
+  console.log(`    ${underline(url)}`);
+  say();
+  say("  Paste the URL above if the browser doesn't open");
   if (!dryRun) tryOpenBrowser(url);
   return url;
 }
 
 function printWhatItIs(): void {
-  console.log(
-    "  A trigger is a scheduled agent that applies changes for you — unattended.\n" +
-      "  It's core to how Shipeasy closes the loop: as bugs, feature requests, and\n" +
-      "  auto-filed error/alert tickets land in your queue, the trigger runs on a\n" +
-      "  cadence (or on each new item), fixes them one at a time, and opens ONE pull\n" +
-      "  request per item for you to review. Nothing merges without you.\n",
+  say(
+    wrapText(
+      "**A trigger is a scheduled agent that applies changes for you — unattended.** It's core " +
+        "to how Shipeasy closes the loop: as bugs, feature requests, and auto-filed error/alert " +
+        "tickets land in your queue, the trigger runs on a cadence (or on each new item), fixes " +
+        "them one at a time, and opens **one pull request per item** for you to review. Nothing " +
+        "merges without you.",
+    ),
   );
+  say();
 }
 
 /**
@@ -356,7 +370,7 @@ export async function runTriggerStep(opts: TriggerStepOpts): Promise<TriggerStep
 
   if (opts.ask) {
     if (!opts.interactive) {
-      console.log(
+      say(
         "  • non-interactive — skipped. Enable with `--triggers`, or run\n" +
           "    `shipeasy setup triggers` any time.",
       );
@@ -369,7 +383,7 @@ export async function runTriggerStep(opts: TriggerStepOpts): Promise<TriggerStep
       initial: true,
     });
     if (!go) {
-      console.log("  • skipped — set one up later with `shipeasy setup triggers`.");
+      say("  • skipped — set one up later with `shipeasy setup triggers`.");
       return { enabled: false };
     }
   }
@@ -397,7 +411,7 @@ export async function runTriggerStep(opts: TriggerStepOpts): Promise<TriggerStep
 
   // Non-interactive with no flag: open the picker page and return.
   if (!opts.interactive) {
-    console.log(
+    say(
       "  • no platform given — opening the picker (pass --trigger-platform to preselect).",
     );
     const url = await openWizard(
@@ -461,13 +475,16 @@ export async function runTriggerStep(opts: TriggerStepOpts): Promise<TriggerStep
       opts.session,
     );
     if (platform && !opened.includes(platform)) opened.push(platform);
-    console.log(
-      "  The CLI is still running — finish the wizard in your browser, then come back\n" +
-        "  here to set up another platform or wrap up.\n",
+    say(
+      wrapText(
+        "The CLI is still running — finish the wizard in your browser, then come back here to " +
+          "set up another platform or wrap up",
+      ),
     );
+    say();
   }
 
-  console.log(
+  say(
     completed
       ? opened.length
         ? `  ✓ Done — trigger setup opened for: ${opened.join(", ")}. Finish any open wizard tabs.`

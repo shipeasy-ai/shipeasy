@@ -646,6 +646,22 @@ describe("mcpAuthHandoff — the one-time MCP OAuth authorization step", () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
+  it("prints no heading of its own — authorization is its own numbered setup step", async () => {
+    // `runSetup` owns the "9. Authorize the MCP connection" heading so the step
+    // still announces itself when there are no agents to authorize. If this
+    // function printed one too, every run would show the heading twice.
+    process.env.SHIPEASY_AGENT = "1";
+    const logs: string[] = [];
+    vi.spyOn(console, "log").mockImplementation((...a: unknown[]) => void logs.push(a.join(" ")));
+
+    await mcpAuthHandoff(["codex"], false);
+
+    const out = logs.join("\n");
+    expect(out).not.toMatch(/─{4}/); // the heading rule
+    expect(out).not.toMatch(/Authorize the MCP connection/);
+    expect(out).toMatch(/OAuth/); // it still explains what's about to happen
+  });
+
   it("scripts the login for agents whose CLI can do it, and only those", () => {
     // Claude + Cursor ship a `mcp login`; the rest authorize from their own UI,
     // so they keep the printed instruction instead of a bogus shell-out.

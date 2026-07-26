@@ -2040,8 +2040,10 @@ One-command onboarding for this repo. Logs you in and binds a project, detects a
 4. Mints env-locked server/client SDK keys.
 5. Runs the SDK package install per target and persists the keys to each target's gitignored env file.
 6-7. Offers the devtools overlay + feature module enables (flags/i18n/ops).
-8-9. Drops the re-onboarding pointer skill and runs the verification gate.
+8. Verification gate — session, keys, and every target's binding.
+9. Authorizes the hosted MCP connection (OAuth browser sign-in per client), driving each agent's own `mcp login` where it ships one.
 10. Everything that needs codebase judgement (entry-point `configure(...)` wiring, idiomatic secret stores, overlay script injection) is written to `shipeasy-wiring.md` — complete, self-contained instructions any coding agent (Claude, Codex, Cursor, Copilot, or a human) can execute. Key values never appear in that file.
+11. Offers the automation trigger (scheduled queue burn-down as PRs).
 
 Idempotent — safe to re-run. In CI (non-TTY) it runs non-interactively with `SHIPEASY_CLI_TOKEN` + `SHIPEASY_PROJECT_ID`.
 

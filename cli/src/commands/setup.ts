@@ -72,6 +72,7 @@ import { recordDetection } from "./detect";
 import { enableModuleGroup, type EnableResult } from "./install";
 import { withExamples, withDetails } from "../util/examples";
 import { getPlatformModuleGates } from "../util/platform-gates";
+import { bold, bullet, cyan, dim, format, wrapText, type WrapOpts } from "../util/format";
 
 const ALL_AGENTS: AgentId[] = ["claude", "cursor", "codex", "copilot", "jules"];
 const FEATURE_GROUPS = ["flags", "i18n", "ops"] as const;
@@ -106,10 +107,34 @@ export function appBaseUrl(): string {
   return loadCredentials()?.app_base_url?.replace(/\/$/, "") ?? APP_BASE_URL;
 }
 
-// ── small print helpers (no chalk — the CLI avoids ESM-only deps) ───────────
+// ── small print helpers ─────────────────────────────────────────────────────
+
+/**
+ * Every line setup prints goes through here: inline markdown (`**bold**`,
+ * `` `code` ``, links) is rendered to ANSI and the leading ✓/✗/•/→ glyph is
+ * coloured, so a long log can be scanned down its left margin.
+ *
+ * On a non-TTY — a pipe, CI, or a coding agent reading stdout — `format` is the
+ * identity function, so the output stays exactly the plain markdown it was
+ * authored as. That's what keeps the harness-facing text stable.
+ */
+function say(text = ""): void {
+  console.log(format(text));
+}
+
+/** A wrapped explanation paragraph: authored as one string per paragraph and
+ *  re-flowed to the terminal's width, instead of hard-wrapped at whatever
+ *  column the source file happened to use. */
+function explain(text: string, opts?: WrapOpts): void {
+  say(wrapText(text, opts));
+}
 
 function heading(title: string): void {
-  console.log(`\n${title}\n${"─".repeat(title.length)}`);
+  // Cyan step number + bold label, so steps stand out from body text without
+  // needing extra blank lines. The rule measures the unstyled title.
+  const m = /^(\d+[a-z]?\.)\s+(.*)$/.exec(title);
+  const styled = m ? `${cyan(m[1]!)} ${bold(m[2]!)}` : bold(title);
+  console.log(`\n${styled}\n${dim("─".repeat(title.length))}`);
 }
 
 /** First sentence of a skill description, capped so the install list stays scannable. */
@@ -204,9 +229,9 @@ async function bindAuthoritative(projectId: string): Promise<string> {
   const prev = getBoundProjectId(process.cwd());
   const { path } = bindProject(process.cwd(), projectId, name);
   if (prev && prev !== projectId) {
-    console.log(`  ✓ rebound ${path} → ${name ?? projectId} (was ${prev})`);
+    say(`  ✓ rebound ${path} → ${name ?? projectId} (was ${prev})`);
   } else {
-    console.log(`  ✓ bound ${path} → ${name ?? projectId}`);
+    say(`  ✓ bound ${path} → ${name ?? projectId}`);
   }
   return projectId;
 }
@@ -233,12 +258,13 @@ async function bindAuthoritative(projectId: string): Promise<string> {
 function reportCliSession(): void {
   const source = credentialsSource();
   if (source === "file") {
-    console.log(`  ✓ CLI session stored → ${credentialsPath()}`);
+    say(`  ✓ CLI session stored → ${credentialsPath()}`);
     return;
   }
-  console.log(
-    `  ⚠ authenticated, but nothing is stored at ${credentialsPath()} — ` +
-      "`shipeasy whoami` will\n    fail in any other shell. Run `shipeasy login` to store a session.",
+  explain(
+    `authenticated, but nothing is stored at ${credentialsPath()} — \`shipeasy whoami\` ` +
+      "will fail in any other shell. Run `shipeasy login` to store a session.",
+    { first: "  ⚠ ", indent: "    " },
   );
 }
 
@@ -278,7 +304,7 @@ async function verifySession(projectId: string, canPrompt: boolean): Promise<[st
   }
   if (!canPrompt) return ["CLI session rejected (401/403) — run `shipeasy login`", false];
 
-  console.log("  • CLI session was rejected — re-authenticating so the hand-off works");
+  say("  • CLI session was rejected — re-authenticating so the hand-off works");
   try {
     await login({ force: true, projectId });
   } catch (err) {
@@ -301,7 +327,7 @@ async function ensureAuthAndBind(interactive: boolean): Promise<string> {
 
   if (!interactive) {
     const { path } = bindProject(process.cwd(), creds.project_id);
-    console.log(`Bound this folder to project ${creds.project_id} → ${path}`);
+    say(`Bound this folder to project ${creds.project_id} → ${path}`);
     return creds.project_id;
   }
 
@@ -326,7 +352,7 @@ async function ensureAuthAndBind(interactive: boolean): Promise<string> {
   }
   // default / "current"
   const { path } = bindProject(process.cwd(), creds.project_id, name);
-  console.log(`Bound this folder to ${name ?? creds.project_id} → ${path}`);
+  say(`Bound this folder to ${name ?? creds.project_id} → ${path}`);
   return creds.project_id;
 }
 
@@ -336,7 +362,7 @@ async function selectAgents(opts: SetupOpts, interactive: boolean): Promise<Agen
   const detected = detectAgents(process.cwd());
 
   for (const a of detected) {
-    console.log(`  ${a.detected ? "✓" : "·"} ${a.label.padEnd(16)} ${a.reason}`);
+    say(`  ${a.detected ? "✓" : "·"} ${a.label.padEnd(16)} ${a.reason}`);
   }
 
   // Explicit --agents wins.
@@ -354,7 +380,7 @@ async function selectAgents(opts: SetupOpts, interactive: boolean): Promise<Agen
 
   if (!interactive) {
     const auto = detected.filter((a) => a.detected).map((a) => a.id);
-    console.log(
+    say(
       auto.length
         ? `\nNon-interactive: wiring detected agents → ${auto.join(", ")}`
         : "\nNon-interactive: no agents detected; pass --agents to choose explicitly.",
@@ -603,31 +629,35 @@ async function humanHandoff(
 ): Promise<void> {
   // Only offer to launch agents the user chose in step 3 that are also on PATH.
   const available = RUNNABLE_AGENTS.filter((a) => selected.includes(a.id) && onPath(a.bin));
-  console.log(
-    `  The remaining steps edit your code (entry-point SDK init, etc.), so they're\n` +
-      `  best handed to a coding assistant. Either open ${WIRING_FILENAME} and follow\n` +
-      `  the checklist yourself, or pass it to an assistant, e.g.:\n\n` +
-      RUNNABLE_AGENTS.map(
-        (a) =>
-          `    ${a.bin} ${a
-            .argv(WIRING_PROMPT)
-            .map((s) => (s.startsWith("-") ? s : JSON.stringify(s)))
-            .join(" ")}`,
-      ).join("\n") +
-      `\n\n  (or paste ${WIRING_FILENAME} into your IDE's assistant)`,
+  explain(
+    `The remaining steps edit your code (entry-point SDK init, and so on), so they're best ` +
+      `handed to a coding assistant. Either open \`${WIRING_FILENAME}\` and work the checklist ` +
+      `yourself, or pass it to an assistant:`,
   );
+  say();
+  for (const a of RUNNABLE_AGENTS) {
+    const argv = a
+      .argv(WIRING_PROMPT)
+      .map((s) => (s.startsWith("-") ? s : JSON.stringify(s)))
+      .join(" ");
+    say(`    \`${a.bin} ${argv}\``);
+  }
+  say();
+  explain(`…or paste \`${WIRING_FILENAME}\` into your IDE's assistant`);
 
   const noRun = opts.agentRun === false || opts.claudeRun === false || opts.dryRun;
   if (!interactive || noRun || available.length === 0) return;
 
   // Say what the agent is about to change BEFORE we hand it the terminal — it
   // runs with permission prompts disabled, so this is the user's one gate.
-  console.log(
-    "\n  We'll now launch your coding agent to wire Shipeasy into the app, using the\n" +
-      "  settings you chose here, to complete the installation. It would:\n",
+  say();
+  explain(
+    "We'll now launch your coding agent to wire Shipeasy into the app, using the settings " +
+      "you chose here, to complete the installation. **It would:**",
   );
-  for (const line of wiringPlanLines(plan)) console.log(`    • ${line}`);
-  console.log("");
+  say();
+  for (const line of wiringPlanLines(plan)) say(bullet(line));
+  say();
 
   const { ok } = await prompts({
     type: "confirm",
@@ -655,10 +685,10 @@ async function humanHandoff(
     chosen = picked;
   }
 
-  console.log(`\nLaunching: ${chosen.bin} …\n`);
+  say(`\nLaunching: ${chosen.bin} …\n`);
   const code = await spawnAgent(chosen.bin, chosen.argv(WIRING_PROMPT));
   if (code !== 0) {
-    console.log(`\n${chosen.bin} exited with code ${code}. You can re-run it anytime.`);
+    say(`\n${chosen.bin} exited with code ${code}. You can re-run it anytime.`);
   }
 }
 
@@ -700,14 +730,18 @@ export const TRUST_SESSION_PROMPT = "/mcp";
  * re-probe and drive `claude mcp login` ourselves (the same browser sign-in).
  */
 async function trustClaudeInteractively(pending: McpAuthResult): Promise<McpAuthResult> {
-  console.log(
-    "\n  Claude hasn't trusted this folder yet — that prompt only appears in an\n" +
-      "  interactive session, so its .mcp.json server stays pending until then.\n" +
-      "  I can open Claude here now. All you do in that session:\n" +
-      "    1. accept the trust prompt (the `shipeasy` server is already approved)\n" +
-      "    2. the MCP panel opens on `shipeasy` — Authenticate there, or just `/exit`\n" +
-      "  Either way you're covered: if you skip it I run the browser sign-in from here\n",
+  say();
+  explain(
+    "Claude hasn't trusted this folder yet — that prompt only appears in an interactive " +
+      "session, so its `.mcp.json` server stays pending until then. I can open Claude here " +
+      "now. **All you do in that session:**",
   );
+  say();
+  say(bullet("accept the trust prompt (the `shipeasy` server is already approved)", { glyph: "1." }));
+  say(bullet("the MCP panel opens on `shipeasy` — Authenticate there, or just `/exit`", { glyph: "2." }));
+  say();
+  explain("Either way you're covered: if you skip it, I run the browser sign-in from here");
+  say();
   const { open } = await prompts({
     type: "confirm",
     name: "open",
@@ -716,7 +750,7 @@ async function trustClaudeInteractively(pending: McpAuthResult): Promise<McpAuth
   });
   if (!open) return pending;
 
-  console.log("\nLaunching: claude …\n");
+  say("\nLaunching: claude …\n");
   await spawnAgent("claude", [TRUST_SESSION_PROMPT]);
 
   // Trust granted, so the server is no longer pending — which is the ONLY thing
@@ -732,7 +766,7 @@ async function trustClaudeInteractively(pending: McpAuthResult): Promise<McpAuth
         "      then run `shipeasy setup` again (or `claude mcp login shipeasy`)",
     };
   }
-  console.log("  Finishing the MCP sign-in…");
+  say("  Finishing the MCP sign-in…");
   const after = runMcpAuth("claude");
   return after.action === "failed"
     ? {
@@ -747,22 +781,27 @@ export async function mcpAuthHandoff(
   interactive: boolean,
   opts: { dryRun?: boolean } = {},
 ): Promise<void> {
+  // Caller owns the step heading — this is step 9 of `shipeasy setup`, and the
+  // "no agents wired" case still needs the heading printed above it.
   if (selected.length === 0) return;
-  heading("Authorize the MCP connection");
-  console.log(
-    "  The hosted Shipeasy MCP server (mcp.shipeasy.ai) authenticates with OAuth — a\n" +
-      "  one-time browser sign-in per client, no key to paste. Authorizing it now so the\n" +
-      "  MCP tools work when the wiring steps run.\n",
+  explain(
+    "The hosted Shipeasy MCP server (mcp.shipeasy.ai) authenticates with **OAuth** — a " +
+      "one-time browser sign-in per client, no key to paste. Authorizing it now, so the MCP " +
+      "tools work the moment the wiring steps run.",
   );
+  say();
 
   if (detectHarness().inside) {
     // A coding agent is driving this terminal — we must not seize it with a
     // browser flow, so it authorizes its own connection from the instructions.
-    for (const id of selected) console.log(`    • ${MCP_AUTH_INSTRUCTIONS[id]}`);
-    console.log(
-      "\n  ▶ CODING AGENT: authorize your OWN shipeasy MCP connection now — run your\n" +
-        "    client's MCP Authenticate step (above) and approve in the browser BEFORE\n" +
-        "    starting the wiring steps, or every shipeasy_* tool call will 401.",
+    // Printed verbatim, one per line: a coding agent reads these back and acts
+    // on them, so they must not be re-flowed mid-sentence.
+    for (const id of selected) say(`    • ${MCP_AUTH_INSTRUCTIONS[id]}`);
+    say();
+    explain(
+      "▶ **CODING AGENT: authorize your OWN shipeasy MCP connection now** — run your client's " +
+        "MCP Authenticate step (above) and approve in the browser BEFORE starting the wiring " +
+        "steps, or every shipeasy_* tool call will 401.",
     );
     return;
   }
@@ -781,13 +820,13 @@ export async function mcpAuthHandoff(
       r = await trustClaudeInteractively(r);
     }
     if (r.action === "authorized") {
-      console.log(`  ✓ ${id}: ${r.detail}`);
+      say(`  ✓ ${id}: ${r.detail}`);
       continue;
     }
-    if (r.action === "failed") console.log(`  ✗ ${id}: ${r.detail} — do it by hand:`);
-    else if (r.action === "unavailable") console.log(`  • ${id}: ${r.detail}:`);
-    else if (id === "claude") console.log(`  • claude: ${r.detail}`);
-    else console.log(`    • ${MCP_AUTH_INSTRUCTIONS[id]}`);
+    if (r.action === "failed") say(`  ✗ ${id}: ${r.detail} — do it by hand:`);
+    else if (r.action === "unavailable") say(`  • ${id}: ${r.detail}:`);
+    else if (id === "claude") say(`  • claude: ${r.detail}`);
+    else say(`    • ${MCP_AUTH_INSTRUCTIONS[id]}`);
     manual.push(id);
   }
 
@@ -814,7 +853,7 @@ async function wiringHandoff(
   plan: WiringPlan,
 ): Promise<void> {
   if (detectHarness().inside) {
-    console.log(agentDirective(root));
+    say(agentDirective(root));
     return;
   }
   await humanHandoff(root, opts, interactive, selected, plan);
@@ -827,17 +866,17 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   const dryRun = Boolean(opts.dryRun);
   const cwd = process.cwd();
 
-  console.log("Shipeasy setup — full onboarding\n");
+  say("**Shipeasy setup** — full onboarding");
 
   // 0. Preconditions
   heading("0. Preconditions");
   const pre = checkPreconditions(cwd);
-  console.log(
+  say(
     `  ${pre.nodeOk ? "✓" : "✗"} node ${pre.nodeVersion}` +
       (pre.nodeOk ? "" : "  — Shipeasy requires Node >= 20; continuing, but expect failures"),
   );
   if (pre.gitRepo) {
-    console.log("  ✓ git repository");
+    say("  ✓ git repository");
   } else if (interactive && !dryRun) {
     const { init } = await prompts({
       type: "confirm",
@@ -845,10 +884,10 @@ async function runSetup(opts: SetupOpts): Promise<void> {
       message: "This folder isn't a git repository. Initialize one now?",
       initial: true,
     });
-    if (init) console.log(gitInit(cwd) ? "  ✓ git init" : "  ✗ git init failed — continuing");
-    else console.log("  • continuing without git (nothing will be committable)");
+    if (init) say(gitInit(cwd) ? "  ✓ git init" : "  ✗ git init failed — continuing");
+    else say("  • continuing without git (nothing will be committable)");
   } else {
-    console.log("  • not a git repository — run `git init` if you want the changes committable");
+    say("  • not a git repository — run `git init` if you want the changes committable");
   }
 
   // 1. Detect install targets (monorepo-aware)
@@ -858,12 +897,12 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   if (!dryRun) recordDetection(detected.targets); // seed each target's .shipeasy with sdk/language
   for (const t of detected.targets) {
     const fw = t.frameworks.length ? ` · ${t.frameworks.join(", ")}` : "";
-    console.log(
+    say(
       `  ${t.recommendation.action.startsWith("skip") ? "·" : "▸"} ${relPath(root, t.path)}/  [${t.language}${fw}]  → ${t.recommendation.action}`,
     );
   }
   const actionable = actionableTargets(detected.targets);
-  console.log(
+  say(
     actionable.length
       ? `\n  ${actionable.length} target(s) to onboard.`
       : "\n  Nothing to install — all detected targets are already onboarded.",
@@ -875,7 +914,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   let projectName: string | undefined;
   let cliSession: CliSession | null = null;
   if (dryRun) {
-    console.log("  (dry run — would run `shipeasy login`, bind cwd + each target)");
+    say("  (dry run — would run `shipeasy login`, bind cwd + each target)");
   } else {
     // Authoritative for the rest of setup: the project cli-auth resolved to and
     // that we just bound to cwd. Everything below (key minting, target binding)
@@ -896,10 +935,10 @@ async function runSetup(opts: SetupOpts): Promise<void> {
       bindProject,
     );
     for (const o of outcomes) {
-      if (o.action === "bound") console.log(`  ✓ bound ${relPath(root, o.dir)}/ → ${o.projectId}`);
-      else if (o.action === "already") console.log(`  • ${relPath(root, o.dir)}/ already bound`);
+      if (o.action === "bound") say(`  ✓ bound ${relPath(root, o.dir)}/ → ${o.projectId}`);
+      else if (o.action === "already") say(`  • ${relPath(root, o.dir)}/ already bound`);
       else
-        console.log(
+        say(
           `  → ${relPath(root, o.dir)}/ stays on ${o.projectId} (different project — ` +
             `run \`shipeasy bind\` there to change it)`,
         );
@@ -927,18 +966,18 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     .map((a) => (a === "claude" ? null : (SKILLS_CLI_AGENT[a] ?? null)))
     .filter(Boolean) as string[];
   if (selected.length === 0) {
-    console.log("  (no agents selected — skipping)");
+    say("  (no agents selected — skipping)");
   } else {
-    console.log(
+    say(
       `  scope: ${scope === "project" ? "this project (in-repo)" : "user-level (global)"}`,
     );
     for (const agent of selected) {
-      console.log(`\n  ${agent}:`);
-      for (const line of applyAgent(agent, ctx)) console.log(line);
+      say(`\n  **${agent}**:`);
+      for (const line of applyAgent(agent, ctx)) say(line);
     }
     // Universal instructions — benefits every agent (and any we don't special-case).
-    console.log("");
-    console.log(formatFile("AGENTS.md", writeAgentsMd(ctx)));
+    say("");
+    say(formatFile("AGENTS.md", writeAgentsMd(ctx)));
   }
 
   // 4. Mint SDK keys (env-locked; values persisted in step 5, never logged)
@@ -952,32 +991,33 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     (t) => browserTarget(t) && !t.shipeasy.env_keys_detected.some((k) => k.includes("CLIENT")),
   );
   if (!actionable.length) {
-    console.log("  • no targets need keys — skipping");
+    say("  • no targets need keys — skipping");
   } else if (dryRun) {
-    console.log("  (dry run — would mint server" + (needClient ? " + client" : "") + " keys)");
+    say("  (dry run — would mint server" + (needClient ? " + client" : "") + " keys)");
   } else if (!needServer && !needClient) {
-    console.log("  • every target already has its keys in env — skipping");
+    say("  • every target already has its keys in env — skipping");
   } else {
     // Say which project the keys land in — the plan limit is per-project, so a
     // mismatch here is exactly what produces a confusing "reached the free plan
     // limit of 5 SDK keys" on what the user thinks is a brand-new project.
-    console.log(`  → minting into project ${projectName ?? projectId} [${projectId}]`);
+    say(`  → minting into project ${projectName ?? projectId} [${projectId}]`);
     const session = loadCredentials();
     if (session && session.project_id !== projectId) {
-      console.log(
-        `  ⚠ your CLI session is on ${session.project_id}, but keys go to the bound\n` +
-          `    project ${projectId}. Run \`shipeasy bind ${session.project_id}\` if that's wrong.`,
+      explain(
+        `your CLI session is on ${session.project_id}, but keys go to the bound project ` +
+          `${projectId}. Run \`shipeasy bind ${session.project_id}\` if that's wrong.`,
+        { first: "  ⚠ ", indent: "    " },
       );
     }
     const keyEnv = resolveKeyEnv(opts);
-    console.log(`  → keys read the \`${keyEnv}\` environment (change with --env)`);
+    say(`  → keys read the \`${keyEnv}\` environment (change with --env)`);
     if (needServer) {
       serverKey = await mintKey("server", keyEnv, projectId);
-      console.log(`  ✓ server key minted (${keyEnv}): ${maskKey(serverKey.key)}`);
+      say(`  ✓ server key minted (${keyEnv}): ${maskKey(serverKey.key)}`);
     }
     if (needClient) {
       clientKey = await mintKey("client", keyEnv, projectId);
-      console.log(`  ✓ client key minted (${keyEnv}): ${maskKey(clientKey.key)} (public)`);
+      say(`  ✓ client key minted (${keyEnv}): ${maskKey(clientKey.key)} (public)`);
     }
   }
 
@@ -991,7 +1031,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   // the harness never walks a folder the user opted out of.
   const deselectedTargets = new Set<string>();
   if (!actionable.length) {
-    console.log("  • nothing to do");
+    say("  • nothing to do");
   } else {
     const runInstalls = !opts.skipInstall && !dryRun;
     // Which targets to actually install into now. By default every target that
@@ -1003,7 +1043,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     // confirm the only thing setup can do. Skip it and say what we picked.
     if (runInstalls && interactive && needing.length === 1) {
       const only = needing[0]!;
-      console.log(
+      say(
         `  → onboarding ${relPath(root, only.path)}/  (${only.recommendation.sdk ?? only.language})`,
       );
     } else if (runInstalls && interactive && needing.length > 1) {
@@ -1024,23 +1064,23 @@ async function runSetup(opts: SetupOpts): Promise<void> {
       installTargets.clear();
       for (const p of (picked as string[] | undefined) ?? []) installTargets.add(p);
       // Anything the user unchecked is opted out entirely — record it so it never
-      // reaches the wiring doc (step 9) and the harness never walks it.
+      // reaches the wiring doc (step 10) and the harness never walks it.
       for (const t of needing) if (!installTargets.has(t.path)) deselectedTargets.add(t.path);
     }
 
     for (const t of actionable) {
       const rp = relPath(root, t.path);
       if (deselectedTargets.has(t.path)) {
-        console.log(`\n  ${rp}/: · skipped (de-selected) — left out of onboarding + wiring`);
+        say(`\n  ${rp}/: · skipped (de-selected) — left out of onboarding + wiring`);
         continue;
       }
-      console.log(`\n  ${rp}/:`);
+      say(`\n  ${rp}/:`);
 
       if (t.recommendation.action === "install") {
         if (runInstalls && installTargets.has(t.path)) {
           const r = runSdkInstall(t);
           installOutcome.set(t.path, r);
-          console.log(
+          say(
             r.status === "ran"
               ? `    ✓ installed (${r.cmd})`
               : r.status === "failed"
@@ -1048,7 +1088,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
                 : `    → install deferred to the wiring steps: ${r.cmd}`,
           );
           if (r.frameworkStep) {
-            console.log(
+            say(
               r.frameworkStep.status === "ran"
                 ? `    ✓ framework setup (${r.frameworkStep.cmd})`
                 : `    ✗ framework setup failed (${r.frameworkStep.cmd}) — finish it from the wiring steps`,
@@ -1059,16 +1099,16 @@ async function runSetup(opts: SetupOpts): Promise<void> {
             status: "deferred",
             cmd: t.recommendation.install ?? "(see docs)",
           });
-          console.log(
+          say(
             `    → install ${dryRun ? "(dry run) " : ""}deferred: ${t.recommendation.install}`,
           );
         }
       } else {
-        console.log("    • SDK already installed");
+        say("    • SDK already installed");
       }
 
       if (dryRun) {
-        console.log("    (dry run — would persist keys to env + guard .gitignore)");
+        say("    (dry run — would persist keys to env + guard .gitignore)");
         continue;
       }
 
@@ -1079,14 +1119,14 @@ async function runSetup(opts: SetupOpts): Promise<void> {
       if (Object.keys(entries).length) {
         const w = persistEnv(t.path, file, entries);
         persistedVars.set(t.path, [...w.added, ...w.existing]);
-        if (w.added.length) console.log(`    ✓ ${file}: added ${w.added.join(", ")}`);
+        if (w.added.length) say(`    ✓ ${file}: added ${w.added.join(", ")}`);
         if (w.existing.length)
-          console.log(`    • ${file}: ${w.existing.join(", ")} already present (left untouched)`);
+          say(`    • ${file}: ${w.existing.join(", ")} already present (left untouched)`);
         const gi = ensureGitignored(t.path, file);
-        console.log(`    ${gi.action === "added" ? "✓" : "•"} ${gi.detail}`);
+        say(`    ${gi.action === "added" ? "✓" : "•"} ${gi.detail}`);
       } else {
         persistedVars.set(t.path, t.shipeasy.env_keys_detected);
-        console.log("    • keys already in env — nothing persisted");
+        say("    • keys already in env — nothing persisted");
       }
 
       // Pull the version-correct installation doc to embed in the wiring file.
@@ -1096,7 +1136,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
         t.frameworks[0],
       );
       installDocs.set(t.path, doc);
-      console.log(
+      say(
         doc ? "    ✓ installation doc fetched" : "    • installation doc unavailable (offline?)",
       );
     }
@@ -1117,12 +1157,12 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   // and the feature-skill install in step 7).
   const skillSdk = uniqueSdks[0] ?? actionable[0]?.language ?? "typescript";
   if (dryRun) {
-    console.log(
+    say(
       `  (dry run — would ensure the \`skills\` CLI, then install the SDK how-to skills` +
         ` at ${skillsGlobal ? "user-global (-g)" : "project"} scope into: ${skillsCliAgents.join(", ") || "—"})`,
     );
   } else if (!skillsCliAgents.length) {
-    console.log(
+    say(
       selected.includes("claude")
         ? "  • Claude gets its skills from the plugin — nothing else to install"
         : "  • no skills-CLI agents — skipping (install later: shipeasy docs skill --sdk <lang> --install)",
@@ -1132,8 +1172,8 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     // installed here if it's missing) — otherwise every `skills add` below would
     // fail one at a time and silently fall back to writing `.claude/skills/`.
     const cli = ensureSkillsCli();
-    console.log(`  ${cli.source === "missing" ? "✗" : "✓"} skills CLI: ${cli.detail}`);
-    console.log(
+    say(`  ${cli.source === "missing" ? "✗" : "✓"} skills CLI: ${cli.detail}`);
+    say(
       `  scope: ${skillsGlobal ? "-g (user-global)" : "project (in-repo)"} — passed through, not asked`,
     );
     // SDK how-to skill(s) — one per distinct SDK in the tree. Snippets are baked
@@ -1141,27 +1181,28 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     for (const sdk of uniqueSdks) {
       const content = await fetchSdkSkill(sdk);
       if (!content) {
-        console.log(`  • ${sdk}: no published skill — skipped`);
+        say(`  • ${sdk}: no published skill — skipped`);
         continue;
       }
       const res = await installSkill(content, sdk, {
         agents: skillsCliAgents,
         global: skillsGlobal,
       });
-      console.log(`  ${res.action === "failed" ? "✗" : "✓"} ${sdk}: ${res.detail}`);
+      say(`  ${res.action === "failed" ? "✗" : "✓"} ${sdk}: ${res.detail}`);
     }
   }
 
   // 6. Devtools overlay (in-page panel + end-user feedback surface)
   heading("6. Devtools overlay");
   // Lead with what it is so the customer can decide before we ask anything.
-  console.log(
-    "  What it is: a tiny in-page panel your team opens with `?se=1` to see and toggle the\n" +
-      "  live flags/experiments the current user is getting, plus a widget end users can use to\n" +
-      "  file bug reports straight into your ops queue. It's a single opt-in <script> tag — it\n" +
-      "  loads only when invoked, so there's no impact on your normal bundle.\n" +
-      "  Docs: https://docs.shipeasy.ai/feedback/devtools\n",
+  explain(
+    "**What it is:** a tiny in-page panel your team opens with `?se=1` to see and toggle the " +
+      "live flags/experiments the current user is getting, plus a widget end users can use to " +
+      "file bug reports straight into your ops queue. It's a single opt-in `<script>` tag — it " +
+      "loads only when invoked, so there's no impact on your normal bundle.",
   );
+  explain("Docs: https://docs.shipeasy.ai/feedback/devtools");
+  say();
   // Non-skip targets (includes already-onboarded ones, which may still want the
   // overlay even though their recommendation.keys is empty).
   const nonSkipTargets = detected.targets.filter(
@@ -1179,7 +1220,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   let opsEnabled: EnableResult | null = null;
 
   if (dryRun) {
-    console.log(
+    say(
       "  (dry run — would confirm the HTML surface, then offer the overlay + ops module)",
     );
   } else {
@@ -1194,11 +1235,11 @@ async function runSetup(opts: SetupOpts): Promise<void> {
           frameworkBrowser.flatMap((t) => t.frameworks.filter((f) => BROWSER_FRAMEWORKS.has(f))),
         ),
       ];
-      console.log(
+      explain(
         detectedFw.length
-          ? `  Detected ${detectedFw.join(", ")} — renders pages in a browser, so the overlay can mount.`
-          : "  No browser framework detected — looks like a backend/API. The overlay still works in\n" +
-              "  any HTML you serve (server-rendered templates, an embedded SPA, a static frontend).",
+          ? `Detected **${detectedFw.join(", ")}** — renders pages in a browser, so the overlay can mount.`
+          : "No browser framework detected — looks like a backend/API. The overlay still works in " +
+              "any HTML you serve (server-rendered templates, an embedded SPA, a static frontend).",
       );
       const { html } = await prompts({
         type: "confirm",
@@ -1211,7 +1252,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     }
 
     if (!servesHtml) {
-      console.log("  • headless / no browser surface — skipping the overlay");
+      say("  • headless / no browser surface — skipping the overlay");
     } else {
       // Affirmed an HTML surface we didn't pattern-match → host it on every
       // actionable target rather than skipping.
@@ -1233,9 +1274,9 @@ async function runSetup(opts: SetupOpts): Promise<void> {
       if (devtoolsAccepted) {
         try {
           opsEnabled = await enableModuleGroup("ops");
-          console.log(`  ✓ ops module enabled (${opsEnabled.enabled_modules.join(", ")})`);
+          say(`  ✓ ops module enabled (${opsEnabled.enabled_modules.join(", ")})`);
         } catch (e) {
-          console.log(
+          say(
             `  ✗ ops module enable failed: ${e instanceof Error ? e.message : String(e)}`,
           );
         }
@@ -1245,11 +1286,11 @@ async function runSetup(opts: SetupOpts): Promise<void> {
             [projectIdVar(t.frameworks)]: projectId,
           });
           if (w.added.length)
-            console.log(`  ✓ ${relPath(root, t.path)}/${w.file}: added ${w.added.join(", ")}`);
+            say(`  ✓ ${relPath(root, t.path)}/${w.file}: added ${w.added.join(", ")}`);
         }
-        console.log("  → the <script> tag injection is in the wiring steps (needs your layout)");
+        say("  → the <script> tag injection is in the wiring steps (needs your layout)");
       } else {
-        console.log(
+        say(
           "  • declined — add later with `shipeasy install ops` (see the shipeasy-ops skill)",
         );
       }
@@ -1267,7 +1308,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   const { translations: i18nRolledOut } = await getPlatformModuleGates(projectId || undefined);
   const offered = FEATURE_GROUPS.filter((f) => f !== "i18n" || i18nRolledOut);
   if (dryRun) {
-    console.log(
+    say(
       `  (dry run — would offer ${offered.join(" / ")} module enables, then install each enabled feature's how-to skills + shipeasy-setup)`,
     );
   } else {
@@ -1286,7 +1327,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
         (offered as readonly string[]).includes(f),
       ) as FeatureGroup[];
       for (const f of requested.filter((f) => !(offered as readonly string[]).includes(f))) {
-        console.log(`  • ${f} — not available yet, skipped`);
+        say(`  • ${f} — not available yet, skipped`);
       }
     } else if (interactive) {
       const choices = [
@@ -1332,24 +1373,24 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     }
 
     if (!features.length) {
-      console.log(
+      say(
         `  • none selected — enable later with \`shipeasy install <${offered.join("|")}>\``,
       );
     }
     for (const f of features) {
       if (f === "ops" && opsEnabled) {
-        console.log("  • ops — already enabled (devtools step)");
+        say("  • ops — already enabled (devtools step)");
         continue;
       }
       try {
         const r = await enableModuleGroup(f);
         if (f === "ops") opsEnabled = r;
-        console.log(
+        say(
           `  ${r.ok ? "✓" : "✗"} ${f} — modules now: ${r.enabled_modules.join(", ")}` +
             (r.profile_created ? " (created en:prod profile)" : ""),
         );
       } catch (e) {
-        console.log(`  ✗ ${f} enable failed: ${e instanceof Error ? e.message : String(e)}`);
+        say(`  ✗ ${f} enable failed: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
 
@@ -1362,7 +1403,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     const skillFeatures = [...new Set<string>([...features, ...(opsEnabled ? ["ops"] : [])])];
     const featureSkills = setupSkillNames(skillFeatures);
     if (!skillsCliAgents.length) {
-      console.log(
+      say(
         selected.includes("claude")
           ? "  • how-to skills come from the Claude plugin — nothing to add"
           : `  • no skills-CLI agents — install later: ${featureSkills.join(", ")}`,
@@ -1370,17 +1411,17 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     } else {
       // One `skills add <dir> --skill …` for the whole set. List each skill with
       // its description first so the customer can see what each one is for.
-      console.log(`  installing ${featureSkills.length} how-to skill(s):`);
+      say(`  installing ${featureSkills.length} how-to skill(s):`);
       const batch = await installMarketplaceSkills(featureSkills, skillSdk, {
         agents: skillsCliAgents,
         global: skillsGlobal,
       });
       for (const s of batch.skills) {
-        console.log(`  • ${s.name}${s.description ? ` — ${summarize(s.description)}` : ""}`);
+        say(`  • ${s.name}${s.description ? ` — ${summarize(s.description)}` : ""}`);
       }
-      for (const name of batch.missing) console.log(`  ✗ ${name}: could not fetch skill`);
+      for (const name of batch.missing) say(`  ✗ ${name}: could not fetch skill`);
       if (batch.skills.length) {
-        console.log(`  ${batch.result.action === "failed" ? "✗" : "✓"} ${batch.result.detail}`);
+        say(`  ${batch.result.action === "failed" ? "✗" : "✓"} ${batch.result.detail}`);
       }
     }
   }
@@ -1388,7 +1429,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   // 8. Verification gate
   heading("8. Verification");
   if (dryRun) {
-    console.log("  (dry run — skipped)");
+    say("  (dry run — skipped)");
   } else {
     const checks: Array<[string, boolean]> = [];
     checks.push(await verifySession(projectId, interactive || detectHarness().inside));
@@ -1408,14 +1449,34 @@ async function runSetup(opts: SetupOpts): Promise<void> {
         Boolean(bound),
       ]);
     }
-    for (const [label, ok] of checks) console.log(`  ${ok ? "✓" : "✗"} ${label}`);
+    for (const [label, ok] of checks) say(`  ${ok ? "✓" : "✗"} ${label}`);
     if (checks.some(([, ok]) => !ok)) {
-      console.log("\n  Fix the ✗ lines before handing off — do not advance past a failing gate.");
+      say();
+      explain("Fix the ✗ lines before handing off — do not advance past a failing gate.");
     }
   }
 
-  // 9. Remaining (non-deterministic) wiring → instructions for ANY harness
-  heading("9. Remaining wiring — instructions for your coding agent");
+  // 9. Authorize the hosted MCP connection (OAuth).
+  //
+  // Its own step, immediately after the verification gate and BEFORE the wiring
+  // hand-off. Two reasons it can't ride along inside step 10 any more:
+  //  - it's a browser round-trip the user has to complete — the one place setup
+  //    hands over control — so it gets its own heading rather than appearing
+  //    mid-way through another step's output;
+  //  - step 10 only ran when there was something left to wire, which silently
+  //    skipped authorization for a repo that needed no code changes but had just
+  //    had its agents wired. Those runs ended with a 401 on the first tool call.
+  heading("9. Authorize the MCP connection");
+  if (dryRun) {
+    say("  (dry run — would run each agent's MCP sign-in, or print its manual step)");
+  } else if (!selected.length) {
+    say("  • no agents wired — nothing to authorize");
+  } else {
+    await mcpAuthHandoff(selected, interactive, { dryRun });
+  }
+
+  // 10. Remaining (non-deterministic) wiring → instructions for ANY harness
+  heading("10. Remaining wiring — instructions for your coding agent");
   const wiringTargets: WiringTarget[] = actionable
     .filter((t) => !deselectedTargets.has(t.path))
     .map((t) => {
@@ -1447,9 +1508,9 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   ];
   const anythingToWire = wiringTargets.length > 0 || devtoolsAccepted || enabledFeatures.length > 0;
   if (!anythingToWire) {
-    console.log("  • nothing left — the codebase needs no wiring changes.");
+    say("  • nothing left — the codebase needs no wiring changes.");
   } else if (dryRun) {
-    console.log(`  (dry run — would write ${WIRING_FILENAME} with the remaining steps)`);
+    say(`  (dry run — would write ${WIRING_FILENAME} with the remaining steps)`);
   } else {
     // Fetch language-correct feature snippets for the primary SDK so the wiring
     // doc embeds real calls, not framework-specific guesses.
@@ -1487,10 +1548,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     });
     const wiringPath = join(root, WIRING_FILENAME);
     writeFileSync(wiringPath, doc, "utf8");
-    console.log(`  ✓ wrote ${wiringPath}\n`);
-    // Authorize the hosted MCP connection (OAuth) BEFORE handing off the wiring
-    // steps — otherwise every shipeasy_* tool the agent tries during wiring 401s.
-    await mcpAuthHandoff(selected, interactive, { dryRun });
+    say(`  ✓ wrote ${wiringPath}\n`);
     await wiringHandoff(root, opts, interactive, selected, {
       targets: wiringTargets,
       devtools: devtoolsAccepted,
@@ -1498,15 +1556,15 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     });
   }
 
-  // 10. Automation trigger (unattended auto-apply — the queue burn-down loop)
-  heading("10. Automation trigger");
+  // 11. Automation trigger (unattended auto-apply — the queue burn-down loop)
+  heading("11. Automation trigger");
   let triggerResult: TriggerStepResult = { enabled: false };
   if (dryRun) {
-    console.log("  (dry run — would offer the automation trigger + open the hosted setup)");
+    say("  (dry run — would offer the automation trigger + open the hosted setup)");
   } else if (!projectId) {
-    console.log("  • no bound project — skipping");
+    say("  • no bound project — skipping");
   } else if (opts.triggers === false) {
-    console.log("  • declined (--no-triggers)");
+    say("  • declined (--no-triggers)");
   } else {
     triggerResult = await runTriggerStep({
       projectId,
@@ -1520,12 +1578,18 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     });
   }
 
-  // Summary
+  // Summary. Bold labels in a fixed column so the recap reads as a table — the
+  // padding is computed from the UNSTYLED label, so it lines up with or without
+  // colour.
+  const row = (label: string, value: string): void =>
+    say(`**${label}**${" ".repeat(Math.max(1, 11 - label.length))}${value}`);
+
   heading("Done");
-  console.log(`Project:   ${projectId || "(dry run)"}${projectName ? ` (${projectName})` : ""}`);
+  row("Project:", `${projectId || "(dry run)"}${projectName ? ` (${projectName})` : ""}`);
   if (serverKey || clientKey) {
-    console.log(
-      `Keys:      ${[
+    row(
+      "Keys:",
+      `${[
         serverKey ? `server ${maskKey(serverKey.key)}` : null,
         clientKey ? `client ${maskKey(clientKey.key)}` : null,
       ]
@@ -1533,45 +1597,52 @@ async function runSetup(opts: SetupOpts): Promise<void> {
         .join(", ")} — values in each target's gitignored env file`,
     );
   }
-  console.log(
-    `Targets:   ${actionable.length ? actionable.map((t) => relPath(root, t.path) + "/").join(", ") : "none needed work"}`,
+  row(
+    "Targets:",
+    actionable.length
+      ? actionable.map((t) => relPath(root, t.path) + "/").join(", ")
+      : "none needed work",
   );
-  console.log(
-    `Agents:    ${selected.length ? `${selected.join(", ")} (${scope} scope)` : "none wired"}`,
+  row("Agents:", selected.length ? `${selected.join(", ")} (${scope} scope)` : "none wired");
+  row(
+    "Devtools:",
+    devtoolsAccepted ? "enabled (wire the script tag — see wiring steps)" : "declined",
   );
-  console.log(
-    `Devtools:  ${devtoolsAccepted ? "enabled (wire the script tag — see wiring steps)" : "declined"}`,
-  );
-  console.log(`Features:  ${features.length ? features.join(", ") : "none enabled"}`);
-  console.log(
-    `Trigger:   ${
-      triggerResult.platforms?.length
-        ? `${triggerResult.platforms.join(", ")} — ${
-            triggerResult.completed
-              ? "done (finish any open wizard tabs)"
-              : "finish setup in the browser"
-          }`
-        : triggerResult.completed
-          ? "done — none opened"
-          : "not set up — run `shipeasy setup triggers` later"
-    }`,
+  row("Features:", features.length ? features.join(", ") : "none enabled");
+  row(
+    "Trigger:",
+    triggerResult.platforms?.length
+      ? `${triggerResult.platforms.join(", ")} — ${
+          triggerResult.completed
+            ? "done (finish any open wizard tabs)"
+            : "finish setup in the browser"
+        }`
+      : triggerResult.completed
+        ? "done — none opened"
+        : "not set up — run `shipeasy setup triggers` later",
   );
   if (anythingToWire && !dryRun) {
-    console.log(`Wiring:    ${WIRING_FILENAME} — hand it to any coding agent to finish`);
+    row("Wiring:", `${WIRING_FILENAME} — hand it to any coding agent to finish`);
   }
   if (projectId) {
     // `/dashboard/<id>`, not `/projects/<id>` — the latter is a 404; the app has
     // no `/projects` route at all.
-    console.log(`Dashboard: ${appBaseUrl()}/dashboard/${projectId}`);
+    row("Dashboard:", `${appBaseUrl()}/dashboard/${projectId}`);
   }
-  console.log(
-    "\nWhen the wiring is done, commit (setup never commits for you):\n" +
-      "  git add <each target>/.shipeasy <manifests+lockfiles> <entry files>\n" +
-      '  git commit -m "chore: onboard Shipeasy base (SDK + auth + bind)"\n' +
-      "\nAutomation trigger: the scheduled agent that burns down the bug/feature/error\n" +
-      "queue as PRs on a cadence. Set it up any time with `shipeasy setup triggers`.",
+  say();
+  explain("When the wiring is done, commit — setup never commits for you:", { indent: "" });
+  say("  `git add <each target>/.shipeasy <manifests+lockfiles> <entry files>`");
+  say('  `git commit -m "chore: onboard Shipeasy base (SDK + auth + bind)"`');
+  say();
+  explain(
+    "**Automation trigger:** the scheduled agent that burns down the bug/feature/error queue " +
+      "as PRs on a cadence. Set it up any time with `shipeasy setup triggers`",
+    { indent: "" },
   );
-  if (dryRun) console.log("\n(dry run — no files were written, nothing was minted.)");
+  if (dryRun) {
+    say();
+    say("(dry run — no files were written, nothing was minted)");
+  }
 }
 
 /**
@@ -1591,7 +1662,7 @@ async function runSetupTriggers(opts: { platform?: string; dryRun?: boolean }): 
     process.exit(1);
   }
 
-  console.log("Shipeasy — automation trigger setup\n");
+  say("Shipeasy — automation trigger setup\n");
   await runTriggerStep({
     projectId,
     appBaseUrl: appBaseUrl(),
@@ -1624,7 +1695,7 @@ async function offerSetupIssueReport(
   const projectId = getBoundProjectId(process.cwd()) ?? undefined;
 
   if (insideHarness || !interactive) {
-    console.log(
+    say(
       "\nIf this looks like a Shipeasy bug, you can report it — ASK THE USER FIRST, then run:\n" +
         `    shipeasy report-issue --consent --title ${JSON.stringify("Setup failed")} ` +
         `--error ${JSON.stringify(message.slice(0, 200))}\n` +
@@ -1639,11 +1710,11 @@ async function offerSetupIssueReport(
     true,
   );
   if (result.ok) {
-    console.log(
+    say(
       `\n✓ Reported to Shipeasy${result.number ? ` (#${result.number})` : ""} — pending approval. Thank you.`,
     );
   } else if (result.error) {
-    console.log(`\n• ${result.error}`);
+    say(`\n• ${result.error}`);
   }
 }
 
@@ -1741,12 +1812,15 @@ export function setupCommand(parent: Command, version = "unknown"): void {
       "5. Runs the SDK package install per target and persists the keys to each " +
       "target's gitignored env file.\n" +
       "6-7. Offers the devtools overlay + feature module enables (flags/i18n/ops).\n" +
-      "8-9. Drops the re-onboarding pointer skill and runs the verification gate.\n" +
+      "8. Verification gate — session, keys, and every target's binding.\n" +
+      "9. Authorizes the hosted MCP connection (OAuth browser sign-in per client), " +
+      "driving each agent's own `mcp login` where it ships one.\n" +
       "10. Everything that needs codebase judgement (entry-point `configure(...)` " +
       "wiring, idiomatic secret stores, overlay script injection) is written to " +
       "`shipeasy-wiring.md` — complete, self-contained instructions any coding " +
       "agent (Claude, Codex, Cursor, Copilot, or a human) can execute. Key values " +
-      "never appear in that file.\n\n" +
+      "never appear in that file.\n" +
+      "11. Offers the automation trigger (scheduled queue burn-down as PRs).\n\n" +
       "Idempotent — safe to re-run. In CI (non-TTY) it runs non-interactively with " +
       "`SHIPEASY_CLI_TOKEN` + `SHIPEASY_PROJECT_ID`.",
   );
