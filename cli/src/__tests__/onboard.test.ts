@@ -364,6 +364,17 @@ describe("buildWiringDoc", () => {
     expect(doc).toContain("Do not commit.");
   });
 
+  // The gate's first command is `shipeasy whoami`, which reads the CLI session —
+  // a different credential from the MCP authorization. An agent that hits this
+  // with no session can't fix it silently (browser flow), so the doc has to say
+  // so rather than leave it looking like a dead end.
+  it("tells the agent how to recover a missing CLI session at the gate", () => {
+    const doc = buildWiringDoc(input);
+    expect(doc).toContain("shipeasy whoami");
+    expect(doc).toContain("run `shipeasy login`, show the user");
+    expect(doc).toContain("separate from your MCP connection");
+  });
+
   it("is harness-agnostic — no agent-specific tools or slash commands", () => {
     const doc = buildWiringDoc(input);
     for (const banned of ["Claude", "claude ", "/shipeasy:", "AskUserQuestion", "Cursor", "Copilot", "MCP tool"]) {

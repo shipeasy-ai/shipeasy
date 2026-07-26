@@ -1,9 +1,18 @@
 import crypto from "node:crypto";
+import { existsSync } from "node:fs";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { spawn } from "node:child_process";
-import { saveCredentials, loadCredentials, API_BASE_URL, APP_BASE_URL } from "./storage";
+import {
+  saveCredentials,
+  loadCredentials,
+  credentialsPath,
+  credentialsSource,
+  API_BASE_URL,
+  APP_BASE_URL,
+} from "./storage";
 import { bindProject, readProjectConfig, getBoundProjectId } from "../util/project-config";
+import { detectHarness } from "../setup/agents";
 
 function base64url(buf: Buffer): string {
   return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -278,6 +287,24 @@ async function currentSession(): Promise<{ projectId: string; email?: string } |
   }
 }
 
+/**
+ * An env-var session (`SHIPEASY_CLI_TOKEN` + `SHIPEASY_PROJECT_ID`) authenticates
+ * *this process* and nothing else: the next shell, and any coding agent the run
+ * hands off to, sees no credentials at all. When such a session checks out live,
+ * write it to the config file so the login sticks the way a browser login would.
+ * Never overwrites an existing stored session — that one may be a different
+ * project the user picked deliberately.
+ */
+function persistEnvSession(): void {
+  if (credentialsSource() !== "env") return;
+  if (existsSync(credentialsPath())) return;
+  const creds = loadCredentials();
+  if (!creds) return;
+  saveCredentials(creds);
+  console.log(`Stored that session → ${credentialsPath()} (it was env-only, so it wouldn't`);
+  console.log("have survived this shell).");
+}
+
 /** What `login` resolved to. `ranBrowserFlow` is true only when the device/
  *  browser flow actually completed this call (a fresh, explicit project choice)
  *  — callers like `shipeasy setup` use it to decide whether the returned project
@@ -315,6 +342,7 @@ export async function login(
         `Already logged in${session.email ? ` as ${session.email}` : ""}` +
           ` (project ${session.projectId}). Use \`shipeasy login --force\` to re-authenticate.`,
       );
+      persistEnvSession();
       return { projectId: session.projectId, ranBrowserFlow: false };
     }
   }
@@ -358,6 +386,20 @@ export async function login(
   console.log("Paste the URL above manually if the browser does not open.\n");
   tryOpenBrowser(authUrl);
 
+  // A coding agent driving this terminal can't click a browser link, and it has
+  // no way to know this sign-in is a different thing from the MCP OAuth it may
+  // already hold — so say both out loud. Without this an agent tends to kill the
+  // wait and carry on, which is exactly how a run ends with working MCP tools
+  // and a `shipeasy whoami` that 401s.
+  if (detectHarness().inside) {
+    console.log(
+      "  ▶ CODING AGENT: this is the CLI's OWN sign-in, not the MCP authorization —\n" +
+        "    working `shipeasy_*` MCP tools do NOT make `shipeasy whoami` work. Show the\n" +
+        "    URL above to your user, wait for them to approve, and let this command\n" +
+        "    finish; it writes the session every later `shipeasy` command reads.\n",
+    );
+  }
+
   console.log("Waiting for browser authentication…");
 
   // Race the browser callback against the session deadline, then always tear the
@@ -387,7 +429,8 @@ export async function login(
 
   console.log(
     `\nLogged in. Session project: ${payload.project_id}` +
-      (payload.user_email ? ` (${payload.user_email})` : ""),
+      (payload.user_email ? ` (${payload.user_email})` : "") +
+      `\nSession stored → ${credentialsPath()} (\`shipeasy whoami\` works from any shell now).`,
   );
 
   // Auto-bind the returned project_id to cwd when nothing is bound yet.

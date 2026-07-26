@@ -112,7 +112,9 @@ function embeddedDocOr(
 
 const OPERATING_RULES = `## Operating rules (follow exactly)
 
-1. Run every shell command yourself; do not ask the user to run commands.
+1. Run every shell command yourself; do not ask the user to run commands. One
+   exception: a browser sign-in (see the final gate) — you cannot click a link,
+   so that one goes to the user.
 2. **Never print, log, echo, or commit a key value** — anything matching
    \`sdk_server_*\` or \`sdk_client_*\`. Reference env var NAMES only. The values
    are already persisted in each target's gitignored env file.
@@ -345,6 +347,14 @@ shipeasy whoami && shipeasy sdk keys list && shipeasy projects current
 ${input.targets.map((t) => `( cd ${t.relPath} && shipeasy root )   # must print this dir + project + sdk`).join("\n")}
 ${input.buildTargets.map((p) => `( cd ${p} && (pnpm build || npm run build) )`).join("\n")}
 \`\`\`
+
+If the first line fails with missing credentials, the **CLI** is not signed in.
+That is separate from your MCP connection — the \`shipeasy_*\` tools can be fully
+authorized while the CLI has no session, because the two sign in differently. It is
+the one thing here you cannot fix yourself: run \`shipeasy login\`, show the user
+the URL it prints, and let the command finish while they approve it in the
+browser. Then re-run the gate. Do not substitute MCP calls for these three
+commands — they are checking the CLI.
 
 ## Hand-off
 

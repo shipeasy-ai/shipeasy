@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getGeneratedClient } from "../api/client";
-import { loadCredentials } from "../auth/storage";
+import { credentialsPath, credentialsSource, loadCredentials } from "../auth/storage";
 import { bindProject, getBoundProjectId, findProjectConfigDir } from "../util/project-config";
 
 /**
@@ -80,5 +80,21 @@ describe("auth + .shipeasy resolution", () => {
     process.env.SHIPEASY_PROJECT_ID = "proj_env";
     expect(loadCredentials()?.cli_token).toBe("sdk_env");
     expect(loadCredentials()?.project_id).toBe("proj_env");
+  });
+
+  // `shipeasy setup` branches on this: an env-only session is authed for the
+  // current process and invisible to the coding agent it hands off to, so setup
+  // persists it rather than reporting "logged in" and moving on.
+  it("credentialsSource distinguishes an env session from a stored one", () => {
+    expect(credentialsSource()).toBe("file");
+    process.env.SHIPEASY_CLI_TOKEN = "sdk_env";
+    process.env.SHIPEASY_PROJECT_ID = "proj_env";
+    expect(credentialsSource()).toBe("env");
+  });
+
+  it("credentialsSource is null when there is no session at all", () => {
+    rmSync(join(cfgHome, "shipeasy", "config.json"));
+    expect(credentialsSource()).toBeNull();
+    expect(credentialsPath()).toBe(join(cfgHome, "shipeasy", "config.json"));
   });
 });

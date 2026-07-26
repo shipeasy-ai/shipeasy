@@ -4,7 +4,12 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import prompts from "prompts";
 import { login } from "../auth/login";
-import { loadCredentials, type ShipeasyConfig } from "../auth/storage";
+import {
+  credentialsPath,
+  credentialsSource,
+  loadCredentials,
+  type ShipeasyConfig,
+} from "../auth/storage";
 import { bindProject, getBoundProjectId } from "../util/project-config";
 import { getApiClient } from "../api/client";
 import {
@@ -208,6 +213,64 @@ async function bindAuthoritative(projectId: string): Promise<string> {
  * a different project. When `login` short-circuits (already authed), we honour an
  * existing binding and only prompt when the folder is still unbound.
  */
+/**
+ * Confirm the CLI session `login` left behind is one the NEXT process can read —
+ * a stored `config.json`, not just this shell's env — and say where it is.
+ *
+ * Setup hands off to a coding agent that runs `shipeasy whoami`, `sdk keys list`
+ * and `projects current` as its final gate. Those read credentials from disk, so
+ * "we authenticated" has to mean "the file exists", not "the API call worked
+ * once". `login` persists an env-only session for exactly this reason; this is
+ * the check that it did.
+ */
+function reportCliSession(): void {
+  const source = credentialsSource();
+  if (source === "file") {
+    console.log(`  ✓ CLI session stored → ${credentialsPath()}`);
+    return;
+  }
+  console.log(
+    `  ⚠ authenticated, but nothing is stored at ${credentialsPath()} — ` +
+      "`shipeasy whoami` will\n    fail in any other shell. Run `shipeasy login` to store a session.",
+  );
+}
+
+/**
+ * Verification-gate probe for the CLI session — and, when the probe fails, one
+ * attempt to repair it in place.
+ *
+ * A session can go stale between step 2 and here (revoked, expired, or the user
+ * logged out in another shell), and the agent we hand off to *cannot* run a
+ * browser flow: its final gate is `shipeasy whoami && sdk keys list && projects
+ * current`, all of which need this session. So printing "run `shipeasy login`"
+ * hands the harness a to-do it can't action — re-run the login here instead.
+ * Skipped when nobody can complete a browser sign-in (plain non-interactive CI),
+ * where the honest outcome is a failed check rather than a hang.
+ */
+async function verifySession(projectId: string, canPrompt: boolean): Promise<[string, boolean]> {
+  const probe = async (): Promise<boolean> => {
+    try {
+      await getApiClient().request("GET", `/api/admin/projects/${projectId}`);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  if (await probe()) return [`session valid, project ${projectId} reachable`, true];
+  if (!canPrompt) return ["session/project check failed — run `shipeasy login`", false];
+
+  console.log("  • CLI session is no longer valid — re-authenticating so the hand-off works");
+  try {
+    await login({ force: true, projectId });
+  } catch (err) {
+    return [`re-login failed (${String(err)}) — run \`shipeasy login\``, false];
+  }
+  return (await probe())
+    ? [`session re-authenticated, project ${projectId} reachable`, true]
+    : ["session/project check failed — run `shipeasy login`", false];
+}
+
 async function ensureAuthAndBind(interactive: boolean): Promise<string> {
   const first = await login({}); // idempotent; runs device flow + picker when no session
   if (first.ranBrowserFlow) return bindAuthoritative(first.projectId);
@@ -800,6 +863,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     // that we just bound to cwd. Everything below (key minting, target binding)
     // uses this id — never a re-walk of `.shipeasy` that could drift.
     projectId = await ensureAuthAndBind(interactive);
+    reportCliSession();
     projectName = await fetchProjectName(projectId);
     // Capture the authenticated session now — creds are guaranteed valid here
     // (ensureAuthAndBind throws otherwise). The trigger step reuses this token
@@ -1309,13 +1373,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     console.log("  (dry run — skipped)");
   } else {
     const checks: Array<[string, boolean]> = [];
-    try {
-      const client = getApiClient();
-      await client.request("GET", `/api/admin/projects/${projectId}`);
-      checks.push([`session valid, project ${projectId} reachable`, true]);
-    } catch {
-      checks.push(["session/project check failed — run `shipeasy login`", false]);
-    }
+    checks.push(await verifySession(projectId, interactive || detectHarness().inside));
     try {
       const client = getApiClient();
       const res = await client.request<unknown[] | { data: unknown[] }>("GET", "/api/admin/keys");

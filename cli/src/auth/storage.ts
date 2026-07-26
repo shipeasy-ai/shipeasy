@@ -20,10 +20,16 @@ export interface ShipeasyConfig {
   created_at: string;
 }
 
-function configPath(): string {
+/** Where the CLI session lives on disk. Exported so `setup` can name the file
+ *  it just wrote — "you are logged in" is a lot more convincing with a path. */
+export function credentialsPath(): string {
   const xdg = process.env.XDG_CONFIG_HOME;
   const root = xdg ? xdg : path.join(os.homedir(), ".config");
   return path.join(root, "shipeasy", "config.json");
+}
+
+function configPath(): string {
+  return credentialsPath();
 }
 
 function envCredentials(): ShipeasyConfig | null {
@@ -50,6 +56,21 @@ export function loadCredentials(): ShipeasyConfig | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Which of the two credential sources answered — `"env"` when
+ * `SHIPEASY_CLI_TOKEN` + `SHIPEASY_PROJECT_ID` are set (they win), `"file"` for
+ * a stored session, `null` when there is neither.
+ *
+ * The distinction matters to `shipeasy setup`: an env-only session is authed for
+ * *this* process and gone from the next shell, so a run that short-circuits on
+ * one would hand off to a coding agent whose `shipeasy whoami` fails. Setup
+ * persists it instead of assuming the env travels.
+ */
+export function credentialsSource(): "env" | "file" | null {
+  if (envCredentials()) return "env";
+  return loadCredentials() ? "file" : null;
 }
 
 /**
