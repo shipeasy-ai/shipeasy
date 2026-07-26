@@ -63,16 +63,17 @@ export function serverSpec(projectId?: string): {
   const headers: Record<string, string> = {};
   if (projectId) headers["X-Project-Id"] = projectId;
   headers["X-Shipeasy-List-Guard"] = "off";
-  return {
-    type: "http",
-    url: mcpUrl(projectId),
-    "//list-guard":
-      'Set the "X-Shipeasy-List-Guard" header below to "on" to require a *_list before each ' +
-      "*_create — a dedup guard so the agent confirms a resource doesn't already exist before " +
-      'making one. "off" (default) disables it.',
-    headers,
-  };
+  return { type: "http", url: mcpUrl(projectId), "//list-guard": LIST_GUARD_NOTE, headers };
 }
+
+/** The `//list-guard` explainer, split out so the native-`claude mcp add` path
+ *  can put it back: `claude mcp add`/`add-json` keep only the keys they know
+ *  (verified against claude 2.1.220 — an unrecognised `//`-prefixed key is
+ *  silently dropped), so the comment has to be re-merged after the shell-out. */
+export const LIST_GUARD_NOTE =
+  'Set the "X-Shipeasy-List-Guard" header to "on" to require a *_list before each ' +
+  "*_create — a dedup guard so the agent confirms a resource doesn't already exist before " +
+  'making one. "off" (default) disables it.';
 
 /** The projectless default entry, kept for callers that don't scope a project. */
 export const SERVER_SPEC = serverSpec();
@@ -483,12 +484,111 @@ function registerJsonMcp(
 }
 
 /**
- * Register the Shipeasy MCP server for one agent. JSON-config agents are merged
- * idempotently; Codex shells out to `codex mcp add` when the binary is present
- * (else returns the TOML snippet to paste); Jules is connected from Antigravity's
- * (`agy`) MCP settings.
+ * Register Claude's project-scope MCP entry through `claude mcp add` — the
+ * native path, so the on-disk shape is whatever the installed Claude writes
+ * today rather than our guess at it. Returns null when we can't take it
+ * (`claude` off PATH, or user scope: `claude mcp add --scope user` writes
+ * `~/.claude.json`, NOT the `~/.claude/settings.json` the rest of this file
+ * reads and `shipeasy mcp status`/`uninstall` operate on).
+ *
+ * Idempotency is ours to enforce: `claude mcp add` **exits 1** on an existing
+ * entry and leaves it untouched (there is no `--force`), so we check first and
+ * only `claude mcp remove` when the caller asked to replace it.
+ */
+/** `claude mcp add …` for the project-pinned entry, as argv. Split out so tests
+ *  can assert the exact command without shelling out to a real Claude. */
+export function claudeMcpAddArgv(ctx: InstallCtx): string[] {
+  const spec = serverSpec(ctx.projectId);
+  return [
+    "mcp",
+    "add",
+    "--transport",
+    "http",
+    "shipeasy",
+    spec.url,
+    "--scope",
+    "project",
+    // Both pins ride along: the `/p/<id>/mcp` URL above and the explicit header.
+    ...Object.entries(spec.headers).flatMap(([k, v]) => ["--header", `${k}: ${v}`]),
+  ];
+}
+
+/** The two `claude plugin …` invocations, as argv. Scope-parameterised: the
+ *  same pair runs at project scope (declared in the repo's
+ *  `.claude/settings.json`) and at user scope (`~/.claude`). */
+export function claudePluginArgv(scope: "user" | "project"): { marketplace: string[]; install: string[] } {
+  return {
+    marketplace: ["plugin", "marketplace", "add", MARKETPLACE_SLUG, "--scope", scope],
+    install: ["plugin", "install", "shipeasy@shipeasy", "--scope", scope],
+  };
+}
+
+export function addClaudeMcpNative(ctx: InstallCtx): McpResult | null {
+  if (ctx.scope !== "project" || !onPath("claude")) return null;
+  const target = jsonMcpTarget("claude", ctx);
+  if (!target) return null;
+
+  const existing = readJsonConfig<Record<string, Record<string, unknown>>>(target.path);
+  const present = !!existing?.[target.key]?.shipeasy;
+  if (present && !ctx.force) {
+    return {
+      action: "skipped",
+      detail: `${target.path} already has a 'shipeasy' entry (use --force to replace)`,
+    };
+  }
+
+  const argv = claudeMcpAddArgv(ctx);
+  if (ctx.dryRun) {
+    return { action: present ? "updated" : "wrote", detail: `would run: claude ${argv.join(" ")}` };
+  }
+
+  // `add` refuses to overwrite, so a forced re-pin is remove-then-add. A failing
+  // remove is not fatal on its own — the add below reports the real outcome.
+  if (present) {
+    spawnSync("claude", ["mcp", "remove", "shipeasy", "--scope", "project"], {
+      cwd: ctx.cwd,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  }
+  // cwd matters: `--scope project` resolves `.mcp.json` against the process's
+  // working directory, not ours.
+  const res = spawnSync("claude", argv, { cwd: ctx.cwd, stdio: ["ignore", "pipe", "pipe"] });
+  if (res.status !== 0) {
+    const why = `${res.stderr ?? ""}${res.stdout ?? ""}`.trim().split("\n")[0];
+    return {
+      action: "error",
+      detail: `claude mcp add failed (${res.status ?? "?"})${why ? `: ${why}` : ""}`,
+    };
+  }
+
+  // Put the `//list-guard` explainer back — `claude mcp add` keeps only the keys
+  // it knows about, and that comment is how a reader discovers the header.
+  const written = readJsonConfig<Record<string, Record<string, Record<string, unknown>>>>(
+    target.path,
+  );
+  const entry = written?.[target.key]?.shipeasy;
+  if (entry && entry["//list-guard"] !== LIST_GUARD_NOTE) {
+    entry["//list-guard"] = LIST_GUARD_NOTE;
+    writeJsonConfig(target.path, written!);
+  }
+  return { action: present ? "updated" : "wrote", detail: `${target.path} (claude mcp add)` };
+}
+
+/**
+ * Register the Shipeasy MCP server for one agent. Claude at project scope goes
+ * through `claude mcp add` (falling back to the JSON merge when that isn't
+ * available); the other JSON-config agents are merged idempotently; Codex
+ * shells out to `codex mcp add` when the binary is present (else returns the
+ * TOML snippet to paste); Jules is connected from Antigravity's (`agy`) MCP
+ * settings.
  */
 export function registerMcp(agent: AgentId, ctx: InstallCtx): McpResult {
+  if (agent === "claude") {
+    // Native first; a hard failure still falls through to the JSON merge below
+    // rather than leaving the repo without an entry.
+    const native = addClaudeMcpNative(ctx);
+    if (native && native.action !== "error") return native;
+  }
   const jsonTarget = jsonMcpTarget(agent, ctx);
   if (jsonTarget) return registerJsonMcp(jsonTarget, ctx);
 
@@ -538,13 +638,21 @@ export interface ClaudePluginResult {
 
 /**
  * Install the Shipeasy Claude Code plugin (marketplace + plugin) when the
- * `claude` binary is available — this is the native, user-global path that
- * brings the MCP server, skills, and slash commands in one step. Reached only at
- * user scope (project scope keeps Claude in-repo via `.mcp.json`, see
- * `applyAgent`). Falls back to registering the scope's MCP config and printing
- * the manual commands when the `claude` binary isn't present.
+ * `claude` binary is available — the native path that brings skills and slash
+ * commands in one step.
+ *
+ * Runs at BOTH scopes. `--scope project` declares the marketplace + plugin in
+ * the repo's `.claude/settings.json`, so it stays as committable as the rest of
+ * project scope; `--scope user` writes the same declaration under `~/.claude`.
+ * Both commands are idempotent (re-running exits 0), so this is safe on a
+ * repeat `shipeasy setup`.
+ *
+ * Falls back to registering the scope's MCP config and printing the manual
+ * commands when the `claude` binary isn't present.
  */
 export function installClaudePlugin(ctx: InstallCtx): ClaudePluginResult {
+  const argv = claudePluginArgv(ctx.scope);
+  const manual = [`  claude ${argv.marketplace.join(" ")}`, `  claude ${argv.install.join(" ")}`];
   if (!onPath("claude")) {
     const mcp = registerMcp("claude", ctx);
     return {
@@ -552,37 +660,34 @@ export function installClaudePlugin(ctx: InstallCtx): ClaudePluginResult {
       lines: [
         `MCP: ${mcp.action === "skipped" ? mcp.detail : `${mcp.action} ${mcp.detail}`}`,
         "`claude` not on PATH — install the plugin once Claude Code is available:",
-        `  claude plugin marketplace add ${MARKETPLACE_SLUG}`,
-        "  claude plugin install shipeasy@shipeasy",
+        ...manual,
       ],
     };
   }
   if (ctx.dryRun) {
-    return {
-      action: "installed",
-      lines: [
-        `would run: claude plugin marketplace add ${MARKETPLACE_SLUG}`,
-        "would run: claude plugin install shipeasy@shipeasy",
-      ],
-    };
+    return { action: "installed", lines: manual.map((l) => `would run:${l}`) };
   }
-  const add = spawnSync("claude", ["plugin", "marketplace", "add", MARKETPLACE_SLUG], {
+  // cwd matters at project scope: both commands resolve `.claude/settings.json`
+  // against the process's working directory.
+  const opts: Parameters<typeof spawnSync>[2] = {
+    cwd: ctx.cwd,
     stdio: ["ignore", "pipe", "pipe"],
-  });
+  };
+  const add = spawnSync("claude", argv.marketplace, opts);
   // `marketplace add` is idempotent-ish; a non-zero here is usually "already added".
-  const install = spawnSync("claude", ["plugin", "install", "shipeasy@shipeasy"], {
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  const install = spawnSync("claude", argv.install, opts);
   if (install.status !== 0) {
     return {
       action: "error",
       lines: [
         `claude plugin install failed (${install.status ?? "?"}). Run manually:`,
-        `  claude plugin marketplace add ${MARKETPLACE_SLUG}`,
-        "  claude plugin install shipeasy@shipeasy",
+        ...manual,
         ...(add.stderr ? [`(marketplace add: ${add.stderr.toString().trim()})`] : []),
       ],
     };
   }
-  return { action: "installed", lines: ["plugin installed (marketplace + shipeasy@shipeasy)"] };
+  return {
+    action: "installed",
+    lines: [`plugin installed at ${ctx.scope} scope (marketplace + shipeasy@shipeasy)`],
+  };
 }

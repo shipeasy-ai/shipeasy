@@ -7,7 +7,10 @@ import {
   type AgentId,
   type InstallCtx,
   MCP_AUTH_COMMANDS,
+  addClaudeMcpNative,
   approveProjectMcpServer,
+  claudeMcpAddArgv,
+  claudePluginArgv,
   parseClaudeServerState,
   MCP_AUTH_INSTRUCTIONS,
   codexTomlSnippet,
@@ -428,15 +431,64 @@ describe("applyAgent", () => {
 
   it("pre-approves the .mcp.json server for Claude at project scope", () => {
     const dir = tmp();
+    const PATH = process.env.PATH;
     try {
+      // Hermetic: with no PATH there is no `claude` to shell out to, so this
+      // exercises the JSON-merge fallback instead of really installing a plugin
+      // and running `claude mcp add` against the developer's machine.
+      process.env.PATH = "";
       applyAgent("claude", ctx(dir));
+      expect(existsSync(join(dir, ".mcp.json"))).toBe(true);
       const settings = JSON.parse(
         readFileSync(join(dir, ".claude", "settings.local.json"), "utf8"),
       );
       // Without this Claude reports "⏸ Pending approval" and `claude mcp login` exits 1.
       expect(settings.enabledMcpjsonServers).toEqual(["shipeasy"]);
     } finally {
+      process.env.PATH = PATH;
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("Claude native install commands", () => {
+  it("installs the plugin at BOTH scopes, declaring project scope in-repo", () => {
+    for (const scope of ["user", "project"] as const) {
+      const { marketplace, install } = claudePluginArgv(scope);
+      // Without an explicit --scope both default to user, which is what made
+      // project scope skip the plugin (and its slash commands) entirely.
+      expect(marketplace).toEqual([
+        "plugin",
+        "marketplace",
+        "add",
+        "shipeasy-ai/shipeasy",
+        "--scope",
+        scope,
+      ]);
+      expect(install).toEqual(["plugin", "install", "shipeasy@shipeasy", "--scope", scope]);
+    }
+  });
+
+  it("pins the project on the `claude mcp add` entry, both ways", () => {
+    const argv = claudeMcpAddArgv({ cwd: "/tmp/x", scope: "project", force: false, dryRun: false, projectId: "p-1" });
+    // The plugin bundles the UNPINNED mcp.shipeasy.ai/mcp, so this entry is the
+    // only thing making tool calls land on the bound project.
+    expect(argv).toContain("https://mcp.shipeasy.ai/p/p-1/mcp");
+    expect(argv).toContain("X-Project-Id: p-1");
+    expect(argv.slice(0, 4)).toEqual(["mcp", "add", "--transport", "http"]);
+    // `--scope project` is what writes `.mcp.json`; user scope would write
+    // ~/.claude.json, which nothing else in this file reads.
+    expect(argv.join(" ")).toContain("--scope project");
+  });
+
+  it("skips the native MCP path at user scope and off-PATH", () => {
+    const PATH = process.env.PATH;
+    try {
+      expect(addClaudeMcpNative({ cwd: "/tmp/x", scope: "user", force: false, dryRun: false })).toBeNull();
+      process.env.PATH = "";
+      expect(addClaudeMcpNative({ cwd: "/tmp/x", scope: "project", force: false, dryRun: false })).toBeNull();
+    } finally {
+      process.env.PATH = PATH;
     }
   });
 });

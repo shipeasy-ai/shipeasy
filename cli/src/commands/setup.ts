@@ -133,34 +133,35 @@ function formatFile(label: string, r: FileResult): string {
 
 /**
  * Wire one agent: register its MCP server and write any agent-specific rules
- * file. Claude takes the native plugin path (marketplace + plugin install).
+ * file. Claude takes the native path at BOTH scopes — `claude plugin
+ * marketplace add` + `claude plugin install` for skills and slash commands,
+ * `claude mcp add` for the server — rather than us hand-writing the configs.
  * Returns the log lines to surface. Pure w.r.t. its inputs except for the file
  * writes / shell-outs the ctx requests (suppressed under dryRun).
  */
 export function applyAgent(agent: AgentId, ctx: InstallCtx): string[] {
   const lines: string[] = [];
   if (agent === "claude") {
-    // Project scope keeps Claude fully in-repo: a committable `.mcp.json` for the
-    // MCP server, with its skills installed into `./.claude/skills` by the skills
-    // step (no global plugin). User scope takes the native plugin (global
-    // `~/.claude`), which bundles MCP + skills + slash commands in one step.
-    if (ctx.scope === "project") {
-      lines.push(formatMcp(registerMcp("claude", ctx)));
-      // A `.mcp.json` server stays "⏸ Pending approval" until the user approves
-      // it for this project — which blocks `claude mcp login` outright — so
-      // record the approval they already gave by picking Claude here.
-      lines.push(formatMcp(approveProjectMcpServer(ctx)));
-      lines.push(
-        "  • skills → ./.claude/skills in the skills step (no global plugin at project scope)",
-      );
-      return lines;
-    }
     const r = installClaudePlugin(ctx);
     lines.push(
       ...r.lines.map(
         (l) => `  ${r.action === "error" ? "✗" : r.action === "manual" ? "→" : "✓"} ${l}`,
       ),
     );
+    // At project scope the plugin declaration lands in the repo's
+    // `.claude/settings.json`, so it stays committable — but the plugin bundles
+    // the UNPINNED `mcp.shipeasy.ai/mcp`, which would make the user pick a
+    // project at OAuth consent. Register the project-pinned `/p/<id>/mcp` entry
+    // alongside it so tools act on the bound project. (Trade-off: Claude then
+    // lists both, `shipeasy` and `plugin:shipeasy:shipeasy` — the pinned one is
+    // what we probe and authenticate.)
+    if (ctx.scope === "project") {
+      lines.push(formatMcp(registerMcp("claude", ctx)));
+      // A `.mcp.json` server stays "⏸ Pending approval" until the user approves
+      // it for this project — which blocks `claude mcp login` outright — so
+      // record the approval they already gave by picking Claude here.
+      lines.push(formatMcp(approveProjectMcpServer(ctx)));
+    }
     return lines;
   }
 
@@ -305,8 +306,9 @@ async function selectAgents(opts: SetupOpts, interactive: boolean): Promise<Agen
 /**
  * Resolve where MCP config + skills land. An explicit `--scope` wins; otherwise
  * we default to in-repo `project` scope and, when interactive, confirm it and
- * offer user-global. Project scope keeps every artifact committable and drives
- * Claude down the `.mcp.json` + `./.claude/skills` path (no global plugin).
+ * offer user-global. Project scope keeps every artifact committable — for
+ * Claude that means the plugin is declared in the repo's `.claude/settings.json`
+ * and the project-pinned MCP entry in `.mcp.json`, rather than under `~/.claude`.
  */
 async function resolveScope(
   opts: SetupOpts,
@@ -832,13 +834,15 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   // so the repo's connection targets its own project, not the OAuth-consent pick.
   const ctx: InstallCtx = { cwd, scope, force: false, dryRun, projectId: projectId || undefined };
   // The `skills` CLI names for the agents that take skills via `npx skills add`
-  // (not the plugin): cursor/codex/copilot always; Claude only at project scope
-  // (user scope gets skills from its global plugin instead). The skills CLI names
-  // Claude Code `claude-code` — bare `claude` errors "Invalid agents: claude".
+  // (not the plugin): cursor/codex/copilot. Claude is excluded at BOTH scopes —
+  // it now installs the plugin either way, and the plugin already ships these
+  // skills, so routing Claude through the skills CLI as well would write a second
+  // copy of every one of them into `./.claude/skills`. Fallback: when `claude`
+  // isn't on PATH the plugin can't install, and `installClaudePlugin` prints the
+  // two commands to run once it is. The skills CLI names Claude Code
+  // `claude-code` — bare `claude` errors "Invalid agents: claude".
   const skillsCliAgents = selected
-    .map((a) =>
-      a === "claude" ? (scope === "project" ? "claude-code" : null) : (SKILLS_CLI_AGENT[a] ?? null),
-    )
+    .map((a) => (a === "claude" ? null : (SKILLS_CLI_AGENT[a] ?? null)))
     .filter(Boolean) as string[];
   if (selected.length === 0) {
     console.log("  (no agents selected — skipping)");
@@ -1017,10 +1021,10 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   }
 
   // 5b. Install the SDK how-to skill(s) into the wired agents (runs `npx
-  // skills`). Claude at user scope gets everything from its plugin; every other
-  // agent — and Claude at project scope — gets the language-specific SDK how-to
-  // here. The feature workflow skills (flags/i18n/ops sets) are installed after
-  // the feature selection in step 7, so they follow what the user turns on.
+  // skills`). Claude gets everything from its plugin at either scope; every
+  // other agent gets the language-specific SDK how-to here. The feature workflow
+  // skills (flags/i18n/ops sets) are installed after the feature selection in
+  // step 7, so they follow what the user turns on.
   // User scope installs globally (`-g`); project scope keeps them in-repo.
   heading("5b. Install skills");
   const uniqueSdks = [
@@ -1038,7 +1042,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   } else if (!skillsCliAgents.length) {
     console.log(
       selected.includes("claude")
-        ? "  • Claude gets its skills from the plugin (user scope) — nothing else to install"
+        ? "  • Claude gets its skills from the plugin — nothing else to install"
         : "  • no skills-CLI agents — skipping (install later: shipeasy docs skill --sdk <lang> --install)",
     );
   } else {
@@ -1271,14 +1275,14 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     // in at 5b). `shipeasy-setup` always rides along; each enabled feature adds
     // its own skill set (overlap deduped). We key off what's actually ON — the
     // selected `features` plus `ops` if the devtools step turned it on — so the
-    // agent gets exactly the workflow skills for what it can now do. Claude at
-    // user scope gets all of this from its plugin, so there's nothing to add.
+    // agent gets exactly the workflow skills for what it can now do. Claude gets
+    // all of this from its plugin at either scope, so there's nothing to add.
     const skillFeatures = [...new Set<string>([...features, ...(opsEnabled ? ["ops"] : [])])];
     const featureSkills = setupSkillNames(skillFeatures);
     if (!skillsCliAgents.length) {
       console.log(
         selected.includes("claude")
-          ? "  • how-to skills come from the Claude plugin (user scope) — nothing to add"
+          ? "  • how-to skills come from the Claude plugin — nothing to add"
           : `  • no skills-CLI agents — install later: ${featureSkills.join(", ")}`,
       );
     } else {
