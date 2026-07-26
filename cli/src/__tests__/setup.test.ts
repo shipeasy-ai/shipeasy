@@ -36,9 +36,12 @@ import {
   appBaseUrl,
   applyAgent,
   agentDirective,
+  bootstrapPrompt,
+  bootstrapTasks,
   mcpAuthHandoff,
   wiringPlanLines,
   TRUST_SESSION_PROMPT,
+  WIRING_FILENAME,
 } from "../commands/setup";
 import {
   buildWiringDoc,
@@ -658,6 +661,78 @@ describe("copilotMcpAddArgv — the Copilot CLI's own `mcp add`", () => {
     const argv = withCopilotOnPath(false, () => copilotMcpAddArgv(ctxWithToken));
     expect(argv.join(" ")).not.toContain("Authorization");
     expect(argv).toContain("X-Project-Id: p-1"); // still a valid registration
+  });
+});
+
+describe("bootstrapTasks — what the instrumentation session is offered for", () => {
+  it("gates each task on the module that gives it a backend", () => {
+    // Offering see() wiring with no ops module would produce reports with
+    // nowhere to land; offering metrics with no release module would produce
+    // events nothing reads.
+    expect(bootstrapTasks(["ops"]).map((t) => t.key)).toEqual(["errors"]);
+    expect(bootstrapTasks(["flags"]).map((t) => t.key)).toEqual(["metrics"]);
+    expect(bootstrapTasks(["ops", "flags"]).map((t) => t.key)).toEqual(["errors", "metrics"]);
+  });
+
+  it("offers nothing when neither module is enabled", () => {
+    expect(bootstrapTasks([])).toEqual([]);
+    expect(bootstrapTasks(["i18n"])).toEqual([]);
+  });
+});
+
+describe("bootstrapPrompt — the brief handed to the harness", () => {
+  const prompt = (features: string[]) => bootstrapPrompt(bootstrapTasks(features), "proj_1");
+
+  it("names the skills to load and the project it is instrumenting", () => {
+    const p = prompt(["ops", "flags"]);
+    expect(p).toContain("proj_1");
+    for (const skill of ["shipeasy-see", "shipeasy-ops", "shipeasy-metrics", "shipeasy-alerts"]) {
+      expect(p, `must load ${skill}`).toContain(skill);
+    }
+  });
+
+  it("carries only the enabled module's task", () => {
+    const opsOnly = prompt(["ops"]);
+    expect(opsOnly).toContain("TASK — error tracking");
+    expect(opsOnly).not.toContain("TASK — metrics + alerts");
+    expect(opsOnly).not.toContain("shipeasy-alerts");
+
+    const releaseOnly = prompt(["flags"]);
+    expect(releaseOnly).toContain("TASK — metrics + alerts");
+    expect(releaseOnly).not.toContain("TASK — error tracking");
+  });
+
+  it("states the configured-SDK prerequisite — instrumenting comes after wiring", () => {
+    // see() and track() calls can't work before configure(), so a session that
+    // starts on an unwired repo has to finish the wiring first.
+    const p = prompt(["ops"]);
+    expect(p).toContain("PREREQUISITE");
+    expect(p).toContain(WIRING_FILENAME);
+  });
+
+  it("keeps the same safety rules as the wiring doc", () => {
+    const p = prompt(["ops", "flags"]);
+    expect(p).toContain("Never print, log, echo, or commit a key value");
+    expect(p).toMatch(/Do NOT commit/);
+    expect(p).not.toMatch(/sdk_server_[a-z0-9]/i); // var shapes only, never a value
+  });
+
+  it("tells the agent to read the codebase rather than pattern-match a checklist", () => {
+    // The whole point of the step: a module enable is backend-only, so the
+    // signal has to come from what THIS app does.
+    const p = prompt(["ops", "flags"]);
+    expect(p).toContain("READ it first");
+    expect(p).toMatch(/not from a generic SaaS checklist/);
+    expect(p).toMatch(/never grep the codebase for what is being measured/);
+    // Guardrails against over-instrumenting.
+    expect(p).toMatch(/Do NOT instrument control flow/);
+    expect(p).toMatch(/ASK the user for the\s+number rather than inventing an SLO/);
+  });
+
+  it("gives every task a verification gate", () => {
+    for (const t of bootstrapTasks(["ops", "flags"])) {
+      expect(t.instructions, `${t.key} needs a gate`).toContain("Gate:");
+    }
   });
 });
 

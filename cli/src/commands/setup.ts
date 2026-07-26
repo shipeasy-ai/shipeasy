@@ -105,6 +105,7 @@ interface SetupOpts {
   dryRun?: boolean;
   agentRun?: boolean; // commander --no-agent-run → false
   claudeRun?: boolean; // legacy alias of --no-agent-run
+  bootstrap?: boolean; // commander --no-bootstrap → false (skip the instrumentation session)
   triggers?: boolean; // commander --triggers → true, --no-triggers → false, unset → ask
   triggerPlatform?: string;
 }
@@ -634,6 +635,53 @@ export function wiringPlanLines(plan: WiringPlan): string[] {
 }
 
 /**
+ * Offer to hand `prompt` to one of the agents the user wired in step 3, then
+ * run it in this terminal. Shared by the wiring hand-off (step 11) and the
+ * instrumentation bootstrap (step 12) — both hand a written brief to a harness
+ * that runs with permission prompts disabled, so both need the same gate: say
+ * what it will do, ask once, and let the user pick which agent.
+ *
+ * Returns true when an agent actually ran.
+ */
+async function offerAgentRun(
+  selected: AgentId[],
+  prompt: string,
+  opts: SetupOpts,
+  interactive: boolean,
+  message: string,
+): Promise<boolean> {
+  const available = RUNNABLE_AGENTS.filter((a) => selected.includes(a.id) && onPath(a.bin));
+  const noRun = opts.agentRun === false || opts.claudeRun === false || opts.dryRun;
+  if (!interactive || noRun || available.length === 0) return false;
+
+  const { ok } = await prompts({ type: "confirm", name: "ok", message, initial: true });
+  if (!ok) return false;
+
+  // One available agent → just run it; several → let the user say which.
+  let chosen = available[0]!;
+  if (available.length > 1) {
+    const { pick } = await prompts({
+      type: "select",
+      name: "pick",
+      message: "Which agent should run it?",
+      choices: [
+        ...available.map((a) => ({ title: `${a.label} (${a.bin})`, value: a.bin })),
+        { title: "None — I'll run it myself later", value: "" },
+      ],
+      initial: 0,
+    });
+    const picked = available.find((a) => a.bin === pick);
+    if (!picked) return false;
+    chosen = picked;
+  }
+
+  say(`\nLaunching: ${chosen.bin} …\n`);
+  const code = await spawnAgent(chosen.bin, chosen.argv(prompt));
+  if (code !== 0) say(`\n${chosen.bin} exited with code ${code}. You can re-run it anytime.`);
+  return code === 0;
+}
+
+/**
  * The hand-off addressed to a HUMAN at a terminal: plain instructions. The
  * code edits are best done by an assistant, so we show how to hand the file
  * off — and (interactively) explain exactly what it will change, then offer to
@@ -678,37 +726,7 @@ async function humanHandoff(
   for (const line of wiringPlanLines(plan)) say(bullet(line));
   say();
 
-  const { ok } = await prompts({
-    type: "confirm",
-    name: "ok",
-    message: "OK to launch it now?",
-    initial: true,
-  });
-  if (!ok) return;
-
-  // One available agent → just run it; several → let the user say which.
-  let chosen = available[0];
-  if (available.length > 1) {
-    const { pick } = await prompts({
-      type: "select",
-      name: "pick",
-      message: "Which agent should run it?",
-      choices: [
-        ...available.map((a) => ({ title: `${a.label} (${a.bin})`, value: a.bin })),
-        { title: "None — I'll run it myself later", value: "" },
-      ],
-      initial: 0,
-    });
-    const picked = available.find((a) => a.bin === pick);
-    if (!picked) return;
-    chosen = picked;
-  }
-
-  say(`\nLaunching: ${chosen.bin} …\n`);
-  const code = await spawnAgent(chosen.bin, chosen.argv(WIRING_PROMPT));
-  if (code !== 0) {
-    say(`\n${chosen.bin} exited with code ${code}. You can re-run it anytime.`);
-  }
+  await offerAgentRun(selected, WIRING_PROMPT, opts, interactive, "OK to launch it now?");
 }
 
 /**
@@ -900,6 +918,179 @@ async function wiringHandoff(
     return;
   }
   await humanHandoff(root, opts, interactive, selected, plan);
+}
+
+// ── instrumentation bootstrap (step 12) ─────────────────────────────────────
+
+/**
+ * One thing the bootstrap session can instrument, gated on the module that
+ * makes it work server-side. Enabling a module only turns the *backend* on —
+ * the events, `see()` calls and thresholds it needs still have to be derived
+ * from this specific codebase, which is exactly the judgement a harness with
+ * the repo in front of it can do and a CLI cannot.
+ */
+export interface BootstrapTask {
+  key: "errors" | "metrics";
+  /** The module group (from `--features` / step 7) this task needs. */
+  requires: string;
+  /** One line shown to the user before the terminal is handed over. */
+  summary: string;
+  /** Skills carrying the required call forms — installed in steps 5b/7. */
+  skills: string[];
+  /** The task's section of the prompt. */
+  instructions: string;
+}
+
+const BOOTSTRAP_TASKS: BootstrapTask[] = [
+  {
+    key: "errors",
+    requires: "ops",
+    summary:
+      "find every place this app already handles or swallows a failure, and report the ones that matter through see() so they reach your ops queue",
+    skills: ["shipeasy-see", "shipeasy-ops"],
+    instructions: `TASK — error tracking (the ops module is enabled)
+
+Load the **shipeasy-see** skill BEFORE you edit any code: it carries the required
+call form and the consequence grammar, and getting those wrong is worse than not
+instrumenting at all.
+
+1. Inventory how this app currently deals with failure. Look for every catch /
+   rescue / except block, error middleware, unhandled-rejection or panic handler,
+   and every place an error is swallowed outright or dumped to console.error /
+   logger.error / print. List what you found before changing anything.
+2. Instrument the ones that matter, with the language-correct call from the skill
+   (\`shipeasy docs get --sdk <lang> error-reporting\` for the exact signature).
+   Prioritise, in order: paths that lose user data or money; auth, payment and
+   checkout flows; background jobs and queue consumers whose failures are silent;
+   anything currently swallowed with an empty catch.
+3. Do NOT instrument control flow that merely looks like an error — an expected
+   404, validation the user is supposed to see, a retry that then succeeds. Noise
+   here costs more than the missing signal.
+4. Say WHY each failure matters using the skill's consequence grammar, not a
+   restatement of the exception message.
+5. Gate: the app still builds, and \`shipeasy ops list --type error\` runs clean.`,
+  },
+  {
+    key: "metrics",
+    requires: "flags",
+    summary:
+      "name this product's critical moments, emit events at the points they actually happen, define metrics over them, and set alert rules on the few worth waking someone for",
+    skills: ["shipeasy-metrics", "shipeasy-alerts"],
+    instructions: `TASK — metrics + alerts (the release module is enabled)
+
+Load the **shipeasy-metrics** and **shipeasy-alerts** skills first. The backend is
+the source of truth for what already exists: start from \`shipeasy metrics list\`
+— never grep the codebase for what is being measured, it cannot tell you.
+
+1. Read this codebase and name the handful of moments that define whether the
+   product is working — the ones whose failure someone would want to hear about.
+   Derive them from what the app actually does (its routes, jobs, checkout or
+   signup paths), not from a generic SaaS checklist.
+2. Emit an event at the point each moment REALLY happens — server-side, where the
+   truth is, not in a component that may never render. Use the version-correct
+   track call from the metrics skill.
+3. Define a metric over each event (the DSL grammar is \`shipeasy metrics grammar\`).
+   Metrics over an event nothing emits return zero, so wire the event first.
+4. Add alert rules only for the few worth interrupting a human for. Where a
+   sensible threshold cannot be derived from the code, ASK the user for the
+   number rather than inventing an SLO you can't justify.
+5. Gate: \`shipeasy metrics list\` and \`shipeasy ops alerts list\` show what you
+   created, and the app still builds.`,
+  },
+];
+
+/** The tasks worth offering for THIS run — a module the user didn't enable has
+ *  no backend behind it, so its task is not offered at all. */
+export function bootstrapTasks(enabledFeatures: string[]): BootstrapTask[] {
+  return BOOTSTRAP_TASKS.filter((t) => enabledFeatures.includes(t.requires));
+}
+
+/**
+ * The brief handed to the harness. Self-contained and harness-agnostic (same
+ * contract as the wiring doc): it names the skills to load, states the
+ * prerequisite, and ends at "ready to commit" without committing.
+ */
+export function bootstrapPrompt(tasks: BootstrapTask[], projectId: string): string {
+  const skills = [...new Set(tasks.flatMap((t) => t.skills))];
+  return [
+    `Instrument this repository with Shipeasy. The SDK is already installed and this repo is bound to project ${projectId}.`,
+    "",
+    "Work from the codebase: READ it first, then instrument what you actually found. Do not",
+    "invent behaviour the app doesn't have, and do not instrument everything — a wrong or noisy",
+    "signal costs more than a missing one.",
+    "",
+    `PREREQUISITE: the SDK must already be configured at the entry point. If it is not (no`,
+    `configure(...) call), complete ${WIRING_FILENAME} at the repo root first, then continue.`,
+    "",
+    `Load these skills before you start: ${skills.join(", ")}.`,
+    "Prefer the shipeasy-mcp tools when they are available, otherwise use the `shipeasy` CLI.",
+    "",
+    ...tasks.map((t) => `${t.instructions}\n`),
+    "RULES",
+    "- Never print, log, echo, or commit a key value (sdk_server_* / sdk_client_*).",
+    "- Make the smallest change that instruments the path; do not refactor around it.",
+    "- Run the shell commands yourself; do not hand them back to the user.",
+    "- Stop at 'ready to commit': show the `git add` list plus a summary of every event,",
+    "  metric, alert rule and see() call you added. Do NOT commit.",
+  ].join("\n");
+}
+
+/**
+ * Step 12 — offer to bootstrap the instrumentation that only a codebase read can
+ * produce. Everything before this point is mechanical or wiring; this is the
+ * step that turns an installed SDK into an app that actually reports something.
+ */
+async function bootstrapStep(
+  opts: SetupOpts,
+  interactive: boolean,
+  dryRun: boolean,
+  selected: AgentId[],
+  projectId: string,
+  enabledFeatures: string[],
+): Promise<boolean> {
+  const tasks = bootstrapTasks(enabledFeatures);
+  if (!tasks.length) {
+    say("  • no ops or release module enabled — nothing to instrument");
+    return false;
+  }
+
+  explain(
+    "Enabling a module turns the **backend** on; it can't know what your code does. This step " +
+      "hands your coding agent a written brief to go read this repo and instrument it. **It would:**",
+  );
+  say();
+  for (const t of tasks) say(bullet(t.summary));
+  say();
+  explain(
+    `Skills it will load: ${[...new Set(tasks.flatMap((t) => t.skills))].join(", ")} — installed earlier in this run`,
+  );
+
+  if (dryRun) {
+    say(`  (dry run — would offer to launch a session for: ${tasks.map((t) => t.key).join(", ")})`);
+    return false;
+  }
+  if (opts.bootstrap === false) {
+    say("  • declined (--no-bootstrap)");
+    return false;
+  }
+  // Inside a harness we must not hijack its terminal with a second session —
+  // hand it the brief to run itself, exactly like the wiring directive does.
+  if (detectHarness().inside) {
+    say("\n" + bootstrapPrompt(tasks, projectId) + "\n");
+    return false;
+  }
+
+  const ran = await offerAgentRun(
+    selected,
+    bootstrapPrompt(tasks, projectId),
+    opts,
+    interactive,
+    "OK to launch a session to instrument the codebase now?",
+  );
+  if (!ran) {
+    say("  • skipped — re-run this anytime by asking your agent to load the skills above");
+  }
+  return ran;
 }
 
 // ── command ─────────────────────────────────────────────────────────────────
@@ -1471,6 +1662,15 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     say(
       `  (dry run — would offer ${offered.join(" / ")} module enables, then install each enabled feature's how-to skills + shipeasy-setup)`,
     );
+    // Nothing is enabled in a dry run, but an explicit --features still says
+    // which modules a real run would turn on — carry it so the later steps
+    // preview honestly instead of reporting "nothing to instrument".
+    if (opts.features) {
+      features = opts.features
+        .split(",")
+        .map((s) => s.trim().toLowerCase())
+        .filter((f) => (offered as readonly string[]).includes(f)) as FeatureGroup[];
+    }
   } else {
     if (opts.features) {
       const requested = opts.features
@@ -1764,8 +1964,21 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     });
   }
 
-  // 12. Automation trigger (unattended auto-apply — the queue burn-down loop)
-  heading("12. Automation trigger");
+  // 12. Bootstrap the instrumentation only a codebase read can produce —
+  // see() error reporting (ops) and events → metrics → alert rules (release).
+  // Sits after the wiring hand-off because both depend on a configured SDK.
+  heading("12. Bootstrap error tracking + metrics");
+  const bootstrapped = await bootstrapStep(
+    opts,
+    interactive,
+    dryRun,
+    selected,
+    projectId,
+    enabledFeatures,
+  );
+
+  // 13. Automation trigger (unattended auto-apply — the queue burn-down loop)
+  heading("13. Automation trigger");
   let triggerResult: TriggerStepResult = { enabled: false };
   if (dryRun) {
     say("  (dry run — would offer the automation trigger + open the hosted setup)");
@@ -1821,6 +2034,19 @@ async function runSetup(opts: SetupOpts): Promise<void> {
       : "declined",
   );
   row("Features:", features.length ? features.join(", ") : "none enabled");
+  {
+    const tasks = bootstrapTasks(enabledFeatures);
+    row(
+      "Instrument:",
+      !tasks.length
+        ? "n/a — no ops/release module"
+        : bootstrapped
+          ? `${tasks.map((t) => t.key).join(" + ")} — session ran`
+          : `${tasks.map((t) => t.key).join(" + ")} — not run; ask your agent to load ${[
+              ...new Set(tasks.flatMap((t) => t.skills)),
+            ].join(", ")}`,
+    );
+  }
   row(
     "Trigger:",
     triggerResult.platforms?.length
@@ -1958,6 +2184,10 @@ export function setupCommand(parent: Command, version = "unknown"): void {
     .option("--features <list>", "Module groups to enable non-interactively (flags,i18n,ops)")
     .option("--skip-install", "Don't run SDK package installs (they go into the wiring steps)")
     .option("--no-agent-run", "Don't offer to launch a coding agent on the wiring steps")
+    .option(
+      "--no-bootstrap",
+      "Skip the instrumentation session (see() error tracking + events/metrics/alerts)",
+    )
     .addOption(new Option("--no-claude-run", "(deprecated) alias of --no-agent-run").hideHelp())
     .option("--triggers", "Set up the automation trigger without asking (skips the yes/no gate)")
     .option("--no-triggers", "Skip the automation trigger step")
@@ -2046,7 +2276,13 @@ export function setupCommand(parent: Command, version = "unknown"): void {
       "`shipeasy-wiring.md` — complete, self-contained instructions any coding " +
       "agent (Claude, Codex, Cursor, Copilot, or a human) can execute. Key values " +
       "never appear in that file.\n" +
-      "12. Offers the automation trigger (scheduled queue burn-down as PRs).\n\n" +
+      "12. Offers to bootstrap the instrumentation a module enable can't produce " +
+      "on its own: with `ops` on, a session that finds this app's real failure " +
+      "paths and reports them through see(); with the release module on, one that " +
+      "names the product's critical moments and builds the event → metric → alert " +
+      "chain over them. Runs on your own harness with a written brief (skills, " +
+      "gates, and a stop-before-commit rule); `--no-bootstrap` skips it.\n" +
+      "13. Offers the automation trigger (scheduled queue burn-down as PRs).\n\n" +
       "Idempotent — safe to re-run. In CI (non-TTY) it runs non-interactively with " +
       "`SHIPEASY_CLI_TOKEN` + `SHIPEASY_PROJECT_ID`.",
   );

@@ -2044,7 +2044,8 @@ One-command onboarding for this repo. Logs you in and binds a project, detects a
 9. Trusts the folder in Claude when its `.mcp.json` server is still pending — opens one interactive session prefilled with `/exit`, so it closes itself the moment you accept the prompt.
 10. Authorizes the hosted MCP connection: entries written to a config that is private to your machine carry an `Authorization: Bearer` header (your CLI session key) and need no sign-in at all; committable ones (`.mcp.json`, `.cursor/mcp.json`, `.vscode/mcp.json`) never hold a credential, so those take the OAuth browser flow via each agent's own `mcp login`.
 11. Everything that needs codebase judgement (entry-point `configure(...)` wiring, idiomatic secret stores, overlay script injection) is written to `shipeasy-wiring.md` — complete, self-contained instructions any coding agent (Claude, Codex, Cursor, Copilot, or a human) can execute. Key values never appear in that file.
-12. Offers the automation trigger (scheduled queue burn-down as PRs).
+12. Offers to bootstrap the instrumentation a module enable can't produce on its own: with `ops` on, a session that finds this app's real failure paths and reports them through see(); with the release module on, one that names the product's critical moments and builds the event → metric → alert chain over them. Runs on your own harness with a written brief (skills, gates, and a stop-before-commit rule); `--no-bootstrap` skips it.
+13. Offers the automation trigger (scheduled queue burn-down as PRs).
 
 Idempotent — safe to re-run. In CI (non-TTY) it runs non-interactively with `SHIPEASY_CLI_TOKEN` + `SHIPEASY_PROJECT_ID`.
 
@@ -2064,6 +2065,7 @@ shipeasy setup [options] [command]
 | `--features <list>` | optional | Module groups to enable non-interactively (flags,i18n,ops) |
 | `--skip-install` | optional | Don't run SDK package installs (they go into the wiring steps) |
 | `--no-agent-run` | optional | Don't offer to launch a coding agent on the wiring steps |
+| `--no-bootstrap` | optional | Skip the instrumentation session (see() error tracking + events/metrics/alerts) |
 | `--no-claude-run` | optional | (deprecated) alias of --no-agent-run |
 | `--triggers` | optional | Set up the automation trigger without asking (skips the yes/no gate) |
 | `--no-triggers` | optional | Skip the automation trigger step |
