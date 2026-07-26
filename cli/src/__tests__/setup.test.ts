@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { mkdirSync, mkdtempSync, readFileSync, existsSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -11,6 +11,10 @@ import {
   approveProjectMcpServer,
   claudeMcpAddArgv,
   claudePluginArgv,
+  copilotMcpAddArgv,
+  bearerForPath,
+  mcpBearer,
+  serverSpec,
   parseClaudeServerState,
   MCP_AUTH_INSTRUCTIONS,
   codexTomlSnippet,
@@ -215,6 +219,20 @@ describe("instruction writers", () => {
 });
 
 describe("registerMcp", () => {
+  // These assert what lands ON DISK, so no real agent binary may be reachable:
+  // `registerMcp` shells out to `claude mcp add` / `copilot mcp add` whenever
+  // one is on PATH, and `copilot mcp add` writes the DEVELOPER'S OWN
+  // `~/.copilot/mcp-config.json`. An empty PATH makes `onPath` false for every
+  // agent, so each test exercises the file-merge path deterministically —
+  // whether or not the machine running the suite has the agents installed.
+  const realPath = process.env.PATH;
+  beforeEach(() => {
+    process.env.PATH = "";
+  });
+  afterEach(() => {
+    process.env.PATH = realPath;
+  });
+
   it("writes Cursor mcp.json under mcpServers", () => {
     const dir = tmp();
     try {
@@ -482,6 +500,22 @@ describe("Claude native install commands", () => {
     expect(argv.join(" ")).toContain("--scope project");
   });
 
+  it("carries no Authorization header into the committable project entry", () => {
+    // `.mcp.json` is committed. A bearer written there would be a live 90-day
+    // admin key in git, shared with every teammate — so project scope stays on
+    // OAuth no matter what token setup is holding.
+    const argv = claudeMcpAddArgv({
+      cwd: "/tmp/x",
+      scope: "project",
+      force: false,
+      dryRun: false,
+      projectId: "p-1",
+      mcpToken: "sdk_admin_secret",
+    });
+    expect(argv.join(" ")).not.toContain("Authorization");
+    expect(argv.join(" ")).not.toContain("sdk_admin_secret");
+  });
+
   it("skips the native MCP path at user scope and off-PATH", () => {
     const PATH = process.env.PATH;
     try {
@@ -491,6 +525,109 @@ describe("Claude native install commands", () => {
     } finally {
       process.env.PATH = PATH;
     }
+  });
+});
+
+describe("bearerForPath — where a pre-authenticating header may be written", () => {
+  const base = { cwd: "/repo", force: false, dryRun: false, projectId: "p-1" };
+  // Same reason as the registerMcp block: the real-write test below must not
+  // reach `copilot mcp add` and mutate the developer's own user config.
+  const realPath = process.env.PATH;
+  beforeEach(() => {
+    process.env.PATH = "";
+  });
+  afterEach(() => {
+    process.env.PATH = realPath;
+  });
+
+  it("is undefined without a token", () => {
+    expect(bearerForPath("/home/me/.cursor/mcp.json", { ...base, scope: "user" })).toBeUndefined();
+  });
+
+  it("refuses any path inside the repo — those files get committed", () => {
+    const ctx = { ...base, scope: "project" as const, mcpToken: "sdk_admin_x" };
+    for (const p of ["/repo/.mcp.json", "/repo/.cursor/mcp.json", "/repo/.vscode/mcp.json"]) {
+      expect(bearerForPath(p, ctx)).toBeUndefined();
+    }
+  });
+
+  it("allows a path outside the repo, private to this machine's user", () => {
+    const ctx = { ...base, scope: "user" as const, mcpToken: "sdk_admin_x" };
+    expect(bearerForPath("/home/me/.claude/settings.json", ctx)).toBe("sdk_admin_x");
+    expect(bearerForPath("/home/me/.copilot/mcp-config.json", ctx)).toBe("sdk_admin_x");
+  });
+
+  it("is decided by the PATH, not the agent — the bug this replaced", () => {
+    // Copilot writes TWO configs. Keying the decision off the agent handed the
+    // token to both, putting a live admin key in the repo's `.vscode/mcp.json`.
+    const ctx = { ...base, scope: "user" as const, mcpToken: "sdk_admin_x" };
+    expect(bearerForPath("/home/me/.copilot/mcp-config.json", ctx)).toBe("sdk_admin_x");
+    expect(bearerForPath("/repo/.vscode/mcp.json", ctx)).toBeUndefined();
+  });
+
+  it("never leaks the token into a repo config even when it is written for real", () => {
+    const dir = tmp();
+    try {
+      const written = registerMcp("copilot", {
+        cwd: dir,
+        scope: "user",
+        force: false,
+        dryRun: false,
+        projectId: "p-1",
+        mcpToken: "sdk_admin_LEAKCANARY",
+      });
+      expect(written.action).not.toBe("error");
+      const raw = readFileSync(join(dir, ".vscode", "mcp.json"), "utf8");
+      expect(raw).not.toContain("sdk_admin_LEAKCANARY");
+      expect(raw).not.toContain("Authorization");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("puts the token in an Authorization header on the server spec", () => {
+    const spec = serverSpec("p-1", "sdk_admin_x");
+    expect(spec.headers.Authorization).toBe("Bearer sdk_admin_x");
+    // …and leaves it off entirely when there's no bearer, rather than writing
+    // an empty or placeholder value the server would reject in-band.
+    expect(serverSpec("p-1").headers.Authorization).toBeUndefined();
+  });
+});
+
+describe("copilotMcpAddArgv — the Copilot CLI's own `mcp add`", () => {
+  it("uses the documented remote-server form", () => {
+    // Verified against `copilot mcp add --help`: `--transport http <name> <url>`
+    // plus repeatable `--header "K: V"` — same shape as `claude mcp add`, with
+    // no scope flag (it always writes the CLI's user config).
+    const argv = copilotMcpAddArgv({
+      cwd: "/tmp/x",
+      scope: "project",
+      force: false,
+      dryRun: false,
+      projectId: "p-1",
+    });
+    expect(argv.slice(0, 6)).toEqual([
+      "mcp",
+      "add",
+      "--transport",
+      "http",
+      "shipeasy",
+      "https://mcp.shipeasy.ai/p/p-1/mcp",
+    ]);
+    expect(argv).not.toContain("--scope");
+    expect(argv).toContain("X-Project-Id: p-1");
+  });
+
+  it("carries the bearer when setup has a session key", () => {
+    const argv = copilotMcpAddArgv({
+      cwd: "/tmp/x",
+      scope: "project",
+      force: false,
+      dryRun: false,
+      projectId: "p-1",
+      mcpToken: "sdk_admin_x",
+    });
+    expect(argv).toContain("Authorization: Bearer sdk_admin_x");
   });
 });
 
@@ -525,15 +662,13 @@ describe("TRUST_SESSION_PROMPT", () => {
     expect(TRUST_SESSION_PROMPT).not.toMatch(/\s/);
   });
 
-  it("stays bare `/mcp` — Claude has no `/mcp add` subcommand", () => {
-    // claude 2.1.220: "Usage: /mcp [reconnect|enable|disable [<server>|all]]".
-    // Registering a server is CLI-level (`claude mcp add` / `claude plugin
-    // install`) and setup has already done it — the entry is pending, not
-    // missing. An invented `/mcp add …` here would fail at RUNTIME, inside the
-    // one session we ask the user to open.
-    expect(TRUST_SESSION_PROMPT).toBe("/mcp");
-    const [, ...args] = TRUST_SESSION_PROMPT.split(" ");
-    for (const a of args) expect(["reconnect", "enable", "disable"]).toContain(a);
+  it("is `/exit`, so the trust session closes itself", () => {
+    // The session exists to collect ONE keystroke — the trust dialog. Claude
+    // runs the queued positional prompt the moment that dialog clears, so
+    // `/exit` hands the terminal straight back to `shipeasy setup` instead of
+    // parking the user in a chat REPL. Authorization is its own step now, so
+    // there is nothing else for this session to do.
+    expect(TRUST_SESSION_PROMPT).toBe("/exit");
   });
 });
 

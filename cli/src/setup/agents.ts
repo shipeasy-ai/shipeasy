@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { delimiter, join } from "node:path";
+import { delimiter, join, resolve, sep } from "node:path";
 import { mergeMcpServer, readJsonConfig, writeJsonConfig } from "../util/json-config";
 
 /**
@@ -49,7 +49,10 @@ export function mcpUrl(projectId?: string): string {
  * the server still authenticates you via OAuth and the admin API re-checks your
  * membership of the pinned project on every call.
  */
-export function serverSpec(projectId?: string): {
+export function serverSpec(
+  projectId?: string,
+  bearer?: string,
+): {
   type: "http";
   url: string;
   "//list-guard": string;
@@ -63,7 +66,66 @@ export function serverSpec(projectId?: string): {
   const headers: Record<string, string> = {};
   if (projectId) headers["X-Project-Id"] = projectId;
   headers["X-Shipeasy-List-Guard"] = "off";
+  // The bearer, when the caller passes one, is what makes the connection work
+  // WITHOUT the OAuth browser round-trip — see `mcpBearer`. Never set for a
+  // committable config: `mcpBearer` is the only thing allowed to decide that.
+  if (bearer) headers.Authorization = `Bearer ${bearer}`;
   return { type: "http", url: mcpUrl(projectId), "//list-guard": LIST_GUARD_NOTE, headers };
+}
+
+/**
+ * Which agents get an `Authorization: Bearer <admin key>` header written into
+ * their MCP entry, pre-authenticating the connection so nobody has to complete
+ * the OAuth browser sign-in.
+ *
+ * The hosted server accepts a project admin key as a plain bearer (auth mode 1 —
+ * it forwards the key to the admin API, which scopes it to the project), so a
+ * registered header is a complete credential on its own.
+ *
+ * **That is exactly why this is gated on where the entry lands.** A bearer may
+ * only be written into a file that is private to this machine's user:
+ *
+ *  - user/local scope (`~/.claude.json`, `~/.cursor/mcp.json`) — private ✓
+ *  - the Copilot CLI's own `~/.copilot/mcp-config.json` — private ✓
+ *  - project scope (`.mcp.json`, `.cursor/mcp.json`, `.vscode/mcp.json`) —
+ *    **committable**, so a key written there would land in git and be shared
+ *    with every teammate ✗
+ *
+ * Project scope therefore keeps the OAuth flow. Env-var indirection
+ * (`Bearer ${SHIPEASY_MCP_TOKEN}`) was the obvious way around that and is a
+ * trap: Claude stores the reference literally (good), but expands it from the
+ * ambient shell — and when the variable is missing the server answers an
+ * in-band "Unauthenticated" error rather than a 401 challenge, so the client
+ * never falls back to OAuth. The user is left with a server that is configured,
+ * trusted, and silently broken. A missing bearer is strictly better than a
+ * dangling one.
+ */
+export function bearerForPath(path: string, ctx: InstallCtx): string | undefined {
+  if (!ctx.mcpToken) return undefined;
+  // The decision is made on the PATH, not the agent: anything under the repo is
+  // committable by definition, and an agent can write more than one config
+  // (Copilot writes both its private CLI config and the repo's .vscode one).
+  // Keying off the agent instead let the token into `.vscode/mcp.json`.
+  const root = resolve(ctx.cwd);
+  const target = resolve(path);
+  const inRepo = target === root || target.startsWith(root + sep);
+  return inRepo ? undefined : ctx.mcpToken;
+}
+
+/**
+ * Does this agent end up with a pre-authenticated surface? Drives the "skip the
+ * browser sign-in" decision in setup's authorization step. The per-file
+ * {@link bearerForPath} is what actually decides each write.
+ */
+export function mcpBearer(agent: AgentId, ctx: InstallCtx): string | undefined {
+  if (!ctx.mcpToken) return undefined;
+  // Copilot's CLI writes ~/.copilot/mcp-config.json — always private, always
+  // eligible. (Its `.vscode/mcp.json` is separate and stays credential-free.)
+  if (agent === "copilot") return onPath("copilot") ? ctx.mcpToken : undefined;
+  // Codex's TOML has no header field, and Jules is configured by hand.
+  if (agent === "codex" || agent === "jules") return undefined;
+  const target = jsonMcpTarget(agent, ctx);
+  return target ? bearerForPath(target.path, ctx) : undefined;
 }
 
 /** The `//list-guard` explainer, split out so the native-`claude mcp add` path
@@ -388,6 +450,10 @@ export interface InstallCtx {
    *  connection targets this project without relying on the OAuth consent pick.
    *  Omitted → the entry carries no header and the project is chosen at consent. */
   projectId?: string;
+  /** The live CLI session key (`sdk_admin_…`), when setup has one. Registered as
+   *  an `Authorization: Bearer` header — but ONLY into configs that stay private
+   *  to this user; see {@link mcpBearer} for the rule and why it exists. */
+  mcpToken?: string;
 }
 
 export interface McpResult {
@@ -466,7 +532,7 @@ function registerJsonMcp(
   const { config, replaced } = mergeMcpServer(
     existing,
     "shipeasy",
-    serverSpec(ctx.projectId),
+    serverSpec(ctx.projectId, bearerForPath(target.path, ctx)),
     ctx.force,
     target.key,
   );
@@ -501,10 +567,16 @@ export function shellJoin(argv: string[]): string {
   return argv.map((a) => (/\s/.test(a) ? JSON.stringify(a) : a)).join(" ");
 }
 
-/** `claude mcp add …` for the project-pinned entry, as argv. Split out so tests
- *  can assert the exact command without shelling out to a real Claude. */
+/**
+ * `claude mcp add …` for the pinned entry, as argv — the documented remote-server
+ * form (`--transport http <name> <url> --header "<K>: <V>"`). Split out so tests
+ * can assert the exact command without shelling out to a real Claude.
+ *
+ * Every header the entry needs rides on `--header`, including the
+ * `Authorization: Bearer …` one when {@link mcpBearer} allows it for this scope.
+ */
 export function claudeMcpAddArgv(ctx: InstallCtx): string[] {
-  const spec = serverSpec(ctx.projectId);
+  const spec = serverSpec(ctx.projectId, mcpBearer("claude", ctx));
   return [
     "mcp",
     "add",
@@ -512,11 +584,64 @@ export function claudeMcpAddArgv(ctx: InstallCtx): string[] {
     "http",
     "shipeasy",
     spec.url,
+    // Always project: `addClaudeMcpNative` only takes this path at project
+    // scope (user scope goes through the JSON merge, which targets the file
+    // `shipeasy mcp status`/`uninstall` read).
     "--scope",
     "project",
     // Both pins ride along: the `/p/<id>/mcp` URL above and the explicit header.
     ...Object.entries(spec.headers).flatMap(([k, v]) => ["--header", `${k}: ${v}`]),
   ];
+}
+
+/**
+ * `copilot mcp add …` for the same entry — the GitHub Copilot CLI takes the same
+ * shape as Claude's (`--transport http <name> <url> --header "<K>: <V>"`,
+ * verified against the shipped `copilot mcp add --help`).
+ *
+ * It has no scope flag: it always writes the CLI's own user config
+ * (`~/.copilot/mcp-config.json`), which is off-repo and private — which is why
+ * {@link mcpBearer} lets Copilot carry the bearer at either scope.
+ */
+export function copilotMcpAddArgv(ctx: InstallCtx): string[] {
+  const spec = serverSpec(ctx.projectId, mcpBearer("copilot", ctx));
+  return [
+    "mcp",
+    "add",
+    "--transport",
+    "http",
+    "shipeasy",
+    spec.url,
+    ...Object.entries(spec.headers).flatMap(([k, v]) => ["--header", `${k}: ${v}`]),
+  ];
+}
+
+/**
+ * Register Copilot's server through its own CLI, so the Copilot **CLI** sees it
+ * — it reads `~/.copilot/mcp-config.json`, `.mcp.json` or `.github/mcp.json`,
+ * and never the `.vscode/mcp.json` we write for the VS Code extension. Both
+ * surfaces are wanted, so this runs in ADDITION to the JSON write, not instead
+ * of it. Null when `copilot` isn't on PATH (the VS Code file still lands).
+ */
+export function addCopilotMcpNative(ctx: InstallCtx): McpResult | null {
+  if (!onPath("copilot")) return null;
+  const argv = copilotMcpAddArgv(ctx);
+  if (ctx.dryRun) return { action: "shell", detail: `would run: copilot ${shellJoin(argv)}` };
+  // `add` refuses an existing name; a forced re-pin is remove-then-add. The
+  // remove is best-effort — the add below reports the real outcome.
+  if (ctx.force) {
+    spawnSync("copilot", ["mcp", "remove", "shipeasy"], { stdio: ["ignore", "pipe", "pipe"] });
+  }
+  const res = spawnSync("copilot", argv, { cwd: ctx.cwd, stdio: ["ignore", "pipe", "pipe"] });
+  if (res.status !== 0) {
+    const why = `${res.stderr ?? ""}${res.stdout ?? ""}`.trim().split("\n")[0];
+    // Already registered is the common non-zero here, and it isn't a failure.
+    if (/already exists|already configured/i.test(why)) {
+      return { action: "skipped", detail: "copilot CLI: already registered" };
+    }
+    return { action: "error", detail: `copilot mcp add failed (${res.status ?? "?"})${why ? `: ${why}` : ""}` };
+  }
+  return { action: "shell", detail: "copilot mcp add shipeasy (CLI user config)" };
 }
 
 /** The two `claude plugin …` invocations, as argv. Scope-parameterised: the
@@ -530,6 +655,9 @@ export function claudePluginArgv(scope: "user" | "project"): { marketplace: stri
 }
 
 export function addClaudeMcpNative(ctx: InstallCtx): McpResult | null {
+  // User scope stays on the JSON merge: `claude mcp add --scope user` writes
+  // `~/.claude.json`, NOT the `~/.claude/settings.json` that the rest of this
+  // file — and `shipeasy mcp status`/`uninstall` — read.
   if (ctx.scope !== "project" || !onPath("claude")) return null;
   const target = jsonMcpTarget("claude", ctx);
   if (!target) return null;
@@ -594,6 +722,20 @@ export function registerMcp(agent: AgentId, ctx: InstallCtx): McpResult {
     // rather than leaving the repo without an entry.
     const native = addClaudeMcpNative(ctx);
     if (native && native.action !== "error") return native;
+  }
+  if (agent === "copilot") {
+    // Two consumers, two configs: the VS Code extension reads the
+    // `.vscode/mcp.json` we merge below, the Copilot CLI reads its own user
+    // config. Do both — the CLI one is also where a bearer may live.
+    const jsonTarget = jsonMcpTarget(agent, ctx);
+    const file = jsonTarget ? registerJsonMcp(jsonTarget, ctx) : null;
+    const native = addCopilotMcpNative(ctx);
+    if (!native) return file ?? { action: "error", detail: "no MCP target for copilot" };
+    if (!file) return native;
+    return {
+      action: native.action === "error" ? "error" : file.action,
+      detail: `${file.detail} · ${native.detail}`,
+    };
   }
   const jsonTarget = jsonMcpTarget(agent, ctx);
   if (jsonTarget) return registerJsonMcp(jsonTarget, ctx);

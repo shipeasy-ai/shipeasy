@@ -16,11 +16,11 @@ import { ApiError, getApiClient } from "../api/client";
 import {
   type AgentId,
   type InstallCtx,
-  type McpAuthResult,
   type McpResult,
   MCP_AUTH_INSTRUCTIONS,
   approveProjectMcpServer,
   claudeServerState,
+  mcpBearer,
   SKILLS_CLI_AGENT,
   detectAgents,
   detectHarness,
@@ -703,87 +703,114 @@ async function humanHandoff(
  * the MCP tools are usable the moment the agent picks up shipeasy-wiring.md.
  */
 /**
- * First prompt handed to the trust session, exactly as the wiring hand-off
- * passes {@link WIRING_PROMPT}: Claude queues a positional prompt behind the
- * trust dialog, so accepting trust drops the user straight into the MCP panel
- * with `shipeasy` selected and its auth state showing — no `/mcp` to remember.
+ * The prompt queued behind Claude's trust dialog, exactly as the wiring hand-off
+ * passes {@link WIRING_PROMPT}.
  *
- * It is deliberately bare `/mcp`. Claude has no `/mcp add`: the in-session
- * command is `/mcp [reconnect|enable|disable [<server>|all]]` (verified against
- * claude 2.1.220), and adding a server is a CLI-level `claude mcp add` /
- * `claude plugin install` — which `shipeasy setup` has already done by the time
- * we get here. That's precisely why the entry is *pending* rather than missing,
- * so the only thing left for this session is trust + Authenticate.
+ * It is `/exit` on purpose. Trust is the ONE thing no config file can grant — it
+ * only appears in an interactive session — so the session exists to collect that
+ * single keystroke and nothing else. Claude runs a positional prompt as soon as
+ * the dialog clears, so `/exit` closes the session the instant trust is
+ * accepted: the user answers one prompt and lands back in `shipeasy setup`,
+ * instead of being parked in a chat REPL they have to know how to leave.
+ *
+ * (It used to be `/mcp`, which opened the MCP panel and left the user inside
+ * Claude — the authorization it was there to start is now its own step, driven
+ * from here by `claude mcp login`, so the session has no reason to stay open.)
  */
-export const TRUST_SESSION_PROMPT = "/mcp";
+export const TRUST_SESSION_PROMPT = "/exit";
 
 /**
- * Hand the terminal to an interactive Claude session so the user can trust this
- * folder — the one thing no config file can do for them. Claude only shows its
- * trust prompt in an interactive session; until it's accepted, a `.mcp.json`
- * server stays "⏸ Pending approval" no matter what `enabledMcpjsonServers`
- * says, which is why `claude mcp login` exits 1.
- *
- * Trust is the ONLY thing that needs the session, so that's all we ask for —
- * and we prefill {@link TRUST_SESSION_PROMPT} so the MCP panel is already open
- * when the dialog clears. Either way we win: authorize there, or `/exit` and we
- * re-probe and drive `claude mcp login` ourselves (the same browser sign-in).
+ * Whether Claude still needs this folder trusted. Until the user accepts that
+ * dialog, a `.mcp.json` server reads "⏸ Pending approval" no matter what
+ * `enabledMcpjsonServers` says — and `claude mcp login` exits 1 against it — so
+ * this is the gate that decides whether the trust step has anything to do.
  */
-async function trustClaudeInteractively(pending: McpAuthResult): Promise<McpAuthResult> {
-  say();
+export function claudeNeedsTrust(selected: AgentId[]): boolean {
+  if (!selected.includes("claude") || !onPath("claude")) return false;
+  return claudeServerState("shipeasy") === "pending";
+}
+
+/**
+ * Step 9 — trust this folder in Claude, on its own.
+ *
+ * It was previously a detour inside the authorization step, triggered only when
+ * a `claude mcp login` came back pending. That buried a hand-the-terminal-over
+ * moment inside another step's output, and made the ordering confusing: you
+ * can't authorize a server that isn't trusted yet, so trust is a *precondition*
+ * of authorization, not a fallback from it.
+ *
+ * The session auto-exits ({@link TRUST_SESSION_PROMPT}), so all the user does is
+ * accept one dialog. Returns true when the folder ends up trusted.
+ */
+async function trustClaudeStep(interactive: boolean, dryRun: boolean): Promise<boolean> {
   explain(
-    "Claude hasn't trusted this folder yet — that prompt only appears in an interactive " +
-      "session, so its `.mcp.json` server stays pending until then. I can open Claude here " +
-      "now. **All you do in that session:**",
+    "Claude only shows its **trust this folder** prompt inside an interactive session, and " +
+      "until you accept it the repo's `.mcp.json` server stays pending — which blocks the " +
+      "sign-in in the next step. I can open Claude here to collect exactly that one answer:",
   );
   say();
-  say(bullet("accept the trust prompt (the `shipeasy` server is already approved)", { glyph: "1." }));
-  say(bullet("the MCP panel opens on `shipeasy` — Authenticate there, or just `/exit`", { glyph: "2." }));
+  say(bullet("accept the trust prompt (the `shipeasy` server is already approved)"));
+  say(bullet(`the session runs \`${TRUST_SESSION_PROMPT}\` and closes itself — you come straight back here`));
   say();
-  explain("Either way you're covered: if you skip it, I run the browser sign-in from here");
-  say();
+
+  if (dryRun) {
+    say(`  (dry run — would run \`claude ${TRUST_SESSION_PROMPT}\` to collect the trust prompt)`);
+    return false;
+  }
+  if (!interactive) {
+    say("  • non-interactive — open `claude` here once and accept the trust prompt, then re-run");
+    return false;
+  }
+
   const { open } = await prompts({
     type: "confirm",
     name: "open",
     message: "Open Claude here now to trust the folder?",
     initial: true,
   });
-  if (!open) return pending;
+  if (!open) {
+    say("  • skipped — the `shipeasy` server stays pending until this folder is trusted");
+    return false;
+  }
 
-  say("\nLaunching: claude …\n");
+  say(`\nLaunching: claude ${TRUST_SESSION_PROMPT} …\n`);
   await spawnAgent("claude", [TRUST_SESSION_PROMPT]);
 
-  // Trust granted, so the server is no longer pending — which is the ONLY thing
-  // that was blocking `claude mcp login`. Drive it now instead of handing the
-  // user a `/mcp` errand. runMcpAuth re-checks the state itself, so an
-  // already-connected server (they authorized inside the session) costs nothing
-  // and a still-untrusted folder comes back as pending rather than a hard error.
   if (claudeServerState("shipeasy") === "pending") {
-    return {
-      action: "manual",
-      detail:
-        "still pending — the trust prompt wasn't accepted. Re-open `claude` here, accept it,\n" +
-        "      then run `shipeasy setup` again (or `claude mcp login shipeasy`)",
-    };
+    say("  ✗ still pending — the trust prompt wasn't accepted");
+    return false;
   }
-  say("  Finishing the MCP sign-in…");
-  const after = runMcpAuth("claude");
-  return after.action === "failed"
-    ? {
-        action: "manual",
-        detail: `${after.detail} — run \`claude mcp login shipeasy\` here, or \`/mcp\` → shipeasy → Authenticate`,
-      }
-    : after;
+  say("  ✓ folder trusted — the `shipeasy` server is out of pending approval");
+  return true;
 }
 
 export async function mcpAuthHandoff(
   selected: AgentId[],
   interactive: boolean,
-  opts: { dryRun?: boolean } = {},
+  opts: { dryRun?: boolean; ctx?: InstallCtx } = {},
 ): Promise<void> {
-  // Caller owns the step heading — this is step 9 of `shipeasy setup`, and the
+  // Caller owns the step heading — this is step 10 of `shipeasy setup`, and the
   // "no agents wired" case still needs the heading printed above it.
   if (selected.length === 0) return;
+
+  // Anything whose entry already carries `Authorization: Bearer …` is done — the
+  // header IS the credential, so there is no browser round-trip to make.
+  //
+  // Copilot is the one that gets the note but stays on the list: the bearer goes
+  // into its CLI's user config, while the `.vscode/mcp.json` we write for the
+  // VS Code extension is committable and therefore credential-free. The CLI is
+  // authorized; the IDE still signs in.
+  const preAuthed = opts.ctx ? selected.filter((id) => mcpBearer(id, opts.ctx!)) : [];
+  const needsOauth = selected.filter((id) => !preAuthed.includes(id) || id === "copilot");
+  for (const id of preAuthed) {
+    say(
+      id === "copilot"
+        ? "  ✓ copilot: CLI pre-authenticated — its user config carries your session key"
+        : `  ✓ ${id}: pre-authenticated — its MCP entry carries your CLI session key`,
+    );
+  }
+  if (!needsOauth.length) return;
+
   explain(
     "The hosted Shipeasy MCP server (mcp.shipeasy.ai) authenticates with **OAuth** — a " +
       "one-time browser sign-in per client, no key to paste. Authorizing it now, so the MCP " +
@@ -796,7 +823,7 @@ export async function mcpAuthHandoff(
     // browser flow, so it authorizes its own connection from the instructions.
     // Printed verbatim, one per line: a coding agent reads these back and acts
     // on them, so they must not be re-flowed mid-sentence.
-    for (const id of selected) say(`    • ${MCP_AUTH_INSTRUCTIONS[id]}`);
+    for (const id of needsOauth) say(`    • ${MCP_AUTH_INSTRUCTIONS[id]}`);
     say();
     explain(
       "▶ **CODING AGENT: authorize your OWN shipeasy MCP connection now** — run your client's " +
@@ -810,15 +837,12 @@ export async function mcpAuthHandoff(
   // point: no hand-configuration. Only what's left over (Codex/Copilot/Jules, or
   // a binary that isn't on PATH) gets an instruction to follow by hand.
   const manual: AgentId[] = [];
-  for (const id of selected) {
-    let r = runMcpAuth(id, { dryRun: opts.dryRun });
-    // A pending Claude server means the FOLDER isn't trusted yet, and the trust
-    // prompt only exists inside an interactive session — so offer to open one
-    // right here rather than ending setup with a to-do. One session covers
-    // everything: trust, the (pre-approved) server, and `/mcp` authentication.
-    if (id === "claude" && r.action === "manual" && interactive && !opts.dryRun && onPath("claude")) {
-      r = await trustClaudeInteractively(r);
-    }
+  for (const id of needsOauth) {
+    // A pending Claude server means the folder still isn't trusted. That's the
+    // previous step's job now — `runMcpAuth` reports it as a manual step with
+    // the wording to fix it, rather than this loop opening a Claude session
+    // mid-authorization.
+    const r = runMcpAuth(id, { dryRun: opts.dryRun });
     if (r.action === "authorized") {
       say(`  ✓ ${id}: ${r.detail}`);
       continue;
@@ -953,7 +977,17 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     : "project";
   // Pin the resolved project into each written MCP config (X-Project-Id header)
   // so the repo's connection targets its own project, not the OAuth-consent pick.
-  const ctx: InstallCtx = { cwd, scope, force: false, dryRun, projectId: projectId || undefined };
+  // `mcpToken` is the session key we just authenticated with — registered as an
+  // `Authorization: Bearer` header wherever the config stays private to this
+  // user, which skips that agent's OAuth sign-in entirely (see `mcpBearer`).
+  const ctx: InstallCtx = {
+    cwd,
+    scope,
+    force: false,
+    dryRun,
+    projectId: projectId || undefined,
+    mcpToken: cliSession?.token,
+  };
   // The `skills` CLI names for the agents that take skills via `npx skills add`
   // (not the plugin): cursor/codex/copilot. Claude is excluded at BOTH scopes —
   // it now installs the plugin either way, and the plugin already ships these
@@ -1064,7 +1098,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
       installTargets.clear();
       for (const p of (picked as string[] | undefined) ?? []) installTargets.add(p);
       // Anything the user unchecked is opted out entirely — record it so it never
-      // reaches the wiring doc (step 10) and the harness never walks it.
+      // reaches the wiring doc (step 11) and the harness never walks it.
       for (const t of needing) if (!installTargets.has(t.path)) deselectedTargets.add(t.path);
     }
 
@@ -1456,27 +1490,40 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     }
   }
 
-  // 9. Authorize the hosted MCP connection (OAuth).
+  // 9. Trust this folder in Claude.
+  //
+  // A precondition of step 10, not a fallback from it: a `.mcp.json` server is
+  // "⏸ Pending approval" until the folder is trusted, and `claude mcp login`
+  // exits 1 against a pending server. Trust only exists inside an interactive
+  // session, so this is the one step that hands over the terminal — which is
+  // reason enough for it to be its own, announced step. The session is prefilled
+  // with `/exit` so it closes the moment the dialog is answered.
+  if (claudeNeedsTrust(selected) || (dryRun && selected.includes("claude"))) {
+    heading("9. Trust this folder in Claude");
+    await trustClaudeStep(interactive, dryRun);
+  }
+
+  // 10. Authorize the hosted MCP connection (OAuth).
   //
   // Its own step, immediately after the verification gate and BEFORE the wiring
-  // hand-off. Two reasons it can't ride along inside step 10 any more:
+  // hand-off. Two reasons it can't ride along inside step 11 any more:
   //  - it's a browser round-trip the user has to complete — the one place setup
   //    hands over control — so it gets its own heading rather than appearing
   //    mid-way through another step's output;
-  //  - step 10 only ran when there was something left to wire, which silently
+  //  - step 11 only ran when there was something left to wire, which silently
   //    skipped authorization for a repo that needed no code changes but had just
   //    had its agents wired. Those runs ended with a 401 on the first tool call.
-  heading("9. Authorize the MCP connection");
+  heading("10. Authorize the MCP connection");
   if (dryRun) {
     say("  (dry run — would run each agent's MCP sign-in, or print its manual step)");
   } else if (!selected.length) {
     say("  • no agents wired — nothing to authorize");
   } else {
-    await mcpAuthHandoff(selected, interactive, { dryRun });
+    await mcpAuthHandoff(selected, interactive, { dryRun, ctx });
   }
 
-  // 10. Remaining (non-deterministic) wiring → instructions for ANY harness
-  heading("10. Remaining wiring — instructions for your coding agent");
+  // 11. Remaining (non-deterministic) wiring → instructions for ANY harness
+  heading("11. Remaining wiring — instructions for your coding agent");
   const wiringTargets: WiringTarget[] = actionable
     .filter((t) => !deselectedTargets.has(t.path))
     .map((t) => {
@@ -1556,8 +1603,8 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     });
   }
 
-  // 11. Automation trigger (unattended auto-apply — the queue burn-down loop)
-  heading("11. Automation trigger");
+  // 12. Automation trigger (unattended auto-apply — the queue burn-down loop)
+  heading("12. Automation trigger");
   let triggerResult: TriggerStepResult = { enabled: false };
   if (dryRun) {
     say("  (dry run — would offer the automation trigger + open the hosted setup)");
@@ -1803,7 +1850,9 @@ export function setupCommand(parent: Command, version = "unknown"): void {
       "0. Preconditions (Node >= 20, git repo — offers `git init`).\n" +
       "1. `detect`-powered monorepo scan; every target gets its own `.shipeasy`.\n" +
       "2. Browser login, then binds the repo root AND each install target.\n" +
-      "3. Wires your coding agents — MCP + instruction files + universal AGENTS.md, " +
+      "3. Wires your coding agents — each through its own `mcp add --transport http` "
+      + "command where one exists (Claude, Copilot, Codex), else a merged config file "
+      + "— plus instruction files + universal AGENTS.md, " +
       "installed in-repo by default (confirms interactively; offers user-global). At " +
       "project scope even Claude stays in-repo (.mcp.json + ./.claude/skills); user " +
       "scope takes the native Claude plugin. Base workflow skills go to every " +
@@ -1813,14 +1862,20 @@ export function setupCommand(parent: Command, version = "unknown"): void {
       "target's gitignored env file.\n" +
       "6-7. Offers the devtools overlay + feature module enables (flags/i18n/ops).\n" +
       "8. Verification gate — session, keys, and every target's binding.\n" +
-      "9. Authorizes the hosted MCP connection (OAuth browser sign-in per client), " +
-      "driving each agent's own `mcp login` where it ships one.\n" +
-      "10. Everything that needs codebase judgement (entry-point `configure(...)` " +
+      "9. Trusts the folder in Claude when its `.mcp.json` server is still pending " +
+      "— opens one interactive session prefilled with `/exit`, so it closes itself " +
+      "the moment you accept the prompt.\n" +
+      "10. Authorizes the hosted MCP connection: entries written to a config that " +
+      "is private to your machine carry an `Authorization: Bearer` header (your CLI " +
+      "session key) and need no sign-in at all; committable ones (`.mcp.json`, " +
+      "`.cursor/mcp.json`, `.vscode/mcp.json`) never hold a credential, so those " +
+      "take the OAuth browser flow via each agent's own `mcp login`.\n" +
+      "11. Everything that needs codebase judgement (entry-point `configure(...)` " +
       "wiring, idiomatic secret stores, overlay script injection) is written to " +
       "`shipeasy-wiring.md` — complete, self-contained instructions any coding " +
       "agent (Claude, Codex, Cursor, Copilot, or a human) can execute. Key values " +
       "never appear in that file.\n" +
-      "11. Offers the automation trigger (scheduled queue burn-down as PRs).\n\n" +
+      "12. Offers the automation trigger (scheduled queue burn-down as PRs).\n\n" +
       "Idempotent — safe to re-run. In CI (non-TTY) it runs non-interactively with " +
       "`SHIPEASY_CLI_TOKEN` + `SHIPEASY_PROJECT_ID`.",
   );

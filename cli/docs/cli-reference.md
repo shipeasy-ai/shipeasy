@@ -2036,14 +2036,15 @@ One-command onboarding for this repo. Logs you in and binds a project, detects a
 0. Preconditions (Node >= 20, git repo — offers `git init`).
 1. `detect`-powered monorepo scan; every target gets its own `.shipeasy`.
 2. Browser login, then binds the repo root AND each install target.
-3. Wires your coding agents — MCP + instruction files + universal AGENTS.md, installed in-repo by default (confirms interactively; offers user-global). At project scope even Claude stays in-repo (.mcp.json + ./.claude/skills); user scope takes the native Claude plugin. Base workflow skills go to every non-plugin agent via `npx skills add`.
+3. Wires your coding agents — each through its own `mcp add --transport http` command where one exists (Claude, Copilot, Codex), else a merged config file — plus instruction files + universal AGENTS.md, installed in-repo by default (confirms interactively; offers user-global). At project scope even Claude stays in-repo (.mcp.json + ./.claude/skills); user scope takes the native Claude plugin. Base workflow skills go to every non-plugin agent via `npx skills add`.
 4. Mints env-locked server/client SDK keys.
 5. Runs the SDK package install per target and persists the keys to each target's gitignored env file.
 6-7. Offers the devtools overlay + feature module enables (flags/i18n/ops).
 8. Verification gate — session, keys, and every target's binding.
-9. Authorizes the hosted MCP connection (OAuth browser sign-in per client), driving each agent's own `mcp login` where it ships one.
-10. Everything that needs codebase judgement (entry-point `configure(...)` wiring, idiomatic secret stores, overlay script injection) is written to `shipeasy-wiring.md` — complete, self-contained instructions any coding agent (Claude, Codex, Cursor, Copilot, or a human) can execute. Key values never appear in that file.
-11. Offers the automation trigger (scheduled queue burn-down as PRs).
+9. Trusts the folder in Claude when its `.mcp.json` server is still pending — opens one interactive session prefilled with `/exit`, so it closes itself the moment you accept the prompt.
+10. Authorizes the hosted MCP connection: entries written to a config that is private to your machine carry an `Authorization: Bearer` header (your CLI session key) and need no sign-in at all; committable ones (`.mcp.json`, `.cursor/mcp.json`, `.vscode/mcp.json`) never hold a credential, so those take the OAuth browser flow via each agent's own `mcp login`.
+11. Everything that needs codebase judgement (entry-point `configure(...)` wiring, idiomatic secret stores, overlay script injection) is written to `shipeasy-wiring.md` — complete, self-contained instructions any coding agent (Claude, Codex, Cursor, Copilot, or a human) can execute. Key values never appear in that file.
+12. Offers the automation trigger (scheduled queue burn-down as PRs).
 
 Idempotent — safe to re-run. In CI (non-TTY) it runs non-interactively with `SHIPEASY_CLI_TOKEN` + `SHIPEASY_PROJECT_ID`.
 
