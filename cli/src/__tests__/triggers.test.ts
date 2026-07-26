@@ -55,13 +55,28 @@ describe("orderTriggerPlatforms", () => {
 });
 
 describe("triggerSetupUrl", () => {
-  it("points at the hosted dashboard triggers wizard with a provider deep link", () => {
-    expect(triggerSetupUrl("https://app.shipeasy.ai", "prj_123", "claude")).toBe(
-      "https://app.shipeasy.ai/dashboard/prj_123/triggers?provider=claude",
+  // A preselected platform hands off straight into its onboarding modal on the
+  // settings Triggers tab — the same dialog its "Connect" button opens.
+  it.each([
+    ["claude", "claude"],
+    ["cursor", "cursor"],
+    ["copilot", "copilot"],
+    ["gemini", "gemini"],
+  ] as const)("deep-links %s into the settings onboarding modal", (platform, onboard) => {
+    expect(triggerSetupUrl("https://app.shipeasy.ai", "prj_123", platform)).toBe(
+      `https://app.shipeasy.ai/dashboard/prj_123/settings?tab=triggers&onboard=${onboard}`,
     );
   });
 
-  it("omits the query when no platform is preselected", () => {
+  // Codex has no settings modal (the tab shows a coming-soon card), so it keeps
+  // routing to the standalone wizard page.
+  it("routes codex to the standalone wizard page", () => {
+    expect(triggerSetupUrl("https://app.shipeasy.ai", "prj_123", "codex")).toBe(
+      "https://app.shipeasy.ai/dashboard/prj_123/triggers?provider=codex",
+    );
+  });
+
+  it("falls back to the wizard page with no query when no platform is preselected", () => {
     expect(triggerSetupUrl("https://app.shipeasy.ai", "prj_123", null)).toBe(
       "https://app.shipeasy.ai/dashboard/prj_123/triggers",
     );
@@ -69,20 +84,22 @@ describe("triggerSetupUrl", () => {
 
   it("strips a trailing slash from the base URL", () => {
     expect(triggerSetupUrl("https://app.shipeasy.ai/", "prj_1", "cursor")).toBe(
-      "https://app.shipeasy.ai/dashboard/prj_1/triggers?provider=cursor",
+      "https://app.shipeasy.ai/dashboard/prj_1/settings?tab=triggers&onboard=cursor",
     );
   });
 
   it("adds secretsDone=1 when the CLI already wrote the Copilot Agents secrets", () => {
     expect(
       triggerSetupUrl("https://app.shipeasy.ai", "prj_1", "copilot", { secretsDone: true }),
-    ).toBe("https://app.shipeasy.ai/dashboard/prj_1/triggers?provider=copilot&secretsDone=1");
+    ).toBe(
+      "https://app.shipeasy.ai/dashboard/prj_1/settings?tab=triggers&onboard=copilot&secretsDone=1",
+    );
   });
 
   it("omits secretsDone when the flag is false", () => {
     expect(
       triggerSetupUrl("https://app.shipeasy.ai", "prj_1", "copilot", { secretsDone: false }),
-    ).toBe("https://app.shipeasy.ai/dashboard/prj_1/triggers?provider=copilot");
+    ).toBe("https://app.shipeasy.ai/dashboard/prj_1/settings?tab=triggers&onboard=copilot");
   });
 
   it("carries the agent name when the CLI wrote the custom-agent file", () => {
@@ -92,7 +109,8 @@ describe("triggerSetupUrl", () => {
         agent: "shipeasy",
       }),
     ).toBe(
-      "https://app.shipeasy.ai/dashboard/prj_1/triggers?provider=copilot&secretsDone=1&agent=shipeasy",
+      "https://app.shipeasy.ai/dashboard/prj_1/settings?tab=triggers&onboard=copilot" +
+        "&secretsDone=1&agent=shipeasy",
     );
   });
 });
