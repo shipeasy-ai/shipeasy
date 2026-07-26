@@ -1803,13 +1803,11 @@ export const zApproveEventResponse = z.object({
 });
 
 /**
- * Lifecycle status of a queue item. The working flow is `open` → `triaged` → `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`, terminal from any earlier stage). `blocked` marks an item that can't progress until an external dependency clears — a working state a human sets and clears. `ready_for_qa` is what a developer sets once a fix lands; `resolved` is the QA sign-off, normally flipped in the dashboard after verification — set it directly from code only when the fix has been verified end-to-end. `investigating_by_ai` is a system-owned display state — set when the AI agent (Jarvis) picks an item up to investigate, never chosen by a human — so it is shown but not offered as a manual choice. Two human-gated holding states park an item OUT of the work queue until a human promotes it to `open` in the dashboard, so `GET /api/admin/ops` excludes them under `status=all`/default and returns them only when requested as an exact `status`: `pending_approval` is the pre-open approval gate for untriaged inbound (e.g. connector requests filed from a customer's connectors panel) so it never gets auto-implemented — approving = flipping the status to `open`; `triage` is the onboarding-help bucket — questions/errors submitted to the "Stuck in onboarding?" assistant are funnelled into the platform project as `triage` rows so the team can see where people get stuck and follow up, keeping onboarding chatter out of the work queue until a human moves real items to `open`.
+ * Lifecycle status of a queue item. The working flow is `open` → `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`, terminal from any earlier stage). `blocked` marks an item that can't progress until an external dependency clears — a working state a human sets and clears. `ready_for_qa` is what a developer sets once a fix lands; `resolved` is the QA sign-off, normally flipped in the dashboard after verification — set it directly from code only when the fix has been verified end-to-end. `investigating_by_ai` is a system-owned display state — set when the AI agent (Jarvis) picks an item up to investigate, never chosen by a human — so it is shown but not offered as a manual choice. `pending_approval` is the one human-gated holding state: it parks an item OUT of the work queue until a human promotes it to `open` in the dashboard, so `GET /api/admin/ops` excludes it under `status=all`/default and returns it only when requested as an exact `status`. It covers untriaged inbound that must never be auto-implemented — connector requests filed from a customer's connectors panel, and questions funnelled in from the "Stuck in onboarding?" assistant — where approving means flipping the status to `open`. Two earlier values were removed in favour of this single gate: `triage` (the onboarding-help bucket, now `pending_approval`) and `triaged` (a redundant "looked at but not started" step, now plain `open`).
  */
 export const zOpsItemStatus = z.enum([
     'open',
     'pending_approval',
-    'triage',
-    'triaged',
     'investigating_by_ai',
     'in_progress',
     'blocked',
@@ -1829,18 +1827,17 @@ export const zOpsItemPriority = z.enum([
 ]);
 
 /**
- * Where automation has taken an item in the investigation lifecycle — the signal the ops cockpit renders as "what AI did" plus the one action expected of the user. It is **written as a side-effect of the actions that already happen**, never authored on its own: linking a PR sets `pr_ready`, moving to `in_progress` sets `working`, `ready_for_qa` sets `ready_for_qa`, a system/assistant reply sets `question`, resolving clears it, and creation seeds `needs_triage`/`backlog` (by priority) or `investigated`/`detected` for auto-filed error/alert tickets. `triaged_low` marks a low-signal item AI has looked at but that nothing is moving. Absent on rows filed before the field existed — consumers should treat a missing value as "derive from the other fields".
+ * Where automation has taken an item in the investigation lifecycle — the signal the ops cockpit renders as "what AI did" plus the one action expected of the user. It is **written as a side-effect of the actions that already happen**, never authored on its own: linking a PR sets `pr_ready`, moving to `in_progress` sets `working`, `ready_for_qa` sets `ready_for_qa`, a system/assistant reply sets `question`, resolving clears it, and creation seeds `backlog` or `investigated`/`detected` for auto-filed error/alert tickets. `backlog` is the single "nothing has happened yet" state — how urgent that is reads off `priority`, not off a separate state, and its one action is to hand the item to an agent. `pr_merged` is derived client-side by scanning the linked pull request on GitHub, so it is accepted on write but not currently emitted by the API. Absent on rows filed before the field existed — consumers should treat a missing value as "derive from the other fields".
  */
 export const zOpsInvestigationState = z.enum([
     'pr_ready',
+    'pr_merged',
     'investigated',
     'detected',
     'question',
     'ready_for_qa',
     'pending_approval',
-    'needs_triage',
     'working',
-    'triaged_low',
     'backlog'
 ]);
 
