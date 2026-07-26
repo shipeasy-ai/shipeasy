@@ -495,6 +495,12 @@ function registerJsonMcp(
  * entry and leaves it untouched (there is no `--force`), so we check first and
  * only `claude mcp remove` when the caller asked to replace it.
  */
+/** Render argv for display so a dry-run line is copy-pasteable — `--header`
+ *  values carry a space (`X-Project-Id: p-1`) and would otherwise split. */
+export function shellJoin(argv: string[]): string {
+  return argv.map((a) => (/\s/.test(a) ? JSON.stringify(a) : a)).join(" ");
+}
+
 /** `claude mcp add …` for the project-pinned entry, as argv. Split out so tests
  *  can assert the exact command without shelling out to a real Claude. */
 export function claudeMcpAddArgv(ctx: InstallCtx): string[] {
@@ -538,9 +544,9 @@ export function addClaudeMcpNative(ctx: InstallCtx): McpResult | null {
   }
 
   const argv = claudeMcpAddArgv(ctx);
-  if (ctx.dryRun) {
-    return { action: present ? "updated" : "wrote", detail: `would run: claude ${argv.join(" ")}` };
-  }
+  // `shell`, not wrote/updated: those prefix the detail with their own verb
+  // ("wrote would run: …"). Same shape codex's dry-run returns.
+  if (ctx.dryRun) return { action: "shell", detail: `would run: claude ${shellJoin(argv)}` };
 
   // `add` refuses to overwrite, so a forced re-pin is remove-then-add. A failing
   // remove is not fatal on its own — the add below reports the real outcome.
@@ -652,7 +658,7 @@ export interface ClaudePluginResult {
  */
 export function installClaudePlugin(ctx: InstallCtx): ClaudePluginResult {
   const argv = claudePluginArgv(ctx.scope);
-  const manual = [`  claude ${argv.marketplace.join(" ")}`, `  claude ${argv.install.join(" ")}`];
+  const manual = [`claude ${shellJoin(argv.marketplace)}`, `claude ${shellJoin(argv.install)}`];
   if (!onPath("claude")) {
     const mcp = registerMcp("claude", ctx);
     return {
@@ -660,12 +666,12 @@ export function installClaudePlugin(ctx: InstallCtx): ClaudePluginResult {
       lines: [
         `MCP: ${mcp.action === "skipped" ? mcp.detail : `${mcp.action} ${mcp.detail}`}`,
         "`claude` not on PATH — install the plugin once Claude Code is available:",
-        ...manual,
+        ...manual.map((l) => `  ${l}`),
       ],
     };
   }
   if (ctx.dryRun) {
-    return { action: "installed", lines: manual.map((l) => `would run:${l}`) };
+    return { action: "installed", lines: manual.map((l) => `would run: ${l}`) };
   }
   // cwd matters at project scope: both commands resolve `.claude/settings.json`
   // against the process's working directory.
@@ -681,7 +687,7 @@ export function installClaudePlugin(ctx: InstallCtx): ClaudePluginResult {
       action: "error",
       lines: [
         `claude plugin install failed (${install.status ?? "?"}). Run manually:`,
-        ...manual,
+        ...manual.map((l) => `  ${l}`),
         ...(add.stderr ? [`(marketplace add: ${add.stderr.toString().trim()})`] : []),
       ],
     };
