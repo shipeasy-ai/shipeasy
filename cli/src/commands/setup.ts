@@ -11,7 +11,7 @@ import {
   type ShipeasyConfig,
 } from "../auth/storage";
 import { bindProject, getBoundProjectId } from "../util/project-config";
-import { getApiClient } from "../api/client";
+import { ApiError, getApiClient } from "../api/client";
 import {
   type AgentId,
   type InstallCtx,
@@ -236,39 +236,50 @@ function reportCliSession(): void {
 }
 
 /**
- * Verification-gate probe for the CLI session — and, when the probe fails, one
- * attempt to repair it in place.
+ * Verification-gate probe for the CLI session, branching on WHY it failed.
  *
- * A session can go stale between step 2 and here (revoked, expired, or the user
- * logged out in another shell), and the agent we hand off to *cannot* run a
- * browser flow: its final gate is `shipeasy whoami && sdk keys list && projects
- * current`, all of which need this session. So printing "run `shipeasy login`"
- * hands the harness a to-do it can't action — re-run the login here instead.
- * Skipped when nobody can complete a browser sign-in (plain non-interactive CI),
- * where the honest outcome is a failed check rather than a hang.
+ * Nothing expires here — a minted admin key is good for 90 days and step 2 ran a
+ * minute ago — so a failure at this point is one of two very different things:
+ *
+ *  - **401/403**: the credential itself is rejected. Realistically that means it
+ *    was revoked out from under the run (dashboard, `shipeasy logout` in another
+ *    shell, or the per-(project,email) active-key cap reaping it). Signing in
+ *    again genuinely fixes it, and the agent we hand off to can't run a browser
+ *    flow, so do it here — but only when someone can complete it.
+ *  - **anything else** (404 on a project this session can't see, a 5xx, a
+ *    dropped connection): re-authenticating changes nothing. Report the actual
+ *    status. The old code printed "run `shipeasy login`" for every one of these,
+ *    which sent people through a browser flow to fix a 404.
  */
 async function verifySession(projectId: string, canPrompt: boolean): Promise<[string, boolean]> {
-  const probe = async (): Promise<boolean> => {
+  const probe = async (): Promise<unknown> => {
     try {
       await getApiClient().request("GET", `/api/admin/projects/${projectId}`);
-      return true;
-    } catch {
-      return false;
+      return null;
+    } catch (err) {
+      return err ?? new Error("unknown error");
     }
   };
 
-  if (await probe()) return [`session valid, project ${projectId} reachable`, true];
-  if (!canPrompt) return ["session/project check failed — run `shipeasy login`", false];
+  const failure = await probe();
+  if (!failure) return [`session valid, project ${projectId} reachable`, true];
 
-  console.log("  • CLI session is no longer valid — re-authenticating so the hand-off works");
+  const status = failure instanceof ApiError ? failure.status : 0;
+  if (status !== 401 && status !== 403) {
+    const detail = failure instanceof ApiError ? `${status}: ${failure.message}` : String(failure);
+    return [`project ${projectId} unreachable (${detail}) — not an auth failure`, false];
+  }
+  if (!canPrompt) return ["CLI session rejected (401/403) — run `shipeasy login`", false];
+
+  console.log("  • CLI session was rejected — re-authenticating so the hand-off works");
   try {
     await login({ force: true, projectId });
   } catch (err) {
     return [`re-login failed (${String(err)}) — run \`shipeasy login\``, false];
   }
   return (await probe())
-    ? [`session re-authenticated, project ${projectId} reachable`, true]
-    : ["session/project check failed — run `shipeasy login`", false];
+    ? ["session still rejected after re-login — run `shipeasy login`", false]
+    : [`session re-authenticated, project ${projectId} reachable`, true];
 }
 
 async function ensureAuthAndBind(interactive: boolean): Promise<string> {
