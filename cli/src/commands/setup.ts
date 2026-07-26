@@ -606,7 +606,18 @@ export function wiringPlanLines(plan: WiringPlan): string[] {
       "wire your user identity + targeting attributes into the SDK, read from your own auth/session model",
     );
   }
-  if (plan.targets.some((t) => t.browser)) {
+  if (plan.targets.some((t) => t.browser && !t.native)) {
+    lines.push(
+      "add the browser <head> tags — the runtime tag that carries this request's evaluated flags to the page, emitted by your SDK's own tag helper",
+    );
+  }
+  // Only a JS/TS target has a browser bundle to initialise — elsewhere the head
+  // tag above IS the browser side, and there is no npm client to call.
+  if (
+    plan.targets.some(
+      (t) => t.browser && !t.native && (t.sdk === "typescript" || t.sdk === "javascript"),
+    )
+  ) {
     lines.push("initialise the browser SDK with the public client key");
   }
   if (plan.targets.some((t) => t.secretStoreMove)) {
@@ -614,7 +625,7 @@ export function wiringPlanLines(plan: WiringPlan): string[] {
   }
   if (plan.devtools.includes("browser")) {
     lines.push(
-      "add the devtools overlay <script> tag to your layout (the ?se=1 panel + end-user bug reports)",
+      "include the devtools overlay tag in that same <head> block (the ?se=1 panel + end-user bug reports)",
     );
   }
   if (plan.devtools.includes("react-native")) {
@@ -1874,6 +1885,13 @@ async function runSetup(opts: SetupOpts): Promise<void> {
           : null,
         browser: browserTarget(t),
         native: targetSurface(t.frameworks) === "react-native",
+        existingScripts: {
+          current: t.shipeasy.loader_script_tag.scripts ?? [],
+          legacy: t.shipeasy.loader_script_tag.legacy ?? [],
+          ...(t.shipeasy.loader_script_tag.file
+            ? { file: t.shipeasy.loader_script_tag.file }
+            : {}),
+        },
       };
     });
 
@@ -1915,9 +1933,24 @@ async function runSetup(opts: SetupOpts): Promise<void> {
           "react-native-devtools",
         )
       : null;
+    // The public identifiers the `<head>` tags carry. Needed whenever anything
+    // here renders a page — the runtime tag is how a browser sees flags at all
+    // — so this is resolved independently of the devtools answer, from the
+    // first page-serving target (its framework decides the env var prefix).
+    const headTarget =
+      actionable.find(
+        (t) => browserTarget(t) && targetSurface(t.frameworks) !== "react-native" && !deselectedTargets.has(t.path),
+      ) ?? devtoolsTarget;
     const doc = buildWiringDoc({
       projectId,
       targets: wiringTargets,
+      publicIds: headTarget
+        ? {
+            clientKey: clientKey?.key ?? null,
+            clientKeyVar: clientKeyVar(headTarget.frameworks),
+            projectIdVar: projectIdVar(headTarget.frameworks),
+          }
+        : undefined,
       devtools:
         devtoolsAccepted && devtoolsTarget
           ? {

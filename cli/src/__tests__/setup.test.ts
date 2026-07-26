@@ -938,7 +938,7 @@ describe("wiringPlanLines — what we promise the launched agent will do", () =>
       }),
     ).join("\n");
     expect(lines).toMatch(/finish the SDK package install in apps\/web\//);
-    expect(lines).toMatch(/devtools overlay <script> tag/);
+    expect(lines).toMatch(/devtools overlay tag in that same <head> block/);
     expect(lines).toMatch(/see\(\) primitive/);
     expect(lines).toMatch(/translatable i18n keys/);
   });

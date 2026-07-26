@@ -12,10 +12,23 @@ interface ShipeasySdkState {
   profile?: string;
 }
 
+/** A Shipeasy `<script>` tag this page can legitimately carry today. */
+export type ShipeasyScriptTag = "boot" | "runtime" | "i18n-loader" | "devtools";
+
+/** Endpoints that were deleted — a page still carrying one gets a 404. */
+export type LegacyScriptTag = "loader" | "bootstrap";
+
 interface LoaderScriptState {
+  /** Any Shipeasy script tag at all, current or dead. */
   present: boolean;
   data_key?: string;
   data_profile?: string;
+  /** Which live tags the HTML shell already has. */
+  scripts?: ShipeasyScriptTag[];
+  /** Dead endpoints found in the markup — these must be replaced, not kept. */
+  legacy?: LegacyScriptTag[];
+  /** Where they were found, relative to the target root. */
+  file?: string;
 }
 
 interface ProjectInfo {
@@ -269,19 +282,43 @@ function detectShipeasyI18n(deps: Record<string, string>, root: string): Shipeas
   return { installed: true, version, configured, ...(profile ? { profile } : {}) };
 }
 
+/**
+ * Which Shipeasy `<script>` tags an HTML shell already carries.
+ *
+ * The distinction that matters is live vs deleted: `/sdk/loader.js` and
+ * `/sdk/bootstrap.js` were removed and now 404, so a page still carrying one
+ * has no runtime at all — that is a broken page, not an already-wired one. Both
+ * spellings contain "loader.js"/"bootstrap.js" as substrings of live paths
+ * (`/sdk/i18n/loader.js`), so each is matched on its full path.
+ */
 function detectLoaderScript(root: string): LoaderScriptState {
   const LAYOUT_CANDIDATES = [
     "src/app/layout.tsx",
     "src/app/layout.ts",
     "pages/_document.tsx",
     "index.html",
+    "public/index.html",
     "app/views/layouts/application.html.erb",
+    "resources/views/layouts/app.blade.php",
     "templates/base.html",
+  ];
+  const LIVE: Array<[ShipeasyScriptTag, RegExp]> = [
+    ["boot", /\/sdk\/boot\.js/],
+    ["runtime", /\/sdk\/runtime\.js/],
+    ["i18n-loader", /\/sdk\/i18n\/loader\.js/],
+    ["devtools", /se-devtools\.js/],
+  ];
+  const DEAD: Array<[LegacyScriptTag, RegExp]> = [
+    ["loader", /\/sdk\/loader\.js/],
+    ["bootstrap", /\/sdk\/bootstrap\.js/],
   ];
 
   for (const f of LAYOUT_CANDIDATES) {
     const content = safeReadFile(path.join(root, f), root);
-    if (!content || !content.includes("loader.js")) continue;
+    if (!content) continue;
+    const scripts = LIVE.filter(([, re]) => re.test(content)).map(([name]) => name);
+    const legacy = DEAD.filter(([, re]) => re.test(content)).map(([name]) => name);
+    if (!scripts.length && !legacy.length) continue;
 
     const keyMatch = /data-key=["']([^"']+)["']/.exec(content);
     const profileMatch = /data-profile=["']([^"']+)["']/.exec(content);
@@ -289,9 +326,12 @@ function detectLoaderScript(root: string): LoaderScriptState {
       present: true,
       ...(keyMatch ? { data_key: keyMatch[1] } : {}),
       ...(profileMatch ? { data_profile: profileMatch[1] } : {}),
+      scripts,
+      legacy,
+      file: f,
     };
   }
-  return { present: false };
+  return { present: false, scripts: [], legacy: [] };
 }
 
 function detectEnvKeys(root: string): string[] {

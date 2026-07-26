@@ -115,6 +115,51 @@ describe("detect (detectTargets / discoverTargets)", () => {
     expect(mobile.entry_points).toContain("app/_layout.tsx");
   });
 
+  // `/sdk/loader.js` and `/sdk/bootstrap.js` were deleted and now 404, while
+  // `/sdk/i18n/loader.js` is very much alive — and "loader.js" is a substring of
+  // both. Confusing them either reports a broken page as wired, or sends the
+  // agent to rip out a working translations tag.
+  describe("existing Shipeasy script tags", () => {
+    const shell = (html: string): string => {
+      const root = realpathSync(mkdtempSync(join(tmpdir(), "se-tags-")));
+      writeFileSync(join(root, "package.json"), JSON.stringify({ name: "site", dependencies: {} }));
+      writeFileSync(join(root, "index.html"), html);
+      return root;
+    };
+
+    it("separates the live tags from the deleted ones", async () => {
+      const root = shell(
+        `<script src="https://cdn.shipeasy.ai/sdk/i18n/loader.js" data-key="sdk_client_x" data-profile="en:prod"></script>` +
+          `<script src="https://cdn.shipeasy.ai/sdk/boot.js?p=p&k=k"></script>` +
+          `<script src="https://cdn.shipeasy.ai/se-devtools.js"></script>`,
+      );
+      const { targets } = await detectTargets([root]);
+      const tags = targets[0]!.shipeasy.loader_script_tag;
+      expect(tags.present).toBe(true);
+      expect(tags.scripts).toEqual(expect.arrayContaining(["boot", "i18n-loader", "devtools"]));
+      expect(tags.legacy).toEqual([]);
+      expect(tags.data_profile).toBe("en:prod");
+      expect(tags.file).toBe("index.html");
+      rmSync(root, { recursive: true, force: true });
+    });
+
+    it("names a dead endpoint as legacy, never as a live tag", async () => {
+      const root = shell(`<script src="https://cdn.shipeasy.ai/sdk/loader.js"></script>`);
+      const { targets } = await detectTargets([root]);
+      const tags = targets[0]!.shipeasy.loader_script_tag;
+      expect(tags.legacy).toEqual(["loader"]);
+      expect(tags.scripts).toEqual([]);
+      rmSync(root, { recursive: true, force: true });
+    });
+
+    it("reports a page with no Shipeasy tags as absent", async () => {
+      const root = shell(`<script src="/app.js"></script>`);
+      const { targets } = await detectTargets([root]);
+      expect(targets[0]!.shipeasy.loader_script_tag.present).toBe(false);
+      rmSync(root, { recursive: true, force: true });
+    });
+  });
+
   it("flags the workspace root as skip when scanning the whole tree", async () => {
     const { targets } = await detectTargets([dir]);
     const root = targets.find((t) => t.recommendation.action === "skip_workspace_root");

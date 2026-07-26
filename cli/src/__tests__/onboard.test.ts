@@ -353,6 +353,11 @@ describe("buildWiringDoc", () => {
         browser: false,
       },
     ],
+    publicIds: {
+      clientKey: "sdk_client_devtools_val",
+      clientKeyVar: "NEXT_PUBLIC_SHIPEASY_CLIENT_KEY",
+      projectIdVar: "NEXT_PUBLIC_SHIPEASY_PROJECT_ID",
+    },
     devtools: {
       clientKeyVar: "NEXT_PUBLIC_SHIPEASY_CLIENT_KEY",
       projectIdVar: "NEXT_PUBLIC_SHIPEASY_PROJECT_ID",
@@ -387,12 +392,12 @@ describe("buildWiringDoc", () => {
     expect(doc).toContain("shipeasy docs get --sdk ruby installation");
     expect(doc).toContain('add `gem "shipeasy-sdk"`');
     expect(doc).toContain("rails credentials:edit");
-    expect(doc).toContain("## Devtools overlay");
-    expect(doc).toContain("cdn.shipeasy.ai/se-devtools.js");
-    // Public identifiers are inlined as literal values, not "<value of …>" placeholders.
-    expect(doc).toContain('data-client-api-key="sdk_client_devtools_val"');
-    expect(doc).toContain('data-project-id="proj_123"');
-    expect(doc).not.toContain("<value of NEXT_PUBLIC_SHIPEASY_CLIENT_KEY");
+    // The head tags are emitted from the SDK for an SSR target — the overlay
+    // rides `getDevtoolsData()`, so no hand-templated <script> appears here.
+    expect(doc).toContain("## Browser head tags");
+    expect(doc).toContain("se.getBootstrapData()");
+    expect(doc).toContain("se.getDevtoolsData()");
+    expect(doc).toContain("boot.i18nLoader"); // i18n enabled → loader tag included
     expect(doc).toContain("## Ops wiring");
     expect(doc).toContain("see(err)"); // embedded error-reporting snippet
     expect(doc).toContain("## Translations (i18n) wiring");
@@ -428,14 +433,21 @@ describe("buildWiringDoc", () => {
     expect(doc).toContain("SHIPEASY_SERVER_KEY");
   });
 
+  // A repo with no server evaluation gets literal tags, so the key it can't
+  // read from env has to be inlined — or fall back to naming the var.
   it("falls back to the env var name when the client key wasn't re-minted", () => {
-    const doc = buildWiringDoc({
+    const staticSite: WiringDocInput = {
       ...input,
-      devtools: { ...input.devtools!, clientKey: null },
-    });
+      targets: [{ ...input.targets[0]!, sdk: "html", language: "html", frameworks: [] }],
+      publicIds: { ...input.publicIds!, clientKey: null },
+    };
+    const doc = buildWiringDoc(staticSite);
     expect(doc).toContain("<value of NEXT_PUBLIC_SHIPEASY_CLIENT_KEY in env>");
     // The project id is always known, so it stays inlined even in the fallback.
     expect(doc).toContain('data-project-id="proj_123"');
+    expect(buildWiringDoc({ ...staticSite, publicIds: input.publicIds })).toContain(
+      'data-client-api-key="sdk_client_devtools_val"',
+    );
   });
 
   it("omits module sections that weren't selected", () => {
@@ -443,6 +455,11 @@ describe("buildWiringDoc", () => {
     expect(doc).not.toContain("## Devtools overlay");
     expect(doc).not.toContain("## Ops wiring");
     expect(doc).not.toContain("## Translations (i18n) wiring");
+    // The head tags are NOT a devtools sub-section: a page still needs a runtime
+    // tag when the overlay was declined, just without the overlay in the block.
+    expect(doc).toContain("## Browser head tags");
+    expect(doc).not.toContain("se-devtools.js");
+    expect(doc).not.toContain("i18nLoader");
   });
 
   it("falls back to a docs-get line when a feature doc wasn't fetched", () => {
@@ -543,7 +560,7 @@ describe("buildWiringDoc", () => {
         ...nativeInput,
         devtools: { ...nativeInput.devtools!, surfaces: ["browser", "react-native"] },
       });
-      expect(doc).toContain("## Devtools overlay (user accepted — wire it)");
+      expect(doc).toContain("## Browser head tags");
       expect(doc).toContain("## Devtools overlay — React Native");
     });
   });

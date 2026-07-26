@@ -191,7 +191,7 @@ export function keysCommand(parent: Command): void {
         if (opts.type === "client") {
           console.log("");
           console.log(
-            `Public key — safe for browser/loader.js. Scoped to /sdk/evaluate + /collect. ` +
+            `Public key — safe in a browser bundle or a <script> tag. Scoped to /sdk/evaluate + /collect. ` +
               `Reads the '${created.env}' environment only (locked to this key).`,
           );
         } else if (opts.type === "server") {

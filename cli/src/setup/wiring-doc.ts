@@ -11,6 +11,7 @@
  */
 
 import type { TargetSurface } from "../commands/scan";
+import { headTagsSection } from "./head-tags";
 
 export interface WiringTarget {
   /** Path relative to the repo root ("." for the root itself). */
@@ -37,6 +38,13 @@ export interface WiringTarget {
   browser: boolean;
   /** Native app (React Native) → the client SDK is the ONLY runtime here. */
   native?: boolean;
+  /**
+   * Shipeasy `<script>` tags the scan already found in this target's HTML
+   * shell. `legacy` names deleted endpoints (`/sdk/loader.js`,
+   * `/sdk/bootstrap.js`) that now 404 — a page carrying one is broken, so the
+   * head-tags section turns it into a replace step.
+   */
+  existingScripts?: { current: string[]; legacy: string[]; file?: string };
 }
 
 /** The surface the user accepted devtools on — a page, or a native app. */
@@ -45,6 +53,18 @@ export type DevtoolsSurface = Exclude<TargetSurface, "none">;
 export interface WiringDocInput {
   projectId: string;
   targets: WiringTarget[];
+  /**
+   * The public identifiers every browser tag needs. Separate from `devtools`
+   * because the head tags are wanted whenever this repo serves a page — the
+   * overlay is only one of the tags, and the least load-bearing one. Falls back
+   * to `devtools`'s copies when omitted.
+   */
+  publicIds?: {
+    /** Literal client key minted this run; null → reference the env var name. */
+    clientKey: string | null;
+    clientKeyVar: string;
+    projectIdVar: string;
+  };
   devtools: {
     /** Which overlay(s) to wire; `["browser"]` when omitted. */
     surfaces?: DevtoolsSurface[];
@@ -236,11 +256,25 @@ function targetSection(i: number, t: WiringTarget): string {
       ` Never hard-code a single user; the transform runs per bound client.`,
   );
   if (t.browser && !t.native) {
+    const clientVar = t.envVars.find((v) => v.includes("CLIENT")) ?? "SHIPEASY_CLIENT_KEY";
+    // Only a JS/TS target has a browser bundle to initialise — the npm client
+    // SDK hydrates from the same bootstrap tag. Everywhere else the browser is
+    // served entirely by the `<head>` tag this target's SDK emits, and telling
+    // it to "initialise the browser SDK" sends the agent looking for an npm
+    // client that does not exist in this language.
+    const bundled = t.sdk === "typescript" || t.sdk === "javascript";
     lines.push(
-      `- [ ] Also initialise the browser SDK once at client startup with the PUBLIC client` +
-        ` key (\`${t.envVars.find((v) => v.includes("CLIENT")) ?? "SHIPEASY_CLIENT_KEY"}\`), per the same doc,` +
-        ` and give it the SAME identity transform so the browser \`identify()\`s the visitor` +
-        ` with the attributes chosen above. Never pass the server key to the client entrypoint (or vice versa).`,
+      bundled
+        ? `- [ ] Also initialise the browser SDK once at client startup with the PUBLIC client` +
+            ` key (\`${clientVar}\`), per the same doc, and give it the SAME identity transform` +
+            ` so the browser \`identify()\`s the visitor with the attributes chosen above.` +
+            ` Never pass the server key to the client entrypoint (or vice versa).`
+        : `- [ ] The browser side of this target is served by a \`<head>\` tag, not a second` +
+            ` init — see **Browser head tags** below. Pass the same identified user into the` +
+            ` bootstrap tag helper that you evaluate with, so the browser adopts the identity` +
+            ` the server already bucketed (no anonymous → identified flip on first paint).` +
+            ` The PUBLIC key it needs (\`${clientVar}\`) belongs on the \`configure()\` call,` +
+            ` never the server key.`,
     );
   }
   lines.push(
@@ -337,34 +371,6 @@ function nativeDevtoolsSection(
   return lines.join("\n");
 }
 
-function devtoolsSection(d: NonNullable<WiringDocInput["devtools"]>, projectId: string): string {
-  const clientVal = d.clientKey ?? `<value of ${d.clientKeyVar} in env>`;
-  const idVal = projectId || `<value of ${d.projectIdVar} in env>`;
-  return `## Devtools overlay (user accepted — wire it)
-
-A platform-agnostic \`<script>\` tag: an in-page panel (\`?se=1\` or Shift+Alt+S)
-listing every gate/config/experiment/translation with per-session overrides;
-it is also the end-user bug/feature report surface.
-Docs: https://docs.shipeasy.ai/feedback/devtools
-
-- [ ] Add to every browser target's HTML shell / root layout — both attribute
-  values below are already minted for this project and are **public
-  identifiers** (the client key is public by design, the project id is not a
-  secret), so paste them in directly:
-
-  \`\`\`html
-  <script src="https://cdn.shipeasy.ai/se-devtools.js"
-    data-client-api-key="${clientVal}" data-project-id="${idVal}"></script>
-  \`\`\`
-
-  Serve the script however this app injects markup into its HTML shell (source
-  it locally in dev, the CDN URL in prod). The same values also live in each
-  target's env file as \`${d.clientKeyVar}\` / \`${d.projectIdVar}\` if you'd
-  rather read them from env instead of inlining.
-- [ ] Gate: load the app with \`?se=1\` and confirm the overlay mounts.
-`;
-}
-
 function opsSection(sdk: string, doc: string | null | undefined): string {
   return `## Ops wiring — error reporting (ops module enabled)
 
@@ -399,6 +405,11 @@ full flow. In brief:
 
 ${embeddedDocOr("i18n", sdk, "i18n", doc)}
 
+- [ ] Delivering strings to the browser is a \`<head>\` tag, not a second install —
+      the i18n loader is already part of the block in **Browser head tags** (skip
+      this if nothing here renders a page). Emitted server-side it carries the
+      strings on \`data-strings\`, so there is no round trip and no flash of
+      untranslated copy.
 - [ ] Gate: \`shipeasy i18n validate\` passes (every referenced key exists on the server).
 `;
 }
@@ -435,19 +446,37 @@ delete this file once everything passes.`,
   // Module-dependent sections — only what was actually enabled. `sdk` for the
   // doc handles comes from the first target (falls back to a placeholder).
   const primarySdk = input.targets[0]?.sdk ?? "<lang>";
-  if (input.devtools) {
-    const surfaces = input.devtools.surfaces ?? ["browser"];
-    if (surfaces.includes("browser"))
-      sections.push(devtoolsSection(input.devtools, input.projectId));
-    if (surfaces.includes("react-native") && input.devtools.native)
-      sections.push(
-        nativeDevtoolsSection(
-          input.devtools,
-          input.devtools.native,
-          input.projectId,
-          primarySdk,
-        ),
-      );
+  const surfaces = input.devtools?.surfaces ?? (input.devtools ? ["browser"] : []);
+
+  // The `<head>` block. Wanted whenever this repo serves a page at all — the
+  // runtime tag is how a browser sees flags, with or without the overlay — so
+  // it is NOT gated on the devtools answer, only widened by it.
+  const ids = input.publicIds ?? input.devtools;
+  const servesPages =
+    input.targets.some((t) => t.browser && !t.native) || surfaces.includes("browser");
+  if (ids && servesPages) {
+    sections.push(
+      headTagsSection({
+        projectId: input.projectId,
+        clientKey: ids.clientKey,
+        clientKeyVar: ids.clientKeyVar,
+        projectIdVar: ids.projectIdVar,
+        targets: input.targets,
+        i18n: input.enabledFeatures.includes("i18n"),
+        devtools: surfaces.includes("browser"),
+      }),
+    );
+  }
+
+  if (input.devtools?.native && surfaces.includes("react-native")) {
+    sections.push(
+      nativeDevtoolsSection(
+        input.devtools,
+        input.devtools.native,
+        input.projectId,
+        primarySdk,
+      ),
+    );
   }
   if (input.enabledFeatures.includes("ops"))
     sections.push(opsSection(primarySdk, input.featureDocs?.errorReporting));
