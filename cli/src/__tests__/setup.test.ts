@@ -29,6 +29,7 @@ import {
   writeCursorRule,
 } from "../setup/instructions";
 import {
+  appBaseUrl,
   applyAgent,
   agentDirective,
   mcpAuthHandoff,
@@ -489,6 +490,27 @@ describe("Claude native install commands", () => {
       expect(addClaudeMcpNative({ cwd: "/tmp/x", scope: "project", force: false, dryRun: false })).toBeNull();
     } finally {
       process.env.PATH = PATH;
+    }
+  });
+});
+
+describe("appBaseUrl", () => {
+  // The trigger hand-off and the closing "Dashboard:" line are both built on
+  // this, and a run with no stored session takes the fallback — which is most
+  // runs, since either can be reached before anyone logs in. `app.shipeasy.ai`
+  // has never been provisioned (NXDOMAIN), so a wrong fallback here doesn't even
+  // produce a 404 page; the dashboard is served from the apex.
+  it("falls back to the apex host, never an app.* subdomain", () => {
+    const cfgHome = mkdtempSync(join(tmpdir(), "se-nocreds-"));
+    const prev = { ...process.env };
+    try {
+      process.env.XDG_CONFIG_HOME = cfgHome;
+      delete process.env.SHIPEASY_CLI_TOKEN;
+      delete process.env.SHIPEASY_PROJECT_ID;
+      expect(appBaseUrl()).toBe("https://shipeasy.ai");
+    } finally {
+      process.env = prev;
+      rmSync(cfgHome, { recursive: true, force: true });
     }
   });
 });

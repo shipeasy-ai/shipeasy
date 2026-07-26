@@ -5,6 +5,7 @@ import { join } from "node:path";
 import prompts from "prompts";
 import { login } from "../auth/login";
 import {
+  APP_BASE_URL,
   credentialsPath,
   credentialsSource,
   loadCredentials,
@@ -94,9 +95,15 @@ interface SetupOpts {
   triggerPlatform?: string;
 }
 
-/** App base URL of the admin dashboard we route the trigger wizard to. */
-function appBaseUrl(): string {
-  return loadCredentials()?.app_base_url?.replace(/\/$/, "") ?? "https://app.shipeasy.ai";
+/** App base URL of the admin dashboard we route the trigger wizard to.
+ *
+ *  The fallback must be `APP_BASE_URL` — the dashboard is served from the apex
+ *  `shipeasy.ai`, and `app.shipeasy.ai` has never existed (NXDOMAIN, so the link
+ *  doesn't even reach a 404 page). A run with no stored session — the common
+ *  case, since the trigger step is reachable before anyone logs in — took that
+ *  fallback and handed out a dead link. */
+export function appBaseUrl(): string {
+  return loadCredentials()?.app_base_url?.replace(/\/$/, "") ?? APP_BASE_URL;
 }
 
 // ── small print helpers (no chalk — the CLI avoids ESM-only deps) ───────────
@@ -1553,8 +1560,9 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     console.log(`Wiring:    ${WIRING_FILENAME} — hand it to any coding agent to finish`);
   }
   if (projectId) {
-    const app = loadCredentials()?.app_base_url?.replace(/\/$/, "") ?? "https://app.shipeasy.ai";
-    console.log(`Dashboard: ${app}/projects/${projectId}`);
+    // `/dashboard/<id>`, not `/projects/<id>` — the latter is a 404; the app has
+    // no `/projects` route at all.
+    console.log(`Dashboard: ${appBaseUrl()}/dashboard/${projectId}`);
   }
   console.log(
     "\nWhen the wiring is done, commit (setup never commits for you):\n" +
