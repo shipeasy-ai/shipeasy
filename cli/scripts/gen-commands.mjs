@@ -13,6 +13,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
+import { makeCoercer } from "./coerce.mjs";
 
 const require = createRequire(import.meta.url);
 const specPath = require.resolve("@shipeasy/openapi/openapi.yaml");
@@ -76,23 +77,8 @@ function tagChain(name) {
   return chain; // [root … leaf]
 }
 
-// param type → coercion helper name
-const coercer = (schema) => {
-  let s = deref(schema) ?? {};
-  // unwrap a nullable union ([{type:X},{type:null}]) to its single real branch
-  const union = s.anyOf || s.oneOf;
-  if (union) {
-    const real = union.map(deref).filter((b) => (Array.isArray(b.type) ? !b.type.includes("null") : b.type !== "null"));
-    if (real.length === 1) s = real[0];
-    else return "json";
-  }
-  if (s.allOf) return "json";
-  const t = Array.isArray(s.type) ? s.type.find((x) => x !== "null") : s.type;
-  if (t === "integer" || t === "number") return "num";
-  if (t === "boolean") return "bool";
-  if (t === "array" || t === "object") return "json";
-  return "str";
-};
+// param type → coercion helper name (see scripts/coerce.mjs)
+const coercer = makeCoercer(deref);
 
 // short one-liner from a long tag description (collapse, take first sentence)
 const sentence = (s) => {

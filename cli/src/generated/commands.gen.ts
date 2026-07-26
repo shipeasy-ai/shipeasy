@@ -105,7 +105,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--owner <value>", "Narrow to items owned by one person OR one agent. Matches a person by `users.id`, email, or display name, and an agent by connector id, display name, or kebab-case handle — e.g. `owner=Claude` or `owner=alice@acme.dev`. Case-insensitive exact match, applied over the returned page.")
     .option("--data <value>", "Request body as a JSON object.")
     .action(async (opts) => {
-      await ctx.run({ mutates: false, invoke: (client) => api.listOpsItems({ client, query: clean({ type: json(opts.type), status: json(opts.status), limit: num(opts.limit), owner: str(opts.owner) }), body: json(opts.data) as never }) });
+      await ctx.run({ mutates: false, invoke: (client) => api.listOpsItems({ client, query: clean({ type: str(opts.type), status: str(opts.status), limit: num(opts.limit), owner: str(opts.owner) }), body: json(opts.data) as never }) });
     });
   g_ops.command("create")
     .description("File a queue item (bug or feature request) — pass --type.")
