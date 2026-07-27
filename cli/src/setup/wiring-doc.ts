@@ -141,6 +141,25 @@ const RELOAD_BY_AGENT: Record<string, string> = {
 };
 
 /**
+ * How to obtain a token when the tools are present but the call comes back
+ * Unauthorized — a different failure from "no tools", and the common one.
+ *
+ * mcp.shipeasy.ai answers discovery anonymously and 401s only on `tools/call`,
+ * so a client can connect, list all its tools, and report itself ready while
+ * holding no credential at all. Cursor is the case worth naming: it exposes an
+ * `mcp_auth` tool the agent can call in-session, so it need not bounce the work
+ * back to the user at all.
+ */
+const AUTHORIZE_BY_AGENT: Record<string, string> = {
+  cursor:
+    "**Cursor** — call the `mcp_auth` tool for server `shipeasy` (Cursor's in-session authorize), and approve in the browser. From a terminal instead: `cursor-agent mcp login shipeasy`.",
+  claude: "**Claude Code** — run `/mcp`, select `shipeasy`, choose Authenticate, then approve in the browser.",
+  codex: "**Codex CLI** — run `codex mcp login shipeasy` and approve in the browser.",
+  copilot: "**VS Code / Copilot** — start `shipeasy` from the MCP servers view and approve in the browser.",
+  jules: "**Jules** — open MCP settings, authorize `shipeasy`, then approve in the browser.",
+};
+
+/**
  * The opening gate: does THIS session have the MCP tools?
  *
  * It used to assert that it doesn't — "registered while this session was already
@@ -148,15 +167,27 @@ const RELOAD_BY_AGENT: Record<string, string> = {
  * launches the agent itself (step 11), or the user starts a fresh one after it,
  * the tools ARE live, and a flat assertion talked those sessions into a CLI
  * fallback they never needed. So: probe, don't assert. One `whoami` call settles
- * it, and the reload instructions only matter on the branch where it fails.
+ * it, and the instructions only matter on the branch where it fails.
+ *
+ * Two distinct failures, deliberately kept apart, because the fixes have nothing
+ * in common and an agent that conflates them gives up on the wrong one:
+ *  - no tools at all → the session predates the wiring → restart it;
+ *  - tools present, call returns Unauthorized → the client never completed OAuth
+ *    (our discovery is anonymous, so it can connect and list tools without a
+ *    token) → authorize it. This is the one that sent a Cursor session to the
+ *    CLI with "MCP auth failed (stale session)" when nothing was stale.
  */
 function reloadSection(agents: string[], verified: string[] = []): string {
   const known = agents.filter((a) => RELOAD_BY_AGENT[a]);
   const lines = known.length
     ? known.map((a) => `- ${RELOAD_BY_AGENT[a]}`)
     : ["- Restart your coding agent / reload its window so it re-reads the MCP config."];
+  const authKnown = agents.filter((a) => AUTHORIZE_BY_AGENT[a]);
+  const authLines = authKnown.length
+    ? authKnown.map((a) => `- ${AUTHORIZE_BY_AGENT[a]}`)
+    : ["- Authorize the `shipeasy` MCP server from your client's MCP settings."];
   const verifiedLine = verified.length
-    ? `\n\`shipeasy setup\` **verified the connection** for ${verified.join(", ")} before writing\nthis file — the server and its credentials are known-good, so missing tools mean a\nstale session, never a broken server.\n`
+    ? `\n\`shipeasy setup\` **verified authorization** for ${verified.join(", ")} before writing this\nfile — that client holds a token, so a failure there is a stale session, not a\nmissing sign-in.\n`
     : "";
   return `## First: check whether the Shipeasy MCP tools are live here
 
@@ -165,15 +196,27 @@ servers **when the session starts**, so whether this session has them depends on
 whether it started before or after that write — **check, don't assume**:
 ${verifiedLine}
 
-- [ ] Call the \`whoami\` MCP tool (or \`projects_current\`). If it resolves, the tools
-  are live: use them for every step below, and skip the rest of this section.
-- [ ] If the tools aren't there, this session predates the wiring. A harness cannot
-  reload itself, so **ask the user to restart it** and re-run this brief:
+- [ ] Call the \`whoami\` MCP tool (or \`projects_current\`) and read the result:
+
+- [ ] **It resolves** → the tools are live. Use them for every step below and skip
+  the rest of this section.
+
+- [ ] **The tools aren't there at all** → this session predates the wiring. A
+  harness cannot reload itself, so **ask the user to restart it** and re-run this
+  brief:
 
 ${lines.join("\n")}
 
-- [ ] Only if the user would rather not restart: use the \`shipeasy\` CLI instead
-  (\`shipeasy --help\`) — it covers the same operations as the MCP tools.`;
+- [ ] **The tools ARE there but the call returns \`Unauthorized\` / a 401** → this is
+  NOT a stale session. mcp.shipeasy.ai answers discovery anonymously and rejects
+  only tool calls, so your client connected and listed every tool without ever
+  completing the browser sign-in. Restarting will not fix it — **authorize**:
+
+${authLines.join("\n")}
+
+- [ ] Only once the step above is done or declined: use the \`shipeasy\` CLI instead
+  (\`shipeasy --help\`) — it authenticates separately and covers the same operations,
+  so the wiring can proceed either way. Say which one you're using.`;
 }
 
 /**

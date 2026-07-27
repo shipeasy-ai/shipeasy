@@ -442,31 +442,43 @@ describe("buildWiringDoc", () => {
     expect(doc).toMatch(/check, don't assume/i);
     expect(doc).toMatch(/Call the `whoami` MCP tool/);
     expect(doc).not.toMatch(/while this session was\s+already running/);
-    // The CLI fallback is gated on the user declining a restart, not offered up front.
-    expect(doc.indexOf("Only if the user would rather not restart")).toBeGreaterThan(
+    // The CLI fallback comes last, after both remedies have been offered.
+    expect(doc.indexOf("Only once the step above is done or declined")).toBeGreaterThan(
       doc.indexOf("Call the `whoami` MCP tool"),
     );
     // The Cursor CLI has no window to reload — it needs a new session.
     expect(doc).toMatch(/`cursor-agent`\): exit and start a new session/);
   });
 
-  it("names the clients whose connection setup verified before the hand-off", () => {
-    // Step 10 probes the connection while a user is still there to fix it, so
-    // the doc can rule the server out as the cause of missing tools.
+  it("names the clients whose authorization setup verified before the hand-off", () => {
+    // Step 10 probes while a user is still there to fix it, so the doc can rule
+    // a missing sign-in out as the cause — but only for a client that reports
+    // auth state at all (Codex), never one that merely connected.
     const doc = buildWiringDoc({
       ...base,
       targets: [wiringTarget()],
-      agents: ["cursor"],
-      mcpVerified: ["cursor"],
+      agents: ["codex"],
+      mcpVerified: ["codex"],
     });
-    expect(doc).toMatch(/verified the connection\*{2} for cursor/);
-    expect(doc).toMatch(/missing tools mean a\s+stale session, never a broken server/);
+    expect(doc).toMatch(/verified authorization\*{2} for codex/);
+    expect(doc).toMatch(/a failure there is a stale session, not a\s+missing sign-in/);
   });
 
   it("omits the verification claim when nothing was verified", () => {
     const doc = buildWiringDoc({ ...base, targets: [wiringTarget()], agents: ["cursor"] });
-    expect(doc).not.toMatch(/verified the connection/);
+    expect(doc).not.toMatch(/verified authorization/);
     expect(doc).toMatch(/Call the `whoami` MCP tool/); // the probe gate still stands
+  });
+
+  it("separates a 401 from a stale session, and points Cursor at its in-session authorize", () => {
+    // The failure that sent a Cursor session to the CLI: tools present, call
+    // Unauthorized. Restarting cannot fix that — the client never signed in.
+    const doc = buildWiringDoc({ ...base, targets: [wiringTarget()], agents: ["cursor"] });
+    expect(doc).toMatch(/tools ARE there but the call returns/);
+    expect(doc).toMatch(/NOT a stale session/);
+    expect(doc).toMatch(/`mcp_auth` tool for server `shipeasy`/);
+    // ...and the restart branch stays, for the genuinely stale case.
+    expect(doc).toMatch(/tools aren't there at all/);
   });
 
   it("omits the reload notice when no agent was wired", () => {

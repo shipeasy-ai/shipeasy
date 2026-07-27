@@ -43,13 +43,17 @@ function calls(): string[] {
 }
 
 describe("runMcpAuth(claude) — the pending-approval trap", () => {
-  it("skips the login entirely when the server is already connected", () => {
+  it("still drives the login when Claude only says 'Connected'", () => {
+    // "✔ Connected" does NOT mean authorized: mcp.shipeasy.ai answers discovery
+    // anonymously, so a server that was never signed into reports Connected and
+    // lists every tool. Skipping the login on that (as this did) is how a session
+    // reaches its first tool call with no token and 401s.
     spawnSyncMock.mockReturnValue({ status: 0, stdout: CONNECTED, stderr: "" });
     expect(runMcpAuth("claude")).toEqual({
       action: "authorized",
-      detail: "already authorized — server connected",
+      detail: "claude mcp login shipeasy",
     });
-    expect(calls()).toEqual(["claude mcp get shipeasy"]);
+    expect(calls()).toEqual(["claude mcp get shipeasy", "claude mcp login shipeasy"]);
   });
 
   it("reports the fixable cause instead of driving a login that must fail", () => {
@@ -100,12 +104,15 @@ describe("runMcpAuth(claude) — the pending-approval trap", () => {
 describe("probeMcpReady — proving the connection instead of assuming it", () => {
   const TOOLS = "Tools for shipeasy (111):\n- whoami ()\n- ops_list (status)\n";
 
-  it("reads Cursor's tool listing as proof the whole chain works", () => {
+  it("reads Cursor's tool listing as reachability only — never as authorization", () => {
+    // Verified against a throwaway entry that was never authorized: Cursor still
+    // reports `ready` and lists all 111 tools, because our discovery is
+    // anonymous. So this listing can only ever mean "the server answers".
     usePath("cursor-agent");
     spawnSyncMock.mockReturnValue({ status: 0, stdout: TOOLS, stderr: "" });
     expect(probeMcpReady("cursor")).toEqual({
-      state: "ready",
-      detail: "111 tools resolve",
+      state: "reachable",
+      detail: "111 tools listed (auth not reported)",
       toolCount: 111,
     });
     expect(calls()).toEqual(["cursor-agent mcp list-tools shipeasy"]);
@@ -120,9 +127,10 @@ describe("probeMcpReady — proving the connection instead of assuming it", () =
     });
   });
 
-  it("maps Claude's server state onto the same three answers", () => {
+  it("maps Claude's server state onto the same answers", () => {
+    // Same trap as Cursor: "✔ Connected" holds for a never-authorized server.
     spawnSyncMock.mockReturnValue({ status: 0, stdout: CONNECTED, stderr: "" });
-    expect(probeMcpReady("claude").state).toBe("ready");
+    expect(probeMcpReady("claude").state).toBe("reachable");
     spawnSyncMock.mockReturnValue({ status: 0, stdout: PENDING, stderr: "" });
     // `pending-trust` is the code `runMcpAuth` acts on to skip a login that
     // cannot succeed against an untrusted folder.
@@ -131,6 +139,26 @@ describe("probeMcpReady — proving the connection instead of assuming it", () =
       detail: "awaiting folder trust",
       code: "pending-trust",
     });
+  });
+
+  it("treats only Codex's auth_status as proof of authorization", () => {
+    // Of the three scriptable clients, Codex is the only one whose CLI reports
+    // whether a token exists — so it is the only one that can reach `ready`.
+    usePath("codex");
+    spawnSyncMock.mockReturnValue({
+      status: 0,
+      stdout: JSON.stringify([{ name: "shipeasy", auth_status: "o_auth" }]),
+      stderr: "",
+    });
+    expect(probeMcpReady("codex").state).toBe("ready");
+
+    usePath("cursor-agent");
+    spawnSyncMock.mockReturnValue({ status: 0, stdout: TOOLS, stderr: "" });
+    expect(probeMcpReady("cursor").state).not.toBe("ready");
+
+    usePath("claude");
+    spawnSyncMock.mockReturnValue({ status: 0, stdout: CONNECTED, stderr: "" });
+    expect(probeMcpReady("claude").state).not.toBe("ready");
   });
 
   it("reads Codex's per-server auth_status", () => {

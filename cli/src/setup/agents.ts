@@ -284,12 +284,14 @@ export function runMcpAuth(agent: AgentId, opts: { dryRun?: boolean } = {}): Mcp
   const line = `${cmd.bin} ${cmd.argv.join(" ")}`;
   if (opts.dryRun) return { action: "authorized", detail: `would run: ${line}` };
 
-  // Ask the client where it stands before driving a login at it. An already
-  // authorized client needs no browser round-trip — re-running setup must not
-  // throw a sign-in page at someone who is signed in — and Claude's still-pending
-  // `.mcp.json` entry makes `claude mcp login` exit 1 (the project has never been
-  // opened in Claude, so our approval write can't apply), so that login must not
-  // run at all.
+  // Ask the client where it stands before driving a login at it — but skip the
+  // login ONLY for a probe that proves authorization (`ready`). `reachable` must
+  // not skip it: "✔ Connected" / "111 tools" hold for a server that has never
+  // been authorized, and treating that as done is exactly how a session ends up
+  // 401ing on its first tool call. Claude's still-pending `.mcp.json` entry is
+  // the other way round — `claude mcp login` exits 1 against it (the project has
+  // never been opened in Claude, so our approval write can't apply), so that
+  // login must not run at all.
   const probe = probeMcpReady(agent);
   if (probe.state === "ready") {
     return { action: "authorized", detail: `already authorized — ${probe.detail}` };
@@ -318,10 +320,12 @@ export function runMcpAuth(agent: AgentId, opts: { dryRun?: boolean } = {}): Mcp
  * whole chain — config entry, local approval, OAuth token, connection to
  * mcp.shipeasy.ai. Cheap enough to run inline (~0.7s).
  *
- * Cursor lists the server's tools; Codex reports a per-server `auth_status`;
- * Claude answers the weaker "Connected?" question through
- * {@link claudeServerState}. Copilot and Jules expose nothing scriptable, so
- * they stay `unknown` rather than being guessed at.
+ * Codex reports a per-server `auth_status` — the only client whose CLI answers
+ * the auth question at all. Cursor's tool listing and Claude's "Connected" both
+ * report success for a server that has never been authorized (verified against
+ * a throwaway entry: `ready` + all 111 tools, `✔ Connected`), because our own
+ * discovery is anonymous — so those two can only ever reach `reachable`.
+ * Copilot and Jules expose nothing scriptable and stay `unknown`.
  *
  * `parse` returns the verdict, or null to mean "this output isn't an answer" —
  * the caller then reports not-ready with the client's own first line.
@@ -334,7 +338,11 @@ export const MCP_PROBE_COMMANDS: Partial<
     argv: ["mcp", "list-tools", "shipeasy"],
     parse: (out) => {
       const count = parseCursorToolList(out);
-      return count === null ? null : { state: "ready", detail: `${count} tools resolve`, toolCount: count };
+      // `reachable`, NOT `ready`: this listing comes back identical whether or
+      // not Cursor holds a token, so it can never stand in for authorization.
+      return count === null
+        ? null
+        : { state: "reachable", detail: `${count} tools listed (auth not reported)`, toolCount: count };
     },
   },
   codex: {
@@ -352,9 +360,17 @@ export const MCP_PROBE_COMMANDS: Partial<
 };
 
 export interface McpProbeResult {
-  /** ready: tools resolve now. not-ready: the client says it isn't connected.
-   *  unknown: nothing here can tell — no probe, or the binary isn't on PATH. */
-  state: "ready" | "not-ready" | "unknown";
+  /**
+   * - `ready` — the client says it holds an OAuth credential. The ONLY state
+   *   that proves a tool call will work.
+   * - `reachable` — the client connects and can list tools, which proves
+   *   nothing about auth: mcp.shipeasy.ai answers `initialize`/`tools/list`
+   *   anonymously and 401s only on `tools/call`, so an unauthorized server
+   *   still reads "ready"/"Connected" and lists all 111 tools.
+   * - `not-ready` — the client says it is not authorized.
+   * - `unknown` — nothing here can tell (no probe, or the binary isn't on PATH).
+   */
+  state: "ready" | "reachable" | "not-ready" | "unknown";
   detail: string;
   /** Tools the client listed, when the probe reports a count. */
   toolCount?: number;
@@ -406,7 +422,9 @@ export function probeMcpReady(agent: AgentId, opts: { dryRun?: boolean } = {}): 
 
   if (agent === "claude") {
     const state = claudeServerState("shipeasy");
-    if (state === "connected") return { state: "ready", detail: "server connected" };
+    // "✔ Connected" survives on a server that was never authorized, so it is
+    // reachability, not authorization.
+    if (state === "connected") return { state: "reachable", detail: "server connected" };
     if (state === "pending") {
       return { state: "not-ready", detail: "awaiting folder trust", code: "pending-trust" };
     }

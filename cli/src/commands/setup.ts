@@ -966,10 +966,17 @@ export async function mcpAuthHandoff(
     const p = probeMcpReady(id, { dryRun: opts.dryRun });
     if (p.state === "ready") {
       verified.push(id);
-      say(`  ✓ ${id}: shipeasy MCP connection verified — ${p.detail}`);
+      say(`  ✓ ${id}: shipeasy MCP authorization verified — ${p.detail}`);
     } else if (p.state === "not-ready") {
-      say(`  ✗ ${id}: shipeasy MCP not connected yet (${p.detail})`);
+      say(`  ✗ ${id}: shipeasy MCP not authorized (${p.detail})`);
       say(`      ${MCP_AUTH_INSTRUCTIONS[id]}`);
+    } else if (p.state === "reachable") {
+      // Say what was and wasn't established. This client answers "connected"
+      // and lists every tool without holding a token — so a ✓ here would be a
+      // lie, and silence would read as a pass.
+      say(`  • ${id}: server reachable (${p.detail}) — this client reports no auth state,`);
+      say(`      so authorization can't be confirmed here. If a tool call comes back`);
+      say(`      Unauthorized: ${MCP_AUTH_INSTRUCTIONS[id]}`);
     }
     // `unknown` stays silent: no probe exists for that client, and a line
     // reading "couldn't check" only adds noise to a step that already told the
