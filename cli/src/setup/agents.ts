@@ -167,7 +167,8 @@ export const SKILLS_CLI_AGENT: Partial<Record<AgentId, string>> = {
 export const MCP_AUTH_INSTRUCTIONS: Record<AgentId, string> = {
   claude: "Claude Code: run `/mcp`, select `shipeasy`, choose Authenticate, then approve in the browser.",
   cursor: "Cursor: Settings → Tools & MCP → `shipeasy` → Login, then approve in the browser.",
-  codex: "Codex: the `shipeasy` server prompts to authenticate on first tool use — approve in the browser.",
+  codex:
+    "Codex: run `codex mcp login shipeasy` and approve in the browser (on a Codex without that subcommand, the server prompts on first tool use instead).",
   copilot:
     "VS Code (Copilot): open the MCP Servers view, start `shipeasy`, then approve in the browser.",
   jules: "Antigravity (Jules): open MCP settings, authorize `shipeasy`, then approve in the browser.",
@@ -180,9 +181,15 @@ export const MCP_AUTH_INSTRUCTIONS: Record<AgentId, string> = {
  * approved. `pre` runs first (best-effort) to get the server out of "pending
  * approval" so `login` has something to authenticate against.
  *
- * Codex/Copilot/Jules are absent on purpose: neither ships a login subcommand
- * (Codex prompts on first tool use; the other two authorize from their UI), so
- * they keep the printed {@link MCP_AUTH_INSTRUCTIONS} one-liner.
+ * Codex was listed as "authorizes itself on first tool use" — true of old
+ * builds, and it meant setup printed a hint and opened nothing, leaving the user
+ * to discover the sign-in at the first 401. `codex mcp login <name>` has shipped
+ * since (0.142.5 here), and setup already registers the server with `codex mcp
+ * add`, so there is something to log into by the time this runs. A Codex too old
+ * for the subcommand exits non-zero and falls back to the printed instruction.
+ *
+ * Copilot and Jules stay absent: they authorize from their own UI, with nothing
+ * scriptable to drive.
  */
 export const MCP_AUTH_COMMANDS: Partial<Record<AgentId, { bin: string; pre?: string[][]; argv: string[] }>> =
   {
@@ -192,6 +199,7 @@ export const MCP_AUTH_COMMANDS: Partial<Record<AgentId, { bin: string; pre?: str
       pre: [["mcp", "enable", "shipeasy"]],
       argv: ["mcp", "login", "shipeasy"],
     },
+    codex: { bin: "codex", argv: ["mcp", "login", "shipeasy"] },
   };
 
 export interface McpAuthResult {
@@ -276,17 +284,17 @@ export function runMcpAuth(agent: AgentId, opts: { dryRun?: boolean } = {}): Mcp
   const line = `${cmd.bin} ${cmd.argv.join(" ")}`;
   if (opts.dryRun) return { action: "authorized", detail: `would run: ${line}` };
 
-  // Ask Claude what it thinks of the server before driving a login at it: a
-  // still-pending `.mcp.json` entry makes `claude mcp login` exit 1 (the project
-  // has never been opened in Claude, so our approval write can't apply), and an
-  // already-connected one needs no browser round-trip at all.
-  if (agent === "claude") {
-    const state = claudeServerState("shipeasy");
-    if (state === "connected") {
-      return { action: "authorized", detail: "already connected — no sign-in needed" };
-    }
-    if (state === "pending") return CLAUDE_PENDING;
+  // Ask the client where it stands before driving a login at it. An already
+  // authorized client needs no browser round-trip — re-running setup must not
+  // throw a sign-in page at someone who is signed in — and Claude's still-pending
+  // `.mcp.json` entry makes `claude mcp login` exit 1 (the project has never been
+  // opened in Claude, so our approval write can't apply), so that login must not
+  // run at all.
+  const probe = probeMcpReady(agent);
+  if (probe.state === "ready") {
+    return { action: "authorized", detail: `already authorized — ${probe.detail}` };
   }
+  if (probe.code === "pending-trust") return CLAUDE_PENDING;
   for (const pre of cmd.pre ?? []) {
     spawnSync(cmd.bin, pre, { stdio: ["ignore", "ignore", "ignore"] });
   }
@@ -310,12 +318,37 @@ export function runMcpAuth(agent: AgentId, opts: { dryRun?: boolean } = {}): Mcp
  * whole chain — config entry, local approval, OAuth token, connection to
  * mcp.shipeasy.ai. Cheap enough to run inline (~0.7s).
  *
- * Only Cursor ships a tool-listing subcommand; Claude answers the weaker
- * "Connected?" question through {@link claudeServerState}, and the rest expose
- * nothing scriptable, so they stay `unknown` rather than being guessed at.
+ * Cursor lists the server's tools; Codex reports a per-server `auth_status`;
+ * Claude answers the weaker "Connected?" question through
+ * {@link claudeServerState}. Copilot and Jules expose nothing scriptable, so
+ * they stay `unknown` rather than being guessed at.
+ *
+ * `parse` returns the verdict, or null to mean "this output isn't an answer" —
+ * the caller then reports not-ready with the client's own first line.
  */
-export const MCP_PROBE_COMMANDS: Partial<Record<AgentId, { bin: string; argv: string[] }>> = {
-  cursor: { bin: "cursor-agent", argv: ["mcp", "list-tools", "shipeasy"] },
+export const MCP_PROBE_COMMANDS: Partial<
+  Record<AgentId, { bin: string; argv: string[]; parse: (out: string) => McpProbeResult | null }>
+> = {
+  cursor: {
+    bin: "cursor-agent",
+    argv: ["mcp", "list-tools", "shipeasy"],
+    parse: (out) => {
+      const count = parseCursorToolList(out);
+      return count === null ? null : { state: "ready", detail: `${count} tools resolve`, toolCount: count };
+    },
+  },
+  codex: {
+    bin: "codex",
+    argv: ["mcp", "list", "--json"],
+    parse: (out) => {
+      const status = parseCodexAuthStatus(out, "shipeasy");
+      if (status === "o_auth") return { state: "ready", detail: "signed in (OAuth)" };
+      if (status === "not_logged_in") return { state: "not-ready", detail: "not logged in" };
+      // No `--json`, no such server, or a transport Codex marks `unsupported`:
+      // nothing here is evidence the connection is broken.
+      return { state: "unknown", detail: "Codex reports no OAuth state for this server" };
+    },
+  },
 };
 
 export interface McpProbeResult {
@@ -325,6 +358,9 @@ export interface McpProbeResult {
   detail: string;
   /** Tools the client listed, when the probe reports a count. */
   toolCount?: number;
+  /** A cause the caller acts on rather than reports. `pending-trust` is Claude's
+   *  untrusted folder: a login against it cannot succeed, so it must not run. */
+  code?: "pending-trust";
 }
 
 /** `cursor-agent mcp list-tools shipeasy` opens with `Tools for shipeasy (111):`.
@@ -333,6 +369,31 @@ export interface McpProbeResult {
 export function parseCursorToolList(output: string): number | null {
   const m = /^\s*Tools for \S+ \((\d+)\)/m.exec(output);
   return m ? Number(m[1]) : null;
+}
+
+/**
+ * `auth_status` for one server out of `codex mcp list --json` — `o_auth` once
+ * signed in, `not_logged_in` before that, `unsupported` for a transport with no
+ * OAuth (a local stdio server). Null when the output isn't the JSON we expect,
+ * which is how an older `codex` without `--json` reads.
+ */
+export function parseCodexAuthStatus(output: string, name = "shipeasy"): string | null {
+  const start = output.search(/[[{]/);
+  if (start < 0) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(output.slice(start));
+  } catch {
+    return null;
+  }
+  const servers = Array.isArray(parsed)
+    ? parsed
+    : ((parsed as { servers?: unknown[] } | null)?.servers ?? []);
+  const hit = servers.find(
+    (s): s is { auth_status?: unknown } =>
+      typeof s === "object" && s !== null && (s as { name?: unknown }).name === name,
+  );
+  return typeof hit?.auth_status === "string" ? hit.auth_status : null;
 }
 
 /**
@@ -346,7 +407,9 @@ export function probeMcpReady(agent: AgentId, opts: { dryRun?: boolean } = {}): 
   if (agent === "claude") {
     const state = claudeServerState("shipeasy");
     if (state === "connected") return { state: "ready", detail: "server connected" };
-    if (state === "pending") return { state: "not-ready", detail: "awaiting folder trust" };
+    if (state === "pending") {
+      return { state: "not-ready", detail: "awaiting folder trust", code: "pending-trust" };
+    }
     if (state === null) return { state: "unknown", detail: "`claude` not on PATH" };
     return { state: "not-ready", detail: "server not connected" };
   }
@@ -357,10 +420,8 @@ export function probeMcpReady(agent: AgentId, opts: { dryRun?: boolean } = {}): 
 
   const res = spawnSync(cmd.bin, cmd.argv, { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" });
   const out = `${res.stdout ?? ""}${res.stderr ?? ""}`;
-  const count = parseCursorToolList(out);
-  if (res.status === 0 && count !== null) {
-    return { state: "ready", detail: `${count} tools resolve`, toolCount: count };
-  }
+  const verdict = cmd.parse(out);
+  if (verdict) return verdict;
   return {
     state: "not-ready",
     detail: out.trim().split("\n")[0] || `exited ${res.status ?? "?"}`,

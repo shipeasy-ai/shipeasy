@@ -8,7 +8,9 @@ vi.mock("node:child_process", () => ({
   spawnSync: (...args: unknown[]) => spawnSyncMock(...args),
 }));
 
-const { runMcpAuth, probeMcpReady, parseCursorToolList } = await import("../setup/agents");
+const { runMcpAuth, probeMcpReady, parseCursorToolList, parseCodexAuthStatus } = await import(
+  "../setup/agents"
+);
 
 const PENDING = "  Status: ⏸ Pending approval (run `claude` to approve)\n";
 const CONNECTED = "  Status: ✔ Connected\n";
@@ -45,7 +47,7 @@ describe("runMcpAuth(claude) — the pending-approval trap", () => {
     spawnSyncMock.mockReturnValue({ status: 0, stdout: CONNECTED, stderr: "" });
     expect(runMcpAuth("claude")).toEqual({
       action: "authorized",
-      detail: "already connected — no sign-in needed",
+      detail: "already authorized — server connected",
     });
     expect(calls()).toEqual(["claude mcp get shipeasy"]);
   });
@@ -122,10 +124,35 @@ describe("probeMcpReady — proving the connection instead of assuming it", () =
     spawnSyncMock.mockReturnValue({ status: 0, stdout: CONNECTED, stderr: "" });
     expect(probeMcpReady("claude").state).toBe("ready");
     spawnSyncMock.mockReturnValue({ status: 0, stdout: PENDING, stderr: "" });
+    // `pending-trust` is the code `runMcpAuth` acts on to skip a login that
+    // cannot succeed against an untrusted folder.
     expect(probeMcpReady("claude")).toEqual({
       state: "not-ready",
       detail: "awaiting folder trust",
+      code: "pending-trust",
     });
+  });
+
+  it("reads Codex's per-server auth_status", () => {
+    usePath("codex");
+    const list = (status: string) =>
+      JSON.stringify([
+        { name: "figma", auth_status: "not_logged_in" },
+        { name: "shipeasy", auth_status: status },
+      ]);
+
+    spawnSyncMock.mockReturnValue({ status: 0, stdout: list("o_auth"), stderr: "" });
+    expect(probeMcpReady("codex")).toEqual({ state: "ready", detail: "signed in (OAuth)" });
+    expect(calls()).toEqual(["codex mcp list --json"]);
+
+    spawnSyncMock.mockReturnValue({ status: 0, stdout: list("not_logged_in"), stderr: "" });
+    expect(probeMcpReady("codex")).toEqual({ state: "not-ready", detail: "not logged in" });
+  });
+
+  it("treats a Codex too old for --json as unknown, not as a broken connection", () => {
+    usePath("codex");
+    spawnSyncMock.mockReturnValue({ status: 2, stdout: "", stderr: "error: unexpected argument\n" });
+    expect(probeMcpReady("codex").state).toBe("unknown");
   });
 
   it("says unknown — never not-ready — when nothing here can check", () => {
@@ -134,6 +161,7 @@ describe("probeMcpReady — proving the connection instead of assuming it", () =
     usePath(); // empty PATH
     expect(probeMcpReady("cursor").state).toBe("unknown");
     expect(probeMcpReady("codex").state).toBe("unknown");
+    expect(probeMcpReady("copilot").state).toBe("unknown"); // no scriptable probe
     expect(probeMcpReady("cursor", { dryRun: true }).state).toBe("unknown");
   });
 
@@ -141,5 +169,13 @@ describe("probeMcpReady — proving the connection instead of assuming it", () =
     expect(parseCursorToolList(TOOLS)).toBe(111);
     expect(parseCursorToolList("Error: not authenticated")).toBeNull();
     expect(parseCursorToolList("")).toBeNull();
+  });
+
+  it("finds the named server's auth_status past any preamble", () => {
+    const json = '[{"name":"shipeasy","auth_status":"o_auth"}]';
+    expect(parseCodexAuthStatus(`warning: update available\n${json}`)).toBe("o_auth");
+    expect(parseCodexAuthStatus(JSON.stringify({ servers: JSON.parse(json) }))).toBe("o_auth");
+    expect(parseCodexAuthStatus(json, "other")).toBeNull(); // different server
+    expect(parseCodexAuthStatus("not json at all")).toBeNull();
   });
 });

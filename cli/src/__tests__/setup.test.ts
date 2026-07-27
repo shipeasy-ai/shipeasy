@@ -954,14 +954,21 @@ describe("mcpAuthHandoff — the one-time MCP OAuth authorization step", () => {
   });
 
   it("scripts the login for agents whose CLI can do it, and only those", () => {
-    // Claude + Cursor ship a `mcp login`; the rest authorize from their own UI,
-    // so they keep the printed instruction instead of a bogus shell-out.
-    expect(MCP_AUTH_COMMANDS.claude?.argv).toEqual(["mcp", "login", "shipeasy"]);
-    expect(MCP_AUTH_COMMANDS.cursor?.argv).toEqual(["mcp", "login", "shipeasy"]);
-    for (const a of ["codex", "copilot", "jules"] as AgentId[]) {
+    // Claude, Cursor and Codex all ship an `mcp login`. Codex used to be left out
+    // on the belief that it "prompts on first tool use" — so setup printed a hint
+    // and opened nothing, and the user met the sign-in as a 401 much later.
+    for (const a of ["claude", "cursor", "codex"] as AgentId[]) {
+      expect(MCP_AUTH_COMMANDS[a]?.argv).toEqual(["mcp", "login", "shipeasy"]);
+    }
+    // Copilot + Jules authorize from their own UI, so they keep the printed
+    // instruction instead of a bogus shell-out.
+    for (const a of ["copilot", "jules"] as AgentId[]) {
       expect(MCP_AUTH_COMMANDS[a]).toBeUndefined();
       expect(runMcpAuth(a)).toEqual({ action: "manual", detail: MCP_AUTH_INSTRUCTIONS[a] });
     }
+    // Codex's instruction is the manual form of the same command, for a build
+    // whose `mcp login` doesn't exist yet.
+    expect(MCP_AUTH_INSTRUCTIONS.codex).toMatch(/codex mcp login shipeasy/);
   });
 });
 
