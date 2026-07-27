@@ -7018,7 +7018,7 @@ export type CreateKeyRequest = {
      */
     type: 'server' | 'client' | 'admin' | 'ops';
     /**
-     * Optional human label. Programmatic (API) mints that omit it get an auto-generated descriptive name; dashboard mints may leave it blank.
+     * Optional human label. Programmatic (API) mints that omit it get an auto-generated descriptive name; dashboard mints may leave it blank. The cap is generous because provenance labels are composed, not typed — `shipeasy setup` mints keys named with the stack, package, date, and operator that produced them, which does not fit in a one-line-input budget.
      */
     name?: string;
     /**

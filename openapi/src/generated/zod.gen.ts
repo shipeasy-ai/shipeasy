@@ -3654,7 +3654,7 @@ export const zCreateKeyRequest = z.object({
         'admin',
         'ops'
     ]),
-    name: z.string().min(1).max(80).optional(),
+    name: z.string().min(1).max(160).optional(),
     scopes: z.array(z.enum([
         'experiments:read',
         'gates:evaluate',
