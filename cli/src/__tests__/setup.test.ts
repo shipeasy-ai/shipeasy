@@ -424,23 +424,40 @@ describe("buildWiringDoc", () => {
       targets: [wiringTarget()],
       agents: ["claude", "cursor"],
     });
-    expect(doc).toContain("reload so the Shipeasy MCP tools load");
+    expect(doc).toContain("check whether the Shipeasy MCP tools are live here");
     expect(doc).toContain("Claude Code");
     expect(doc).toContain("Cursor");
-    // The reload gate comes before the per-target wiring.
-    expect(doc.indexOf("reload so the Shipeasy MCP tools load")).toBeLessThan(
+    // The gate comes before the per-target wiring.
+    expect(doc.indexOf("check whether the Shipeasy MCP tools are live here")).toBeLessThan(
       doc.indexOf("Per-target SDK wiring"),
     );
   });
 
+  it("has the agent probe for the tools instead of assuming they are missing", () => {
+    // A session setup launched itself (step 11) starts AFTER the MCP wiring, so
+    // its tools ARE live. Asserting otherwise talked those sessions into a CLI
+    // fallback they never needed — the doc must make it a check, and keep the
+    // CLI as the last resort behind a declined restart.
+    const doc = buildWiringDoc({ ...base, targets: [wiringTarget()], agents: ["cursor"] });
+    expect(doc).toMatch(/check, don't assume/i);
+    expect(doc).toMatch(/Call the `whoami` MCP tool/);
+    expect(doc).not.toMatch(/while this session was\s+already running/);
+    // The CLI fallback is gated on the user declining a restart, not offered up front.
+    expect(doc.indexOf("Only if the user would rather not restart")).toBeGreaterThan(
+      doc.indexOf("Call the `whoami` MCP tool"),
+    );
+    // The Cursor CLI has no window to reload — it needs a new session.
+    expect(doc).toMatch(/`cursor-agent`\): exit and start a new session/);
+  });
+
   it("omits the reload notice when no agent was wired", () => {
     const doc = buildWiringDoc({ ...base, targets: [wiringTarget()], agents: [] });
-    expect(doc).not.toContain("reload so the Shipeasy MCP tools load");
+    expect(doc).not.toContain("check whether the Shipeasy MCP tools are live here");
   });
 
   it("falls back to a generic reload line for an unknown harness", () => {
     const doc = buildWiringDoc({ ...base, targets: [wiringTarget()], agents: ["acme-ai"] });
-    expect(doc).toContain("reload so the Shipeasy MCP tools load");
+    expect(doc).toContain("check whether the Shipeasy MCP tools are live here");
     expect(doc).toContain("Restart your coding agent");
   });
 });
@@ -881,6 +898,10 @@ describe("mcpAuthHandoff — the one-time MCP OAuth authorization step", () => {
     expect(out).toContain(MCP_AUTH_INSTRUCTIONS.codex);
     // The driving agent is told to authorize its own connection before wiring.
     expect(out).toMatch(/CODING AGENT: authorize your OWN shipeasy MCP connection/i);
+    // ...and that authorizing does NOT hand its own running session the tools —
+    // MCP servers load at session start, so the honest next move is a restart.
+    // (`explain` hard-wraps, so the phrase can straddle a line break.)
+    expect(out).toMatch(/restart\s+this\s+session/i);
   });
 
   it("is a no-op when no agents were wired", async () => {

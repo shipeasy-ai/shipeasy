@@ -758,7 +758,12 @@ async function humanHandoff(
  * settings pane; the rest get the printed one-liner. A coding agent driving the
  * CLI gets a directive to authorize its OWN connection instead (we must not
  * hijack its terminal with a browser flow). Runs BEFORE the wiring hand-off so
- * the MCP tools are usable the moment the agent picks up shipeasy-wiring.md.
+ * the credential is in place for whichever session picks up shipeasy-wiring.md.
+ *
+ * What authorizing CANNOT do is inject the tools into a session that is already
+ * open: every client reads its MCP servers once, at startup. So the copy here
+ * promises the *next* session, and the wiring doc opens by having the agent
+ * probe for the tools rather than assume either way.
  */
 /**
  * The prompt queued behind Claude's trust dialog, exactly as the wiring hand-off
@@ -871,8 +876,10 @@ export async function mcpAuthHandoff(
 
   explain(
     "The hosted Shipeasy MCP server (mcp.shipeasy.ai) authenticates with **OAuth** — a " +
-      "one-time browser sign-in per client, no key to paste. Authorizing it now, so the MCP " +
-      "tools work the moment the wiring steps run.",
+      "one-time browser sign-in per client, no key to paste. Authorizing it now, so the next " +
+      "session each client starts has the MCP tools. A session that is ALREADY open (including " +
+      "one driving this terminal) reads its MCP servers at startup — it has to be restarted " +
+      "before the shipeasy tools show up in it.",
   );
   say();
 
@@ -886,7 +893,10 @@ export async function mcpAuthHandoff(
     explain(
       "▶ **CODING AGENT: authorize your OWN shipeasy MCP connection now** — run your client's " +
         "MCP Authenticate step (above) and approve in the browser BEFORE starting the wiring " +
-        "steps, or every shipeasy_* tool call will 401.",
+        "steps, or every shipeasy_* tool call will 401. Authorizing does NOT add the tools to " +
+        "the session you are in right now: MCP servers load at session start, so if you have no " +
+        "shipeasy tools, ask the user to restart this session — and use the `shipeasy` CLI for " +
+        "the steps meanwhile if they'd rather not.",
     );
     return;
   }

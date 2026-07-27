@@ -122,29 +122,47 @@ export interface WiringDocInput {
 const RELOAD_BY_AGENT: Record<string, string> = {
   claude:
     "**Claude Code** — restart Claude Code (project-scoped MCP servers load on startup; approve `shipeasy` when prompted). Check with `/mcp`.",
+  // Two surfaces, two different reloads: the CLI (`cursor-agent`) loads its MCP
+  // servers once at session start, so only a NEW session picks them up — telling
+  // a terminal session to reload an IDE window it doesn't have is a dead end.
   cursor:
-    "**Cursor** — reload the window (Command Palette → *Developer: Reload Window*), then enable the `shipeasy` server under Settings → MCP.",
+    "**Cursor** — CLI (`cursor-agent`): exit and start a new session; it reads its MCP servers once at startup. IDE: reload the window (Command Palette → *Developer: Reload Window*), then enable the `shipeasy` server under Settings → MCP.",
   copilot:
     "**VS Code / Copilot** — reload the window (Command Palette → *Developer: Reload Window*), then start `shipeasy` from the MCP servers view (trust it when prompted).",
   codex: "**Codex CLI** — restart the Codex session so it re-reads the MCP config.",
   jules: "**Jules** — start a fresh task; the MCP server is picked up per session.",
 };
 
+/**
+ * The opening gate: does THIS session have the MCP tools?
+ *
+ * It used to assert that it doesn't — "registered while this session was already
+ * running" — which is only true for a session that predates setup. When setup
+ * launches the agent itself (step 11), or the user starts a fresh one after it,
+ * the tools ARE live, and a flat assertion talked those sessions into a CLI
+ * fallback they never needed. So: probe, don't assert. One `whoami` call settles
+ * it, and the reload instructions only matter on the branch where it fails.
+ */
 function reloadSection(agents: string[]): string {
   const known = agents.filter((a) => RELOAD_BY_AGENT[a]);
   const lines = known.length
     ? known.map((a) => `- ${RELOAD_BY_AGENT[a]}`)
     : ["- Restart your coding agent / reload its window so it re-reads the MCP config."];
-  return `## First: reload so the Shipeasy MCP tools load
+  return `## First: check whether the Shipeasy MCP tools are live here
 
-\`shipeasy setup\` registered the \`@shipeasy/mcp\` server **while this session was
-already running**, so the \`shipeasy-mcp\` tools this file relies on are not live
-yet. A harness cannot reload itself — **ask the user to reload**, then continue:
+\`shipeasy setup\` registered the \`@shipeasy/mcp\` server. Every client loads its MCP
+servers **when the session starts**, so whether this session has them depends on
+whether it started before or after that write — **check, don't assume**:
+
+- [ ] Call the \`whoami\` MCP tool (or \`projects_current\`). If it resolves, the tools
+  are live: use them for every step below, and skip the rest of this section.
+- [ ] If the tools aren't there, this session predates the wiring. A harness cannot
+  reload itself, so **ask the user to restart it** and re-run this brief:
 
 ${lines.join("\n")}
 
-- [ ] Gate: the \`shipeasy-mcp\` tools are available (e.g. \`whoami\`/\`projects_current\`
-  resolve). If they still aren't, fall back to the \`shipeasy\` CLI for every step below.`;
+- [ ] Only if the user would rather not restart: use the \`shipeasy\` CLI instead
+  (\`shipeasy --help\`) — it covers the same operations as the MCP tools.`;
 }
 
 /**
