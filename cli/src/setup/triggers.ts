@@ -31,10 +31,10 @@ function say(text = ""): void {
 /**
  * The automation-trigger step of onboarding — now owned by the CLI (it replaces
  * the removed `shipeasy-ops-trigger` skill). It explains what a trigger is, asks
- * whether to set one up, has the user pick a platform, and opens the hosted,
- * guided setup preselected to that platform — see {@link triggerSetupUrl} for
- * which surface each platform lands on. The flow itself (apps/ui trigger-setup)
- * does the provider-specific provisioning; the CLI only routes the user to it.
+ * whether to set one up, has the user pick a platform, and opens that platform's
+ * onboarding modal on the settings Triggers tab — one surface for every platform,
+ * see {@link triggerSetupUrl}. The flow itself (apps/ui trigger-setup) does the
+ * provider-specific provisioning; the CLI only routes the user to it.
  */
 
 export type TriggerPlatform = "claude" | "codex" | "cursor" | "copilot" | "gemini";
@@ -63,27 +63,17 @@ export function normalizePlatform(raw: string | null | undefined): TriggerPlatfo
 }
 
 /**
- * Platforms whose onboarding is a modal on the settings Triggers tab, opened by
- * `?tab=triggers&onboard=<platform>` (apps/ui `useOnboardReopen`). Codex has no
- * such modal — settings shows it as a coming-soon card — so it keeps routing to
- * the standalone wizard page.
- */
-const SETTINGS_ONBOARD: ReadonlySet<TriggerPlatform> = new Set([
-  "claude",
-  "cursor",
-  "copilot",
-  "gemini",
-]);
-
-/**
  * Where to send the user to finish setting up their trigger.
  *
- * With a platform preselected we deep-link into that platform's onboarding modal
- * on the settings Triggers tab (`settings?tab=triggers&onboard=<platform>`) —
- * the same modal its "Connect" button opens, so the CLI hands off mid-flow and
- * the user ends up on the surface that manages the trigger afterwards. Codex and
- * the no-platform case fall back to the standalone wizard page
- * (`/triggers?provider=`), which apps/ui `parsePlatform` reads.
+ * ALWAYS the settings Triggers tab — never the standalone `/triggers?provider=`
+ * wizard page. With a platform preselected we deep-link into that platform's
+ * onboarding modal (`settings?tab=triggers&onboard=<platform>`), the same modal
+ * its "Connect" button opens, so the CLI hands off mid-flow and the user ends up
+ * on the surface that manages the trigger afterwards. Every platform in
+ * {@link TRIGGER_PLATFORMS} has such a modal (apps/ui `useOnboardReopen` /
+ * `onboardDialogState`), Codex included — its flow commits a scheduled GitHub
+ * Actions workflow instead of registering a connector. With no platform we land
+ * on the bare tab, which lists every platform's card.
  */
 export function triggerSetupUrl(
   appBaseUrl: string,
@@ -92,22 +82,15 @@ export function triggerSetupUrl(
   opts?: { secretsDone?: boolean; agent?: string },
 ): string {
   const base = `${appBaseUrl.replace(/\/$/, "")}/dashboard/${projectId}`;
-  const settingsModal = !!platform && SETTINGS_ONBOARD.has(platform);
-  const params = new URLSearchParams();
-  if (settingsModal) {
-    params.set("tab", "triggers");
-    params.set("onboard", platform!);
-  } else if (platform) {
-    params.set("provider", platform);
-  }
+  const params = new URLSearchParams({ tab: "triggers" });
+  if (platform) params.set("onboard", platform);
   // Copilot only: the CLI already set the repo's Copilot MCP token secret via
-  // `gh`, so tell the flow to render that step as done (both surfaces read it).
+  // `gh`, so tell the flow to render that step as done.
   if (opts?.secretsDone) params.set("secretsDone", "1");
   // Copilot only: the CLI wrote the custom-agent file `<agent>.agent.md`, so the
   // flow shows the file step as already done.
   if (opts?.agent) params.set("agent", opts.agent);
-  const q = params.toString();
-  return `${base}/${settingsModal ? "settings" : "triggers"}${q ? `?${q}` : ""}`;
+  return `${base}/settings?${params.toString()}`;
 }
 
 export interface TriggerStepResult {
@@ -314,10 +297,10 @@ function provisionCopilotAgentFile(projectId: string, dryRun: boolean): string |
   return null;
 }
 
-/** Open (or print) the hosted wizard for one platform — shared by every path.
+/** Open (or print) the hosted setup for one platform — shared by every path.
  *  For Copilot it first writes the custom-agent file and scripts the repo's MCP
  *  secret via `gh`; the deep link then carries `?agent=…` / `?secretsDone=1` so the
- *  wizard marks those steps complete. */
+ *  flow marks those steps complete. */
 async function openWizard(
   appBaseUrl: string,
   projectId: string,

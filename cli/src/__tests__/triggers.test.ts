@@ -55,30 +55,31 @@ describe("orderTriggerPlatforms", () => {
 });
 
 describe("triggerSetupUrl", () => {
-  // A preselected platform hands off straight into its onboarding modal on the
-  // settings Triggers tab — the same dialog its "Connect" button opens.
-  it.each([
-    ["claude", "claude"],
-    ["cursor", "cursor"],
-    ["copilot", "copilot"],
-    ["gemini", "gemini"],
-  ] as const)("deep-links %s into the settings onboarding modal", (platform, onboard) => {
-    expect(triggerSetupUrl("https://shipeasy.ai", "prj_123", platform)).toBe(
-      `https://shipeasy.ai/dashboard/prj_123/settings?tab=triggers&onboard=${onboard}`,
-    );
+  // EVERY platform hands off straight into its onboarding modal on the settings
+  // Triggers tab — the same dialog its "Connect" button opens. Codex included:
+  // it has no connector, but its card opens the GitHub Actions flow there.
+  it.each(TRIGGER_PLATFORMS.map((p) => p.id))(
+    "deep-links %s into the settings onboarding modal",
+    (platform) => {
+      expect(triggerSetupUrl("https://shipeasy.ai", "prj_123", platform)).toBe(
+        `https://shipeasy.ai/dashboard/prj_123/settings?tab=triggers&onboard=${platform}`,
+      );
+    },
+  );
+
+  // The standalone /triggers?provider= wizard page is never linked any more — a
+  // platform must never route off the tab that also manages the trigger.
+  it("never routes to the standalone /triggers wizard page", () => {
+    for (const platform of [...TRIGGER_PLATFORMS.map((p) => p.id), null]) {
+      const url = triggerSetupUrl("https://shipeasy.ai", "prj_123", platform);
+      expect(url).not.toContain("/triggers?");
+      expect(url).not.toContain("provider=");
+    }
   });
 
-  // Codex has no settings modal (the tab shows a coming-soon card), so it keeps
-  // routing to the standalone wizard page.
-  it("routes codex to the standalone wizard page", () => {
-    expect(triggerSetupUrl("https://shipeasy.ai", "prj_123", "codex")).toBe(
-      "https://shipeasy.ai/dashboard/prj_123/triggers?provider=codex",
-    );
-  });
-
-  it("falls back to the wizard page with no query when no platform is preselected", () => {
+  it("lands on the bare Triggers tab when no platform is preselected", () => {
     expect(triggerSetupUrl("https://shipeasy.ai", "prj_123", null)).toBe(
-      "https://shipeasy.ai/dashboard/prj_123/triggers",
+      "https://shipeasy.ai/dashboard/prj_123/settings?tab=triggers",
     );
   });
 
