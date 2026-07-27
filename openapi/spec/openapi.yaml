@@ -282,6 +282,8 @@ paths:
     $ref: ./paths/gates.yaml#/~1api~1admin~1gates~1{id}~1disable
   /api/admin/gates/{id}/activity:
     $ref: ./paths/gates.yaml#/~1api~1admin~1gates~1{id}~1activity
+  /api/admin/gates/{id}/whitelist:
+    $ref: ./paths/gates.yaml#/~1api~1admin~1gates~1{id}~1whitelist
   /api/admin/experiments:
     $ref: ./paths/experiments.yaml#/~1api~1admin~1experiments
   /api/admin/experiments/{id}:
@@ -322,6 +324,8 @@ paths:
     $ref: ./paths/killswitches.yaml#/~1api~1admin~1killswitches~1{id}~1switch
   /api/admin/killswitches/{id}/value:
     $ref: ./paths/killswitches.yaml#/~1api~1admin~1killswitches~1{id}~1value
+  /api/admin/killswitches/{id}/toggle:
+    $ref: ./paths/killswitches.yaml#/~1api~1admin~1killswitches~1{id}~1toggle
   /api/admin/universes:
     $ref: ./paths/universes.yaml#/~1api~1admin~1universes
   /api/admin/universes/{id}:
@@ -352,6 +356,10 @@ paths:
     $ref: ./paths/events.yaml#/~1api~1admin~1events~1{id}~1approve
   /api/admin/ops:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops
+  /ops/bug:
+    $ref: ./paths/ops.yaml#/~1ops~1bug
+  /ops/feature-request:
+    $ref: ./paths/ops.yaml#/~1ops~1feature-request
   /api/admin/ops/{handle}:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}
   /api/admin/ops/{handle}/link-pr:
@@ -437,3 +445,13 @@ components:
       scheme: bearer
       bearerFormat: sdk_admin_*
       description: 'Pass an admin SDK key as `Authorization: Bearer sdk_admin_…`. Mint via `POST /api/admin/keys` with `type: "admin"`.'
+    clientSdkKey:
+      type: apiKey
+      in: header
+      name: X-SDK-Key
+      description: |-
+        Pass a **client** SDK key as `X-SDK-Key: sdk_client_…`. Used only by the public ticket intake (`POST /ops/bug`, `POST /ops/feature-request`), which is served by the edge worker rather than the admin API.
+
+        Client keys are designed to be embedded in shipped code — a CLI, an installer, a browser bundle — so presenting one here is safe by construction: it can do nothing but file a rate-limited ticket into its own project, in a state a human must approve. It carries no read access and cannot reach any other operation in this contract.
+
+        The key must additionally carry the `tickets:public_create` scope, and its project must have public ticket creation enabled.

@@ -276,6 +276,103 @@ _Errors_ — beyond the [common errors](#errors):
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 - `VALIDATION` — The request body failed structural (schema) validation.
 
+#### `release_flags_whitelist`
+
+**Read a gate's whitelist**
+
+Returns the gate's whitelist — the always-first allowlist that admits the listed identities before any targeting rule or percentage rollout is evaluated.
+
+A gate with no whitelist returns `entries: []` (and the default `attr`), never a 404 — so a caller can read-then-write without special-casing the empty gate.
+
+**Use case:** Check whether an account is already let through before adding it.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
+#### `release_flags_whitelist_add`
+
+**Add entries to a gate's whitelist**
+
+Adds identities to the gate's whitelist, creating the block if the gate doesn't have one yet. Entries already on the list are skipped, so the call is idempotent and safe to retry.
+
+Adding to a gate that already has a whitelist keyed on the other attribute is rejected (409) rather than silently re-keying the entries already there — use `PUT` to switch `attr` deliberately.
+
+**Use case:** Let one more customer into a private beta without reading the current list first.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `attr` | optional | `any` | Identity attribute to match on. Only honoured when the gate has no whitelist yet (this call creates it); passing an attribute that disagrees with an existing whitelist is a 409 rather than a silent re-key of the entries already there. |
+| `entries` | required | `string[]` | Identities to admit. Already-listed entries are skipped, so the call is idempotent. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `IMMUTABLE_FIELD` — A field that is immutable in the current state was modified (e.g. editing allocation while running).
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+#### `release_flags_whitelist_remove`
+
+**Remove entries from a gate's whitelist**
+
+Removes identities from the gate's whitelist. Entries that aren't on the list are skipped, so the call is idempotent.
+
+Removing the last entry leaves an empty whitelist block in place; to drop the block itself use `PUT` with `entries: []`.
+
+**Use case:** Revoke one beta tester's access without touching anyone else's.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `entries` | required | `string[]` | Identities to stop admitting. Entries that aren't listed are skipped, so the call is idempotent. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+#### `release_flags_whitelist_set`
+
+**Replace a gate's whitelist**
+
+Replaces the gate's whole whitelist with `entries`, creating the block if the gate didn't have one. Idempotent — the same call twice leaves the same list.
+
+This is the only whitelist call that can switch `attr` (`email` ⇄ `user_id`) or clear the block: `entries: []` removes the whitelist from the gate entirely.
+
+**Use cases**
+
+- **Pin an exact list** — `{ "entries": ["alice@acme.dev", "bob@acme.dev"] }`.
+- **Switch to user ids** — `{ "attr": "user_id", "entries": ["usr_123"] }`.
+- **Drop the whitelist** — `{ "entries": [] }`.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `attr` | optional | `any` | Identity attribute to match on. Defaults to the whitelist's current attribute, or `email` when the gate has no whitelist yet. |
+| `entries` | required | `string[]` | The complete whitelist after the call. Pass `[]` to remove the whitelist from the gate entirely. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
 #### Templates
 
 Targeting-rule templates: reusable `{ attr, op, value }` rule definitions
@@ -653,6 +750,38 @@ _Parameters_
 | `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `env` | required | `"dev" \| "staging" \| "prod"` | Target environment. One of the project's configured envs (`dev`, `staging`, `prod`). |
 | `value` | required | `boolean` | Flat boolean to publish on `env`. Publishes a new version on that env only. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+#### `release_killswitch_toggle`
+
+**Toggle a killswitch or one of its switches**
+
+Flips a killswitch on one environment and publishes a new version there. This is the one-call incident verb: it reads the current value, flips it, and publishes, so you don't have to fetch the killswitch first.
+
+Every body field is optional, which is what makes the call widen cleanly:
+
+- **Flip the killswitch** — `{}`. Flips the flat `value` on `prod`.
+- **Flip one sub-switch** — `{ "switchKey": "eu_region" }`. Flips that entry on `prod`, creating it (from `false`) if it isn't in the map yet.
+- **Set it idempotently** — `{ "switchKey": "eu_region", "value": true }`. Publishes exactly that value, so a retried call can't undo the first one. A `null` `value` means "flip", not "set to null".
+- **Choose the environment** — add `"env": "staging"`. Omitted, `env` is `prod`.
+
+The response reports both `previous` and `value`, so a caller that asked for a flip can see what it actually changed.
+
+Prefer this over `PUT /{id}/value` and `PUT /{id}/switch` unless you specifically need those endpoints' unconditional set semantics.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `switchKey` | optional | `any` | Which target to flip. Omit (or `null`) to flip the killswitch's own flat `value`; name a switch key to flip that nested sub-switch instead, creating the entry if it doesn't exist yet. |
+| `value` | optional | `any` | The value to publish. Omit (or `null`) to flip whatever is stored now — read-modify-write in one call. Pass an explicit `true`/`false` to make the call idempotent, so a retry can't undo the first attempt. |
+| `env` | optional | `any` | Environment to publish on. Defaults to `prod` — the environment an incident response means when it says "kill it". |
 
 _Errors_ — beyond the [common errors](#errors):
 

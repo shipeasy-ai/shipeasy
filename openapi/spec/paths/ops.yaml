@@ -180,6 +180,185 @@
           summary: File a feature request.
           preset:
             type: feature_request
+/ops/bug:
+  post:
+    operationId: createPublicBug
+    summary: File a bug
+    description: |-
+      Files one bug onto a project's queue, awaiting human approval. This is the **public** intake: it authenticates with a *client* SDK key rather than an admin key, so it can be called from a CLI, an installer script, a devtools overlay, or any shipped code — the same places a client key already lives.
+
+      Three gates decide whether a ticket is filed, and nothing else the caller sends can widen them:
+
+      1. the key is a `client` key carrying the `tickets:public_create` scope,
+      2. the key's project has public ticket creation enabled, and
+      3. the item is filed as `pending_approval` — parked out of the work queue until a human promotes it in the dashboard.
+
+      The project is the key's own project; there is no `X-Project-Id` to pass and no way to file into someone else's queue. Repeat submissions of the same title dedupe against the open ticket already tracking it, which returns `200` with `deduped: true` instead of filing again.
+
+      This endpoint is served by the Shipeasy **edge worker** (`api.shipeasy.ai`), not the admin API — see `servers` below.
+
+      **Use case:** `shipeasy setup` fails on a customer's machine and self-reports the failure with the user's consent — `{ "title": "Setup failed at Feature installs", "stepsToReproduce": "…", "actualResult": "…" }`.
+    tags:
+      - Ops
+    servers:
+      - url: https://api.shipeasy.ai
+        description: Shipeasy edge worker (production)
+      - url: http://localhost:8787
+        description: Local `wrangler dev`
+    security:
+      - clientSdkKey: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/CreatePublicBugRequest
+          examples:
+            minimal:
+              summary: Just a title
+              description: Every other field is optional — the queue triages from `open` at default priority.
+              value:
+                title: Checkout button misaligned on mobile
+            full:
+              summary: A full report
+              value:
+                title: Checkout button misaligned on mobile
+                stepsToReproduce: Open the cart on iOS Safari and tap the price row.
+                actualResult: The primary CTA overlaps the price.
+                expectedResult: The CTA sits below the price with clear spacing.
+                priority: high
+                reporterEmail: alice@acme.dev
+                pageUrl: https://acme.dev/cart
+    responses:
+      "200":
+        description: An open ticket already tracks this report; nothing was filed
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/CreatePublicTicketResponse
+            example:
+              number: 7
+              deduped: true
+      "201":
+        description: File a bug
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/CreatePublicTicketResponse
+            example:
+              id: fb_01j7w8a1b2c3d4e5f6g7h8i9j0
+              number: 7
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "413":
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      "429":
+        $ref: ../components/responses.yaml#/TooManyRequests
+      "503":
+        $ref: ../components/responses.yaml#/ServiceUnavailable
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - VALIDATION
+    x-cli:
+      hidden: true
+      # Spec- and SDK-only. The generated CLI/MCP client resolves ONE base URL
+      # and ONE credential for the whole contract, so it cannot honour this
+      # operation's own `servers` (the edge worker) or its `clientSdkKey`
+      # security — it would POST to the admin host with an admin bearer and 404.
+      # Both surfaces are authenticated admin tools anyway: `shipeasy ops bug`
+      # and the `ops_bug` MCP tool file through `createOpsItem`, which lands an
+      # `open` item with the full field set rather than a `pending_approval` one.
+/ops/feature-request:
+  post:
+    operationId: createPublicFeatureRequest
+    summary: File a feature request
+    description: |-
+      Files one feature request onto a project's queue, awaiting human approval. The feature-request counterpart to `POST /ops/bug`, with the same three gates: a `client` key carrying `tickets:public_create`, a project that has opted in, and a `pending_approval` state forced server-side.
+
+      The project is the key's own project; there is no `X-Project-Id` to pass. Repeat submissions of the same title dedupe against the open ticket already tracking it, which returns `200` with `deduped: true` instead of filing again.
+
+      This endpoint is served by the Shipeasy **edge worker** (`api.shipeasy.ai`), not the admin API — see `servers` below.
+
+      **Use case:** An in-product "request a feature" form posts what the user asked for — `{ "title": "Dark mode", "useCase": "Reduce eye strain at night" }`.
+    tags:
+      - Ops
+    servers:
+      - url: https://api.shipeasy.ai
+        description: Shipeasy edge worker (production)
+      - url: http://localhost:8787
+        description: Local `wrangler dev`
+    security:
+      - clientSdkKey: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/CreatePublicFeatureRequestRequest
+          examples:
+            minimal:
+              summary: Just a title
+              value:
+                title: Dark mode for the dashboard
+            full:
+              summary: A full request
+              value:
+                title: Dark mode for the dashboard
+                description: Add a theme toggle that persists per user.
+                useCase: Reduce eye strain for users working at night.
+                priority: nice_to_have
+                reporterEmail: alice@acme.dev
+    responses:
+      "200":
+        description: An open ticket already tracks this report; nothing was filed
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/CreatePublicTicketResponse
+            example:
+              number: 7
+              deduped: true
+      "201":
+        description: File a feature request
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/CreatePublicTicketResponse
+            example:
+              id: fb_01j7w8a1b2c3d4e5f6g7h8i9j0
+              number: 8
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "413":
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      "429":
+        $ref: ../components/responses.yaml#/TooManyRequests
+      "503":
+        $ref: ../components/responses.yaml#/ServiceUnavailable
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - VALIDATION
+    x-cli:
+      hidden: true
+      # Spec- and SDK-only. The generated CLI/MCP client resolves ONE base URL
+      # and ONE credential for the whole contract, so it cannot honour this
+      # operation's own `servers` (the edge worker) or its `clientSdkKey`
+      # security — it would POST to the admin host with an admin bearer and 404.
+      # Both surfaces are authenticated admin tools anyway: `shipeasy ops bug`
+      # and the `ops_bug` MCP tool file through `createOpsItem`, which lands an
+      # `open` item with the full field set rather than a `pending_approval` one.
 /api/admin/ops/{handle}:
   get:
     operationId: getOpsItem

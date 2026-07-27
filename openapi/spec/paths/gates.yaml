@@ -601,3 +601,285 @@
       name: activity
       positional:
         - id
+/api/admin/gates/{id}/whitelist:
+  get:
+    operationId: getGateWhitelist
+    summary: Read a gate's whitelist
+    description: |-
+      Returns the gate's whitelist — the always-first allowlist that admits the listed identities before any targeting rule or percentage rollout is evaluated.
+
+      A gate with no whitelist returns `entries: []` (and the default `attr`), never a 404 — so a caller can read-then-write without special-casing the empty gate.
+
+      **Use case:** Check whether an account is already let through before adding it.
+    tags:
+      - Flags
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque gate id (`gate_…`) or the gate's `name`.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    responses:
+      "200":
+        description: Read a gate's whitelist
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/gates.yaml#/GetGateWhitelistResponse
+            example:
+              id: gate_01j7w8a1b2c3d4e5f6g7h8i9j0
+              name: new_checkout
+              attr: email
+              entries:
+                - alice@acme.dev
+                - bob@acme.dev
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: whitelist
+      positional:
+        - id
+  put:
+    operationId: setGateWhitelist
+    summary: Replace a gate's whitelist
+    description: |-
+      Replaces the gate's whole whitelist with `entries`, creating the block if the gate didn't have one. Idempotent — the same call twice leaves the same list.
+
+      This is the only whitelist call that can switch `attr` (`email` ⇄ `user_id`) or clear the block: `entries: []` removes the whitelist from the gate entirely.
+
+      **Use cases**
+
+      - **Pin an exact list** — `{ "entries": ["alice@acme.dev", "bob@acme.dev"] }`.
+      - **Switch to user ids** — `{ "attr": "user_id", "entries": ["usr_123"] }`.
+      - **Drop the whitelist** — `{ "entries": [] }`.
+    tags:
+      - Flags
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque gate id (`gate_…`) or the gate's `name`.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/gates.yaml#/SetGateWhitelistRequest
+          examples:
+            pinList:
+              summary: Pin an exact list of emails
+              value:
+                entries:
+                  - alice@acme.dev
+                  - bob@acme.dev
+            switchToUserIds:
+              summary: Re-key the whitelist onto user ids
+              description: Switching `attr` replaces the entries wholesale — the old emails are not translated.
+              value:
+                attr: user_id
+                entries:
+                  - usr_01j7w8a1b2c3d4e5f6g7h8i9j0
+            clear:
+              summary: Remove the whitelist
+              description: An empty list drops the pinned block from the gate's stack.
+              value:
+                entries: []
+    responses:
+      "200":
+        description: Replace a gate's whitelist
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/gates.yaml#/SetGateWhitelistResponse
+            example:
+              id: gate_01j7w8a1b2c3d4e5f6g7h8i9j0
+              name: new_checkout
+              attr: email
+              entries:
+                - alice@acme.dev
+                - bob@acme.dev
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: whitelist-set
+      positional:
+        - id
+  post:
+    operationId: addToGateWhitelist
+    summary: Add entries to a gate's whitelist
+    description: |-
+      Adds identities to the gate's whitelist, creating the block if the gate doesn't have one yet. Entries already on the list are skipped, so the call is idempotent and safe to retry.
+
+      Adding to a gate that already has a whitelist keyed on the other attribute is rejected (409) rather than silently re-keying the entries already there — use `PUT` to switch `attr` deliberately.
+
+      **Use case:** Let one more customer into a private beta without reading the current list first.
+    tags:
+      - Flags
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque gate id (`gate_…`) or the gate's `name`.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/gates.yaml#/AddToGateWhitelistRequest
+          examples:
+            addOne:
+              summary: Admit one more email
+              value:
+                entries:
+                  - carol@acme.dev
+            createOnUserIds:
+              summary: Start a whitelist keyed on user ids
+              description: "`attr` is honoured only because this gate has no whitelist yet."
+              value:
+                attr: user_id
+                entries:
+                  - usr_01j7w8a1b2c3d4e5f6g7h8i9j0
+    responses:
+      "200":
+        description: Add entries to a gate's whitelist
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/gates.yaml#/AddToGateWhitelistResponse
+            example:
+              id: gate_01j7w8a1b2c3d4e5f6g7h8i9j0
+              name: new_checkout
+              attr: email
+              entries:
+                - alice@acme.dev
+                - bob@acme.dev
+                - carol@acme.dev
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - IMMUTABLE_FIELD
+      - VALIDATION
+    x-cli:
+      name: whitelist-add
+      positional:
+        - id
+  delete:
+    operationId: removeFromGateWhitelist
+    summary: Remove entries from a gate's whitelist
+    description: |-
+      Removes identities from the gate's whitelist. Entries that aren't on the list are skipped, so the call is idempotent.
+
+      Removing the last entry leaves an empty whitelist block in place; to drop the block itself use `PUT` with `entries: []`.
+
+      **Use case:** Revoke one beta tester's access without touching anyone else's.
+    tags:
+      - Flags
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque gate id (`gate_…`) or the gate's `name`.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/gates.yaml#/RemoveFromGateWhitelistRequest
+          examples:
+            removeOne:
+              summary: Revoke one email
+              value:
+                entries:
+                  - carol@acme.dev
+    responses:
+      "200":
+        description: Remove entries from a gate's whitelist
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/gates.yaml#/RemoveFromGateWhitelistResponse
+            example:
+              id: gate_01j7w8a1b2c3d4e5f6g7h8i9j0
+              name: new_checkout
+              attr: email
+              entries:
+                - alice@acme.dev
+                - bob@acme.dev
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: whitelist-remove
+      positional:
+        - id

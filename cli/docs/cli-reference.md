@@ -801,7 +801,7 @@ shipeasy ops list [options]
 | Option | | Description |
 | --- | --- | --- |
 | `--type <value>` | optional | Filter by item type (`bug`/`feature_request`/`error`/`alert`), or `all`. |
-| `--status <value>` | optional | Filter by lifecycle status, or `all`. The human-gated holding states (`pending_approval`, `triage`) are excluded from `all`/default and returned only when requested as the exact status. |
+| `--status <value>` | optional | Filter by lifecycle status, or `all`. The human-gated holding state (`pending_approval`) is excluded from `all`/default and returned only when requested as the exact status. |
 | `--limit <value>` | optional | Max items to return (1–500). |
 | `--owner <value>` | optional | Narrow to items owned by one person OR one agent. Matches a person by `users.id`, email, or display name, and an agent by connector id, display name, or kebab-case handle — e.g. `owner=Claude` or `owner=alice@acme.dev`. Case-insensitive exact match, applied over the returned page. |
 | `--data <value>` | optional | Request body as a JSON object. |
@@ -928,7 +928,7 @@ shipeasy ops update [options] <handle>
 | `--steps-to-reproduce <value>` | optional | Updated reproduction steps. |
 | `--actual-result <value>` | optional | Updated actual result. |
 | `--expected-result <value>` | optional | Updated expected result. |
-| `--status <value>` | optional | Lifecycle status of a queue item. The working flow is `open` → `triaged` → `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`, terminal from any earlier stage). `blocked` marks an item that can't progress until an external dependency clears — a working state a human sets and clears. `ready_for_qa` is what a developer sets once a fix lands; `resolved` is the QA sign-off, normally flipped in the dashboard after verification — set it directly from code only when the fix has been verified end-to-end. `investigating_by_ai` is a system-owned display state — set when the AI agent (Jarvis) picks an item up to investigate, never chosen by a human — so it is shown but not offered as a manual choice. Two human-gated holding states park an item OUT of the work queue until a human promotes it to `open` in the dashboard, so `GET /api/admin/ops` excludes them under `status=all`/default and returns them only when requested as an exact `status`: `pending_approval` is the pre-open approval gate for untriaged inbound (e.g. connector requests filed from a customer's connectors panel) so it never gets auto-implemented — approving = flipping the status to `open`; `triage` is the onboarding-help bucket — questions/errors submitted to the "Stuck in onboarding?" assistant are funnelled into the platform project as `triage` rows so the team can see where people get stuck and follow up, keeping onboarding chatter out of the work queue until a human moves real items to `open`. |
+| `--status <value>` | optional | Lifecycle status of a queue item. The working flow is `open` → `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`, terminal from any earlier stage). `blocked` marks an item that can't progress until an external dependency clears — a working state a human sets and clears. `ready_for_qa` is what a developer sets once a fix lands; `resolved` is the QA sign-off, normally flipped in the dashboard after verification — set it directly from code only when the fix has been verified end-to-end. `investigating_by_ai` is a system-owned display state — set when the AI agent (Jarvis) picks an item up to investigate, never chosen by a human — so it is shown but not offered as a manual choice. `pending_approval` is the one human-gated holding state: it parks an item OUT of the work queue until a human promotes it to `open` in the dashboard, so `GET /api/admin/ops` excludes it under `status=all`/default and returns it only when requested as an exact `status`. It covers untriaged inbound that must never be auto-implemented — connector requests filed from a customer's connectors panel, and questions funnelled in from the "Stuck in onboarding?" assistant — where approving means flipping the status to `open`. Two earlier values were removed in favour of this single gate: `triage` (the onboarding-help bucket, now `pending_approval`) and `triaged` (a redundant "looked at but not started" step, now plain `open`). |
 | `--priority <value>` | optional | Triage priority, or `null` when not set (in an update, `null` clears it). |
 | `--github-pr-number <value>` | optional | Link (or, when `null`, unlink) a GitHub pull request to this bug. |
 | `--notify <value>` | optional | Where this item's completion notification lands, or `null`. |
@@ -1877,6 +1877,72 @@ shipeasy release flags activity [options] <id>
 | `--limit <value>` | optional | Max rows to return (1–100). Defaults to 20. |
 | `--data <value>` | optional | Request body as a JSON object. |
 
+#### `shipeasy release flags whitelist`
+
+Read a gate's whitelist
+
+```bash
+shipeasy release flags whitelist [options] <id>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `id` | required | Stable opaque gate id (`gate_…`) or the gate's `name`. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+#### `shipeasy release flags whitelist-add`
+
+Add entries to a gate's whitelist
+
+```bash
+shipeasy release flags whitelist-add [options] <id>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `id` | required | Stable opaque gate id (`gate_…`) or the gate's `name`. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--attr <value>` | optional | Identity attribute to match on. Only honoured when the gate has no whitelist yet (this call creates it); passing an attribute that disagrees with an existing whitelist is a 409 rather than a silent re-key of the entries already there. |
+| `--entries <value>` | optional | Identities to admit. Already-listed entries are skipped, so the call is idempotent. |
+
+#### `shipeasy release flags whitelist-set`
+
+Replace a gate's whitelist
+
+```bash
+shipeasy release flags whitelist-set [options] <id>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `id` | required | Stable opaque gate id (`gate_…`) or the gate's `name`. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--attr <value>` | optional | Identity attribute to match on. Defaults to the whitelist's current attribute, or `email` when the gate has no whitelist yet. |
+| `--entries <value>` | optional | The complete whitelist after the call. Pass `[]` to remove the whitelist from the gate entirely. |
+
+#### `shipeasy release flags whitelist-remove`
+
+Remove entries from a gate's whitelist
+
+```bash
+shipeasy release flags whitelist-remove [options] <id>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `id` | required | Stable opaque gate id (`gate_…`) or the gate's `name`. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--entries <value>` | optional | Identities to stop admitting. Entries that aren't listed are skipped, so the call is idempotent. |
+
 ### `shipeasy release killswitch`
 
 Killswitches: per-env boolean overrides for kill-style operational toggles.
@@ -2021,6 +2087,24 @@ shipeasy release killswitch set-value [options] <id>
 | --- | --- | --- |
 | `--env <value>` | optional | Target environment. One of the project's configured envs (`dev`, `staging`, `prod`). |
 | `--value <value>` | optional | Flat boolean to publish on `env`. Publishes a new version on that env only. |
+
+#### `shipeasy release killswitch toggle`
+
+Toggle a killswitch or one of its switches
+
+```bash
+shipeasy release killswitch toggle [options] <id>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `id` | required | Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--switch-key <value>` | optional | Which target to flip. Omit (or `null`) to flip the killswitch's own flat `value`; name a switch key to flip that nested sub-switch instead, creating the entry if it doesn't exist yet. |
+| `--value <value>` | optional | The value to publish. Omit (or `null`) to flip whatever is stored now — read-modify-write in one call. Pass an explicit `true`/`false` to make the call idempotent, so a retry can't undo the first attempt. |
+| `--env <value>` | optional | Environment to publish on. Defaults to `prod` — the environment an incident response means when it says "kill it". |
 
 ## `shipeasy whoami`
 

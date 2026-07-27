@@ -877,6 +877,288 @@ paths:
         name: activity
         positional:
           - id
+  /api/admin/gates/{id}/whitelist:
+    get:
+      operationId: getGateWhitelist
+      summary: Read a gate's whitelist
+      description: |-
+        Returns the gate's whitelist — the always-first allowlist that admits the listed identities before any targeting rule or percentage rollout is evaluated.
+
+        A gate with no whitelist returns `entries: []` (and the default `attr`), never a 404 — so a caller can read-then-write without special-casing the empty gate.
+
+        **Use case:** Check whether an account is already let through before adding it.
+      tags:
+        - Flags
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: id
+          in: path
+          required: true
+          description: Stable opaque gate id (`gate_…`) or the gate's `name`.
+          schema:
+            $ref: '#/components/schemas/ResourceId'
+      responses:
+        '200':
+          description: Read a gate's whitelist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GateWhitelist'
+              example:
+                id: gate_01j7w8a1b2c3d4e5f6g7h8i9j0
+                name: new_checkout
+                attr: email
+                entries:
+                  - alice@acme.dev
+                  - bob@acme.dev
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+      x-cli:
+        name: whitelist
+        positional:
+          - id
+    put:
+      operationId: setGateWhitelist
+      summary: Replace a gate's whitelist
+      description: |-
+        Replaces the gate's whole whitelist with `entries`, creating the block if the gate didn't have one. Idempotent — the same call twice leaves the same list.
+
+        This is the only whitelist call that can switch `attr` (`email` ⇄ `user_id`) or clear the block: `entries: []` removes the whitelist from the gate entirely.
+
+        **Use cases**
+
+        - **Pin an exact list** — `{ "entries": ["alice@acme.dev", "bob@acme.dev"] }`.
+        - **Switch to user ids** — `{ "attr": "user_id", "entries": ["usr_123"] }`.
+        - **Drop the whitelist** — `{ "entries": [] }`.
+      tags:
+        - Flags
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: id
+          in: path
+          required: true
+          description: Stable opaque gate id (`gate_…`) or the gate's `name`.
+          schema:
+            $ref: '#/components/schemas/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetGateWhitelistRequest'
+            examples:
+              pinList:
+                summary: Pin an exact list of emails
+                value:
+                  entries:
+                    - alice@acme.dev
+                    - bob@acme.dev
+              switchToUserIds:
+                summary: Re-key the whitelist onto user ids
+                description: Switching `attr` replaces the entries wholesale — the old emails are not translated.
+                value:
+                  attr: user_id
+                  entries:
+                    - usr_01j7w8a1b2c3d4e5f6g7h8i9j0
+              clear:
+                summary: Remove the whitelist
+                description: An empty list drops the pinned block from the gate's stack.
+                value:
+                  entries: []
+      responses:
+        '200':
+          description: Replace a gate's whitelist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GateWhitelist'
+              example:
+                id: gate_01j7w8a1b2c3d4e5f6g7h8i9j0
+                name: new_checkout
+                attr: email
+                entries:
+                  - alice@acme.dev
+                  - bob@acme.dev
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+        - VALIDATION
+      x-cli:
+        name: whitelist-set
+        positional:
+          - id
+    post:
+      operationId: addToGateWhitelist
+      summary: Add entries to a gate's whitelist
+      description: |-
+        Adds identities to the gate's whitelist, creating the block if the gate doesn't have one yet. Entries already on the list are skipped, so the call is idempotent and safe to retry.
+
+        Adding to a gate that already has a whitelist keyed on the other attribute is rejected (409) rather than silently re-keying the entries already there — use `PUT` to switch `attr` deliberately.
+
+        **Use case:** Let one more customer into a private beta without reading the current list first.
+      tags:
+        - Flags
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: id
+          in: path
+          required: true
+          description: Stable opaque gate id (`gate_…`) or the gate's `name`.
+          schema:
+            $ref: '#/components/schemas/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddToGateWhitelistRequest'
+            examples:
+              addOne:
+                summary: Admit one more email
+                value:
+                  entries:
+                    - carol@acme.dev
+              createOnUserIds:
+                summary: Start a whitelist keyed on user ids
+                description: '`attr` is honoured only because this gate has no whitelist yet.'
+                value:
+                  attr: user_id
+                  entries:
+                    - usr_01j7w8a1b2c3d4e5f6g7h8i9j0
+      responses:
+        '200':
+          description: Add entries to a gate's whitelist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GateWhitelist'
+              example:
+                id: gate_01j7w8a1b2c3d4e5f6g7h8i9j0
+                name: new_checkout
+                attr: email
+                entries:
+                  - alice@acme.dev
+                  - bob@acme.dev
+                  - carol@acme.dev
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+        - IMMUTABLE_FIELD
+        - VALIDATION
+      x-cli:
+        name: whitelist-add
+        positional:
+          - id
+    delete:
+      operationId: removeFromGateWhitelist
+      summary: Remove entries from a gate's whitelist
+      description: |-
+        Removes identities from the gate's whitelist. Entries that aren't on the list are skipped, so the call is idempotent.
+
+        Removing the last entry leaves an empty whitelist block in place; to drop the block itself use `PUT` with `entries: []`.
+
+        **Use case:** Revoke one beta tester's access without touching anyone else's.
+      tags:
+        - Flags
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: id
+          in: path
+          required: true
+          description: Stable opaque gate id (`gate_…`) or the gate's `name`.
+          schema:
+            $ref: '#/components/schemas/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemoveFromGateWhitelistRequest'
+            examples:
+              removeOne:
+                summary: Revoke one email
+                value:
+                  entries:
+                    - carol@acme.dev
+      responses:
+        '200':
+          description: Remove entries from a gate's whitelist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GateWhitelist'
+              example:
+                id: gate_01j7w8a1b2c3d4e5f6g7h8i9j0
+                name: new_checkout
+                attr: email
+                entries:
+                  - alice@acme.dev
+                  - bob@acme.dev
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+        - VALIDATION
+      x-cli:
+        name: whitelist-remove
+        positional:
+          - id
   /api/admin/experiments:
     get:
       operationId: listExperiments
@@ -3343,6 +3625,102 @@ paths:
         name: set-value
         positional:
           - id
+  /api/admin/killswitches/{id}/toggle:
+    post:
+      operationId: toggleKillswitch
+      summary: Toggle a killswitch or one of its switches
+      description: |-
+        Flips a killswitch on one environment and publishes a new version there. This is the one-call incident verb: it reads the current value, flips it, and publishes, so you don't have to fetch the killswitch first.
+
+        Every body field is optional, which is what makes the call widen cleanly:
+
+        - **Flip the killswitch** — `{}`. Flips the flat `value` on `prod`.
+        - **Flip one sub-switch** — `{ "switchKey": "eu_region" }`. Flips that entry on `prod`, creating it (from `false`) if it isn't in the map yet.
+        - **Set it idempotently** — `{ "switchKey": "eu_region", "value": true }`. Publishes exactly that value, so a retried call can't undo the first one. A `null` `value` means "flip", not "set to null".
+        - **Choose the environment** — add `"env": "staging"`. Omitted, `env` is `prod`.
+
+        The response reports both `previous` and `value`, so a caller that asked for a flip can see what it actually changed.
+
+        Prefer this over `PUT /{id}/value` and `PUT /{id}/switch` unless you specifically need those endpoints' unconditional set semantics.
+      tags:
+        - Killswitch
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: id
+          in: path
+          required: true
+          description: Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
+          schema:
+            $ref: '#/components/schemas/ResourceId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ToggleKillswitchRequest'
+            examples:
+              flipOnProd:
+                summary: Flip the killswitch on prod
+                description: No body fields — reads the flat `value` on prod and publishes its opposite.
+                value: {}
+              flipOneSwitch:
+                summary: Flip one sub-switch on prod
+                description: Flips `switches.eu_region` on prod, leaving the flat `value` and every other key alone.
+                value:
+                  switchKey: eu_region
+              setOneSwitch:
+                summary: Trip one sub-switch idempotently
+                description: Publishes `switches.eu_region = true` on prod whatever it was before — safe to retry.
+                value:
+                  switchKey: eu_region
+                  value: true
+              setOneSwitchOnStaging:
+                summary: Trip one sub-switch on a chosen env
+                description: The same idempotent set, published on staging instead of prod.
+                value:
+                  switchKey: eu_region
+                  value: true
+                  env: staging
+      responses:
+        '200':
+          description: Toggle a killswitch or one of its switches
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToggleKillswitchResponse'
+              example:
+                id: ksw_01j7w9d8h2k4m6n8p0q2r4s6t8
+                env: prod
+                switchKey: eu_region
+                previous: false
+                value: true
+                version: 7
+                published:
+                  value: false
+                  switches:
+                    eu_region: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+        - VALIDATION
+      x-cli:
+        name: toggle
+        positional:
+          - id
   /api/admin/universes:
     get:
       operationId: listUniverses
@@ -5222,6 +5600,171 @@ paths:
             summary: File a feature request.
             preset:
               type: feature_request
+  /ops/bug:
+    post:
+      operationId: createPublicBug
+      summary: File a bug
+      description: |-
+        Files one bug onto a project's queue, awaiting human approval. This is the **public** intake: it authenticates with a *client* SDK key rather than an admin key, so it can be called from a CLI, an installer script, a devtools overlay, or any shipped code — the same places a client key already lives.
+
+        Three gates decide whether a ticket is filed, and nothing else the caller sends can widen them:
+
+        1. the key is a `client` key carrying the `tickets:public_create` scope,
+        2. the key's project has public ticket creation enabled, and
+        3. the item is filed as `pending_approval` — parked out of the work queue until a human promotes it in the dashboard.
+
+        The project is the key's own project; there is no `X-Project-Id` to pass and no way to file into someone else's queue. Repeat submissions of the same title dedupe against the open ticket already tracking it, which returns `200` with `deduped: true` instead of filing again.
+
+        This endpoint is served by the Shipeasy **edge worker** (`api.shipeasy.ai`), not the admin API — see `servers` below.
+
+        **Use case:** `shipeasy setup` fails on a customer's machine and self-reports the failure with the user's consent — `{ "title": "Setup failed at Feature installs", "stepsToReproduce": "…", "actualResult": "…" }`.
+      tags:
+        - Ops
+      servers:
+        - url: https://api.shipeasy.ai
+          description: Shipeasy edge worker (production)
+        - url: http://localhost:8787
+          description: Local `wrangler dev`
+      security:
+        - clientSdkKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePublicBugRequest'
+            examples:
+              minimal:
+                summary: Just a title
+                description: Every other field is optional — the queue triages from `open` at default priority.
+                value:
+                  title: Checkout button misaligned on mobile
+              full:
+                summary: A full report
+                value:
+                  title: Checkout button misaligned on mobile
+                  stepsToReproduce: Open the cart on iOS Safari and tap the price row.
+                  actualResult: The primary CTA overlaps the price.
+                  expectedResult: The CTA sits below the price with clear spacing.
+                  priority: high
+                  reporterEmail: alice@acme.dev
+                  pageUrl: https://acme.dev/cart
+      responses:
+        '200':
+          description: An open ticket already tracks this report; nothing was filed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatePublicTicketResponse'
+              example:
+                number: 7
+                deduped: true
+        '201':
+          description: File a bug
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatePublicTicketResponse'
+              example:
+                id: fb_01j7w8a1b2c3d4e5f6g7h8i9j0
+                number: 7
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - VALIDATION
+      x-cli:
+        hidden: true
+  /ops/feature-request:
+    post:
+      operationId: createPublicFeatureRequest
+      summary: File a feature request
+      description: |-
+        Files one feature request onto a project's queue, awaiting human approval. The feature-request counterpart to `POST /ops/bug`, with the same three gates: a `client` key carrying `tickets:public_create`, a project that has opted in, and a `pending_approval` state forced server-side.
+
+        The project is the key's own project; there is no `X-Project-Id` to pass. Repeat submissions of the same title dedupe against the open ticket already tracking it, which returns `200` with `deduped: true` instead of filing again.
+
+        This endpoint is served by the Shipeasy **edge worker** (`api.shipeasy.ai`), not the admin API — see `servers` below.
+
+        **Use case:** An in-product "request a feature" form posts what the user asked for — `{ "title": "Dark mode", "useCase": "Reduce eye strain at night" }`.
+      tags:
+        - Ops
+      servers:
+        - url: https://api.shipeasy.ai
+          description: Shipeasy edge worker (production)
+        - url: http://localhost:8787
+          description: Local `wrangler dev`
+      security:
+        - clientSdkKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePublicFeatureRequestRequest'
+            examples:
+              minimal:
+                summary: Just a title
+                value:
+                  title: Dark mode for the dashboard
+              full:
+                summary: A full request
+                value:
+                  title: Dark mode for the dashboard
+                  description: Add a theme toggle that persists per user.
+                  useCase: Reduce eye strain for users working at night.
+                  priority: nice_to_have
+                  reporterEmail: alice@acme.dev
+      responses:
+        '200':
+          description: An open ticket already tracks this report; nothing was filed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatePublicTicketResponse'
+              example:
+                number: 7
+                deduped: true
+        '201':
+          description: File a feature request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatePublicTicketResponse'
+              example:
+                id: fb_01j7w8a1b2c3d4e5f6g7h8i9j0
+                number: 8
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - VALIDATION
+      x-cli:
+        hidden: true
   /api/admin/ops/{handle}:
     get:
       operationId: getOpsItem
@@ -9081,6 +9624,16 @@ components:
       scheme: bearer
       bearerFormat: sdk_admin_*
       description: 'Pass an admin SDK key as `Authorization: Bearer sdk_admin_…`. Mint via `POST /api/admin/keys` with `type: "admin"`.'
+    clientSdkKey:
+      type: apiKey
+      in: header
+      name: X-SDK-Key
+      description: |-
+        Pass a **client** SDK key as `X-SDK-Key: sdk_client_…`. Used only by the public ticket intake (`POST /ops/bug`, `POST /ops/feature-request`), which is served by the edge worker rather than the admin API.
+
+        Client keys are designed to be embedded in shipped code — a CLI, an installer, a browser bundle — so presenting one here is safe by construction: it can do nothing but file a rate-limited ticket into its own project, in a state a human must approve. It carries no read access and cannot reach any other operation in this contract.
+
+        The key must additionally carry the `tickets:public_create` scope, and its project must have public ticket creation enabled.
   parameters:
     ProjectId:
       name: X-Project-Id
@@ -10185,6 +10738,85 @@ components:
           - createdAt
         additionalProperties: false
       description: Recent audit rows for one gate, newest first.
+    GateWhitelistAttr:
+      type: string
+      enum:
+        - email
+        - user_id
+      description: Which identity attribute the whitelist matches on. `email` compares the caller's `email`; `user_id` compares the caller's `userID`. A whitelist matches on exactly one of the two at a time.
+    GateWhitelist:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Resolved gate id.
+        name:
+          type: string
+          description: The gate's stable `name`.
+        attr:
+          $ref: '#/components/schemas/GateWhitelistAttr'
+        entries:
+          type: array
+          items:
+            type: string
+            minLength: 1
+          description: The whitelisted identities, in the order they are stored. Deduplicated case-sensitively; an empty array means the gate has no whitelist.
+      required:
+        - id
+        - name
+        - attr
+        - entries
+      additionalProperties: false
+      description: A gate's whitelist — the always-first allowlist that admits the listed identities before any targeting rule or rollout runs. Backed by the pinned `whitelist` entry at the head of the gate's `stack`, so it is the same list the dashboard's Whitelist block edits.
+    SetGateWhitelistRequest:
+      type: object
+      properties:
+        attr:
+          anyOf:
+            - $ref: '#/components/schemas/GateWhitelistAttr'
+          description: Identity attribute to match on. Defaults to the whitelist's current attribute, or `email` when the gate has no whitelist yet.
+        entries:
+          type: array
+          items:
+            type: string
+            minLength: 1
+          description: The complete whitelist after the call. Pass `[]` to remove the whitelist from the gate entirely.
+      required:
+        - entries
+      additionalProperties: false
+      description: Body for `PUT /api/admin/gates/{id}/whitelist`. Replaces the whole list — idempotent, and the only call that can switch `attr` or clear the whitelist.
+    AddToGateWhitelistRequest:
+      type: object
+      properties:
+        attr:
+          anyOf:
+            - $ref: '#/components/schemas/GateWhitelistAttr'
+          description: Identity attribute to match on. Only honoured when the gate has no whitelist yet (this call creates it); passing an attribute that disagrees with an existing whitelist is a 409 rather than a silent re-key of the entries already there.
+        entries:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            minLength: 1
+          description: Identities to admit. Already-listed entries are skipped, so the call is idempotent.
+      required:
+        - entries
+      additionalProperties: false
+      description: Body for `POST /api/admin/gates/{id}/whitelist`. Adds entries to the whitelist, creating it if the gate doesn't have one.
+    RemoveFromGateWhitelistRequest:
+      type: object
+      properties:
+        entries:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            minLength: 1
+          description: Identities to stop admitting. Entries that aren't listed are skipped, so the call is idempotent.
+      required:
+        - entries
+      additionalProperties: false
+      description: 'Body for `DELETE /api/admin/gates/{id}/whitelist`. Removes entries from the whitelist. Removing the last entry leaves an empty whitelist in place — use `PUT` with `entries: []` to drop the block itself.'
     ExperimentApiRow:
       type: object
       properties:
@@ -12211,6 +12843,70 @@ components:
       required:
         - id
         - env
+        - version
+        - published
+      additionalProperties: false
+    ToggleKillswitchRequest:
+      type: object
+      properties:
+        switchKey:
+          anyOf:
+            - type: string
+              maxLength: 64
+              pattern: ^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$
+            - type: 'null'
+          description: Which target to flip. Omit (or `null`) to flip the killswitch's own flat `value`; name a switch key to flip that nested sub-switch instead, creating the entry if it doesn't exist yet.
+        value:
+          anyOf:
+            - type: boolean
+            - type: 'null'
+          description: The value to publish. Omit (or `null`) to flip whatever is stored now — read-modify-write in one call. Pass an explicit `true`/`false` to make the call idempotent, so a retry can't undo the first attempt.
+        env:
+          anyOf:
+            - $ref: '#/components/schemas/Env'
+          description: Environment to publish on. Defaults to `prod` — the environment an incident response means when it says "kill it".
+      additionalProperties: false
+      description: |-
+        Body for `POST /api/admin/killswitches/{id}/toggle`. Every field is optional, so the four useful calls read as one method with a widening argument list:
+
+        - `{}` — flip the flat value on prod.
+        - `{ "switchKey": "eu_region" }` — flip that sub-switch on prod.
+        - `{ "switchKey": "eu_region", "value": true }` — set that sub-switch on prod, idempotently.
+        - `{ "switchKey": "eu_region", "value": true, "env": "staging" }` — the same, on a chosen env.
+    ToggleKillswitchResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Resolved killswitch id.
+        env:
+          $ref: '#/components/schemas/Env'
+        switchKey:
+          anyOf:
+            - type: string
+              maxLength: 64
+              pattern: ^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$
+            - type: 'null'
+          description: The sub-switch that was flipped, or `null` when the flat `value` was.
+        previous:
+          type: boolean
+          description: The value that was in effect before this call. Equal to `value` when an idempotent `value` matched what was already stored.
+        value:
+          type: boolean
+          description: The value now in effect on `env`.
+        version:
+          type: integer
+          minimum: -9007199254740991
+          maximum: 9007199254740991
+          description: Newly published version on `env`.
+        published:
+          $ref: '#/components/schemas/KillswitchValue'
+      required:
+        - id
+        - env
+        - switchKey
+        - previous
+        - value
         - version
         - published
       additionalProperties: false
@@ -14897,6 +15593,191 @@ components:
         - id
       additionalProperties: false
       description: Response for `POST /api/admin/ops`.
+    CreatePublicBugRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          pattern: ^\S(.*\S)?$
+          description: One-line bug title (no leading/trailing whitespace).
+        stepsToReproduce:
+          type: string
+          maxLength: 8000
+          default: ''
+          description: How to reproduce the bug.
+        actualResult:
+          type: string
+          maxLength: 8000
+          default: ''
+          description: What actually happened.
+        expectedResult:
+          type: string
+          maxLength: 8000
+          default: ''
+          description: What was expected instead.
+        priority:
+          anyOf:
+            - $ref: '#/components/schemas/OpsItemPriority'
+            - type: 'null'
+          description: Initial triage priority, or `null`.
+        status:
+          anyOf:
+            - $ref: '#/components/schemas/OpsItemStatus'
+          description: Initial lifecycle status; defaults to `open` when omitted.
+        assigneeId:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: The `users.id` of the person to assign as owner at creation, or `null`.
+        subscribers:
+          type: array
+          items:
+            type: string
+            format: email
+          default: []
+          description: Emails of teammates to subscribe to this item's Slack pings at creation.
+        tags:
+          type: array
+          items:
+            type: string
+          default: []
+          description: Tag names to attach at creation (get-or-created by name, deduped case-insensitively).
+        reporterEmail:
+          anyOf:
+            - type: string
+              format: email
+            - type: 'null'
+          description: Email of the reporter, or `null`.
+        pageUrl:
+          anyOf:
+            - type: string
+              format: uri
+            - type: 'null'
+          description: URL of the page the bug relates to, or `null`.
+        userAgent:
+          anyOf:
+            - type: string
+              maxLength: 500
+            - type: 'null'
+          description: Reporter's user-agent string, or `null`.
+        viewport:
+          anyOf:
+            - type: string
+              maxLength: 40
+            - type: 'null'
+          description: Reporter's viewport (e.g. `1280x720`), or `null`.
+        context:
+          anyOf:
+            - type: object
+              additionalProperties: {}
+            - type: 'null'
+          description: Arbitrary capture context, or `null`.
+        notify:
+          anyOf:
+            - $ref: '#/components/schemas/NotificationTarget'
+            - type: 'null'
+          description: Where this bug's completion notification lands.
+      required:
+        - title
+      additionalProperties: false
+      description: Body for `POST /ops/bug`. The same bug fields as `CreateBugRequest`, minus the `type` discriminator — the path already says what is being filed.
+    CreatePublicTicketResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: The new item's id. Absent on a deduped response — nothing was created, so there is no new id to report.
+        number:
+          type: integer
+          description: Per-project item number. On a deduped response this is the number of the OPEN ticket already tracking the report, which is what a caller should show the user either way.
+        deduped:
+          type: boolean
+          description: '`true` when an open ticket already tracked this report and nothing was filed (HTTP 200). Absent on a fresh file (HTTP 201).'
+      required:
+        - number
+      additionalProperties: false
+      description: 'Response for the public ticket intake. A fresh file returns `201` with `id` + `number`; a repeat of a report already tracked by an open ticket returns `200` with that ticket''s `number` and `deduped: true`.'
+    CreatePublicFeatureRequestRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          pattern: ^\S(.*\S)?$
+          description: One-line feature-request title (no leading/trailing whitespace).
+        description:
+          type: string
+          maxLength: 8000
+          default: ''
+          description: What the feature is.
+        useCase:
+          type: string
+          maxLength: 8000
+          default: ''
+          description: Why it's needed / the use case.
+        priority:
+          anyOf:
+            - $ref: '#/components/schemas/OpsItemPriority'
+            - type: 'null'
+          description: Initial triage priority, or `null`.
+        status:
+          anyOf:
+            - $ref: '#/components/schemas/OpsItemStatus'
+          description: Initial lifecycle status; defaults to `open` when omitted.
+        assigneeId:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: The `users.id` of the person to assign as owner at creation, or `null`.
+        subscribers:
+          type: array
+          items:
+            type: string
+            format: email
+          default: []
+          description: Emails of teammates to subscribe to this item's Slack pings at creation.
+        tags:
+          type: array
+          items:
+            type: string
+          default: []
+          description: Tag names to attach at creation (get-or-created by name, deduped case-insensitively).
+        reporterEmail:
+          anyOf:
+            - type: string
+              format: email
+            - type: 'null'
+          description: Email of the reporter, or `null`.
+        pageUrl:
+          anyOf:
+            - type: string
+              format: uri
+            - type: 'null'
+          description: URL of the page the request relates to, or `null`.
+        userAgent:
+          anyOf:
+            - type: string
+              maxLength: 500
+            - type: 'null'
+          description: Reporter's user-agent string, or `null`.
+        context:
+          anyOf:
+            - type: object
+              additionalProperties: {}
+            - type: 'null'
+          description: Arbitrary capture context, or `null`.
+        notify:
+          anyOf:
+            - $ref: '#/components/schemas/NotificationTarget'
+            - type: 'null'
+          description: Where this request's completion notification lands.
+      required:
+        - title
+      additionalProperties: false
+      description: Body for `POST /ops/feature-request`. The same feature-request fields as `CreateFeatureRequestRequest`, minus the `type` discriminator — the path already says what is being filed.
     OpsItemAttachment:
       type: object
       properties:
@@ -18459,6 +19340,45 @@ components:
               value:
                 error: The referenced event is still pending review and cannot back a metric yet.
                 code: EVENT_PENDING
+    PayloadTooLarge:
+      description: The request body exceeded the intake's fixed size cap (16 KB).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            BAD_REQUEST:
+              summary: Body too large
+              value:
+                error: Body too large
+                code: BAD_REQUEST
+    TooManyRequests:
+      description: |-
+        The public intake is rate-limited per (project, client IP). Back off and retry;
+        the limit is a burst guard, not a quota, so a modest delay clears it.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            BAD_REQUEST:
+              summary: Rate limited
+              value:
+                error: Too many requests
+                code: BAD_REQUEST
+    ServiceUnavailable:
+      description: |-
+        A backing store the endpoint needs is not bound in this environment. Transient
+        and infrastructural — no stable `ErrorCode` is assigned, so `code` is omitted.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            UNAVAILABLE:
+              summary: Storage unbound
+              value:
+                error: Unavailable
     BadGateway:
       description: |-
         The request was well-formed and the resource exists, but a downstream provider

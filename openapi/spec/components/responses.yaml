@@ -120,3 +120,42 @@ BadGateway:
           summary: Downstream provider dispatch failed
           value:
             error: "GitHub API responded 403: resource not accessible by integration."
+PayloadTooLarge:
+  description: The request body exceeded the intake's fixed size cap (16 KB).
+  content:
+    application/json:
+      schema:
+        $ref: ./errors.yaml#/Error
+      examples:
+        BAD_REQUEST:
+          summary: Body too large
+          value:
+            error: Body too large
+            code: BAD_REQUEST
+TooManyRequests:
+  description: |-
+    The public intake is rate-limited per (project, client IP). Back off and retry;
+    the limit is a burst guard, not a quota, so a modest delay clears it.
+  content:
+    application/json:
+      schema:
+        $ref: ./errors.yaml#/Error
+      examples:
+        BAD_REQUEST:
+          summary: Rate limited
+          value:
+            error: Too many requests
+            code: BAD_REQUEST
+ServiceUnavailable:
+  description: |-
+    A backing store the endpoint needs is not bound in this environment. Transient
+    and infrastructural — no stable `ErrorCode` is assigned, so `code` is omitted.
+  content:
+    application/json:
+      schema:
+        $ref: ./errors.yaml#/Error
+      examples:
+        UNAVAILABLE:
+          summary: Storage unbound
+          value:
+            error: Unavailable

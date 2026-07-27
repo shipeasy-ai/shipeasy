@@ -1,0 +1,1747 @@
+{
+  "openapi": "3.2.0",
+  "info": {
+    "title": "Shipeasy Admin API (server-SDK surface)",
+    "version": "2.0.0",
+    "description": "The slice of the Shipeasy admin API that the published server SDKs expose as their optional `AdminClient`. Authenticate with an admin SDK key (`Authorization: Bearer sdk_admin_…`) and scope every request to a project via the `X-Project-Id` header.\n\nThree capabilities, nothing else:\n\n- **File a public ticket** — a bug or a feature request onto the project's ops queue.\n- **Toggle a kill switch** — flip the switch itself, or one of its named sub-switches, on one environment.\n- **Manage a flag's whitelist** — read, replace, add to, or remove from the allowlist that admits specific identities ahead of every targeting rule.\n\nEverything else in the admin API is reachable through the Shipeasy CLI and MCP server, which speak the complete contract (`openapi.yaml`).",
+    "contact": {
+      "name": "Shipeasy",
+      "url": "https://shipeasy.ai"
+    },
+    "license": {
+      "name": "Proprietary",
+      "identifier": "LicenseRef-Proprietary"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://shipeasy.ai",
+      "description": "Production"
+    },
+    {
+      "url": "http://localhost:3000",
+      "description": "Local Next.js dev server"
+    }
+  ],
+  "security": [
+    {
+      "bearerSdkKey": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Flags",
+      "description": "A feature gate's whitelist — the always-first allowlist that admits named identities before any targeting rule or percentage rollout runs."
+    },
+    {
+      "name": "Killswitch",
+      "description": "Per-env boolean overrides for incident response. `toggle` reads the current value and publishes its opposite in one call, on the flat value or on one named sub-switch."
+    },
+    {
+      "name": "Ops",
+      "description": "The public ticket queue — filing a bug or a feature request, which also fires the project's GitHub/Slack connectors."
+    }
+  ],
+  "paths": {
+    "/ops/bug": {
+      "post": {
+        "operationId": "createPublicBug",
+        "summary": "File a bug",
+        "description": "Files one bug onto a project's queue, awaiting human approval. This is the **public** intake: it authenticates with a *client* SDK key rather than an admin key, so it can be called from a CLI, an installer script, a devtools overlay, or any shipped code — the same places a client key already lives.\n\nThree gates decide whether a ticket is filed, and nothing else the caller sends can widen them:\n\n1. the key is a `client` key carrying the `tickets:public_create` scope,\n2. the key's project has public ticket creation enabled, and\n3. the item is filed as `pending_approval` — parked out of the work queue until a human promotes it in the dashboard.\n\nThe project is the key's own project; there is no `X-Project-Id` to pass and no way to file into someone else's queue. Repeat submissions of the same title dedupe against the open ticket already tracking it, which returns `200` with `deduped: true` instead of filing again.\n\nThis endpoint is served by the Shipeasy **edge worker** (`api.shipeasy.ai`), not the admin API — see `servers` below.\n\n**Use case:** `shipeasy setup` fails on a customer's machine and self-reports the failure with the user's consent — `{ \"title\": \"Setup failed at Feature installs\", \"stepsToReproduce\": \"…\", \"actualResult\": \"…\" }`.",
+        "tags": [
+          "Ops"
+        ],
+        "servers": [
+          {
+            "url": "https://api.shipeasy.ai",
+            "description": "Shipeasy edge worker (production)"
+          },
+          {
+            "url": "http://localhost:8787",
+            "description": "Local `wrangler dev`"
+          }
+        ],
+        "security": [
+          {
+            "clientSdkKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePublicBugRequest"
+              },
+              "examples": {
+                "minimal": {
+                  "summary": "Just a title",
+                  "description": "Every other field is optional — the queue triages from `open` at default priority.",
+                  "value": {
+                    "title": "Checkout button misaligned on mobile"
+                  }
+                },
+                "full": {
+                  "summary": "A full report",
+                  "value": {
+                    "title": "Checkout button misaligned on mobile",
+                    "stepsToReproduce": "Open the cart on iOS Safari and tap the price row.",
+                    "actualResult": "The primary CTA overlaps the price.",
+                    "expectedResult": "The CTA sits below the price with clear spacing.",
+                    "priority": "high",
+                    "reporterEmail": "alice@acme.dev",
+                    "pageUrl": "https://acme.dev/cart"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "An open ticket already tracks this report; nothing was filed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatePublicTicketResponse"
+                },
+                "example": {
+                  "number": 7,
+                  "deduped": true
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "File a bug",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatePublicTicketResponse"
+                },
+                "example": {
+                  "id": "fb_01j7w8a1b2c3d4e5f6g7h8i9j0",
+                  "number": 7
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "hidden": true
+        }
+      }
+    },
+    "/ops/feature-request": {
+      "post": {
+        "operationId": "createPublicFeatureRequest",
+        "summary": "File a feature request",
+        "description": "Files one feature request onto a project's queue, awaiting human approval. The feature-request counterpart to `POST /ops/bug`, with the same three gates: a `client` key carrying `tickets:public_create`, a project that has opted in, and a `pending_approval` state forced server-side.\n\nThe project is the key's own project; there is no `X-Project-Id` to pass. Repeat submissions of the same title dedupe against the open ticket already tracking it, which returns `200` with `deduped: true` instead of filing again.\n\nThis endpoint is served by the Shipeasy **edge worker** (`api.shipeasy.ai`), not the admin API — see `servers` below.\n\n**Use case:** An in-product \"request a feature\" form posts what the user asked for — `{ \"title\": \"Dark mode\", \"useCase\": \"Reduce eye strain at night\" }`.",
+        "tags": [
+          "Ops"
+        ],
+        "servers": [
+          {
+            "url": "https://api.shipeasy.ai",
+            "description": "Shipeasy edge worker (production)"
+          },
+          {
+            "url": "http://localhost:8787",
+            "description": "Local `wrangler dev`"
+          }
+        ],
+        "security": [
+          {
+            "clientSdkKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePublicFeatureRequestRequest"
+              },
+              "examples": {
+                "minimal": {
+                  "summary": "Just a title",
+                  "value": {
+                    "title": "Dark mode for the dashboard"
+                  }
+                },
+                "full": {
+                  "summary": "A full request",
+                  "value": {
+                    "title": "Dark mode for the dashboard",
+                    "description": "Add a theme toggle that persists per user.",
+                    "useCase": "Reduce eye strain for users working at night.",
+                    "priority": "nice_to_have",
+                    "reporterEmail": "alice@acme.dev"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "An open ticket already tracks this report; nothing was filed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatePublicTicketResponse"
+                },
+                "example": {
+                  "number": 7,
+                  "deduped": true
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "File a feature request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatePublicTicketResponse"
+                },
+                "example": {
+                  "id": "fb_01j7w8a1b2c3d4e5f6g7h8i9j0",
+                  "number": 8
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "hidden": true
+        }
+      }
+    },
+    "/api/admin/killswitches/{id}/toggle": {
+      "post": {
+        "operationId": "toggleKillswitch",
+        "summary": "Toggle a killswitch or one of its switches",
+        "description": "Flips a killswitch on one environment and publishes a new version there. This is the one-call incident verb: it reads the current value, flips it, and publishes, so you don't have to fetch the killswitch first.\n\nEvery body field is optional, which is what makes the call widen cleanly:\n\n- **Flip the killswitch** — `{}`. Flips the flat `value` on `prod`.\n- **Flip one sub-switch** — `{ \"switchKey\": \"eu_region\" }`. Flips that entry on `prod`, creating it (from `false`) if it isn't in the map yet.\n- **Set it idempotently** — `{ \"switchKey\": \"eu_region\", \"value\": true }`. Publishes exactly that value, so a retried call can't undo the first one. A `null` `value` means \"flip\", not \"set to null\".\n- **Choose the environment** — add `\"env\": \"staging\"`. Omitted, `env` is `prod`.\n\nThe response reports both `previous` and `value`, so a caller that asked for a flip can see what it actually changed.\n\nPrefer this over `PUT /{id}/value` and `PUT /{id}/switch` unless you specifically need those endpoints' unconditional set semantics.",
+        "tags": [
+          "Killswitch"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.",
+            "schema": {
+              "$ref": "#/components/schemas/ResourceId"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToggleKillswitchRequest"
+              },
+              "examples": {
+                "flipOnProd": {
+                  "summary": "Flip the killswitch on prod",
+                  "description": "No body fields — reads the flat `value` on prod and publishes its opposite.",
+                  "value": {}
+                },
+                "flipOneSwitch": {
+                  "summary": "Flip one sub-switch on prod",
+                  "description": "Flips `switches.eu_region` on prod, leaving the flat `value` and every other key alone.",
+                  "value": {
+                    "switchKey": "eu_region"
+                  }
+                },
+                "setOneSwitch": {
+                  "summary": "Trip one sub-switch idempotently",
+                  "description": "Publishes `switches.eu_region = true` on prod whatever it was before — safe to retry.",
+                  "value": {
+                    "switchKey": "eu_region",
+                    "value": true
+                  }
+                },
+                "setOneSwitchOnStaging": {
+                  "summary": "Trip one sub-switch on a chosen env",
+                  "description": "The same idempotent set, published on staging instead of prod.",
+                  "value": {
+                    "switchKey": "eu_region",
+                    "value": true,
+                    "env": "staging"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Toggle a killswitch or one of its switches",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToggleKillswitchResponse"
+                },
+                "example": {
+                  "id": "ksw_01j7w9d8h2k4m6n8p0q2r4s6t8",
+                  "env": "prod",
+                  "switchKey": "eu_region",
+                  "previous": false,
+                  "value": true,
+                  "version": 7,
+                  "published": {
+                    "value": false,
+                    "switches": {
+                      "eu_region": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "toggle",
+          "positional": [
+            "id"
+          ]
+        }
+      }
+    },
+    "/api/admin/gates/{id}/whitelist": {
+      "get": {
+        "operationId": "getGateWhitelist",
+        "summary": "Read a gate's whitelist",
+        "description": "Returns the gate's whitelist — the always-first allowlist that admits the listed identities before any targeting rule or percentage rollout is evaluated.\n\nA gate with no whitelist returns `entries: []` (and the default `attr`), never a 404 — so a caller can read-then-write without special-casing the empty gate.\n\n**Use case:** Check whether an account is already let through before adding it.",
+        "tags": [
+          "Flags"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Stable opaque gate id (`gate_…`) or the gate's `name`.",
+            "schema": {
+              "$ref": "#/components/schemas/ResourceId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Read a gate's whitelist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GateWhitelist"
+                },
+                "example": {
+                  "id": "gate_01j7w8a1b2c3d4e5f6g7h8i9j0",
+                  "name": "new_checkout",
+                  "attr": "email",
+                  "entries": [
+                    "alice@acme.dev",
+                    "bob@acme.dev"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND"
+        ],
+        "x-cli": {
+          "name": "whitelist",
+          "positional": [
+            "id"
+          ]
+        }
+      },
+      "put": {
+        "operationId": "setGateWhitelist",
+        "summary": "Replace a gate's whitelist",
+        "description": "Replaces the gate's whole whitelist with `entries`, creating the block if the gate didn't have one. Idempotent — the same call twice leaves the same list.\n\nThis is the only whitelist call that can switch `attr` (`email` ⇄ `user_id`) or clear the block: `entries: []` removes the whitelist from the gate entirely.\n\n**Use cases**\n\n- **Pin an exact list** — `{ \"entries\": [\"alice@acme.dev\", \"bob@acme.dev\"] }`.\n- **Switch to user ids** — `{ \"attr\": \"user_id\", \"entries\": [\"usr_123\"] }`.\n- **Drop the whitelist** — `{ \"entries\": [] }`.",
+        "tags": [
+          "Flags"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Stable opaque gate id (`gate_…`) or the gate's `name`.",
+            "schema": {
+              "$ref": "#/components/schemas/ResourceId"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetGateWhitelistRequest"
+              },
+              "examples": {
+                "pinList": {
+                  "summary": "Pin an exact list of emails",
+                  "value": {
+                    "entries": [
+                      "alice@acme.dev",
+                      "bob@acme.dev"
+                    ]
+                  }
+                },
+                "switchToUserIds": {
+                  "summary": "Re-key the whitelist onto user ids",
+                  "description": "Switching `attr` replaces the entries wholesale — the old emails are not translated.",
+                  "value": {
+                    "attr": "user_id",
+                    "entries": [
+                      "usr_01j7w8a1b2c3d4e5f6g7h8i9j0"
+                    ]
+                  }
+                },
+                "clear": {
+                  "summary": "Remove the whitelist",
+                  "description": "An empty list drops the pinned block from the gate's stack.",
+                  "value": {
+                    "entries": []
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Replace a gate's whitelist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GateWhitelist"
+                },
+                "example": {
+                  "id": "gate_01j7w8a1b2c3d4e5f6g7h8i9j0",
+                  "name": "new_checkout",
+                  "attr": "email",
+                  "entries": [
+                    "alice@acme.dev",
+                    "bob@acme.dev"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "whitelist-set",
+          "positional": [
+            "id"
+          ]
+        }
+      },
+      "post": {
+        "operationId": "addToGateWhitelist",
+        "summary": "Add entries to a gate's whitelist",
+        "description": "Adds identities to the gate's whitelist, creating the block if the gate doesn't have one yet. Entries already on the list are skipped, so the call is idempotent and safe to retry.\n\nAdding to a gate that already has a whitelist keyed on the other attribute is rejected (409) rather than silently re-keying the entries already there — use `PUT` to switch `attr` deliberately.\n\n**Use case:** Let one more customer into a private beta without reading the current list first.",
+        "tags": [
+          "Flags"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Stable opaque gate id (`gate_…`) or the gate's `name`.",
+            "schema": {
+              "$ref": "#/components/schemas/ResourceId"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddToGateWhitelistRequest"
+              },
+              "examples": {
+                "addOne": {
+                  "summary": "Admit one more email",
+                  "value": {
+                    "entries": [
+                      "carol@acme.dev"
+                    ]
+                  }
+                },
+                "createOnUserIds": {
+                  "summary": "Start a whitelist keyed on user ids",
+                  "description": "`attr` is honoured only because this gate has no whitelist yet.",
+                  "value": {
+                    "attr": "user_id",
+                    "entries": [
+                      "usr_01j7w8a1b2c3d4e5f6g7h8i9j0"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Add entries to a gate's whitelist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GateWhitelist"
+                },
+                "example": {
+                  "id": "gate_01j7w8a1b2c3d4e5f6g7h8i9j0",
+                  "name": "new_checkout",
+                  "attr": "email",
+                  "entries": [
+                    "alice@acme.dev",
+                    "bob@acme.dev",
+                    "carol@acme.dev"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "IMMUTABLE_FIELD",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "whitelist-add",
+          "positional": [
+            "id"
+          ]
+        }
+      },
+      "delete": {
+        "operationId": "removeFromGateWhitelist",
+        "summary": "Remove entries from a gate's whitelist",
+        "description": "Removes identities from the gate's whitelist. Entries that aren't on the list are skipped, so the call is idempotent.\n\nRemoving the last entry leaves an empty whitelist block in place; to drop the block itself use `PUT` with `entries: []`.\n\n**Use case:** Revoke one beta tester's access without touching anyone else's.",
+        "tags": [
+          "Flags"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Stable opaque gate id (`gate_…`) or the gate's `name`.",
+            "schema": {
+              "$ref": "#/components/schemas/ResourceId"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveFromGateWhitelistRequest"
+              },
+              "examples": {
+                "removeOne": {
+                  "summary": "Revoke one email",
+                  "value": {
+                    "entries": [
+                      "carol@acme.dev"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Remove entries from a gate's whitelist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GateWhitelist"
+                },
+                "example": {
+                  "id": "gate_01j7w8a1b2c3d4e5f6g7h8i9j0",
+                  "name": "new_checkout",
+                  "attr": "email",
+                  "entries": [
+                    "alice@acme.dev",
+                    "bob@acme.dev"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "whitelist-remove",
+          "positional": [
+            "id"
+          ]
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerSdkKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "sdk_admin_*",
+        "description": "Pass an admin SDK key as `Authorization: Bearer sdk_admin_…`. Mint via `POST /api/admin/keys` with `type: \"admin\"`."
+      },
+      "clientSdkKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-SDK-Key",
+        "description": "Pass a **client** SDK key as `X-SDK-Key: sdk_client_…`. Used only by the public ticket intake (`POST /ops/bug`, `POST /ops/feature-request`), which is served by the edge worker rather than the admin API.\n\nClient keys are designed to be embedded in shipped code — a CLI, an installer, a browser bundle — so presenting one here is safe by construction: it can do nothing but file a rate-limited ticket into its own project, in a state a human must approve. It carries no read access and cannot reach any other operation in this contract.\n\nThe key must additionally carry the `tickets:public_create` scope, and its project must have public ticket creation enabled."
+      }
+    },
+    "schemas": {
+      "OpsItemPriority": {
+        "type": "string",
+        "enum": [
+          "nice_to_have",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "description": "Triage priority of a queue item. The lowest tier is `nice_to_have` (not `low`) — carried over from the feature-request \"importance\" scale this priority set replaced."
+      },
+      "OpsItemStatus": {
+        "type": "string",
+        "enum": [
+          "open",
+          "pending_approval",
+          "investigating_by_ai",
+          "in_progress",
+          "blocked",
+          "ready_for_qa",
+          "resolved",
+          "wont_fix"
+        ],
+        "description": "Lifecycle status of a queue item. The working flow is `open` → `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`, terminal from any earlier stage). `blocked` marks an item that can't progress until an external dependency clears — a working state a human sets and clears. `ready_for_qa` is what a developer sets once a fix lands; `resolved` is the QA sign-off, normally flipped in the dashboard after verification — set it directly from code only when the fix has been verified end-to-end. `investigating_by_ai` is a system-owned display state — set when the AI agent (Jarvis) picks an item up to investigate, never chosen by a human — so it is shown but not offered as a manual choice. `pending_approval` is the one human-gated holding state: it parks an item OUT of the work queue until a human promotes it to `open` in the dashboard, so `GET /api/admin/ops` excludes it under `status=all`/default and returns it only when requested as an exact `status`. It covers untriaged inbound that must never be auto-implemented — connector requests filed from a customer's connectors panel, and questions funnelled in from the \"Stuck in onboarding?\" assistant — where approving means flipping the status to `open`. Two earlier values were removed in favour of this single gate: `triage` (the onboarding-help bucket, now `pending_approval`) and `triaged` (a redundant \"looked at but not started\" step, now plain `open`)."
+      },
+      "NotificationTarget": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "slackChannel": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "email": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Delivery target for a notification; `null` = use the project default."
+      },
+      "CreatePublicBugRequest": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^\\S(.*\\S)?$",
+            "description": "One-line bug title (no leading/trailing whitespace)."
+          },
+          "stepsToReproduce": {
+            "type": "string",
+            "maxLength": 8000,
+            "default": "",
+            "description": "How to reproduce the bug."
+          },
+          "actualResult": {
+            "type": "string",
+            "maxLength": 8000,
+            "default": "",
+            "description": "What actually happened."
+          },
+          "expectedResult": {
+            "type": "string",
+            "maxLength": 8000,
+            "default": "",
+            "description": "What was expected instead."
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpsItemPriority"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Initial triage priority, or `null`."
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpsItemStatus"
+              }
+            ],
+            "description": "Initial lifecycle status; defaults to `open` when omitted."
+          },
+          "assigneeId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The `users.id` of the person to assign as owner at creation, or `null`."
+          },
+          "subscribers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "email"
+            },
+            "default": [],
+            "description": "Emails of teammates to subscribe to this item's Slack pings at creation."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "description": "Tag names to attach at creation (get-or-created by name, deduped case-insensitively)."
+          },
+          "reporterEmail": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "email"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Email of the reporter, or `null`."
+          },
+          "pageUrl": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "URL of the page the bug relates to, or `null`."
+          },
+          "userAgent": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Reporter's user-agent string, or `null`."
+          },
+          "viewport": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Reporter's viewport (e.g. `1280x720`), or `null`."
+          },
+          "context": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": {}
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Arbitrary capture context, or `null`."
+          },
+          "notify": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NotificationTarget"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where this bug's completion notification lands."
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "additionalProperties": false,
+        "description": "Body for `POST /ops/bug`. The same bug fields as `CreateBugRequest`, minus the `type` discriminator — the path already says what is being filed."
+      },
+      "CreatePublicTicketResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The new item's id. Absent on a deduped response — nothing was created, so there is no new id to report."
+          },
+          "number": {
+            "type": "integer",
+            "description": "Per-project item number. On a deduped response this is the number of the OPEN ticket already tracking the report, which is what a caller should show the user either way."
+          },
+          "deduped": {
+            "type": "boolean",
+            "description": "`true` when an open ticket already tracked this report and nothing was filed (HTTP 200). Absent on a fresh file (HTTP 201)."
+          }
+        },
+        "required": [
+          "number"
+        ],
+        "additionalProperties": false,
+        "description": "Response for the public ticket intake. A fresh file returns `201` with `id` + `number`; a repeat of a report already tracked by an open ticket returns `200` with that ticket's `number` and `deduped: true`."
+      },
+      "ErrorCode": {
+        "type": "string",
+        "description": "Stable, machine-readable error code. Mirrors the `ErrorCode` catalogue in `@shipeasy/core`. Each operation lists the subset it can return under `x-error-codes`.",
+        "enum": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "PLAN_REQUIRED",
+          "NOT_FOUND",
+          "ALREADY_EXISTS",
+          "INVALID_TRANSITION",
+          "IMMUTABLE_FIELD",
+          "READ_ONLY",
+          "REFERENCED_IN_USE",
+          "VALIDATION",
+          "REFERENCED_NOT_FOUND",
+          "GROUPS_WEIGHT_SUM",
+          "EVENT_PENDING",
+          "INTERNAL",
+          "PLAN_LIMIT",
+          "EXPERIMENT_NO_GOAL_METRIC",
+          "EXPERIMENT_ARCHIVED_RESTART",
+          "EXPERIMENT_RESTORE_INVALID",
+          "EXPERIMENT_NOT_RUNNING",
+          "EXPERIMENT_RUNNING_ARCHIVE",
+          "EXPERIMENT_IMMUTABLE_FIELD",
+          "METRIC_NOT_FOUND",
+          "METRIC_UNKNOWN_ID",
+          "AGENT_NOT_CONNECTED"
+        ],
+        "x-enum-descriptions": {
+          "BAD_REQUEST": "Malformed request (bad JSON, missing project scope).",
+          "UNAUTHORIZED": "Missing or invalid admin SDK key.",
+          "FORBIDDEN": "Key is valid but not allowed to act on this project.",
+          "PLAN_REQUIRED": "The requested feature requires a higher plan tier (e.g. sequential testing, custom alpha, holdout, group count).",
+          "NOT_FOUND": "The resource does not exist or is not visible to the caller.",
+          "ALREADY_EXISTS": "A resource with this name already exists in the project.",
+          "INVALID_TRANSITION": "The requested lifecycle transition is not allowed from the current state.",
+          "IMMUTABLE_FIELD": "A field that is immutable in the current state was modified (e.g. editing allocation while running).",
+          "READ_ONLY": "The resource is a read-only built-in (e.g. a built-in gate-rule template) and cannot be modified or deleted.",
+          "REFERENCED_IN_USE": "The resource cannot be archived/deleted while another resource still references it.",
+          "VALIDATION": "The request body failed structural (schema) validation.",
+          "REFERENCED_NOT_FOUND": "A referenced entity (universe, metric, gate, event) does not exist.",
+          "GROUPS_WEIGHT_SUM": "Experiment group weights must sum to 10000 (basis points).",
+          "EVENT_PENDING": "The referenced event is still pending review and cannot back a metric yet.",
+          "INTERNAL": "Unexpected server error.",
+          "PLAN_LIMIT": "The action would exceed a plan quota (e.g. the tier's maximum experiments, metrics, or configs). Upgrade the plan or archive an existing resource.",
+          "EXPERIMENT_NO_GOAL_METRIC": "The experiment has no goal metric set, which the requested action requires.",
+          "EXPERIMENT_ARCHIVED_RESTART": "An archived experiment cannot be restarted.",
+          "EXPERIMENT_RESTORE_INVALID": "The experiment cannot be restored from its current state.",
+          "EXPERIMENT_NOT_RUNNING": "The action requires the experiment to be running.",
+          "EXPERIMENT_RUNNING_ARCHIVE": "A running experiment cannot be archived — stop it first.",
+          "EXPERIMENT_IMMUTABLE_FIELD": "A field that is immutable while the experiment is running was modified.",
+          "METRIC_NOT_FOUND": "The referenced metric does not exist or is not visible to the caller.",
+          "METRIC_UNKNOWN_ID": "The supplied metric id is malformed or not recognised.",
+          "AGENT_NOT_CONNECTED": "The named AI agent type has no connected trigger connector in this project — list the available agents (`ops agents list` / `GET /api/admin/agent-profiles`) and use one of those, or connect the agent under Settings → Triggers."
+        }
+      },
+      "Error": {
+        "type": "object",
+        "description": "Uniform error envelope returned by every admin endpoint on a non-2xx status. `error` is the human-readable message; `code` is the stable machine code (present whenever the failure maps to a catalogued `ErrorCode`); `detail` carries extra context (validation paths, conflicting field); `fields` maps each failing input field to its own message; `instructions` is optional actionable guidance for resolving the error; `schema` echoes back the expected JSON Schema when a value failed schema validation.",
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Human-readable error message."
+          },
+          "code": {
+            "$ref": "#/components/schemas/ErrorCode"
+          },
+          "detail": {
+            "type": "string",
+            "description": "Extra context (validation details, conflicting field, referenced row)."
+          },
+          "fields": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Per-field validation messages, keyed by the submitted field's path (dot-notation for nested fields, e.g. `groups.0.weight`). Present when structural validation failed on one or more specific input fields, so a client form can attach each message to its own input instead of collapsing everything into one banner."
+          },
+          "instructions": {
+            "type": "string",
+            "description": "Actionable guidance for resolving this error — what to check or change next."
+          },
+          "schema": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "The expected JSON Schema (draft 2020-12) the submitted value must satisfy. Returned only when a value failed schema validation (e.g. a config `value` that does not match its config's saved schema), so the caller can correct the value and retry without re-fetching."
+          }
+        }
+      },
+      "CreatePublicFeatureRequestRequest": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^\\S(.*\\S)?$",
+            "description": "One-line feature-request title (no leading/trailing whitespace)."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 8000,
+            "default": "",
+            "description": "What the feature is."
+          },
+          "useCase": {
+            "type": "string",
+            "maxLength": 8000,
+            "default": "",
+            "description": "Why it's needed / the use case."
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpsItemPriority"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Initial triage priority, or `null`."
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpsItemStatus"
+              }
+            ],
+            "description": "Initial lifecycle status; defaults to `open` when omitted."
+          },
+          "assigneeId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The `users.id` of the person to assign as owner at creation, or `null`."
+          },
+          "subscribers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "email"
+            },
+            "default": [],
+            "description": "Emails of teammates to subscribe to this item's Slack pings at creation."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "description": "Tag names to attach at creation (get-or-created by name, deduped case-insensitively)."
+          },
+          "reporterEmail": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "email"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Email of the reporter, or `null`."
+          },
+          "pageUrl": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "URL of the page the request relates to, or `null`."
+          },
+          "userAgent": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Reporter's user-agent string, or `null`."
+          },
+          "context": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": {}
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Arbitrary capture context, or `null`."
+          },
+          "notify": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NotificationTarget"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where this request's completion notification lands."
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "additionalProperties": false,
+        "description": "Body for `POST /ops/feature-request`. The same feature-request fields as `CreateFeatureRequestRequest`, minus the `type` discriminator — the path already says what is being filed."
+      },
+      "ResourceId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "description": "A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row."
+      },
+      "Env": {
+        "type": "string",
+        "enum": [
+          "dev",
+          "staging",
+          "prod"
+        ],
+        "description": "Target environment. One of the project's configured envs (`dev`, `staging`, `prod`)."
+      },
+      "ToggleKillswitchRequest": {
+        "type": "object",
+        "properties": {
+          "switchKey": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "pattern": "^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Which target to flip. Omit (or `null`) to flip the killswitch's own flat `value`; name a switch key to flip that nested sub-switch instead, creating the entry if it doesn't exist yet."
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The value to publish. Omit (or `null`) to flip whatever is stored now — read-modify-write in one call. Pass an explicit `true`/`false` to make the call idempotent, so a retry can't undo the first attempt."
+          },
+          "env": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Env"
+              }
+            ],
+            "description": "Environment to publish on. Defaults to `prod` — the environment an incident response means when it says \"kill it\"."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body for `POST /api/admin/killswitches/{id}/toggle`. Every field is optional, so the four useful calls read as one method with a widening argument list:\n\n- `{}` — flip the flat value on prod.\n- `{ \"switchKey\": \"eu_region\" }` — flip that sub-switch on prod.\n- `{ \"switchKey\": \"eu_region\", \"value\": true }` — set that sub-switch on prod, idempotently.\n- `{ \"switchKey\": \"eu_region\", \"value\": true, \"env\": \"staging\" }` — the same, on a chosen env."
+      },
+      "KillswitchValue": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "boolean",
+            "description": "Default boolean delivered when no `switches` entry matches."
+          },
+          "switches": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "description": "Per-switch overrides; a matching key takes precedence over `value`."
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "additionalProperties": false,
+        "description": "Runtime killswitch payload returned to SDKs."
+      },
+      "ToggleKillswitchResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Resolved killswitch id."
+          },
+          "env": {
+            "$ref": "#/components/schemas/Env"
+          },
+          "switchKey": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "pattern": "^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The sub-switch that was flipped, or `null` when the flat `value` was."
+          },
+          "previous": {
+            "type": "boolean",
+            "description": "The value that was in effect before this call. Equal to `value` when an idempotent `value` matched what was already stored."
+          },
+          "value": {
+            "type": "boolean",
+            "description": "The value now in effect on `env`."
+          },
+          "version": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Newly published version on `env`."
+          },
+          "published": {
+            "$ref": "#/components/schemas/KillswitchValue"
+          }
+        },
+        "required": [
+          "id",
+          "env",
+          "switchKey",
+          "previous",
+          "value",
+          "version",
+          "published"
+        ],
+        "additionalProperties": false
+      },
+      "GateWhitelistAttr": {
+        "type": "string",
+        "enum": [
+          "email",
+          "user_id"
+        ],
+        "description": "Which identity attribute the whitelist matches on. `email` compares the caller's `email`; `user_id` compares the caller's `userID`. A whitelist matches on exactly one of the two at a time."
+      },
+      "GateWhitelist": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Resolved gate id."
+          },
+          "name": {
+            "type": "string",
+            "description": "The gate's stable `name`."
+          },
+          "attr": {
+            "$ref": "#/components/schemas/GateWhitelistAttr"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "The whitelisted identities, in the order they are stored. Deduplicated case-sensitively; an empty array means the gate has no whitelist."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "attr",
+          "entries"
+        ],
+        "additionalProperties": false,
+        "description": "A gate's whitelist — the always-first allowlist that admits the listed identities before any targeting rule or rollout runs. Backed by the pinned `whitelist` entry at the head of the gate's `stack`, so it is the same list the dashboard's Whitelist block edits."
+      },
+      "SetGateWhitelistRequest": {
+        "type": "object",
+        "properties": {
+          "attr": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GateWhitelistAttr"
+              }
+            ],
+            "description": "Identity attribute to match on. Defaults to the whitelist's current attribute, or `email` when the gate has no whitelist yet."
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "The complete whitelist after the call. Pass `[]` to remove the whitelist from the gate entirely."
+          }
+        },
+        "required": [
+          "entries"
+        ],
+        "additionalProperties": false,
+        "description": "Body for `PUT /api/admin/gates/{id}/whitelist`. Replaces the whole list — idempotent, and the only call that can switch `attr` or clear the whitelist."
+      },
+      "AddToGateWhitelistRequest": {
+        "type": "object",
+        "properties": {
+          "attr": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GateWhitelistAttr"
+              }
+            ],
+            "description": "Identity attribute to match on. Only honoured when the gate has no whitelist yet (this call creates it); passing an attribute that disagrees with an existing whitelist is a 409 rather than a silent re-key of the entries already there."
+          },
+          "entries": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Identities to admit. Already-listed entries are skipped, so the call is idempotent."
+          }
+        },
+        "required": [
+          "entries"
+        ],
+        "additionalProperties": false,
+        "description": "Body for `POST /api/admin/gates/{id}/whitelist`. Adds entries to the whitelist, creating it if the gate doesn't have one."
+      },
+      "RemoveFromGateWhitelistRequest": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Identities to stop admitting. Entries that aren't listed are skipped, so the call is idempotent."
+          }
+        },
+        "required": [
+          "entries"
+        ],
+        "additionalProperties": false,
+        "description": "Body for `DELETE /api/admin/gates/{id}/whitelist`. Removes entries from the whitelist. Removing the last entry leaves an empty whitelist in place — use `PUT` with `entries: []` to drop the block itself."
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "The request was malformed (bad JSON or missing project scope).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "examples": {
+              "BAD_REQUEST": {
+                "summary": "Malformed request",
+                "value": {
+                  "error": "Malformed request (bad JSON, missing project scope).",
+                  "code": "BAD_REQUEST"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Missing or invalid admin SDK key.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "examples": {
+              "UNAUTHORIZED": {
+                "summary": "No / invalid key",
+                "value": {
+                  "error": "Missing or invalid admin SDK key.",
+                  "code": "UNAUTHORIZED"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "The key is valid but not allowed to perform this action.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "examples": {
+              "FORBIDDEN": {
+                "summary": "Not an admin of this project",
+                "value": {
+                  "error": "Key is valid but not allowed to act on this project.",
+                  "code": "FORBIDDEN"
+                }
+              },
+              "PLAN_REQUIRED": {
+                "summary": "Feature gated behind a higher plan",
+                "value": {
+                  "error": "The requested feature requires a higher plan tier (e.g. sequential testing, custom alpha, holdout, group count).",
+                  "code": "PLAN_REQUIRED"
+                }
+              }
+            }
+          }
+        }
+      },
+      "PayloadTooLarge": {
+        "description": "The request body exceeded the intake's fixed size cap (16 KB).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "examples": {
+              "BAD_REQUEST": {
+                "summary": "Body too large",
+                "value": {
+                  "error": "Body too large",
+                  "code": "BAD_REQUEST"
+                }
+              }
+            }
+          }
+        }
+      },
+      "TooManyRequests": {
+        "description": "The public intake is rate-limited per (project, client IP). Back off and retry;\nthe limit is a burst guard, not a quota, so a modest delay clears it.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "examples": {
+              "BAD_REQUEST": {
+                "summary": "Rate limited",
+                "value": {
+                  "error": "Too many requests",
+                  "code": "BAD_REQUEST"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ServiceUnavailable": {
+        "description": "A backing store the endpoint needs is not bound in this environment. Transient\nand infrastructural — no stable `ErrorCode` is assigned, so `code` is omitted.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "examples": {
+              "UNAVAILABLE": {
+                "summary": "Storage unbound",
+                "value": {
+                  "error": "Unavailable"
+                }
+              }
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "The resource does not exist or is not visible to the caller.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "examples": {
+              "NOT_FOUND": {
+                "summary": "Unknown id or name",
+                "value": {
+                  "error": "The resource does not exist or is not visible to the caller.",
+                  "code": "NOT_FOUND"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "The mutation conflicts with current state.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "examples": {
+              "ALREADY_EXISTS": {
+                "summary": "Duplicate name",
+                "value": {
+                  "error": "A resource with this name already exists in the project.",
+                  "code": "ALREADY_EXISTS"
+                }
+              },
+              "REFERENCED_IN_USE": {
+                "summary": "Still referenced by another resource",
+                "value": {
+                  "error": "The resource cannot be archived/deleted while another resource still references it.",
+                  "code": "REFERENCED_IN_USE"
+                }
+              },
+              "INVALID_TRANSITION": {
+                "summary": "Illegal lifecycle transition",
+                "value": {
+                  "error": "The requested lifecycle transition is not allowed from the current state.",
+                  "code": "INVALID_TRANSITION"
+                }
+              },
+              "IMMUTABLE_FIELD": {
+                "summary": "Edited an immutable field while running",
+                "value": {
+                  "error": "A field that is immutable in the current state was modified (e.g. editing allocation while running).",
+                  "code": "IMMUTABLE_FIELD"
+                }
+              }
+            }
+          }
+        }
+      },
+      "UnprocessableEntity": {
+        "description": "The request body failed validation.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "examples": {
+              "VALIDATION": {
+                "summary": "Schema validation failed",
+                "value": {
+                  "error": "The request body failed structural (schema) validation.",
+                  "code": "VALIDATION"
+                }
+              },
+              "REFERENCED_NOT_FOUND": {
+                "summary": "Referenced entity missing",
+                "value": {
+                  "error": "A referenced entity (universe, metric, gate, event) does not exist.",
+                  "code": "REFERENCED_NOT_FOUND"
+                }
+              },
+              "GROUPS_WEIGHT_SUM": {
+                "summary": "Group weights must sum to 10000",
+                "value": {
+                  "error": "Experiment group weights must sum to 10000 (basis points).",
+                  "code": "GROUPS_WEIGHT_SUM"
+                }
+              },
+              "EVENT_PENDING": {
+                "summary": "Event still pending review",
+                "value": {
+                  "error": "The referenced event is still pending review and cannot back a metric yet.",
+                  "code": "EVENT_PENDING"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "parameters": {
+      "ProjectId": {
+        "name": "X-Project-Id",
+        "in": "header",
+        "required": false,
+        "description": "Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).",
+        "schema": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

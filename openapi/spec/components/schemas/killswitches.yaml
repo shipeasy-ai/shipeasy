@@ -343,3 +343,67 @@ SetKillswitchValueResponse:
     - version
     - published
   additionalProperties: false
+ToggleKillswitchRequest:
+  type: object
+  properties:
+    switchKey:
+      anyOf:
+        - type: string
+          maxLength: 64
+          pattern: ^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$
+        - type: "null"
+      description: Which target to flip. Omit (or `null`) to flip the killswitch's own flat `value`; name a switch key to flip that nested sub-switch instead, creating the entry if it doesn't exist yet.
+    value:
+      anyOf:
+        - type: boolean
+        - type: "null"
+      description: The value to publish. Omit (or `null`) to flip whatever is stored now — read-modify-write in one call. Pass an explicit `true`/`false` to make the call idempotent, so a retry can't undo the first attempt.
+    env:
+      anyOf:
+        - $ref: ./common.yaml#/Env
+      description: Environment to publish on. Defaults to `prod` — the environment an incident response means when it says "kill it".
+  additionalProperties: false
+  description: |-
+    Body for `POST /api/admin/killswitches/{id}/toggle`. Every field is optional, so the four useful calls read as one method with a widening argument list:
+
+    - `{}` — flip the flat value on prod.
+    - `{ "switchKey": "eu_region" }` — flip that sub-switch on prod.
+    - `{ "switchKey": "eu_region", "value": true }` — set that sub-switch on prod, idempotently.
+    - `{ "switchKey": "eu_region", "value": true, "env": "staging" }` — the same, on a chosen env.
+ToggleKillswitchResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Resolved killswitch id.
+    env:
+      $ref: ./common.yaml#/Env
+    switchKey:
+      anyOf:
+        - type: string
+          maxLength: 64
+          pattern: ^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$
+        - type: "null"
+      description: The sub-switch that was flipped, or `null` when the flat `value` was.
+    previous:
+      type: boolean
+      description: The value that was in effect before this call. Equal to `value` when an idempotent `value` matched what was already stored.
+    value:
+      type: boolean
+      description: The value now in effect on `env`.
+    version:
+      type: integer
+      minimum: -9007199254740991
+      maximum: 9007199254740991
+      description: Newly published version on `env`.
+    published:
+      $ref: ./common.yaml#/KillswitchValue
+  required:
+    - id
+    - env
+    - switchKey
+    - previous
+    - value
+    - version
+    - published
+  additionalProperties: false

@@ -193,15 +193,52 @@ describe("generated dispatch", () => {
     expect((post!.body as { title: string }).title).toBe("Checkout 500s on Safari");
   });
 
-  it("ops_bug presets type=bug from the x-cli command (no type arg needed)", async () => {
+  // `ops_bug`/`ops_feature` preset the discriminator on the ADMIN create op —
+  // deliberately NOT the public `createPublicBug` intake. That one lives on the
+  // edge worker behind a client key, which this generated client (one base URL,
+  // one credential) cannot address; it is also the wrong semantics here, since
+  // an authenticated operator filing a ticket wants an `open` item, not one
+  // parked in `pending_approval` awaiting their own approval.
+  it("ops_bug presets type=bug on the admin create endpoint", async () => {
     const { fn, calls } = captureFetch(() => ({ id: "fb-2", number: 8 }));
     vi.stubGlobal("fetch", fn);
     const { GENERATED_DISPATCH } = await import("../tools/registry.js");
     const { getGeneratedClient } = await import("../tools/_gen-runtime.js");
     const handle = await getGeneratedClient();
     await GENERATED_DISPATCH.ops_bug(handle!.client, { title: "Bug via the bug helper" });
-    const post = calls.find((c) => c.url.includes("/api/admin/ops") && c.method === "POST");
-    expect((post!.body as { type: string }).type).toBe("bug");
+    const post = calls.find((c) => c.method === "POST")!;
+    expect(post.url).toContain("/api/admin/ops");
+    expect(post.body).toMatchObject({ type: "bug", title: "Bug via the bug helper" });
+  });
+
+  it("the public intake is NOT exposed as an MCP tool", async () => {
+    const { GENERATED_DISPATCH } = await import("../tools/registry.js");
+    // `x-cli: hidden` on createPublicBug / createPublicFeatureRequest — they
+    // stay in the spec and the server SDKs, but no tool dispatches to them.
+    const names = Object.keys(GENERATED_DISPATCH);
+    expect(names.some((n) => /public/i.test(n))).toBe(false);
+  });
+
+  // The toggle's whole point is that every field but the path id is optional —
+  // an empty body means "flip the flat value on prod".
+  it("release_killswitch_toggle sends an empty body when only the id is given", async () => {
+    const { fn, calls } = captureFetch(() => ({
+      id: "ksw-1",
+      env: "prod",
+      switchKey: null,
+      previous: false,
+      value: true,
+      version: 2,
+      published: { value: true },
+    }));
+    vi.stubGlobal("fetch", fn);
+    const { GENERATED_DISPATCH } = await import("../tools/registry.js");
+    const { getGeneratedClient } = await import("../tools/_gen-runtime.js");
+    const handle = await getGeneratedClient();
+    await GENERATED_DISPATCH.release_killswitch_toggle(handle!.client, { id: "payments.checkout" });
+    const post = calls.find((c) => c.method === "POST")!;
+    expect(post.url).toContain("/api/admin/killswitches/payments.checkout/toggle");
+    expect(post.body).toEqual({});
   });
 });
 

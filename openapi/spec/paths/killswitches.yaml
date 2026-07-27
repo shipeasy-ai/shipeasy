@@ -579,3 +579,99 @@
       name: set-value
       positional:
         - id
+/api/admin/killswitches/{id}/toggle:
+  post:
+    operationId: toggleKillswitch
+    summary: Toggle a killswitch or one of its switches
+    description: |-
+      Flips a killswitch on one environment and publishes a new version there. This is the one-call incident verb: it reads the current value, flips it, and publishes, so you don't have to fetch the killswitch first.
+
+      Every body field is optional, which is what makes the call widen cleanly:
+
+      - **Flip the killswitch** — `{}`. Flips the flat `value` on `prod`.
+      - **Flip one sub-switch** — `{ "switchKey": "eu_region" }`. Flips that entry on `prod`, creating it (from `false`) if it isn't in the map yet.
+      - **Set it idempotently** — `{ "switchKey": "eu_region", "value": true }`. Publishes exactly that value, so a retried call can't undo the first one. A `null` `value` means "flip", not "set to null".
+      - **Choose the environment** — add `"env": "staging"`. Omitted, `env` is `prod`.
+
+      The response reports both `previous` and `value`, so a caller that asked for a flip can see what it actually changed.
+
+      Prefer this over `PUT /{id}/value` and `PUT /{id}/switch` unless you specifically need those endpoints' unconditional set semantics.
+    tags:
+      - Killswitch
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/killswitches.yaml#/ToggleKillswitchRequest
+          examples:
+            flipOnProd:
+              summary: Flip the killswitch on prod
+              description: No body fields — reads the flat `value` on prod and publishes its opposite.
+              value: {}
+            flipOneSwitch:
+              summary: Flip one sub-switch on prod
+              description: Flips `switches.eu_region` on prod, leaving the flat `value` and every other key alone.
+              value:
+                switchKey: eu_region
+            setOneSwitch:
+              summary: Trip one sub-switch idempotently
+              description: Publishes `switches.eu_region = true` on prod whatever it was before — safe to retry.
+              value:
+                switchKey: eu_region
+                value: true
+            setOneSwitchOnStaging:
+              summary: Trip one sub-switch on a chosen env
+              description: The same idempotent set, published on staging instead of prod.
+              value:
+                switchKey: eu_region
+                value: true
+                env: staging
+    responses:
+      "200":
+        description: Toggle a killswitch or one of its switches
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/killswitches.yaml#/ToggleKillswitchResponse
+            example:
+              id: ksw_01j7w9d8h2k4m6n8p0q2r4s6t8
+              env: prod
+              switchKey: eu_region
+              previous: false
+              value: true
+              version: 7
+              published:
+                value: false
+                switches:
+                  eu_region: true
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: toggle
+      positional:
+        - id

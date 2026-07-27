@@ -32,6 +32,55 @@ describe("spec shape", () => {
   });
 });
 
+/**
+ * `openapi-sdk.yaml` is the second root over the same `paths/` tree — the slice
+ * the eight published server SDKs vendor and generate their `AdminClient` from
+ * (see the header of `spec/openapi-sdk.yaml`). Every operation here lands in
+ * four generated clients across four repos, so widening it is a deliberate act:
+ * this list is exhaustive on purpose and adding a `$ref` there must move it.
+ */
+describe("server-SDK surface", () => {
+  const sdkSpec = parseYaml(
+    readFileSync(fileURLToPath(new URL("../openapi-sdk.json", import.meta.url)), "utf8"),
+  ) as typeof spec;
+
+  const sdkOperations = () =>
+    Object.entries(sdkSpec.paths).flatMap(([path, item]) =>
+      Object.entries(item)
+        .filter(([m]) => METHODS.includes(m))
+        .map(([method, op]) => ({ path, method, op })),
+    );
+
+  it("exposes exactly the three-capability keep-set", () => {
+    expect(sdkOperations().map(({ op }) => op.operationId).sort()).toEqual([
+      "addToGateWhitelist",
+      "createPublicBug",
+      "createPublicFeatureRequest",
+      "getGateWhitelist",
+      "removeFromGateWhitelist",
+      "setGateWhitelist",
+      "toggleKillswitch",
+    ]);
+  });
+
+  it("every SDK operation is the same object the full spec serves", () => {
+    for (const { path, method, op } of sdkOperations()) {
+      // Both roots `$ref` the same `paths/*.yaml` entry, so a divergence here
+      // means someone hand-edited one bundle instead of re-running `pnpm gen`.
+      expect(spec.paths[path]?.[method]?.operationId, `${method.toUpperCase()} ${path}`).toBe(
+        op.operationId,
+      );
+    }
+  });
+
+  it("carries only the schemas those operations reach", () => {
+    // The bundler prunes by reachability; a jump here means an operation
+    // started pulling in a large shared schema and the clients just grew.
+    const count = Object.keys(sdkSpec.components.schemas).length;
+    expect(count).toBeLessThanOrEqual(30);
+  });
+});
+
 describe("hierarchical tags (3.2)", () => {
   it("every tag parent resolves to a declared nav tag", () => {
     const names = new Set(spec.tags.map((t) => t.name));

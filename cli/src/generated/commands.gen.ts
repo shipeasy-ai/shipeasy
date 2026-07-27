@@ -100,7 +100,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   g_ops.command("list")
     .description("List the operational queue")
     .option("--type <value>", "Filter by item type (`bug`/`feature_request`/`error`/`alert`), or `all`.")
-    .option("--status <value>", "Filter by lifecycle status, or `all`. The human-gated holding states (`pending_approval`, `triage`) are excluded from `all`/default and returned only when requested as the exact status.")
+    .option("--status <value>", "Filter by lifecycle status, or `all`. The human-gated holding state (`pending_approval`) is excluded from `all`/default and returned only when requested as the exact status.")
     .option("--limit <value>", "Max items to return (1–500).")
     .option("--owner <value>", "Narrow to items owned by one person OR one agent. Matches a person by `users.id`, email, or display name, and an agent by connector id, display name, or kebab-case handle — e.g. `owner=Claude` or `owner=alice@acme.dev`. Case-insensitive exact match, applied over the returned page.")
     .option("--data <value>", "Request body as a JSON object.")
@@ -182,7 +182,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--steps-to-reproduce <value>", "Updated reproduction steps.")
     .option("--actual-result <value>", "Updated actual result.")
     .option("--expected-result <value>", "Updated expected result.")
-    .option("--status <value>", "Lifecycle status of a queue item. The working flow is `open` → `triaged` → `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`, terminal from any earlier stage). `blocked` marks an item that can't progress until an external dependency clears — a working state a human sets and clears. `ready_for_qa` is what a developer sets once a fix lands; `resolved` is the QA sign-off, normally flipped in the dashboard after verification — set it directly from code only when the fix has been verified end-to-end. `investigating_by_ai` is a system-owned display state — set when the AI agent (Jarvis) picks an item up to investigate, never chosen by a human — so it is shown but not offered as a manual choice. Two human-gated holding states park an item OUT of the work queue until a human promotes it to `open` in the dashboard, so `GET /api/admin/ops` excludes them under `status=all`/default and returns them only when requested as an exact `status`: `pending_approval` is the pre-open approval gate for untriaged inbound (e.g. connector requests filed from a customer's connectors panel) so it never gets auto-implemented — approving = flipping the status to `open`; `triage` is the onboarding-help bucket — questions/errors submitted to the \"Stuck in onboarding?\" assistant are funnelled into the platform project as `triage` rows so the team can see where people get stuck and follow up, keeping onboarding chatter out of the work queue until a human moves real items to `open`.")
+    .option("--status <value>", "Lifecycle status of a queue item. The working flow is `open` → `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`, terminal from any earlier stage). `blocked` marks an item that can't progress until an external dependency clears — a working state a human sets and clears. `ready_for_qa` is what a developer sets once a fix lands; `resolved` is the QA sign-off, normally flipped in the dashboard after verification — set it directly from code only when the fix has been verified end-to-end. `investigating_by_ai` is a system-owned display state — set when the AI agent (Jarvis) picks an item up to investigate, never chosen by a human — so it is shown but not offered as a manual choice. `pending_approval` is the one human-gated holding state: it parks an item OUT of the work queue until a human promotes it to `open` in the dashboard, so `GET /api/admin/ops` excludes it under `status=all`/default and returns it only when requested as an exact `status`. It covers untriaged inbound that must never be auto-implemented — connector requests filed from a customer's connectors panel, and questions funnelled in from the \"Stuck in onboarding?\" assistant — where approving means flipping the status to `open`. Two earlier values were removed in favour of this single gate: `triage` (the onboarding-help bucket, now `pending_approval`) and `triaged` (a redundant \"looked at but not started\" step, now plain `open`).")
     .option("--priority <value>", "Triage priority, or `null` when not set (in an update, `null` clears it).")
     .option("--github-pr-number <value>", "Link (or, when `null`, unlink) a GitHub pull request to this bug.")
     .option("--notify <value>", "Where this item's completion notification lands, or `null`.")
@@ -790,6 +790,36 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .action(async (id, opts) => {
       await ctx.run({ mutates: false, invoke: (client) => api.listGateActivity({ client, path: { id: id }, query: clean({ limit: num(opts.limit) }), body: json(opts.data) as never }) });
     });
+  g_release_flags.command("whitelist")
+    .description("Read a gate's whitelist")
+    .argument("<id>", "Stable opaque gate id (`gate_…`) or the gate's `name`.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (id, opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.getGateWhitelist({ client, path: { id: id }, body: json(opts.data) as never }) });
+    });
+  g_release_flags.command("whitelist-add")
+    .description("Add entries to a gate's whitelist")
+    .argument("<id>", "Stable opaque gate id (`gate_…`) or the gate's `name`.")
+    .option("--attr <value>", "Identity attribute to match on. Only honoured when the gate has no whitelist yet (this call creates it); passing an attribute that disagrees with an existing whitelist is a 409 rather than a silent re-key of the entries already there.")
+    .option("--entries <value>", "Identities to admit. Already-listed entries are skipped, so the call is idempotent.")
+    .action(async (id, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.addToGateWhitelist({ client, path: { id: id }, body: clean({ attr: str(opts.attr), entries: json(opts.entries) }) }) });
+    });
+  g_release_flags.command("whitelist-set")
+    .description("Replace a gate's whitelist")
+    .argument("<id>", "Stable opaque gate id (`gate_…`) or the gate's `name`.")
+    .option("--attr <value>", "Identity attribute to match on. Defaults to the whitelist's current attribute, or `email` when the gate has no whitelist yet.")
+    .option("--entries <value>", "The complete whitelist after the call. Pass `[]` to remove the whitelist from the gate entirely.")
+    .action(async (id, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.setGateWhitelist({ client, path: { id: id }, body: clean({ attr: str(opts.attr), entries: json(opts.entries) }) }) });
+    });
+  g_release_flags.command("whitelist-remove")
+    .description("Remove entries from a gate's whitelist")
+    .argument("<id>", "Stable opaque gate id (`gate_…`) or the gate's `name`.")
+    .option("--entries <value>", "Identities to stop admitting. Entries that aren't listed are skipped, so the call is idempotent.")
+    .action(async (id, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.removeFromGateWhitelist({ client, path: { id: id }, body: clean({ entries: json(opts.entries) }) }) });
+    });
   g_release_killswitch.command("list")
     .description("List killswitches")
     .option("--limit <value>", "Page size (1–500). Defaults to 100.")
@@ -857,6 +887,15 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--value <value>", "Flat boolean to publish on `env`. Publishes a new version on that env only.")
     .action(async (id, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.setKillswitchValue({ client, path: { id: id }, body: clean({ env: str(opts.env), value: bool(opts.value) }) }) });
+    });
+  g_release_killswitch.command("toggle")
+    .description("Toggle a killswitch or one of its switches")
+    .argument("<id>", "Stable opaque killswitch id (`ksw_…`) or the killswitch's `name`.")
+    .option("--switch-key <value>", "Which target to flip. Omit (or `null`) to flip the killswitch's own flat `value`; name a switch key to flip that nested sub-switch instead, creating the entry if it doesn't exist yet.")
+    .option("--value <value>", "The value to publish. Omit (or `null`) to flip whatever is stored now — read-modify-write in one call. Pass an explicit `true`/`false` to make the call idempotent, so a retry can't undo the first attempt.")
+    .option("--env <value>", "Environment to publish on. Defaults to `prod` — the environment an incident response means when it says \"kill it\".")
+    .action(async (id, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.toggleKillswitch({ client, path: { id: id }, body: clean({ switchKey: str(opts.switchKey), value: bool(opts.value), env: str(opts.env) }) }) });
     });
   g_release_experiments_universes.command("list")
     .description("List universes")

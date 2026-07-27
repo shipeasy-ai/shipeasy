@@ -1063,6 +1063,175 @@ CreateFeatureRequestRequest:
     - title
   additionalProperties: false
   description: "Feature-request-kind fields for `POST /api/admin/ops` (sent with `type: feature_request`)."
+CreatePublicBugRequest:
+  type: object
+  properties:
+    title:
+      type: string
+      minLength: 1
+      maxLength: 200
+      pattern: '^\S(.*\S)?$'
+      description: One-line bug title (no leading/trailing whitespace).
+    stepsToReproduce:
+      type: string
+      maxLength: 8000
+      default: ""
+      description: How to reproduce the bug.
+    actualResult:
+      type: string
+      maxLength: 8000
+      default: ""
+      description: What actually happened.
+    expectedResult:
+      type: string
+      maxLength: 8000
+      default: ""
+      description: What was expected instead.
+    priority:
+      anyOf:
+        - $ref: "#/OpsItemPriority"
+        - type: "null"
+      description: Initial triage priority, or `null`.
+    status:
+      anyOf:
+        - $ref: "#/OpsItemStatus"
+      description: Initial lifecycle status; defaults to `open` when omitted.
+    assigneeId:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The `users.id` of the person to assign as owner at creation, or `null`.
+    subscribers:
+      type: array
+      items:
+        type: string
+        format: email
+      default: []
+      description: Emails of teammates to subscribe to this item's Slack pings at creation.
+    tags:
+      type: array
+      items:
+        type: string
+      default: []
+      description: Tag names to attach at creation (get-or-created by name, deduped case-insensitively).
+    reporterEmail:
+      anyOf:
+        - type: string
+          format: email
+        - type: "null"
+      description: Email of the reporter, or `null`.
+    pageUrl:
+      anyOf:
+        - type: string
+          format: uri
+        - type: "null"
+      description: URL of the page the bug relates to, or `null`.
+    userAgent:
+      anyOf:
+        - type: string
+          maxLength: 500
+        - type: "null"
+      description: Reporter's user-agent string, or `null`.
+    viewport:
+      anyOf:
+        - type: string
+          maxLength: 40
+        - type: "null"
+      description: Reporter's viewport (e.g. `1280x720`), or `null`.
+    context:
+      anyOf:
+        - type: object
+          additionalProperties: {}
+        - type: "null"
+      description: Arbitrary capture context, or `null`.
+    notify:
+      anyOf:
+        - $ref: ./common.yaml#/NotificationTarget
+        - type: "null"
+      description: Where this bug's completion notification lands.
+  required:
+    - title
+  additionalProperties: false
+  description: "Body for `POST /ops/bug`. The same bug fields as `CreateBugRequest`, minus the `type` discriminator — the path already says what is being filed."
+CreatePublicFeatureRequestRequest:
+  type: object
+  properties:
+    title:
+      type: string
+      minLength: 1
+      maxLength: 200
+      pattern: '^\S(.*\S)?$'
+      description: One-line feature-request title (no leading/trailing whitespace).
+    description:
+      type: string
+      maxLength: 8000
+      default: ""
+      description: What the feature is.
+    useCase:
+      type: string
+      maxLength: 8000
+      default: ""
+      description: Why it's needed / the use case.
+    priority:
+      anyOf:
+        - $ref: "#/OpsItemPriority"
+        - type: "null"
+      description: Initial triage priority, or `null`.
+    status:
+      anyOf:
+        - $ref: "#/OpsItemStatus"
+      description: Initial lifecycle status; defaults to `open` when omitted.
+    assigneeId:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The `users.id` of the person to assign as owner at creation, or `null`.
+    subscribers:
+      type: array
+      items:
+        type: string
+        format: email
+      default: []
+      description: Emails of teammates to subscribe to this item's Slack pings at creation.
+    tags:
+      type: array
+      items:
+        type: string
+      default: []
+      description: Tag names to attach at creation (get-or-created by name, deduped case-insensitively).
+    reporterEmail:
+      anyOf:
+        - type: string
+          format: email
+        - type: "null"
+      description: Email of the reporter, or `null`.
+    pageUrl:
+      anyOf:
+        - type: string
+          format: uri
+        - type: "null"
+      description: URL of the page the request relates to, or `null`.
+    userAgent:
+      anyOf:
+        - type: string
+          maxLength: 500
+        - type: "null"
+      description: Reporter's user-agent string, or `null`.
+    context:
+      anyOf:
+        - type: object
+          additionalProperties: {}
+        - type: "null"
+      description: Arbitrary capture context, or `null`.
+    notify:
+      anyOf:
+        - $ref: ./common.yaml#/NotificationTarget
+        - type: "null"
+      description: Where this request's completion notification lands.
+  required:
+    - title
+  additionalProperties: false
+  description: "Body for `POST /ops/feature-request`. The same feature-request fields as `CreateFeatureRequestRequest`, minus the `type` discriminator — the path already says what is being filed."
 CreateOpsItemRequest:
   oneOf:
     - $ref: "#/CreateBugRequest"
@@ -1073,6 +1242,22 @@ CreateOpsItemRequest:
       bug: "#/CreateBugRequest"
       feature_request: "#/CreateFeatureRequestRequest"
   description: "Body for `POST /api/admin/ops`. A discriminated union on `type`: `bug` carries the bug fields, `feature_request` the feature fields. Only these two user-fileable types are accepted — `error`, `alert`, and `measure_plan` tickets are auto-filed by the platform and cannot be created over the API."
+CreatePublicTicketResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: The new item's id. Absent on a deduped response — nothing was created, so there is no new id to report.
+    number:
+      type: integer
+      description: Per-project item number. On a deduped response this is the number of the OPEN ticket already tracking the report, which is what a caller should show the user either way.
+    deduped:
+      type: boolean
+      description: "`true` when an open ticket already tracked this report and nothing was filed (HTTP 200). Absent on a fresh file (HTTP 201)."
+  required:
+    - number
+  additionalProperties: false
+  description: "Response for the public ticket intake. A fresh file returns `201` with `id` + `number`; a repeat of a report already tracked by an open ticket returns `200` with that ticket's `number` and `deduped: true`."
 CreateOpsItemResponse:
   type: object
   properties:

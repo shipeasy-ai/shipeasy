@@ -980,3 +980,90 @@ ListGateActivityResponse:
       - createdAt
     additionalProperties: false
   description: Recent audit rows for one gate, newest first.
+GateWhitelistAttr:
+  type: string
+  enum:
+    - email
+    - user_id
+  description: Which identity attribute the whitelist matches on. `email` compares the caller's `email`; `user_id` compares the caller's `userID`. A whitelist matches on exactly one of the two at a time.
+GateWhitelist:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Resolved gate id.
+    name:
+      type: string
+      description: The gate's stable `name`.
+    attr:
+      $ref: "#/GateWhitelistAttr"
+    entries:
+      type: array
+      items:
+        type: string
+        minLength: 1
+      description: The whitelisted identities, in the order they are stored. Deduplicated case-sensitively; an empty array means the gate has no whitelist.
+  required:
+    - id
+    - name
+    - attr
+    - entries
+  additionalProperties: false
+  description: A gate's whitelist — the always-first allowlist that admits the listed identities before any targeting rule or rollout runs. Backed by the pinned `whitelist` entry at the head of the gate's `stack`, so it is the same list the dashboard's Whitelist block edits.
+SetGateWhitelistRequest:
+  type: object
+  properties:
+    attr:
+      anyOf:
+        - $ref: "#/GateWhitelistAttr"
+      description: Identity attribute to match on. Defaults to the whitelist's current attribute, or `email` when the gate has no whitelist yet.
+    entries:
+      type: array
+      items:
+        type: string
+        minLength: 1
+      description: The complete whitelist after the call. Pass `[]` to remove the whitelist from the gate entirely.
+  required:
+    - entries
+  additionalProperties: false
+  description: Body for `PUT /api/admin/gates/{id}/whitelist`. Replaces the whole list — idempotent, and the only call that can switch `attr` or clear the whitelist.
+AddToGateWhitelistRequest:
+  type: object
+  properties:
+    attr:
+      anyOf:
+        - $ref: "#/GateWhitelistAttr"
+      description: Identity attribute to match on. Only honoured when the gate has no whitelist yet (this call creates it); passing an attribute that disagrees with an existing whitelist is a 409 rather than a silent re-key of the entries already there.
+    entries:
+      type: array
+      minItems: 1
+      items:
+        type: string
+        minLength: 1
+      description: Identities to admit. Already-listed entries are skipped, so the call is idempotent.
+  required:
+    - entries
+  additionalProperties: false
+  description: Body for `POST /api/admin/gates/{id}/whitelist`. Adds entries to the whitelist, creating it if the gate doesn't have one.
+RemoveFromGateWhitelistRequest:
+  type: object
+  properties:
+    entries:
+      type: array
+      minItems: 1
+      items:
+        type: string
+        minLength: 1
+      description: Identities to stop admitting. Entries that aren't listed are skipped, so the call is idempotent.
+  required:
+    - entries
+  additionalProperties: false
+  description: "Body for `DELETE /api/admin/gates/{id}/whitelist`. Removes entries from the whitelist. Removing the last entry leaves an empty whitelist in place — use `PUT` with `entries: []` to drop the block itself."
+GetGateWhitelistResponse:
+  $ref: "#/GateWhitelist"
+SetGateWhitelistResponse:
+  $ref: "#/GateWhitelist"
+AddToGateWhitelistResponse:
+  $ref: "#/GateWhitelist"
+RemoveFromGateWhitelistResponse:
+  $ref: "#/GateWhitelist"

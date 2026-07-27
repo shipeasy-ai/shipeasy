@@ -390,6 +390,44 @@ export const zListGateActivityResponse = z.array(z.object({
     createdAt: z.string()
 }));
 
+/**
+ * Which identity attribute the whitelist matches on. `email` compares the caller's `email`; `user_id` compares the caller's `userID`. A whitelist matches on exactly one of the two at a time.
+ */
+export const zGateWhitelistAttr = z.enum(['email', 'user_id']);
+
+/**
+ * A gate's whitelist — the always-first allowlist that admits the listed identities before any targeting rule or rollout runs. Backed by the pinned `whitelist` entry at the head of the gate's `stack`, so it is the same list the dashboard's Whitelist block edits.
+ */
+export const zGateWhitelist = z.object({
+    id: z.string(),
+    name: z.string(),
+    attr: zGateWhitelistAttr,
+    entries: z.array(z.string().min(1))
+});
+
+/**
+ * Body for `PUT /api/admin/gates/{id}/whitelist`. Replaces the whole list — idempotent, and the only call that can switch `attr` or clear the whitelist.
+ */
+export const zSetGateWhitelistRequest = z.object({
+    attr: zGateWhitelistAttr.optional(),
+    entries: z.array(z.string().min(1))
+});
+
+/**
+ * Body for `POST /api/admin/gates/{id}/whitelist`. Adds entries to the whitelist, creating it if the gate doesn't have one.
+ */
+export const zAddToGateWhitelistRequest = z.object({
+    attr: zGateWhitelistAttr.optional(),
+    entries: z.array(z.string().min(1)).min(1)
+});
+
+/**
+ * Body for `DELETE /api/admin/gates/{id}/whitelist`. Removes entries from the whitelist. Removing the last entry leaves an empty whitelist in place — use `PUT` with `entries: []` to drop the block itself.
+ */
+export const zRemoveFromGateWhitelistRequest = z.object({
+    entries: z.array(z.string().min(1)).min(1)
+});
+
 export const zExperimentApiRow = z.object({
     id: z.string(),
     name: z.string().max(128).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$/),
@@ -1076,6 +1114,30 @@ export const zKillswitchValue = z.object({
 export const zSetKillswitchValueResponse = z.object({
     id: z.string(),
     env: zEnv,
+    version: z.int().gte(-9007199254740991).lte(9007199254740991),
+    published: zKillswitchValue
+});
+
+/**
+ * Body for `POST /api/admin/killswitches/{id}/toggle`. Every field is optional, so the four useful calls read as one method with a widening argument list:
+ *
+ * - `{}` — flip the flat value on prod.
+ * - `{ "switchKey": "eu_region" }` — flip that sub-switch on prod.
+ * - `{ "switchKey": "eu_region", "value": true }` — set that sub-switch on prod, idempotently.
+ * - `{ "switchKey": "eu_region", "value": true, "env": "staging" }` — the same, on a chosen env.
+ */
+export const zToggleKillswitchRequest = z.object({
+    switchKey: z.string().max(64).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$/).nullish(),
+    value: z.boolean().nullish(),
+    env: zEnv.optional()
+});
+
+export const zToggleKillswitchResponse = z.object({
+    id: z.string(),
+    env: zEnv,
+    switchKey: z.string().max(64).regex(/^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$/).nullable(),
+    previous: z.boolean(),
+    value: z.boolean(),
     version: z.int().gte(-9007199254740991).lte(9007199254740991),
     published: zKillswitchValue
 });
@@ -2183,6 +2245,55 @@ export const zCreateOpsItemRequest = z.discriminatedUnion('type', [
 export const zCreateOpsItemResponse = z.object({
     id: z.string(),
     number: z.number().nullish()
+});
+
+/**
+ * Body for `POST /ops/bug`. The same bug fields as `CreateBugRequest`, minus the `type` discriminator — the path already says what is being filed.
+ */
+export const zCreatePublicBugRequest = z.object({
+    title: z.string().min(1).max(200).regex(/^\S(.*\S)?$/),
+    stepsToReproduce: z.string().max(8000).optional().default(''),
+    actualResult: z.string().max(8000).optional().default(''),
+    expectedResult: z.string().max(8000).optional().default(''),
+    priority: zOpsItemPriority.nullish(),
+    status: zOpsItemStatus.optional(),
+    assigneeId: z.string().nullish(),
+    subscribers: z.array(z.email()).optional().default([]),
+    tags: z.array(z.string()).optional().default([]),
+    reporterEmail: z.email().nullish(),
+    pageUrl: z.url().nullish(),
+    userAgent: z.string().max(500).nullish(),
+    viewport: z.string().max(40).nullish(),
+    context: z.record(z.string(), z.unknown()).nullish(),
+    notify: zNotificationTarget.nullish()
+});
+
+/**
+ * Response for the public ticket intake. A fresh file returns `201` with `id` + `number`; a repeat of a report already tracked by an open ticket returns `200` with that ticket's `number` and `deduped: true`.
+ */
+export const zCreatePublicTicketResponse = z.object({
+    id: z.string().optional(),
+    number: z.int(),
+    deduped: z.boolean().optional()
+});
+
+/**
+ * Body for `POST /ops/feature-request`. The same feature-request fields as `CreateFeatureRequestRequest`, minus the `type` discriminator — the path already says what is being filed.
+ */
+export const zCreatePublicFeatureRequestRequest = z.object({
+    title: z.string().min(1).max(200).regex(/^\S(.*\S)?$/),
+    description: z.string().max(8000).optional().default(''),
+    useCase: z.string().max(8000).optional().default(''),
+    priority: zOpsItemPriority.nullish(),
+    status: zOpsItemStatus.optional(),
+    assigneeId: z.string().nullish(),
+    subscribers: z.array(z.email()).optional().default([]),
+    tags: z.array(z.string()).optional().default([]),
+    reporterEmail: z.email().nullish(),
+    pageUrl: z.url().nullish(),
+    userAgent: z.string().max(500).nullish(),
+    context: z.record(z.string(), z.unknown()).nullish(),
+    notify: zNotificationTarget.nullish()
 });
 
 /**
@@ -3743,6 +3854,64 @@ export const zListGateActivityQuery = z.object({
  */
 export const zListGateActivityResponse2 = zListGateActivityResponse;
 
+export const zRemoveFromGateWhitelistBody = zRemoveFromGateWhitelistRequest;
+
+export const zRemoveFromGateWhitelistHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zRemoveFromGateWhitelistPath = z.object({
+    id: zResourceId
+});
+
+/**
+ * Remove entries from a gate's whitelist
+ */
+export const zRemoveFromGateWhitelistResponse = zGateWhitelist;
+
+export const zGetGateWhitelistHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zGetGateWhitelistPath = z.object({
+    id: zResourceId
+});
+
+/**
+ * Read a gate's whitelist
+ */
+export const zGetGateWhitelistResponse = zGateWhitelist;
+
+export const zAddToGateWhitelistBody = zAddToGateWhitelistRequest;
+
+export const zAddToGateWhitelistHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zAddToGateWhitelistPath = z.object({
+    id: zResourceId
+});
+
+/**
+ * Add entries to a gate's whitelist
+ */
+export const zAddToGateWhitelistResponse = zGateWhitelist;
+
+export const zSetGateWhitelistBody = zSetGateWhitelistRequest;
+
+export const zSetGateWhitelistHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zSetGateWhitelistPath = z.object({
+    id: zResourceId
+});
+
+/**
+ * Replace a gate's whitelist
+ */
+export const zSetGateWhitelistResponse = zGateWhitelist;
+
 export const zListExperimentsHeaders = z.object({
     'X-Project-Id': z.string().optional()
 });
@@ -4186,6 +4355,21 @@ export const zSetKillswitchValuePath = z.object({
  */
 export const zSetKillswitchValueResponse2 = zSetKillswitchValueResponse;
 
+export const zToggleKillswitchBody = zToggleKillswitchRequest;
+
+export const zToggleKillswitchHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zToggleKillswitchPath = z.object({
+    id: zResourceId
+});
+
+/**
+ * Toggle a killswitch or one of its switches
+ */
+export const zToggleKillswitchResponse2 = zToggleKillswitchResponse;
+
 export const zListUniversesHeaders = z.object({
     'X-Project-Id': z.string().optional()
 });
@@ -4594,6 +4778,20 @@ export const zCreateOpsItemHeaders = z.object({
  * File a queue item
  */
 export const zCreateOpsItemResponse2 = zCreateOpsItemResponse;
+
+export const zCreatePublicBugBody = zCreatePublicBugRequest;
+
+/**
+ * An open ticket already tracks this report; nothing was filed
+ */
+export const zCreatePublicBugResponse = zCreatePublicTicketResponse;
+
+export const zCreatePublicFeatureRequestBody = zCreatePublicFeatureRequestRequest;
+
+/**
+ * An open ticket already tracks this report; nothing was filed
+ */
+export const zCreatePublicFeatureRequestResponse = zCreatePublicTicketResponse;
 
 export const zDeleteOpsItemHeaders = z.object({
     'X-Project-Id': z.string().optional()

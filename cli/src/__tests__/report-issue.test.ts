@@ -6,7 +6,11 @@ import {
 } from "../setup/report-issue";
 
 describe("report-issue", () => {
-  it("builds a payload with the failing step, error, and a system context", () => {
+  // The payload IS the spec's `CreatePublicBugRequest` — camelCase field names,
+  // the failing step carried in `context.step` (where the worker reads it for
+  // its dedupe key). Asserting the exact names on purpose: a drift back to the
+  // retired snake_case body would silently file blank bugs.
+  it("builds the documented CreatePublicBugRequest body", () => {
     const payload = buildSetupIssuePayload({
       title: "Setup failed at Feature installs",
       step: "Feature installs",
@@ -18,9 +22,15 @@ describe("report-issue", () => {
     }) as Record<string, unknown>;
 
     expect(payload.title).toBe("Setup failed at Feature installs");
-    expect(payload.step).toBe("Feature installs");
-    expect(payload.error).toBe("enableModuleGroup(ops) 500");
+    expect(payload.stepsToReproduce).toBe("ops enable failed");
+    expect(payload.actualResult).toBe("enableModuleGroup(ops) 500");
+    expect(payload.expectedResult).toBe("Setup completes without errors.");
+    // No leftovers from the old body shape.
+    expect("step" in payload).toBe(false);
+    expect("error" in payload).toBe(false);
+    expect("description" in payload).toBe(false);
     const ctx = payload.context as Record<string, unknown>;
+    expect(ctx.step).toBe("Feature installs");
     expect(ctx.cli_version).toBe("9.9.9");
     expect(ctx.language).toBe("typescript");
     expect(ctx.frameworks).toEqual(["nextjs", "react"]);
@@ -28,11 +38,11 @@ describe("report-issue", () => {
     expect(typeof ctx.node).toBe("string");
   });
 
-  it("omits reporter_email unless provided", () => {
+  it("omits reporterEmail unless provided", () => {
     const without = buildSetupIssuePayload({ title: "x" });
-    expect("reporter_email" in without).toBe(false);
+    expect("reporterEmail" in without).toBe(false);
     const withEmail = buildSetupIssuePayload({ title: "x", reporterEmail: "a@b.com" });
-    expect((withEmail as { reporter_email?: string }).reporter_email).toBe("a@b.com");
+    expect((withEmail as { reporterEmail?: string }).reporterEmail).toBe("a@b.com");
   });
 
   it("HARD-refuses to send without consent (no network)", async () => {

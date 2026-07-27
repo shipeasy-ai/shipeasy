@@ -11,7 +11,7 @@ console.log("• re-bundling spec/ and re-generating the SDK…");
 run("pnpm bundle");
 run("pnpm gen:sdk");
 
-const dirty = out("git status --porcelain -- openapi.yaml src/generated");
+const dirty = out("git status --porcelain -- openapi.yaml openapi-sdk.json src/generated");
 if (dirty) {
   console.error(
     "\n✗ drift: openapi.yaml / src/generated are stale relative to spec/.\n" +

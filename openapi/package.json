@@ -40,17 +40,19 @@
       "default": "./src/codegen.ts"
     },
     "./openapi.yaml": "./openapi.yaml",
-    "./openapi.json": "./openapi.json"
+    "./openapi.json": "./openapi.json",
+    "./openapi-sdk.json": "./openapi-sdk.json"
   },
   "files": [
     "dist/",
     "openapi.yaml",
     "openapi.json",
+    "openapi-sdk.json",
     "spec/"
   ],
   "scripts": {
-    "lint:spec": "redocly lint spec/openapi.yaml",
-    "bundle": "redocly bundle spec/openapi.yaml -o openapi.yaml && redocly bundle spec/openapi.yaml -o openapi.json",
+    "lint:spec": "redocly lint spec/openapi.yaml && redocly lint spec/openapi-sdk.yaml",
+    "bundle": "redocly bundle spec/openapi.yaml -o openapi.yaml && redocly bundle spec/openapi.yaml -o openapi.json && redocly bundle spec/openapi-sdk.yaml -o openapi-sdk.json",
     "gen:sdk": "openapi-ts",
     "gen": "pnpm bundle && pnpm gen:sdk",
     "prebuild": "pnpm gen",

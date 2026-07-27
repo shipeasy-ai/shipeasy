@@ -1,8 +1,13 @@
 // Self-reported setup-failure bug intake. When `shipeasy setup` breaks, the CLI
 // (or the agent driving it) can file a structured bug into Shipeasy's own ops
-// queue via the public POST /cli/report endpoint — but ONLY with the user's
-// explicit consent, and only ever as a `pending_approval` ticket (the server
-// forces that state; this key can do nothing else).
+// queue via `createPublicBug` (POST /ops/bug on the edge worker) — but ONLY with
+// the user's explicit consent, and only ever as a `pending_approval` ticket (the
+// server forces that state; this key can do nothing else).
+//
+// That endpoint is the DOCUMENTED public intake: same operation the OpenAPI spec
+// describes, the MCP server exposes as `ops_bug`, and the published server SDKs
+// generate. It supersedes the older ad-hoc `/cli/report` body, which the worker
+// still accepts so already-published CLIs keep working.
 //
 // Consent is mandatory. `sendSetupIssue` refuses unless `consent === true`, and
 // every path prints the EXACT payload first so the user sees what leaves their
@@ -50,15 +55,24 @@ export interface SetupIssueInput {
   cliVersion?: string;
 }
 
-/** The exact JSON body POSTed to /cli/report. Returned standalone so callers can
- *  show the user precisely what will be sent before sending (consent). */
+/**
+ * The exact JSON body POSTed to `/ops/bug` — the spec's `CreatePublicBugRequest`.
+ * Returned standalone so callers can show the user precisely what will be sent
+ * before sending (consent).
+ *
+ * Field names are the contract's camelCase (`stepsToReproduce`, `actualResult`,
+ * `reporterEmail`), not the snake_case the retired `/cli/report` body used. The
+ * failing setup step has no field of its own on the documented shape, so it
+ * rides in `context.step` where the dashboard already reads it.
+ */
 export function buildSetupIssuePayload(input: SetupIssueInput): Record<string, unknown> {
   const body: Record<string, unknown> = {
     title: input.title,
-    step: input.step ?? "",
-    error: input.error ?? "",
-    description: input.description ?? "",
+    stepsToReproduce: input.description ?? "",
+    actualResult: input.error ?? "",
+    expectedResult: "Setup completes without errors.",
     context: {
+      step: input.step ?? "",
       os: os.platform(),
       arch: os.arch(),
       node: process.version,
@@ -68,7 +82,7 @@ export function buildSetupIssuePayload(input: SetupIssueInput): Record<string, u
       frameworks: input.frameworks ?? [],
     },
   };
-  if (input.reporterEmail) body.reporter_email = input.reporterEmail;
+  if (input.reporterEmail) body.reporterEmail = input.reporterEmail;
   return body;
 }
 
@@ -124,7 +138,7 @@ export async function sendSetupIssue(
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), REPORT_TIMEOUT_MS);
   try {
-    const res = await fetch(`${base}/cli/report`, {
+    const res = await fetch(`${base}/ops/bug`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-SDK-Key": reportClientKey() },
       body: JSON.stringify(buildSetupIssuePayload(input)),
