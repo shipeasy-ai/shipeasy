@@ -470,13 +470,20 @@ describe("buildWiringDoc", () => {
     expect(doc).toMatch(/Call the `whoami` MCP tool/); // the probe gate still stands
   });
 
-  it("separates a 401 from a stale session, and points Cursor at its in-session authorize", () => {
+  it("separates a 401 from a stale session, and gives Cursor BOTH surfaces", () => {
     // The failure that sent a Cursor session to the CLI: tools present, call
     // Unauthorized. Restarting cannot fix that — the client never signed in.
     const doc = buildWiringDoc({ ...base, targets: [wiringTarget()], agents: ["cursor"] });
     expect(doc).toMatch(/tools ARE there but the call returns/);
     expect(doc).toMatch(/NOT a stale session/);
-    expect(doc).toMatch(/`mcp_auth` tool for server `shipeasy`/);
+    // `mcp_auth` exists in the IDE only. Naming it unconditionally sent a
+    // `cursor-agent` session hunting for a tool that isn't there (its `mcp`
+    // subcommands are login/list/list-tools/enable/disable), and from there
+    // straight to the CLI fallback — so the CLI branch must be spelled out,
+    // including that `cursor-agent mcp login` is not a fix.
+    expect(doc).toMatch(/in the IDE: call the `mcp_auth` tool/);
+    expect(doc).toMatch(/`cursor-agent mcp login` reports success without storing a token/);
+    expect(doc).toMatch(/ask the user to log in from Cursor/);
     // ...and the restart branch stays, for the genuinely stale case.
     expect(doc).toMatch(/tools aren't there at all/);
   });

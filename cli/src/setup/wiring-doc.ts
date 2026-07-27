@@ -146,13 +146,22 @@ const RELOAD_BY_AGENT: Record<string, string> = {
  *
  * mcp.shipeasy.ai answers discovery anonymously and 401s only on `tools/call`,
  * so a client can connect, list all its tools, and report itself ready while
- * holding no credential at all. Cursor is the case worth naming: it exposes an
- * `mcp_auth` tool the agent can call in-session, so it need not bounce the work
- * back to the user at all.
+ * holding no credential at all.
+ *
+ * Cursor needs both of its surfaces spelled out, because the obvious remedies
+ * are surface-specific and each is a dead end on the other:
+ *  - the IDE exposes an `mcp_auth` tool the agent can call in-session;
+ *  - `cursor-agent` (CLI) has no such tool — `cursor-agent mcp` offers only
+ *    login/list/list-tools/enable/disable — and `cursor-agent mcp login` prints
+ *    "✓ MCP login successful" against our anonymous discovery WITHOUT storing a
+ *    token, so it is not a remedy either. From the CLI the only honest move is
+ *    to hand it to the user.
+ * An agent told to "call `mcp_auth`" in a `cursor-agent` session hunts for a
+ * tool that isn't there and falls back to the CLI, which is what happened.
  */
 const AUTHORIZE_BY_AGENT: Record<string, string> = {
   cursor:
-    "**Cursor** — call the `mcp_auth` tool for server `shipeasy` (Cursor's in-session authorize), and approve in the browser. From a terminal instead: `cursor-agent mcp login shipeasy`.",
+    "**Cursor** — in the IDE: call the `mcp_auth` tool for server `shipeasy` and approve in the browser. In a `cursor-agent` (CLI) session there is no in-session authorize and `cursor-agent mcp login` reports success without storing a token — ask the user to log in from Cursor: Settings → Tools & MCP → `shipeasy` → Login.",
   claude: "**Claude Code** — run `/mcp`, select `shipeasy`, choose Authenticate, then approve in the browser.",
   codex: "**Codex CLI** — run `codex mcp login shipeasy` and approve in the browser.",
   copilot: "**VS Code / Copilot** — start `shipeasy` from the MCP servers view and approve in the browser.",
