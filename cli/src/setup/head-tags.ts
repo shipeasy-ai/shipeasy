@@ -21,6 +21,7 @@
  * detected, rather than the whole inventory for the agent to choose from.
  */
 
+import { docFile, docPointer, type ReferenceDocs } from "./doc-bundle";
 import type { WiringTarget } from "./wiring-doc";
 
 /** Where the payload the browser reads is produced. */
@@ -176,6 +177,21 @@ const HELPER_SNIPPETS: Record<string, (o: SnippetInput) => Snippet> = {
   },
 };
 
+/**
+ * The overlay's own doc, whichever SDK published it. Not keyed by target sdk:
+ * the overlay is one hosted bundle shared by every language, so the first pulled
+ * copy describes it for all of them.
+ */
+function devtoolsDocLines(refs: ReferenceDocs | undefined): string[] {
+  const page = refs?.pages.find((p) => p.topic === "browser-devtools");
+  if (!page) return [];
+  return [
+    `- [ ] Before pasting the overlay tag, read \`${page.file}\` — pulled at setup, so it` +
+      ` lists the attributes and build gates the overlay supports **today**. Anything it` +
+      ` says about the tag overrides the snippet above.`,
+  ];
+}
+
 /** The devtools overlay tag as raw HTML, for the paths with no SDK helper. */
 function devtoolsHtml(clientVal: string, idVal: string): string {
   return [
@@ -227,6 +243,8 @@ export interface HeadTagsInput {
   i18n: boolean;
   /** User accepted the in-page overlay → the devtools tag joins the block. */
   devtools: boolean;
+  /** Doc pages pulled at setup — the helper signatures below link into them. */
+  docs?: ReferenceDocs;
 }
 
 const RULES = `Rules that decide whether the block is correct:
@@ -245,12 +263,13 @@ const RULES = `Rules that decide whether the block is correct:
   bootstrap tag's \`data-user\`) is per-visitor; caching that page serves one
   visitor's assignments to everyone.`;
 
-function sdkHelperBlock(t: WiringTarget, o: SnippetInput): string[] {
+function sdkHelperBlock(t: WiringTarget, o: SnippetInput, refs?: ReferenceDocs): string[] {
   const build = HELPER_SNIPPETS[t.sdk];
   if (!build) {
     return [
-      `This SDK has no tag helpers. Emit the tags by hand from` +
-        ` \`shipeasy docs get --sdk ${t.sdk} advanced\`, keeping the rules above.`,
+      `This SDK has no tag-helper spelling baked into these notes. Take the helpers` +
+        ` from ${docPointer(refs, t.sdk, "head-tags", "advanced")} and emit the tags` +
+        ` from there, keeping the rules above.`,
     ];
   }
   const snip = build(o);
@@ -272,8 +291,10 @@ function sdkHelperBlock(t: WiringTarget, o: SnippetInput): string[] {
       (t.entryPoints.length
         ? ` Detected entry point(s): ${t.entryPoints.map((e) => `\`${e}\``).join(", ")}.`
         : ""),
-    `- [ ] Full signatures and every default each helper falls back to:` +
-      ` \`shipeasy docs get --sdk ${t.sdk} advanced\`.`,
+    `- [ ] The snippet above is a shape, not a signature. Full argument lists and` +
+      ` every default each helper falls back to:` +
+      ` ${docPointer(refs, t.sdk, "head-tags", "advanced")} — if it spells a helper` +
+      ` differently than the snippet does, the doc is right.`,
   );
   return parts;
 }
@@ -384,6 +405,7 @@ function legacyTagSteps(targets: WiringTarget[]): string[] {
  * and a static site asks for it with no page target to attribute the tags to.
  */
 export function headTagsSection(input: HeadTagsInput): string {
+  const refs = input.docs;
   const pages = input.targets.filter((t) => t.browser && !t.native);
   const clientVal = input.clientKey ?? `<value of ${input.clientKeyVar} in env>`;
   const idVal = input.projectId || `<value of ${input.projectIdVar} in env>`;
@@ -411,8 +433,10 @@ export function headTagsSection(input: HeadTagsInput): string {
     lines.push("", `### The page (no server-side evaluation detected)`, "");
     lines.push(...hostedBlock(o, input.projectId, clientVal, idVal));
     lines.push("", `- [ ] Gate: load the page and \`window.shipeasy\` is defined before first paint.`);
-    if (input.devtools)
+    if (input.devtools) {
+      lines.push(...devtoolsDocLines(refs));
       lines.push(`- [ ] Gate: load the app with \`?se=1\` and confirm the overlay mounts.`);
+    }
     lines.push(...legacyTagSteps(input.targets));
     return lines.join("\n");
   }
@@ -422,7 +446,7 @@ export function headTagsSection(input: HeadTagsInput): string {
     const fw = t.frameworks.length ? ` · ${t.frameworks.join(", ")}` : "";
     const strategy = tagStrategy(t);
     lines.push("", `### ${dir} (${t.language}${fw})`, "");
-    if (strategy === "sdk-helper") lines.push(...sdkHelperBlock(t, o));
+    if (strategy === "sdk-helper") lines.push(...sdkHelperBlock(t, o, refs));
     else if (strategy === "npm-client") lines.push(...npmClientBlock(t, o, clientVal, idVal));
     else lines.push(...hostedBlock(o, input.projectId, clientVal, idVal));
   }
@@ -434,6 +458,7 @@ export function headTagsSection(input: HeadTagsInput): string {
   );
   if (input.devtools) {
     lines.push(
+      ...devtoolsDocLines(refs),
       `- [ ] Gate: load the app with \`?se=1\` (or Shift+Alt+S) and confirm the overlay mounts.`,
       `- [ ] Decide the build gate for the overlay: it is a visible UI and overrides are` +
         ` a footgun in front of real users, so keep it to staging/preview/internal builds` +

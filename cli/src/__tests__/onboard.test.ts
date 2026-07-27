@@ -406,7 +406,10 @@ describe("buildWiringDoc", () => {
     expect(doc).toContain("t('key')"); // embedded i18n snippet
     expect(doc).toContain("## Final verification gate");
     expect(doc).toContain("( cd apps/web && (pnpm build || npm run build) )");
-    expect(doc).toContain("Do not commit.");
+    // The hand-off hands over a `git add` list and routes to the consent-gated
+    // Cleanup step — it never commits on its own way there.
+    expect(doc).toContain("Then go to Cleanup.");
+    expect(doc).toContain("not committed");
   });
 
   // The gate's first command is `shipeasy whoami`, which reads the CLI session —
@@ -466,6 +469,124 @@ describe("buildWiringDoc", () => {
     const doc = buildWiringDoc({ ...input, featureDocs: {} });
     expect(doc).toContain("shipeasy docs get --sdk typescript error-reporting");
     expect(doc).toContain("shipeasy docs get --sdk typescript i18n");
+  });
+
+  describe("docs pulled for this run", () => {
+    const page = (sdk: string, topic: string, title: string) => ({
+      sdk,
+      topic: topic as never,
+      title,
+      why: `what ${topic} is for`,
+      file: `shipeasy-wiring-docs/${sdk}/${topic}.md`,
+    });
+    const withDocs: WiringDocInput = {
+      ...input,
+      referenceDocs: {
+        dir: "shipeasy-wiring-docs",
+        pages: [
+          page("typescript", "installation", "Installation"),
+          page("typescript", "configuration", "Configuration & identity"),
+          page("typescript", "head-tags", "Script-tag helpers"),
+          page("typescript", "browser-devtools", "Browser devtools overlay"),
+          page("typescript", "flags", "Feature flags"),
+          page("ruby", "configuration", "Configuration & identity"),
+        ],
+        missing: [{ sdk: "ruby", topic: "browser-devtools" as never }],
+      },
+    };
+
+    it("indexes every pulled page and says the pages outrank this file", () => {
+      const doc = buildWiringDoc(withDocs);
+      expect(doc).toContain("## Reference docs pulled for your setup");
+      expect(doc).toContain("`shipeasy-wiring-docs/typescript/flags.md`");
+      expect(doc).toContain("`shipeasy-wiring-docs/ruby/configuration.md`");
+      // The whole point of pulling them: they are newer than this generator.
+      expect(doc).toContain("the page is right");
+      // A topic the SDK doesn't publish is named, not silently skipped.
+      expect(doc).toContain("`browser-devtools` (ruby)");
+    });
+
+    it("links the pulled page from the step that needs it, per target SDK", () => {
+      const doc = buildWiringDoc(withDocs);
+      // Identity/targeting step → that target's own configuration page.
+      expect(doc).toContain("`shipeasy-wiring-docs/typescript/configuration.md`");
+      expect(doc).toContain("`shipeasy-wiring-docs/ruby/configuration.md`");
+      // Head-tag helper signatures → the script-tag page, not a bare docs-get.
+      expect(doc).toContain("`shipeasy-wiring-docs/typescript/head-tags.md`");
+      expect(doc).not.toContain("shipeasy docs get --sdk typescript advanced");
+      // Overlay tag → the overlay's own page.
+      expect(doc).toContain("`shipeasy-wiring-docs/typescript/browser-devtools.md`");
+    });
+
+    it("gives the release module its own read-call pointer block", () => {
+      const doc = buildWiringDoc(withDocs);
+      expect(doc).toContain("## Flags, configs, experiments — the read calls");
+      expect(doc).toContain("`shipeasy-wiring-docs/typescript/flags.md`");
+      // Topics that weren't pulled degrade to the fetch command, same sentence shape.
+      expect(doc).toContain("shipeasy docs get --sdk typescript experiments");
+      // Not selected → no section at all.
+      expect(buildWiringDoc({ ...withDocs, enabledFeatures: ["ops"] })).not.toContain(
+        "## Flags, configs, experiments",
+      );
+    });
+
+    it("prefers the pulled page over a docs-get line when the inline embed is missing", () => {
+      const refs = {
+        ...withDocs.referenceDocs!,
+        pages: [...withDocs.referenceDocs!.pages, page("typescript", "i18n", "Translations")],
+      };
+      const doc = buildWiringDoc({ ...input, featureDocs: {}, referenceDocs: refs });
+      expect(doc).toContain("`shipeasy-wiring-docs/typescript/i18n.md`, pulled for you at setup");
+      // Telling the agent to fetch a page that is already on disk is noise.
+      expect(doc).not.toContain("shipeasy docs get --sdk typescript i18n");
+      // error-reporting wasn't pulled here → the fetch command is still the answer.
+      expect(doc).toContain("shipeasy docs get --sdk typescript error-reporting");
+    });
+
+    it("tells the agent to delete the pulled docs along with this file", () => {
+      expect(buildWiringDoc(withDocs)).toContain("`shipeasy-wiring-docs/`");
+      // Nothing pulled (offline) → no index, no dangling folder reference.
+      const bare = buildWiringDoc({
+        ...input,
+        referenceDocs: { dir: "shipeasy-wiring-docs", pages: [], missing: [] },
+      });
+      expect(bare).not.toContain("## Reference docs pulled for your setup");
+      expect(bare).toContain("shipeasy docs get --sdk typescript configuration");
+    });
+
+    it("scopes the cleanup rm to the artifacts that actually exist", () => {
+      expect(buildWiringDoc(withDocs)).toContain("rm -rf shipeasy-wiring.md shipeasy-wiring-docs/");
+      // No docs pulled → nothing to delete but the wiring file itself.
+      expect(buildWiringDoc(input)).toContain("rm -rf shipeasy-wiring.md`");
+    });
+  });
+
+  describe("cleanup", () => {
+    it("gates the delete AND the commit behind one explicit question", () => {
+      const doc = buildWiringDoc(input);
+      expect(doc).toContain("## Cleanup — ask the user, then finish");
+      expect(doc).toContain("**both need the user's\nanswer**");
+      expect(doc).toContain("**On an explicit yes**");
+      // A no must be inert — no delete, no commit, no "helpful" default.
+      expect(doc).toContain("**On a no, or no clear answer**, change nothing");
+    });
+
+    it("keeps push off the table and forbids a blanket git add", () => {
+      const doc = buildWiringDoc(input);
+      expect(doc).toContain("**Do not push.**");
+      expect(doc).toContain("Never `git add -A` or `git add .`");
+      // Staged content is checked for key leaks before the commit is written.
+      expect(doc).toContain("git diff --cached --stat");
+      expect(doc).toContain("`sdk_server_*` / `sdk_client_*`");
+    });
+
+    it("carves the commit out of the never-commit rule instead of contradicting it", () => {
+      const doc = buildWiringDoc(input);
+      expect(doc).toContain("**Never `git push` or publish.**");
+      expect(doc).toContain("with exactly one\n   exception: the final **Cleanup** step");
+      // The old absolute prohibition must be gone, or the agent gets two rules.
+      expect(doc).not.toContain("Never `git commit`, `git push`, or publish.");
+    });
   });
 
   describe("React Native surface", () => {

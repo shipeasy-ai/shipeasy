@@ -35,6 +35,13 @@ import {
   installMarketplaceSkills,
   installSkill,
 } from "../setup/sdk-docs";
+import {
+  DOCS_DIRNAME,
+  fetchDocBundle,
+  planTopics,
+  toReferenceDocs,
+  writeDocBundle,
+} from "../setup/doc-bundle";
 import { ensureSkillsCli, setupSkillNames } from "../setup/skills-registry";
 import {
   type FileResult,
@@ -566,10 +573,13 @@ export function agentDirective(root: string): string {
     "  • Do the work yourself — run the shell commands; don't delegate to the user.",
     "  • Never print, log, or commit a key value (sdk_server_* / sdk_client_*).",
     "  • Exactly one configure(...) per runtime at the entry point; no wrapper files.",
-    "  • Pull version-correct wiring with `shipeasy docs get --sdk <lang> <page>`.",
+    `  • The SDK docs for what you enabled were pulled into ${DOCS_DIRNAME}/ — read the`,
+    "    page for a step before doing it; it is newer than these notes and wins.",
+    "  • Anything else: `shipeasy docs get --sdk <lang> <page>`.",
     "  • Honour every verification gate; self-heal once, then stop and report.",
-    "  • Stop at 'ready to commit' — hand the user the `git add` list, don't commit.",
-    `  • Delete ${WIRING_FILENAME} once all gates pass.`,
+    "  • Never push. Don't commit either, until the Cleanup step asks the user.",
+    `  • Finish at Cleanup: ask whether to delete ${WIRING_FILENAME} +`,
+    `    ${DOCS_DIRNAME}/ and commit — then do exactly what they answer.`,
     "════════════════════════════════════════════════════════════════",
   ].join("\n");
 }
@@ -640,7 +650,7 @@ export function wiringPlanLines(plan: WiringPlan): string[] {
     lines.push("wrap user-facing copy as translatable i18n keys");
   }
   lines.push(
-    "check the app still builds, then hand you the `git add` list — it stops short of committing",
+    "check the app still builds, then ask whether to clean up the setup artifacts and commit — it never pushes, and never commits unless you say yes",
   );
   return lines;
 }
@@ -1903,6 +1913,19 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     say("  • nothing left — the codebase needs no wiring changes.");
   } else if (dryRun) {
     say(`  (dry run — would write ${WIRING_FILENAME} with the remaining steps)`);
+    const topics = planTopics({
+      sdks: wiringTargets.map((t) => ({ sdk: t.sdk, framework: t.frameworks[0] })),
+      servesPages:
+        wiringTargets.some((t) => t.browser && !t.native) ||
+        devtoolsSurfaces.includes("browser"),
+      devtoolsBrowser: devtoolsSurfaces.includes("browser"),
+      devtoolsNative: devtoolsSurfaces.includes("react-native"),
+      features: enabledFeatures,
+    });
+    say(
+      `  (dry run — would pull the latest ${topics.join(", ")} docs for` +
+        ` ${[...new Set(wiringTargets.map((t) => t.sdk))].join(", ") || "—"} into ${DOCS_DIRNAME}/)`,
+    );
   } else {
     // Fetch language-correct feature snippets for the primary SDK so the wiring
     // doc embeds real calls, not framework-specific guesses.
@@ -1933,6 +1956,28 @@ async function runSetup(opts: SetupOpts): Promise<void> {
           "react-native-devtools",
         )
       : null;
+    // Pull the LATEST published docs for everything this run turned on, into
+    // `shipeasy-wiring-docs/`. The wiring instructions age with the CLI; these
+    // pages don't — they come from each SDK repo's live docs, so an outdated
+    // CLI still hands the agent current wiring, and a bad snippet is fixable by
+    // editing the SDK's docs instead of shipping a CLI release.
+    const docBundle = await fetchDocBundle({
+      sdks: wiringTargets.map((t) => ({ sdk: t.sdk, framework: t.frameworks[0] })),
+      servesPages:
+        wiringTargets.some((t) => t.browser && !t.native) ||
+        devtoolsSurfaces.includes("browser"),
+      devtoolsBrowser: devtoolsSurfaces.includes("browser"),
+      devtoolsNative: devtoolsSurfaces.includes("react-native"),
+      features: enabledFeatures,
+    });
+    if (docBundle.docs.length) {
+      writeDocBundle(root, docBundle);
+      say(`  ✓ pulled ${docBundle.docs.length} doc page(s) → ${DOCS_DIRNAME}/`);
+    } else {
+      say(`  • no docs could be pulled (offline?) — the wiring file falls back to \`docs get\``);
+    }
+    for (const m of docBundle.missing) say(`    • ${m.sdk}: no published '${m.topic}' page`);
+
     // The public identifiers the `<head>` tags carry. Needed whenever anything
     // here renders a page — the runtime tag is how a browser sees flags at all
     // — so this is resolved independently of the devtools answer, from the
@@ -1981,6 +2026,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
           : null,
       enabledFeatures,
       featureDocs,
+      referenceDocs: toReferenceDocs(docBundle),
       buildTargets: wiringTargets
         .filter((t) => t.language === "typescript" || t.language === "javascript")
         .map((t) => t.relPath),
@@ -2101,7 +2147,11 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     row("Dashboard:", `${appBaseUrl()}/dashboard/${projectId}`);
   }
   say();
-  explain("When the wiring is done, commit — setup never commits for you:", { indent: "" });
+  explain(
+    "When the wiring is done, commit — `setup` never commits for you, and the wiring " +
+      "agent only does so if you say yes when it asks:",
+    { indent: "" },
+  );
   say("  `git add <each target>/.shipeasy <manifests+lockfiles> <entry files>`");
   say('  `git commit -m "chore: onboard Shipeasy base (SDK + auth + bind)"`');
   say();
@@ -2308,7 +2358,14 @@ export function setupCommand(parent: Command, version = "unknown"): void {
       "wiring, idiomatic secret stores, overlay script injection) is written to " +
       "`shipeasy-wiring.md` — complete, self-contained instructions any coding " +
       "agent (Claude, Codex, Cursor, Copilot, or a human) can execute. Key values " +
-      "never appear in that file.\n" +
+      "never appear in that file. Alongside it, the SDK doc pages for exactly what " +
+      "you enabled — installation always, plus the overlay, head-tag, flag, " +
+      "experiment, metrics, error and i18n pages you turned on — are pulled from " +
+      "each SDK's live docs into `shipeasy-wiring-docs/` and linked from the step " +
+      "that needs them, so the wiring an agent writes tracks the SDK as it ships " +
+      "today rather than whatever this CLI version remembers. Both are temporary — " +
+      "once every gate passes the agent asks whether to delete them and commit the " +
+      "wiring, and does neither unless you say yes.\n" +
       "12. Offers to bootstrap the instrumentation a module enable can't produce " +
       "on its own: with `ops` on, a session that finds this app's real failure " +
       "paths and reports them through see(); with the release module on, one that " +

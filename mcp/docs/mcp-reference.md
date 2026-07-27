@@ -2952,7 +2952,7 @@ _Parameters_
 
 **List an SDK's documentation tree**
 
-Fetch an SDK's `/docs/manifest.json` and return the doc tree — feature pages, nested snippet groups, and whether an installable skill exists.
+Fetch an SDK's `/docs/manifest.json` and return the doc tree — feature pages, nested snippet groups, the optional setup-topic map, and whether an installable skill exists.
 
 _Parameters_
 

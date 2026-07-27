@@ -390,8 +390,11 @@ describe("agentDirective", () => {
     expect(d).toContain("CODING AGENT");
     expect(d).toContain("/repo/shipeasy-wiring.md");
     expect(d).toContain("Never print, log, or commit a key value");
-    expect(d).toContain("don't commit");
-    expect(d).toContain("Delete shipeasy-wiring.md");
+    // Push is never on; the commit is deferred to the Cleanup step's question.
+    expect(d).toContain("Never push.");
+    expect(d).toContain("Finish at Cleanup: ask whether to delete shipeasy-wiring.md");
+    // The pulled docs go out with the wiring file, so name them in the directive.
+    expect(d).toContain("shipeasy-wiring-docs/");
   });
 });
 
@@ -922,11 +925,12 @@ describe("wiringPlanLines — what we promise the launched agent will do", () =>
     ...over,
   });
 
-  it("always covers the SDK init, identity wiring, and the stop-before-commit rule", () => {
+  it("always covers the SDK init, identity wiring, and the ask-before-commit rule", () => {
     const lines = wiringPlanLines(plan());
     expect(lines.join("\n")).toMatch(/configure the SDK once at the startup entry point/);
     expect(lines.join("\n")).toMatch(/identity \+ targeting attributes/);
-    expect(lines.at(-1)).toMatch(/stops short of committing/);
+    expect(lines.at(-1)).toMatch(/never commits unless you say yes/);
+    expect(lines.at(-1)).toMatch(/never pushes/);
   });
 
   it("reflects THIS run's choices — overlay, ops, i18n, deferred install", () => {

@@ -11,6 +11,13 @@
  */
 
 import type { TargetSurface } from "../commands/scan";
+import {
+  DOCS_DIRNAME,
+  docFile,
+  docPointer,
+  type DocTopic,
+  type ReferenceDocs,
+} from "./doc-bundle";
 import { headTagsSection } from "./head-tags";
 
 export interface WiringTarget {
@@ -49,6 +56,8 @@ export interface WiringTarget {
 
 /** The surface the user accepted devtools on — a page, or a native app. */
 export type DevtoolsSurface = Exclude<TargetSurface, "none">;
+
+export type { ReferenceDocs } from "./doc-bundle";
 
 export interface WiringDocInput {
   projectId: string;
@@ -93,6 +102,11 @@ export interface WiringDocInput {
    * framework-specific guess. Null when the SDK doesn't publish that page.
    */
   featureDocs?: { i18n?: string | null; errorReporting?: string | null };
+  /**
+   * Every doc page pulled for this run's selections, already on disk. Sections
+   * below link the page that answers them; the index section lists the rest.
+   */
+  referenceDocs?: ReferenceDocs;
   /** JS/TS targets to build-verify at the end. */
   buildTargets: string[];
   /**
@@ -133,12 +147,58 @@ ${lines.join("\n")}
   resolve). If they still aren't, fall back to the \`shipeasy\` CLI for every step below.`;
 }
 
-/** Embed a fetched doc snippet under a marker, or a `docs get` fallback line. */
+/**
+ * The index of everything pulled. Sits high in the file because it changes how
+ * the agent should treat every snippet below it: the pages are newer than the
+ * CLI that wrote these instructions, so they win.
+ */
+function referenceDocsSection(refs: ReferenceDocs): string {
+  const bySdk = new Map<string, ReferenceDocs["pages"]>();
+  for (const p of refs.pages) bySdk.set(p.sdk, [...(bySdk.get(p.sdk) ?? []), p]);
+
+  const lines = [
+    `## Reference docs pulled for your setup`,
+    "",
+    `\`shipeasy setup\` fetched the SDK documentation for exactly what you turned on`,
+    `and wrote it to \`${refs.dir}/\`. These pages come from the SDK's live docs, not`,
+    `from this file's generator — **when a page below disagrees with a snippet in`,
+    `this file, the page is right.** Read the one that covers a step before you do`,
+    `that step; do not wire from memory.`,
+    "",
+  ];
+  for (const [sdk, pages] of bySdk) {
+    lines.push(`**${sdk}**`, "");
+    for (const p of pages) lines.push(`- \`${p.file}\` — ${p.title}: ${p.why}`);
+    lines.push("");
+  }
+  if (refs.missing.length) {
+    const byTopic = refs.missing.map((m) => `\`${m.topic}\` (${m.sdk})`).join(", ");
+    lines.push(
+      `Not published by the SDK, so nothing was pulled: ${byTopic}. If you need one,`,
+      `check \`shipeasy docs list --sdk <lang>\` for what the page is called there, or`,
+      `fall back to https://docs.shipeasy.ai`,
+      "",
+    );
+  }
+  lines.push(
+    `Anything not covered here: \`shipeasy docs list --sdk <lang>\` then`,
+    `\`shipeasy docs get --sdk <lang> <page>\`. Delete \`${refs.dir}/\` along with this`,
+    `file when every gate passes — it is a setup-time snapshot, not part of the repo.`,
+  );
+  return lines.join("\n");
+}
+
+/**
+ * Embed a fetched doc snippet under a marker. With nothing to embed, point at
+ * the copy pulled into the docs folder — and only when that is missing too, at
+ * the command that fetches it.
+ */
 function embeddedDocOr(
   label: string,
   sdk: string,
   page: string,
   doc: string | null | undefined,
+  file?: string | null,
 ): string {
   if (doc && doc.trim()) {
     return [
@@ -146,6 +206,9 @@ function embeddedDocOr(
       doc.trim(),
       `<!-- END ${label} doc -->`,
     ].join("\n");
+  }
+  if (file) {
+    return `The language-correct example is in \`${file}\`, pulled for you at setup. Copy the exact calls from there.`;
   }
   return `Pull the language-correct example: \`shipeasy docs get --sdk ${sdk} ${page}\` (or \`docs list --sdk ${sdk}\` if the page name differs). Copy the exact calls from there.`;
 }
@@ -158,16 +221,19 @@ const OPERATING_RULES = `## Operating rules (follow exactly)
 2. **Never print, log, echo, or commit a key value** — anything matching
    \`sdk_server_*\` or \`sdk_client_*\`. Reference env var NAMES only. The values
    are already persisted in each target's gitignored env file.
-3. **Never \`git commit\`, \`git push\`, or publish.** Stop at "ready to commit"
-   and hand the exact \`git add\` file list to the user.
+3. **Never \`git push\` or publish.** Do not \`git commit\` either, with exactly one
+   exception: the final **Cleanup** step below, where you ask the user first and
+   commit only on an explicit yes. Until then, stop at "ready to commit" and hand
+   the exact \`git add\` file list to the user.
 4. **Initialise the SDK once per runtime, at the app's entry point.** Do not
    create wrapper/helper/util files to hold SDK initialisation — the SDK owns
    its own init. (The exact init call is language-specific — take it from the
    embedded installation doc, not from memory.)
 5. **These notes are framework-agnostic on purpose.** Copy every concrete call,
-   import, class, and interface from the embedded docs below (or fetch more with
-   \`shipeasy docs get --sdk <lang> <page>\` / \`docs list --sdk <lang>\`) — the
-   per-language docs are the source of truth and **win on any conflict**.
+   import, class, and interface from the embedded docs below and the pages pulled
+   into \`${DOCS_DIRNAME}/\` (or fetch more with \`shipeasy docs get --sdk <lang> <page>\`
+   / \`docs list --sdk <lang>\`) — the per-language docs are the source of truth and
+   **win on any conflict**, including with anything you already know about this SDK.
 6. Each step has a verification gate — do not advance past a failing gate.
    Self-heal once, then stop and report the failure.
 7. If a \`shipeasy\` command fails with \`unknown command\`/\`400\`/\`404\`, suspect
@@ -180,7 +246,7 @@ const OPERATING_RULES = `## Operating rules (follow exactly)
    explicit yes, run \`shipeasy report-issue --consent …\` (see the last section).
    Never send anything to Shipeasy without the user's consent.`;
 
-function targetSection(i: number, t: WiringTarget): string {
+function targetSection(i: number, t: WiringTarget, refs?: ReferenceDocs): string {
   const dir = t.relPath === "." ? "the repo root" : `\`${t.relPath}/\``;
   const fw = t.frameworks.length ? ` · ${t.frameworks.join(", ")}` : "";
   const lines: string[] = [`### Target ${i + 1}: ${dir} (${t.language}${fw})`, ""];
@@ -206,15 +272,23 @@ function targetSection(i: number, t: WiringTarget): string {
     );
   }
 
+  const installFile = docFile(refs, t.sdk, "installation");
   if (t.installationDoc) {
     lines.push(
-      `- [ ] Follow this target's installation doc — **pulled for you below** (sdk: \`${t.sdk}\`).` +
-        ` The \`shipeasy-${t.sdk}\` SDK skill was also installed into your agent(s).`,
+      `- [ ] Follow this target's installation doc — **pulled for you below** (sdk: \`${t.sdk}\`)` +
+        (installFile ? `, also on disk at \`${installFile}\`` : "") +
+        `. The \`shipeasy-${t.sdk}\` SDK skill was also installed into your agent(s).`,
       "",
       `<!-- BEGIN installation doc (sdk: ${t.sdk}) — source of truth for this target -->`,
       t.installationDoc.trim(),
       `<!-- END installation doc -->`,
       "",
+    );
+  } else if (installFile) {
+    lines.push(
+      `- [ ] Follow this target's installation doc — pulled for you at setup:` +
+        ` **\`${installFile}\`** (sdk: \`${t.sdk}\`). It is the current published page;` +
+        ` prefer it over anything you remember about this SDK.`,
     );
   } else {
     lines.push(
@@ -252,7 +326,7 @@ function targetSection(i: number, t: WiringTarget): string {
       ` can't provide. Then wire them through the SDK's OWN identity mechanism — the` +
       ` \`attributes\`/identify transform registered on the init call — mapping YOUR` +
       ` user object → the attribute bag. Use the exact signature from the installation` +
-      ` doc above (full reference: \`shipeasy docs get --sdk ${t.sdk} configuration\`).` +
+      ` doc above (full reference: ${docPointer(refs, t.sdk, "configuration", "configuration")}).` +
       ` Never hard-code a single user; the transform runs per bound client.`,
   );
   if (t.browser && !t.native) {
@@ -307,7 +381,9 @@ function nativeDevtoolsSection(
   n: NonNullable<NonNullable<WiringDocInput["devtools"]>["native"]>,
   projectId: string,
   sdk: string,
+  refs?: ReferenceDocs,
 ): string {
+  const file = docFile(refs, sdk, "react-native-devtools");
   // Expo inlines EXPO_PUBLIC_* at build time, so read it from env there; a bare
   // RN app has no env channel, so the (public) key is inlined literally.
   const keyExpr = d.clientKeyVar.startsWith("EXPO_PUBLIC_")
@@ -365,13 +441,22 @@ function nativeDevtoolsSection(
     `- [ ] Gate: shake the device several times quickly (iOS simulator: Ctrl+Cmd+Z)` +
       ` and the panel opens; **Connect to Shipeasy** completes the login round-trip.`,
     "",
-    embeddedDocOr("react-native-devtools", sdk, "react-native-devtools", n.doc),
+    embeddedDocOr("react-native-devtools", sdk, "react-native-devtools", n.doc, file),
     "",
   );
+  if (n.doc && file) {
+    lines.push(
+      `Full published page: \`${file}\` — check the prop list there before` +
+        ` hand-writing the mount above; it is newer than this file.`,
+      "",
+    );
+  }
   return lines.join("\n");
 }
 
-function opsSection(sdk: string, doc: string | null | undefined): string {
+function opsSection(sdk: string, doc: string | null | undefined, refs?: ReferenceDocs): string {
+  const file = docFile(refs, sdk, "error-reporting");
+  const track = docFile(refs, sdk, "metrics");
   return `## Ops wiring — error reporting (ops module enabled)
 
 The \`shipeasy-ops\` and \`shipeasy-see\` skills were installed into your agent(s)
@@ -381,13 +466,46 @@ grammar). In brief:
 - [ ] Report errors through the SDK's error primitive at meaningful failure
       points. Use the exact call from the doc for this target's language:
 
-${embeddedDocOr("error-reporting", sdk, "error-reporting", doc)}
-
-- [ ] Gate: \`shipeasy ops list --type bug\` succeeds (queue reachable).
+${embeddedDocOr("error-reporting", sdk, "error-reporting", doc, file)}
+${doc && file ? `\n      Full published page: \`${file}\`.\n` : ""}${
+    track
+      ? `- [ ] Events feed the alert rules that watch these errors — the \`track()\`\n      reference is at \`${track}\`.\n`
+      : ""
+  }- [ ] Gate: \`shipeasy ops list --type bug\` succeeds (queue reachable).
 `;
 }
 
-function i18nSection(sdk: string, doc: string | null | undefined): string {
+/**
+ * The read side of the release module. There is nothing to wire up-front here —
+ * the SDK is already configured — so this section is purely the pointer set: the
+ * four evaluation calls, each in its published spelling for this language.
+ */
+function flagsSection(sdk: string, refs?: ReferenceDocs): string {
+  const rows: [DocTopic, string, string][] = [
+    ["flags", "flags", "gates — `getFlag`-style reads and the default on failure"],
+    ["configs", "configs", "dynamic configs — typed remote values"],
+    ["killswitches", "killswitches", "kill switches — the one-flip off switch"],
+    ["experiments", "experiments", "experiments — variant + exposure"],
+    ["metrics", "metrics/track", "`track()` — the events metrics and readouts are built from"],
+  ];
+  return `## Flags, configs, experiments — the read calls (release module enabled)
+
+The \`shipeasy-flags\`, \`shipeasy-experiments\` and \`shipeasy-metrics\` skills were
+installed into your agent(s) for the full workflows. Nothing here needs wiring
+beyond the configured SDK — but when you write a first read, take the call from
+this language's published page, not from a remembered signature:
+
+${rows.map(([t, h, what]) => `- ${what} → ${docPointer(refs, sdk, t, h)}`).join("\n")}
+
+- [ ] Do NOT create flags/experiments speculatively. Add a read when a real
+      branch in this codebase needs one, and create the flag first
+      (\`shipeasy release flags create\`, or the equivalent \`release_flags_create\`
+      tool) so the key exists before anything evaluates it.
+`;
+}
+
+function i18nSection(sdk: string, doc: string | null | undefined, refs?: ReferenceDocs): string {
+  const file = docFile(refs, sdk, "i18n");
   return `## Translations (i18n) wiring — module enabled
 
 The \`shipeasy-i18n\` skill was installed into your agent(s) — follow it for the
@@ -403,8 +521,8 @@ full flow. In brief:
       codemod for it, prints the language-correct i18n doc to wrap strings by hand.
 - [ ] Reference for the exact translate call/import in this target's language:
 
-${embeddedDocOr("i18n", sdk, "i18n", doc)}
-
+${embeddedDocOr("i18n", sdk, "i18n", doc, file)}
+${doc && file ? `\n      Full published page: \`${file}\`.\n` : ""}
 - [ ] Delivering strings to the browser is a \`<head>\` tag, not a second install —
       the i18n loader is already part of the block in **Browser head tags** (skip
       this if nothing here renders a page). Emitted server-side it carries the
@@ -432,15 +550,21 @@ What remains requires reading this codebase and making judgement calls — that
 is your job. Work top to bottom; check off items as you complete them, and
 delete this file once everything passes.`,
   ];
+  const refs = input.referenceDocs?.pages.length ? input.referenceDocs : undefined;
 
   // A harness reading this file was running before the CLI registered the MCP
   // server — surface the reload step first so the shipeasy-mcp tools come online.
   if (input.agents?.length) sections.push(reloadSection(input.agents));
 
+  sections.push(OPERATING_RULES);
+
+  // The pulled-docs index goes above every wiring section, because it changes
+  // how those sections should be read: the pages are fresher than this file.
+  if (refs) sections.push(referenceDocsSection(refs));
+
   sections.push(
-    OPERATING_RULES,
     `## Per-target SDK wiring`,
-    ...input.targets.map((t, i) => targetSection(i, t)),
+    ...input.targets.map((t, i) => targetSection(i, t, refs)),
   );
 
   // Module-dependent sections — only what was actually enabled. `sdk` for the
@@ -464,6 +588,7 @@ delete this file once everything passes.`,
         targets: input.targets,
         i18n: input.enabledFeatures.includes("i18n"),
         devtools: surfaces.includes("browser"),
+        docs: refs,
       }),
     );
   }
@@ -475,13 +600,15 @@ delete this file once everything passes.`,
         input.devtools.native,
         input.projectId,
         primarySdk,
+        refs,
       ),
     );
   }
   if (input.enabledFeatures.includes("ops"))
-    sections.push(opsSection(primarySdk, input.featureDocs?.errorReporting));
+    sections.push(opsSection(primarySdk, input.featureDocs?.errorReporting, refs));
   if (input.enabledFeatures.includes("i18n"))
-    sections.push(i18nSection(primarySdk, input.featureDocs?.i18n));
+    sections.push(i18nSection(primarySdk, input.featureDocs?.i18n, refs));
+  if (input.enabledFeatures.includes("flags")) sections.push(flagsSection(primarySdk, refs));
 
   sections.push(`## Final verification gate (all must pass)
 
@@ -503,13 +630,68 @@ commands — they are checking the CLI.
 
 Report a short summary (project id, targets wired, entry files touched), then
 give the user the exact \`git add <files>\` list — each target's \`.shipeasy\`,
-manifests + lockfiles, entry files, \`.claude/skills/shipeasy-onboarded/\` — and
-**stop**. Confirm every \`.env*\` file is gitignored before listing anything.
-Do not commit. Do not include this file in the list (it gets deleted instead).`);
+manifests + lockfiles, entry files, \`.claude/skills/shipeasy-onboarded/\`.
+Confirm every \`.env*\` file is gitignored before listing anything. Do not include
+this file in the list${refs ? ` or \`${refs.dir}/\`` : ""} — ${
+    refs ? "both are setup artifacts and get deleted" : "it is a setup artifact and gets deleted"
+  }, not committed. Then go to Cleanup.`);
+
+  sections.push(cleanupSection(refs));
 
   sections.push(bugReportingSection());
 
   return sections.join("\n\n") + "\n";
+}
+
+/**
+ * The last step of the happy path: bin the setup artifacts and commit the real
+ * change. Both halves are the user's call, not the agent's — deleting files and
+ * writing a commit are the two irreversible-feeling things in this whole file —
+ * so it is one plain question, asked once, and a no leaves everything in place.
+ */
+function cleanupSection(refs: ReferenceDocs | undefined): string {
+  const artifacts = [
+    "`shipeasy-wiring.md` (this file)",
+    ...(refs ? [`\`${refs.dir}/\` (the SDK doc pages pulled for this run)`] : []),
+  ];
+  const rm = ["shipeasy-wiring.md", ...(refs ? [`${refs.dir}/`] : [])];
+  return `## Cleanup — ask the user, then finish
+
+Everything above is done. Two things are left, and **both need the user's
+answer** — ask once, in one message, in plain language:
+
+> Setup is complete. Want me to clean up the installation artifacts (${rm.join(", ")})
+> and commit the wiring changes?
+
+These are the setup artifacts — scaffolding for this one-time onboarding, not
+part of the codebase:
+
+${artifacts.map((a) => `- ${a}`).join("\n")}
+
+- [ ] **On an explicit yes**, do both halves, in this order:
+
+      1. Delete the artifacts: \`rm -rf ${rm.join(" ")}\`
+      2. Stage ONLY the files you actually changed — the \`git add <files>\` list
+         from the hand-off above, path by path. Never \`git add -A\` or \`git add .\`:
+         this repo may hold unrelated work in progress, and sweeping it into a
+         setup commit is not yours to do.
+      3. Verify what you staged before writing the commit: \`git diff --cached --stat\`,
+         and \`git diff --cached\` over any env/config file. If a key value
+         (\`sdk_server_*\` / \`sdk_client_*\`) or an untracked \`.env*\` appears, STOP,
+         unstage it, and tell the user — a leaked server key is the one mistake
+         here that cannot be undone by a revert.
+      4. Commit with a conventional message, e.g.
+         \`chore: wire up the Shipeasy SDK\` (or \`feat:\` if this run added
+         user-visible behaviour). Describe what was wired, in the body.
+      5. **Do not push.** Pushing is the user's call and they have not made it.
+         Report the commit sha and stop.
+
+- [ ] **On a no, or no clear answer**, change nothing: leave the artifacts on
+      disk, leave the working tree unstaged, and hand back the \`git add\` list so
+      the user can commit it themselves. Do not delete and do not commit "to be
+      helpful" — an unasked-for commit is harder to undo than an extra file.
+- [ ] Either way, say which it was, so the user knows the state they are in.
+`;
 }
 
 /**

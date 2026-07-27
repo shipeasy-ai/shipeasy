@@ -29,6 +29,14 @@ interface DocManifest {
   skill?: string;
   pages?: Record<string, string>;
   snippets?: Record<string, Record<string, string>>;
+  /**
+   * Optional: which doc handles an onboarding run should pull for a given setup
+   * topic (`devtools`, `flags`, `head-tags`, …), best first. It exists so an SDK
+   * repo can retarget or extend what `shipeasy setup` embeds — renaming a page,
+   * or adding one a topic now needs — WITHOUT a CLI release. Consumers fall back
+   * to their own built-in handle list for any topic absent here.
+   */
+  setup?: Record<string, string[]>;
 }
 
 const DEFAULT_MANIFEST: DocManifest = {
@@ -118,7 +126,7 @@ export const docsOps: CustomOp[] = [
     name: "list",
     summary: "List an SDK's documentation tree",
     description:
-      "Fetch an SDK's `/docs/manifest.json` and return the doc tree — feature pages, nested snippet groups, and whether an installable skill exists.",
+      "Fetch an SDK's `/docs/manifest.json` and return the doc tree — feature pages, nested snippet groups, the optional setup-topic map, and whether an installable skill exists.",
     params: [{ name: "sdk", type: "string", description: "SDK language. Defaults to the `sdk` recorded in the nearest `.shipeasy` when omitted.", required: false, enum: SDK_ENUM }],
     examples: [{ run: "shipeasy docs list --sdk python" }],
     run: async (args) => {
@@ -131,6 +139,7 @@ export const docsOps: CustomOp[] = [
         snippets: Object.fromEntries(
           Object.entries(manifest.snippets ?? {}).map(([g, r]) => [g, Object.keys(r)]),
         ),
+        setup: manifest.setup ?? {},
         skill: Boolean(manifest.skill),
       };
     },
