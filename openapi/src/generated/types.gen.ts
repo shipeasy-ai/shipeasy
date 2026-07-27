@@ -5510,6 +5510,14 @@ export type GetCurrentProjectResponse = {
      */
     allowPublicTickets: boolean | number;
     /**
+     * Days an `open` tracked error may go unseen before the nightly sweep auto-resolves it. `0` disables auto-close for this project. Ingest reopens a resolved error the moment it recurs, so this never hides a live issue.
+     */
+    errorAutocloseDays: number;
+    /**
+     * Occurrence count a tracked error must cross before an `error` ticket is auto-filed into the ops queue. Customising it requires a paid plan; unentitled projects always run at the platform default of 10.
+     */
+    errorTicketMinOccurrences: number;
+    /**
      * Stripe subscription id backing the project's billing, or `null` when unsubscribed.
      */
     stripeSubscriptionId: string | null;
@@ -5726,6 +5734,14 @@ export type UpdateProjectRequest = {
      * SRM chi-square p-value below which the run is called invalid.
      */
     srmThreshold?: number;
+    /**
+     * Days an `open` tracked error may go unseen before the nightly sweep auto-resolves it. `0` disables auto-close for this project.
+     */
+    errorAutocloseDays?: number;
+    /**
+     * Occurrence count a tracked error must cross before an `error` ticket is auto-filed into the ops queue. Requires a paid plan — the request is rejected with 403 on a plan without the `ops_auto_error_issues` entitlement.
+     */
+    errorTicketMinOccurrences?: number;
 };
 
 export type ListI18nProfilesResponse = Array<{

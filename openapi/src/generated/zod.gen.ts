@@ -2917,6 +2917,8 @@ export const zGetCurrentProjectResponse = z.object({
         z.boolean(),
         z.number()
     ]),
+    errorAutocloseDays: z.int(),
+    errorTicketMinOccurrences: z.int(),
     stripeSubscriptionId: z.string().nullable(),
     scheduledInterval: z.enum(['monthly', 'annual']).nullable(),
     spendLimitEnabled: z.union([
@@ -3003,7 +3005,9 @@ export const zUpdateProjectRequest = z.object({
     cupedMinBaselineUsers: z.int().gte(10).lte(100000).optional(),
     msprtTauMeiFactor: z.number().gte(0.1).lte(2).optional(),
     msprtTauSdFactor: z.number().gte(0.05).lte(1).optional(),
-    srmThreshold: z.number().gte(0.0001).lte(0.05).optional()
+    srmThreshold: z.number().gte(0.0001).lte(0.05).optional(),
+    errorAutocloseDays: z.int().gte(0).lte(365).optional(),
+    errorTicketMinOccurrences: z.int().gte(1).lte(10000).optional()
 });
 
 export const zListI18nProfilesResponse = z.array(z.object({

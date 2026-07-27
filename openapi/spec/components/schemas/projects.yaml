@@ -171,6 +171,12 @@ GetCurrentProjectResponse:
         - type: boolean
         - type: number
       description: Whether key-authenticated public ticket creation (`POST /cli/report`) is allowed into this project. Off by default.
+    errorAutocloseDays:
+      type: integer
+      description: Days an `open` tracked error may go unseen before the nightly sweep auto-resolves it. `0` disables auto-close for this project. Ingest reopens a resolved error the moment it recurs, so this never hides a live issue.
+    errorTicketMinOccurrences:
+      type: integer
+      description: Occurrence count a tracked error must cross before an `error` ticket is auto-filed into the ops queue. Customising it requires a paid plan; unentitled projects always run at the platform default of 10.
     stripeSubscriptionId:
       anyOf:
         - type: string
@@ -250,6 +256,8 @@ GetCurrentProjectResponse:
     - moduleUser
     - moduleEvents
     - allowPublicTickets
+    - errorAutocloseDays
+    - errorTicketMinOccurrences
     - slug
     - logo
     - defaultEnv
@@ -462,5 +470,15 @@ UpdateProjectRequest:
       minimum: 0.0001
       maximum: 0.05
       description: SRM chi-square p-value below which the run is called invalid.
+    errorAutocloseDays:
+      type: integer
+      minimum: 0
+      maximum: 365
+      description: Days an `open` tracked error may go unseen before the nightly sweep auto-resolves it. `0` disables auto-close for this project.
+    errorTicketMinOccurrences:
+      type: integer
+      minimum: 1
+      maximum: 10000
+      description: Occurrence count a tracked error must cross before an `error` ticket is auto-filed into the ops queue. Requires a paid plan — the request is rejected with 403 on a plan without the `ops_auto_error_issues` entitlement.
   additionalProperties: false
   description: "Body for `PATCH /api/admin/projects/{id}`. Partial — every field is optional; only supplied fields change. The project id in the path must match the caller's own project."

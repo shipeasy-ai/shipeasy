@@ -2771,6 +2771,8 @@ _Parameters_
 | `msprtTauMeiFactor` | optional | `number` | mSPRT prior width — τ = minimum effect of interest × this factor. _(0.1–2)_ |
 | `msprtTauSdFactor` | optional | `number` | mSPRT fallback prior width — τ = this × control SD when no MEI is set. _(0.05–1)_ |
 | `srmThreshold` | optional | `number` | SRM chi-square p-value below which the run is called invalid. _(0.0001–0.05)_ |
+| `errorAutocloseDays` | optional | `integer` | Days an `open` tracked error may go unseen before the nightly sweep auto-resolves it. `0` disables auto-close for this project. _(0–365)_ |
+| `errorTicketMinOccurrences` | optional | `integer` | Occurrence count a tracked error must cross before an `error` ticket is auto-filed into the ops queue. Requires a paid plan — the request is rejected with 403 on a plan without the `ops_auto_error_issues` entitlement. _(1–10000)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
