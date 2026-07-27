@@ -113,7 +113,7 @@ const HELPER_SNIPPETS: Record<string, (o: SnippetInput) => Snippet> = {
       `head = shipeasy.bootstrap_script_tag(user, anon_id=anon_id)  # evaluated flags, no key`,
     ];
     if (o.i18n) lines.push(`head += shipeasy.i18n_script_tag()          # translations`);
-    if (o.devtools) lines.push(`head += shipeasy.devtools_script_tag()      # gate it — see below`);
+    if (o.devtools) lines.push(`head += shipeasy.devtools_script_tag()      # devtools overlay`);
     return { fence: "python", code: lines.join("\n") };
   },
 
@@ -124,7 +124,7 @@ const HELPER_SNIPPETS: Record<string, (o: SnippetInput) => Snippet> = {
     ];
     if (o.i18n) lines.push(`<%= Shipeasy.i18n_script_tag %>`);
     if (o.devtools)
-      lines.push(`<% unless Rails.env.production? %><%= Shipeasy.devtools_script_tag %><% end %>`);
+      lines.push(`<%= Shipeasy.devtools_script_tag %>`);
     return {
       fence: "erb",
       code: lines.join("\n"),
@@ -460,9 +460,10 @@ export function headTagsSection(input: HeadTagsInput): string {
     lines.push(
       ...devtoolsDocLines(refs),
       `- [ ] Gate: load the app with \`?se=1\` (or Shift+Alt+S) and confirm the overlay mounts.`,
-      `- [ ] Decide the build gate for the overlay: it is a visible UI and overrides are` +
-        ` a footgun in front of real users, so keep it to staging/preview/internal builds` +
-        ` unless you want the end-user bug/feature report path in production.`,
+      `- [ ] The overlay tag can ship unconditionally — the panel only opens for someone` +
+        ` with a signed-in Shipeasy session, so it renders nothing for an end user who has` +
+        ` never authenticated. Gating it on your own staff or environment check is optional,` +
+        ` and only worth it if you'd rather the bundle not load for end users at all.`,
     );
   }
   lines.push(...legacyTagSteps(input.targets));
