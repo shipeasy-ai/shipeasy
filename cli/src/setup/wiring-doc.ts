@@ -169,6 +169,31 @@ const AUTHORIZE_BY_AGENT: Record<string, string> = {
 };
 
 /**
+ * How to put a question back to the user on each harness.
+ *
+ * The doc asks the user exactly one question (Cleanup), and that question gates
+ * two irreversible-feeling actions, with an explicit "no clear answer → change
+ * nothing" branch. That branch exists because a free-text reply has to be
+ * interpreted; a structured picker removes the interpretation entirely, so use
+ * the harness's own question tool wherever one exists.
+ *
+ * Only the harnesses that actually have one are listed — a missing entry falls
+ * through to the plain-text ask, which is always correct:
+ *  - Claude Code: `AskUserQuestion`, always available.
+ *  - Cursor: the interactive Q&A tool, which since 2.4 works in any conversation
+ *    (not just Plan/Debug). Cursor's own docs say custom skills reach it by
+ *    being told to "use the ask question tool" — hence that exact phrasing.
+ *  - Codex CLI: has `request_user_input`, but it is Plan-mode only
+ *    (openai/codex#11536, closed) and a session reading this file is normally in
+ *    Default mode, so it is deliberately NOT listed — an agent sent after a tool
+ *    it cannot call improvises, and improvising is what this section prevents.
+ */
+const ASK_BY_AGENT: Record<string, string> = {
+  claude: "Ask with the `AskUserQuestion` tool — one question, options **Yes** and **No**.",
+  cursor: "Use the ask question tool — one question, options **Yes** and **No**.",
+};
+
+/**
  * The opening gate: does THIS session have the MCP tools?
  *
  * It used to assert that it doesn't — "registered while this session was already
@@ -718,7 +743,7 @@ this file in the list${refs ? ` or \`${refs.dir}/\`` : ""} — ${
     refs ? "both are setup artifacts and get deleted" : "it is a setup artifact and gets deleted"
   }, not committed. Then go to Cleanup.`);
 
-  sections.push(cleanupSection(refs));
+  sections.push(cleanupSection(refs, input.agents));
 
   sections.push(bugReportingSection());
 
@@ -731,12 +756,13 @@ this file in the list${refs ? ` or \`${refs.dir}/\`` : ""} — ${
  * writing a commit are the two irreversible-feeling things in this whole file —
  * so it is one plain question, asked once, and a no leaves everything in place.
  */
-function cleanupSection(refs: ReferenceDocs | undefined): string {
+function cleanupSection(refs: ReferenceDocs | undefined, agents: string[] = []): string {
   const artifacts = [
     "`shipeasy-wiring.md` (this file)",
     ...(refs ? [`\`${refs.dir}/\` (the SDK doc pages pulled for this run)`] : []),
   ];
   const rm = ["shipeasy-wiring.md", ...(refs ? [`${refs.dir}/`] : [])];
+  const ask = agents.map((a) => ASK_BY_AGENT[a]).find(Boolean);
   return `## Cleanup — ask the user, then finish
 
 Everything above is done. Two things are left, and **both need the user's
@@ -744,7 +770,7 @@ answer** — ask once, in one message, in plain language:
 
 > Setup is complete. Want me to clean up the installation artifacts (${rm.join(", ")})
 > and commit the wiring changes?
-
+${ask ? `\n${ask}\nIf that tool is not available in this session, ask in plain text — never skip\nthe question.\n` : ""}
 These are the setup artifacts — scaffolding for this one-time onboarding, not
 part of the codebase:
 

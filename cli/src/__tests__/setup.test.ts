@@ -498,6 +498,31 @@ describe("buildWiringDoc", () => {
     expect(doc).toContain("check whether the Shipeasy MCP tools are live here");
     expect(doc).toContain("Restart your coding agent");
   });
+
+  it("points the Cleanup question at the harness's own question tool", () => {
+    // The Cleanup question gates two irreversible actions behind an explicit
+    // "no clear answer → change nothing" branch, so a structured Yes/No beats a
+    // reply that has to be interpreted.
+    const claude = buildWiringDoc({ ...base, targets: [wiringTarget()], agents: ["claude"] });
+    expect(claude).toMatch(/Ask with the `AskUserQuestion` tool/);
+    // Cursor reaches its Q&A tool by being told this exact phrase.
+    const cursor = buildWiringDoc({ ...base, targets: [wiringTarget()], agents: ["cursor"] });
+    expect(cursor).toMatch(/Use the ask question tool/);
+    // Either way the plain-text ask stays as the fallback — never a skipped question.
+    expect(claude).toMatch(/If that tool is not available in this session, ask in plain text/);
+    expect(claude).toContain("Want me to clean up the installation artifacts");
+  });
+
+  it("leaves the Cleanup question plain-text where no question tool is reachable", () => {
+    // Codex has `request_user_input`, but it is Plan-mode only (openai/codex#11536)
+    // and a session reading this file is normally in Default mode — naming a tool
+    // it cannot call is worse than not naming one.
+    for (const agent of ["codex", "copilot", "jules", "acme-ai"]) {
+      const doc = buildWiringDoc({ ...base, targets: [wiringTarget()], agents: [agent] });
+      expect(doc).toContain("Want me to clean up the installation artifacts");
+      expect(doc).not.toMatch(/AskUserQuestion|ask question tool|request_user_input/);
+    }
+  });
 });
 
 describe("applyAgent", () => {
