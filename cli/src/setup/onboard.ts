@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { basename, join, relative } from "node:path";
+import { zCreateKeyRequest } from "@shipeasy/openapi/schemas";
 import type { TargetRecommendation } from "../commands/scan";
 import { onPath } from "./agents";
 
@@ -99,6 +100,101 @@ function readLocalShipeasy(dir: string): { project_id?: string; sdk?: string } {
   } catch {
     return {};
   }
+}
+
+// ── SDK keys: provenance label ───────────────────────────────────────────────
+
+/**
+ * Longest `name` the create-key API accepts, read straight off the spec schema
+ * (`CreateKeyRequest.name`) so the label budget tracks the contract instead of
+ * a copy of it. Falls back to the conservative pre-widening cap if the
+ * generated shape ever changes under us — a short label is a cosmetic loss, a
+ * rejected one fails the mint.
+ */
+function maxKeyNameLength(): number {
+  try {
+    const max = zCreateKeyRequest.shape.name.unwrap().maxLength;
+    return typeof max === "number" && max > 0 ? max : 80;
+  } catch {
+    return 80;
+  }
+}
+
+/** `python/django`, or bare `python` when no framework was detected. */
+function stackLabel(target: TargetRecommendation): string {
+  const fw = target.frameworks[0];
+  return fw ? `${target.language}/${fw}` : target.language;
+}
+
+/**
+ * What the operator calls the thing setup ran in: the declared package name
+ * when the target has one, else the folder name. `package.json#name` beats the
+ * directory because that's the identity a JS monorepo actually uses (`apps/web`
+ * on disk is `@acme/web` in every other tool).
+ */
+function packageLabel(dir: string): string {
+  try {
+    const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as { name?: unknown };
+    if (typeof pkg.name === "string" && pkg.name.trim()) return pkg.name.trim();
+  } catch {
+    // no package.json, or not JSON — fall through to the folder name
+  }
+  return basename(dir) || dir;
+}
+
+/** Dedupe, keep source order, and collapse a long tail into "+N more". */
+function joinDistinct(values: string[], keep: number): string {
+  const seen = [...new Set(values.filter(Boolean))];
+  if (seen.length <= keep) return seen.join(" + ");
+  return `${seen.slice(0, keep).join(" + ")} +${seen.length - keep} more`;
+}
+
+export interface KeyLabelInput {
+  /** Kind of key being minted — leads the label so a server/client pair minted
+   *  from the same target doesn't produce two identical rows. */
+  type: "server" | "client";
+  /** The targets this key was minted for (the ones that asked for this type). */
+  targets: TargetRecommendation[];
+  /** Operator who ran setup, from the CLI session. */
+  email?: string;
+  /** Stamped by the caller so the label is deterministic under test. */
+  now: Date;
+}
+
+/**
+ * Human label for a key minted by `shipeasy setup`, e.g.
+ *
+ *   `server key — shipeasy setup · python/django · billing-api · 2026-07-27 · dev@acme.com`
+ *
+ * Keys outlive the session that minted them, so the row has to answer "where
+ * did this come from?" on its own: which stack it was wired into, which package
+ * in the repo, when, and by whom. The alternative is the API's generic
+ * fallback name, which tells a reader nothing beyond "some tool made this" —
+ * and a project with several apps ends up with a column of identical labels.
+ *
+ * The stack/package segment is what gets squeezed if the whole thing would
+ * exceed the API cap: a truncated package name still reads, a truncated email
+ * or date is worse than useless.
+ */
+export function keyLabel({ type, targets, email, now }: KeyLabelInput): string {
+  const date = now.toISOString().slice(0, 10);
+  const head = `${type} key — shipeasy setup`;
+  const tail = [date, email].filter(Boolean).join(" · ");
+
+  const stacks = joinDistinct(targets.map(stackLabel), 2);
+  const packages = joinDistinct(
+    targets.map((t) => packageLabel(t.path)),
+    2,
+  );
+  const middle = [stacks, packages].filter(Boolean).join(" · ");
+  if (!middle) return `${head} · ${tail}`;
+
+  // Everything but `middle` is fixed cost; spend what's left on it. Below ~8
+  // chars there's nothing legible to keep, so drop the segment outright rather
+  // than ship "ty… · @a…".
+  const budget = maxKeyNameLength() - `${head} · ${tail}`.length - " · ".length;
+  if (budget < 8) return `${head} · ${tail}`;
+  return `${head} · ${middle.length <= budget ? middle : `${middle.slice(0, budget - 1)}…`} · ${tail}`;
 }
 
 // ── SDK keys: env var naming + .env persistence ──────────────────────────────

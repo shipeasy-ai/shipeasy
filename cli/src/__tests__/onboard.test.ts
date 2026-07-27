@@ -10,6 +10,7 @@ import {
   envFileFor,
   frameworkSetupArgv,
   installArgv,
+  keyLabel,
   maskKey,
   needsStoreMove,
   peerConflictRetryArgv,
@@ -315,6 +316,98 @@ describe("needsStoreMove / envFileFor", () => {
     const base = { path: "/x", language: "typescript" } as unknown as TargetRecommendation;
     expect(envFileFor({ ...base, frameworks: ["nextjs", "react"] } as TargetRecommendation)).toBe(".env.local");
     expect(envFileFor({ ...base, frameworks: ["express"] } as TargetRecommendation)).toBe(".env");
+  });
+});
+
+describe("keyLabel", () => {
+  const NOW = new Date("2026-07-27T09:14:00.000Z");
+
+  function target(
+    path: string,
+    language: string,
+    frameworks: string[] = [],
+  ): TargetRecommendation {
+    return { path, language, frameworks } as unknown as TargetRecommendation;
+  }
+
+  it("records stack, package, date, and operator", () => {
+    const dir = tmp();
+    try {
+      const api = join(dir, "billing-api");
+      mkdirSync(api);
+      expect(
+        keyLabel({
+          type: "server",
+          targets: [target(api, "python", ["django"])],
+          email: "dev@acme.com",
+          now: NOW,
+        }),
+      ).toBe(
+        "server key — shipeasy setup · python/django · billing-api · 2026-07-27 · dev@acme.com",
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("leads with the key type so a server/client pair isn't two identical rows", () => {
+    const t = [target("/repo/web", "typescript", ["nextjs"])];
+    const server = keyLabel({ type: "server", targets: t, email: "a@b.co", now: NOW });
+    const client = keyLabel({ type: "client", targets: t, email: "a@b.co", now: NOW });
+    expect(server).not.toBe(client);
+    expect(server.startsWith("server key — shipeasy setup")).toBe(true);
+    expect(client.startsWith("client key — shipeasy setup")).toBe(true);
+  });
+
+  it("prefers package.json#name over the folder name", () => {
+    const dir = tmp();
+    try {
+      const web = join(dir, "web");
+      mkdirSync(web);
+      writeFileSync(join(web, "package.json"), JSON.stringify({ name: "@acme/dashboard" }), "utf8");
+      expect(keyLabel({ type: "client", targets: [target(web, "typescript", ["nextjs"])], now: NOW })).toContain(
+        "@acme/dashboard",
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("omits the framework when none was detected, and the email when signed out", () => {
+    expect(keyLabel({ type: "server", targets: [target("/repo/svc", "go")], now: NOW })).toBe(
+      "server key — shipeasy setup · go · svc · 2026-07-27",
+    );
+  });
+
+  it("dedupes stacks and collapses a long target list", () => {
+    const label = keyLabel({
+      type: "server",
+      targets: [
+        target("/r/a", "typescript", ["nextjs"]),
+        target("/r/b", "typescript", ["nextjs"]),
+        target("/r/c", "python", ["fastapi"]),
+      ],
+      email: "dev@acme.com",
+      now: NOW,
+    });
+    // typescript/nextjs appears once, not twice
+    expect(label).toContain("typescript/nextjs + python/fastapi");
+    expect(label).toContain("a + b +1 more");
+  });
+
+  it("stays inside the API's name cap by squeezing the stack/package segment", () => {
+    const label = keyLabel({
+      type: "client",
+      targets: Array.from({ length: 6 }, (_, i) =>
+        target(`/r/${"package-with-a-very-long-name".repeat(2)}-${i}`, "typescript", ["nextjs"]),
+      ),
+      email: "a-rather-long-address@a-rather-long-company-domain.example",
+      now: NOW,
+    });
+    expect(label.length).toBeLessThanOrEqual(160);
+    // The date and operator survive intact — only the middle is truncated.
+    expect(label.endsWith("2026-07-27 · a-rather-long-address@a-rather-long-company-domain.example")).toBe(true);
+    expect(label).toContain("…");
   });
 });
 

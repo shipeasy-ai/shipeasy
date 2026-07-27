@@ -20,6 +20,9 @@ import {
 export interface CliSession {
   token: string;
   appBaseUrl: string;
+  /** Operator who ran setup — recorded in the label of any key minted here so
+   *  the row explains its own provenance long after this run. */
+  userEmail?: string;
 }
 
 /** Same contract as `shipeasy setup`'s printer: inline markdown + coloured
@@ -208,7 +211,14 @@ function ghSetAgentsSecret(name: string, value: string, slug: string): void {
  * thrown error the caller swallows into its best-effort no-op. `/api/admin/keys`
  * is served by the admin UI worker, so it hangs off `session.appBaseUrl`.
  */
-async function mintOpsKey(session: CliSession, projectId: string): Promise<string> {
+async function mintOpsKey(session: CliSession, projectId: string, slug: string): Promise<string> {
+  // Same provenance rule as the SDK keys setup mints: say what this credential
+  // was made for. An ops key lives in a repo secret store and is only ever seen
+  // again as a row in the keys list, so "ops key (prod) — minted via API" would
+  // leave nobody able to tell which repo's agent it belongs to.
+  const name = `ops key — shipeasy setup · GitHub Copilot agent · ${slug} · ${new Date()
+    .toISOString()
+    .slice(0, 10)}${session.userEmail ? ` · ${session.userEmail}` : ""}`;
   const res = await fetch(`${session.appBaseUrl.replace(/\/$/, "")}/api/admin/keys`, {
     method: "POST",
     headers: {
@@ -216,7 +226,7 @@ async function mintOpsKey(session: CliSession, projectId: string): Promise<strin
       "X-Project-Id": projectId,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ type: "ops", env: "prod" }),
+    body: JSON.stringify({ type: "ops", env: "prod", name }),
   });
   const json = (await res.json().catch(() => ({}))) as { key?: string; error?: string };
   if (!res.ok || !json.key) {
@@ -260,7 +270,7 @@ async function provisionCopilotMcpSecret(
     // Restricted ops key — read-only queue + status flips + link-pr + create-only
     // (never edits/deletes), auto-extends its 7-day expiry on each run. Minted by
     // reusing the session token already retrieved this run, not a fresh re-resolve.
-    const opsKey = await mintOpsKey(session, projectId);
+    const opsKey = await mintOpsKey(session, projectId, slug);
     ghSetAgentsSecret(COPILOT_MCP_TOKEN_SECRET, opsKey, slug);
     say(`\n  ✓ Set Copilot MCP secret in ${slug}: ${COPILOT_MCP_TOKEN_SECRET}.`);
     return true;

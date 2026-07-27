@@ -59,6 +59,7 @@ import {
   envFileFor,
   gitInit,
   type InstallOutcome,
+  keyLabel,
   maskKey,
   needsStoreMove,
   persistEnv,
@@ -81,7 +82,9 @@ import { runTriggerStep, type TriggerStepResult, type CliSession } from "../setu
 /** Project the loaded CLI credentials onto the minimal session the trigger step
  *  needs (token + admin-API origin). Null-safe: no creds → no session. */
 function sessionFromCreds(creds: ShipeasyConfig | null): CliSession | null {
-  return creds ? { token: creds.cli_token, appBaseUrl: creds.app_base_url } : null;
+  return creds
+    ? { token: creds.cli_token, appBaseUrl: creds.app_base_url, userEmail: creds.user_email }
+    : null;
 }
 import {
   BROWSER_FRAMEWORKS,
@@ -493,12 +496,17 @@ async function mintKey(
   type: "server" | "client",
   env: string,
   projectId: string,
+  name: string,
 ): Promise<KeyCreated> {
   // Pass the resolved project id explicitly so the key is minted against the
   // project setup bound to cwd — never a re-walk of `.shipeasy` that could
   // resolve to an ancestor binding on a different (already-full) project.
+  //
+  // `name` carries provenance (stack · package · date · operator). Without it
+  // the API falls back to a generic "minted via API by <email>" label, which
+  // leaves a multi-app repo with a column of indistinguishable keys.
   const client = getApiClient(projectId, { requireBinding: true });
-  return client.request<KeyCreated>("POST", "/api/admin/keys", { type, env });
+  return client.request<KeyCreated>("POST", "/api/admin/keys", { type, env, name });
 }
 
 // ── generic coding-agent handoff (any harness) ──────────────────────────────
@@ -1314,16 +1322,24 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   let clientKey: KeyCreated | null = null;
   const browserTarget = (t: TargetRecommendation): boolean =>
     t.recommendation.keys.includes("client");
+  // The targets each key is actually minted for: they asked for that key type
+  // and don't already have one in env. Kept as lists rather than booleans so
+  // the provenance label names exactly the targets that drove the mint — a
+  // separate re-filter could drift from the decision it's supposed to describe.
   // Native targets ask for a client key ONLY — never mint a server key just
   // because a React Native app happens to lack one.
-  const needServer = actionable.some(
+  const serverTargets = actionable.filter(
     (t) =>
       t.recommendation.keys.includes("server") &&
       !t.shipeasy.env_keys_detected.includes(SERVER_KEY_VAR),
   );
-  const needClient = actionable.some(
+  const clientTargets = actionable.filter(
     (t) => browserTarget(t) && !t.shipeasy.env_keys_detected.some((k) => k.includes("CLIENT")),
   );
+  const needServer = serverTargets.length > 0;
+  const needClient = clientTargets.length > 0;
+  const labelFor = (type: "server" | "client", email: string | undefined, now: Date): string =>
+    keyLabel({ type, targets: type === "server" ? serverTargets : clientTargets, email, now });
   if (!actionable.length) {
     say("  • no targets need keys — skipping");
   } else if (dryRun) {
@@ -1331,6 +1347,12 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     // public client key and no server key at all.
     const kinds = [needServer ? "server" : null, needClient ? "client" : null].filter(Boolean);
     say(`  (dry run — would mint ${kinds.length ? kinds.join(" + ") : "no"} key(s))`);
+    // Show the provenance label too — it's the part worth reviewing before a
+    // real run, and it's fully determined by what detect already found.
+    const now = new Date();
+    const email = loadCredentials()?.user_email;
+    if (needServer) say(`    ${dim(labelFor("server", email, now))}`);
+    if (needClient) say(`    ${dim(labelFor("client", email, now))}`);
   } else if (!needServer && !needClient) {
     say("  • every target already has its keys in env — skipping");
   } else {
@@ -1348,13 +1370,21 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     }
     const keyEnv = resolveKeyEnv(opts);
     say(`  → keys read the \`${keyEnv}\` environment (change with --env)`);
+    // One timestamp for the whole mint step so a server/client pair created in
+    // the same run can't straddle midnight and disagree on the date.
+    const mintedAt = new Date();
+    const mintedBy = session?.user_email;
     if (needServer) {
-      serverKey = await mintKey("server", keyEnv, projectId);
+      const name = labelFor("server", mintedBy, mintedAt);
+      serverKey = await mintKey("server", keyEnv, projectId, name);
       say(`  ✓ server key minted (${keyEnv}): ${maskKey(serverKey.key)}`);
+      say(`    ${dim(name)}`);
     }
     if (needClient) {
-      clientKey = await mintKey("client", keyEnv, projectId);
+      const name = labelFor("client", mintedBy, mintedAt);
+      clientKey = await mintKey("client", keyEnv, projectId, name);
       say(`  ✓ client key minted (${keyEnv}): ${maskKey(clientKey.key)} (public)`);
+      say(`    ${dim(name)}`);
     }
   }
 
