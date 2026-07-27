@@ -77,6 +77,7 @@ import {
   type WiringTarget,
 } from "../setup/wiring-doc";
 import { promptAndSend, reportConfigured } from "../setup/report-issue";
+import { runPlanStep, type PlanStepResult } from "../setup/plan";
 import { runTriggerStep, type TriggerStepResult, type CliSession } from "../setup/triggers";
 
 /** Project the loaded CLI credentials onto the minimal session the trigger step
@@ -119,6 +120,7 @@ interface SetupOpts {
   bootstrap?: boolean; // commander --no-bootstrap → false (skip the instrumentation session)
   triggers?: boolean; // commander --triggers → true, --no-triggers → false, unset → ask
   triggerPlatform?: string;
+  plan?: boolean; // commander --plan → true, --no-plan → false, unset → ask
 }
 
 /** App base URL of the admin dashboard we route the trigger wizard to.
@@ -2176,6 +2178,22 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     });
   }
 
+  // 14. Plan — the last thing setup can't decide for the user. Opens the hosted
+  // wizard's CLI funnel (Plan → Finish), which is also where the Terms/Privacy
+  // agreements are accepted, so this is what marks onboarding complete.
+  heading("14. Choose your plan");
+  let planResult: PlanStepResult = { opened: false, completed: false, url: "" };
+  if (opts.plan === false) {
+    say("  • skipped (--no-plan)");
+  } else {
+    planResult = await runPlanStep({
+      appBaseUrl: appBaseUrl(),
+      interactive,
+      ask: opts.plan !== true, // --plan opts in and skips the yes/no gate
+      dryRun,
+    });
+  }
+
   // Summary. Bold labels in a fixed column so the recap reads as a table — the
   // padding is computed from the UNSTYLED label, so it lines up with or without
   // colour.
@@ -2235,6 +2253,14 @@ async function runSetup(opts: SetupOpts): Promise<void> {
       : triggerResult.completed
         ? "done — none opened"
         : "not set up — run `shipeasy setup triggers` later",
+  );
+  row(
+    "Plan:",
+    planResult.completed
+      ? "picked — onboarding complete"
+      : planResult.url
+        ? `finish onboarding at ${planResult.url}`
+        : "skipped — pick one from Settings → Billing",
   );
   if (anythingToWire && !dryRun) {
     row("Wiring:", `${WIRING_FILENAME} — hand it to any coding agent to finish`);
@@ -2376,6 +2402,8 @@ export function setupCommand(parent: Command, version = "unknown"): void {
       "--trigger-platform <id>",
       "Preselect the trigger platform (claude|codex|cursor|copilot|gemini|jules)",
     )
+    .option("--plan", "Open the plan step without asking (skips the yes/no gate)")
+    .option("--no-plan", "Skip the plan step (onboarding stays unfinished until it's done)")
     .option("--dry-run", "Show what would change without writing files or calling the API")
     .action(async (opts: SetupOpts) => {
       await runSetup(opts).catch(async (err: unknown) => {
@@ -2470,7 +2498,13 @@ export function setupCommand(parent: Command, version = "unknown"): void {
       "names the product's critical moments and builds the event → metric → alert " +
       "chain over them. Runs on your own harness with a written brief (skills, " +
       "gates, and a stop-before-commit rule); `--no-bootstrap` skips it.\n" +
-      "13. Offers the automation trigger (scheduled queue burn-down as PRs).\n\n" +
+      "13. Offers the automation trigger (scheduled queue burn-down as PRs).\n" +
+      "14. Opens the browser on the plan step — the two things setup will not " +
+      "decide for you: which plan you're on, and the Terms/Privacy agreements. " +
+      "Free needs no card; Pro/Business start a 14-day trial through Stripe. " +
+      "Completing that screen is what marks onboarding done for the account (an " +
+      "account that already finished it lands on Settings → Billing instead); " +
+      "`--no-plan` skips it.\n\n" +
       "Idempotent — safe to re-run. In CI (non-TTY) it runs non-interactively with " +
       "`SHIPEASY_CLI_TOKEN` + `SHIPEASY_PROJECT_ID`.",
   );

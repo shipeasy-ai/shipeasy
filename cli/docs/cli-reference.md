@@ -2137,6 +2137,7 @@ One-command onboarding for this repo. Logs you in and binds a project, detects a
 11. Everything that needs codebase judgement (entry-point `configure(...)` wiring, idiomatic secret stores, overlay script injection) is written to `shipeasy-wiring.md` — complete, self-contained instructions any coding agent (Claude, Codex, Cursor, Copilot, or a human) can execute. Key values never appear in that file. Alongside it, the SDK doc pages for exactly what you enabled — installation always, plus the overlay, head-tag, flag, experiment, metrics, error and i18n pages you turned on — are pulled from each SDK's live docs into `shipeasy-wiring-docs/` and linked from the step that needs them, so the wiring an agent writes tracks the SDK as it ships today rather than whatever this CLI version remembers. Both are temporary — once every gate passes the agent asks whether to delete them and commit the wiring, and does neither unless you say yes.
 12. Offers to bootstrap the instrumentation a module enable can't produce on its own: with `ops` on, a session that finds this app's real failure paths and reports them through see(); with the release module on, one that names the product's critical moments and builds the event → metric → alert chain over them. Runs on your own harness with a written brief (skills, gates, and a stop-before-commit rule); `--no-bootstrap` skips it.
 13. Offers the automation trigger (scheduled queue burn-down as PRs).
+14. Opens the browser on the plan step — the two things setup will not decide for you: which plan you're on, and the Terms/Privacy agreements. Free needs no card; Pro/Business start a 14-day trial through Stripe. Completing that screen is what marks onboarding done for the account (an account that already finished it lands on Settings → Billing instead); `--no-plan` skips it.
 
 Idempotent — safe to re-run. In CI (non-TTY) it runs non-interactively with `SHIPEASY_CLI_TOKEN` + `SHIPEASY_PROJECT_ID`.
 
@@ -2161,6 +2162,8 @@ shipeasy setup [options] [command]
 | `--triggers` | optional | Set up the automation trigger without asking (skips the yes/no gate) |
 | `--no-triggers` | optional | Skip the automation trigger step |
 | `--trigger-platform <id>` | optional | Preselect the trigger platform (claude\|codex\|cursor\|copilot\|gemini\|jules) |
+| `--plan` | optional | Open the plan step without asking (skips the yes/no gate) |
+| `--no-plan` | optional | Skip the plan step (onboarding stays unfinished until it's done) |
 | `--dry-run` | optional | Show what would change without writing files or calling the API |
 
 Examples:
