@@ -26,6 +26,7 @@ import {
   detectHarness,
   installClaudePlugin,
   onPath,
+  probeMcpReady,
   registerMcp,
   runMcpAuth,
 } from "../setup/agents";
@@ -847,14 +848,24 @@ async function trustClaudeStep(interactive: boolean, dryRun: boolean): Promise<b
   return true;
 }
 
+export interface McpAuthOutcome {
+  /**
+   * Agents whose shipeasy MCP connection setup could confirm is live — either
+   * pre-authenticated by a bearer header, or probed with the client's own tool
+   * listing. Handed to the wiring doc so a session launched next is told the
+   * tools are there instead of deciding for itself (and defaulting to the CLI).
+   */
+  verified: AgentId[];
+}
+
 export async function mcpAuthHandoff(
   selected: AgentId[],
   interactive: boolean,
   opts: { dryRun?: boolean; ctx?: InstallCtx } = {},
-): Promise<void> {
+): Promise<McpAuthOutcome> {
   // Caller owns the step heading — this is step 10 of `shipeasy setup`, and the
   // "no agents wired" case still needs the heading printed above it.
-  if (selected.length === 0) return;
+  if (selected.length === 0) return { verified: [] };
 
   // Anything whose entry already carries `Authorization: Bearer …` is done — the
   // header IS the credential, so there is no browser round-trip to make.
@@ -872,7 +883,7 @@ export async function mcpAuthHandoff(
         : `  ✓ ${id}: pre-authenticated — its MCP entry carries your CLI session key`,
     );
   }
-  if (!needsOauth.length) return;
+  if (!needsOauth.length) return { verified: preAuthed };
 
   explain(
     "The hosted Shipeasy MCP server (mcp.shipeasy.ai) authenticates with **OAuth** — a " +
@@ -886,19 +897,34 @@ export async function mcpAuthHandoff(
   if (detectHarness().inside) {
     // A coding agent is driving this terminal — we must not seize it with a
     // browser flow, so it authorizes its own connection from the instructions.
-    // Printed verbatim, one per line: a coding agent reads these back and acts
-    // on them, so they must not be re-flowed mid-sentence.
-    for (const id of needsOauth) say(`    • ${MCP_AUTH_INSTRUCTIONS[id]}`);
+    //
+    // Probe first: the client's token store is per-machine, so it is often
+    // ALREADY authorized from an earlier run, and the honest instruction then is
+    // "restart to pick the tools up", not "go do OAuth again". Only the ones we
+    // can't confirm get the Authenticate one-liner — printed verbatim, one per
+    // line, because a coding agent reads these back and acts on them.
+    const live = needsOauth.filter((id) => {
+      const p = probeMcpReady(id, { dryRun: opts.dryRun });
+      if (p.state === "ready") say(`  ✓ ${id}: already authorized — ${p.detail}`);
+      return p.state === "ready";
+    });
+    const pending = needsOauth.filter((id) => !live.includes(id));
+    for (const id of pending) say(`    • ${MCP_AUTH_INSTRUCTIONS[id]}`);
     say();
     explain(
-      "▶ **CODING AGENT: authorize your OWN shipeasy MCP connection now** — run your client's " +
-        "MCP Authenticate step (above) and approve in the browser BEFORE starting the wiring " +
-        "steps, or every shipeasy_* tool call will 401. Authorizing does NOT add the tools to " +
-        "the session you are in right now: MCP servers load at session start, so if you have no " +
-        "shipeasy tools, ask the user to restart this session — and use the `shipeasy` CLI for " +
-        "the steps meanwhile if they'd rather not.",
+      pending.length
+        ? "▶ **CODING AGENT: authorize your OWN shipeasy MCP connection now** — run your " +
+            "client's MCP Authenticate step (above) and approve in the browser BEFORE starting " +
+            "the wiring steps, or every shipeasy_* tool call will 401. Authorizing does NOT add " +
+            "the tools to the session you are in right now: MCP servers load at session start, " +
+            "so if you still have no shipeasy tools, ask the user to restart this session — and " +
+            "use the `shipeasy` CLI for the steps meanwhile if they'd rather not."
+        : "▶ **CODING AGENT: your client is already authorized** — no browser step to run. If " +
+            "this session lists no shipeasy tools, it started before the server was wired (MCP " +
+            "servers load at session start): ask the user to restart it, and use the `shipeasy` " +
+            "CLI for the steps meanwhile if they'd rather not.",
     );
-    return;
+    return { verified: [...preAuthed, ...live] };
   }
 
   // Drive each agent's own login command where one exists — that's the whole
@@ -930,6 +956,26 @@ export async function mcpAuthHandoff(
       initial: true,
     });
   }
+
+  // Verify rather than assume, while there is still a user here to fix it. A
+  // login command exiting 0 is not proof the connection resolves, and the next
+  // step launches a session that has to trust this — so ask each client to list
+  // the server's tools and report what came back.
+  const verified: AgentId[] = [...preAuthed];
+  for (const id of needsOauth) {
+    const p = probeMcpReady(id, { dryRun: opts.dryRun });
+    if (p.state === "ready") {
+      verified.push(id);
+      say(`  ✓ ${id}: shipeasy MCP connection verified — ${p.detail}`);
+    } else if (p.state === "not-ready") {
+      say(`  ✗ ${id}: shipeasy MCP not connected yet (${p.detail})`);
+      say(`      ${MCP_AUTH_INSTRUCTIONS[id]}`);
+    }
+    // `unknown` stays silent: no probe exists for that client, and a line
+    // reading "couldn't check" only adds noise to a step that already told the
+    // user what to do.
+  }
+  return { verified };
 }
 
 /**
@@ -1871,12 +1917,13 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   //    skipped authorization for a repo that needed no code changes but had just
   //    had its agents wired. Those runs ended with a 401 on the first tool call.
   heading("10. Authorize the MCP connection");
+  let mcpVerified: AgentId[] = [];
   if (dryRun) {
     say("  (dry run — would run each agent's MCP sign-in, or print its manual step)");
   } else if (!selected.length) {
     say("  • no agents wired — nothing to authorize");
   } else {
-    await mcpAuthHandoff(selected, interactive, { dryRun, ctx });
+    ({ verified: mcpVerified } = await mcpAuthHandoff(selected, interactive, { dryRun, ctx }));
   }
 
   // 11. Remaining (non-deterministic) wiring → instructions for ANY harness
@@ -2042,6 +2089,10 @@ async function runSetup(opts: SetupOpts): Promise<void> {
         .map((t) => t.relPath),
       // Harnesses we just registered the MCP server into — drives the reload notice.
       agents: selected,
+      // ...and the subset whose connection step 10 actually verified, so the
+      // notice can say the tools are known-good rather than leaving the reader
+      // to guess (and guess "broken", which is what sent one to the CLI).
+      mcpVerified,
     });
     const wiringPath = join(root, WIRING_FILENAME);
     writeFileSync(wiringPath, doc, "utf8");

@@ -450,6 +450,25 @@ describe("buildWiringDoc", () => {
     expect(doc).toMatch(/`cursor-agent`\): exit and start a new session/);
   });
 
+  it("names the clients whose connection setup verified before the hand-off", () => {
+    // Step 10 probes the connection while a user is still there to fix it, so
+    // the doc can rule the server out as the cause of missing tools.
+    const doc = buildWiringDoc({
+      ...base,
+      targets: [wiringTarget()],
+      agents: ["cursor"],
+      mcpVerified: ["cursor"],
+    });
+    expect(doc).toMatch(/verified the connection\*{2} for cursor/);
+    expect(doc).toMatch(/missing tools mean a\s+stale session, never a broken server/);
+  });
+
+  it("omits the verification claim when nothing was verified", () => {
+    const doc = buildWiringDoc({ ...base, targets: [wiringTarget()], agents: ["cursor"] });
+    expect(doc).not.toMatch(/verified the connection/);
+    expect(doc).toMatch(/Call the `whoami` MCP tool/); // the probe gate still stands
+  });
+
   it("omits the reload notice when no agent was wired", () => {
     const doc = buildWiringDoc({ ...base, targets: [wiringTarget()], agents: [] });
     expect(doc).not.toContain("check whether the Shipeasy MCP tools are live here");
@@ -873,7 +892,15 @@ describe("approveProjectMcpServer", () => {
 });
 
 describe("mcpAuthHandoff — the one-time MCP OAuth authorization step", () => {
+  // Empty PATH so no agent binary is found: the readiness probes resolve to
+  // `unknown` on every machine, instead of the run depending on whether the
+  // developer happens to have an authorized `cursor-agent` installed.
+  const realPath = process.env.PATH;
+  beforeEach(() => {
+    process.env.PATH = "";
+  });
   afterEach(() => {
+    process.env.PATH = realPath;
     vi.restoreAllMocks();
     delete process.env.SHIPEASY_AGENT;
   });

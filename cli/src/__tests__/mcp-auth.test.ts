@@ -8,7 +8,7 @@ vi.mock("node:child_process", () => ({
   spawnSync: (...args: unknown[]) => spawnSyncMock(...args),
 }));
 
-const { runMcpAuth } = await import("../setup/agents");
+const { runMcpAuth, probeMcpReady, parseCursorToolList } = await import("../setup/agents");
 
 const PENDING = "  Status: ⏸ Pending approval (run `claude` to approve)\n";
 const CONNECTED = "  Status: ✔ Connected\n";
@@ -92,5 +92,54 @@ describe("runMcpAuth(claude) — the pending-approval trap", () => {
       detail: "would run: claude mcp login shipeasy",
     });
     expect(spawnSyncMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("probeMcpReady — proving the connection instead of assuming it", () => {
+  const TOOLS = "Tools for shipeasy (111):\n- whoami ()\n- ops_list (status)\n";
+
+  it("reads Cursor's tool listing as proof the whole chain works", () => {
+    usePath("cursor-agent");
+    spawnSyncMock.mockReturnValue({ status: 0, stdout: TOOLS, stderr: "" });
+    expect(probeMcpReady("cursor")).toEqual({
+      state: "ready",
+      detail: "111 tools resolve",
+      toolCount: 111,
+    });
+    expect(calls()).toEqual(["cursor-agent mcp list-tools shipeasy"]);
+  });
+
+  it("reports not-ready with the client's own first line when the listing fails", () => {
+    usePath("cursor-agent");
+    spawnSyncMock.mockReturnValue({ status: 1, stdout: "", stderr: "MCP server not found\n" });
+    expect(probeMcpReady("cursor")).toEqual({
+      state: "not-ready",
+      detail: "MCP server not found",
+    });
+  });
+
+  it("maps Claude's server state onto the same three answers", () => {
+    spawnSyncMock.mockReturnValue({ status: 0, stdout: CONNECTED, stderr: "" });
+    expect(probeMcpReady("claude").state).toBe("ready");
+    spawnSyncMock.mockReturnValue({ status: 0, stdout: PENDING, stderr: "" });
+    expect(probeMcpReady("claude")).toEqual({
+      state: "not-ready",
+      detail: "awaiting folder trust",
+    });
+  });
+
+  it("says unknown — never not-ready — when nothing here can check", () => {
+    // A missing binary or a client with no scriptable probe must not be reported
+    // as a broken connection: setup would print a fix for a problem it invented.
+    usePath(); // empty PATH
+    expect(probeMcpReady("cursor").state).toBe("unknown");
+    expect(probeMcpReady("codex").state).toBe("unknown");
+    expect(probeMcpReady("cursor", { dryRun: true }).state).toBe("unknown");
+  });
+
+  it("parses the tool-count header and nothing else", () => {
+    expect(parseCursorToolList(TOOLS)).toBe(111);
+    expect(parseCursorToolList("Error: not authenticated")).toBeNull();
+    expect(parseCursorToolList("")).toBeNull();
   });
 });

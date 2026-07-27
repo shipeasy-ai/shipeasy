@@ -302,6 +302,72 @@ export function runMcpAuth(agent: AgentId, opts: { dryRun?: boolean } = {}): Mcp
 }
 
 /**
+ * Per-agent probe that answers the only question that matters after a login:
+ * does this client actually resolve shipeasy tools right now?
+ *
+ * `runMcpAuth` can only report that a login command exited 0. This goes one step
+ * further and asks the client to list the server's tools, which exercises the
+ * whole chain — config entry, local approval, OAuth token, connection to
+ * mcp.shipeasy.ai. Cheap enough to run inline (~0.7s).
+ *
+ * Only Cursor ships a tool-listing subcommand; Claude answers the weaker
+ * "Connected?" question through {@link claudeServerState}, and the rest expose
+ * nothing scriptable, so they stay `unknown` rather than being guessed at.
+ */
+export const MCP_PROBE_COMMANDS: Partial<Record<AgentId, { bin: string; argv: string[] }>> = {
+  cursor: { bin: "cursor-agent", argv: ["mcp", "list-tools", "shipeasy"] },
+};
+
+export interface McpProbeResult {
+  /** ready: tools resolve now. not-ready: the client says it isn't connected.
+   *  unknown: nothing here can tell — no probe, or the binary isn't on PATH. */
+  state: "ready" | "not-ready" | "unknown";
+  detail: string;
+  /** Tools the client listed, when the probe reports a count. */
+  toolCount?: number;
+}
+
+/** `cursor-agent mcp list-tools shipeasy` opens with `Tools for shipeasy (111):`.
+ *  Split out from the spawn so the match against Cursor's wording is testable
+ *  without the binary. Null when the output isn't a tool listing. */
+export function parseCursorToolList(output: string): number | null {
+  const m = /^\s*Tools for \S+ \((\d+)\)/m.exec(output);
+  return m ? Number(m[1]) : null;
+}
+
+/**
+ * Is `agent`'s shipeasy MCP connection live? Run right after authorization so
+ * setup can state a fact instead of a hope — and so a session it launches next
+ * can be told the tools are there rather than deciding for itself.
+ */
+export function probeMcpReady(agent: AgentId, opts: { dryRun?: boolean } = {}): McpProbeResult {
+  if (opts.dryRun) return { state: "unknown", detail: "dry run — not probed" };
+
+  if (agent === "claude") {
+    const state = claudeServerState("shipeasy");
+    if (state === "connected") return { state: "ready", detail: "server connected" };
+    if (state === "pending") return { state: "not-ready", detail: "awaiting folder trust" };
+    if (state === null) return { state: "unknown", detail: "`claude` not on PATH" };
+    return { state: "not-ready", detail: "server not connected" };
+  }
+
+  const cmd = MCP_PROBE_COMMANDS[agent];
+  if (!cmd) return { state: "unknown", detail: "no scriptable probe for this client" };
+  if (!onPath(cmd.bin)) return { state: "unknown", detail: `\`${cmd.bin}\` not on PATH` };
+
+  const res = spawnSync(cmd.bin, cmd.argv, { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" });
+  const out = `${res.stdout ?? ""}${res.stderr ?? ""}`;
+  const count = parseCursorToolList(out);
+  if (res.status === 0 && count !== null) {
+    return { state: "ready", detail: `${count} tools resolve`, toolCount: count };
+  }
+  return {
+    state: "not-ready",
+    detail: out.trim().split("\n")[0] || `exited ${res.status ?? "?"}`,
+  };
+}
+
+/**
  * Not fixable from here: `.mcp.json` servers stay pending until the FOLDER is
  * trusted, and the trust dialog only exists in an interactive session.
  * `mcpAuthHandoff` offers to open one; this is the fallback wording.

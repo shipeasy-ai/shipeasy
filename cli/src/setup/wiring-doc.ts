@@ -116,6 +116,13 @@ export interface WiringDocInput {
    * `shipeasy-mcp` tools. Empty → no MCP was wired, notice is omitted.
    */
   agents?: string[];
+  /**
+   * The subset of {@link agents} whose shipeasy MCP connection setup verified as
+   * live (step 10 asked the client to list the server's tools). Named in the
+   * opening gate so a session that can't find the tools knows the server itself
+   * is fine and the fix is a restart — not a CLI fallback.
+   */
+  mcpVerified?: string[];
 }
 
 /** Harness-specific "reload so the new MCP server loads" instruction. */
@@ -143,16 +150,20 @@ const RELOAD_BY_AGENT: Record<string, string> = {
  * fallback they never needed. So: probe, don't assert. One `whoami` call settles
  * it, and the reload instructions only matter on the branch where it fails.
  */
-function reloadSection(agents: string[]): string {
+function reloadSection(agents: string[], verified: string[] = []): string {
   const known = agents.filter((a) => RELOAD_BY_AGENT[a]);
   const lines = known.length
     ? known.map((a) => `- ${RELOAD_BY_AGENT[a]}`)
     : ["- Restart your coding agent / reload its window so it re-reads the MCP config."];
+  const verifiedLine = verified.length
+    ? `\n\`shipeasy setup\` **verified the connection** for ${verified.join(", ")} before writing\nthis file — the server and its credentials are known-good, so missing tools mean a\nstale session, never a broken server.\n`
+    : "";
   return `## First: check whether the Shipeasy MCP tools are live here
 
 \`shipeasy setup\` registered the \`@shipeasy/mcp\` server. Every client loads its MCP
 servers **when the session starts**, so whether this session has them depends on
 whether it started before or after that write — **check, don't assume**:
+${verifiedLine}
 
 - [ ] Call the \`whoami\` MCP tool (or \`projects_current\`). If it resolves, the tools
   are live: use them for every step below, and skip the rest of this section.
@@ -570,9 +581,10 @@ delete this file once everything passes.`,
   ];
   const refs = input.referenceDocs?.pages.length ? input.referenceDocs : undefined;
 
-  // A harness reading this file was running before the CLI registered the MCP
-  // server — surface the reload step first so the shipeasy-mcp tools come online.
-  if (input.agents?.length) sections.push(reloadSection(input.agents));
+  // Whether the reader has the shipeasy-mcp tools depends on when its session
+  // started, so this gate goes first: one probe decides it before any step below
+  // needs a tool call.
+  if (input.agents?.length) sections.push(reloadSection(input.agents, input.mcpVerified));
 
   sections.push(OPERATING_RULES);
 
