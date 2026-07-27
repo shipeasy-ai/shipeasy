@@ -200,6 +200,10 @@ existing code:
    the affected feature at the catch site, the catch is at the wrong
    altitude — let the error propagate to a handler that knows the impact
    (see Core Philosophy).
+4. **No `.extras()` wedged between `.causes_the` and `.to`.** The two halves
+   of the consequence sentence stay adjacent; extras go after the terminal,
+   inline on it, or in the ambient buffer. See
+   [Where extras go in the chain](#where-extras-go-in-the-chain-call-order).
 
 **Title read-aloud check (required):** before committing a consequence,
 render the full title `{problem} causes the {subject} to {outcome}` and read
@@ -234,6 +238,62 @@ Extras accept `string | number | boolean | null | undefined` values. `null` /
 `undefined` are dropped automatically. Values are truncated to 200 chars; at
 most 20 keys are kept. `.extras()` can be chained more than once — keys merge,
 later wins.
+
+### Where extras go in the chain (call order)
+
+`.to(outcome)` is the terminal — it is the end of the sentence, and the
+sentence must read as one. Not every SDK can accept extras *after* the
+terminal, so there are three forms. **Use the first one this project's SDK
+supports** (the language-specific snippet at the top of this skill shows which):
+
+**1. Trailing extras — `.to(outcome).extras({...})`.** The default. The
+consequence sentence stays intact and the debug payload hangs off the end:
+
+```ts
+see(e).causes_the("checkout").to("use cached prices").extras({ order_id: order.id });
+```
+
+Only available where the SDK defers dispatch past the terminal —
+**TypeScript** today. Everywhere else the trailing call is either a compile
+error (Go, Kotlin, Swift, Java) or a warn-and-ignore no-op that silently drops
+the extras (Ruby, Python, PHP), so do not write it there.
+
+**2. Ambient extras — buffer earlier, report later.** When the context is
+already known *above* the catch site, put it in the ambient buffer at the point
+the data exists; every `see()` that fires later in the same request merges it
+in, and the catch site stays a clean one-liner:
+
+```ts
+addExtras({ order_id: order.id, tenant: tenant.slug }); // where the data is available
+// ...deep in a service, later in the same request...
+see(e).causes_the("checkout").to("use cached prices"); // carries order_id + tenant
+```
+
+Available in **TypeScript, Ruby, Python, PHP, Java** (`addExtras` / `add_extras`).
+A chained or inline key of the same name wins over the ambient one. This does
+not help for values that only exist *inside* the catch — for those, fall to
+form 3.
+
+**3. Inline extras — `.to(outcome, extras)`.** Available in **all eight SDKs**.
+The extras fold in exactly like a final `.extras(...)`, so nothing is lost —
+it is just denser to read:
+
+```ts
+see(e).causes_the("checkout").to("use cached prices", { order_id: order.id });
+```
+
+#### Never split the consequence with `.extras()`
+
+```ts
+// WRONG: HARD-BANNED — extras wedged between the subject and the outcome.
+// It breaks the sentence in half: you read "checkout … order_id … use cached
+// prices" and lose the consequence you came for.
+see(e).causes_the("checkout").extras({ order_id: order.id }).to("use cached prices");
+```
+
+`.causes_the(subject)` and `.to(outcome)` are two halves of one sentence and
+must stay adjacent. Never recommend, write, or leave this shape in place —
+rewrite it to form 1, 2, or 3 above, whichever the SDK supports.
 
 **Exclude from extras**: exception details (already captured), the page URL,
 user agent, user/anonymous ids, SDK version, environment (all attached
