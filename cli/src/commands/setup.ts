@@ -529,7 +529,13 @@ const WIRING_PROMPT = `Read ${WIRING_FILENAME} at the repo root and complete eve
  *    codex    → --dangerously-bypass-approvals-and-sandbox
  *    cursor   → --force
  *    copilot  → --allow-all-tools (kept with `-i`: interactive-with-prompt, since
- *               `-p`/non-interactive can't be granted tool/path access at all) */
+ *               `-p`/non-interactive can't be granted tool/path access at all)
+ *
+ *  Copilot additionally launches in `--autopilot`. Permissions are only half of
+ *  unattended: with tools allowed it still stops and hands the turn back after
+ *  each step, and the wiring checklist is a dozen of them. Autopilot keeps it
+ *  continuing on its own (up to `--max-autopilot-continues`, default 5) so the
+ *  run works the file down instead of parking after the first edit. */
 const RUNNABLE_AGENTS: Array<{
   id: AgentId;
   label: string;
@@ -553,7 +559,7 @@ const RUNNABLE_AGENTS: Array<{
     id: "copilot",
     label: "GitHub Copilot",
     bin: "copilot",
-    argv: (p) => ["--allow-all-tools", "-i", p],
+    argv: (p) => ["--allow-all-tools", "--autopilot", "-i", p],
   },
 ];
 
@@ -880,16 +886,18 @@ export async function mcpAuthHandoff(
   // Anything whose entry already carries `Authorization: Bearer …` is done — the
   // header IS the credential, so there is no browser round-trip to make.
   //
-  // Copilot is the one that gets the note but stays on the list: the bearer goes
-  // into its CLI's user config, while the `.vscode/mcp.json` we write for the
-  // VS Code extension is committable and therefore credential-free. The CLI is
-  // authorized; the IDE still signs in.
+  // Copilot used to get the note but stay on the list: the bearer went into its
+  // CLI's user config, while the `.vscode/mcp.json` written for the VS Code
+  // extension is committable and therefore credential-free — CLI authorized,
+  // IDE still signing in by hand. Setup now writes VS Code's *user-profile*
+  // mcp.json instead (off-repo, so it carries the bearer too), so both surfaces
+  // are done here and there is no browser step left to instruct.
   const preAuthed = opts.ctx ? selected.filter((id) => mcpBearer(id, opts.ctx!)) : [];
-  const needsOauth = selected.filter((id) => !preAuthed.includes(id) || id === "copilot");
+  const needsOauth = selected.filter((id) => !preAuthed.includes(id));
   for (const id of preAuthed) {
     say(
       id === "copilot"
-        ? "  ✓ copilot: CLI pre-authenticated — its user config carries your session key"
+        ? "  ✓ copilot: pre-authenticated — the CLI and VS Code configs both carry your session key"
         : `  ✓ ${id}: pre-authenticated — its MCP entry carries your CLI session key`,
     );
   }
@@ -2477,9 +2485,10 @@ export function setupCommand(parent: Command, version = "unknown"): void {
       "the moment you accept the prompt.\n" +
       "10. Authorizes the hosted MCP connection: entries written to a config that " +
       "is private to your machine carry an `Authorization: Bearer` header (your CLI " +
-      "session key) and need no sign-in at all; committable ones (`.mcp.json`, " +
-      "`.cursor/mcp.json`, `.vscode/mcp.json`) never hold a credential, so those " +
-      "take the OAuth browser flow via each agent's own `mcp login`.\n" +
+      "session key) and need no sign-in at all — which is why Copilot's entries go " +
+      "to its CLI config and VS Code's user profile, not the repo. Committable ones " +
+      "(`.mcp.json`, `.cursor/mcp.json`) never hold a credential, so those take the " +
+      "OAuth browser flow via each agent's own `mcp login`.\n" +
       "11. Everything that needs codebase judgement (entry-point `configure(...)` " +
       "wiring, idiomatic secret stores, overlay script injection) is written to " +
       "`shipeasy-wiring.md` — complete, self-contained instructions any coding " +

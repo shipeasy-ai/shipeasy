@@ -25,6 +25,7 @@ import {
   onPath,
   registerMcp,
   runMcpAuth,
+  vscodeUserMcpPath,
 } from "../setup/agents";
 import {
   upsertMarkedBlock,
@@ -232,12 +233,22 @@ describe("registerMcp", () => {
   // `~/.copilot/mcp-config.json`. An empty PATH makes `onPath` false for every
   // agent, so each test exercises the file-merge path deterministically —
   // whether or not the machine running the suite has the agents installed.
+  //
+  // HOME is redirected for the same reason: Copilot's entry now lands in VS
+  // Code's user-profile `mcp.json`, so an un-stubbed run would rewrite the
+  // developer's real editor config.
   const realPath = process.env.PATH;
+  const realHome = process.env.HOME;
+  let fakeHome: string;
   beforeEach(() => {
     process.env.PATH = "";
+    fakeHome = tmp();
+    process.env.HOME = fakeHome;
   });
   afterEach(() => {
     process.env.PATH = realPath;
+    process.env.HOME = realHome;
+    rmSync(fakeHome, { recursive: true, force: true });
   });
 
   it("writes Cursor mcp.json under mcpServers", () => {
@@ -253,16 +264,55 @@ describe("registerMcp", () => {
     }
   });
 
-  it("writes Copilot .vscode/mcp.json under servers and skips on re-run", () => {
+  it("writes Copilot's VS Code user-profile mcp.json under servers, not the repo", () => {
     const dir = tmp();
     try {
       const r1 = registerMcp("copilot", ctx(dir));
       expect(r1.action).toBe("wrote");
-      const cfg = JSON.parse(readFileSync(join(dir, ".vscode", "mcp.json"), "utf8"));
+      const cfg = JSON.parse(readFileSync(vscodeUserMcpPath(), "utf8"));
       expect(cfg.servers.shipeasy.url).toBe("https://mcp.shipeasy.ai/mcp");
       expect(cfg.mcpServers).toBeUndefined();
+      // The repo file is deliberately NOT written: it can't hold the bearer, so
+      // an entry there would only shadow the pre-authenticated profile one.
+      expect(existsSync(join(dir, ".vscode", "mcp.json"))).toBe(false);
       const r2 = registerMcp("copilot", ctx(dir));
       expect(r2.action).toBe("skipped");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("prunes a stale repo .vscode/mcp.json entry that would shadow the profile one", () => {
+    const dir = tmp();
+    try {
+      mkdirSync(join(dir, ".vscode"), { recursive: true });
+      const repoFile = join(dir, ".vscode", "mcp.json");
+      writeFileSync(
+        repoFile,
+        JSON.stringify({
+          servers: {
+            shipeasy: { type: "http", url: "https://mcp.shipeasy.ai/mcp" },
+            other: { type: "http", url: "https://example.test/mcp" },
+          },
+        }),
+      );
+      registerMcp("copilot", ctx(dir));
+      const cfg = JSON.parse(readFileSync(repoFile, "utf8"));
+      expect(cfg.servers.shipeasy).toBeUndefined();
+      expect(cfg.servers.other).toBeDefined(); // someone else's server is left alone
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("removes the repo .vscode/mcp.json outright when shipeasy was its only server", () => {
+    const dir = tmp();
+    try {
+      mkdirSync(join(dir, ".vscode"), { recursive: true });
+      const repoFile = join(dir, ".vscode", "mcp.json");
+      writeFileSync(repoFile, JSON.stringify({ servers: { shipeasy: { type: "http" } } }));
+      registerMcp("copilot", ctx(dir));
+      expect(existsSync(repoFile)).toBe(false);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -286,7 +336,7 @@ describe("registerMcp", () => {
     const dir = tmp();
     try {
       registerMcp("copilot", ctx(dir));
-      const cfg = JSON.parse(readFileSync(join(dir, ".vscode", "mcp.json"), "utf8"));
+      const cfg = JSON.parse(readFileSync(vscodeUserMcpPath(), "utf8"));
       expect(cfg.servers.shipeasy.headers["X-Project-Id"]).toBeUndefined();
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -330,9 +380,10 @@ describe("registerMcp", () => {
   it("existingMcpProjectPin reads a pin from an already-scoped URL (no header)", () => {
     const dir = tmp();
     try {
-      mkdirSync(join(dir, ".vscode"), { recursive: true });
+      const profile = vscodeUserMcpPath();
+      mkdirSync(dirname(profile), { recursive: true });
       writeFileSync(
-        join(dir, ".vscode", "mcp.json"),
+        profile,
         JSON.stringify({
           servers: {
             shipeasy: { type: "http", url: "https://mcp.shipeasy.ai/p/proj_url/mcp", headers: {} },
@@ -624,13 +675,20 @@ describe("Claude native install commands", () => {
 describe("bearerForPath — where a pre-authenticating header may be written", () => {
   const base = { cwd: "/repo", force: false, dryRun: false, projectId: "p-1" };
   // Same reason as the registerMcp block: the real-write test below must not
-  // reach `copilot mcp add` and mutate the developer's own user config.
+  // reach `copilot mcp add` and mutate the developer's own user config, nor
+  // land in their real VS Code profile.
   const realPath = process.env.PATH;
+  const realHome = process.env.HOME;
+  let fakeHome: string;
   beforeEach(() => {
     process.env.PATH = "";
+    fakeHome = tmp();
+    process.env.HOME = fakeHome;
   });
   afterEach(() => {
     process.env.PATH = realPath;
+    process.env.HOME = realHome;
+    rmSync(fakeHome, { recursive: true, force: true });
   });
 
   it("is undefined without a token", () => {
@@ -670,9 +728,16 @@ describe("bearerForPath — where a pre-authenticating header may be written", (
         mcpToken: "sdk_admin_LEAKCANARY",
       });
       expect(written.action).not.toBe("error");
-      const raw = readFileSync(join(dir, ".vscode", "mcp.json"), "utf8");
-      expect(raw).not.toContain("sdk_admin_LEAKCANARY");
-      expect(raw).not.toContain("Authorization");
+      // Nothing committable is written at all — the entry lives in the VS Code
+      // user profile, which is where the bearer is allowed to go…
+      expect(existsSync(join(dir, ".vscode", "mcp.json"))).toBe(false);
+      const profile = readFileSync(vscodeUserMcpPath(), "utf8");
+      expect(profile).toContain("sdk_admin_LEAKCANARY");
+      // …and carrying it is the whole point: VS Code authenticates on the
+      // header, so it never gets a 401 and never opens an OAuth browser flow.
+      expect(JSON.parse(profile).servers.shipeasy.headers.Authorization).toBe(
+        "Bearer sdk_admin_LEAKCANARY",
+      );
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -743,10 +808,16 @@ describe("copilotMcpAddArgv — the Copilot CLI's own `mcp add`", () => {
     expect(argv).toContain("Authorization: Bearer sdk_admin_x");
   });
 
-  it("omits the bearer when the Copilot CLI isn't installed", () => {
+  // The bearer no longer hangs off "is the CLI on PATH". `copilot mcp add`
+  // writes `~/.copilot/mcp-config.json`, which is private whether or not the
+  // binary happens to be reachable from this process — and the argv is only
+  // ever SPAWNED behind an `onPath` guard, so gating the header as well only
+  // ever produced a credential-free entry on a machine that was about to get a
+  // credentialled one.
+  it("carries the bearer regardless of PATH — the file it writes is always private", () => {
     const argv = withCopilotOnPath(false, () => copilotMcpAddArgv(ctxWithToken));
-    expect(argv.join(" ")).not.toContain("Authorization");
-    expect(argv).toContain("X-Project-Id: p-1"); // still a valid registration
+    expect(argv).toContain("Authorization: Bearer sdk_admin_x");
+    expect(argv).toContain("X-Project-Id: p-1");
   });
 });
 

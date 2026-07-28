@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { delimiter, join, resolve, sep } from "node:path";
 import { mergeMcpServer, readJsonConfig, writeJsonConfig } from "../util/json-config";
@@ -119,9 +119,11 @@ export function bearerForPath(path: string, ctx: InstallCtx): string | undefined
  */
 export function mcpBearer(agent: AgentId, ctx: InstallCtx): string | undefined {
   if (!ctx.mcpToken) return undefined;
-  // Copilot's CLI writes ~/.copilot/mcp-config.json — always private, always
-  // eligible. (Its `.vscode/mcp.json` is separate and stays credential-free.)
-  if (agent === "copilot") return onPath("copilot") ? ctx.mcpToken : undefined;
+  // Both of Copilot's surfaces are private files now: the CLI's own
+  // `~/.copilot/mcp-config.json`, and VS Code's user-profile `mcp.json`
+  // ({@link vscodeUserMcpPath}). Neither is committable, so both carry the
+  // bearer and neither needs the browser sign-in.
+  if (agent === "copilot") return ctx.mcpToken;
   // Codex's TOML has no header field, and Jules is configured by hand.
   if (agent === "codex" || agent === "jules") return undefined;
   const target = jsonMcpTarget(agent, ctx);
@@ -169,6 +171,9 @@ export const MCP_AUTH_INSTRUCTIONS: Record<AgentId, string> = {
   cursor: "Cursor: Settings → Tools & MCP → `shipeasy` → Login, then approve in the browser.",
   codex:
     "Codex: run `codex mcp login shipeasy` and approve in the browser (on a Codex without that subcommand, the server prompts on first tool use instead).",
+  // Only ever printed when the bearer write didn't happen (no CLI session key
+  // to hand over) — with one, both Copilot surfaces are pre-authenticated and
+  // this step says nothing at all. See {@link vscodeUserMcpPath}.
   copilot:
     "VS Code (Copilot): open the MCP Servers view, start `shipeasy`, then approve in the browser.",
   jules: "Antigravity (Jules): open MCP settings, authorize `shipeasy`, then approve in the browser.",
@@ -620,6 +625,67 @@ export function codexConfigPath(): string {
 }
 
 /**
+ * VS Code's **user-profile** `mcp.json` — the file behind *MCP: Open User
+ * Configuration*, and the reason Copilot no longer needs a manual browser
+ * sign-in.
+ *
+ * We used to write the repo's `.vscode/mcp.json`. That file is committable, so
+ * {@link bearerForPath} (correctly) refuses to put a token in it — which left
+ * VS Code with a credential-free entry, a 401 on first use, and a printed
+ * "open the MCP Servers view and approve in the browser" instruction as the
+ * only way through. The user-profile file is off-repo and private, exactly like
+ * the Copilot CLI's `~/.copilot/mcp-config.json`, so the bearer is allowed
+ * there: VS Code authenticates on the header, never sees a 401, and never
+ * starts an OAuth flow at all.
+ *
+ * Dropping the repo file is also what clears the Copilot CLI's deprecation
+ * banner — it removed `.vscode/mcp.json` support and warns on every session
+ * that finds one (`gh.io/copilotcli-mcpmigrate`). The CLI is served by its own
+ * user config, and a team-shared entry by the repo's `.mcp.json`, which the
+ * CLI reads and Claude already writes — so nothing is lost with it gone.
+ *
+ * Default-profile path only. VS Code stores a non-default profile's servers in
+ * `User/profiles/<id>/mcp.json`; on such a machine `code --add-mcp '<json>'`
+ * is the profile-correct escape hatch (it takes the same `{name, type, url,
+ * headers}` shape this writes).
+ */
+export function vscodeUserMcpPath(): string {
+  const home = homedir();
+  if (process.platform === "darwin") {
+    return join(home, "Library", "Application Support", "Code", "User", "mcp.json");
+  }
+  if (process.platform === "win32") {
+    const appData = process.env.APPDATA ?? join(home, "AppData", "Roaming");
+    return join(appData, "Code", "User", "mcp.json");
+  }
+  return join(process.env.XDG_CONFIG_HOME ?? join(home, ".config"), "Code", "User", "mcp.json");
+}
+
+/**
+ * Drop a `shipeasy` entry left in the repo's `.vscode/mcp.json` by an older
+ * setup run. Not housekeeping — a *correctness* step: VS Code layers workspace
+ * config over the user profile, so a leftover credential-free entry would
+ * shadow the pre-authenticated one {@link vscodeUserMcpPath} just wrote and put
+ * the browser sign-in straight back. Removes the whole file when `shipeasy` was
+ * the only server in it; otherwise keeps the others. Null when there is nothing
+ * to clean.
+ */
+export function pruneVscodeWorkspaceMcp(ctx: InstallCtx): McpResult | null {
+  const path = join(ctx.cwd, ".vscode", "mcp.json");
+  const cfg = readJsonConfig<Record<string, unknown>>(path);
+  const servers = cfg?.servers as Record<string, unknown> | undefined;
+  if (!servers || !("shipeasy" in servers)) return null;
+  if (ctx.dryRun) return { action: "updated", detail: `would drop shipeasy from ${path}` };
+  const { shipeasy: _dropped, ...rest } = servers;
+  if (Object.keys(rest).length === 0 && Object.keys(cfg!).length === 1) {
+    rmSync(path, { force: true });
+    return { action: "updated", detail: `removed ${path} (superseded by the user profile)` };
+  }
+  writeJsonConfig(path, { ...cfg, servers: rest });
+  return { action: "updated", detail: `dropped shipeasy from ${path}` };
+}
+
+/**
  * Resolve the JSON MCP config path + wrapper key for the file-based agents.
  * Exported so `shipeasy mcp status`/`uninstall` can check the same paths
  * `registerMcp` writes, instead of re-deriving them independently.
@@ -639,9 +705,12 @@ export function jsonMcpTarget(
         ? { path: join(home, ".cursor", "mcp.json"), key: "mcpServers" }
         : { path: join(ctx.cwd, ".cursor", "mcp.json"), key: "mcpServers" };
     case "copilot":
-      // VS Code / Copilot reads `.vscode/mcp.json` under a `servers` key. This
-      // is repo-scoped regardless of --scope (there is no clean user-scope file).
-      return { path: join(ctx.cwd, ".vscode", "mcp.json"), key: "servers" };
+      // VS Code's USER-profile `mcp.json`, under a `servers` key — NOT the
+      // repo's `.vscode/mcp.json`. See {@link vscodeUserMcpPath} for why the
+      // move; it is user-scope regardless of --scope, because the repo file
+      // can't hold a credential and a *credential-free* entry is what forced
+      // the manual browser sign-in this step exists to avoid.
+      return { path: vscodeUserMcpPath(), key: "servers" };
     default:
       return null;
   }
@@ -764,9 +833,10 @@ export function copilotMcpAddArgv(ctx: InstallCtx): string[] {
 /**
  * Register Copilot's server through its own CLI, so the Copilot **CLI** sees it
  * — it reads `~/.copilot/mcp-config.json`, `.mcp.json` or `.github/mcp.json`,
- * and never the `.vscode/mcp.json` we write for the VS Code extension. Both
- * surfaces are wanted, so this runs in ADDITION to the JSON write, not instead
- * of it. Null when `copilot` isn't on PATH (the VS Code file still lands).
+ * and (since it dropped `.vscode/mcp.json` support) nothing VS Code reads. The
+ * two surfaces need two writes, so this runs in ADDITION to the JSON merge into
+ * {@link vscodeUserMcpPath}, not instead of it. Null when `copilot` isn't on
+ * PATH — the VS Code profile entry still lands.
  */
 export function addCopilotMcpNative(ctx: InstallCtx): McpResult | null {
   if (!onPath("copilot")) return null;
@@ -869,17 +939,20 @@ export function registerMcp(agent: AgentId, ctx: InstallCtx): McpResult {
     if (native && native.action !== "error") return native;
   }
   if (agent === "copilot") {
-    // Two consumers, two configs: the VS Code extension reads the
-    // `.vscode/mcp.json` we merge below, the Copilot CLI reads its own user
-    // config. Do both — the CLI one is also where a bearer may live.
+    // Two consumers, two private configs: the VS Code extension reads the
+    // user-profile `mcp.json` we merge below, the Copilot CLI reads its own
+    // `~/.copilot/mcp-config.json`. Do both — and because both are off-repo,
+    // both carry the bearer, so neither surface needs the OAuth round-trip.
     const jsonTarget = jsonMcpTarget(agent, ctx);
     const file = jsonTarget ? registerJsonMcp(jsonTarget, ctx) : null;
+    // Must run AFTER the profile write: a stale workspace entry would shadow it.
+    const pruned = pruneVscodeWorkspaceMcp(ctx);
     const native = addCopilotMcpNative(ctx);
-    if (!native) return file ?? { action: "error", detail: "no MCP target for copilot" };
-    if (!file) return native;
+    const parts = [file?.detail, native?.detail, pruned?.detail].filter(Boolean);
+    if (!file && !native) return { action: "error", detail: "no MCP target for copilot" };
     return {
-      action: native.action === "error" ? "error" : file.action,
-      detail: `${file.detail} · ${native.detail}`,
+      action: native?.action === "error" ? "error" : (file?.action ?? native!.action),
+      detail: parts.join(" · "),
     };
   }
   const jsonTarget = jsonMcpTarget(agent, ctx);
