@@ -9406,6 +9406,7 @@ paths:
                     expires_at: null
                     created_by_email: ana@example.com
                     name: production back-end
+                    description: Held by the checkout service; rotate with the quarterly credential sweep
                     scopes:
                       - gates:evaluate
                       - events:write
@@ -9505,6 +9506,84 @@ paths:
         - PLAN_LIMIT
       x-cli:
         name: create
+  /api/admin/keys/{id}:
+    patch:
+      operationId: updateKey
+      summary: Update an API key's label
+      description: |-
+        Renames a key or re-notes what it is for. **Only `name` and `description` are editable** — everything that gives the key its authority (`type`, `env`, `scopes`, `expires_at`) is fixed at mint, because the worker derives the read env and permissions from the key itself. To change any of those, rotate: mint a replacement and revoke this one.
+
+        Omitted fields are left untouched; send `null` to clear one. Returns the updated key row. Revoked keys can still be relabelled (the audit trail outlives the credential). Returns `404` if no such key exists in the project.
+
+        **Use case:** A key minted by `shipeasy setup` carries an auto-composed provenance label — rename it to the service that actually holds it and note the rotation owner.
+      tags:
+        - API Keys
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: id
+          in: path
+          required: true
+          description: Stable opaque key id (UUID) returned by `create` / `list`.
+          schema:
+            $ref: '#/components/schemas/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateKeyRequest'
+            examples:
+              rename:
+                summary: Rename and note the key
+                value:
+                  name: checkout-service · production
+                  description: Held by the checkout service; rotation owner is the payments team
+              clearDescription:
+                summary: Clear the note
+                value:
+                  description: null
+      responses:
+        '200':
+          description: Update an API key's label
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KeyRecord'
+              example:
+                id: 3f2a9b1c-7d4e-4a8f-9c2b-1e5d6f7a8b90
+                type: server
+                env: prod
+                created_at: '2026-05-09T16:01:22.000Z'
+                revoked_at: null
+                expires_at: null
+                created_by_email: ana@example.com
+                name: checkout-service · production
+                description: Held by the checkout service; rotation owner is the payments team
+                scopes:
+                  - gates:evaluate
+                  - events:write
+                last4: a1b2
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+        - VALIDATION
+      x-cli:
+        name: update
+        positional:
+          - id
   /api/admin/keys/{id}/revoke:
     post:
       operationId: revokeKey
@@ -19062,6 +19141,11 @@ components:
             - type: string
             - type: 'null'
           description: Human label for the key. `null` for unnamed dashboard mints; programmatic mints auto-name themselves.
+        description:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: Free-text note recording what the key is for (the service that holds it, the rotation owner, the ticket it was minted under). Display only — `null` unless someone set it via `PATCH /api/admin/keys/{id}`.
         scopes:
           anyOf:
             - type: array
@@ -19083,6 +19167,7 @@ components:
         - expires_at
         - created_by_email
         - name
+        - description
         - scopes
         - last4
       additionalProperties: false
@@ -19189,6 +19274,30 @@ components:
         - env
         - key
         - expires_at
+      additionalProperties: false
+    UpdateKeyRequest:
+      type: object
+      description: |-
+        Body for `PATCH /api/admin/keys/{id}`. Only the key's **label** is editable — `name` and `description`.
+
+        Everything that gives a key its authority (`type`, `env`, `scopes`, `expires_at`) is fixed at mint: those are the isolation boundary the worker derives the read env and permissions from, so changing them would silently re-point a credential that is already deployed. Rotate instead — mint a replacement and revoke the old key.
+
+        Omitted fields are left untouched; send `null` to clear one.
+      properties:
+        name:
+          anyOf:
+            - type: string
+              minLength: 1
+              maxLength: 160
+            - type: 'null'
+          description: New human label, or `null` to clear it. Same 160-char budget as create — provenance labels are composed, not typed.
+        description:
+          anyOf:
+            - type: string
+              minLength: 1
+              maxLength: 500
+            - type: 'null'
+          description: New free-text note, or `null` to clear it.
       additionalProperties: false
     RevokeKeyResponse:
       type: object

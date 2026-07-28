@@ -32,6 +32,7 @@
                   expires_at: null
                   created_by_email: ana@example.com
                   name: production back-end
+                  description: Held by the checkout service; rotate with the quarterly credential sweep
                   scopes:
                     - gates:evaluate
                     - events:write
@@ -131,6 +132,84 @@
       - PLAN_LIMIT
     x-cli:
       name: create
+/api/admin/keys/{id}:
+  patch:
+    operationId: updateKey
+    summary: Update an API key's label
+    description: |-
+      Renames a key or re-notes what it is for. **Only `name` and `description` are editable** — everything that gives the key its authority (`type`, `env`, `scopes`, `expires_at`) is fixed at mint, because the worker derives the read env and permissions from the key itself. To change any of those, rotate: mint a replacement and revoke this one.
+
+      Omitted fields are left untouched; send `null` to clear one. Returns the updated key row. Revoked keys can still be relabelled (the audit trail outlives the credential). Returns `404` if no such key exists in the project.
+
+      **Use case:** A key minted by `shipeasy setup` carries an auto-composed provenance label — rename it to the service that actually holds it and note the rotation owner.
+    tags:
+      - API Keys
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: id
+        in: path
+        required: true
+        description: Stable opaque key id (UUID) returned by `create` / `list`.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/keys.yaml#/UpdateKeyRequest
+          examples:
+            rename:
+              summary: Rename and note the key
+              value:
+                name: checkout-service · production
+                description: Held by the checkout service; rotation owner is the payments team
+            clearDescription:
+              summary: Clear the note
+              value:
+                description: null
+    responses:
+      "200":
+        description: Update an API key's label
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/keys.yaml#/KeyRecord
+            example:
+              id: 3f2a9b1c-7d4e-4a8f-9c2b-1e5d6f7a8b90
+              type: server
+              env: prod
+              created_at: 2026-05-09T16:01:22.000Z
+              revoked_at: null
+              expires_at: null
+              created_by_email: ana@example.com
+              name: checkout-service · production
+              description: Held by the checkout service; rotation owner is the payments team
+              scopes:
+                - gates:evaluate
+                - events:write
+              last4: a1b2
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: update
+      positional:
+        - id
 /api/admin/keys/{id}/revoke:
   post:
     operationId: revokeKey

@@ -3634,6 +3634,7 @@ export const zKeyRecord = z.object({
     expires_at: z.string().nullable(),
     created_by_email: z.string().nullable(),
     name: z.string().nullable(),
+    description: z.string().nullable(),
     scopes: z.array(z.string()).nullable(),
     last4: z.string().nullable()
 });
@@ -3693,6 +3694,18 @@ export const zCreateKeyResponse = z.object({
     ]),
     key: z.string(),
     expires_at: z.string().nullable()
+});
+
+/**
+ * Body for `PATCH /api/admin/keys/{id}`. Only the key's **label** is editable — `name` and `description`.
+ *
+ * Everything that gives a key its authority (`type`, `env`, `scopes`, `expires_at`) is fixed at mint: those are the isolation boundary the worker derives the read env and permissions from, so changing them would silently re-point a credential that is already deployed. Rotate instead — mint a replacement and revoke the old key.
+ *
+ * Omitted fields are left untouched; send `null` to clear one.
+ */
+export const zUpdateKeyRequest = z.object({
+    name: z.string().min(1).max(160).nullish(),
+    description: z.string().min(1).max(500).nullish()
 });
 
 /**
@@ -5537,6 +5550,21 @@ export const zCreateKeyHeaders = z.object({
  * Create an API key
  */
 export const zCreateKeyResponse2 = zCreateKeyResponse;
+
+export const zUpdateKeyBody = zUpdateKeyRequest;
+
+export const zUpdateKeyHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zUpdateKeyPath = z.object({
+    id: zResourceId
+});
+
+/**
+ * Update an API key's label
+ */
+export const zUpdateKeyResponse = zKeyRecord;
 
 export const zRevokeKeyHeaders = z.object({
     'X-Project-Id': z.string().optional()

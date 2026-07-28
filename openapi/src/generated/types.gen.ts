@@ -7003,6 +7003,10 @@ export type KeyRecord = {
      */
     name: string | null;
     /**
+     * Free-text note recording what the key is for (the service that holds it, the rotation owner, the ticket it was minted under). Display only — `null` unless someone set it via `PATCH /api/admin/keys/{id}`.
+     */
+    description: string | null;
+    /**
      * Permission strings recorded on the key for audit/display, or `null` when none were set.
      */
     scopes: Array<string> | null;
@@ -7075,6 +7079,24 @@ export type CreateKeyResponse = {
      * ISO-8601 expiry, or `null` if the key never expires.
      */
     expires_at: string | null;
+};
+
+/**
+ * Body for `PATCH /api/admin/keys/{id}`. Only the key's **label** is editable — `name` and `description`.
+ *
+ * Everything that gives a key its authority (`type`, `env`, `scopes`, `expires_at`) is fixed at mint: those are the isolation boundary the worker derives the read env and permissions from, so changing them would silently re-point a credential that is already deployed. Rotate instead — mint a replacement and revoke the old key.
+ *
+ * Omitted fields are left untouched; send `null` to clear one.
+ */
+export type UpdateKeyRequest = {
+    /**
+     * New human label, or `null` to clear it. Same 160-char budget as create — provenance labels are composed, not typed.
+     */
+    name?: string | null;
+    /**
+     * New free-text note, or `null` to clear it.
+     */
+    description?: string | null;
 };
 
 /**
@@ -14464,6 +14486,62 @@ export type CreateKeyResponses = {
 };
 
 export type CreateKeyResponse2 = CreateKeyResponses[keyof CreateKeyResponses];
+
+export type UpdateKeyData = {
+    body: UpdateKeyRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Stable opaque key id (UUID) returned by `create` / `list`.
+         */
+        id: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/keys/{id}';
+};
+
+export type UpdateKeyErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type UpdateKeyError = UpdateKeyErrors[keyof UpdateKeyErrors];
+
+export type UpdateKeyResponses = {
+    /**
+     * Update an API key's label
+     */
+    200: KeyRecord;
+};
+
+export type UpdateKeyResponse = UpdateKeyResponses[keyof UpdateKeyResponses];
 
 export type RevokeKeyData = {
     body?: never;

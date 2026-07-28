@@ -60,6 +60,11 @@ KeyRecord:
         - type: string
         - type: "null"
       description: Human label for the key. `null` for unnamed dashboard mints; programmatic mints auto-name themselves.
+    description:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Free-text note recording what the key is for (the service that holds it, the rotation owner, the ticket it was minted under). Display only — `null` unless someone set it via `PATCH /api/admin/keys/{id}`.
     scopes:
       anyOf:
         - type: array
@@ -81,8 +86,33 @@ KeyRecord:
     - expires_at
     - created_by_email
     - name
+    - description
     - scopes
     - last4
+  additionalProperties: false
+UpdateKeyRequest:
+  type: object
+  description: |-
+    Body for `PATCH /api/admin/keys/{id}`. Only the key's **label** is editable — `name` and `description`.
+
+    Everything that gives a key its authority (`type`, `env`, `scopes`, `expires_at`) is fixed at mint: those are the isolation boundary the worker derives the read env and permissions from, so changing them would silently re-point a credential that is already deployed. Rotate instead — mint a replacement and revoke the old key.
+
+    Omitted fields are left untouched; send `null` to clear one.
+  properties:
+    name:
+      anyOf:
+        - type: string
+          minLength: 1
+          maxLength: 160
+        - type: "null"
+      description: New human label, or `null` to clear it. Same 160-char budget as create — provenance labels are composed, not typed.
+    description:
+      anyOf:
+        - type: string
+          minLength: 1
+          maxLength: 500
+        - type: "null"
+      description: New free-text note, or `null` to clear it.
   additionalProperties: false
 CreateKeyRequest:
   type: object

@@ -434,6 +434,8 @@ paths:
     $ref: ./paths/connectors.yaml#/~1api~1admin~1connectors~1trigger
   /api/admin/keys:
     $ref: ./paths/keys.yaml#/~1api~1admin~1keys
+  /api/admin/keys/{id}:
+    $ref: ./paths/keys.yaml#/~1api~1admin~1keys~1{id}
   /api/admin/keys/{id}/revoke:
     $ref: ./paths/keys.yaml#/~1api~1admin~1keys~1{id}~1revoke
   /api/admin/search:
