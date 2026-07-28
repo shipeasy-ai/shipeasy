@@ -18,9 +18,11 @@ import {
   type InstallCtx,
   type McpResult,
   MCP_AUTH_INSTRUCTIONS,
+  ALL_AGENT_IDS,
   approveProjectMcpServer,
   claudeServerState,
   mcpBearer,
+  normalizeAgentId,
   SKILLS_CLI_AGENT,
   detectAgents,
   detectHarness,
@@ -99,7 +101,7 @@ import { withExamples, withDetails } from "../util/examples";
 import { getPlatformModuleGates } from "../util/platform-gates";
 import { bold, bullet, cyan, dim, format, wrapText, type WrapOpts } from "../util/format";
 
-const ALL_AGENTS: AgentId[] = ["claude", "cursor", "codex", "copilot", "jules"];
+const ALL_AGENTS: readonly AgentId[] = ALL_AGENT_IDS;
 const FEATURE_GROUPS = ["flags", "i18n", "ops"] as const;
 type FeatureGroup = (typeof FEATURE_GROUPS)[number];
 
@@ -392,17 +394,19 @@ async function selectAgents(opts: SetupOpts, interactive: boolean): Promise<Agen
     say(`  ${a.detected ? "✓" : "·"} ${a.label.padEnd(16)} ${a.reason}`);
   }
 
-  // Explicit --agents wins.
+  // Explicit --agents wins. Resolved through `normalizeAgentId` so documented
+  // aliases keep working (`jules` → `antigravity`, which is the agent that entry
+  // always detected), and deduped so an alias plus its canonical id wire once.
   if (opts.agents) {
     const requested = opts.agents
       .split(",")
       .map((s) => s.trim().toLowerCase())
       .filter(Boolean);
-    const unknown = requested.filter((r) => !ALL_AGENTS.includes(r as AgentId));
+    const unknown = requested.filter((r) => normalizeAgentId(r) === null);
     if (unknown.length) {
       throw new Error(`Unknown agent(s): ${unknown.join(", ")}. Known: ${ALL_AGENTS.join(", ")}`);
     }
-    return requested as AgentId[];
+    return [...new Set(requested.map((r) => normalizeAgentId(r)!))];
   }
 
   if (!interactive) {
@@ -946,7 +950,7 @@ export async function mcpAuthHandoff(
   }
 
   // Drive each agent's own login command where one exists — that's the whole
-  // point: no hand-configuration. Only what's left over (Codex/Copilot/Jules, or
+  // point: no hand-configuration. Only what's left over (Copilot, or
   // a binary that isn't on PATH) gets an instruction to follow by hand.
   const manual: AgentId[] = [];
   for (const id of needsOauth) {
@@ -1308,9 +1312,9 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   // isn't on PATH the plugin can't install, and `installClaudePlugin` prints the
   // two commands to run once it is. The skills CLI names Claude Code
   // `claude-code` — bare `claude` errors "Invalid agents: claude".
-  const skillsCliAgents = selected
-    .map((a) => (a === "claude" ? null : (SKILLS_CLI_AGENT[a] ?? null)))
-    .filter(Boolean) as string[];
+  const skillsCliAgents = [
+    ...new Set(selected.flatMap((a) => (a === "claude" ? [] : (SKILLS_CLI_AGENT[a] ?? [])))),
+  ];
   if (selected.length === 0) {
     say("  (no agents selected — skipping)");
   } else {
@@ -2377,14 +2381,17 @@ export function setupCommand(parent: Command, version = "unknown"): void {
     .description(
       "One-command onboarding for this repo. Logs you in and binds a project, detects and " +
         "wires your coding agents (Claude Code plugin, or MCP + instruction files for " +
-        "Cursor/Codex/Copilot/Jules), mints SDK keys, installs @shipeasy/sdk, and offers the " +
+        "Cursor/Codex/Copilot/Antigravity/Gemini), mints SDK keys, installs @shipeasy/sdk, and offers the " +
         "devtools overlay + feature modules — then writes self-contained SDK-wiring steps to " +
         "shipeasy-wiring.md for your agent to finish. Monorepo-aware and idempotent (safe to " +
         "re-run). Run `shipeasy setup --help` for every flag; `shipeasy setup triggers` sets up " +
         "the scheduled queue-fixing automation on its own.",
     )
     .option("--yes", "Non-interactive: accept defaults everywhere (bind, prod keys, run installs)")
-    .option("--agents <list>", "Comma list to wire (claude,cursor,codex,copilot,jules)")
+    .option(
+      "--agents <list>",
+      "Comma list to wire (claude,cursor,codex,copilot,antigravity,gemini)",
+    )
     .option("--domain <domain>", "Production domain (used when creating a new project at login)")
     .option(
       "--scope <scope>",

@@ -7,11 +7,48 @@ import { mergeMcpServer, readJsonConfig, writeJsonConfig } from "../util/json-co
 /**
  * The coding agents `shipeasy setup` knows how to wire up. Detection mirrors
  * what wrangler does — look for the agent's binary on PATH and/or its
- * well-known config directory. Jules is now locally powered by Google
- * Antigravity (the `agy` binary), so it is auto-detected like the other local
- * agents (`agy` on PATH / `~/.antigravity`) instead of being cloud-only.
+ * well-known config directory.
+ *
+ * Google ships THREE separate things and they are not interchangeable:
+ *
+ *  - **Antigravity** (`agy`) — the local agent CLI/IDE. Config under
+ *    `~/.gemini/antigravity*`, MCP servers in `~/.gemini/config/mcp_config.json`.
+ *  - **Gemini CLI** (`gemini`) — the local CLI, MCP servers in its own
+ *    `settings.json` and manageable through `gemini mcp add`.
+ *  - **Jules** (`jules`) — the ASYNC CLOUD agent. It has no local MCP surface to
+ *    wire, so it is not an agent here at all; it is a *trigger* platform (see
+ *    `triggers.ts`, where it is the `gemini` platform).
+ *
+ * This list used to carry a single `jules` entry that detected `agy` and then
+ * wired nothing — all three conflated into one id that wrote no config. `jules`
+ * survives only as an {@link AGENT_ALIASES} alias onto `antigravity`, which is
+ * what that entry actually detected.
  */
-export type AgentId = "claude" | "cursor" | "codex" | "copilot" | "jules";
+export type AgentId = "claude" | "cursor" | "codex" | "copilot" | "antigravity" | "gemini";
+
+/**
+ * Accepted `--agents` spellings that aren't {@link AgentId}s. `jules` pointed at
+ * the `agy` binary before Antigravity was its own entry, so it keeps resolving
+ * to what it always detected rather than breaking a documented flag.
+ */
+export const AGENT_ALIASES: Record<string, AgentId> = { jules: "antigravity", agy: "antigravity" };
+
+/** Resolve a raw `--agents` token to an {@link AgentId}, or null when unknown. */
+export function normalizeAgentId(raw: string): AgentId | null {
+  const v = raw.trim().toLowerCase();
+  if (AGENT_ALIASES[v]) return AGENT_ALIASES[v];
+  return (ALL_AGENT_IDS as readonly string[]).includes(v) ? (v as AgentId) : null;
+}
+
+/** Every wireable agent, in the order the picker lists them. */
+export const ALL_AGENT_IDS = [
+  "claude",
+  "cursor",
+  "codex",
+  "copilot",
+  "antigravity",
+  "gemini",
+] as const satisfies readonly AgentId[];
 
 export interface AgentInfo {
   id: AgentId;
@@ -74,6 +111,39 @@ export function serverSpec(
 }
 
 /**
+ * Antigravity's remote-server entry. Same idea as {@link serverSpec}, different
+ * spelling: its `mcp_config.json` names the endpoint **`serverUrl`** and has no
+ * `type` discriminator (the transport is inferred from the URL). `headers` IS
+ * supported, which is what lets the bearer and the project pin ride along —
+ * `~/.gemini/config/mcp_config.json` is off-repo and private, so
+ * {@link bearerForPath} allows the credential there.
+ */
+export function antigravityServerSpec(
+  projectId?: string,
+  bearer?: string,
+): { serverUrl: string; headers: Record<string, string> } {
+  const headers: Record<string, string> = {};
+  if (projectId) headers["X-Project-Id"] = projectId;
+  headers["X-Shipeasy-List-Guard"] = "off";
+  if (bearer) headers.Authorization = `Bearer ${bearer}`;
+  // NO `//list-guard` explainer here, unlike every other agent: `agy` is a Go
+  // binary that uses `DisallowUnknownFields` somewhere in its decoders, and we
+  // can't tell from outside whether `mcp_config.json` is one of them. A strict
+  // decode would reject the WHOLE file over a comment key, taking the server
+  // with it — the header still works, it's only the inline hint we give up.
+  return { serverUrl: mcpUrl(projectId), headers };
+}
+
+/** The server entry to write for `agent`, in that agent's own schema. Gemini CLI
+ *  writes the same `{type,url,headers}` shape as Claude/Cursor (verified against
+ *  what `gemini mcp add -t http` itself writes), so only Antigravity differs. */
+export function specForAgent(agent: AgentId, projectId?: string, bearer?: string): unknown {
+  return agent === "antigravity"
+    ? antigravityServerSpec(projectId, bearer)
+    : serverSpec(projectId, bearer);
+}
+
+/**
  * Which agents get an `Authorization: Bearer <admin key>` header written into
  * their MCP entry, pre-authenticating the connection so nobody has to complete
  * the OAuth browser sign-in.
@@ -124,8 +194,8 @@ export function mcpBearer(agent: AgentId, ctx: InstallCtx): string | undefined {
   // ({@link vscodeUserMcpPath}). Neither is committable, so both carry the
   // bearer and neither needs the browser sign-in.
   if (agent === "copilot") return ctx.mcpToken;
-  // Codex's TOML has no header field, and Jules is configured by hand.
-  if (agent === "codex" || agent === "jules") return undefined;
+  // Codex's TOML has no header field.
+  if (agent === "codex") return undefined;
   const target = jsonMcpTarget(agent, ctx);
   return target ? bearerForPath(target.path, ctx) : undefined;
 }
@@ -145,18 +215,24 @@ export const SERVER_SPEC = serverSpec();
 export const MARKETPLACE_SLUG = "shipeasy-ai/shipeasy";
 
 /**
- * How each agent is named to the `skills` CLI (`skills add … -a <name>`).
+ * How each agent is named to the `skills` CLI (`skills add … -a <name>`). One
+ * agent can map to several names — Antigravity's IDE and its CLI keep separate
+ * skill directories, and the `skills` CLI addresses them separately.
+ *
  * Claude is intentionally absent: it receives skills via the native plugin
  * (marketplace + `plugin install`), so we never double-install through `skills`.
- * Jules (Antigravity) receives skills via its own Gemini/`agy` channel, not the
- * `skills` CLI, so it stays absent here too.
+ * Antigravity can't take that route — `agy plugin install` resolves only
+ * Google's own registered marketplaces (ours answers `unknown marketplace`), so
+ * the `skills` CLI is its only path.
  */
-export const SKILLS_CLI_AGENT: Partial<Record<AgentId, string>> = {
-  cursor: "cursor",
-  codex: "codex",
+export const SKILLS_CLI_AGENT: Partial<Record<AgentId, string[]>> = {
+  cursor: ["cursor"],
+  codex: ["codex"],
   // The `skills` CLI names GitHub Copilot `github-copilot` (bare `copilot`
   // errors "Invalid agents: copilot"). Our own AgentId stays `copilot`.
-  copilot: "github-copilot",
+  copilot: ["github-copilot"],
+  antigravity: ["antigravity", "antigravity-cli"],
+  gemini: ["gemini-cli"],
 };
 
 /**
@@ -176,7 +252,11 @@ export const MCP_AUTH_INSTRUCTIONS: Record<AgentId, string> = {
   // this step says nothing at all. See {@link vscodeUserMcpPath}.
   copilot:
     "VS Code (Copilot): open the MCP Servers view, start `shipeasy`, then approve in the browser.",
-  jules: "Antigravity (Jules): open MCP settings, authorize `shipeasy`, then approve in the browser.",
+  // Both Google surfaces take the bearer in their `headers` object, so these are
+  // only ever printed when setup had no CLI session key to hand over.
+  antigravity:
+    "Antigravity: Additional Options (…) → MCP Servers → `shipeasy`, then approve in the browser.",
+  gemini: "Gemini CLI: run `gemini mcp list` to connect `shipeasy`, then approve in the browser.",
 };
 
 /**
@@ -193,8 +273,10 @@ export const MCP_AUTH_INSTRUCTIONS: Record<AgentId, string> = {
  * add`, so there is something to log into by the time this runs. A Codex too old
  * for the subcommand exits non-zero and falls back to the printed instruction.
  *
- * Copilot and Jules stay absent: they authorize from their own UI, with nothing
- * scriptable to drive.
+ * Copilot, Antigravity and Gemini stay absent: Copilot authorizes from its own
+ * UI, and the two Google clients have no `mcp login` at all — they don't need
+ * one, because both take the bearer in their config's `headers` object and are
+ * pre-authenticated by the time this step runs.
  */
 export const MCP_AUTH_COMMANDS: Partial<Record<AgentId, { bin: string; pre?: string[][]; argv: string[] }>> =
   {
@@ -330,7 +412,9 @@ export function runMcpAuth(agent: AgentId, opts: { dryRun?: boolean } = {}): Mcp
  * report success for a server that has never been authorized (verified against
  * a throwaway entry: `ready` + all 111 tools, `✔ Connected`), because our own
  * discovery is anonymous — so those two can only ever reach `reachable`.
- * Copilot and Jules expose nothing scriptable and stay `unknown`.
+ * Gemini's `mcp list` reports a per-server connection state AND is the one place
+ * its folder-trust gate becomes visible — see {@link parseGeminiMcpList}.
+ * Copilot and Antigravity expose nothing scriptable and stay `unknown`.
  *
  * `parse` returns the verdict, or null to mean "this output isn't an answer" —
  * the caller then reports not-ready with the client's own first line.
@@ -362,7 +446,43 @@ export const MCP_PROBE_COMMANDS: Partial<
       return { state: "unknown", detail: "Codex reports no OAuth state for this server" };
     },
   },
+  gemini: {
+    bin: "gemini",
+    argv: ["mcp", "list"],
+    parse: (out) => parseGeminiMcpList(out),
+  },
 };
+
+/**
+ * `gemini mcp list` for our server. Two things to read out of it:
+ *
+ *  1. Whether `shipeasy` is listed at all (`● shipeasy: <url> (http) - Connected`).
+ *  2. Whether this folder is TRUSTED. Gemini suppresses MCP servers in an
+ *     untrusted folder — *including user-scope ones* — and says so in a banner
+ *     ("configured but disabled because this folder is untrusted"). The entry we
+ *     just wrote is then present, correct, and inert, which reads as a broken
+ *     install unless we name the real cause. We don't write
+ *     `~/.gemini/trustedFolders.json` ourselves: trusting a folder is broader
+ *     than approving one server (it bypasses tool-call confirmation for
+ *     everything in it), so that stays the user's call — Gemini prompts for it
+ *     on first run.
+ *
+ * `reachable`, never `ready`: like Cursor and Claude, the listing says nothing
+ * about whether an OAuth credential is held.
+ */
+export function parseGeminiMcpList(output: string, name = "shipeasy"): McpProbeResult | null {
+  if (!/configured MCP servers|no MCP servers configured/i.test(output)) return null;
+  const untrusted = /folder is untrusted/i.test(output);
+  const listed = new RegExp(`^\\s*\\S?\\s*${name}\\s*:`, "mi").test(output);
+  if (!listed) return { state: "not-ready", detail: "not listed by `gemini mcp list`" };
+  if (untrusted) {
+    return {
+      state: "not-ready",
+      detail: "configured but disabled — this folder is untrusted (run `gemini` once to trust it)",
+    };
+  }
+  return { state: "reachable", detail: "listed by Gemini (auth not reported)" };
+}
 
 export interface McpProbeResult {
   /**
@@ -488,14 +608,24 @@ export function homePathExists(...segments: string[]): boolean {
   return existsSync(join(homedir(), ...segments));
 }
 
-/** Detect every known agent in the current environment. */
-export function detectAgents(cwd: string): AgentInfo[] {
+/** Detect every known agent in the current environment. `_cwd` is kept so
+ *  callers keep passing the folder being set up — every signal we read today is
+ *  machine-level (PATH + home config), none is repo-level. */
+export function detectAgents(_cwd?: string): AgentInfo[] {
   const claudeBin = onPath("claude");
   const cursorBin = onPath("cursor");
   const codexBin = onPath("codex");
   const copilotBin = onPath("copilot");
-  // Jules is now locally powered by Google Antigravity — its binary is `agy`.
-  const julesBin = onPath("agy");
+  const agyBin = onPath("agy");
+  const geminiBin = onPath("gemini");
+  // Antigravity keeps its state under `~/.gemini/`, NOT `~/.antigravity` (which
+  // an earlier version of this probed and which does not exist on any install
+  // we've seen) — `antigravity-cli` for `agy`, `antigravity` for the IDE.
+  const agyHome =
+    homePathExists(".gemini", "antigravity-cli") || homePathExists(".gemini", "antigravity");
+  // `~/.gemini` alone would ALSO be true for an Antigravity-only machine, since
+  // that's where Antigravity lives too. `settings.json` is Gemini CLI's own.
+  const geminiHome = homePathExists(".gemini", "settings.json");
 
   return [
     {
@@ -539,18 +669,24 @@ export function detectAgents(cwd: string): AgentInfo[] {
           : "not found",
     },
     {
-      id: "jules",
-      label: "Jules (Antigravity)",
-      // Jules is locally powered by Google Antigravity (the `agy` binary), so we
-      // detect it like the other local agents — `agy` on PATH or ~/.antigravity.
-      detected: julesBin || homePathExists(".antigravity"),
-      reason: julesBin
-        ? "`agy` on PATH (Antigravity)"
-        : homePathExists(".antigravity")
-          ? "~/.antigravity present"
-          : existsSync(join(cwd, "AGENTS.md"))
-            ? "AGENTS.md present — install Antigravity (`agy`) to run Jules locally"
-            : "Antigravity (`agy`) not found",
+      id: "antigravity",
+      label: "Antigravity",
+      detected: agyBin || agyHome,
+      reason: agyBin
+        ? "`agy` on PATH"
+        : agyHome
+          ? "~/.gemini/antigravity present"
+          : "`agy` not found",
+    },
+    {
+      id: "gemini",
+      label: "Gemini CLI",
+      detected: geminiBin || geminiHome,
+      reason: geminiBin
+        ? "`gemini` on PATH"
+        : geminiHome
+          ? "~/.gemini/settings.json present"
+          : "`gemini` not found",
     },
   ];
 }
@@ -686,6 +822,33 @@ export function pruneVscodeWorkspaceMcp(ctx: InstallCtx): McpResult | null {
 }
 
 /**
+ * Antigravity's GLOBAL MCP config. Documented at
+ * https://antigravity.google/docs/mcp — a `{ "mcpServers": { … } }` map, same
+ * wrapper key as Claude/Cursor, with per-server `serverUrl` + `headers`.
+ *
+ * Global only, regardless of `--scope`: Antigravity's other tier is
+ * per-*plugin* (`plugins/<name>/mcp_config.json`), not per-repo, and we don't
+ * ship a plugin — `agy plugin install` resolves only Google's own registered
+ * marketplaces. Being off-repo is also what lets the entry carry the bearer.
+ */
+export function antigravityMcpPath(): string {
+  return join(homedir(), ".gemini", "config", "mcp_config.json");
+}
+
+/**
+ * Gemini CLI's settings file — user scope (`~/.gemini/settings.json`) or the
+ * repo's own (`<cwd>/.gemini/settings.json`), matching `gemini mcp add --scope`.
+ * Servers live under `mcpServers`, in the SAME `{type,url,headers}` shape Claude
+ * and Cursor use (verified against what `gemini mcp add -t http` writes), so the
+ * standard merge covers it.
+ */
+export function geminiSettingsPath(ctx: InstallCtx): string {
+  return ctx.scope === "user"
+    ? join(homedir(), ".gemini", "settings.json")
+    : join(ctx.cwd, ".gemini", "settings.json");
+}
+
+/**
  * Resolve the JSON MCP config path + wrapper key for the file-based agents.
  * Exported so `shipeasy mcp status`/`uninstall` can check the same paths
  * `registerMcp` writes, instead of re-deriving them independently.
@@ -711,6 +874,10 @@ export function jsonMcpTarget(
       // can't hold a credential and a *credential-free* entry is what forced
       // the manual browser sign-in this step exists to avoid.
       return { path: vscodeUserMcpPath(), key: "servers" };
+    case "antigravity":
+      return { path: antigravityMcpPath(), key: "mcpServers" };
+    case "gemini":
+      return { path: geminiSettingsPath(ctx), key: "mcpServers" };
     default:
       return null;
   }
@@ -728,17 +895,19 @@ export function existingMcpProjectPin(agent: AgentId, ctx: InstallCtx): string |
   if (!target) return null;
   const cfg = readJsonConfig<Record<string, Record<string, unknown>>>(target.path);
   const entry = cfg?.[target.key]?.shipeasy as
-    | { url?: unknown; headers?: Record<string, unknown> }
+    | { url?: unknown; serverUrl?: unknown; headers?: Record<string, unknown> }
     | undefined;
   if (!entry) return null;
   const header = entry.headers?.["X-Project-Id"];
   if (typeof header === "string" && header) return header;
-  const match =
-    typeof entry.url === "string" ? /\/p\/([A-Za-z0-9_-]+)\/mcp$/.exec(entry.url) : null;
+  // `serverUrl` is Antigravity's spelling of `url` — see {@link antigravityServerSpec}.
+  const url = typeof entry.url === "string" ? entry.url : entry.serverUrl;
+  const match = typeof url === "string" ? /\/p\/([A-Za-z0-9_-]+)\/mcp$/.exec(url) : null;
   return match ? match[1] : null;
 }
 
 function registerJsonMcp(
+  agent: AgentId,
   target: { path: string; key: "mcpServers" | "servers" },
   ctx: InstallCtx,
 ): McpResult {
@@ -746,7 +915,7 @@ function registerJsonMcp(
   const { config, replaced } = mergeMcpServer(
     existing,
     "shipeasy",
-    serverSpec(ctx.projectId, bearerForPath(target.path, ctx)),
+    specForAgent(agent, ctx.projectId, bearerForPath(target.path, ctx)),
     ctx.force,
     target.key,
   );
@@ -924,12 +1093,52 @@ export function addClaudeMcpNative(ctx: InstallCtx): McpResult | null {
 }
 
 /**
+ * `gemini mcp add` argv. Gemini is the one client whose CLI takes BOTH the
+ * transport and arbitrary headers on the command line (`-t http`, repeated
+ * `-H "Name: value"`), so the native path can express everything the JSON merge
+ * can — including the bearer and the project pin.
+ *
+ * Exported for the dry-run line and so the header shape is testable without the
+ * binary. `--scope` mirrors our own: user scope writes `~/.gemini/settings.json`
+ * (private → keeps the bearer), project scope writes the repo's
+ * `.gemini/settings.json` (committable → {@link bearerForPath} withholds it).
+ */
+export function geminiMcpAddArgv(ctx: InstallCtx): string[] {
+  const argv = ["mcp", "add", "shipeasy", mcpUrl(ctx.projectId), "-t", "http", "-s", ctx.scope];
+  if (ctx.projectId) argv.push("-H", `X-Project-Id: ${ctx.projectId}`);
+  argv.push("-H", "X-Shipeasy-List-Guard: off");
+  const bearer = bearerForPath(geminiSettingsPath(ctx), ctx);
+  if (bearer) argv.push("-H", `Authorization: Bearer ${bearer}`);
+  return argv;
+}
+
+/**
+ * Register Gemini's server through `gemini mcp add` — the native path, so the
+ * on-disk shape is whatever the installed Gemini writes today. Unlike `claude
+ * mcp add`, this one is idempotent (re-adding replaces the entry and exits 0),
+ * so there's nothing to remove first. Null when `gemini` isn't on PATH, so the
+ * caller falls back to merging the settings file itself.
+ */
+function addGeminiMcpNative(ctx: InstallCtx): McpResult | null {
+  if (!onPath("gemini")) return null;
+  const argv = geminiMcpAddArgv(ctx);
+  if (ctx.dryRun) return { action: "shell", detail: `would run: gemini ${shellJoin(argv)}` };
+  const res = spawnSync("gemini", argv, { cwd: ctx.cwd, stdio: ["ignore", "pipe", "pipe"] });
+  if (res.status !== 0) {
+    const why = `${res.stderr ?? ""}${res.stdout ?? ""}`.trim().split("\n")[0];
+    return { action: "error", detail: `gemini mcp add failed (${res.status ?? "?"})${why ? `: ${why}` : ""}` };
+  }
+  return { action: "shell", detail: `gemini mcp add shipeasy (${ctx.scope} scope)` };
+}
+
+/**
  * Register the Shipeasy MCP server for one agent. Claude at project scope goes
  * through `claude mcp add` (falling back to the JSON merge when that isn't
  * available); the other JSON-config agents are merged idempotently; Codex
  * shells out to `codex mcp add` when the binary is present (else returns the
- * TOML snippet to paste); Jules is connected from Antigravity's (`agy`) MCP
- * settings.
+ * TOML snippet to paste); Gemini shells out to `gemini mcp add` and falls back
+ * to the same merge; Antigravity is merged into its global `mcp_config.json`
+ * (it has no `agy mcp` subcommand to drive).
  */
 export function registerMcp(agent: AgentId, ctx: InstallCtx): McpResult {
   if (agent === "claude") {
@@ -944,7 +1153,7 @@ export function registerMcp(agent: AgentId, ctx: InstallCtx): McpResult {
     // `~/.copilot/mcp-config.json`. Do both — and because both are off-repo,
     // both carry the bearer, so neither surface needs the OAuth round-trip.
     const jsonTarget = jsonMcpTarget(agent, ctx);
-    const file = jsonTarget ? registerJsonMcp(jsonTarget, ctx) : null;
+    const file = jsonTarget ? registerJsonMcp(agent, jsonTarget, ctx) : null;
     // Must run AFTER the profile write: a stale workspace entry would shadow it.
     const pruned = pruneVscodeWorkspaceMcp(ctx);
     const native = addCopilotMcpNative(ctx);
@@ -955,8 +1164,15 @@ export function registerMcp(agent: AgentId, ctx: InstallCtx): McpResult {
       detail: parts.join(" · "),
     };
   }
+  if (agent === "gemini") {
+    // Native first; a hard failure still falls through to the JSON merge below
+    // rather than leaving the machine without an entry.
+    const native = addGeminiMcpNative(ctx);
+    if (native && native.action !== "error") return native;
+  }
+
   const jsonTarget = jsonMcpTarget(agent, ctx);
-  if (jsonTarget) return registerJsonMcp(jsonTarget, ctx);
+  if (jsonTarget) return registerJsonMcp(agent, jsonTarget, ctx);
 
   if (agent === "codex") {
     // Codex's HTTP MCP config only carries a URL (+ optional bearer-token env
@@ -985,13 +1201,6 @@ export function registerMcp(agent: AgentId, ctx: InstallCtx): McpResult {
       };
     }
     return { action: "shell", detail: `codex mcp add shipeasy` };
-  }
-
-  if (agent === "jules") {
-    return {
-      action: "manual",
-      detail: `Jules runs locally in Google Antigravity (\`agy\`) — add the MCP server from Antigravity's settings pointing at ${mcpUrl(ctx.projectId)}. AGENTS.md covers the workflows in the meantime.`,
-    };
   }
 
   return { action: "error", detail: `no MCP target for ${agent}` };

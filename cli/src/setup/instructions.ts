@@ -61,7 +61,7 @@ function upsertFile(path: string, body: string, ctx: InstallCtx): FileResult {
   return { action: existed ? "updated" : "wrote", path };
 }
 
-/** Universal `AGENTS.md` — read by Codex, Jules, Cursor, and others. */
+/** Universal `AGENTS.md` — read by Codex, Antigravity, Gemini, Cursor, and others. */
 export function writeAgentsMd(ctx: InstallCtx): FileResult {
   return upsertFile(join(ctx.cwd, "AGENTS.md"), instructionsBody(), ctx);
 }

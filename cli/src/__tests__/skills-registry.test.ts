@@ -95,12 +95,19 @@ describe("substituteSdkSnippets", () => {
     expect(await substituteSdkSnippets(body, "typescript")).toBe(body);
   });
 
-  it("maps skills-CLI agents but never Claude (it uses the plugin) or Jules (cloud)", () => {
+  it("maps skills-CLI agents but never Claude (it uses the plugin)", () => {
     expect(SKILLS_CLI_AGENT.claude).toBeUndefined();
-    expect(SKILLS_CLI_AGENT.jules).toBeUndefined();
-    expect(SKILLS_CLI_AGENT.cursor).toBe("cursor");
-    expect(SKILLS_CLI_AGENT.codex).toBe("codex");
-    expect(SKILLS_CLI_AGENT.copilot).toBe("github-copilot");
+    expect(SKILLS_CLI_AGENT.cursor).toEqual(["cursor"]);
+    expect(SKILLS_CLI_AGENT.codex).toEqual(["codex"]);
+    expect(SKILLS_CLI_AGENT.copilot).toEqual(["github-copilot"]);
+  });
+
+  // Antigravity can't take Claude's plugin route (`agy plugin install` resolves
+  // only Google's own marketplaces), and it keeps IDE and CLI skills apart, so
+  // it's the one agent that maps to two names.
+  it("routes both Google agents through the skills CLI", () => {
+    expect(SKILLS_CLI_AGENT.antigravity).toEqual(["antigravity", "antigravity-cli"]);
+    expect(SKILLS_CLI_AGENT.gemini).toEqual(["gemini-cli"]);
   });
 });
 

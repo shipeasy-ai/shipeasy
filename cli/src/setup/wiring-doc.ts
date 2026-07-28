@@ -137,7 +137,10 @@ const RELOAD_BY_AGENT: Record<string, string> = {
   copilot:
     "**VS Code / Copilot** — reload the window (Command Palette → *Developer: Reload Window*), then start `shipeasy` from the MCP servers view (trust it when prompted).",
   codex: "**Codex CLI** — restart the Codex session so it re-reads the MCP config.",
-  jules: "**Jules** — start a fresh task; the MCP server is picked up per session.",
+  antigravity:
+    "**Antigravity** — start a fresh `agy` session (MCP servers are read from `~/.gemini/config/mcp_config.json` at startup). In the IDE: Additional Options (…) → MCP Servers.",
+  gemini:
+    "**Gemini CLI** — start a fresh `gemini` session; check with `gemini mcp list`. If it reports the server disabled because the folder is untrusted, trust the folder when Gemini prompts.",
 };
 
 /**
@@ -165,7 +168,13 @@ const AUTHORIZE_BY_AGENT: Record<string, string> = {
   claude: "**Claude Code** — run `/mcp`, select `shipeasy`, choose Authenticate, then approve in the browser.",
   codex: "**Codex CLI** — run `codex mcp login shipeasy` and approve in the browser.",
   copilot: "**VS Code / Copilot** — start `shipeasy` from the MCP servers view and approve in the browser.",
-  jules: "**Jules** — open MCP settings, authorize `shipeasy`, then approve in the browser.",
+  // Both Google clients take an `Authorization` header in their own config, so
+  // the usual remedy is that the entry was written without a bearer (project
+  // scope / no CLI session) — the browser flow is the fallback, not the norm.
+  antigravity:
+    "**Antigravity** — Additional Options (…) → MCP Servers → `shipeasy`, then approve in the browser.",
+  gemini:
+    "**Gemini CLI** — run `gemini mcp list` to connect `shipeasy`, then approve in the browser.",
 };
 
 /**

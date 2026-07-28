@@ -2120,7 +2120,7 @@ shipeasy whoami [options]
 
 ## `shipeasy setup`
 
-One-command onboarding for this repo. Logs you in and binds a project, detects and wires your coding agents (Claude Code plugin, or MCP + instruction files for Cursor/Codex/Copilot/Jules), mints SDK keys, installs @shipeasy/sdk, and offers the devtools overlay + feature modules — then writes self-contained SDK-wiring steps to shipeasy-wiring.md for your agent to finish. Monorepo-aware and idempotent (safe to re-run). Run `shipeasy setup --help` for every flag; `shipeasy setup triggers` sets up the scheduled queue-fixing automation on its own.
+One-command onboarding for this repo. Logs you in and binds a project, detects and wires your coding agents (Claude Code plugin, or MCP + instruction files for Cursor/Codex/Copilot/Antigravity/Gemini), mints SDK keys, installs @shipeasy/sdk, and offers the devtools overlay + feature modules — then writes self-contained SDK-wiring steps to shipeasy-wiring.md for your agent to finish. Monorepo-aware and idempotent (safe to re-run). Run `shipeasy setup --help` for every flag; `shipeasy setup triggers` sets up the scheduled queue-fixing automation on its own.
 
 `setup` now runs the whole deterministic half of onboarding itself, without needing an AI to drive it:
 
@@ -2148,7 +2148,7 @@ shipeasy setup [options] [command]
 | Option | | Description |
 | --- | --- | --- |
 | `--yes` | optional | Non-interactive: accept defaults everywhere (bind, prod keys, run installs) |
-| `--agents <list>` | optional | Comma list to wire (claude,cursor,codex,copilot,jules) |
+| `--agents <list>` | optional | Comma list to wire (claude,cursor,codex,copilot,antigravity,gemini) |
 | `--domain <domain>` | optional | Production domain (used when creating a new project at login) |
 | `--scope <scope>` | optional | MCP + skills scope: project (in-repo, default) \| user (global). Omit to be asked. |
 | `--env <env>` | optional | Environment the minted SDK keys read: dev \| staging \| prod |
@@ -2260,7 +2260,7 @@ shipeasy upgrade [options] [command]
 
 | Option | | Description |
 | --- | --- | --- |
-| `--agents <list>` | optional | Restrict to these agents (claude,cursor,codex,copilot,jules) |
+| `--agents <list>` | optional | Restrict to these agents (claude,cursor,codex,copilot,antigravity,gemini) |
 | `--scope <scope>` | optional | Where skills/MCP live: project \| user (default: auto-detected) |
 | `--pm <pm>` | optional | Package manager for the global CLI update (npm\|pnpm\|yarn\|bun) |
 | `--skip-cli` | optional | Don't self-update the CLI |
@@ -2294,7 +2294,7 @@ shipeasy upgrade skills [options]
 
 | Option | | Description |
 | --- | --- | --- |
-| `--agents <list>` | optional | Restrict to these agents (claude,cursor,codex,copilot,jules) |
+| `--agents <list>` | optional | Restrict to these agents (claude,cursor,codex,copilot,antigravity,gemini) |
 | `--scope <scope>` | optional | Where skills live: project \| user (default: auto-detected) |
 | `--pm <pm>` | optional | Package manager for the global CLI update (npm\|pnpm\|yarn\|bun) |
 | `--skip-cli` | optional | Refresh skills only — don't self-update the CLI |
@@ -2509,7 +2509,7 @@ shipeasy mcp install [options]
 
 | Option | | Description |
 | --- | --- | --- |
-| `--client <name>` | optional | Restrict to one agent (claude \| cursor \| codex \| copilot \| jules \| all) (default: `"all"`) |
+| `--client <name>` | optional | Restrict to one agent (claude \| cursor \| codex \| copilot \| antigravity \| gemini \| all) (default: `"all"`) |
 | `--scope <scope>` | optional | user \| project (default: `"user"`) |
 | `--force` | optional | Replace an existing 'shipeasy' MCP entry without prompting |
 | `--dry-run` | optional | Print what would change without writing files |

@@ -7,10 +7,12 @@ import {
   type AgentId,
   type InstallCtx,
   type McpResult,
+  ALL_AGENT_IDS,
   MCP_URL,
   codexConfigPath,
   installClaudePlugin,
   jsonMcpTarget,
+  normalizeAgentId,
   registerMcp,
 } from "../setup/agents";
 import { readJsonConfig, writeJsonConfig } from "../util/json-config";
@@ -23,19 +25,31 @@ import { withExamples } from "../util/examples";
 // `claude plugin install` / `codex mcp add` where one exists, JSON-config merge
 // otherwise). This file must never re-derive that wiring independently.
 
-const ALL_AGENTS: AgentId[] = ["claude", "cursor", "codex", "copilot", "jules"];
+const ALL_AGENTS: readonly AgentId[] = ALL_AGENT_IDS;
 
 const AGENT_LABEL: Record<AgentId, string> = {
   claude: "Claude Code",
   cursor: "Cursor",
   codex: "OpenAI Codex",
   copilot: "GitHub Copilot",
-  jules: "Google Jules",
+  antigravity: "Antigravity",
+  gemini: "Gemini CLI",
 };
 
+/**
+ * Agents with no per-project config to report or edit: Codex has one TOML, and
+ * Antigravity's `mcp_config.json` is global-only (its other tier is per-plugin,
+ * not per-repo). Gemini is NOT here — it has a real per-repo
+ * `.gemini/settings.json`, same as Cursor.
+ */
+const UNSCOPED_AGENTS: readonly AgentId[] = ["codex", "antigravity"];
+
 function resolveAgents(client: string | undefined): AgentId[] {
-  if (!client || client === "all") return ALL_AGENTS;
-  return ALL_AGENTS.filter((a) => a === client);
+  if (!client || client === "all") return [...ALL_AGENTS];
+  // Accept the same aliases `shipeasy setup --agents` does, so `--client jules`
+  // keeps resolving to the agent it always meant.
+  const id = normalizeAgentId(client);
+  return ALL_AGENTS.filter((a) => a === id);
 }
 
 type McpConfigFile = { mcpServers?: Record<string, unknown>; servers?: Record<string, unknown> };
@@ -75,7 +89,11 @@ export function mcpCommand(parent: Command): void {
   const installMcp = mcp
     .command("install")
     .description(`Register the hosted Shipeasy MCP server (${MCP_URL}) with installed AI assistants`)
-    .option("--client <name>", "Restrict to one agent (claude | cursor | codex | copilot | jules | all)", "all")
+    .option(
+      "--client <name>",
+      "Restrict to one agent (claude | cursor | codex | copilot | antigravity | gemini | all)",
+      "all",
+    )
     .option("--scope <scope>", "user | project", "user")
     .option("--force", "Replace an existing 'shipeasy' MCP entry without prompting")
     .option("--dry-run", "Print what would change without writing files")
@@ -90,7 +108,7 @@ export function mcpCommand(parent: Command): void {
         const agents = resolveAgents(opts.client);
         if (opts.client && opts.client !== "all" && agents.length === 0) {
           console.error(
-            `Unknown --client=${opts.client}. Choose from: claude, cursor, codex, copilot, jules, all`,
+            `Unknown --client=${opts.client}. Choose from: ${ALL_AGENTS.join(", ")}, all`,
           );
           process.exit(1);
         }
@@ -154,8 +172,8 @@ export function mcpCommand(parent: Command): void {
       for (const scope of ["user", "project"] as const) {
         const ctx: InstallCtx = { cwd, scope, force: false, dryRun: false };
         for (const agent of ALL_AGENTS) {
-          // Codex and Jules aren't scoped per-project — report them once, on the user pass.
-          if ((agent === "codex" || agent === "jules") && scope === "project") continue;
+          // Report the unscoped agents once, on the user pass.
+          if (UNSCOPED_AGENTS.includes(agent) && scope === "project") continue;
           const row = describeAgentStatus(agent, ctx);
           if (row) console.log(`  ${row.present.padEnd(4)}  ${row.label.padEnd(30)}  ${row.detail}`);
         }
@@ -187,7 +205,10 @@ export function mcpCommand(parent: Command): void {
       for (const scope of scopes) {
         const ctx: InstallCtx = { cwd: process.cwd(), scope, force: false, dryRun: false };
         for (const agent of agents) {
-          if (agent === "codex" || agent === "jules") continue; // no safe JSON path to edit
+          if (agent === "codex") continue; // TOML — no safe JSON path to edit
+          // Antigravity's file is global: only visit it on the user pass, or the
+          // project pass would re-report the same removal.
+          if (agent === "antigravity" && scope === "project") continue;
           const target = jsonMcpTarget(agent, ctx);
           if (!target) continue;
           const cfg = readMcpConfig(target.path);
@@ -226,7 +247,7 @@ interface StatusRow {
 
 /** Best-effort "is shipeasy registered" check per agent, matching how `registerMcp` writes it. */
 function describeAgentStatus(agent: AgentId, ctx: InstallCtx): StatusRow | null {
-  const scoped = agent !== "codex" && agent !== "jules";
+  const scoped = !UNSCOPED_AGENTS.includes(agent);
   const label = scoped ? `${AGENT_LABEL[agent]} (${ctx.scope})` : AGENT_LABEL[agent];
 
   if (agent === "claude" && ctx.scope === "user") {
@@ -243,10 +264,6 @@ function describeAgentStatus(agent: AgentId, ctx: InstallCtx): StatusRow | null 
     if (!existsSync(path)) return { label, present: "—", detail: `${path} (not found)` };
     const present = readFileSync(path, "utf8").includes("[mcp_servers.shipeasy]");
     return { label, present: present ? "yes" : "no", detail: path };
-  }
-
-  if (agent === "jules") {
-    return { label, present: "—", detail: "connected from Jules Settings (cloud, no local file)" };
   }
 
   const target = jsonMcpTarget(agent, ctx);

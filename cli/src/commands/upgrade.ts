@@ -7,11 +7,13 @@ import prompts from "prompts";
 import {
   type AgentId,
   type InstallCtx,
+  ALL_AGENT_IDS,
   MCP_URL,
   SKILLS_CLI_AGENT,
   detectAgents,
   existingMcpProjectPin,
   installClaudePlugin,
+  normalizeAgentId,
   onPath,
   registerMcp,
 } from "../setup/agents";
@@ -38,7 +40,7 @@ import { withDetails, withExamples } from "../util/examples";
  * "run this yourself" line rather than failing the whole upgrade.
  */
 
-const ALL_AGENTS: AgentId[] = ["claude", "cursor", "codex", "copilot", "jules"];
+const ALL_AGENTS: readonly AgentId[] = ALL_AGENT_IDS;
 const CLI_PACKAGE = "@shipeasy/cli";
 
 type GlobalPm = "npm" | "pnpm" | "yarn" | "bun";
@@ -156,11 +158,13 @@ function resolveAgents(opts: UpgradeOpts, cwd: string): AgentId[] {
       .split(",")
       .map((s) => s.trim().toLowerCase())
       .filter(Boolean);
-    const unknown = requested.filter((r) => !ALL_AGENTS.includes(r as AgentId));
+    const unknown = requested.filter((r) => normalizeAgentId(r) === null);
     if (unknown.length) {
       throw new Error(`Unknown agent(s): ${unknown.join(", ")}. Known: ${ALL_AGENTS.join(", ")}`);
     }
-    return requested as AgentId[];
+    // Same aliases `shipeasy setup --agents` takes, so an upgrade written
+    // against the old spelling keeps upgrading the same agent.
+    return [...new Set(requested.map((r) => normalizeAgentId(r)!))];
   }
   return detectAgents(cwd)
     .filter((a) => a.detected)
@@ -168,15 +172,18 @@ function resolveAgents(opts: UpgradeOpts, cwd: string): AgentId[] {
 }
 
 /** The `skills` CLI agent names that take skills via `npx skills add` for this
- *  scope — cursor/codex/copilot always, Claude only at project scope (user
- *  scope gets its skills from the plugin instead). The skills CLI names Claude
- *  Code `claude-code` — bare `claude` errors "Invalid agents: claude". */
+ *  scope — everything in {@link SKILLS_CLI_AGENT} always, Claude only at project
+ *  scope (user scope gets its skills from the plugin instead). The skills CLI
+ *  names Claude Code `claude-code` — bare `claude` errors "Invalid agents:
+ *  claude" — and one agent can map to several names (Antigravity's IDE and CLI). */
 function skillsCliAgentsFor(agents: AgentId[], scope: "user" | "project"): string[] {
-  return agents
-    .map((a) =>
-      a === "claude" ? (scope === "project" ? "claude-code" : null) : (SKILLS_CLI_AGENT[a] ?? null),
-    )
-    .filter((x): x is string => Boolean(x));
+  return [
+    ...new Set(
+      agents.flatMap((a) =>
+        a === "claude" ? (scope === "project" ? ["claude-code"] : []) : (SKILLS_CLI_AGENT[a] ?? []),
+      ),
+    ),
+  ];
 }
 
 // ── installed-skill discovery ────────────────────────────────────────────────
@@ -220,7 +227,7 @@ async function refreshSkills(
   const ctx: InstallCtx = { cwd, scope, force: true, dryRun: Boolean(opts.dryRun) };
 
   if (!agents.length) {
-    console.log("  • no coding agents detected — pass --agents to choose (claude,cursor,codex,copilot,jules)");
+    console.log(`  • no coding agents detected — pass --agents to choose (${ALL_AGENTS.join(",")})`);
     return;
   }
   console.log(`  scope: ${scope === "project" ? "this project (in-repo)" : "user-level (global)"}`);
@@ -477,7 +484,7 @@ export function upgradeCommand(parent: Command, currentVersion: string): Command
         "offers to bump the @shipeasy/sdk dependency in each onboarded target. Idempotent and " +
         "best-effort. Use `shipeasy upgrade skills` for the CLI + skills only.",
     )
-    .option("--agents <list>", "Restrict to these agents (claude,cursor,codex,copilot,jules)")
+    .option("--agents <list>", `Restrict to these agents (${ALL_AGENTS.join(",")})`)
     .option("--scope <scope>", "Where skills/MCP live: project | user (default: auto-detected)")
     .option("--pm <pm>", "Package manager for the global CLI update (npm|pnpm|yarn|bun)")
     .option("--skip-cli", "Don't self-update the CLI")
@@ -504,7 +511,7 @@ export function upgradeCommand(parent: Command, currentVersion: string): Command
         "(re-fetched from the repo). Skips the MCP re-registration and the SDK bump that the full " +
         "`shipeasy upgrade` also does.",
     )
-    .option("--agents <list>", "Restrict to these agents (claude,cursor,codex,copilot,jules)")
+    .option("--agents <list>", `Restrict to these agents (${ALL_AGENTS.join(",")})`)
     .option("--scope <scope>", "Where skills live: project | user (default: auto-detected)")
     .option("--pm <pm>", "Package manager for the global CLI update (npm|pnpm|yarn|bun)")
     .option("--skip-cli", "Refresh skills only — don't self-update the CLI")

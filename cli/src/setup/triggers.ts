@@ -136,9 +136,15 @@ export interface TriggerStepOpts {
   session?: CliSession | null;
 }
 
-/** Map a step-3 `AgentId` to its trigger platform id (`jules` → `gemini`). */
+/**
+ * Map a step-3 `AgentId` to its trigger platform id. Both Google agents point at
+ * the `gemini` platform — which IS Jules, the async cloud agent (the trigger has
+ * no local counterpart, so Antigravity and Gemini CLI users get the same one).
+ * `jules` itself is still accepted, as the dashboard deep link spells it that way.
+ */
 function agentToPlatform(id: string): TriggerPlatform | null {
-  const v = id === "jules" ? "gemini" : id.toLowerCase();
+  const raw = id.toLowerCase();
+  const v = raw === "jules" || raw === "antigravity" ? "gemini" : raw;
   return PLATFORM_IDS.includes(v) ? (v as TriggerPlatform) : null;
 }
 

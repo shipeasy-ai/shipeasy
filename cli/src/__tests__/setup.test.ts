@@ -6,8 +6,14 @@ import { mergeMcpServer } from "../util/json-config";
 import {
   type AgentId,
   type InstallCtx,
+  ALL_AGENT_IDS,
   MCP_AUTH_COMMANDS,
   addClaudeMcpNative,
+  antigravityServerSpec,
+  geminiMcpAddArgv,
+  normalizeAgentId,
+  parseGeminiMcpList,
+  specForAgent,
   approveProjectMcpServer,
   claudeMcpAddArgv,
   claudePluginArgv,
@@ -109,15 +115,49 @@ describe("mergeMcpServer wrapper key", () => {
 });
 
 describe("detectAgents", () => {
-  it("returns all five agents; jules detects the local Antigravity (agy) signal", () => {
+  it("returns every agent, Google's two split apart", () => {
     const agents = detectAgents(process.cwd());
-    expect(agents.map((a) => a.id)).toEqual(["claude", "cursor", "codex", "copilot", "jules"]);
-    // Jules is now locally powered by Antigravity — detected iff `agy` is on
-    // PATH or ~/.antigravity exists (no longer hard-coded to false).
-    expect(agents.find((a) => a.id === "jules")!.detected).toBe(
-      onPath("agy") || homePathExists(".antigravity"),
-    );
+    expect(agents.map((a) => a.id)).toEqual([
+      "claude",
+      "cursor",
+      "codex",
+      "copilot",
+      "antigravity",
+      "gemini",
+    ]);
     for (const a of agents) expect(typeof a.reason).toBe("string");
+  });
+
+  // Antigravity keeps its state in `~/.gemini/antigravity*`; the old probe
+  // looked for `~/.antigravity`, which no install writes, so detection fell
+  // back to PATH alone.
+  it("detects Antigravity from `agy` or its real home under ~/.gemini", () => {
+    const antigravity = detectAgents().find((a) => a.id === "antigravity")!;
+    expect(antigravity.detected).toBe(
+      onPath("agy") ||
+        homePathExists(".gemini", "antigravity-cli") ||
+        homePathExists(".gemini", "antigravity"),
+    );
+  });
+
+  // `~/.gemini` alone can't tell them apart — Antigravity lives there too — so
+  // Gemini CLI is keyed on its own `settings.json`.
+  it("detects Gemini CLI from `gemini` or its own settings.json", () => {
+    const gemini = detectAgents().find((a) => a.id === "gemini")!;
+    expect(gemini.detected).toBe(onPath("gemini") || homePathExists(".gemini", "settings.json"));
+  });
+});
+
+describe("normalizeAgentId", () => {
+  it("resolves `jules` onto antigravity — the agent that entry always detected", () => {
+    expect(normalizeAgentId("jules")).toBe("antigravity");
+    expect(normalizeAgentId("JULES")).toBe("antigravity");
+    expect(normalizeAgentId("agy")).toBe("antigravity");
+  });
+
+  it("passes canonical ids through and rejects unknown ones", () => {
+    for (const id of ALL_AGENT_IDS) expect(normalizeAgentId(id)).toBe(id);
+    expect(normalizeAgentId("windsurf")).toBeNull();
   });
 });
 
@@ -430,8 +470,101 @@ describe("registerMcp", () => {
     }
   });
 
-  it("jules is a manual step", () => {
-    expect(registerMcp("jules", ctx(tmp())).action).toBe("manual");
+  // The whole point of splitting `jules` apart: this used to be a printed
+  // sentence that wrote nothing at all.
+  it("writes Antigravity's global mcp_config.json with its own serverUrl shape", () => {
+    const dir = tmp();
+    try {
+      const res = registerMcp("antigravity", ctx(dir, { dryRun: true }));
+      expect(res.action).toBe("wrote");
+      expect(res.detail).toContain(join(".gemini", "config", "mcp_config.json"));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("registers Gemini through `gemini mcp add` when the binary is there", () => {
+    const dir = tmp();
+    try {
+      const res = registerMcp("gemini", ctx(dir, { dryRun: true }));
+      // Native when `gemini` is on PATH, JSON merge otherwise — both are a real
+      // write, neither is a manual hand-off.
+      expect(onPath("gemini") ? res.action : "shell").toBe("shell");
+      expect(res.action).not.toBe("manual");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("antigravityServerSpec", () => {
+  it("uses `serverUrl` (not `url`) and carries the pin + bearer in headers", () => {
+    const spec = antigravityServerSpec("p-1", "sdk_admin_x");
+    expect(spec.serverUrl).toBe("https://mcp.shipeasy.ai/p/p-1/mcp");
+    expect(spec).not.toHaveProperty("url");
+    expect(spec.headers["X-Project-Id"]).toBe("p-1");
+    expect(spec.headers.Authorization).toBe("Bearer sdk_admin_x");
+  });
+
+  // `agy` uses a strict JSON decoder somewhere; a comment key could take the
+  // whole config down with it, so this is the one entry written without one.
+  it("carries no `//` comment key, unlike every other agent's entry", () => {
+    expect(antigravityServerSpec("p-1")).not.toHaveProperty("//list-guard");
+    expect(serverSpec("p-1")).toHaveProperty("//list-guard");
+  });
+
+  it("is what specForAgent hands Antigravity, and only Antigravity", () => {
+    expect(specForAgent("antigravity", "p-1")).toHaveProperty("serverUrl");
+    expect(specForAgent("gemini", "p-1")).toHaveProperty("url");
+  });
+});
+
+describe("geminiMcpAddArgv", () => {
+  it("passes the http transport, the project pin, and the scope", () => {
+    const argv = geminiMcpAddArgv(ctx(tmp(), { projectId: "p-1", scope: "user" }));
+    expect(argv.slice(0, 4)).toEqual([
+      "mcp",
+      "add",
+      "shipeasy",
+      "https://mcp.shipeasy.ai/p/p-1/mcp",
+    ]);
+    expect(argv).toContain("-t");
+    expect(argv).toContain("http");
+    expect(argv.join(" ")).toContain("X-Project-Id: p-1");
+    expect(argv.join(" ")).toContain("-s user");
+  });
+
+  // Same rule as every other agent: a repo file is committable, so no key.
+  it("withholds the bearer at project scope but sends it at user scope", () => {
+    const dir = tmp();
+    const at = (scope: "user" | "project") =>
+      geminiMcpAddArgv(ctx(dir, { scope, mcpToken: "sdk_admin_x" })).join(" ");
+    expect(at("project")).not.toContain("Authorization");
+    expect(at("user")).toContain("Authorization: Bearer sdk_admin_x");
+  });
+});
+
+describe("parseGeminiMcpList", () => {
+  it("reads a listed server as reachable", () => {
+    const out = "Configured MCP servers:\n\n● shipeasy: https://mcp.shipeasy.ai/mcp (http) - Connected";
+    expect(parseGeminiMcpList(out)?.state).toBe("reachable");
+  });
+
+  // The trap this exists for: the entry is present and correct, and Gemini
+  // silently ignores it — including user-scope entries — until the folder is
+  // trusted. Without this the probe would report a healthy install.
+  it("reports an untrusted folder rather than calling it healthy", () => {
+    const out =
+      "Warning: MCP servers are configured but disabled because this folder is untrusted.\n\n" +
+      "Configured MCP servers:\n\n○ shipeasy: https://mcp.shipeasy.ai/mcp (http) - Disabled";
+    const res = parseGeminiMcpList(out)!;
+    expect(res.state).toBe("not-ready");
+    expect(res.detail).toMatch(/untrusted/i);
+  });
+
+  it("reports a missing entry, and gives no verdict on unrelated output", () => {
+    expect(parseGeminiMcpList("No MCP servers configured.")?.state).toBe("not-ready");
+    expect(parseGeminiMcpList("gemini: command not found")).toBeNull();
   });
 });
 
@@ -571,7 +704,7 @@ describe("buildWiringDoc", () => {
     // Codex has `request_user_input`, but it is Plan-mode only (openai/codex#11536)
     // and a session reading this file is normally in Default mode — naming a tool
     // it cannot call is worse than not naming one.
-    for (const agent of ["codex", "jules", "acme-ai"]) {
+    for (const agent of ["codex", "antigravity", "acme-ai"]) {
       const doc = buildWiringDoc({ ...base, targets: [wiringTarget()], agents: [agent] });
       expect(doc).toContain("Want me to clean up the installation artifacts");
       expect(doc).not.toMatch(/AskUserQuestion|ask question tool|askQuestions|request_user_input/);
@@ -1024,7 +1157,7 @@ describe("mcpAuthHandoff — the one-time MCP OAuth authorization step", () => {
   });
 
   it("has a browser-authorize instruction for every agent", () => {
-    const agents: AgentId[] = ["claude", "cursor", "codex", "copilot", "jules"];
+    const agents: readonly AgentId[] = ALL_AGENT_IDS;
     for (const a of agents) {
       expect(MCP_AUTH_INSTRUCTIONS[a]).toBeTruthy();
       expect(MCP_AUTH_INSTRUCTIONS[a]).toMatch(/browser/i);
@@ -1078,10 +1211,13 @@ describe("mcpAuthHandoff — the one-time MCP OAuth authorization step", () => {
     for (const a of ["claude", "cursor", "codex"] as AgentId[]) {
       expect(MCP_AUTH_COMMANDS[a]?.argv).toEqual(["mcp", "login", "shipeasy"]);
     }
-    // Copilot + Jules authorize from their own UI, so they keep the printed
-    // instruction instead of a bogus shell-out.
-    for (const a of ["copilot", "jules"] as AgentId[]) {
+    // Copilot authorizes from its own UI; neither Google client has an `mcp
+    // login` at all. All three keep the printed instruction instead of a bogus
+    // shell-out — and the instruction must actually exist, or `runMcpAuth`
+    // hands back an undefined detail and this assertion passes vacuously.
+    for (const a of ["copilot", "antigravity", "gemini"] as AgentId[]) {
       expect(MCP_AUTH_COMMANDS[a]).toBeUndefined();
+      expect(MCP_AUTH_INSTRUCTIONS[a]).toBeTruthy();
       expect(runMcpAuth(a)).toEqual({ action: "manual", detail: MCP_AUTH_INSTRUCTIONS[a] });
     }
     // Codex's instruction is the manual form of the same command, for a build
