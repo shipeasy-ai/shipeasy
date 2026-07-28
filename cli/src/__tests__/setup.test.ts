@@ -81,6 +81,12 @@ function tmp(): string {
 function ctx(cwd: string, over: Partial<InstallCtx> = {}): InstallCtx {
   return { cwd, scope: "project", force: false, dryRun: false, ...over };
 }
+/** Put an env var back exactly as it was — including *unset*, which a plain
+ *  assignment can't express: `process.env.X = undefined` stores "undefined". */
+function restoreEnv(key: string, value: string | undefined): void {
+  if (value === undefined) delete process.env[key];
+  else process.env[key] = value;
+}
 
 describe("mergeMcpServer wrapper key", () => {
   it("nests under mcpServers by default", () => {
@@ -277,17 +283,27 @@ describe("registerMcp", () => {
   // HOME is redirected for the same reason: Copilot's entry now lands in VS
   // Code's user-profile `mcp.json`, so an un-stubbed run would rewrite the
   // developer's real editor config.
+  //
+  // XDG_CONFIG_HOME has to move with it. On Linux `vscodeUserMcpPath()` reads
+  // it FIRST and only falls back to `$HOME/.config`, so redirecting HOME alone
+  // leaves every test sharing one real path on any machine that exports it
+  // (GitHub's runners do). Entries then survive between tests, and a later
+  // `registerMcp` correctly *skips* the stale `shipeasy` it finds instead of
+  // writing — which reads as a missing bearer, far from its cause.
   const realPath = process.env.PATH;
   const realHome = process.env.HOME;
+  const realXdg = process.env.XDG_CONFIG_HOME;
   let fakeHome: string;
   beforeEach(() => {
     process.env.PATH = "";
     fakeHome = tmp();
     process.env.HOME = fakeHome;
+    process.env.XDG_CONFIG_HOME = join(fakeHome, ".config");
   });
   afterEach(() => {
     process.env.PATH = realPath;
     process.env.HOME = realHome;
+    restoreEnv("XDG_CONFIG_HOME", realXdg);
     rmSync(fakeHome, { recursive: true, force: true });
   });
 
@@ -809,18 +825,22 @@ describe("bearerForPath — where a pre-authenticating header may be written", (
   const base = { cwd: "/repo", force: false, dryRun: false, projectId: "p-1" };
   // Same reason as the registerMcp block: the real-write test below must not
   // reach `copilot mcp add` and mutate the developer's own user config, nor
-  // land in their real VS Code profile.
+  // land in their real VS Code profile — and XDG_CONFIG_HOME has to move with
+  // HOME or the VS Code path stays shared across tests on Linux.
   const realPath = process.env.PATH;
   const realHome = process.env.HOME;
+  const realXdg = process.env.XDG_CONFIG_HOME;
   let fakeHome: string;
   beforeEach(() => {
     process.env.PATH = "";
     fakeHome = tmp();
     process.env.HOME = fakeHome;
+    process.env.XDG_CONFIG_HOME = join(fakeHome, ".config");
   });
   afterEach(() => {
     process.env.PATH = realPath;
     process.env.HOME = realHome;
+    restoreEnv("XDG_CONFIG_HOME", realXdg);
     rmSync(fakeHome, { recursive: true, force: true });
   });
 
