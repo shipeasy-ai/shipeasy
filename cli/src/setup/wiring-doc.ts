@@ -183,6 +183,9 @@ const AUTHORIZE_BY_AGENT: Record<string, string> = {
  *  - Cursor: the interactive Q&A tool, which since 2.4 works in any conversation
  *    (not just Plan/Debug). Cursor's own docs say custom skills reach it by
  *    being told to "use the ask question tool" — hence that exact phrasing.
+ *  - VS Code / Copilot: `vscode/askQuestions`, addressed in a prompt as
+ *    `#tool:vscode/askQuestions`. It resolves in the primary agent but not
+ *    inside a subagent (microsoft/vscode#299897), which the fallback covers.
  *  - Codex CLI: has `request_user_input`, but it is Plan-mode only
  *    (openai/codex#11536, closed) and a session reading this file is normally in
  *    Default mode, so it is deliberately NOT listed — an agent sent after a tool
@@ -191,6 +194,7 @@ const AUTHORIZE_BY_AGENT: Record<string, string> = {
 const ASK_BY_AGENT: Record<string, string> = {
   claude: "Ask with the `AskUserQuestion` tool — one question, options **Yes** and **No**.",
   cursor: "Use the ask question tool — one question, options **Yes** and **No**.",
+  copilot: "Ask with `#tool:vscode/askQuestions` — one question, options **Yes** and **No**.",
 };
 
 /**
