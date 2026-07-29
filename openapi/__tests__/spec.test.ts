@@ -4,13 +4,29 @@ import { parse as parseYaml } from "yaml";
 import { describe, expect, it } from "vitest";
 import { ERROR_CODES, errorCodeOf, isApiErrorBody } from "../src/index.js";
 
+/** As much of a JSON Schema node as the assertions below need to walk. */
+type SpecSchema = {
+  enum?: string[];
+  const?: string;
+  default?: unknown;
+  anyOf?: SpecSchema[];
+  items?: SpecSchema;
+  properties?: Record<string, SpecSchema>;
+};
+
+type SpecOperation = {
+  operationId?: string;
+  "x-error-codes"?: string[];
+  parameters?: Array<{ name?: string; in?: string; schema?: SpecSchema }>;
+};
+
 const spec = parseYaml(
   readFileSync(fileURLToPath(new URL("../openapi.yaml", import.meta.url)), "utf8"),
 ) as {
   openapi: string;
   tags: Array<{ name: string; parent?: string; kind?: string }>;
-  paths: Record<string, Record<string, { operationId?: string; "x-error-codes"?: string[] }>>;
-  components: { schemas: Record<string, { enum?: string[] }> };
+  paths: Record<string, Record<string, SpecOperation>>;
+  components: { schemas: Record<string, SpecSchema> };
 };
 
 const METHODS = ["get", "post", "put", "patch", "delete"];
@@ -87,6 +103,52 @@ describe("hierarchical tags (3.2)", () => {
     for (const t of spec.tags) {
       if (t.parent) expect(names.has(t.parent), `parent ${t.parent} of ${t.name}`).toBe(true);
     }
+  });
+});
+
+/**
+ * The `type` a queue item can carry is written out by hand three times — once as
+ * the `listOpsItems` filter, once in each response schema — because there is no
+ * `OpsItemType` component to `$ref` (extracting one would retype `type` as a TS
+ * enum in every generated client, so the copies stay and this test keeps them
+ * honest). They drifted once: `measure_plan` reached both responses but never the
+ * filter, so the queue returned assistant-proposed measurement plans that no
+ * caller could ask for by type.
+ */
+describe("ops queue type filter", () => {
+  /** Flatten the `anyOf` of literals + enums a filter param is built from. */
+  const literals = (schema: SpecSchema | undefined): string[] =>
+    (schema?.anyOf ?? [schema ?? {}]).flatMap((s) => s.enum ?? (s.const ? [s.const] : []));
+
+  const filterValues = () => {
+    const param = spec.paths["/api/admin/ops"]!.get!.parameters!.find((p) => p.name === "type");
+    return literals(param?.schema);
+  };
+
+  const responseValues = () => ({
+    listOpsItems: spec.components.schemas.ListOpsItemsResponse?.items?.properties?.type?.enum,
+    getOpsItem: spec.components.schemas.GetOpsItemResponse?.properties?.type?.enum,
+  });
+
+  it("offers every type a returned item can carry", () => {
+    const filter = new Set(filterValues());
+    for (const [schema, values] of Object.entries(responseValues())) {
+      expect(values, `${schema} declares a type enum`).toBeDefined();
+      for (const v of values!) expect(filter.has(v), `${schema} returns ${v}`).toBe(true);
+    }
+  });
+
+  it("offers nothing beyond those types except `all`", () => {
+    const returned = new Set(responseValues().getOpsItem);
+    for (const v of filterValues()) {
+      if (v === "all") continue;
+      expect(returned.has(v), `filterable ${v} is never returned`).toBe(true);
+    }
+  });
+
+  it("both response schemas agree", () => {
+    const { listOpsItems, getOpsItem } = responseValues();
+    expect(listOpsItems).toEqual(getOpsItem);
   });
 });
 

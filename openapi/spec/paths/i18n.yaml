@@ -128,11 +128,12 @@
       - name: limit
         in: query
         required: false
-        description: Max keys to return (1–500).
+        description: Max keys to return (1–500). Defaults to 200.
         schema:
           type: integer
           minimum: 1
           maximum: 500
+          default: 200
       - name: offset
         in: query
         required: false

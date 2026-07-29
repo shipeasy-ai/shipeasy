@@ -7412,7 +7412,7 @@
       "get": {
         "operationId": "listOpsItems",
         "summary": "List the operational queue",
-        "description": "Returns the unified ops queue (bugs, feature requests, errors, alerts) in work order — highest priority first, oldest first within a priority — so consumers work it top-down. Filter by `type` and/or `status`, and cap with `limit`. Human-gated holding states (items awaiting human sign-off in the dashboard) are never returned by `all`/default status.\n\n**Use case:** Pull the open queue to triage — e.g. every `bug` still `open` — before working items down one by one.",
+        "description": "Returns the unified ops queue (bugs, feature requests, errors, alerts, measurement plans) in work order — highest priority first, oldest first within a priority — so consumers work it top-down. Filter by `type` and/or `status`, and cap with `limit`. Human-gated holding states (items awaiting human sign-off in the dashboard) are never returned by `all`/default status.\n\n**Use case:** Pull the open queue to triage — e.g. every `bug` still `open` — before working items down one by one.",
         "tags": [
           "Ops"
         ],
@@ -7424,8 +7424,9 @@
             "name": "type",
             "in": "query",
             "required": false,
-            "description": "Filter by item type (`bug`/`feature_request`/`error`/`alert`), or `all`.",
+            "description": "Filter by item type, or `all` (the default). Every type a returned item can carry is filterable, including the auto-filed ones.",
             "schema": {
+              "default": "all",
               "anyOf": [
                 {
                   "type": "string",
@@ -7433,9 +7434,10 @@
                     "bug",
                     "feature_request",
                     "error",
-                    "alert"
+                    "alert",
+                    "measure_plan"
                   ],
-                  "description": "Queue item type. `bug` and `feature_request` are user-fileable; `error` and `alert` tickets are auto-filed by the platform."
+                  "description": "Queue item type. `bug` and `feature_request` are user-fileable; `error`, `alert`, and `measure_plan` tickets are auto-filed by the platform."
                 },
                 {
                   "type": "string",
@@ -7448,8 +7450,9 @@
             "name": "status",
             "in": "query",
             "required": false,
-            "description": "Filter by lifecycle status, or `all`. The human-gated holding state (`pending_approval`) is excluded from `all`/default and returned only when requested as the exact status.",
+            "description": "Filter by lifecycle status, or `all` (the default). The human-gated holding state (`pending_approval`) is excluded from `all`/default and returned only when requested as the exact status.",
             "schema": {
+              "default": "all",
               "anyOf": [
                 {
                   "$ref": "#/components/schemas/OpsItemStatus"
@@ -7465,11 +7468,12 @@
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Max items to return (1–500).",
+            "description": "Max items to return (1–500). Defaults to 200.",
             "schema": {
               "type": "integer",
               "minimum": 1,
-              "maximum": 500
+              "maximum": 500,
+              "default": 200
             }
           },
           {
@@ -10011,11 +10015,12 @@
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Max keys to return (1–500).",
+            "description": "Max keys to return (1–500). Defaults to 200.",
             "schema": {
               "type": "integer",
               "minimum": 1,
-              "maximum": 500
+              "maximum": 500,
+              "default": 200
             }
           },
           {

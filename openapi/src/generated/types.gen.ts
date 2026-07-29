@@ -11215,15 +11215,15 @@ export type ListOpsItemsData = {
     path?: never;
     query?: {
         /**
-         * Filter by item type (`bug`/`feature_request`/`error`/`alert`), or `all`.
+         * Filter by item type, or `all` (the default). Every type a returned item can carry is filterable, including the auto-filed ones.
          */
-        type?: 'bug' | 'feature_request' | 'error' | 'alert' | 'all';
+        type?: 'bug' | 'feature_request' | 'error' | 'alert' | 'measure_plan' | 'all';
         /**
-         * Filter by lifecycle status, or `all`. The human-gated holding state (`pending_approval`) is excluded from `all`/default and returned only when requested as the exact status.
+         * Filter by lifecycle status, or `all` (the default). The human-gated holding state (`pending_approval`) is excluded from `all`/default and returned only when requested as the exact status.
          */
         status?: OpsItemStatus | 'all';
         /**
-         * Max items to return (1–500).
+         * Max items to return (1–500). Defaults to 200.
          */
         limit?: number;
         /**
@@ -12776,7 +12776,7 @@ export type ListI18nKeysData = {
          */
         q?: string;
         /**
-         * Max keys to return (1–500).
+         * Max keys to return (1–500). Defaults to 200.
          */
         limit?: number;
         /**

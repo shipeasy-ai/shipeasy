@@ -3,18 +3,27 @@
     operationId: listOpsItems
     summary: List the operational queue
     description: |-
-      Returns the unified ops queue (bugs, feature requests, errors, alerts) in work order — highest priority first, oldest first within a priority — so consumers work it top-down. Filter by `type` and/or `status`, and cap with `limit`. Human-gated holding states (items awaiting human sign-off in the dashboard) are never returned by `all`/default status.
+      Returns the unified ops queue (bugs, feature requests, errors, alerts, measurement plans) in work order — highest priority first, oldest first within a priority — so consumers work it top-down. Filter by `type` and/or `status`, and cap with `limit`. Human-gated holding states (items awaiting human sign-off in the dashboard) are never returned by `all`/default status.
 
       **Use case:** Pull the open queue to triage — e.g. every `bug` still `open` — before working items down one by one.
     tags:
       - Ops
     parameters:
       - $ref: ../components/parameters.yaml#/ProjectId
+      # This enum is the third hand-written copy of the item-type list (the two
+      # response schemas in components/schemas/ops.yaml hold the others — there is
+      # no OpsItemType component to $ref, since extracting one would retype `type`
+      # as a TS enum in every generated client). __tests__/spec.test.ts pins the
+      # copies together: it drifted once, and `measure_plan` reached both responses
+      # while the filter still rejected it.
       - name: type
         in: query
         required: false
-        description: Filter by item type (`bug`/`feature_request`/`error`/`alert`), or `all`.
+        description: >-
+          Filter by item type, or `all` (the default). Every type a returned item
+          can carry is filterable, including the auto-filed ones.
         schema:
+          default: all
           anyOf:
             - type: string
               enum:
@@ -22,17 +31,19 @@
                 - feature_request
                 - error
                 - alert
-              description: Queue item type. `bug` and `feature_request` are user-fileable; `error` and `alert` tickets are auto-filed by the platform.
+                - measure_plan
+              description: Queue item type. `bug` and `feature_request` are user-fileable; `error`, `alert`, and `measure_plan` tickets are auto-filed by the platform.
             - type: string
               const: all
       - name: status
         in: query
         required: false
         description: >-
-          Filter by lifecycle status, or `all`. The human-gated holding state
-          (`pending_approval`) is excluded from `all`/default and returned only
-          when requested as the exact status.
+          Filter by lifecycle status, or `all` (the default). The human-gated
+          holding state (`pending_approval`) is excluded from `all`/default and
+          returned only when requested as the exact status.
         schema:
+          default: all
           anyOf:
             - $ref: ../components/schemas/ops.yaml#/OpsItemStatus
             - type: string
@@ -40,11 +51,12 @@
       - name: limit
         in: query
         required: false
-        description: Max items to return (1–500).
+        description: Max items to return (1–500). Defaults to 200.
         schema:
           type: integer
           minimum: 1
           maximum: 500
+          default: 200
       - name: owner
         in: query
         required: false

@@ -2208,7 +2208,7 @@ _Errors_ — beyond the [common errors](#errors):
 
 **List the operational queue**
 
-Returns the unified ops queue (bugs, feature requests, errors, alerts) in work order — highest priority first, oldest first within a priority — so consumers work it top-down. Filter by `type` and/or `status`, and cap with `limit`. Human-gated holding states (items awaiting human sign-off in the dashboard) are never returned by `all`/default status.
+Returns the unified ops queue (bugs, feature requests, errors, alerts, measurement plans) in work order — highest priority first, oldest first within a priority — so consumers work it top-down. Filter by `type` and/or `status`, and cap with `limit`. Human-gated holding states (items awaiting human sign-off in the dashboard) are never returned by `all`/default status.
 
 **Use case:** Pull the open queue to triage — e.g. every `bug` still `open` — before working items down one by one.
 
@@ -2216,9 +2216,9 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `type` | optional | `any` | Filter by item type (`bug`/`feature_request`/`error`/`alert`), or `all`. |
-| `status` | optional | `any` | Filter by lifecycle status, or `all`. The human-gated holding state (`pending_approval`) is excluded from `all`/default and returned only when requested as the exact status. |
-| `limit` | optional | `integer` | Max items to return (1–500). _(1–500)_ |
+| `type` | optional | `any` | Filter by item type, or `all` (the default). Every type a returned item can carry is filterable, including the auto-filed ones. _(default `"all"`)_ |
+| `status` | optional | `any` | Filter by lifecycle status, or `all` (the default). The human-gated holding state (`pending_approval`) is excluded from `all`/default and returned only when requested as the exact status. _(default `"all"`)_ |
+| `limit` | optional | `integer` | Max items to return (1–500). Defaults to 200. _(default `200`; 1–500)_ |
 | `owner` | optional | `string` | Narrow to items owned by one person OR one agent. Matches a person by `users.id`, email, or display name, and an agent by connector id, display name, or kebab-case handle — e.g. `owner=Claude` or `owner=alice@acme.dev`. Case-insensitive exact match, applied over the returned page. |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -2866,7 +2866,7 @@ _Parameters_
 | `profile_id` | optional | `string` | Profile id to list keys for. |
 | `prefix` | optional | `string` | Only keys whose name starts with this. |
 | `q` | optional | `string` | Free-text search — matches keys whose name, value, OR description contains this substring (case-insensitive). Use it to find the key behind a piece of on-screen copy. _(length 0–100)_ |
-| `limit` | optional | `integer` | Max keys to return (1–500). _(1–500)_ |
+| `limit` | optional | `integer` | Max keys to return (1–500). Defaults to 200. _(default `200`; 1–500)_ |
 | `offset` | optional | `integer` | Number of keys to skip before returning `limit` rows (offset pagination). _(default `0`; ≥ 0)_ |
 
 #### `i18n_keys_push`

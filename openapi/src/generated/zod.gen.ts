@@ -4768,15 +4768,16 @@ export const zListOpsItemsQuery = z.object({
             'bug',
             'feature_request',
             'error',
-            'alert'
+            'alert',
+            'measure_plan'
         ]),
         z.literal('all')
-    ]).optional(),
+    ]).optional().default('all'),
     status: z.union([
         zOpsItemStatus,
         z.literal('all')
-    ]).optional(),
-    limit: z.coerce.number().int().gte(1).lte(500).optional(),
+    ]).optional().default('all'),
+    limit: z.coerce.number().int().gte(1).lte(500).optional().default(200),
     owner: z.string().optional()
 });
 
@@ -5143,7 +5144,7 @@ export const zListI18nKeysQuery = z.object({
     profile_id: z.string().optional(),
     prefix: z.string().optional(),
     q: z.string().max(100).optional(),
-    limit: z.coerce.number().int().gte(1).lte(500).optional(),
+    limit: z.coerce.number().int().gte(1).lte(500).optional().default(200),
     offset: z.coerce.number().int().gte(0).optional().default(0)
 });
 

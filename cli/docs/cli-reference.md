@@ -800,9 +800,9 @@ shipeasy ops list [options]
 
 | Option | | Description |
 | --- | --- | --- |
-| `--type <value>` | optional | Filter by item type (`bug`/`feature_request`/`error`/`alert`), or `all`. |
-| `--status <value>` | optional | Filter by lifecycle status, or `all`. The human-gated holding state (`pending_approval`) is excluded from `all`/default and returned only when requested as the exact status. |
-| `--limit <value>` | optional | Max items to return (1–500). |
+| `--type <value>` | optional | Filter by item type, or `all` (the default). Every type a returned item can carry is filterable, including the auto-filed ones. |
+| `--status <value>` | optional | Filter by lifecycle status, or `all` (the default). The human-gated holding state (`pending_approval`) is excluded from `all`/default and returned only when requested as the exact status. |
+| `--limit <value>` | optional | Max items to return (1–500). Defaults to 200. |
 | `--owner <value>` | optional | Narrow to items owned by one person OR one agent. Matches a person by `users.id`, email, or display name, and an agent by connector id, display name, or kebab-case handle — e.g. `owner=Claude` or `owner=alice@acme.dev`. Case-insensitive exact match, applied over the returned page. |
 | `--data <value>` | optional | Request body as a JSON object. |
 
@@ -1062,6 +1062,8 @@ shipeasy projects update [options] <id>
 | `--msprt-tau-mei-factor <value>` | optional | mSPRT prior width — τ = minimum effect of interest × this factor. |
 | `--msprt-tau-sd-factor <value>` | optional | mSPRT fallback prior width — τ = this × control SD when no MEI is set. |
 | `--srm-threshold <value>` | optional | SRM chi-square p-value below which the run is called invalid. |
+| `--error-autoclose-days <value>` | optional | Days an `open` tracked error may go unseen before the nightly sweep auto-resolves it. `0` disables auto-close for this project. |
+| `--error-ticket-min-occurrences <value>` | optional | Occurrence count a tracked error must cross before an `error` ticket is auto-filed into the ops queue. Requires a paid plan — the request is rejected with 403 on a plan without the `ops_auto_error_issues` entitlement. |
 
 ## `shipeasy release`
 
