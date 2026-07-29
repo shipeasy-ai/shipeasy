@@ -529,18 +529,29 @@ const WIRING_PROMPT = `Read ${WIRING_FILENAME} at the repo root and complete eve
  *  on the wiring file, and without it every file read/edit blocks on an approval
  *  prompt and the run stalls. Per-agent equivalent of Claude's
  *  `--dangerously-skip-permissions`:
- *    claude   → --dangerously-skip-permissions
- *    codex    → --dangerously-bypass-approvals-and-sandbox
- *    cursor   → --force
- *    copilot  → --allow-all-tools (kept with `-i`: interactive-with-prompt, since
- *               `-p`/non-interactive can't be granted tool/path access at all)
+ *    claude      → --dangerously-skip-permissions
+ *    codex       → --dangerously-bypass-approvals-and-sandbox
+ *    cursor      → --force
+ *    copilot     → --allow-all-tools (kept with `-i`: interactive-with-prompt,
+ *                  since `-p`/non-interactive can't be granted tool/path access)
+ *    antigravity → --dangerously-skip-permissions (`agy` spells it the same)
+ *    gemini      → --yolo
  *
  *  Copilot additionally launches in `--autopilot`. Permissions are only half of
  *  unattended: with tools allowed it still stops and hands the turn back after
  *  each step, and the wiring checklist is a dozen of them. Autopilot keeps it
  *  continuing on its own (up to `--max-autopilot-continues`, default 5) so the
- *  run works the file down instead of parking after the first edit. */
-const RUNNABLE_AGENTS: Array<{
+ *  run works the file down instead of parking after the first edit.
+ *
+ *  The two Google clients take the prompt through `-i` (`--prompt-interactive`)
+ *  rather than as a positional, the same shape Copilot needs: run this prompt,
+ *  then stay in the session. Gemini also gets `--skip-trust`, which trusts the
+ *  workspace FOR THIS SESSION only — without it the launched run stops on the
+ *  folder-trust prompt, and until the folder is trusted Gemini suppresses every
+ *  MCP server, including the `shipeasy` one step 10 just authorized. Session
+ *  scope is the point: we still never write `~/.gemini/trustedFolders.json`,
+ *  which would trust the folder for every future run. */
+export const RUNNABLE_AGENTS: Array<{
   id: AgentId;
   label: string;
   bin: string;
@@ -564,6 +575,18 @@ const RUNNABLE_AGENTS: Array<{
     label: "GitHub Copilot",
     bin: "copilot",
     argv: (p) => ["--allow-all-tools", "--autopilot", "-i", p],
+  },
+  {
+    id: "antigravity",
+    label: "Antigravity",
+    bin: "agy",
+    argv: (p) => ["--dangerously-skip-permissions", "-i", p],
+  },
+  {
+    id: "gemini",
+    label: "Gemini CLI",
+    bin: "gemini",
+    argv: (p) => ["--yolo", "--skip-trust", "-i", p],
   },
 ];
 

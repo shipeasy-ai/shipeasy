@@ -47,6 +47,7 @@ import {
   bootstrapTasks,
   mcpAuthHandoff,
   wiringPlanLines,
+  RUNNABLE_AGENTS,
   TRUST_SESSION_PROMPT,
   WIRING_FILENAME,
 } from "../commands/setup";
@@ -1243,6 +1244,48 @@ describe("mcpAuthHandoff — the one-time MCP OAuth authorization step", () => {
     // Codex's instruction is the manual form of the same command, for a build
     // whose `mcp login` doesn't exist yet.
     expect(MCP_AUTH_INSTRUCTIONS.codex).toMatch(/codex mcp login shipeasy/);
+  });
+});
+
+describe("RUNNABLE_AGENTS — which agents steps 11/12 can hand the terminal to", () => {
+  // Steps 11 (wiring hand-off) and 12 (instrumentation bootstrap) both filter
+  // the user's step-3 picks through this table, so an agent missing from it
+  // makes BOTH steps silently do nothing. That's exactly what happened when
+  // Antigravity and Gemini were split out of the old `jules` id and this table
+  // wasn't extended with them — hence the coverage assertion.
+  it("covers every selectable agent id", () => {
+    expect(RUNNABLE_AGENTS.map((a) => a.id).sort()).toEqual([...ALL_AGENT_IDS].sort());
+  });
+
+  it("passes the prompt last, so it can't be read as a flag value", () => {
+    for (const a of RUNNABLE_AGENTS) expect(a.argv("PROMPT").at(-1)).toBe("PROMPT");
+  });
+
+  it("launches every agent with its permission-bypass flag", () => {
+    // Without it each file read/edit blocks on an approval prompt and the
+    // unattended wiring run stalls on step one.
+    const bypass: Record<AgentId, string> = {
+      claude: "--dangerously-skip-permissions",
+      codex: "--dangerously-bypass-approvals-and-sandbox",
+      cursor: "--force",
+      copilot: "--allow-all-tools",
+      antigravity: "--dangerously-skip-permissions",
+      gemini: "--yolo",
+    };
+    for (const a of RUNNABLE_AGENTS) expect(a.argv("p")).toContain(bypass[a.id]);
+  });
+
+  it("trusts the workspace for Gemini's session, or its MCP servers stay hidden", () => {
+    // Gemini suppresses every MCP server in an untrusted folder — including the
+    // `shipeasy` one step 10 just authorized — and otherwise stops the run on
+    // the trust prompt. `--skip-trust` is session-scoped on purpose.
+    const gemini = RUNNABLE_AGENTS.find((a) => a.id === "gemini")!;
+    expect(gemini.bin).toBe("gemini");
+    expect(gemini.argv("p")).toContain("--skip-trust");
+  });
+
+  it("launches Antigravity through `agy`, the binary detection looks for", () => {
+    expect(RUNNABLE_AGENTS.find((a) => a.id === "antigravity")!.bin).toBe("agy");
   });
 });
 
