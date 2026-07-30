@@ -469,6 +469,9 @@ const RN_DEVTOOLS_EXPO_PEERS = [
   "expo-image-picker",
   "react-native-view-shot",
   "react-native-svg",
+  // Window insets for the overlay's bottom sheet — without it the sheet pads
+  // itself with a constant instead of the device's real home-indicator inset.
+  "react-native-safe-area-context",
 ];
 
 export interface RnDevtoolsInstallPlan {
