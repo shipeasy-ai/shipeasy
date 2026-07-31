@@ -17,8 +17,12 @@ tools. Only ask the user for a decision that is genuinely theirs (e.g. the exact
 threshold when they didn't give one) — never for the platform.
 
 An **alert rule** is a metric-threshold definition. The analysis cron evaluates
-it on a schedule: when `agg(metric)` over the trailing window satisfies
-`value <comparator> threshold`, it raises an alert at the rule's severity. The
+it on a schedule, and fires only on a **sustained** breach: it cuts the trailing
+window into 12 equal buckets, and raises an alert at the rule's severity only
+when `agg(metric)` satisfies `value <comparator> threshold` in **every** bucket.
+One spike inside an otherwise-healthy window does not page, and a rule younger
+than its own window stays quiet until it has watched a full one — so tell the
+user a new rule is not silently broken, it is warming up. The
 raised alerts then surface in the operational inbox (see the `shipeasy-ops` skill — list
 them with the `ops_list` MCP tool / `shipeasy ops` CLI, `--type alert`).
 
@@ -69,15 +73,17 @@ the signal and threshold before you call `ops_alerts_create`. A "ping me when X 
    — the event/metric to use (reuse or new), the comparator + threshold, the
    window, and the severity — and **surface, don't silently default, the knobs the
    user left open**, each with its tradeoff:
-   - **`windowHours` — the lookback the metric is aggregated over (1–720).** This
-     is the "time period" users usually omit. Offer a few and explain the
+   - **`windowHours` — how long the breach must hold before it pages (1–720).**
+     This is the "time period" users usually omit. It sets both the bucket size
+     (window/12) and the rule's warm-up. Offer a few and explain the
      detection-latency vs noise tradeoff, rather than picking one silently:
-     - **1h** — catches a spike fast, but is **noisy/flappy** on low-traffic
-       metrics (a handful of events can cross a % threshold).
-     - **24h** — smooths hourly/daily swings; the usual default. Slower to fire on
-       a sudden spike, but far fewer false alarms.
-     - **168h (7d)** — very stable; only sustained regressions trip it. Use for
-       slow-moving guardrails, not incident response.
+     - **1h** — catches a spike fast (5m buckets), but is **noisy/flappy** on
+       low-traffic metrics (a handful of events can cross a % threshold).
+     - **24h** — 2h buckets; the usual default. Slower to fire on a sudden spike,
+       but far fewer false alarms.
+     - **168h (7d)** — very stable; only week-long regressions trip it, and it
+       will not page for its first 7 days. Use for slow-moving guardrails, not
+       incident response.
    - **`comparator` + `threshold`** — surface error *rate* (a %, needs a
      ratio-style metric) vs error *count* (an absolute number), and a loose vs
      tight bound; they imply different metrics.
