@@ -548,20 +548,31 @@ OpsAlertContext:
       type: string
       enum:
         - metric_rule
+        - killswitch_armed
         - experiment_srm
         - experiment_peek
         - guardrail
-      description: What kind of alert transitioned to active.
+      description: What kind of condition opened this alert instance.
     dedupeKey:
       type: string
       description: Stable per-condition key; with `source` forms the ticket's `sourceRef`.
+    detail:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The instance's one-line reading — the observed condition in words.
+    ruleId:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Id of the alert rule that opened this instance, or `null` for a built-in condition.
     severity:
       type: string
       enum:
         - danger
         - warn
         - info
-      description: Alert severity.
+      description: "How loud the alert is. Severity belongs to the RULE and is carried by this ticket as `priority`; it is DERIVED from that on the hydrated single-item read, and absent from the raw stored context list rows return."
     observedValue:
       anyOf:
         - type: number
@@ -580,7 +591,7 @@ OpsAlertContext:
             - resolved
             - dismissed
         - type: "null"
-      description: "Current status of the underlying alert (`active` while the condition holds), or `null` if the alert row is gone."
+      description: "Firing state of this instance, projected from the ticket's own status (`active` while it is open, i.e. while the condition holds). Absent from the raw stored context list rows return."
     activeSince:
       anyOf:
         - type: string
@@ -604,9 +615,8 @@ OpsAlertContext:
   required:
     - source
     - dedupeKey
-    - severity
   additionalProperties: {}
-  description: "Hydrated detail for an auto-filed `alert` ticket, resolving the rule → metric → event chain at request time."
+  description: "Detail for an `alert` ticket — the fired-alert INSTANCE this ticket is. List rows carry the stored capture subset (`source`, `dedupeKey`, `ruleId`, `detail`, `href`, `observedValue`); the single-item read hydrates the rest, resolving `severity`/`status` off the ticket itself and the rule → metric → event chain at request time."
 OpsAlertRuleSummary:
   type: object
   properties:

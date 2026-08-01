@@ -3567,21 +3567,29 @@ export type OpsAlertMetricSummary = {
 };
 
 /**
- * Hydrated detail for an auto-filed `alert` ticket, resolving the rule → metric → event chain at request time.
+ * Detail for an `alert` ticket — the fired-alert INSTANCE this ticket is. List rows carry the stored capture subset (`source`, `dedupeKey`, `ruleId`, `detail`, `href`, `observedValue`); the single-item read hydrates the rest, resolving `severity`/`status` off the ticket itself and the rule → metric → event chain at request time.
  */
 export type OpsAlertContext = {
     /**
-     * What kind of alert transitioned to active.
+     * What kind of condition opened this alert instance.
      */
-    source: 'metric_rule' | 'experiment_srm' | 'experiment_peek' | 'guardrail';
+    source: 'metric_rule' | 'killswitch_armed' | 'experiment_srm' | 'experiment_peek' | 'guardrail';
     /**
      * Stable per-condition key; with `source` forms the ticket's `sourceRef`.
      */
     dedupeKey: string;
     /**
-     * Alert severity.
+     * The instance's one-line reading — the observed condition in words.
      */
-    severity: 'danger' | 'warn' | 'info';
+    detail?: string | null;
+    /**
+     * Id of the alert rule that opened this instance, or `null` for a built-in condition.
+     */
+    ruleId?: string | null;
+    /**
+     * How loud the alert is. Severity belongs to the RULE and is carried by this ticket as `priority`; it is DERIVED from that on the hydrated single-item read, and absent from the raw stored context list rows return.
+     */
+    severity?: 'danger' | 'warn' | 'info';
     /**
      * The metric value that tripped the rule, or `null`.
      */
@@ -3591,7 +3599,7 @@ export type OpsAlertContext = {
      */
     href?: string | null;
     /**
-     * Current status of the underlying alert (`active` while the condition holds), or `null` if the alert row is gone.
+     * Firing state of this instance, projected from the ticket's own status (`active` while it is open, i.e. while the condition holds). Absent from the raw stored context list rows return.
      */
     status?: 'active' | 'resolved' | 'dismissed' | null;
     /**
@@ -5245,13 +5253,15 @@ export type UpdateAlertRuleResponse = {
 };
 
 /**
- * One FIRED alert — a condition the platform observed and raised, not the rule that defines it (alert *rules* are the `/api/admin/alert-rules` resource). Alerts are never filed by hand: the UI (killswitch flips) and the worker (analysis consumer + alerts cron) raise them, keyed by `(source, dedupeKey)` so re-raising refreshes the active row and a clearing condition auto-resolves it.
+ * One FIRED alert — an INSTANCE of a condition the platform observed, not the rule that defines it (alert *rules* are the `/api/admin/alert-rules` resource). Instances are never filed by hand: the UI (killswitch flips) and the worker (analysis consumer + alerts cron) open them, keyed by `(source, dedupeKey)`, and at most one instance per condition is open at a time — re-raising refreshes the open one, and the condition clearing closes it.
+ *
+ * An instance IS an ops queue item (`/api/admin/ops` with `type: "alert"`) seen through the alert lens: same `id`, `severity` is that item's `priority`, and `status` is its work status projected onto three states. Resolving the queue item and clearing the alert are therefore the same act.
  *
  * Every field is always present on the wire; nullable fields are `null`, never absent.
  */
 export type AlertApiRow = {
     /**
-     * Stable opaque alert id.
+     * Stable opaque instance id — also the id of the ops queue item this instance is.
      */
     id: string;
     /**
@@ -5263,11 +5273,11 @@ export type AlertApiRow = {
      */
     ruleId: string | null;
     /**
-     * How loud the alert is — `danger` pages, `warn` is the default, `info` is FYI-only.
+     * How loud the alert is — `danger` pages, `warn` is the default, `info` is FYI-only. Severity belongs to the RULE and seeds the instance's queue `priority` (`danger`→`critical`, `warn`→`high`, `info`→`medium`); it is read back from there, so re-prioritising the queue item changes what this reports.
      */
     severity: 'danger' | 'warn' | 'info';
     /**
-     * Idempotency + reconcile key within `(project, source)` — re-raising the same condition refreshes the existing active row instead of stacking duplicates, and the condition clearing flips that row to `resolved`.
+     * Idempotency + reconcile key within `(project, source)` — re-raising the same condition refreshes the open instance instead of stacking duplicates, and the condition clearing closes it. A later firing of the same condition opens a NEW instance with its own `id`.
      */
     dedupeKey: string;
     /**
@@ -5287,11 +5297,11 @@ export type AlertApiRow = {
      */
     observedValue: number | null;
     /**
-     * Lifecycle state. `active` means the condition currently holds (shown as "Firing" in the UI); `resolved` means it cleared (auto, when the raiser reconciles, or by hand); `dismissed` means a human waved it off.
+     * Lifecycle state, projected from the queue item's work status. `active` means the item is still open, i.e. the condition holds (shown as "Firing" in the UI); `resolved` means it cleared (auto, when the raiser reconciles, or by hand); `dismissed` means a human waved it off (the item is closed `wont_fix`).
      */
     status: 'active' | 'resolved' | 'dismissed';
     /**
-     * ISO-8601 timestamp the alert was first raised.
+     * ISO-8601 timestamp this instance opened — when the condition started firing.
      */
     createdAt: string;
     /**
@@ -5328,7 +5338,7 @@ export type ListAlertsResponse = Array<AlertApiRow>;
  */
 export type UpdateAlertRequest = {
     /**
-     * New lifecycle state. `resolved` / `dismissed` stamp their timestamp; `active` re-opens and clears both.
+     * New lifecycle state, written through to the queue item (`resolved` / `wont_fix` / `open`). `resolved` / `dismissed` stamp their timestamp; `active` re-opens and clears both.
      */
     status?: 'active' | 'resolved' | 'dismissed';
     /**
@@ -12391,7 +12401,7 @@ export type UpdateAlertData = {
     };
     path: {
         /**
-         * Stable opaque alert id (`al_…`).
+         * Stable opaque instance id — the same id as the `alert` ops item this instance is.
          */
         id: ResourceId;
     };

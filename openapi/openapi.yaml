@@ -6794,7 +6794,9 @@ paths:
       description: |-
         Returns the project's FIRED alerts as a **bare JSON array** (no pagination envelope), ordered by `createdAt desc`. Defaults to the currently-firing ones (`status=active`); pass a `status` to widen to resolved/dismissed history or `all`.
 
-        Fired alerts are raised only by the platform — the UI's killswitch handlers plus the worker's analysis consumer and alerts cron — never filed by hand, so this surface is list + triage (via PATCH), with no create. The rules that *define* metric-threshold alerts live at `/api/admin/alert-rules`.
+        A fired alert is an **instance** of an alert rule, and an instance IS its ops queue item — the same row `/api/admin/ops` returns with `type: "alert"`, viewed through the alert lens. One rule produces many instances over its life and at most one is open at a time: when the condition clears the instance closes, and the next firing is a NEW instance with its own id and history. That is why `severity` reads off the rule (the queue item carries it as `priority`) and why resolving the queue item and clearing the alert are one act, not two rows to keep in step.
+
+        Instances are opened only by the platform — the UI's killswitch handlers plus the worker's analysis consumer and alerts cron — never filed by hand, so this surface is list + triage (via PATCH), with no create. The rules that *define* metric-threshold alerts live at `/api/admin/alert-rules`.
 
         **Use case:** Snapshot what is currently firing for an on-call view or the home Alerts block, or pull `status=all` to audit how a noisy rule has behaved over time.
       tags:
@@ -6878,7 +6880,7 @@ paths:
       description: |-
         Triage writes on one fired alert — the only mutations this surface allows. All body fields are optional (at least one required); only the fields present are changed.
 
-        - **`status`** — flip between `active` / `resolved` / `dismissed`. `resolved` and `dismissed` stamp `resolvedAt` / `dismissedAt`; `active` re-opens and clears both. A resolved alert re-fires (as the same row, re-activated) if its condition is raised again.
+        - **`status`** — flip between `active` / `resolved` / `dismissed`. `resolved` and `dismissed` stamp `resolvedAt` / `dismissedAt`; `active` re-opens and clears both. These write the underlying queue item's own status (`resolved` / `wont_fix` / `open`), so clearing an alert here and resolving it in the ops queue are the same act. A cleared instance is never revived: if the condition fires again it opens a NEW instance with its own id.
         - **`assigneeId`** — the PERSON owner (a `users.id`), or `null` to unassign.
         - **`agent`** — the AGENT owner: a connected trigger connector's id, or the built-in `"jarvis"` (**Enterprise plan only** — `403` otherwise), or `null` to clear. Person and agent halves are independent.
 
@@ -6895,7 +6897,7 @@ paths:
         - name: id
           in: path
           required: true
-          description: Stable opaque alert id (`al_…`).
+          description: Stable opaque instance id — the same id as the `alert` ops item this instance is.
           schema:
             $ref: '#/components/schemas/ResourceId'
       requestBody:
@@ -14892,20 +14894,31 @@ components:
           type: string
           enum:
             - metric_rule
+            - killswitch_armed
             - experiment_srm
             - experiment_peek
             - guardrail
-          description: What kind of alert transitioned to active.
+          description: What kind of condition opened this alert instance.
         dedupeKey:
           type: string
           description: Stable per-condition key; with `source` forms the ticket's `sourceRef`.
+        detail:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: The instance's one-line reading — the observed condition in words.
+        ruleId:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: Id of the alert rule that opened this instance, or `null` for a built-in condition.
         severity:
           type: string
           enum:
             - danger
             - warn
             - info
-          description: Alert severity.
+          description: How loud the alert is. Severity belongs to the RULE and is carried by this ticket as `priority`; it is DERIVED from that on the hydrated single-item read, and absent from the raw stored context list rows return.
         observedValue:
           anyOf:
             - type: number
@@ -14924,7 +14937,7 @@ components:
                 - resolved
                 - dismissed
             - type: 'null'
-          description: Current status of the underlying alert (`active` while the condition holds), or `null` if the alert row is gone.
+          description: Firing state of this instance, projected from the ticket's own status (`active` while it is open, i.e. while the condition holds). Absent from the raw stored context list rows return.
         activeSince:
           anyOf:
             - type: string
@@ -14948,9 +14961,8 @@ components:
       required:
         - source
         - dedupeKey
-        - severity
       additionalProperties: {}
-      description: Hydrated detail for an auto-filed `alert` ticket, resolving the rule → metric → event chain at request time.
+      description: Detail for an `alert` ticket — the fired-alert INSTANCE this ticket is. List rows carry the stored capture subset (`source`, `dedupeKey`, `ruleId`, `detail`, `href`, `observedValue`); the single-item read hydrates the rest, resolving `severity`/`status` off the ticket itself and the rule → metric → event chain at request time.
     MeasurePlanResource:
       type: object
       properties:
@@ -16997,13 +17009,15 @@ components:
     AlertApiRow:
       type: object
       description: |-
-        One FIRED alert — a condition the platform observed and raised, not the rule that defines it (alert *rules* are the `/api/admin/alert-rules` resource). Alerts are never filed by hand: the UI (killswitch flips) and the worker (analysis consumer + alerts cron) raise them, keyed by `(source, dedupeKey)` so re-raising refreshes the active row and a clearing condition auto-resolves it.
+        One FIRED alert — an INSTANCE of a condition the platform observed, not the rule that defines it (alert *rules* are the `/api/admin/alert-rules` resource). Instances are never filed by hand: the UI (killswitch flips) and the worker (analysis consumer + alerts cron) open them, keyed by `(source, dedupeKey)`, and at most one instance per condition is open at a time — re-raising refreshes the open one, and the condition clearing closes it.
+
+        An instance IS an ops queue item (`/api/admin/ops` with `type: "alert"`) seen through the alert lens: same `id`, `severity` is that item's `priority`, and `status` is its work status projected onto three states. Resolving the queue item and clearing the alert are therefore the same act.
 
         Every field is always present on the wire; nullable fields are `null`, never absent.
       properties:
         id:
           type: string
-          description: Stable opaque alert id.
+          description: Stable opaque instance id — also the id of the ops queue item this instance is.
         source:
           type: string
           enum:
@@ -17024,10 +17038,10 @@ components:
             - danger
             - warn
             - info
-          description: How loud the alert is — `danger` pages, `warn` is the default, `info` is FYI-only.
+          description: How loud the alert is — `danger` pages, `warn` is the default, `info` is FYI-only. Severity belongs to the RULE and seeds the instance's queue `priority` (`danger`→`critical`, `warn`→`high`, `info`→`medium`); it is read back from there, so re-prioritising the queue item changes what this reports.
         dedupeKey:
           type: string
-          description: Idempotency + reconcile key within `(project, source)` — re-raising the same condition refreshes the existing active row instead of stacking duplicates, and the condition clearing flips that row to `resolved`.
+          description: Idempotency + reconcile key within `(project, source)` — re-raising the same condition refreshes the open instance instead of stacking duplicates, and the condition clearing closes it. A later firing of the same condition opens a NEW instance with its own `id`.
         title:
           type: string
           description: Short human-readable headline (what fired).
@@ -17050,10 +17064,10 @@ components:
             - active
             - resolved
             - dismissed
-          description: Lifecycle state. `active` means the condition currently holds (shown as "Firing" in the UI); `resolved` means it cleared (auto, when the raiser reconciles, or by hand); `dismissed` means a human waved it off.
+          description: Lifecycle state, projected from the queue item's work status. `active` means the item is still open, i.e. the condition holds (shown as "Firing" in the UI); `resolved` means it cleared (auto, when the raiser reconciles, or by hand); `dismissed` means a human waved it off (the item is closed `wont_fix`).
         createdAt:
           type: string
-          description: ISO-8601 timestamp the alert was first raised.
+          description: ISO-8601 timestamp this instance opened — when the condition started firing.
         resolvedAt:
           description: ISO-8601 timestamp the alert flipped to `resolved`, or `null` while it hasn't.
           anyOf:
@@ -17115,7 +17129,7 @@ components:
             - active
             - resolved
             - dismissed
-          description: New lifecycle state. `resolved` / `dismissed` stamp their timestamp; `active` re-opens and clears both.
+          description: New lifecycle state, written through to the queue item (`resolved` / `wont_fix` / `open`). `resolved` / `dismissed` stamp their timestamp; `active` re-opens and clears both.
         assigneeId:
           description: PERSON owner — a `users.id`, or `null` to clear the assignment.
           anyOf:

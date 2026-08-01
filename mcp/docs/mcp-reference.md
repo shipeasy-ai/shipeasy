@@ -2117,7 +2117,9 @@ _Errors_ — beyond the [common errors](#errors):
 
 Returns the project's FIRED alerts as a **bare JSON array** (no pagination envelope), ordered by `createdAt desc`. Defaults to the currently-firing ones (`status=active`); pass a `status` to widen to resolved/dismissed history or `all`.
 
-Fired alerts are raised only by the platform — the UI's killswitch handlers plus the worker's analysis consumer and alerts cron — never filed by hand, so this surface is list + triage (via PATCH), with no create. The rules that *define* metric-threshold alerts live at `/api/admin/alert-rules`.
+A fired alert is an **instance** of an alert rule, and an instance IS its ops queue item — the same row `/api/admin/ops` returns with `type: "alert"`, viewed through the alert lens. One rule produces many instances over its life and at most one is open at a time: when the condition clears the instance closes, and the next firing is a NEW instance with its own id and history. That is why `severity` reads off the rule (the queue item carries it as `priority`) and why resolving the queue item and clearing the alert are one act, not two rows to keep in step.
+
+Instances are opened only by the platform — the UI's killswitch handlers plus the worker's analysis consumer and alerts cron — never filed by hand, so this surface is list + triage (via PATCH), with no create. The rules that *define* metric-threshold alerts live at `/api/admin/alert-rules`.
 
 **Use case:** Snapshot what is currently firing for an on-call view or the home Alerts block, or pull `status=all` to audit how a noisy rule has behaved over time.
 
@@ -2137,7 +2139,7 @@ _Errors_ — beyond the [common errors](#errors):
 
 Triage writes on one fired alert — the only mutations this surface allows. All body fields are optional (at least one required); only the fields present are changed.
 
-- **`status`** — flip between `active` / `resolved` / `dismissed`. `resolved` and `dismissed` stamp `resolvedAt` / `dismissedAt`; `active` re-opens and clears both. A resolved alert re-fires (as the same row, re-activated) if its condition is raised again.
+- **`status`** — flip between `active` / `resolved` / `dismissed`. `resolved` and `dismissed` stamp `resolvedAt` / `dismissedAt`; `active` re-opens and clears both. These write the underlying queue item's own status (`resolved` / `wont_fix` / `open`), so clearing an alert here and resolving it in the ops queue are the same act. A cleared instance is never revived: if the condition fires again it opens a NEW instance with its own id.
 - **`assigneeId`** — the PERSON owner (a `users.id`), or `null` to unassign.
 - **`agent`** — the AGENT owner: a connected trigger connector's id, or the built-in `"jarvis"` (**Enterprise plan only** — `403` otherwise), or `null` to clear. Person and agent halves are independent.
 
@@ -2153,7 +2155,7 @@ _Parameters_
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
 | `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
-| `status` | optional | `"active" \| "resolved" \| "dismissed"` | New lifecycle state. `resolved` / `dismissed` stamp their timestamp; `active` re-opens and clears both. |
+| `status` | optional | `"active" \| "resolved" \| "dismissed"` | New lifecycle state, written through to the queue item (`resolved` / `wont_fix` / `open`). `resolved` / `dismissed` stamp their timestamp; `active` re-opens and clears both. |
 | `assigneeId` | optional | `any` | PERSON owner — a `users.id`, or `null` to clear the assignment. |
 | `agent` | optional | `any` | AGENT owner — a connected trigger connector's id (`connectors.id`), the built-in `"jarvis"` (Enterprise plan only — rejected with `403` otherwise), or `null` to clear. Stored in `assigneeConnectorId` or `assigneeAgent` depending on the value; the two are mutually exclusive. |
 

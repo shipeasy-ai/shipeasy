@@ -1960,21 +1960,24 @@ export const zOpsAlertMetricSummary = z.object({
 });
 
 /**
- * Hydrated detail for an auto-filed `alert` ticket, resolving the rule → metric → event chain at request time.
+ * Detail for an `alert` ticket — the fired-alert INSTANCE this ticket is. List rows carry the stored capture subset (`source`, `dedupeKey`, `ruleId`, `detail`, `href`, `observedValue`); the single-item read hydrates the rest, resolving `severity`/`status` off the ticket itself and the rule → metric → event chain at request time.
  */
 export const zOpsAlertContext = z.object({
     source: z.enum([
         'metric_rule',
+        'killswitch_armed',
         'experiment_srm',
         'experiment_peek',
         'guardrail'
     ]),
     dedupeKey: z.string(),
+    detail: z.string().nullish(),
+    ruleId: z.string().nullish(),
     severity: z.enum([
         'danger',
         'warn',
         'info'
-    ]),
+    ]).optional(),
     observedValue: z.number().nullish(),
     href: z.string().nullish(),
     status: z.enum([
@@ -2778,7 +2781,9 @@ export const zUpdateAlertRuleResponse = z.object({
 });
 
 /**
- * One FIRED alert — a condition the platform observed and raised, not the rule that defines it (alert *rules* are the `/api/admin/alert-rules` resource). Alerts are never filed by hand: the UI (killswitch flips) and the worker (analysis consumer + alerts cron) raise them, keyed by `(source, dedupeKey)` so re-raising refreshes the active row and a clearing condition auto-resolves it.
+ * One FIRED alert — an INSTANCE of a condition the platform observed, not the rule that defines it (alert *rules* are the `/api/admin/alert-rules` resource). Instances are never filed by hand: the UI (killswitch flips) and the worker (analysis consumer + alerts cron) open them, keyed by `(source, dedupeKey)`, and at most one instance per condition is open at a time — re-raising refreshes the open one, and the condition clearing closes it.
+ *
+ * An instance IS an ops queue item (`/api/admin/ops` with `type: "alert"`) seen through the alert lens: same `id`, `severity` is that item's `priority`, and `status` is its work status projected onto three states. Resolving the queue item and clearing the alert are therefore the same act.
  *
  * Every field is always present on the wire; nullable fields are `null`, never absent.
  */
