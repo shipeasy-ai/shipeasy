@@ -73,7 +73,7 @@ export SHIPEASY_EVAL_TOKEN=sdk_admin_...              # minted vs the local back
 
 Minting a local admin key: the admin API is served by `apps/ui` (Next.js route
 handlers under `src/app/api/admin/*`). The pattern is in
-[`apps/ui/contract-tests/bootstrap.mjs`](../../apps/ui/contract-tests/bootstrap.mjs):
+[`apps/ui-rr/contract-tests/bootstrap.mjs`](../../apps/ui-rr/contract-tests/bootstrap.mjs):
 seed a project into the local miniflare D1, forge an Auth.js session cookie, then
 `POST /api/admin/keys` to get an `sdk_admin_*` bearer. Reuse that (or run the
 contract-tests bootstrap) and feed the key in as `SHIPEASY_EVAL_TOKEN`.

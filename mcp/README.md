@@ -626,7 +626,7 @@ const COMPATIBLE_VERSIONS: Record<Lang, string> = {
 - **Unit tests** — every tool handler in isolation with a mock `fetch` + mocked `execFile`. Target ≥90% coverage on `src/tools/**`.
 - **Fixture projects** — `test/fixtures/projects/` contains minimal Next.js / Django / Rails / Astro projects. `detect_project` runs against each one and asserts the returned shape.
 - **MCP Inspector smoke test** — CI runs `npx @modelcontextprotocol/inspector npx -y ./dist/index.js` and exercises `list_tools`, `list_prompts`, `list_resources`, and one success/one error tool call per domain.
-- **End-to-end** — a Playwright suite under [apps/ui/e2e/auth/mcp/](../../apps/ui/e2e/auth/mcp/) stands up a real worker + UI, spawns the MCP server as a child process, and verifies the full `create_experiment` → `get_sdk_snippet` → `experiment_status` loop writes to D1 and KV correctly. Required per [CLAUDE.md](../../CLAUDE.md).
+- **End-to-end** — a Playwright suite under [apps/ui-rr/e2e/auth/mcp/](../../apps/ui-rr/e2e/auth/mcp/) stands up a real worker + UI, spawns the MCP server as a child process, and verifies the full `create_experiment` → `get_sdk_snippet` → `experiment_status` loop writes to D1 and KV correctly. Required per [CLAUDE.md](../../CLAUDE.md).
 - **Cross-SDK snippet verification** — for each language × framework × type tuple, the generated snippet is compiled/parsed (TypeScript → `tsc --noEmit`, Python → `py_compile`, etc.) in a tiny scratch project. Regressions in template strings fail CI instantly.
 
 ---

@@ -1,15 +1,15 @@
 # Admin API contract tests.
 #
-# Boots the real apps/ui Next.js server (from the monorepo) against a local
+# Boots the real apps/ui-rr React Router server (from the monorepo) against a local
 # miniflare D1/KV and fuzzes the admin API with Schemathesis using the OpenAPI
 # spec from THIS repo (the version under review). This is the cross-repo
-# counterpart of `pnpm --filter @shipeasy/ui test:contract`, which developers
+# counterpart of `pnpm --filter @shipeasy/ui-rr test:contract`, which developers
 # run locally.
 #
 # ── Required secret ──────────────────────────────────────────────────────────
 #   MONOREPO_TOKEN  A GitHub PAT (or fine-grained token) with `contents:read`
 #                   on the app monorepo (vshaveyko/shipeasy2), used to check it
-#                   out here so we can boot apps/ui. Without it the checkout
+#                   out here so we can boot apps/ui-rr. Without it the checkout
 #                   step fails. All other credentials (AUTH_SECRET etc.) are
 #                   non-secret test values baked into the harness.
 name: Contract Tests
@@ -35,7 +35,7 @@ on:
     - cron: "0 6 */2 * *"
 
 env:
-  # Monorepo that hosts apps/ui + the contract harness.
+  # Monorepo that hosts apps/ui-rr + the contract harness.
   APP_REPO: vshaveyko/shipeasy2
   APP_REF: main
 
@@ -49,7 +49,7 @@ jobs:
         with:
           path: spec-repo
 
-      - name: Checkout app monorepo (apps/ui + harness)
+      - name: Checkout app monorepo (apps/ui-rr + harness)
         uses: actions/checkout@v6
         with:
           repository: ${{ env.APP_REPO }}
@@ -91,14 +91,14 @@ jobs:
         working-directory: app
         run: pnpm install --no-frozen-lockfile
 
-      # apps/ui resolves @shipeasy/openapi (via @shipeasy/core) and
+      # apps/ui-rr resolves @shipeasy/openapi (via @shipeasy/core) and
       # @shipeasy/devtools from their built dist/ (exports maps point at dist),
-      # so next dev 500s with "Module not found" until they're built. Build the
-      # app's whole workspace-dep closure against this repo's openapi (src-only
-      # deps like core are no-ops).
+      # so the dev server 500s with "Module not found" until they're built. Build
+      # the app's whole workspace-dep closure against this repo's openapi
+      # (src-only deps like core are no-ops).
       - name: Build the app's workspace deps against this repo's openapi
         working-directory: app
-        run: pnpm --filter "@shipeasy/ui^..." build
+        run: pnpm --filter "@shipeasy/ui-rr^..." build
 
       - name: Run contract fuzz
         working-directory: app
@@ -110,12 +110,12 @@ jobs:
           # Deterministic auth secret — must match bootstrap.mjs's default so the
           # minted session cookie verifies. Non-secret (test-only).
           AUTH_SECRET: e2e-test-secret-not-for-production-use-only
-        run: bash apps/ui/contract-tests/run.sh
+        run: bash apps/ui-rr/contract-tests/run.sh
 
       - name: Upload JUnit report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: contract-report
-          path: app/apps/ui/contract-tests/report/
+          path: app/apps/ui-rr/contract-tests/report/
           if-no-files-found: ignore

@@ -43,7 +43,7 @@ triggers) until it is green at K=1; do not paper over it by averaging more runs.
 invocation it: **wipes** a dedicated persist dir (its own D1/KV, separate from
 your shared `.wrangler/state`) → **migrates** a fresh D1 → **boots** `next dev`
 on `:3111` pointed at it (via `SE_EVAL_PERSIST`, honoured by
-`apps/ui/next.config.ts`) → **seeds** the fixture project + **mints** an admin key
+`apps/ui-rr/vite.config.ts`) → **seeds** the fixture project + **mints** an admin key
 (to a scratch file, so your `.contract-env.json` is untouched) → **warms** the
 admin routes → **runs** the eval → **tears the server down**.
 
@@ -57,7 +57,7 @@ SHIPEASY_EVAL_K=1 pnpm --filter @shipeasy/skills-eval eval:fresh gated-list  # q
 ```
 
 Extra env for `eval:fresh`: `SE_EVAL_PORT` (default `3111`), `SE_EVAL_PERSIST`
-(default `apps/ui/.wrangler/eval-state`). Any other `SHIPEASY_EVAL_*` var is
+(default `apps/ui-rr/.wrangler/eval-state`). Any other `SHIPEASY_EVAL_*` var is
 passed through. Caveat: it uses `next dev`, which allows **one instance per
 project dir** — stop a parallel `apps/ui` `next dev` (e.g. your e2e server) first,
 or it hits Next's single-instance lock.
@@ -76,12 +76,12 @@ Prerequisites:
    is the `apps/ui` e2e server (`next dev -p 3100`, seeded `e2e-project-id`). If it's
    down, a `curl -s localhost:3100/api/admin/gates` returns nothing — bring it back
    before running. The bearer + project id come from
-   `apps/ui/contract-tests/.contract-env.json` (see that harness for how it's minted).
+   `apps/ui-rr/contract-tests/.contract-env.json` (see that harness for how it's minted).
 
 Quick env setup (bash):
 
 ```bash
-export SHIPEASY_EVAL_TOKEN=$(node -e "console.log(JSON.parse(require('fs').readFileSync('apps/ui/contract-tests/.contract-env.json')).bearer)")
+export SHIPEASY_EVAL_TOKEN=$(node -e "console.log(JSON.parse(require('fs').readFileSync('apps/ui-rr/contract-tests/.contract-env.json')).bearer)")
 export SHIPEASY_EVAL_PROJECT_ID=e2e-project-id
 export SHIPEASY_EVAL_BASE_URL=http://localhost:3100
 ```
@@ -203,7 +203,7 @@ SHIPEASY_EVAL_APP_DIR=$PWD/../packages/server-sdks/sdk-go/examples/guide \
 - **Cold routes → `saw [none]`** — `next dev` compiles each admin route on first hit;
   a cold route stalls an agent run so its transcript has no tool calls. `eval:fresh`
   warms the routes before running; if you roll your own backend, warm it first (one
-  GET per `/api/admin/*` route), as `apps/ui/contract-tests/run.sh` does.
+  GET per `/api/admin/*` route), as `apps/ui-rr/contract-tests/run.sh` does.
 - **Backend hang / OOM** — a single `next dev` under many back-to-back runs can hang or
   OOM (it carries a ~10 GB footprint: Next dev compiler + in-process miniflare/workerd).
   `eval:fresh` runs against a fresh, isolated, uncontended server which survives best;
