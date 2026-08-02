@@ -179,7 +179,7 @@ export function installCommand(parent: Command): Command {
         if (target === "i18n" && !(await getPlatformModuleGates(boundProject)).translations) {
           console.error(
             "The translations module isn't available yet — it's still rolling out.\n" +
-              "Nothing was changed. Try again once it's live, or contact support@shipeasy.ai.",
+              "Nothing was changed. Try again once it's live, or contact contact@shipeasy.ai.",
           );
           process.exit(1);
         }
