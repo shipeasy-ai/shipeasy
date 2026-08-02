@@ -416,7 +416,7 @@ OpsItemContext:
             properties:
               t:
                 type: number
-                description: Bucket start — unix epoch **milliseconds** (hourly buckets).
+                description: Bucket start — unix epoch **milliseconds**. Bucket width scales with the window (hourly up to ~5 days, coarser beyond).
               v:
                 type: number
                 description: Occurrence count in the bucket (sample-rate weighted).
@@ -424,11 +424,11 @@ OpsItemContext:
               - t
               - v
             additionalProperties: {}
-            description: One hourly occurrence bucket.
-          description: Hourly occurrence buckets, oldest first. Hours with no occurrences are omitted.
+            description: One occurrence bucket.
+          description: Occurrence buckets, oldest first. Buckets with no occurrences are omitted.
         domainFrom:
           type: number
-          description: Chart domain start — unix epoch milliseconds (24h before the read).
+          description: Chart domain start — unix epoch milliseconds (the window's start).
         domainTo:
           type: number
           description: Chart domain end — unix epoch milliseconds (the read time).
@@ -437,7 +437,7 @@ OpsItemContext:
         - domainFrom
         - domainTo
       additionalProperties: {}
-      description: "Occurrence timeline for an `error` ticket — hourly buckets over the last 24h from the sampled occurrences, hydrated at read time by the single-item read only. ABSENT (not `null`) on non-error tickets, on list rows (raw context), and when no occurrence landed in the window."
+      description: "Occurrence timeline for an `error` ticket — buckets over the project's error auto-close window (Settings → Errors: `errorAutocloseDays`, 7 days when auto-close is off, capped at 30) from the sampled occurrences, hydrated at read time by the single-item read only. Plotting exactly the quiet window that auto-resolves the error is what makes an empty right-hand edge meaningful. ABSENT (not `null`) on non-error tickets, on list rows (raw context), and when no occurrence landed in the window."
   additionalProperties: {}
   description: "Per-type capture context on a queue item. Exactly one of `browser` (bug/feature), `error`, `alert`, or `measurePlan` is populated depending on `type`; other keys (e.g. the AI dedupe block on bugs) may also be present."
 OpsBrowserContext:

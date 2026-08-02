@@ -3699,15 +3699,15 @@ export type OpsItemContext = {
     alert?: OpsAlertContext;
     measurePlan?: OpsMeasurePlanContext;
     /**
-     * Occurrence timeline for an `error` ticket — hourly buckets over the last 24h from the sampled occurrences, hydrated at read time by the single-item read only. ABSENT (not `null`) on non-error tickets, on list rows (raw context), and when no occurrence landed in the window.
+     * Occurrence timeline for an `error` ticket — buckets over the project's error auto-close window (Settings → Errors: `errorAutocloseDays`, 7 days when auto-close is off, capped at 30) from the sampled occurrences, hydrated at read time by the single-item read only. Plotting exactly the quiet window that auto-resolves the error is what makes an empty right-hand edge meaningful. ABSENT (not `null`) on non-error tickets, on list rows (raw context), and when no occurrence landed in the window.
      */
     errorChart?: {
         /**
-         * Hourly occurrence buckets, oldest first. Hours with no occurrences are omitted.
+         * Occurrence buckets, oldest first. Buckets with no occurrences are omitted.
          */
         series: Array<{
             /**
-             * Bucket start — unix epoch **milliseconds** (hourly buckets).
+             * Bucket start — unix epoch **milliseconds**. Bucket width scales with the window (hourly up to ~5 days, coarser beyond).
              */
             t: number;
             /**
@@ -3717,7 +3717,7 @@ export type OpsItemContext = {
             [key: string]: unknown;
         }>;
         /**
-         * Chart domain start — unix epoch milliseconds (24h before the read).
+         * Chart domain start — unix epoch milliseconds (the window's start).
          */
         domainFrom: number;
         /**
