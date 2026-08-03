@@ -2680,10 +2680,11 @@ _Parameters_
 | `events` | optional | `"bug.created" \| "feature_request.created"[]` | Events that auto-fire a cold cloud-agent run. Defaults to empty. _(default `[]`)_ |
 | `config` | required | `object` | Non-secret config for a Cursor trigger. |
 | `config.repoUrl` | required | `string` | Repo the cloud agent runs against, e.g. `https://github.com/owner/repo`. Idempotency key for the connector. _(format: uri)_ |
-| `config.startingRef` | optional | `string` | Optional git ref the run starts from. _(length 1–∞)_ |
+| `config.startingRef` | optional | `string` | Optional git ref the run starts from. Pinned onto the Cursor agent at creation, so changing it provisions a replacement agent. _(length 1–∞)_ |
 | `config.projectId` | required | `string` | Shipeasy project id the run targets. _(length 1–∞)_ |
+| `config.agentId` | optional | `string` | Server-managed. The reusable Cursor cloud agent (`bc-…`) Shipeasy provisions once at connect and then starts every run on. A supplied value is ignored on create; if Cursor stops recognising the id (404), the next fire provisions a replacement and stores it here. _(length 1–∞)_ |
 | `apiKey` | required | `string` | Cursor API key that launches the run (secret). Encrypted into the credentials cipher; never returned. _(length 1–∞)_ |
-| `opsKey` | required | `string` | Restricted Shipeasy ops key, injected into the run as `SHIPEASY_CLI_TOKEN` via the launch envVars (secret). Encrypted; never returned. _(length 1–∞)_ |
+| `opsKey` | required | `string` | Restricted Shipeasy ops key (secret). Wrapped into a short opaque machine bearer for the Shipeasy MCP server handed to each run inline — never sent to the run raw, and never in the prompt. Encrypted; never returned. _(length 1–∞)_ |
 | `enabled` | optional | `boolean` | Whether the trigger is active on create. _(default `true`)_ |
 
 #### `ops_trigger_create_jules`

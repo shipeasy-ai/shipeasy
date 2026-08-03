@@ -6634,13 +6634,17 @@ export type CursorTriggerConfig = {
      */
     repoUrl: string;
     /**
-     * Optional git ref the run starts from.
+     * Optional git ref the run starts from. Pinned onto the Cursor agent at creation, so changing it provisions a replacement agent.
      */
     startingRef?: string;
     /**
      * Shipeasy project id the run targets.
      */
     projectId: string;
+    /**
+     * Server-managed. The reusable Cursor cloud agent (`bc-…`) Shipeasy provisions once at connect and then starts every run on. A supplied value is ignored on create; if Cursor stops recognising the id (404), the next fire provisions a replacement and stores it here.
+     */
+    agentId?: string;
 };
 
 /**
@@ -6665,7 +6669,7 @@ export type CreateCursorTriggerRequest = {
      */
     apiKey: string;
     /**
-     * Restricted Shipeasy ops key, injected into the run as `SHIPEASY_CLI_TOKEN` via the launch envVars (secret). Encrypted; never returned.
+     * Restricted Shipeasy ops key (secret). Wrapped into a short opaque machine bearer for the Shipeasy MCP server handed to each run inline — never sent to the run raw, and never in the prompt. Encrypted; never returned.
      */
     opsKey: string;
     /**
@@ -6886,7 +6890,7 @@ export type UpdateClaudeTriggerRequest = {
 };
 
 /**
- * Per-provider PATCH body for editing an existing `cursor_trigger` connector. `config` replaces the stored config wholesale; `name` and either credential are optional (a supplied credential rotates just that key).
+ * Per-provider PATCH body for editing an existing `cursor_trigger` connector. `config` replaces the stored config wholesale, except for the server-managed keys: the provisioned `agentId` is carried over (and dropped, so a replacement agent is provisioned, when `repoUrl`/`startingRef` change), as is the last-run pointer. `name` and either credential are optional (a supplied credential rotates just that key).
  */
 export type UpdateCursorTriggerRequest = {
     /**

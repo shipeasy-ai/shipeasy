@@ -3436,7 +3436,8 @@ export const zCreateClaudeTriggerRequest = z.object({
 export const zCursorTriggerConfig = z.object({
     repoUrl: z.url(),
     startingRef: z.string().min(1).optional(),
-    projectId: z.string().min(1)
+    projectId: z.string().min(1),
+    agentId: z.string().min(1).optional()
 });
 
 /**
@@ -3567,7 +3568,7 @@ export const zUpdateClaudeTriggerRequest = z.object({
 });
 
 /**
- * Per-provider PATCH body for editing an existing `cursor_trigger` connector. `config` replaces the stored config wholesale; `name` and either credential are optional (a supplied credential rotates just that key).
+ * Per-provider PATCH body for editing an existing `cursor_trigger` connector. `config` replaces the stored config wholesale, except for the server-managed keys: the provisioned `agentId` is carried over (and dropped, so a replacement agent is provisioned, when `repoUrl`/`startingRef` change), as is the last-run pointer. `name` and either credential are optional (a supplied credential rotates just that key).
  */
 export const zUpdateCursorTriggerRequest = z.object({
     provider: z.enum(['cursor_trigger']),
