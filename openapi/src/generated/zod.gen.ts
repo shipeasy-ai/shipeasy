@@ -3437,7 +3437,8 @@ export const zCursorTriggerConfig = z.object({
     repoUrl: z.url(),
     startingRef: z.string().min(1).optional(),
     projectId: z.string().min(1),
-    agentId: z.string().min(1).optional()
+    agentId: z.string().min(1).optional(),
+    fireText: z.string().min(1).optional()
 });
 
 /**
@@ -3460,7 +3461,8 @@ export const zCopilotTriggerConfig = z.object({
     owner: z.string().min(1),
     repo: z.string().min(1),
     baseRef: z.string().min(1).optional(),
-    projectId: z.string().min(1)
+    projectId: z.string().min(1),
+    fireText: z.string().min(1).optional()
 });
 
 /**
@@ -3481,7 +3483,8 @@ export const zCreateCopilotTriggerRequest = z.object({
 export const zJulesTriggerConfig = z.object({
     source: z.string().min(1),
     startingBranch: z.string().min(1).optional(),
-    projectId: z.string().min(1)
+    projectId: z.string().min(1),
+    fireText: z.string().min(1).optional()
 });
 
 /**

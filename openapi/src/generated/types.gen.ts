@@ -6645,6 +6645,10 @@ export type CursorTriggerConfig = {
      * Server-managed. The reusable Cursor cloud agent (`bc-…`) Shipeasy provisions once at connect and then starts every run on. A supplied value is ignored on create; if Cursor stops recognising the id (404), the next fire provisions a replacement and stores it here.
      */
     agentId?: string;
+    /**
+     * Optional standing instruction prepended to every run's prompt — the trigger's base prompt. Lets two triggers on different repos steer their runs differently without changing the `/shipeasy-ops-work` task block.
+     */
+    fireText?: string;
 };
 
 /**
@@ -6698,6 +6702,10 @@ export type CopilotTriggerConfig = {
      * Shipeasy project id the run targets.
      */
     projectId: string;
+    /**
+     * Optional standing instruction prepended to every run's prompt — the trigger's base prompt. Lets two triggers on different repos steer their runs differently without changing the `/shipeasy-ops-work` task block.
+     */
+    fireText?: string;
 };
 
 /**
@@ -6743,6 +6751,10 @@ export type JulesTriggerConfig = {
      * Shipeasy project id the run targets.
      */
     projectId: string;
+    /**
+     * Optional standing instruction prepended to every run's prompt — the trigger's base prompt. Lets two triggers on different repos steer their runs differently without changing the `/shipeasy-ops-work` task block.
+     */
+    fireText?: string;
 };
 
 /**
