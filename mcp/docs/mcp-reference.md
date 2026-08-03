@@ -2661,9 +2661,10 @@ _Parameters_
 | `name` | optional | `string` | Human-readable connector label. _(default `"Copilot trigger"`; length 1–80)_ |
 | `events` | optional | `"bug.created" \| "feature_request.created"[]` | Events that auto-fire a Copilot agent task. Defaults to empty. _(default `[]`)_ |
 | `config` | required | `object` | Non-secret config for a Copilot trigger. |
-| `config.owner` | required | `string` | GitHub repo owner. Together with `repo` forms the connector's idempotency key (`owner/repo`). _(length 1–∞)_ |
+| `config.owner` | required | `string` | **First** GitHub repo owner. Together with `repo` forms the connector's idempotency key (`owner/repo`), and both mirror `repos[0]` when `repos` is supplied. _(length 1–∞)_ |
 | `config.repo` | required | `string` | GitHub repo name. _(length 1–∞)_ |
-| `config.baseRef` | optional | `string` | Optional base ref the agent branches from. _(length 1–∞)_ |
+| `config.baseRef` | optional | `string` | Optional base ref the agent branches from. Mirrors `repos[0].baseRef`. _(length 1–∞)_ |
+| `config.repos` | optional | `object[]` | Every repo this trigger runs against, each with its own base branch. GitHub's agent-tasks API is per-repo, so ONE fire starts one task per entry. Omit for a single-repo trigger, which is then described by `owner`/`repo`/`baseRef` alone; when supplied, the first entry must match them. |
 | `config.projectId` | required | `string` | Shipeasy project id the run targets. _(length 1–∞)_ |
 | `config.fireText` | optional | `string` | Optional standing instruction prepended to every run's prompt — the trigger's base prompt. Lets two triggers on different repos steer their runs differently without changing the `/shipeasy-ops-work` task block. _(length 1–∞)_ |
 | `token` | required | `string` | Copilot-licensed user PAT (secret). The ops key lives in the repo's GitHub "Agents" secret store and is never sent through Shipeasy. Encrypted; never returned. _(length 1–∞)_ |
@@ -2680,8 +2681,9 @@ _Parameters_
 | `name` | optional | `string` | Human-readable connector label. _(default `"Cursor trigger"`; length 1–80)_ |
 | `events` | optional | `"bug.created" \| "feature_request.created"[]` | Events that auto-fire a cold cloud-agent run. Defaults to empty. _(default `[]`)_ |
 | `config` | required | `object` | Non-secret config for a Cursor trigger. |
-| `config.repoUrl` | required | `string` | Repo the cloud agent runs against, e.g. `https://github.com/owner/repo`. Idempotency key for the connector. _(format: uri)_ |
-| `config.startingRef` | optional | `string` | Optional git ref the run starts from. Pinned onto the Cursor agent at creation, so changing it provisions a replacement agent. _(length 1–∞)_ |
+| `config.repoUrl` | required | `string` | **First** repo the cloud agent runs against, e.g. `https://github.com/owner/repo`. Idempotency key for the connector, and always a mirror of `repos[0].url` when `repos` is supplied. _(format: uri)_ |
+| `config.startingRef` | optional | `string` | Optional git ref the run starts from. Mirrors `repos[0].startingRef`. Pinned onto the Cursor agent at creation, so changing it provisions a replacement agent. _(length 1–∞)_ |
+| `config.repos` | optional | `object[]` | Every repo this trigger runs against, each with its own starting branch — Cursor launches ONE agent across the whole set. Omit for a single-repo trigger, which is then described by `repoUrl`/`startingRef` alone; when supplied, the first entry must match them. Changing the set re-provisions the agent (its repos are pinned at creation). |
 | `config.projectId` | required | `string` | Shipeasy project id the run targets. _(length 1–∞)_ |
 | `config.agentId` | optional | `string` | Server-managed. The reusable Cursor cloud agent (`bc-…`) Shipeasy provisions once at connect and then starts every run on. A supplied value is ignored on create; if Cursor stops recognising the id (404), the next fire provisions a replacement and stores it here. _(length 1–∞)_ |
 | `config.fireText` | optional | `string` | Optional standing instruction prepended to every run's prompt — the trigger's base prompt. Lets two triggers on different repos steer their runs differently without changing the `/shipeasy-ops-work` task block. _(length 1–∞)_ |
