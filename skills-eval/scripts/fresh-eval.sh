@@ -7,7 +7,7 @@
 #
 #   1. WIPE   a dedicated persist dir (its own D1/KV, separate from the default).
 #   2. MIGRATE that fresh D1 (`wrangler d1 migrations apply … --persist-to <dir>`).
-#   3. BOOT   `next dev` pointed at it via `SE_EVAL_PERSIST` (see next.config.ts).
+#   3. BOOT   `react-router dev` pointed at it via `SE_PERSIST_TO` (see vite.config.ts).
 #   4. SEED   the fixture project + owner and MINT an admin key (bootstrap.mjs,
 #             `SE_STATE_DIR` → the eval dir, `SE_ENV_OUT` → a scratch env file so
 #             the developer's `.contract-env.json` is never clobbered).
@@ -19,19 +19,19 @@
 #   e.g.  bash …/fresh-eval.sh flags
 #
 # Env overrides:
-#   SE_EVAL_PORT      port for the eval `next dev`        (default 3111)
-#   SE_EVAL_PERSIST   dedicated persist dir               (default apps/ui/.wrangler/eval-state)
+#   SE_EVAL_PORT      port for the eval dev server        (default 3111)
+#   SE_EVAL_PERSIST   dedicated persist dir               (default apps/ui-rr/.wrangler/eval-state)
 #   SHIPEASY_EVAL_K   runs per case                       (passed through)
 #   Any other SHIPEASY_EVAL_* var is passed through to the eval.
 #
-# NOTE: uses `next dev`, which allows only ONE instance per project dir — stop a
-# parallel apps/ui `next dev` (e.g. your e2e server) before running this.
+# NOTE: one dev server per project dir — stop a parallel apps/ui-rr
+# `react-router dev` (e.g. your e2e server) before running this.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EVAL_DIR="$(cd "$HERE/.." && pwd)"                 # marketplace/skills-eval
 REPO_ROOT="$(cd "$EVAL_DIR/../.." && pwd)"          # repo root (marketplace is a submodule)
-UI_DIR="$REPO_ROOT/apps/ui"
+UI_DIR="$REPO_ROOT/apps/ui-rr"
 
 PORT="${SE_EVAL_PORT:-3111}"
 BASE_URL="http://127.0.0.1:${PORT}"
@@ -45,14 +45,14 @@ mkdir -p "$EVAL_DIR/.eval-workdir"
 SERVER_PID=""
 cleanup() {
   if [[ -n "$SERVER_PID" ]]; then
-    echo "[fresh-eval] stopping next dev (pid $SERVER_PID)..."
+    echo "[fresh-eval] stopping the dev server (pid $SERVER_PID)..."
     kill "$SERVER_PID" 2>/dev/null || true
     wait "$SERVER_PID" 2>/dev/null || true
   fi
 }
 trap cleanup EXIT
 
-# Free the port (a stale server would make Next boot on PORT+1 and desync).
+# Free the port (a stale server would make Vite boot on PORT+1 and desync).
 if command -v lsof >/dev/null 2>&1; then
   STALE="$(lsof -ti:"$PORT" 2>/dev/null || true)"
   [[ -n "$STALE" ]] && { echo "[fresh-eval] freeing :$PORT ($STALE)"; echo "$STALE" | xargs kill -9 2>/dev/null || true; sleep 1; }
@@ -64,24 +64,27 @@ rm -rf "$PERSIST"
 echo "[fresh-eval] migrating fresh D1..."
 (cd "$UI_DIR" && pnpm exec wrangler d1 migrations apply shipeasy-db --local --persist-to "$PERSIST" >/dev/null 2>&1)
 
-echo "[fresh-eval] booting next dev on :$PORT (isolated state)..."
-# Path alignment: `wrangler --persist-to <dir>` stores at `<dir>/v3/d1/…`, but
-# getPlatformProxy's `{persist:{path}}` treats the path as the state root WITHOUT
-# the `/v3` segment. So the server's persist path must be `<dir>/v3` to land on
-# the same D1 the migrate + seed used (bootstrap's SE_STATE_DIR keeps `<dir>` and
-# appends `/v3/d1/…` itself).
+echo "[fresh-eval] booting react-router dev on :$PORT (isolated state)..."
+# Path alignment: `wrangler --persist-to <dir>` and the Cloudflare Vite plugin
+# BOTH write under `<dir>/v3/…`, so both take the same BASE dir. (Next's OpenNext
+# proxy was the odd one out, needing `<dir>/v3` spelled out — hence the old
+# `SE_EVAL_PERSIST="$PERSIST/v3"`.) `bootstrap.mjs`'s SE_STATE_DIR also keeps
+# `<dir>` and appends `/v3/d1/…` itself.
+#
+# `--host 127.0.0.1` is load-bearing: with no --host, Vite binds `localhost`,
+# which resolves to `::1` ONLY, and every probe against $BASE_URL's IPv4 literal
+# is refused while the server is actually up.
+#
+# CLOUDFLARE_ENV=e2e resolves `.dev.vars.e2e` instead of the developer's real
+# `.dev.vars` — the app runs in workerd, which does NOT inherit this shell, so
+# an exported AUTH_SECRET simply is not there and the cookie bootstrap.mjs signs
+# would never verify. It replaces Next's NEXT_DEV_WRANGLER_ENV.
 (cd "$UI_DIR" && \
-  SE_EVAL_PERSIST="$PERSIST/v3" \
-  NEXT_DEV_WRANGLER_ENV=e2e \
+  SE_PERSIST_TO="$PERSIST" \
+  CLOUDFLARE_ENV=e2e \
   SE_E2E=1 \
-  SHIPEASY_PLATFORM_PROJECT_ID=e2e-project-id \
-  NEXT_PUBLIC_SHIPEASY_PROJECT_ID=e2e-project-id \
-  NEXT_PUBLIC_SHIPEASY_CLIENT_KEY=e2e-client-key \
-  AUTH_SECRET="$AUTH_SECRET" \
-  AUTH_GOOGLE_ID=test-google-id AUTH_GOOGLE_SECRET=test-google-secret \
-  AUTH_GITHUB_ID=test-github-id AUTH_GITHUB_SECRET=test-github-secret \
-  NODE_OPTIONS="--max-old-space-size=6144" \
-  pnpm exec next dev -p "$PORT" >"$EVAL_DIR/.eval-workdir/next-dev.log" 2>&1) &
+  pnpm exec react-router dev --port "$PORT" --host 127.0.0.1 \
+    >"$EVAL_DIR/.eval-workdir/dev-server.log" 2>&1) &
 SERVER_PID=$!
 
 echo "[fresh-eval] waiting for server..."
@@ -90,10 +93,10 @@ for i in $(seq 1 120); do
     echo "[fresh-eval] server up after ${i}s"; break
   fi
   if ! kill -0 "$SERVER_PID" 2>/dev/null; then
-    echo "[fresh-eval] next dev died — tail of log:"; tail -30 "$EVAL_DIR/.eval-workdir/next-dev.log"; exit 1
+    echo "[fresh-eval] dev server died — tail of log:"; tail -30 "$EVAL_DIR/.eval-workdir/dev-server.log"; exit 1
   fi
   sleep 1
-  [[ "$i" == "120" ]] && { echo "[fresh-eval] server not ready in 120s"; tail -30 "$EVAL_DIR/.eval-workdir/next-dev.log"; exit 1; }
+  [[ "$i" == "120" ]] && { echo "[fresh-eval] server not ready in 120s"; tail -30 "$EVAL_DIR/.eval-workdir/dev-server.log"; exit 1; }
 done
 
 echo "[fresh-eval] seeding fixture project + minting admin key (isolated D1)..."
@@ -105,12 +108,12 @@ BEARER="$(cd "$UI_DIR" && \
   node contract-tests/bootstrap.mjs)"
 if [[ -z "$BEARER" ]]; then echo "[fresh-eval] mint failed"; exit 1; fi
 
-# Warm the admin routes the MCP tools hit. `next dev` compiles each route on
+# Warm the admin routes the MCP tools hit. Vite transforms each route module on
 # first request; a cold route under an agent run returns a slow/transient error,
 # so the agent gives up and the transcript shows no tool calls ("saw [none]").
 # One serial GET per route forces compilation up front (status is irrelevant) —
 # same fix contract-tests/run.sh uses before its fuzz.
-echo "[fresh-eval] warming admin routes (compiling next dev handlers)..."
+echo "[fresh-eval] warming admin routes (transforming route modules)..."
 for route in gates gates/templates killswitches configs experiments universes metrics events alert-rules ops attributes; do
   curl -s -o /dev/null --max-time 60 \
     -H "Authorization: Bearer $BEARER" -H "X-Project-Id: e2e-project-id" \
