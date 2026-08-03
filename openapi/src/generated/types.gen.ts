@@ -6626,17 +6626,35 @@ export type CreateClaudeTriggerRequest = {
 };
 
 /**
+ * One repo a trigger runs against, with the branch its runs start from.
+ */
+export type CursorTriggerRepo = {
+    /**
+     * Repo the cloud agent runs against, e.g. `https://github.com/owner/repo`.
+     */
+    url: string;
+    /**
+     * Optional branch this repo's runs start from. Omit for the repo's default branch.
+     */
+    startingRef?: string;
+};
+
+/**
  * Non-secret config for a Cursor trigger.
  */
 export type CursorTriggerConfig = {
     /**
-     * Repo the cloud agent runs against, e.g. `https://github.com/owner/repo`. Idempotency key for the connector.
+     * **First** repo the cloud agent runs against, e.g. `https://github.com/owner/repo`. Idempotency key for the connector, and always a mirror of `repos[0].url` when `repos` is supplied.
      */
     repoUrl: string;
     /**
-     * Optional git ref the run starts from. Pinned onto the Cursor agent at creation, so changing it provisions a replacement agent.
+     * Optional git ref the run starts from. Mirrors `repos[0].startingRef`. Pinned onto the Cursor agent at creation, so changing it provisions a replacement agent.
      */
     startingRef?: string;
+    /**
+     * Every repo this trigger runs against, each with its own starting branch — Cursor launches ONE agent across the whole set. Omit for a single-repo trigger, which is then described by `repoUrl`/`startingRef` alone; when supplied, the first entry must match them. Changing the set re-provisions the agent (its repos are pinned at creation).
+     */
+    repos?: Array<CursorTriggerRepo>;
     /**
      * Shipeasy project id the run targets.
      */
@@ -6683,11 +6701,11 @@ export type CreateCursorTriggerRequest = {
 };
 
 /**
- * Non-secret config for a Copilot trigger.
+ * One repo a Copilot trigger runs against, with the base branch its tasks branch from.
  */
-export type CopilotTriggerConfig = {
+export type CopilotTriggerRepo = {
     /**
-     * GitHub repo owner. Together with `repo` forms the connector's idempotency key (`owner/repo`).
+     * GitHub repo owner.
      */
     owner: string;
     /**
@@ -6695,9 +6713,31 @@ export type CopilotTriggerConfig = {
      */
     repo: string;
     /**
-     * Optional base ref the agent branches from.
+     * Optional base ref this repo's agent task branches from. Omit for the repo's default branch.
      */
     baseRef?: string;
+};
+
+/**
+ * Non-secret config for a Copilot trigger.
+ */
+export type CopilotTriggerConfig = {
+    /**
+     * **First** GitHub repo owner. Together with `repo` forms the connector's idempotency key (`owner/repo`), and both mirror `repos[0]` when `repos` is supplied.
+     */
+    owner: string;
+    /**
+     * GitHub repo name.
+     */
+    repo: string;
+    /**
+     * Optional base ref the agent branches from. Mirrors `repos[0].baseRef`.
+     */
+    baseRef?: string;
+    /**
+     * Every repo this trigger runs against, each with its own base branch. GitHub's agent-tasks API is per-repo, so ONE fire starts one task per entry. Omit for a single-repo trigger, which is then described by `owner`/`repo`/`baseRef` alone; when supplied, the first entry must match them.
+     */
+    repos?: Array<CopilotTriggerRepo>;
     /**
      * Shipeasy project id the run targets.
      */

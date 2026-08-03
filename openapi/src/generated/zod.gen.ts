@@ -3431,11 +3431,20 @@ export const zCreateClaudeTriggerRequest = z.object({
 });
 
 /**
+ * One repo a trigger runs against, with the branch its runs start from.
+ */
+export const zCursorTriggerRepo = z.object({
+    url: z.url(),
+    startingRef: z.string().min(1).optional()
+});
+
+/**
  * Non-secret config for a Cursor trigger.
  */
 export const zCursorTriggerConfig = z.object({
     repoUrl: z.url(),
     startingRef: z.string().min(1).optional(),
+    repos: z.array(zCursorTriggerRepo).min(1).optional(),
     projectId: z.string().min(1),
     agentId: z.string().min(1).optional(),
     fireText: z.string().min(1).optional()
@@ -3455,12 +3464,22 @@ export const zCreateCursorTriggerRequest = z.object({
 });
 
 /**
+ * One repo a Copilot trigger runs against, with the base branch its tasks branch from.
+ */
+export const zCopilotTriggerRepo = z.object({
+    owner: z.string().min(1),
+    repo: z.string().min(1),
+    baseRef: z.string().min(1).optional()
+});
+
+/**
  * Non-secret config for a Copilot trigger.
  */
 export const zCopilotTriggerConfig = z.object({
     owner: z.string().min(1),
     repo: z.string().min(1),
     baseRef: z.string().min(1).optional(),
+    repos: z.array(zCopilotTriggerRepo).min(1).optional(),
     projectId: z.string().min(1),
     fireText: z.string().min(1).optional()
 });
