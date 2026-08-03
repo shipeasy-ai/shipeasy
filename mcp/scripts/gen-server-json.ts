@@ -32,6 +32,13 @@ const SCHEMA = "https://static.modelcontextprotocol.io/schemas/2025-12-11/server
 const WEBSITE_URL =
   "https://docs.shipeasy.ai/get-started/mcp?utm_source=mcp-registry&utm_medium=referral&utm_campaign=mcp-server-listing";
 
+// The hosted server. The npm package is the stdio fallback; this is how most
+// clients (and every directory that only surfaces remote servers) actually
+// connect — OAuth is negotiated on first use, so no headers are declared here.
+// Host must stay under shipeasy.ai: the registry ties remote URLs to the DNS
+// namespace `ai.shipeasy` we authenticate with.
+const REMOTE_URL = "https://mcp.shipeasy.ai/mcp";
+
 const pkg = JSON.parse(readFileSync(PKG, "utf8")) as {
   name: string;
   version: string;
@@ -71,7 +78,15 @@ const server = {
       transport: { type: "stdio" },
     },
   ],
+  remotes: [
+    {
+      type: "streamable-http",
+      url: REMOTE_URL,
+    },
+  ],
 };
 
 writeFileSync(OUT, `${JSON.stringify(server, null, 2)}\n`);
-console.log(`Wrote ${OUT}\n  ${server.name} @ ${server.version} → npm ${pkg.name}`);
+console.log(
+  `Wrote ${OUT}\n  ${server.name} @ ${server.version} → npm ${pkg.name} + remote ${REMOTE_URL}`,
+);
