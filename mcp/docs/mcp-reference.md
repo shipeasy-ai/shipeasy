@@ -2665,6 +2665,7 @@ _Parameters_
 | `config.repo` | required | `string` | GitHub repo name. _(length 1–∞)_ |
 | `config.baseRef` | optional | `string` | Optional base ref the agent branches from. _(length 1–∞)_ |
 | `config.projectId` | required | `string` | Shipeasy project id the run targets. _(length 1–∞)_ |
+| `config.fireText` | optional | `string` | Optional standing instruction prepended to every run's prompt — the trigger's base prompt. Lets two triggers on different repos steer their runs differently without changing the `/shipeasy-ops-work` task block. _(length 1–∞)_ |
 | `token` | required | `string` | Copilot-licensed user PAT (secret). The ops key lives in the repo's GitHub "Agents" secret store and is never sent through Shipeasy. Encrypted; never returned. _(length 1–∞)_ |
 | `enabled` | optional | `boolean` | Whether the trigger is active on create. _(default `true`)_ |
 
@@ -2683,6 +2684,7 @@ _Parameters_
 | `config.startingRef` | optional | `string` | Optional git ref the run starts from. Pinned onto the Cursor agent at creation, so changing it provisions a replacement agent. _(length 1–∞)_ |
 | `config.projectId` | required | `string` | Shipeasy project id the run targets. _(length 1–∞)_ |
 | `config.agentId` | optional | `string` | Server-managed. The reusable Cursor cloud agent (`bc-…`) Shipeasy provisions once at connect and then starts every run on. A supplied value is ignored on create; if Cursor stops recognising the id (404), the next fire provisions a replacement and stores it here. _(length 1–∞)_ |
+| `config.fireText` | optional | `string` | Optional standing instruction prepended to every run's prompt — the trigger's base prompt. Lets two triggers on different repos steer their runs differently without changing the `/shipeasy-ops-work` task block. _(length 1–∞)_ |
 | `apiKey` | required | `string` | Cursor API key that launches the run (secret). Encrypted into the credentials cipher; never returned. _(length 1–∞)_ |
 | `opsKey` | required | `string` | Restricted Shipeasy ops key (secret). Wrapped into a short opaque machine bearer for the Shipeasy MCP server handed to each run inline — never sent to the run raw, and never in the prompt. Encrypted; never returned. _(length 1–∞)_ |
 | `enabled` | optional | `boolean` | Whether the trigger is active on create. _(default `true`)_ |
@@ -2701,6 +2703,7 @@ _Parameters_
 | `config.source` | required | `string` | Jules source for the connected repo, e.g. `sources/github/owner/repo`. Idempotency key for the connector. _(length 1–∞)_ |
 | `config.startingBranch` | optional | `string` | Optional branch the session starts from. _(length 1–∞)_ |
 | `config.projectId` | required | `string` | Shipeasy project id the run targets. _(length 1–∞)_ |
+| `config.fireText` | optional | `string` | Optional standing instruction prepended to every run's prompt — the trigger's base prompt. Lets two triggers on different repos steer their runs differently without changing the `/shipeasy-ops-work` task block. _(length 1–∞)_ |
 | `apiKey` | required | `string` | Jules API key that launches the session (secret). Encrypted into the credentials cipher; never returned. _(length 1–∞)_ |
 | `opsKey` | required | `string` | Restricted Shipeasy ops key, embedded in the prompt (Jules exposes no env channel) (secret). Encrypted; never returned. _(length 1–∞)_ |
 | `enabled` | optional | `boolean` | Whether the trigger is active on create. _(default `true`)_ |
