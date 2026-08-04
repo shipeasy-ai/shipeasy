@@ -1889,11 +1889,12 @@ export const zOpsItemPriority = z.enum([
 ]);
 
 /**
- * Where automation has taken an item in the investigation lifecycle — the signal the ops cockpit renders as "what AI did" plus the one action expected of the user. It is **written as a side-effect of the actions that already happen**, never authored on its own: linking a PR sets `pr_ready`, moving to `in_progress` sets `working`, `ready_for_qa` sets `ready_for_qa`, a system/assistant reply sets `question`, resolving clears it, and creation seeds `backlog` or `investigated`/`detected` for auto-filed error/alert tickets. `backlog` is the single "nothing has happened yet" state — how urgent that is reads off `priority`, not off a separate state, and its one action is to hand the item to an agent. `pr_merged` is derived client-side by scanning the linked pull request on GitHub, so it is accepted on write but not currently emitted by the API. Absent on rows filed before the field existed — consumers should treat a missing value as "derive from the other fields".
+ * Where automation has taken an item in the investigation lifecycle — the signal the ops cockpit renders as "what AI did" plus the one action expected of the user. It is **written as a side-effect of the actions that already happen**, never authored on its own: linking a PR sets `pr_ready`, moving to `in_progress` sets `working`, `ready_for_qa` sets `ready_for_qa`, a system/assistant reply sets `question`, resolving clears it, and creation seeds `backlog` or `investigated`/`detected` for auto-filed error/alert tickets. `backlog` is the single "nothing has happened yet" state — how urgent that is reads off `priority`, not off a separate state, and its one action is to hand the item to an agent. `pr_merged` and `pr_closed` are written by the GitHub `pull_request` webhook when the linked PR reaches a terminal outcome — merged (the fix shipped, resolve the item) or closed without merging (the fix was rejected, decide what happens next). Absent on rows filed before the field existed — consumers should treat a missing value as "derive from the other fields".
  */
 export const zOpsInvestigationState = z.enum([
     'pr_ready',
     'pr_merged',
+    'pr_closed',
     'investigated',
     'detected',
     'question',
@@ -2052,7 +2053,16 @@ export const zGithubPrLink = z.object({
     url: z.string(),
     linkedAt: z.string().optional(),
     connectedToIssue: z.boolean().optional(),
-    method: z.enum(['closes', 'comment']).optional()
+    method: z.enum(['closes', 'comment']).optional(),
+    owner: z.string().optional(),
+    repo: z.string().optional(),
+    state: z.enum([
+        'open',
+        'merged',
+        'closed'
+    ]).optional(),
+    mergedAt: z.string().optional(),
+    closedAt: z.string().optional()
 });
 
 /**

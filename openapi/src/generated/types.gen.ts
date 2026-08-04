@@ -3426,9 +3426,9 @@ export type OpsItemStatus = 'open' | 'pending_approval' | 'investigating_by_ai' 
 export type OpsItemPriority = 'nice_to_have' | 'medium' | 'high' | 'critical';
 
 /**
- * Where automation has taken an item in the investigation lifecycle — the signal the ops cockpit renders as "what AI did" plus the one action expected of the user. It is **written as a side-effect of the actions that already happen**, never authored on its own: linking a PR sets `pr_ready`, moving to `in_progress` sets `working`, `ready_for_qa` sets `ready_for_qa`, a system/assistant reply sets `question`, resolving clears it, and creation seeds `backlog` or `investigated`/`detected` for auto-filed error/alert tickets. `backlog` is the single "nothing has happened yet" state — how urgent that is reads off `priority`, not off a separate state, and its one action is to hand the item to an agent. `pr_merged` is derived client-side by scanning the linked pull request on GitHub, so it is accepted on write but not currently emitted by the API. Absent on rows filed before the field existed — consumers should treat a missing value as "derive from the other fields".
+ * Where automation has taken an item in the investigation lifecycle — the signal the ops cockpit renders as "what AI did" plus the one action expected of the user. It is **written as a side-effect of the actions that already happen**, never authored on its own: linking a PR sets `pr_ready`, moving to `in_progress` sets `working`, `ready_for_qa` sets `ready_for_qa`, a system/assistant reply sets `question`, resolving clears it, and creation seeds `backlog` or `investigated`/`detected` for auto-filed error/alert tickets. `backlog` is the single "nothing has happened yet" state — how urgent that is reads off `priority`, not off a separate state, and its one action is to hand the item to an agent. `pr_merged` and `pr_closed` are written by the GitHub `pull_request` webhook when the linked PR reaches a terminal outcome — merged (the fix shipped, resolve the item) or closed without merging (the fix was rejected, decide what happens next). Absent on rows filed before the field existed — consumers should treat a missing value as "derive from the other fields".
  */
-export type OpsInvestigationState = 'pr_ready' | 'pr_merged' | 'investigated' | 'detected' | 'question' | 'ready_for_qa' | 'pending_approval' | 'working' | 'backlog';
+export type OpsInvestigationState = 'pr_ready' | 'pr_merged' | 'pr_closed' | 'investigated' | 'detected' | 'question' | 'ready_for_qa' | 'pending_approval' | 'working' | 'backlog';
 
 /**
  * Auto-collected browser environment for a `bug`/`feature_request`, captured at file time.
@@ -3753,6 +3753,26 @@ export type GithubPrLink = {
      * How the PR was connected to the issue.
      */
     method?: 'closes' | 'comment';
+    /**
+     * Repository owner (org or user) the pull request lives in. Absent on links recorded before the field existed — `url` still carries it.
+     */
+    owner?: string;
+    /**
+     * Repository name the pull request lives in. Absent on links recorded before the field existed — `url` still carries it.
+     */
+    repo?: string;
+    /**
+     * Outcome of the pull request on GitHub, kept current by the `pull_request` webhook. `merged` and `closed` (closed WITHOUT merging, i.e. rejected) are terminal. Absent means the outcome has never been observed — treat it as `open`.
+     */
+    state?: 'open' | 'merged' | 'closed';
+    /**
+     * ISO-8601 timestamp the pull request merged, when `state` is `merged`.
+     */
+    mergedAt?: string;
+    /**
+     * ISO-8601 timestamp the pull request closed unmerged, when `state` is `closed`.
+     */
+    closedAt?: string;
     [key: string]: unknown;
 };
 
