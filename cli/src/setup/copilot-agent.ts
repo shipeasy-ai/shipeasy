@@ -14,7 +14,7 @@ export const COPILOT_AGENT_NAME = "shipeasy";
 export const COPILOT_AGENT_FILE_PATH = ".github/agents/shipeasy.agent.md";
 /** The repo Copilot secret the agent file references — must start `COPILOT_MCP_`
  *  (the coding agent only injects `COPILOT_MCP_*` secrets into MCP server config).
- *  Holds a `semcp_` machine token. */
+ *  Holds the project's restricted ops key. */
 export const COPILOT_MCP_TOKEN_SECRET = "COPILOT_MCP_SHIPEASY_CLI_TOKEN";
 
 /** Origin of the hosted MCP server. Overridable for local/e2e via `mcpBaseUrl`. */
@@ -44,7 +44,7 @@ export function buildCopilotAgentFile(opts: { projectId: string; mcpBaseUrl?: st
     `    url: '${mcpUrl}'`,
     "    tools: ['*']",
     "    headers:",
-    // The only secret — a `semcp_` machine token from the repo Copilot secret store.
+    // The only secret — the restricted ops key, from the repo Copilot secret store.
     `      Authorization: 'Bearer \${{ secrets.${COPILOT_MCP_TOKEN_SECRET} }}'`,
     "---",
   ].join("\n");

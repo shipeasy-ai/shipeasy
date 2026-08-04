@@ -6691,7 +6691,7 @@ export type CreateCursorTriggerRequest = {
      */
     apiKey: string;
     /**
-     * Restricted Shipeasy ops key (secret). Wrapped into a short opaque machine bearer for the Shipeasy MCP server handed to each run inline — never sent to the run raw, and never in the prompt. Encrypted; never returned.
+     * Restricted Shipeasy ops key (secret). Sent as the Bearer for the Shipeasy MCP server handed to each run inline — never in the prompt text or the run env. Encrypted; never returned.
      */
     opsKey: string;
     /**
