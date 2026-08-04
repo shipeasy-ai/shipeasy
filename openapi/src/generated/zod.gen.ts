@@ -2728,6 +2728,8 @@ export const zListAlertRulesResponse = z.array(z.object({
     ]),
     threshold: z.number(),
     windowHours: z.int().gte(-9007199254740991).lte(9007199254740991),
+    bucketMinutes: z.int().nullable(),
+    requiredBuckets: z.int().nullable(),
     severity: z.enum([
         'danger',
         'warn',
@@ -2750,6 +2752,8 @@ export const zCreateAlertRuleRequest = z.object({
     ]),
     threshold: z.number(),
     windowHours: z.int().gte(1).lte(720).optional().default(24),
+    bucketMinutes: z.int().gte(1).lte(43200).nullish(),
+    requiredBuckets: z.int().gte(1).nullish(),
     severity: z.enum([
         'danger',
         'warn',
@@ -2777,6 +2781,8 @@ export const zUpdateAlertRuleRequest = z.object({
     ]).optional(),
     threshold: z.number().optional(),
     windowHours: z.int().gte(1).lte(720).optional(),
+    bucketMinutes: z.int().gte(1).lte(43200).nullish(),
+    requiredBuckets: z.int().gte(1).nullish(),
     severity: z.enum([
         'danger',
         'warn',

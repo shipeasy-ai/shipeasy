@@ -5194,6 +5194,14 @@ export type ListAlertRulesResponse = Array<{
      */
     windowHours: number;
     /**
+     * Width of the buckets the window is split into, in minutes. `null` divides the window into 12 equal buckets.
+     */
+    bucketMinutes: number | null;
+    /**
+     * How many buckets must breach before the rule fires. `null` means every bucket that had data.
+     */
+    requiredBuckets: number | null;
+    /**
      * Severity of the raised alert.
      */
     severity: 'danger' | 'warn' | 'info';
@@ -5234,6 +5242,14 @@ export type CreateAlertRuleRequest = {
      */
     windowHours?: number;
     /**
+     * Width of the buckets the window is split into, in minutes. Omit (or `null`) to divide the window into 12 equal buckets. The rule is judged per bucket, so this is the resolution at which "sustained" is measured — a short bucket asks the condition to hold through finer detail.
+     */
+    bucketMinutes?: number | null;
+    /**
+     * How many buckets must breach before the rule fires. Omit (or `null`) to require every bucket that had data. Buckets with nothing in them are excluded before this is counted, so on a sparse metric `null` can mean a single bucket — set this to 2 or more where one lone sample must never page.
+     */
+    requiredBuckets?: number | null;
+    /**
      * Severity of the raised alert.
      */
     severity?: 'danger' | 'warn' | 'info';
@@ -5260,6 +5276,14 @@ export type UpdateAlertRuleRequest = {
     comparator?: 'gt' | 'gte' | 'lt' | 'lte';
     threshold?: number;
     windowHours?: number;
+    /**
+     * Bucket width in minutes; `null` restores the default 12 buckets per window.
+     */
+    bucketMinutes?: number | null;
+    /**
+     * Buckets that must breach to fire; `null` restores "every bucket that had data".
+     */
+    requiredBuckets?: number | null;
     severity?: 'danger' | 'warn' | 'info';
     enabled?: boolean;
     notify?: NotificationTarget;
