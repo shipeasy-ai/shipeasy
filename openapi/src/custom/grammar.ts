@@ -87,10 +87,27 @@ SELECTOR & FILTERS
   string:
 
     =   equal            !=   not equal
-    =~  regex match      !~   regex NOT match
+    =~  glob match       !~   glob NOT match
 
+  - \`=~\` / \`!~\` take a GLOB, NOT a regex. Two wildcards, and a glob matches the
+    WHOLE value — there are no anchors because there is nothing to anchor:
+
+      *  any sequence of characters       ?  exactly one character
+
+      route=~"/api*"          starts with /api
+      route=~"*checkout"      ends with checkout
+      route=~"*admin*"        contains admin
+      route=~"/v?/users"      /v1/users, /v2/users …
+      route=~"/health"        EXACTLY /health — same as \`route="/health"\`
+
+    Every other character is a LITERAL, dots included, so \`host=~"*.acme.com"\`
+    works as written. Regex syntax — \`^\` \`$\` \`.*\` \`|\` \`[]\` \`()\` \`+\` \`{}\` \`\\\\\` — is
+    REJECTED at save time rather than reinterpreted: \`^/api\` would be a glob for
+    a value that literally starts with a caret, and \`/api/.*\` would match
+    \`/api/.x\` but not \`/api/x\`. Write \`/api*\` instead.
   - Values are ALWAYS double-quoted strings, even for numeric labels — they are
-    coerced on the server (\`amount=~"^1[0-9]$"\`, \`status="200"\`).
+    coerced on the server (\`status="200"\`). Numeric and boolean labels accept
+    only \`=\` and \`!=\`; a glob on one is a validation error.
   - Multiple filters are AND-ed: \`{country="US", tier!="free"}\`.
   - Every filter label AND the value label must be a label DECLARED on the source
     event. Undeclared labels are a validation error, not a silent no-match.
@@ -162,8 +179,8 @@ EXAMPLES  (query  —  what it measures)
       mean request duration for non-free tiers, one series per region-excluded
       label combination.
 
-  p99(req_dur{route=~"/api/.*"}, ms) by (route, status)
-      99th-percentile latency of /api/* requests, split by route and status.
+  p99(req_dur{route=~"/api*"}, ms) by (route, status)
+      99th-percentile latency of /api requests, split by route and status.
 
   unique(login{method="sso"}, device_id)
       distinct SSO devices seen (display-only; an experiment would use per-user avg).

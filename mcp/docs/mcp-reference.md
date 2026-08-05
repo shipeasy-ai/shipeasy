@@ -2353,6 +2353,8 @@ _Parameters_
 | `comparator` | required | `"gt" \| "gte" \| "lt" \| "lte"` | How the metric value is compared to the threshold (gt/gte/lt/lte). |
 | `threshold` | required | `number` | Threshold the metric value is compared against. |
 | `windowHours` | optional | `integer` | Lookback window (hours) the metric is aggregated over. 1–720. _(default `24`; 1–720)_ |
+| `bucketMinutes` | optional | `any` | Width of the buckets the window is split into, in minutes. Omit (or `null`) to divide the window into 12 equal buckets. The rule is judged per bucket, so this is the resolution at which "sustained" is measured — a short bucket asks the condition to hold through finer detail. |
+| `requiredBuckets` | optional | `any` | How many buckets must breach before the rule fires. Omit (or `null`) to require every bucket that had data. Buckets with nothing in them are excluded before this is counted, so on a sparse metric `null` can mean a single bucket — set this to 2 or more where one lone sample must never page. |
 | `severity` | optional | `"danger" \| "warn" \| "info"` | Severity of the raised alert. _(default `"warn"`)_ |
 | `enabled` | optional | `boolean` | Whether the rule is evaluated by the cron. _(default `true`)_ |
 | `notify` | optional | `any` | Delivery target for a notification; `null` = use the project default. |
@@ -2406,6 +2408,8 @@ _Parameters_
 | `comparator` | optional | `"gt" \| "gte" \| "lt" \| "lte"` | — |
 | `threshold` | optional | `number` | — |
 | `windowHours` | optional | `integer` | — _(1–720)_ |
+| `bucketMinutes` | optional | `any` | Bucket width in minutes; `null` restores the default 12 buckets per window. |
+| `requiredBuckets` | optional | `any` | Buckets that must breach to fire; `null` restores "every bucket that had data". |
 | `severity` | optional | `"danger" \| "warn" \| "info"` | — |
 | `enabled` | optional | `boolean` | — |
 | `notify` | optional | `any` | Delivery target for a notification; `null` = use the project default. |
