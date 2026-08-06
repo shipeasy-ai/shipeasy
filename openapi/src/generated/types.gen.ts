@@ -3197,7 +3197,7 @@ export type ListEventsResponse = Array<{
      */
     properties: Array<{
         /**
-         * Property key, e.g. `amount` or `plan`.
+         * Property key, e.g. `amount` or `plan`. Must be a bare identifier — it is emitted as a SQL alias when the property is used as a `by()` dimension, and there is no way to quote one in the Analytics Engine dialect.
          */
         name: string;
         /**
@@ -3228,7 +3228,7 @@ export type ListEventsResponse = Array<{
  */
 export type CreateEventRequest = {
     /**
-     * Event name. Starts with a letter, digit, or `_`; letters, digits, `_`, `-`, `.`; max 128 chars. Immutable after create — this is the handle metric queries reference.
+     * Event name. Starts with a letter, digit, or `_`; letters, digits, `_`, `-`, `.`; max 50 characters. The cap is the Analytics Engine index budget — 96 bytes total, less a 36-byte project UUID and a separator — and the API has always enforced 50 while this spec advertised 128. The charset is ASCII, so characters and bytes are the same count. Immutable after create — this is the handle metric queries reference.
      */
     name: string;
     folder?: Folder;
@@ -3241,7 +3241,7 @@ export type CreateEventRequest = {
      */
     properties?: Array<{
         /**
-         * Property key, e.g. `amount` or `plan`.
+         * Property key, e.g. `amount` or `plan`. Must be a bare identifier — it is emitted as a SQL alias when the property is used as a `by()` dimension, and there is no way to quote one in the Analytics Engine dialect.
          */
         name: string;
         /**
@@ -3298,7 +3298,7 @@ export type GetEventResponse = {
      */
     properties: Array<{
         /**
-         * Property key, e.g. `amount` or `plan`.
+         * Property key, e.g. `amount` or `plan`. Must be a bare identifier — it is emitted as a SQL alias when the property is used as a `by()` dimension, and there is no way to quote one in the Analytics Engine dialect.
          */
         name: string;
         /**
@@ -3345,7 +3345,7 @@ export type UpdateEventRequest = {
      */
     properties?: Array<{
         /**
-         * Property key, e.g. `amount` or `plan`.
+         * Property key, e.g. `amount` or `plan`. Must be a bare identifier — it is emitted as a SQL alias when the property is used as a `by()` dimension, and there is no way to quote one in the Analytics Engine dialect.
          */
         name: string;
         /**
@@ -3387,7 +3387,7 @@ export type ApproveEventRequest = {
      */
     properties?: Array<{
         /**
-         * Property key, e.g. `amount` or `plan`.
+         * Property key, e.g. `amount` or `plan`. Must be a bare identifier — it is emitted as a SQL alias when the property is used as a `by()` dimension, and there is no way to quote one in the Analytics Engine dialect.
          */
         name: string;
         /**

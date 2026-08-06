@@ -1745,7 +1745,7 @@ export const zListEventsResponse = z.array(z.object({
     folder: z.string().max(256).regex(/^[a-zA-Z0-9_-]+$/).nullish(),
     description: z.string().nullable(),
     properties: z.array(z.object({
-        name: z.string().min(1).max(64),
+        name: z.string().min(1).max(64).regex(/^[a-zA-Z_][a-zA-Z_0-9]*$/),
         type: z.enum([
             'string',
             'number',
@@ -1762,11 +1762,11 @@ export const zListEventsResponse = z.array(z.object({
  * Body for `POST /api/admin/events`. Only `name` is required.
  */
 export const zCreateEventRequest = z.object({
-    name: z.string().regex(/^[a-zA-Z0-9_][a-zA-Z0-9_\-.]{0,127}$/),
+    name: z.string().regex(/^[a-zA-Z0-9_][a-zA-Z0-9_\-.]{0,49}$/),
     folder: zFolder.optional(),
     description: z.string().optional(),
     properties: z.array(z.object({
-        name: z.string().min(1).max(64),
+        name: z.string().min(1).max(64).regex(/^[a-zA-Z_][a-zA-Z_0-9]*$/),
         type: z.enum([
             'string',
             'number',
@@ -1794,7 +1794,7 @@ export const zGetEventResponse = z.object({
     folder: z.string().max(256).regex(/^[a-zA-Z0-9_-]+$/).nullish(),
     description: z.string().nullable(),
     properties: z.array(z.object({
-        name: z.string().min(1).max(64),
+        name: z.string().min(1).max(64).regex(/^[a-zA-Z_][a-zA-Z_0-9]*$/),
         type: z.enum([
             'string',
             'number',
@@ -1821,7 +1821,7 @@ export const zUpdateEventRequest = z.object({
     folder: zFolder.optional(),
     description: z.string().optional(),
     properties: z.array(z.object({
-        name: z.string().min(1).max(64),
+        name: z.string().min(1).max(64).regex(/^[a-zA-Z_][a-zA-Z_0-9]*$/),
         type: z.enum([
             'string',
             'number',
@@ -1846,7 +1846,7 @@ export const zApproveEventRequest = z.object({
     folder: zFolder.optional(),
     description: z.string().optional(),
     properties: z.array(z.object({
-        name: z.string().min(1).max(64),
+        name: z.string().min(1).max(64).regex(/^[a-zA-Z_][a-zA-Z_0-9]*$/),
         type: z.enum([
             'string',
             'number',
