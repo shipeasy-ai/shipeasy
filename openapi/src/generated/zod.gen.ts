@@ -2736,6 +2736,14 @@ export const zListSlackChannelsResponse = z.object({
     }))
 });
 
+/**
+ * What a `composite` rule is a boolean over. `rules` are sibling alert-rule ids in the same project and `op` is how their states combine. A child's state is what the current pass concluded about it, falling back to whether it has an open instance — so a composite still means something on a tick where a child could not be evaluated, which is exactly the tick a "two of these are broken at once" rule is for. One level deep: a child may not itself be composite.
+ */
+export const zAlertCompositeSpec = z.object({
+    op: z.enum(['and', 'or']),
+    rules: z.array(z.string().min(1)).min(2)
+});
+
 export const zListAlertRulesResponse = z.array(z.object({
     id: z.string(),
     name: z.string(),
@@ -2744,7 +2752,9 @@ export const zListAlertRulesResponse = z.array(z.object({
     kind: z.enum([
         'normal',
         'anomaly',
-        'outliers'
+        'outliers',
+        'no_data',
+        'composite'
     ]),
     comparator: z.enum([
         'gt',
@@ -2761,6 +2771,15 @@ export const zListAlertRulesResponse = z.array(z.object({
         'below',
         'either'
     ]).nullable(),
+    sustained: z.boolean(),
+    warnThreshold: z.number().nullable(),
+    recoveryThreshold: z.number().nullable(),
+    groupAlerts: z.boolean(),
+    maxGroups: z.int().nullable(),
+    noDataMinutes: z.int().nullable(),
+    delayMinutes: z.int().nullable(),
+    autoResolveMinutes: z.int().nullable(),
+    composite: zAlertCompositeSpec.nullable(),
     windowHours: z.int().gte(-9007199254740991).lte(9007199254740991),
     bucketMinutes: z.int().nullable(),
     requiredBuckets: z.int().nullable(),
@@ -2781,7 +2800,9 @@ export const zCreateAlertRuleRequest = z.object({
     kind: z.enum([
         'normal',
         'anomaly',
-        'outliers'
+        'outliers',
+        'no_data',
+        'composite'
     ]).optional().default('normal'),
     comparator: z.enum([
         'gt',
@@ -2798,9 +2819,18 @@ export const zCreateAlertRuleRequest = z.object({
         'below',
         'either'
     ]).nullish(),
+    sustained: z.boolean().optional().default(false),
     windowHours: z.int().gte(1).lte(720).optional().default(24),
     bucketMinutes: z.int().gte(1).lte(43200).nullish(),
     requiredBuckets: z.int().gte(1).nullish(),
+    warnThreshold: z.number().nullish(),
+    recoveryThreshold: z.number().nullish(),
+    groupAlerts: z.boolean().optional().default(false),
+    maxGroups: z.int().gte(1).lte(50).nullish(),
+    noDataMinutes: z.int().gte(5).lte(43200).nullish(),
+    delayMinutes: z.int().gte(1).lte(1440).nullish(),
+    autoResolveMinutes: z.int().gte(1).nullish(),
+    composite: zAlertCompositeSpec.optional(),
     severity: z.enum([
         'danger',
         'warn',
@@ -2823,7 +2853,9 @@ export const zUpdateAlertRuleRequest = z.object({
     kind: z.enum([
         'normal',
         'anomaly',
-        'outliers'
+        'outliers',
+        'no_data',
+        'composite'
     ]).optional(),
     comparator: z.enum([
         'gt',
@@ -2840,6 +2872,15 @@ export const zUpdateAlertRuleRequest = z.object({
         'below',
         'either'
     ]).nullish(),
+    sustained: z.boolean().optional(),
+    warnThreshold: z.number().nullish(),
+    recoveryThreshold: z.number().nullish(),
+    groupAlerts: z.boolean().optional(),
+    maxGroups: z.int().gte(1).lte(50).nullish(),
+    noDataMinutes: z.int().gte(5).lte(43200).nullish(),
+    delayMinutes: z.int().gte(1).lte(1440).nullish(),
+    autoResolveMinutes: z.int().gte(1).nullish(),
+    composite: zAlertCompositeSpec.optional(),
     windowHours: z.int().gte(1).lte(720).optional(),
     bucketMinutes: z.int().gte(1).lte(43200).nullish(),
     requiredBuckets: z.int().gte(1).nullish(),

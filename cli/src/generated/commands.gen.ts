@@ -354,6 +354,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--range-max <value>", "Upper edge of the corridor the metric must stay inside.")
     .option("--sigma <value>", "How far from normal is too far, for `anomaly` and `outliers`, in sigma-equivalents. Omit (or `null`) for 3, which is also the half-width of the band a chart draws — so an unconfigured rule fires exactly where the picture says it would.")
     .option("--direction <value>", "Which side of the baseline an `anomaly` or `outliers` rule watches. Omit (or `null`) for either, which is what \"is this unusual\" means; name a side for a metric that is only bad in one direction.")
+    .option("--sustained <value>", "Judge the window by ACCUMULATED departure instead of bucket by bucket. The ordinary check asks every bucket to be past `sigma`, which a slow regression never manages: a metric running 1.5σ worse than normal since Tuesday puts no single bucket past 3σ and pages nobody. A sustained rule adds up each bucket's excess over half a sigma and fires once the total passes twice `sigma` — four buckets at 2σ do it, a lone 3σ spike does not. `anomaly` and `outliers` only, and refused alongside `requiredBuckets`: the accumulated bar IS the evidence bar, and a second one counted in buckets would silently override it.")
     .option("--window-hours <value>", "Lookback window (hours) the metric is aggregated over. 1–720.")
     .option("--bucket-minutes <value>", "Width of the buckets the window is split into, in minutes. Omit (or `null`) to divide the window into 12 equal buckets. The rule is judged per bucket, so this is the resolution at which \"sustained\" is measured — a short bucket asks the condition to hold through finer detail.")
     .option("--required-buckets <value>", "How many buckets must breach before the rule fires. Omit (or `null`) to require every bucket that had data. Buckets with nothing in them are excluded before this is counted, so on a sparse metric `null` can mean a single bucket — set this to 2 or more where one lone sample must never page.")
@@ -361,7 +362,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--enabled <value>", "Whether the rule is evaluated by the cron.")
     .option("--notify <value>", "Delivery target for a notification; `null` = use the project default.")
     .action(async (opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createAlertRule({ client, body: clean({ name: str(opts.name), metricId: str(opts.metricId), kind: str(opts.kind), comparator: str(opts.comparator), threshold: num(opts.threshold), rangeMin: num(opts.rangeMin), rangeMax: num(opts.rangeMax), sigma: num(opts.sigma), direction: str(opts.direction), windowHours: num(opts.windowHours), bucketMinutes: num(opts.bucketMinutes), requiredBuckets: num(opts.requiredBuckets), severity: str(opts.severity), enabled: bool(opts.enabled), notify: json(opts.notify) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createAlertRule({ client, body: clean({ name: str(opts.name), metricId: str(opts.metricId), kind: str(opts.kind), comparator: str(opts.comparator), threshold: num(opts.threshold), rangeMin: num(opts.rangeMin), rangeMax: num(opts.rangeMax), sigma: num(opts.sigma), direction: str(opts.direction), sustained: bool(opts.sustained), windowHours: num(opts.windowHours), bucketMinutes: num(opts.bucketMinutes), requiredBuckets: num(opts.requiredBuckets), severity: str(opts.severity), enabled: bool(opts.enabled), notify: json(opts.notify) }) }) });
     });
   g_ops_alerts.command("update")
     .description("Update an alert rule")
@@ -374,6 +375,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--range-max <value>", "Upper edge of the corridor; `null` drops it.")
     .option("--sigma <value>", "Sigmas an `anomaly` or `outliers` rule fires at; `null` restores the default of 3.")
     .option("--direction <value>", "Which side an `anomaly` or `outliers` rule watches; `null` restores either.")
+    .option("--sustained <value>", "Judge the window by accumulated departure rather than bucket by bucket. `anomaly` and `outliers` only; refused alongside `requiredBuckets`.")
     .option("--window-hours <value>", "")
     .option("--bucket-minutes <value>", "Bucket width in minutes; `null` restores the default 12 buckets per window.")
     .option("--required-buckets <value>", "Buckets that must breach to fire; `null` restores \"every bucket that had data\".")
@@ -381,7 +383,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--enabled <value>", "")
     .option("--notify <value>", "Delivery target for a notification; `null` = use the project default.")
     .action(async (id, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateAlertRule({ client, path: { id: id }, body: clean({ name: str(opts.name), kind: str(opts.kind), comparator: str(opts.comparator), threshold: num(opts.threshold), rangeMin: num(opts.rangeMin), rangeMax: num(opts.rangeMax), sigma: num(opts.sigma), direction: str(opts.direction), windowHours: num(opts.windowHours), bucketMinutes: num(opts.bucketMinutes), requiredBuckets: num(opts.requiredBuckets), severity: str(opts.severity), enabled: bool(opts.enabled), notify: json(opts.notify) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.updateAlertRule({ client, path: { id: id }, body: clean({ name: str(opts.name), kind: str(opts.kind), comparator: str(opts.comparator), threshold: num(opts.threshold), rangeMin: num(opts.rangeMin), rangeMax: num(opts.rangeMax), sigma: num(opts.sigma), direction: str(opts.direction), sustained: bool(opts.sustained), windowHours: num(opts.windowHours), bucketMinutes: num(opts.bucketMinutes), requiredBuckets: num(opts.requiredBuckets), severity: str(opts.severity), enabled: bool(opts.enabled), notify: json(opts.notify) }) }) });
     });
   g_ops_alerts.command("archive")
     .description("Delete an alert rule")

@@ -2371,6 +2371,7 @@ _Parameters_
 | `rangeMax` | optional | `any` | Upper edge of the corridor the metric must stay inside. |
 | `sigma` | optional | `any` | How far from normal is too far, for `anomaly` and `outliers`, in sigma-equivalents. Omit (or `null`) for 3, which is also the half-width of the band a chart draws — so an unconfigured rule fires exactly where the picture says it would. |
 | `direction` | optional | `any` | Which side of the baseline an `anomaly` or `outliers` rule watches. Omit (or `null`) for either, which is what "is this unusual" means; name a side for a metric that is only bad in one direction. |
+| `sustained` | optional | `boolean` | Judge the window by ACCUMULATED departure instead of bucket by bucket. The ordinary check asks every bucket to be past `sigma`, which a slow regression never manages: a metric running 1.5σ worse than normal since Tuesday puts no single bucket past 3σ and pages nobody. A sustained rule adds up each bucket's excess over half a sigma and fires once the total passes twice `sigma` — four buckets at 2σ do it, a lone 3σ spike does not. `anomaly` and `outliers` only, and refused alongside `requiredBuckets`: the accumulated bar IS the evidence bar, and a second one counted in buckets would silently override it. _(default `false`)_ |
 | `windowHours` | optional | `integer` | Lookback window (hours) the metric is aggregated over. 1–720. _(default `24`; 1–720)_ |
 | `bucketMinutes` | optional | `any` | Width of the buckets the window is split into, in minutes. Omit (or `null`) to divide the window into 12 equal buckets. The rule is judged per bucket, so this is the resolution at which "sustained" is measured — a short bucket asks the condition to hold through finer detail. |
 | `requiredBuckets` | optional | `any` | How many buckets must breach before the rule fires. Omit (or `null`) to require every bucket that had data. Buckets with nothing in them are excluded before this is counted, so on a sparse metric `null` can mean a single bucket — set this to 2 or more where one lone sample must never page. |
@@ -2431,6 +2432,7 @@ _Parameters_
 | `rangeMax` | optional | `any` | Upper edge of the corridor; `null` drops it. |
 | `sigma` | optional | `any` | Sigmas an `anomaly` or `outliers` rule fires at; `null` restores the default of 3. |
 | `direction` | optional | `any` | Which side an `anomaly` or `outliers` rule watches; `null` restores either. |
+| `sustained` | optional | `boolean` | Judge the window by accumulated departure rather than bucket by bucket. `anomaly` and `outliers` only; refused alongside `requiredBuckets`. |
 | `windowHours` | optional | `integer` | — _(1–720)_ |
 | `bucketMinutes` | optional | `any` | Bucket width in minutes; `null` restores the default 12 buckets per window. |
 | `requiredBuckets` | optional | `any` | Buckets that must breach to fire; `null` restores "every bucket that had data". |

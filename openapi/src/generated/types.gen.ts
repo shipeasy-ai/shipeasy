@@ -5208,6 +5208,20 @@ export type ListSlackChannelsResponse = {
     }>;
 };
 
+/**
+ * What a `composite` rule is a boolean over. `rules` are sibling alert-rule ids in the same project and `op` is how their states combine. A child's state is what the current pass concluded about it, falling back to whether it has an open instance — so a composite still means something on a tick where a child could not be evaluated, which is exactly the tick a "two of these are broken at once" rule is for. One level deep: a child may not itself be composite.
+ */
+export type AlertCompositeSpec = {
+    /**
+     * How the children's states combine.
+     */
+    op: 'and' | 'or';
+    /**
+     * Ids of the alert rules to combine. Stored sorted and de-duplicated.
+     */
+    rules: Array<string>;
+};
+
 export type ListAlertRulesResponse = Array<{
     /**
      * Stable opaque alert-rule id.
@@ -5226,9 +5240,9 @@ export type ListAlertRulesResponse = Array<{
      */
     metricName: string | null;
     /**
-     * What the rule watches for. `normal` compares the metric's own value — against `threshold` via `comparator`, or against the [`rangeMin`, `rangeMax`] corridor it must stay inside. `anomaly` compares it against ITS OWN seasonal baseline in sigmas, which is the same fit a chart draws as the band. `outliers` compares each `by()` group against its peers in the same bucket, so it needs a grouped metric.
+     * What the rule watches for. `normal` compares the metric's own value — against `threshold` via `comparator`, or against the [`rangeMin`, `rangeMax`] corridor it must stay inside. `anomaly` compares it against ITS OWN seasonal baseline in sigmas, which is the same fit a chart draws as the band. `outliers` compares each `by()` group against its peers in the same bucket, so it needs a grouped metric. `no_data` fires when the metric records nothing at all for `noDataMinutes` — a count of zero is not silence, and the two are distinguished by the reader's presence columns. `composite` is a boolean over OTHER rules' current state and watches no metric of its own.
      */
-    kind: 'normal' | 'anomaly' | 'outliers';
+    kind: 'normal' | 'anomaly' | 'outliers' | 'no_data' | 'composite';
     /**
      * How the metric value is compared to the threshold (gt/gte/lt/lte). Read only by a `normal` rule with no range set.
      */
@@ -5253,6 +5267,42 @@ export type ListAlertRulesResponse = Array<{
      * Which side of the baseline an `anomaly` or `outliers` rule watches. `null` means either.
      */
     direction: 'above' | 'below' | 'either' | null;
+    /**
+     * Whether the rule is judged by ACCUMULATED departure rather than bucket by bucket. `anomaly` and `outliers` only.
+     */
+    sustained: boolean;
+    /**
+     * The milder bound, in the same unit the kind judges in. `null` means the rule has one level.
+     */
+    warnThreshold: number | null;
+    /**
+     * What the metric must get back to before a live alert closes. `null` means no hysteresis — the firing bound clears it.
+     */
+    recoveryThreshold: number | null;
+    /**
+     * Whether the rule fires one alert per `by()` group rather than one for the whole metric.
+     */
+    groupAlerts: boolean;
+    /**
+     * How many groups this rule may alert on at once. `null` takes the shipped cap of 10.
+     */
+    maxGroups: number | null;
+    /**
+     * How long the silence must last for a `no_data` rule. `null` on every other kind.
+     */
+    noDataMinutes: number | null;
+    /**
+     * How far behind live the evaluated window is held, on top of the reader's settle grace. `null` means no extra delay.
+     */
+    delayMinutes: number | null;
+    /**
+     * Close a live instance that has gone this long without a fresh verdict. `null` never auto-resolves.
+     */
+    autoResolveMinutes: number | null;
+    /**
+     * For a `composite` rule, the child rules and how their states combine. `null` on every other kind.
+     */
+    composite: AlertCompositeSpec | null;
     /**
      * Lookback window (hours) the metric is aggregated over.
      */
@@ -5296,7 +5346,7 @@ export type CreateAlertRuleRequest = {
     /**
      * What the rule watches for. `normal` compares the metric's own value — against `threshold` via `comparator`, or against the [`rangeMin`, `rangeMax`] corridor it must stay inside. `anomaly` compares it against its own seasonal baseline in sigmas: the same fit a chart draws as the band, so a point outside the drawn band is exactly a breaching bucket, and one metric can back rules at several sigmas. `outliers` compares each `by()` group against its peers in the same bucket and is refused on a metric with no grouping.
      */
-    kind?: 'normal' | 'anomaly' | 'outliers';
+    kind?: 'normal' | 'anomaly' | 'outliers' | 'no_data' | 'composite';
     /**
      * How the metric value is compared to the threshold. Read only by a `normal` rule with no range set.
      */
@@ -5322,6 +5372,10 @@ export type CreateAlertRuleRequest = {
      */
     direction?: 'above' | 'below' | 'either' | null;
     /**
+     * Judge the window by ACCUMULATED departure instead of bucket by bucket. The ordinary check asks every bucket to be past `sigma`, which a slow regression never manages: a metric running 1.5σ worse than normal since Tuesday puts no single bucket past 3σ and pages nobody. A sustained rule adds up each bucket's excess over half a sigma and fires once the total passes twice `sigma` — four buckets at 2σ do it, a lone 3σ spike does not. `anomaly` and `outliers` only, and refused alongside `requiredBuckets`: the accumulated bar IS the evidence bar, and a second one counted in buckets would silently override it.
+     */
+    sustained?: boolean;
+    /**
      * Lookback window (hours) the metric is aggregated over. 1–720.
      */
     windowHours?: number;
@@ -5334,7 +5388,36 @@ export type CreateAlertRuleRequest = {
      */
     requiredBuckets?: number | null;
     /**
-     * Severity of the raised alert.
+     * The milder bound — a second level, in the same unit the kind judges in, that raises a quieter alert before the firing level is reached. Must be strictly milder than the level the rule fires at, or it could never fire on its own. Refused on a range rule and on a `sustained` one: neither condition is a single number, so there is nothing to substitute.
+     */
+    warnThreshold?: number | null;
+    /**
+     * What the metric must get back to before a live alert closes. Without it a metric sitting on its threshold pages and clears once per tick. Must be on the safe side of the firing level, or equal to it. Omit (or `null`) for no hysteresis.
+     */
+    recoveryThreshold?: number | null;
+    /**
+     * Fire one alert per `by()` group instead of one for the whole metric. The firing key becomes (rule, group), so each group raises, dedupes and recovers on its own. Refused on a metric with no `by()`, and on `no_data` — a group that went silent has no rows left to be missing from.
+     */
+    groupAlerts?: boolean;
+    /**
+     * How many groups this rule may alert on at once. Omit (or `null`) for 10. Past the cap the worst groups fire and the count of the rest is stated on each ticket — a group set is customer data, and an uncapped rule on `by(user_id)` would file a ticket per user.
+     */
+    maxGroups?: number | null;
+    /**
+     * For a `no_data` rule: how long the silence must last. Omit (or `null`) for 15 minutes. Five is the floor — below it, ordinary ingest lag empties the trailing bucket and reads as an outage.
+     */
+    noDataMinutes?: number | null;
+    /**
+     * Hold the evaluated window back this far behind live, on top of the reader's own settle grace. For a metric assembled from a source that lands in batches, whose trailing buckets are legitimately incomplete for longer than the grace covers.
+     */
+    delayMinutes?: number | null;
+    /**
+     * Close a live instance that has gone this long without a fresh verdict. A rule that cannot reach a verdict deliberately leaves its alert alone, which is right for a tick and wrong for a week. Never closes an instance that is currently breaching. Omit (or `null`) to never auto-resolve.
+     */
+    autoResolveMinutes?: number | null;
+    composite?: AlertCompositeSpec;
+    /**
+     * Severity of the raised alert. A `warnThreshold` breach opens one step quieter than this.
      */
     severity?: 'danger' | 'warn' | 'info';
     /**
@@ -5357,7 +5440,7 @@ export type DeleteAlertRuleResponse = {
 
 export type UpdateAlertRuleRequest = {
     name?: string;
-    kind?: 'normal' | 'anomaly' | 'outliers';
+    kind?: 'normal' | 'anomaly' | 'outliers' | 'no_data' | 'composite';
     comparator?: 'gt' | 'gte' | 'lt' | 'lte';
     threshold?: number;
     /**
@@ -5376,6 +5459,39 @@ export type UpdateAlertRuleRequest = {
      * Which side an `anomaly` or `outliers` rule watches; `null` restores either.
      */
     direction?: 'above' | 'below' | 'either' | null;
+    /**
+     * Judge the window by accumulated departure rather than bucket by bucket. `anomaly` and `outliers` only; refused alongside `requiredBuckets`.
+     */
+    sustained?: boolean;
+    /**
+     * The milder bound; `null` drops the warning level, leaving the rule with one.
+     */
+    warnThreshold?: number | null;
+    /**
+     * What the metric must get back to before a live alert closes; `null` drops the hysteresis.
+     */
+    recoveryThreshold?: number | null;
+    /**
+     * Fire one alert per `by()` group. Refused on a metric with no grouping.
+     */
+    groupAlerts?: boolean;
+    /**
+     * How many groups may alert at once; `null` restores the default of 10.
+     */
+    maxGroups?: number | null;
+    /**
+     * How long a `no_data` rule's silence must last; `null` restores 15 minutes.
+     */
+    noDataMinutes?: number | null;
+    /**
+     * How far behind live the window is held; `null` drops the delay.
+     */
+    delayMinutes?: number | null;
+    /**
+     * Close a stale live instance after this long; `null` never auto-resolves.
+     */
+    autoResolveMinutes?: number | null;
+    composite?: AlertCompositeSpec;
     windowHours?: number;
     /**
      * Bucket width in minutes; `null` restores the default 12 buckets per window.
