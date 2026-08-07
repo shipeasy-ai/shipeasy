@@ -1,11 +1,12 @@
-# File a Shipeasy ops bug whenever a workflow on `main` fails — we dogfood our
-# own queue for our own CI, instead of relying on someone noticing a red run.
+# Keep a Shipeasy ops bug in sync with each workflow's health on `main` — we
+# dogfood our own queue for our own CI, instead of relying on someone noticing
+# a red run.
 #
-# Deduped the way the ops skill demands: ONE open item per workflow. A repeat
-# failure comments the new run onto the existing item rather than filing a
-# second one, so a workflow that's been red for a week is one row with a
-# history, not seven rows. The item is closed by hand (or by the ops-work
-# loop) once the workflow is green again.
+# ONE item per workflow, for its whole red period:
+#   - first failure          → file a bug
+#   - re-run / next failure  → comment the new run onto the SAME item, never a
+#                              second bug
+#   - first green run        → comment the fix and flip it to `resolved`
 #
 # Workflow names below must match each workflow's `name:` EXACTLY — GitHub
 # silently never triggers on a name that doesn't exist.
@@ -28,8 +29,8 @@ on:
     types: [completed]
 
 concurrency:
-  # One reporter at a time, so two workflows failing together can't both miss
-  # the other's item and file a duplicate.
+  # Serialized: two reporters running at once could both miss the other's item
+  # and file a duplicate, which is the one thing this workflow exists to avoid.
   group: report-ci-failure
   cancel-in-progress: false
 
@@ -39,9 +40,11 @@ permissions:
 
 jobs:
   report:
+    # `cancelled` and `skipped` say nothing about health — only a real verdict
+    # opens or closes an item.
     if: >
-      github.event.workflow_run.conclusion == 'failure' &&
-      github.event.workflow_run.head_branch == 'main'
+      github.event.workflow_run.head_branch == 'main' &&
+      contains(fromJSON('["failure","timed_out","success"]'), github.event.workflow_run.conclusion)
     runs-on: ubuntu-latest
     env:
       # A CLI session token + the project it's bound to (`shipeasy login`'s env
@@ -54,21 +57,51 @@ jobs:
       RUN_URL: ${{ github.event.workflow_run.html_url }}
       RUN_ID: ${{ github.event.workflow_run.id }}
       HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+      CONCLUSION: ${{ github.event.workflow_run.conclusion }}
     steps:
       - name: Check the reporter is configured
         run: |
           if [ -z "$SHIPEASY_CLI_TOKEN" ]; then
-            echo "::warning::SHIPEASY_CLI_TOKEN is not set — cannot file the CI failure. Add the secret to enable this."
+            echo "::warning::SHIPEASY_CLI_TOKEN is not set — cannot sync the CI item. Add the secret to enable this."
           fi
 
       - name: Install the Shipeasy CLI
         if: env.SHIPEASY_CLI_TOKEN != ''
         run: npm install -g @shipeasy/cli@latest
 
-      - name: File or update the ops item
+      - name: Open, update, or close this workflow's item
         if: env.SHIPEASY_CLI_TOKEN != ''
         run: |
           set -euo pipefail
+
+          TITLE="CI failed: ${WF_NAME}"
+
+          # The item this workflow already owns, if any. Two queries because
+          # `status=all` deliberately EXCLUDES `pending_approval` — an item
+          # parked there is still tracking this workflow, and missing it would
+          # file the duplicate this whole workflow exists to prevent.
+          find_handle() {
+            { shipeasy ops list --type bug --status all --limit 500
+              shipeasy ops list --type bug --status pending_approval --limit 500
+            } | jq -rs --arg t "$TITLE" '
+                  [ .[] | (if type == "array" then . else .data end) ] | add
+                  | map(select(.title == $t and (.status | IN("resolved","wont_fix") | not)))
+                  | first | .number // empty'
+          }
+          HANDLE=$(find_handle)
+
+          if [ "$CONCLUSION" = "success" ]; then
+            if [ -z "$HANDLE" ]; then
+              echo "Green, and nothing open for ${WF_NAME} — nothing to do"
+              exit 0
+            fi
+            echo "Green again — resolving #${HANDLE}"
+            shipeasy ops comments create "$HANDLE" --body \
+              "$(printf 'Green again on %s\nRun: %s\nCommit: %s\n\nAuto-resolved by the CI reporter\n' \
+                 "$WF_NAME" "$RUN_URL" "$HEAD_SHA")"
+            shipeasy ops update "$HANDLE" --status resolved
+            exit 0
+          fi
 
           # Failing job → failing step, so the item says what broke, not just
           # that something did.
@@ -80,17 +113,9 @@ jobs:
 
           BODY=$(printf 'Workflow: %s\nRun: %s\nCommit: %s\n\nFailed:\n%s\n' \
             "$WF_NAME" "$RUN_URL" "$HEAD_SHA" "$(cat failed.txt)")
-          TITLE="CI failed: ${WF_NAME}"
-
-          # Open == anything not yet resolved/wont_fix. `ops list` prints JSON.
-          HANDLE=$(shipeasy ops list --type bug --status all --limit 200 \
-            | jq -r --arg t "$TITLE" '
-                (if type == "array" then . else .data end)
-                | map(select(.title == $t and (.status | IN("resolved","wont_fix") | not)))
-                | first | .number // empty')
 
           if [ -n "$HANDLE" ]; then
-            echo "Already tracked as #${HANDLE} — commenting the new run onto it"
+            echo "Already tracked as #${HANDLE} — commenting this run onto it"
             shipeasy ops comments create "$HANDLE" --body "$BODY"
           else
             shipeasy ops bug "$TITLE" \
