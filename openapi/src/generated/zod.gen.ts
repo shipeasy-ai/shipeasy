@@ -1565,6 +1565,20 @@ export const zMetricDirection = z.enum([
 export const zMetricDisplayUnit = z.string().nullable();
 
 /**
+ * How the metric's series is DRAWN, as opposed to what it measures. Both parts used to be DSL functions (`expected(q, seasonal)`, `forecast(q, …)`), which meant turning a band on minted a different metric; they are properties now, so every chart of the metric picks them up and nothing that JUDGES the metric — an alert rule, the experiment analyzer — reads them at all.
+ */
+export const zMetricDisplayConfig = z.object({
+    band: z.object({
+        method: z.enum(['seasonal']),
+        sigma: z.number().gt(0).optional()
+    }).optional(),
+    forecast: z.object({
+        method: z.enum(['linear', 'seasonal']),
+        horizon: z.int().gte(1).lte(500).optional()
+    }).optional()
+});
+
+/**
  * Create a metric, supplying the query as a `query` DSL string.
  */
 export const zCreateMetricWithQuery = z.object({
@@ -1575,7 +1589,8 @@ export const zCreateMetricWithQuery = z.object({
     winsorize_pct: zMetricWinsorizePct.optional(),
     default_min_effect_of_interest: zMetricDefaultMinEffectOfInterest.optional(),
     direction: zMetricDirection.optional(),
-    unit: zMetricDisplayUnit.optional()
+    unit: zMetricDisplayUnit.optional(),
+    display: zMetricDisplayConfig.optional()
 });
 
 /**
@@ -1589,7 +1604,8 @@ export const zCreateMetricWithQueryIr = z.object({
     winsorize_pct: zMetricWinsorizePct.optional(),
     default_min_effect_of_interest: zMetricDefaultMinEffectOfInterest.optional(),
     direction: zMetricDirection.optional(),
-    unit: zMetricDisplayUnit.optional()
+    unit: zMetricDisplayUnit.optional(),
+    display: zMetricDisplayConfig.optional()
 });
 
 /**
@@ -1651,7 +1667,8 @@ export const zUpdateMetricWithQuery = z.object({
     winsorize_pct: zMetricWinsorizePct.optional(),
     default_min_effect_of_interest: zMetricDefaultMinEffectOfInterest.optional(),
     direction: zMetricDirection.optional(),
-    unit: zMetricDisplayUnit.optional()
+    unit: zMetricDisplayUnit.optional(),
+    display: zMetricDisplayConfig.optional()
 });
 
 /**
@@ -1664,11 +1681,12 @@ export const zUpdateMetricWithQueryIr = z.object({
     winsorize_pct: zMetricWinsorizePct.optional(),
     default_min_effect_of_interest: zMetricDefaultMinEffectOfInterest.optional(),
     direction: zMetricDirection.optional(),
-    unit: zMetricDisplayUnit.optional()
+    unit: zMetricDisplayUnit.optional(),
+    display: zMetricDisplayConfig.optional()
 });
 
 /**
- * Update-metric variant that leaves the query untouched (metadata-only edit — folder, event, winsorisation, default minimum effect of interest, direction, display unit).
+ * Update-metric variant that leaves the query untouched (metadata-only edit — folder, event, winsorisation, default minimum effect of interest, direction, display unit, band and projection).
  */
 export const zUpdateMetricFields = z.object({
     folder: zFolder.optional(),
@@ -1676,7 +1694,8 @@ export const zUpdateMetricFields = z.object({
     winsorize_pct: zMetricWinsorizePct.optional(),
     default_min_effect_of_interest: zMetricDefaultMinEffectOfInterest.optional(),
     direction: zMetricDirection.optional(),
-    unit: zMetricDisplayUnit.optional()
+    unit: zMetricDisplayUnit.optional(),
+    display: zMetricDisplayConfig.optional()
 });
 
 /**
@@ -1732,7 +1751,9 @@ export const zGetMetricSeriesResponse = z.object({
     sql: z.string(),
     rows: z.array(z.object({
         t: z.int(),
-        v: z.number()
+        v: z.number(),
+        lo: z.number().optional(),
+        hi: z.number().optional()
     }))
 });
 
@@ -2720,6 +2741,11 @@ export const zListAlertRulesResponse = z.array(z.object({
     name: z.string(),
     metricId: z.string(),
     metricName: z.string().nullable(),
+    kind: z.enum([
+        'normal',
+        'anomaly',
+        'outliers'
+    ]),
     comparator: z.enum([
         'gt',
         'gte',
@@ -2727,6 +2753,14 @@ export const zListAlertRulesResponse = z.array(z.object({
         'lte'
     ]),
     threshold: z.number(),
+    rangeMin: z.number().nullable(),
+    rangeMax: z.number().nullable(),
+    sigma: z.number().nullable(),
+    direction: z.enum([
+        'above',
+        'below',
+        'either'
+    ]).nullable(),
     windowHours: z.int().gte(-9007199254740991).lte(9007199254740991),
     bucketMinutes: z.int().nullable(),
     requiredBuckets: z.int().nullable(),
@@ -2744,13 +2778,26 @@ export const zListAlertRulesResponse = z.array(z.object({
 export const zCreateAlertRuleRequest = z.object({
     name: z.string().min(1).max(120),
     metricId: z.string().min(1),
+    kind: z.enum([
+        'normal',
+        'anomaly',
+        'outliers'
+    ]).optional().default('normal'),
     comparator: z.enum([
         'gt',
         'gte',
         'lt',
         'lte'
-    ]),
-    threshold: z.number(),
+    ]).optional().default('gt'),
+    threshold: z.number().optional(),
+    rangeMin: z.number().nullish(),
+    rangeMax: z.number().nullish(),
+    sigma: z.number().gt(0).nullish(),
+    direction: z.enum([
+        'above',
+        'below',
+        'either'
+    ]).nullish(),
     windowHours: z.int().gte(1).lte(720).optional().default(24),
     bucketMinutes: z.int().gte(1).lte(43200).nullish(),
     requiredBuckets: z.int().gte(1).nullish(),
@@ -2773,6 +2820,11 @@ export const zDeleteAlertRuleResponse = z.object({
 
 export const zUpdateAlertRuleRequest = z.object({
     name: z.string().min(1).max(120).optional(),
+    kind: z.enum([
+        'normal',
+        'anomaly',
+        'outliers'
+    ]).optional(),
     comparator: z.enum([
         'gt',
         'gte',
@@ -2780,6 +2832,14 @@ export const zUpdateAlertRuleRequest = z.object({
         'lte'
     ]).optional(),
     threshold: z.number().optional(),
+    rangeMin: z.number().nullish(),
+    rangeMax: z.number().nullish(),
+    sigma: z.number().gt(0).nullish(),
+    direction: z.enum([
+        'above',
+        'below',
+        'either'
+    ]).nullish(),
     windowHours: z.int().gte(1).lte(720).optional(),
     bucketMinutes: z.int().gte(1).lte(43200).nullish(),
     requiredBuckets: z.int().gte(1).nullish(),

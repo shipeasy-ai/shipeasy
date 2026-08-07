@@ -157,7 +157,7 @@ shipeasy metrics events create [options] <name>
 
 | Argument | | Description |
 | --- | --- | --- |
-| `name` | required | Event name. Starts with a letter, digit, or `_`; letters, digits, `_`, `-`, `.`; max 128 chars. Immutable after create — this is the handle metric queries reference. |
+| `name` | required | Event name. Starts with a letter, digit, or `_`; letters, digits, `_`, `-`, `.`; max 50 characters. The cap is the Analytics Engine index budget — 96 bytes total, less a 36-byte project UUID and a separator — and the API has always enforced 50 while this spec advertised 128. The charset is ASCII, so characters and bytes are the same count. Immutable after create — this is the handle metric queries reference. |
 
 | Option | | Description |
 | --- | --- | --- |
@@ -267,6 +267,7 @@ shipeasy metrics create [options] <name>
 | `--default-min-effect-of-interest <value>` | optional | Default minimum effect of interest (relative, 0–1) — the smallest change in this metric worth acting on, used as the power-planning baseline. Intrinsic to the metric; an experiment overrides it per-attachment with `min_effect_of_interest` when a specific decision has a different cost/risk bar. `null` to omit. |
 | `--direction <value>` | optional | Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail). |
 | `--unit <value>` | optional | Display unit (e.g. `ms`, `%`, `$`), or `null` when unitless. |
+| `--display <value>` | optional | How the metric's series is DRAWN, as opposed to what it measures. Both parts used to be DSL functions (`expected(q, seasonal)`, `forecast(q, …)`), which meant turning a band on minted a different metric; they are properties now, so every chart of the metric picks them up and nothing that JUDGES the metric — an alert rule, the experiment analyzer — reads them at all. |
 | `--query-ir <value>` | optional | Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body. |
 
 ### `shipeasy metrics show`
@@ -306,6 +307,7 @@ shipeasy metrics update [options] <id>
 | `--default-min-effect-of-interest <value>` | optional | Default minimum effect of interest (relative, 0–1) — the smallest change in this metric worth acting on, used as the power-planning baseline. Intrinsic to the metric; an experiment overrides it per-attachment with `min_effect_of_interest` when a specific decision has a different cost/risk bar. `null` to omit. |
 | `--direction <value>` | optional | Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail). |
 | `--unit <value>` | optional | Display unit (e.g. `ms`, `%`, `$`), or `null` when unitless. |
+| `--display <value>` | optional | How the metric's series is DRAWN, as opposed to what it measures. Both parts used to be DSL functions (`expected(q, seasonal)`, `forecast(q, …)`), which meant turning a band on minted a different metric; they are properties now, so every chart of the metric picks them up and nothing that JUDGES the metric — an alert rule, the experiment analyzer — reads them at all. |
 | `--query-ir <value>` | optional | Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body. |
 
 ### `shipeasy metrics archive`
@@ -455,9 +457,16 @@ shipeasy ops alerts create [options]
 | --- | --- | --- |
 | `--name <value>` | optional | Human label for the rule, shown on the alert and the rules list. |
 | `--metric-id <value>` | optional | Id of the metric to evaluate. |
-| `--comparator <value>` | optional | How the metric value is compared to the threshold (gt/gte/lt/lte). |
-| `--threshold <value>` | optional | Threshold the metric value is compared against. |
+| `--kind <value>` | optional | What the rule watches for. `normal` compares the metric's own value — against `threshold` via `comparator`, or against the [`rangeMin`, `rangeMax`] corridor it must stay inside. `anomaly` compares it against its own seasonal baseline in sigmas: the same fit a chart draws as the band, so a point outside the drawn band is exactly a breaching bucket, and one metric can back rules at several sigmas. `outliers` compares each `by()` group against its peers in the same bucket and is refused on a metric with no grouping. |
+| `--comparator <value>` | optional | How the metric value is compared to the threshold. Read only by a `normal` rule with no range set. |
+| `--threshold <value>` | optional | Threshold the metric value is compared against. Required for a `normal` rule unless a range is given; ignored by every other kind. |
+| `--range-min <value>` | optional | Lower edge of the corridor the metric must stay inside. Setting either bound switches a `normal` rule off `comparator`/`threshold` and onto the range, which breaches on LEAVING it in either direction. One bound alone is a one-sided range. |
+| `--range-max <value>` | optional | Upper edge of the corridor the metric must stay inside. |
+| `--sigma <value>` | optional | How far from normal is too far, for `anomaly` and `outliers`, in sigma-equivalents. Omit (or `null`) for 3, which is also the half-width of the band a chart draws — so an unconfigured rule fires exactly where the picture says it would. |
+| `--direction <value>` | optional | Which side of the baseline an `anomaly` or `outliers` rule watches. Omit (or `null`) for either, which is what "is this unusual" means; name a side for a metric that is only bad in one direction. |
 | `--window-hours <value>` | optional | Lookback window (hours) the metric is aggregated over. 1–720. |
+| `--bucket-minutes <value>` | optional | Width of the buckets the window is split into, in minutes. Omit (or `null`) to divide the window into 12 equal buckets. The rule is judged per bucket, so this is the resolution at which "sustained" is measured — a short bucket asks the condition to hold through finer detail. |
+| `--required-buckets <value>` | optional | How many buckets must breach before the rule fires. Omit (or `null`) to require every bucket that had data. Buckets with nothing in them are excluded before this is counted, so on a sparse metric `null` can mean a single bucket — set this to 2 or more where one lone sample must never page. |
 | `--severity <value>` | optional | Severity of the raised alert. |
 | `--enabled <value>` | optional | Whether the rule is evaluated by the cron. |
 | `--notify <value>` | optional | Delivery target for a notification; `null` = use the project default. |
@@ -477,9 +486,16 @@ shipeasy ops alerts update [options] <id>
 | Option | | Description |
 | --- | --- | --- |
 | `--name <value>` | optional | — |
+| `--kind <value>` | optional | — |
 | `--comparator <value>` | optional | — |
 | `--threshold <value>` | optional | — |
+| `--range-min <value>` | optional | Lower edge of the corridor; `null` drops it, returning the rule to comparator and threshold when both bounds are gone. |
+| `--range-max <value>` | optional | Upper edge of the corridor; `null` drops it. |
+| `--sigma <value>` | optional | Sigmas an `anomaly` or `outliers` rule fires at; `null` restores the default of 3. |
+| `--direction <value>` | optional | Which side an `anomaly` or `outliers` rule watches; `null` restores either. |
 | `--window-hours <value>` | optional | — |
+| `--bucket-minutes <value>` | optional | Bucket width in minutes; `null` restores the default 12 buckets per window. |
+| `--required-buckets <value>` | optional | Buckets that must breach to fire; `null` restores "every bucket that had data". |
 | `--severity <value>` | optional | — |
 | `--enabled <value>` | optional | — |
 | `--notify <value>` | optional | Delivery target for a notification; `null` = use the project default. |
@@ -572,11 +588,11 @@ shipeasy ops fired-alerts update [options] <id>
 
 | Argument | | Description |
 | --- | --- | --- |
-| `id` | required | Stable opaque alert id (`al_…`). |
+| `id` | required | Stable opaque instance id — the same id as the `alert` ops item this instance is. |
 
 | Option | | Description |
 | --- | --- | --- |
-| `--status <value>` | optional | New lifecycle state. `resolved` / `dismissed` stamp their timestamp; `active` re-opens and clears both. |
+| `--status <value>` | optional | New lifecycle state, written through to the queue item (`resolved` / `wont_fix` / `open`). `resolved` / `dismissed` stamp their timestamp; `active` re-opens and clears both. |
 | `--assignee-id <value>` | optional | PERSON owner — a `users.id`, or `null` to clear the assignment. |
 | `--agent <value>` | optional | AGENT owner — a connected trigger connector's id (`connectors.id`), the built-in `"jarvis"` (Enterprise plan only — rejected with `403` otherwise), or `null` to clear. Stored in `assigneeConnectorId` or `assigneeAgent` depending on the value; the two are mutually exclusive. |
 
@@ -718,7 +734,7 @@ shipeasy ops trigger create cursor [options]
 | `--events <value>` | optional | Events that auto-fire a cold cloud-agent run. Defaults to empty. |
 | `--config <value>` | optional | Non-secret config for a Cursor trigger. |
 | `--api-key <value>` | optional | Cursor API key that launches the run (secret). Encrypted into the credentials cipher; never returned. |
-| `--ops-key <value>` | optional | Restricted Shipeasy ops key, injected into the run as `SHIPEASY_CLI_TOKEN` via the launch envVars (secret). Encrypted; never returned. |
+| `--ops-key <value>` | optional | Restricted Shipeasy ops key (secret). Sent as the Bearer for the Shipeasy MCP server handed to each run inline — never in the prompt text or the run env. Encrypted; never returned. |
 | `--enabled <value>` | optional | Whether the trigger is active on create. |
 
 ##### `shipeasy ops trigger create copilot`

@@ -19373,6 +19373,58 @@
           }
         ]
       },
+      "MetricDisplayConfig": {
+        "description": "How the metric's series is DRAWN, as opposed to what it measures. Both parts used to be DSL functions (`expected(q, seasonal)`, `forecast(q, …)`), which meant turning a band on minted a different metric; they are properties now, so every chart of the metric picks them up and nothing that JUDGES the metric — an alert rule, the experiment analyzer — reads them at all.",
+        "type": "object",
+        "properties": {
+          "band": {
+            "description": "Shade the seasonal baseline around the series. The fit is the median of this hour of the week over the four weeks before the window, and it is the SAME fit an `anomaly` alert rule fires on — so the shaded region is exactly where such a rule would stay quiet, whether or not one exists.",
+            "type": "object",
+            "properties": {
+              "method": {
+                "type": "string",
+                "enum": [
+                  "seasonal"
+                ]
+              },
+              "sigma": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "description": "Half-width of the band in sigma-equivalents. Omit for 3, the sigma an alert rule also defaults to."
+              }
+            },
+            "required": [
+              "method"
+            ],
+            "additionalProperties": false
+          },
+          "forecast": {
+            "description": "Project the series past the end of the window. Projected buckets are marked, so a chart can draw an estimate differently from a measurement.",
+            "type": "object",
+            "properties": {
+              "method": {
+                "type": "string",
+                "enum": [
+                  "linear",
+                  "seasonal"
+                ],
+                "description": "`linear` continues a least-squares slope over the window it is already reading. `seasonal` de-seasonalises against the four weeks before the window, fits the trend on the remainder and adds the hour-of-week term back — ask for it when the metric has a shape."
+              },
+              "horizon": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 500,
+                "description": "Buckets to project. Omit for a quarter of the window, which is the same claim at every bucket width."
+              }
+            },
+            "required": [
+              "method"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
       "CreateMetricWithQuery": {
         "type": "object",
         "properties": {
@@ -19399,6 +19451,9 @@
           },
           "unit": {
             "$ref": "#/components/schemas/MetricDisplayUnit"
+          },
+          "display": {
+            "$ref": "#/components/schemas/MetricDisplayConfig"
           }
         },
         "required": [
@@ -19435,6 +19490,9 @@
           },
           "unit": {
             "$ref": "#/components/schemas/MetricDisplayUnit"
+          },
+          "display": {
+            "$ref": "#/components/schemas/MetricDisplayConfig"
           }
         },
         "required": [
@@ -19664,6 +19722,9 @@
           },
           "unit": {
             "$ref": "#/components/schemas/MetricDisplayUnit"
+          },
+          "display": {
+            "$ref": "#/components/schemas/MetricDisplayConfig"
           }
         },
         "required": [
@@ -19695,6 +19756,9 @@
           },
           "unit": {
             "$ref": "#/components/schemas/MetricDisplayUnit"
+          },
+          "display": {
+            "$ref": "#/components/schemas/MetricDisplayConfig"
           }
         },
         "required": [
@@ -19723,10 +19787,13 @@
           },
           "unit": {
             "$ref": "#/components/schemas/MetricDisplayUnit"
+          },
+          "display": {
+            "$ref": "#/components/schemas/MetricDisplayConfig"
           }
         },
         "additionalProperties": false,
-        "description": "Update-metric variant that leaves the query untouched (metadata-only edit — folder, event, winsorisation, default minimum effect of interest, direction, display unit)."
+        "description": "Update-metric variant that leaves the query untouched (metadata-only edit — folder, event, winsorisation, default minimum effect of interest, direction, display unit, band and projection)."
       },
       "UpdateMetricRequest": {
         "oneOf": [
@@ -19859,6 +19926,14 @@
                 "v": {
                   "type": "number",
                   "description": "Aggregated metric value in the bucket (sample-interval weighted)."
+                },
+                "lo": {
+                  "type": "number",
+                  "description": "Lower edge of the seasonal band — what this hour of the week normally holds, `sigma` below the median of the four weeks before the window. Present only for a metric whose `display.band` is on, and always alongside `hi`.\n"
+                },
+                "hi": {
+                  "type": "number",
+                  "description": "Upper edge of the seasonal band. Present only for a metric whose `display.band` is on, and always alongside `lo`. A point outside `[lo, hi]` is exactly a bucket an `anomaly` alert rule at the same sigma would breach on — the band a chart draws and the condition a rule fires on come from one fit.\n"
                 }
               },
               "required": [
@@ -23757,6 +23832,15 @@
               ],
               "description": "Display name of the bound metric, or `null` if the metric no longer exists."
             },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "normal",
+                "anomaly",
+                "outliers"
+              ],
+              "description": "What the rule watches for. `normal` compares the metric's own value — against `threshold` via `comparator`, or against the [`rangeMin`, `rangeMax`] corridor it must stay inside. `anomaly` compares it against ITS OWN seasonal baseline in sigmas, which is the same fit a chart draws as the band. `outliers` compares each `by()` group against its peers in the same bucket, so it needs a grouped metric."
+            },
             "comparator": {
               "type": "string",
               "enum": [
@@ -23765,11 +23849,60 @@
                 "lt",
                 "lte"
               ],
-              "description": "How the metric value is compared to the threshold (gt/gte/lt/lte)."
+              "description": "How the metric value is compared to the threshold (gt/gte/lt/lte). Read only by a `normal` rule with no range set."
             },
             "threshold": {
               "type": "number",
-              "description": "Threshold the metric value is compared against."
+              "description": "Threshold the metric value is compared against. Read only by a `normal` rule with no range set."
+            },
+            "rangeMin": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Lower edge of the corridor a `normal` rule must stay inside; `null` if the rule is judged by comparator and threshold."
+            },
+            "rangeMax": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Upper edge of the corridor a `normal` rule must stay inside; `null` if the rule is judged by comparator and threshold."
+            },
+            "sigma": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "How far from normal is too far, for `anomaly` and `outliers`, in sigma-equivalents. `null` takes the default of 3, which is also the width of the band a chart draws."
+            },
+            "direction": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "above",
+                    "below",
+                    "either"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Which side of the baseline an `anomaly` or `outliers` rule watches. `null` means either."
             },
             "windowHours": {
               "type": "integer",
@@ -23829,8 +23962,13 @@
             "name",
             "metricId",
             "metricName",
+            "kind",
             "comparator",
             "threshold",
+            "rangeMin",
+            "rangeMax",
+            "sigma",
+            "direction",
             "windowHours",
             "bucketMinutes",
             "requiredBuckets",
@@ -23858,19 +23996,80 @@
             "minLength": 1,
             "description": "Id of the metric to evaluate."
           },
+          "kind": {
+            "default": "normal",
+            "description": "What the rule watches for. `normal` compares the metric's own value — against `threshold` via `comparator`, or against the [`rangeMin`, `rangeMax`] corridor it must stay inside. `anomaly` compares it against its own seasonal baseline in sigmas: the same fit a chart draws as the band, so a point outside the drawn band is exactly a breaching bucket, and one metric can back rules at several sigmas. `outliers` compares each `by()` group against its peers in the same bucket and is refused on a metric with no grouping.",
+            "type": "string",
+            "enum": [
+              "normal",
+              "anomaly",
+              "outliers"
+            ]
+          },
           "comparator": {
+            "default": "gt",
+            "description": "How the metric value is compared to the threshold. Read only by a `normal` rule with no range set.",
             "type": "string",
             "enum": [
               "gt",
               "gte",
               "lt",
               "lte"
-            ],
-            "description": "How the metric value is compared to the threshold (gt/gte/lt/lte)."
+            ]
           },
           "threshold": {
             "type": "number",
-            "description": "Threshold the metric value is compared against."
+            "description": "Threshold the metric value is compared against. Required for a `normal` rule unless a range is given; ignored by every other kind."
+          },
+          "rangeMin": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Lower edge of the corridor the metric must stay inside. Setting either bound switches a `normal` rule off `comparator`/`threshold` and onto the range, which breaches on LEAVING it in either direction. One bound alone is a one-sided range."
+          },
+          "rangeMax": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Upper edge of the corridor the metric must stay inside."
+          },
+          "sigma": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How far from normal is too far, for `anomaly` and `outliers`, in sigma-equivalents. Omit (or `null`) for 3, which is also the half-width of the band a chart draws — so an unconfigured rule fires exactly where the picture says it would."
+          },
+          "direction": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "above",
+                  "below",
+                  "either"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Which side of the baseline an `anomaly` or `outliers` rule watches. Omit (or `null`) for either, which is what \"is this unusual\" means; name a side for a metric that is only bad in one direction."
           },
           "windowHours": {
             "default": 24,
@@ -23925,9 +24124,7 @@
         },
         "required": [
           "name",
-          "metricId",
-          "comparator",
-          "threshold"
+          "metricId"
         ],
         "additionalProperties": false
       },
@@ -23965,6 +24162,14 @@
             "minLength": 1,
             "maxLength": 120
           },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "normal",
+              "anomaly",
+              "outliers"
+            ]
+          },
           "comparator": {
             "type": "string",
             "enum": [
@@ -23976,6 +24181,56 @@
           },
           "threshold": {
             "type": "number"
+          },
+          "rangeMin": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Lower edge of the corridor; `null` drops it, returning the rule to comparator and threshold when both bounds are gone."
+          },
+          "rangeMax": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Upper edge of the corridor; `null` drops it."
+          },
+          "sigma": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sigmas an `anomaly` or `outliers` rule fires at; `null` restores the default of 3."
+          },
+          "direction": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "above",
+                  "below",
+                  "either"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Which side an `anomaly` or `outliers` rule watches; `null` restores either."
           },
           "windowHours": {
             "type": "integer",

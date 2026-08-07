@@ -492,6 +492,57 @@ MetricDisplayUnit:
   anyOf:
     - type: string
     - type: "null"
+MetricDisplayConfig:
+  description: >-
+    How the metric's series is DRAWN, as opposed to what it measures. Both parts
+    used to be DSL functions (`expected(q, seasonal)`, `forecast(q, …)`), which
+    meant turning a band on minted a different metric; they are properties now,
+    so every chart of the metric picks them up and nothing that JUDGES the metric
+    — an alert rule, the experiment analyzer — reads them at all.
+  type: object
+  properties:
+    band:
+      description: >-
+        Shade the seasonal baseline around the series. The fit is the median of
+        this hour of the week over the four weeks before the window, and it is
+        the SAME fit an `anomaly` alert rule fires on — so the shaded region is
+        exactly where such a rule would stay quiet, whether or not one exists.
+      type: object
+      properties:
+        method:
+          type: string
+          enum:
+            - seasonal
+        sigma:
+          type: number
+          exclusiveMinimum: 0
+          description: Half-width of the band in sigma-equivalents. Omit for 3, the sigma an alert rule also defaults to.
+      required:
+        - method
+      additionalProperties: false
+    forecast:
+      description: Project the series past the end of the window. Projected buckets are marked, so a chart can draw an estimate differently from a measurement.
+      type: object
+      properties:
+        method:
+          type: string
+          enum:
+            - linear
+            - seasonal
+          description: >-
+            `linear` continues a least-squares slope over the window it is
+            already reading. `seasonal` de-seasonalises against the four weeks
+            before the window, fits the trend on the remainder and adds the
+            hour-of-week term back — ask for it when the metric has a shape.
+        horizon:
+          type: integer
+          minimum: 1
+          maximum: 500
+          description: Buckets to project. Omit for a quarter of the window, which is the same claim at every bucket width.
+      required:
+        - method
+      additionalProperties: false
+  additionalProperties: false
 CreateMetricRequest:
   oneOf:
     - $ref: "#/CreateMetricWithQuery"
@@ -516,6 +567,8 @@ CreateMetricWithQuery:
       $ref: "#/MetricDirection"
     unit:
       $ref: "#/MetricDisplayUnit"
+    display:
+      $ref: "#/MetricDisplayConfig"
   required:
     - name
     - event_name
@@ -541,6 +594,8 @@ CreateMetricWithQueryIr:
       $ref: "#/MetricDirection"
     unit:
       $ref: "#/MetricDisplayUnit"
+    display:
+      $ref: "#/MetricDisplayConfig"
   required:
     - name
     - event_name
@@ -570,6 +625,8 @@ UpdateMetricWithQuery:
       $ref: "#/MetricDirection"
     unit:
       $ref: "#/MetricDisplayUnit"
+    display:
+      $ref: "#/MetricDisplayConfig"
   required:
     - query
   additionalProperties: false
@@ -591,6 +648,8 @@ UpdateMetricWithQueryIr:
       $ref: "#/MetricDirection"
     unit:
       $ref: "#/MetricDisplayUnit"
+    display:
+      $ref: "#/MetricDisplayConfig"
   required:
     - query_ir
   additionalProperties: false
@@ -610,8 +669,10 @@ UpdateMetricFields:
       $ref: "#/MetricDirection"
     unit:
       $ref: "#/MetricDisplayUnit"
+    display:
+      $ref: "#/MetricDisplayConfig"
   additionalProperties: false
-  description: Update-metric variant that leaves the query untouched (metadata-only edit — folder, event, winsorisation, default minimum effect of interest, direction, display unit).
+  description: Update-metric variant that leaves the query untouched (metadata-only edit — folder, event, winsorisation, default minimum effect of interest, direction, display unit, band and projection).
 CreateMetricResponse:
   type: object
   properties:
@@ -729,6 +790,14 @@ GetMetricSeriesResponse:
           v:
             type: number
             description: Aggregated metric value in the bucket (sample-interval weighted).
+          lo:
+            type: number
+            description: |
+              Lower edge of the seasonal band — what this hour of the week normally holds, `sigma` below the median of the four weeks before the window. Present only for a metric whose `display.band` is on, and always alongside `hi`.
+          hi:
+            type: number
+            description: |
+              Upper edge of the seasonal band. Present only for a metric whose `display.band` is on, and always alongside `lo`. A point outside `[lo, hi]` is exactly a bucket an `anomaly` alert rule at the same sigma would breach on — the band a chart draws and the condition a rule fires on come from one fit.
         required:
           - t
           - v

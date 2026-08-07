@@ -1629,6 +1629,13 @@ _Parameters_
 | `default_min_effect_of_interest` | optional | `any` | Default minimum effect of interest (relative, 0–1) — the smallest change in this metric worth acting on, used as the power-planning baseline. Intrinsic to the metric; an experiment overrides it per-attachment with `min_effect_of_interest` when a specific decision has a different cost/risk bar. `null` to omit. _(default `null`)_ |
 | `direction` | optional | `"higher_better" \| "lower_better" \| "neutral"` | Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail). _(default `"higher_better"`)_ |
 | `unit` | optional | `any` | Display unit (e.g. `ms`, `%`, `$`), or `null` when unitless. |
+| `display` | optional | `object` | How the metric's series is DRAWN, as opposed to what it measures. Both parts used to be DSL functions (`expected(q, seasonal)`, `forecast(q, …)`), which meant turning a band on minted a different metric; they are properties now, so every chart of the metric picks them up and nothing that JUDGES the metric — an alert rule, the experiment analyzer — reads them at all. |
+| `display.band` | optional | `object` | Shade the seasonal baseline around the series. The fit is the median of this hour of the week over the four weeks before the window, and it is the SAME fit an `anomaly` alert rule fires on — so the shaded region is exactly where such a rule would stay quiet, whether or not one exists. |
+| `display.band.method` | required | `"seasonal"` | — |
+| `display.band.sigma` | optional | `number` | Half-width of the band in sigma-equivalents. Omit for 3, the sigma an alert rule also defaults to. |
+| `display.forecast` | optional | `object` | Project the series past the end of the window. Projected buckets are marked, so a chart can draw an estimate differently from a measurement. |
+| `display.forecast.method` | required | `"linear" \| "seasonal"` | `linear` continues a least-squares slope over the window it is already reading. `seasonal` de-seasonalises against the four weeks before the window, fits the trend on the remainder and adds the hour-of-week term back — ask for it when the metric has a shape. |
+| `display.forecast.horizon` | optional | `integer` | Buckets to project. Omit for a quarter of the window, which is the same claim at every bucket width. _(1–500)_ |
 | `query_ir` | optional | `object` | Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body. |
 | `query_ir.agg` | required | `any` | Aggregation function applied to the source event. |
 | `query_ir.metric` | required | `string` | Source event name (must equal `event_name`). _(length 1–128)_ |
@@ -1778,6 +1785,13 @@ _Parameters_
 | `default_min_effect_of_interest` | optional | `any` | Default minimum effect of interest (relative, 0–1) — the smallest change in this metric worth acting on, used as the power-planning baseline. Intrinsic to the metric; an experiment overrides it per-attachment with `min_effect_of_interest` when a specific decision has a different cost/risk bar. `null` to omit. _(default `null`)_ |
 | `direction` | optional | `"higher_better" \| "lower_better" \| "neutral"` | Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail). _(default `"higher_better"`)_ |
 | `unit` | optional | `any` | Display unit (e.g. `ms`, `%`, `$`), or `null` when unitless. |
+| `display` | optional | `object` | How the metric's series is DRAWN, as opposed to what it measures. Both parts used to be DSL functions (`expected(q, seasonal)`, `forecast(q, …)`), which meant turning a band on minted a different metric; they are properties now, so every chart of the metric picks them up and nothing that JUDGES the metric — an alert rule, the experiment analyzer — reads them at all. |
+| `display.band` | optional | `object` | Shade the seasonal baseline around the series. The fit is the median of this hour of the week over the four weeks before the window, and it is the SAME fit an `anomaly` alert rule fires on — so the shaded region is exactly where such a rule would stay quiet, whether or not one exists. |
+| `display.band.method` | required | `"seasonal"` | — |
+| `display.band.sigma` | optional | `number` | Half-width of the band in sigma-equivalents. Omit for 3, the sigma an alert rule also defaults to. |
+| `display.forecast` | optional | `object` | Project the series past the end of the window. Projected buckets are marked, so a chart can draw an estimate differently from a measurement. |
+| `display.forecast.method` | required | `"linear" \| "seasonal"` | `linear` continues a least-squares slope over the window it is already reading. `seasonal` de-seasonalises against the four weeks before the window, fits the trend on the remainder and adds the hour-of-week term back — ask for it when the metric has a shape. |
+| `display.forecast.horizon` | optional | `integer` | Buckets to project. Omit for a quarter of the window, which is the same claim at every bucket width. _(1–500)_ |
 | `query_ir` | optional | `object` | Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body. |
 | `query_ir.agg` | required | `any` | Aggregation function applied to the source event. |
 | `query_ir.metric` | required | `string` | Source event name (must equal `event_name`). _(length 1–128)_ |
@@ -2350,8 +2364,13 @@ _Parameters_
 | --- | --- | --- | --- |
 | `name` | required | `string` | Human label for the rule, shown on the alert and the rules list. _(length 1–120)_ |
 | `metricId` | required | `string` | Id of the metric to evaluate. _(length 1–∞)_ |
-| `comparator` | required | `"gt" \| "gte" \| "lt" \| "lte"` | How the metric value is compared to the threshold (gt/gte/lt/lte). |
-| `threshold` | required | `number` | Threshold the metric value is compared against. |
+| `kind` | optional | `"normal" \| "anomaly" \| "outliers"` | What the rule watches for. `normal` compares the metric's own value — against `threshold` via `comparator`, or against the [`rangeMin`, `rangeMax`] corridor it must stay inside. `anomaly` compares it against its own seasonal baseline in sigmas: the same fit a chart draws as the band, so a point outside the drawn band is exactly a breaching bucket, and one metric can back rules at several sigmas. `outliers` compares each `by()` group against its peers in the same bucket and is refused on a metric with no grouping. _(default `"normal"`)_ |
+| `comparator` | optional | `"gt" \| "gte" \| "lt" \| "lte"` | How the metric value is compared to the threshold. Read only by a `normal` rule with no range set. _(default `"gt"`)_ |
+| `threshold` | optional | `number` | Threshold the metric value is compared against. Required for a `normal` rule unless a range is given; ignored by every other kind. |
+| `rangeMin` | optional | `any` | Lower edge of the corridor the metric must stay inside. Setting either bound switches a `normal` rule off `comparator`/`threshold` and onto the range, which breaches on LEAVING it in either direction. One bound alone is a one-sided range. |
+| `rangeMax` | optional | `any` | Upper edge of the corridor the metric must stay inside. |
+| `sigma` | optional | `any` | How far from normal is too far, for `anomaly` and `outliers`, in sigma-equivalents. Omit (or `null`) for 3, which is also the half-width of the band a chart draws — so an unconfigured rule fires exactly where the picture says it would. |
+| `direction` | optional | `any` | Which side of the baseline an `anomaly` or `outliers` rule watches. Omit (or `null`) for either, which is what "is this unusual" means; name a side for a metric that is only bad in one direction. |
 | `windowHours` | optional | `integer` | Lookback window (hours) the metric is aggregated over. 1–720. _(default `24`; 1–720)_ |
 | `bucketMinutes` | optional | `any` | Width of the buckets the window is split into, in minutes. Omit (or `null`) to divide the window into 12 equal buckets. The rule is judged per bucket, so this is the resolution at which "sustained" is measured — a short bucket asks the condition to hold through finer detail. |
 | `requiredBuckets` | optional | `any` | How many buckets must breach before the rule fires. Omit (or `null`) to require every bucket that had data. Buckets with nothing in them are excluded before this is counted, so on a sparse metric `null` can mean a single bucket — set this to 2 or more where one lone sample must never page. |
@@ -2405,8 +2424,13 @@ _Parameters_
 | --- | --- | --- | --- |
 | `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `name` | optional | `string` | — _(length 1–120)_ |
+| `kind` | optional | `"normal" \| "anomaly" \| "outliers"` | — |
 | `comparator` | optional | `"gt" \| "gte" \| "lt" \| "lte"` | — |
 | `threshold` | optional | `number` | — |
+| `rangeMin` | optional | `any` | Lower edge of the corridor; `null` drops it, returning the rule to comparator and threshold when both bounds are gone. |
+| `rangeMax` | optional | `any` | Upper edge of the corridor; `null` drops it. |
+| `sigma` | optional | `any` | Sigmas an `anomaly` or `outliers` rule fires at; `null` restores the default of 3. |
+| `direction` | optional | `any` | Which side an `anomaly` or `outliers` rule watches; `null` restores either. |
 | `windowHours` | optional | `integer` | — _(1–720)_ |
 | `bucketMinutes` | optional | `any` | Bucket width in minutes; `null` restores the default 12 buckets per window. |
 | `requiredBuckets` | optional | `any` | Buckets that must breach to fire; `null` restores "every bucket that had data". |

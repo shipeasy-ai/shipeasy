@@ -42,9 +42,10 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--default-min-effect-of-interest <value>", "Default minimum effect of interest (relative, 0–1) — the smallest change in this metric worth acting on, used as the power-planning baseline. Intrinsic to the metric; an experiment overrides it per-attachment with `min_effect_of_interest` when a specific decision has a different cost/risk bar. `null` to omit.")
     .option("--direction <value>", "Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).")
     .option("--unit <value>", "Display unit (e.g. `ms`, `%`, `$`), or `null` when unitless.")
+    .option("--display <value>", "How the metric's series is DRAWN, as opposed to what it measures. Both parts used to be DSL functions (`expected(q, seasonal)`, `forecast(q, …)`), which meant turning a band on minted a different metric; they are properties now, so every chart of the metric picks them up and nothing that JUDGES the metric — an alert rule, the experiment analyzer — reads them at all.")
     .option("--query-ir <value>", "Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body.")
     .action(async (name, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createMetric({ client, body: clean({ name: name, folder: str(opts.folder), event_name: str(opts.eventName), query: str(opts.query), winsorize_pct: num(opts.winsorizePct), default_min_effect_of_interest: num(opts.defaultMinEffectOfInterest), direction: str(opts.direction), unit: str(opts.unit), query_ir: json(opts.queryIr) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createMetric({ client, body: clean({ name: name, folder: str(opts.folder), event_name: str(opts.eventName), query: str(opts.query), winsorize_pct: num(opts.winsorizePct), default_min_effect_of_interest: num(opts.defaultMinEffectOfInterest), direction: str(opts.direction), unit: str(opts.unit), display: json(opts.display), query_ir: json(opts.queryIr) }) }) });
     });
   g_metrics.command("show")
     .description("Get a metric")
@@ -63,9 +64,10 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--default-min-effect-of-interest <value>", "Default minimum effect of interest (relative, 0–1) — the smallest change in this metric worth acting on, used as the power-planning baseline. Intrinsic to the metric; an experiment overrides it per-attachment with `min_effect_of_interest` when a specific decision has a different cost/risk bar. `null` to omit.")
     .option("--direction <value>", "Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).")
     .option("--unit <value>", "Display unit (e.g. `ms`, `%`, `$`), or `null` when unitless.")
+    .option("--display <value>", "How the metric's series is DRAWN, as opposed to what it measures. Both parts used to be DSL functions (`expected(q, seasonal)`, `forecast(q, …)`), which meant turning a band on minted a different metric; they are properties now, so every chart of the metric picks them up and nothing that JUDGES the metric — an alert rule, the experiment analyzer — reads them at all.")
     .option("--query-ir <value>", "Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body.")
     .action(async (id, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateMetric({ client, path: { id: id }, body: clean({ folder: str(opts.folder), event_name: str(opts.eventName), query: str(opts.query), winsorize_pct: num(opts.winsorizePct), default_min_effect_of_interest: num(opts.defaultMinEffectOfInterest), direction: str(opts.direction), unit: str(opts.unit), query_ir: json(opts.queryIr) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.updateMetric({ client, path: { id: id }, body: clean({ folder: str(opts.folder), event_name: str(opts.eventName), query: str(opts.query), winsorize_pct: num(opts.winsorizePct), default_min_effect_of_interest: num(opts.defaultMinEffectOfInterest), direction: str(opts.direction), unit: str(opts.unit), display: json(opts.display), query_ir: json(opts.queryIr) }) }) });
     });
   g_metrics.command("archive")
     .description("Archive a metric")
@@ -283,7 +285,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     });
   g_metrics_events.command("create")
     .description("Register an event")
-    .argument("<name>", "Event name. Starts with a letter, digit, or `_`; letters, digits, `_`, `-`, `.`; max 128 chars. Immutable after create — this is the handle metric queries reference.")
+    .argument("<name>", "Event name. Starts with a letter, digit, or `_`; letters, digits, `_`, `-`, `.`; max 50 characters. The cap is the Analytics Engine index budget — 96 bytes total, less a 36-byte project UUID and a separator — and the API has always enforced 50 while this spec advertised 128. The charset is ASCII, so characters and bytes are the same count. Immutable after create — this is the handle metric queries reference.")
     .option("--folder <value>", "Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).")
     .option("--description <value>", "Optional human-readable description of the event.")
     .option("--properties <value>", "Typed properties declared on the event. Defaults to an empty list.")
@@ -345,27 +347,41 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .description("Create an alert rule")
     .option("--name <value>", "Human label for the rule, shown on the alert and the rules list.")
     .option("--metric-id <value>", "Id of the metric to evaluate.")
-    .option("--comparator <value>", "How the metric value is compared to the threshold (gt/gte/lt/lte).")
-    .option("--threshold <value>", "Threshold the metric value is compared against.")
+    .option("--kind <value>", "What the rule watches for. `normal` compares the metric's own value — against `threshold` via `comparator`, or against the [`rangeMin`, `rangeMax`] corridor it must stay inside. `anomaly` compares it against its own seasonal baseline in sigmas: the same fit a chart draws as the band, so a point outside the drawn band is exactly a breaching bucket, and one metric can back rules at several sigmas. `outliers` compares each `by()` group against its peers in the same bucket and is refused on a metric with no grouping.")
+    .option("--comparator <value>", "How the metric value is compared to the threshold. Read only by a `normal` rule with no range set.")
+    .option("--threshold <value>", "Threshold the metric value is compared against. Required for a `normal` rule unless a range is given; ignored by every other kind.")
+    .option("--range-min <value>", "Lower edge of the corridor the metric must stay inside. Setting either bound switches a `normal` rule off `comparator`/`threshold` and onto the range, which breaches on LEAVING it in either direction. One bound alone is a one-sided range.")
+    .option("--range-max <value>", "Upper edge of the corridor the metric must stay inside.")
+    .option("--sigma <value>", "How far from normal is too far, for `anomaly` and `outliers`, in sigma-equivalents. Omit (or `null`) for 3, which is also the half-width of the band a chart draws — so an unconfigured rule fires exactly where the picture says it would.")
+    .option("--direction <value>", "Which side of the baseline an `anomaly` or `outliers` rule watches. Omit (or `null`) for either, which is what \"is this unusual\" means; name a side for a metric that is only bad in one direction.")
     .option("--window-hours <value>", "Lookback window (hours) the metric is aggregated over. 1–720.")
+    .option("--bucket-minutes <value>", "Width of the buckets the window is split into, in minutes. Omit (or `null`) to divide the window into 12 equal buckets. The rule is judged per bucket, so this is the resolution at which \"sustained\" is measured — a short bucket asks the condition to hold through finer detail.")
+    .option("--required-buckets <value>", "How many buckets must breach before the rule fires. Omit (or `null`) to require every bucket that had data. Buckets with nothing in them are excluded before this is counted, so on a sparse metric `null` can mean a single bucket — set this to 2 or more where one lone sample must never page.")
     .option("--severity <value>", "Severity of the raised alert.")
     .option("--enabled <value>", "Whether the rule is evaluated by the cron.")
     .option("--notify <value>", "Delivery target for a notification; `null` = use the project default.")
     .action(async (opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createAlertRule({ client, body: clean({ name: str(opts.name), metricId: str(opts.metricId), comparator: str(opts.comparator), threshold: num(opts.threshold), windowHours: num(opts.windowHours), severity: str(opts.severity), enabled: bool(opts.enabled), notify: json(opts.notify) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createAlertRule({ client, body: clean({ name: str(opts.name), metricId: str(opts.metricId), kind: str(opts.kind), comparator: str(opts.comparator), threshold: num(opts.threshold), rangeMin: num(opts.rangeMin), rangeMax: num(opts.rangeMax), sigma: num(opts.sigma), direction: str(opts.direction), windowHours: num(opts.windowHours), bucketMinutes: num(opts.bucketMinutes), requiredBuckets: num(opts.requiredBuckets), severity: str(opts.severity), enabled: bool(opts.enabled), notify: json(opts.notify) }) }) });
     });
   g_ops_alerts.command("update")
     .description("Update an alert rule")
     .argument("<id>", "Stable opaque alert-rule id (`ar_…`) or the rule's `name`.")
     .option("--name <value>", "")
+    .option("--kind <value>", "")
     .option("--comparator <value>", "")
     .option("--threshold <value>", "")
+    .option("--range-min <value>", "Lower edge of the corridor; `null` drops it, returning the rule to comparator and threshold when both bounds are gone.")
+    .option("--range-max <value>", "Upper edge of the corridor; `null` drops it.")
+    .option("--sigma <value>", "Sigmas an `anomaly` or `outliers` rule fires at; `null` restores the default of 3.")
+    .option("--direction <value>", "Which side an `anomaly` or `outliers` rule watches; `null` restores either.")
     .option("--window-hours <value>", "")
+    .option("--bucket-minutes <value>", "Bucket width in minutes; `null` restores the default 12 buckets per window.")
+    .option("--required-buckets <value>", "Buckets that must breach to fire; `null` restores \"every bucket that had data\".")
     .option("--severity <value>", "")
     .option("--enabled <value>", "")
     .option("--notify <value>", "Delivery target for a notification; `null` = use the project default.")
     .action(async (id, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateAlertRule({ client, path: { id: id }, body: clean({ name: str(opts.name), comparator: str(opts.comparator), threshold: num(opts.threshold), windowHours: num(opts.windowHours), severity: str(opts.severity), enabled: bool(opts.enabled), notify: json(opts.notify) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.updateAlertRule({ client, path: { id: id }, body: clean({ name: str(opts.name), kind: str(opts.kind), comparator: str(opts.comparator), threshold: num(opts.threshold), rangeMin: num(opts.rangeMin), rangeMax: num(opts.rangeMax), sigma: num(opts.sigma), direction: str(opts.direction), windowHours: num(opts.windowHours), bucketMinutes: num(opts.bucketMinutes), requiredBuckets: num(opts.requiredBuckets), severity: str(opts.severity), enabled: bool(opts.enabled), notify: json(opts.notify) }) }) });
     });
   g_ops_alerts.command("archive")
     .description("Delete an alert rule")
@@ -398,8 +414,8 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     });
   g_ops_fired_alerts.command("update")
     .description("Update a fired alert")
-    .argument("<id>", "Stable opaque alert id (`al_…`).")
-    .option("--status <value>", "New lifecycle state. `resolved` / `dismissed` stamp their timestamp; `active` re-opens and clears both.")
+    .argument("<id>", "Stable opaque instance id — the same id as the `alert` ops item this instance is.")
+    .option("--status <value>", "New lifecycle state, written through to the queue item (`resolved` / `wont_fix` / `open`). `resolved` / `dismissed` stamp their timestamp; `active` re-opens and clears both.")
     .option("--assignee-id <value>", "PERSON owner — a `users.id`, or `null` to clear the assignment.")
     .option("--agent <value>", "AGENT owner — a connected trigger connector's id (`connectors.id`), the built-in `\"jarvis\"` (Enterprise plan only — rejected with `403` otherwise), or `null` to clear. Stored in `assigneeConnectorId` or `assigneeAgent` depending on the value; the two are mutually exclusive.")
     .action(async (id, opts) => {
@@ -482,7 +498,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--events <value>", "Events that auto-fire a cold cloud-agent run. Defaults to empty.")
     .option("--config <value>", "Non-secret config for a Cursor trigger.")
     .option("--api-key <value>", "Cursor API key that launches the run (secret). Encrypted into the credentials cipher; never returned.")
-    .option("--ops-key <value>", "Restricted Shipeasy ops key, injected into the run as `SHIPEASY_CLI_TOKEN` via the launch envVars (secret). Encrypted; never returned.")
+    .option("--ops-key <value>", "Restricted Shipeasy ops key (secret). Sent as the Bearer for the Shipeasy MCP server handed to each run inline — never in the prompt text or the run env. Encrypted; never returned.")
     .option("--enabled <value>", "Whether the trigger is active on create.")
     .addHelpText("after", "\nA trigger is an unattended, scheduled agent run: on a cron cadence it runs the\nshipeasy-ops-work loop in --pr mode against your project — one atomic diff and\nONE pull request per fixed item, nothing auto-merges.\n\nWhatever the provider, the scheduled run executes this trigger prompt (headless\nCLIs take it as the prompt; cloud agents as the task body):\n\n  You are an unattended Shipeasy maintenance run. Authenticate every `shipeasy`\n  call with these env vars (the CLI reads them directly — do NOT run\n  `shipeasy login`, never echo the token). Put them at the top of EVERY shell\n  invocation that calls `shipeasy`; each command runs in a fresh shell:\n\n  export SHIPEASY_CLI_TOKEN=\"<OPS_KEY>\"\n  export SHIPEASY_PROJECT_ID=\"<PROJECT_ID>\"\n\n  Ensure the repo is bound: test -f .shipeasy || printf '{\"project_id\":\"<PROJECT_ID>\"}\\n' > .shipeasy\n  (never commit .shipeasy).\n\n  Refresh to the latest plugin + CLI, then run the ops work loop in --pr mode:\n    <PLUGIN-INSTALL-FOR-THIS-HOST>       # plugin install for claude/copilot, or `npx -y skills add …`\n    npm install -g @shipeasy/cli@latest\n  Then follow the installed shipeasy-ops-work (--pr) workflow verbatim: burn down\n  the queue, one atomic diff per item, open ONE PR per item from a safe branch\n  prefix, flip each to ready_for_qa, add \"Closes #<issue>\" where an item has a\n  connected GitHub issue. If the queue is empty, exit cleanly. Never merge.\n\n<OPS_KEY> is a restricted `ops` key — mint with\n`npx -y @shipeasy/cli@latest keys create --type ops`. It reads the queue, flips\nstatus, links the PR it opens, and creates resources only; it can never edit or\ndelete existing resources, and auto-extends its 7-day expiry on each run.\n<PROJECT_ID> comes from the bound .shipeasy. Never print either value.\n\nSafety: auto-approve flags (--approval-mode=yolo, --dangerously-skip-permissions,\n…) remove the human gate — run only in an isolated env. Unattended loops spend\ntokens/credits on a cadence: start weekly/daily and watch the first runs.\n\nCursor cloud agents are cold-fireable: one authenticated POST to\nhttps://api.cursor.com/v1/agents starts a run from nothing, and\nautoCreatePR opens the PR via Cursor's GitHub App. Registering the\nconnector stores both credentials, so Shipeasy can fire it on demand and\non subscribed events; the ops key rides the launch envVars (never the\nprompt):\n\n  shipeasy ops trigger create cursor \\\n    --config '{\"repoUrl\":\"https://github.com/<owner>/<repo>\",\"projectId\":\"<prj_…>\"}' \\\n    --api-key <CURSOR_API_KEY> --ops-key <ops_…>\n\nFor a fixed cadence (nightly runs without new feedback) add a Cursor\nAutomation (cursor.com/automations) with the same trigger prompt — cron +\n\"Pull request creation\" enabled. Note: Automations always run in Max Mode\n(billed on cloud-agent usage).\n")
     .action(async (opts) => {

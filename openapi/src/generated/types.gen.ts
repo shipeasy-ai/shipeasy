@@ -2929,6 +2929,35 @@ export type MetricDirection = 'higher_better' | 'lower_better' | 'neutral';
 export type MetricDisplayUnit = string | null;
 
 /**
+ * How the metric's series is DRAWN, as opposed to what it measures. Both parts used to be DSL functions (`expected(q, seasonal)`, `forecast(q, …)`), which meant turning a band on minted a different metric; they are properties now, so every chart of the metric picks them up and nothing that JUDGES the metric — an alert rule, the experiment analyzer — reads them at all.
+ */
+export type MetricDisplayConfig = {
+    /**
+     * Shade the seasonal baseline around the series. The fit is the median of this hour of the week over the four weeks before the window, and it is the SAME fit an `anomaly` alert rule fires on — so the shaded region is exactly where such a rule would stay quiet, whether or not one exists.
+     */
+    band?: {
+        method: 'seasonal';
+        /**
+         * Half-width of the band in sigma-equivalents. Omit for 3, the sigma an alert rule also defaults to.
+         */
+        sigma?: number;
+    };
+    /**
+     * Project the series past the end of the window. Projected buckets are marked, so a chart can draw an estimate differently from a measurement.
+     */
+    forecast?: {
+        /**
+         * `linear` continues a least-squares slope over the window it is already reading. `seasonal` de-seasonalises against the four weeks before the window, fits the trend on the remainder and adds the hour-of-week term back — ask for it when the metric has a shape.
+         */
+        method: 'linear' | 'seasonal';
+        /**
+         * Buckets to project. Omit for a quarter of the window, which is the same claim at every bucket width.
+         */
+        horizon?: number;
+    };
+};
+
+/**
  * Create a metric, supplying the query as a `query` DSL string.
  */
 export type CreateMetricWithQuery = {
@@ -2940,6 +2969,7 @@ export type CreateMetricWithQuery = {
     default_min_effect_of_interest?: MetricDefaultMinEffectOfInterest;
     direction?: MetricDirection;
     unit?: MetricDisplayUnit;
+    display?: MetricDisplayConfig;
 };
 
 /**
@@ -2954,6 +2984,7 @@ export type CreateMetricWithQueryIr = {
     default_min_effect_of_interest?: MetricDefaultMinEffectOfInterest;
     direction?: MetricDirection;
     unit?: MetricDisplayUnit;
+    display?: MetricDisplayConfig;
 };
 
 /**
@@ -3064,6 +3095,7 @@ export type UpdateMetricWithQuery = {
     default_min_effect_of_interest?: MetricDefaultMinEffectOfInterest;
     direction?: MetricDirection;
     unit?: MetricDisplayUnit;
+    display?: MetricDisplayConfig;
 };
 
 /**
@@ -3077,10 +3109,11 @@ export type UpdateMetricWithQueryIr = {
     default_min_effect_of_interest?: MetricDefaultMinEffectOfInterest;
     direction?: MetricDirection;
     unit?: MetricDisplayUnit;
+    display?: MetricDisplayConfig;
 };
 
 /**
- * Update-metric variant that leaves the query untouched (metadata-only edit — folder, event, winsorisation, default minimum effect of interest, direction, display unit).
+ * Update-metric variant that leaves the query untouched (metadata-only edit — folder, event, winsorisation, default minimum effect of interest, direction, display unit, band and projection).
  */
 export type UpdateMetricFields = {
     folder?: Folder;
@@ -3089,6 +3122,7 @@ export type UpdateMetricFields = {
     default_min_effect_of_interest?: MetricDefaultMinEffectOfInterest;
     direction?: MetricDirection;
     unit?: MetricDisplayUnit;
+    display?: MetricDisplayConfig;
 };
 
 /**
@@ -3168,6 +3202,16 @@ export type GetMetricSeriesResponse = {
          * Aggregated metric value in the bucket (sample-interval weighted).
          */
         v: number;
+        /**
+         * Lower edge of the seasonal band — what this hour of the week normally holds, `sigma` below the median of the four weeks before the window. Present only for a metric whose `display.band` is on, and always alongside `hi`.
+         *
+         */
+        lo?: number;
+        /**
+         * Upper edge of the seasonal band. Present only for a metric whose `display.band` is on, and always alongside `lo`. A point outside `[lo, hi]` is exactly a bucket an `anomaly` alert rule at the same sigma would breach on — the band a chart draws and the condition a rule fires on come from one fit.
+         *
+         */
+        hi?: number;
         [key: string]: unknown;
     }>;
 };
@@ -5182,13 +5226,33 @@ export type ListAlertRulesResponse = Array<{
      */
     metricName: string | null;
     /**
-     * How the metric value is compared to the threshold (gt/gte/lt/lte).
+     * What the rule watches for. `normal` compares the metric's own value — against `threshold` via `comparator`, or against the [`rangeMin`, `rangeMax`] corridor it must stay inside. `anomaly` compares it against ITS OWN seasonal baseline in sigmas, which is the same fit a chart draws as the band. `outliers` compares each `by()` group against its peers in the same bucket, so it needs a grouped metric.
+     */
+    kind: 'normal' | 'anomaly' | 'outliers';
+    /**
+     * How the metric value is compared to the threshold (gt/gte/lt/lte). Read only by a `normal` rule with no range set.
      */
     comparator: 'gt' | 'gte' | 'lt' | 'lte';
     /**
-     * Threshold the metric value is compared against.
+     * Threshold the metric value is compared against. Read only by a `normal` rule with no range set.
      */
     threshold: number;
+    /**
+     * Lower edge of the corridor a `normal` rule must stay inside; `null` if the rule is judged by comparator and threshold.
+     */
+    rangeMin: number | null;
+    /**
+     * Upper edge of the corridor a `normal` rule must stay inside; `null` if the rule is judged by comparator and threshold.
+     */
+    rangeMax: number | null;
+    /**
+     * How far from normal is too far, for `anomaly` and `outliers`, in sigma-equivalents. `null` takes the default of 3, which is also the width of the band a chart draws.
+     */
+    sigma: number | null;
+    /**
+     * Which side of the baseline an `anomaly` or `outliers` rule watches. `null` means either.
+     */
+    direction: 'above' | 'below' | 'either' | null;
     /**
      * Lookback window (hours) the metric is aggregated over.
      */
@@ -5230,13 +5294,33 @@ export type CreateAlertRuleRequest = {
      */
     metricId: string;
     /**
-     * How the metric value is compared to the threshold (gt/gte/lt/lte).
+     * What the rule watches for. `normal` compares the metric's own value — against `threshold` via `comparator`, or against the [`rangeMin`, `rangeMax`] corridor it must stay inside. `anomaly` compares it against its own seasonal baseline in sigmas: the same fit a chart draws as the band, so a point outside the drawn band is exactly a breaching bucket, and one metric can back rules at several sigmas. `outliers` compares each `by()` group against its peers in the same bucket and is refused on a metric with no grouping.
      */
-    comparator: 'gt' | 'gte' | 'lt' | 'lte';
+    kind?: 'normal' | 'anomaly' | 'outliers';
     /**
-     * Threshold the metric value is compared against.
+     * How the metric value is compared to the threshold. Read only by a `normal` rule with no range set.
      */
-    threshold: number;
+    comparator?: 'gt' | 'gte' | 'lt' | 'lte';
+    /**
+     * Threshold the metric value is compared against. Required for a `normal` rule unless a range is given; ignored by every other kind.
+     */
+    threshold?: number;
+    /**
+     * Lower edge of the corridor the metric must stay inside. Setting either bound switches a `normal` rule off `comparator`/`threshold` and onto the range, which breaches on LEAVING it in either direction. One bound alone is a one-sided range.
+     */
+    rangeMin?: number | null;
+    /**
+     * Upper edge of the corridor the metric must stay inside.
+     */
+    rangeMax?: number | null;
+    /**
+     * How far from normal is too far, for `anomaly` and `outliers`, in sigma-equivalents. Omit (or `null`) for 3, which is also the half-width of the band a chart draws — so an unconfigured rule fires exactly where the picture says it would.
+     */
+    sigma?: number | null;
+    /**
+     * Which side of the baseline an `anomaly` or `outliers` rule watches. Omit (or `null`) for either, which is what "is this unusual" means; name a side for a metric that is only bad in one direction.
+     */
+    direction?: 'above' | 'below' | 'either' | null;
     /**
      * Lookback window (hours) the metric is aggregated over. 1–720.
      */
@@ -5273,8 +5357,25 @@ export type DeleteAlertRuleResponse = {
 
 export type UpdateAlertRuleRequest = {
     name?: string;
+    kind?: 'normal' | 'anomaly' | 'outliers';
     comparator?: 'gt' | 'gte' | 'lt' | 'lte';
     threshold?: number;
+    /**
+     * Lower edge of the corridor; `null` drops it, returning the rule to comparator and threshold when both bounds are gone.
+     */
+    rangeMin?: number | null;
+    /**
+     * Upper edge of the corridor; `null` drops it.
+     */
+    rangeMax?: number | null;
+    /**
+     * Sigmas an `anomaly` or `outliers` rule fires at; `null` restores the default of 3.
+     */
+    sigma?: number | null;
+    /**
+     * Which side an `anomaly` or `outliers` rule watches; `null` restores either.
+     */
+    direction?: 'above' | 'below' | 'either' | null;
     windowHours?: number;
     /**
      * Bucket width in minutes; `null` restores the default 12 buckets per window.
