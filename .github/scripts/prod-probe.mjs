@@ -32,6 +32,12 @@
 //                           admitted and others denied (incl. the bot UA regex).
 //   7. Per-condition rollout — a stack condition's own fractional rolloutPct:
 //                           non-matchers always denied, matchers pass ≈ rolloutPct.
+//   8. Metrics DSL v2     — one metric per BUILT expression primitive, created
+//                           through the admin API and read back through /series
+//                           (a definition that saves and then cannot be planned
+//                           422s the chart and silently no-ops its alert rule),
+//                           plus every NOT-BUILT primitive attempted and required
+//                           to be refused. Needs SHIPEASY_APP_URL + a client key.
 //
 // Exit non-zero on any drift so the Action fails (and notifies). Env:
 //   SHIPEASY_CLI_TOKEN, SHIPEASY_PROJECT_ID  — CLI auth (the CLI reads these)
@@ -3786,6 +3792,319 @@ async function probeExposureTimeline() {
   console.log("::endgroup::");
 }
 
+// ── metrics DSL v2 parity ───────────────────────────────────────────────────
+// The expression grammar (IR v2) is a SAVE-time promise and a READ-time one, and
+// only the first is visible in a form. A v2 metric that parses, stores, and then
+// cannot be planned 422s on every chart open and, worse, silently on every alert
+// tick — `alerts-cron` marks the rule unevaluated and logs, so somebody believes
+// they have an alert and does not. This leg holds both ends against prod:
+//
+//   1. one metric per BUILT primitive, created through the admin API and then
+//      READ back through /series. A non-200 read is the failure above.
+//   2. every NOT-BUILT primitive attempted, and required to be REFUSED. A name
+//      the language recognises but the engine cannot run must never become a
+//      stored metric — that is exactly how `match()` survived in prod for months.
+//
+// Two facts shape the read:
+//   • BUCKET IS 60, NOT 3600. The reader aligns BOTH window ends onto the bucket
+//     grid, so an hourly read floors `to` to the top of the current hour and the
+//     freshly-seeded events — which are all in the current hour — are outside it.
+//     A minute bucket closes a minute after the seed.
+//   • Analytics Engine SAMPLES per index above ~100 points/sec and the canary's
+//     seed lands well inside one bucket, so the WEIGHTED value is an estimate,
+//     not the count we sent (measured: 121 sent → w=150). Every value assertion
+//     here is therefore a wide band or soft; the HARD contracts are the ones that
+//     hold for any data at all — the read succeeds, and the refusal refuses.
+
+const DSL_REQ = "probe_dsl_request";
+const DSL_PAGE = "probe_dsl_page";
+
+// Property ORDER is the AE slot order (strings → blob4.., numbers → double3..),
+// so it is part of the contract the compiled SQL depends on, not presentation.
+const DSL_EVENTS = [
+  {
+    name: DSL_REQ,
+    description: "DSL-parity probe: synthetic API request carrying the full label zoo",
+    properties: [
+      { name: "route", type: "string" },
+      { name: "outcome", type: "string" },
+      { name: "region", type: "string" },
+      { name: "tier", type: "string" },
+      { name: "ms", type: "number" },
+      { name: "bytes", type: "number" },
+    ],
+  },
+  {
+    name: DSL_PAGE,
+    description: "DSL-parity probe: the denominator event, for cross-event arithmetic",
+    properties: [
+      { name: "route", type: "string" },
+      { name: "region", type: "string" },
+      { name: "ms", type: "number" },
+    ],
+  },
+];
+
+// One row per BUILT primitive in the v2 grammar. Every query here is v2 — v1 is
+// parsed FIRST on save, so each of these is deliberately something v1 cannot say
+// (arbitrary percentile, stddev, a value set, an `or`, `not`, `:*`, arithmetic,
+// a scalar, a value function, a rate). A query both grammars accept would store
+// as v1 and this leg would stop testing what it claims to.
+const DSL_METRICS = [
+  ["probe_dsl.p95_ms_by_route", `p(95, ${DSL_REQ}, ms) by (route)`, { unit: "ms", direction: "lower_better" }],
+  ["probe_dsl.p999_ms", `p(99.9, ${DSL_REQ}, ms)`, { unit: "ms", direction: "lower_better" }],
+  ["probe_dsl.stddev_ms", `stddev(${DSL_REQ}, ms)`, { unit: "ms", direction: "lower_better" }],
+  ["probe_dsl.count_region_in", `count(${DSL_REQ}{region in ("us", "eu", "apac")})`, {}],
+  ["probe_dsl.count_outcome_or", `count(${DSL_REQ}{outcome="ok" or outcome="ignored"})`, {}],
+  ["probe_dsl.count_not_ok", `count(${DSL_REQ}{not outcome="ok"})`, { direction: "lower_better" }],
+  ["probe_dsl.count_tier_set", `count(${DSL_REQ}{tier:*})`, {}],
+  ["probe_dsl.count_region_not_in", `count(${DSL_REQ}{region not in ("us")})`, {}],
+  ["probe_dsl.count_api_fail_or_pro", `count(${DSL_REQ}{route=~"/api*", outcome="fail" or tier="pro"})`, {}],
+  ["probe_dsl.fail_rate_pct", `count(${DSL_REQ}{outcome="fail"}) / count(${DSL_REQ}) * 100`, { unit: "%", direction: "lower_better" }],
+  ["probe_dsl.request_page_gap_pct", `(count(${DSL_REQ}) - count(${DSL_PAGE})) / count(${DSL_PAGE}) * 100`, { unit: "%", direction: "neutral" }],
+  ["probe_dsl.ms_per_request", `ratio(sum(${DSL_REQ}, ms), count(${DSL_REQ}))`, { unit: "ms", direction: "lower_better" }],
+  ["probe_dsl.abs_request_page_gap", `abs(count(${DSL_REQ}) - count(${DSL_PAGE}))`, { direction: "neutral" }],
+  ["probe_dsl.log10_avg_ms", `log10(avg(${DSL_REQ}, ms))`, { direction: "lower_better" }],
+  ["probe_dsl.log2_bytes", `log2(sum(${DSL_REQ}, bytes))`, {}],
+  ["probe_dsl.log_sum_ms", `log(sum(${DSL_REQ}, ms))`, {}],
+  ["probe_dsl.clamped_avg_ms", `round(clamp_max(clamp_min(avg(${DSL_REQ}, ms), 0), 5000), 2)`, { unit: "ms", direction: "lower_better" }],
+  ["probe_dsl.sqrt_max_bytes", `pow(max(${DSL_REQ}, bytes), 0.5)`, {}],
+  ["probe_dsl.ms_spread", `max(${DSL_REQ}, ms) - min(${DSL_REQ}, ms)`, { unit: "ms", direction: "lower_better" }],
+  ["probe_dsl.neg_fail_count", `-count(${DSL_REQ}{outcome="fail"})`, { direction: "higher_better" }],
+  ["probe_dsl.requests_per_hour", `per_hour(count(${DSL_REQ}))`, {}],
+  ["probe_dsl.requests_per_minute", `per_minute(count(${DSL_REQ}))`, {}],
+  ["probe_dsl.bytes_per_second", `per_second(sum(${DSL_REQ}, bytes))`, {}],
+  ["probe_dsl.count_without_route", `count(${DSL_REQ}{tier:*}) without (route)`, {}],
+  ["probe_dsl.avg_ms_identified", `avg(${DSL_REQ}{user_id:*}, ms)`, { unit: "ms", direction: "lower_better" }],
+];
+
+// Every primitive the grammar RECOGNISES and the engine cannot run: residual
+// landings (no AE form at all), the sql_todo rank family (two statements, one
+// issued), and the three undesigned detectors. Each must be refused at create.
+// `count_users` / `unique` / `!=` are absent on purpose — v1 still parses them,
+// so they save as v1 rows and are not a v2 refusal to assert.
+const DSL_NOT_BUILT = [
+  `derivative(count(${DSL_REQ}))`,
+  `diff(count(${DSL_REQ}))`,
+  `cumsum(count(${DSL_REQ}))`,
+  `integral(count(${DSL_REQ}))`,
+  `week_before(count(${DSL_REQ}))`,
+  `timeshift(count(${DSL_REQ}), -604800)`,
+  `fill(count(${DSL_REQ}), zero)`,
+  `default_zero(count(${DSL_REQ}))`,
+  `ewma_5(count(${DSL_REQ}))`,
+  `median_5(count(${DSL_REQ}))`,
+  `autosmooth(count(${DSL_REQ}))`,
+  `trend_line(avg(${DSL_REQ}, ms))`,
+  `robust_trend(avg(${DSL_REQ}, ms))`,
+  `rollup(count(${DSL_REQ}), max, 3600)`,
+  `top(p(95, ${DSL_REQ}, ms) by (route), 5, mean, desc)`,
+  `count_nonzero(count(${DSL_REQ}))`,
+  `anomalies(count(${DSL_REQ}), basic, 2)`,
+  `outliers(count(${DSL_REQ}) by (route), MAD, 3)`,
+  `forecast(count(${DSL_REQ}))`,
+];
+
+const DSL_REQ_N = 120;
+const DSL_PAGE_N = 150;
+const DSL_ROUTES = ["/api/orders", "/api/users", "/checkout"];
+const DSL_OUTCOMES = ["ok", "fail", "ignored"];
+const DSL_REGIONS = ["us", "eu", "apac"];
+// "" is deliberate: ingest rewrites a present-but-EMPTY string property to the
+// AE_EMPTY_STRING sentinel so `{tier:*}` can tell it apart from a slot nothing
+// was ever written to. Without a row like this, `:*` is untested.
+const DSL_TIERS = ["free", "pro", ""];
+
+let dslSeed = null; // { tsSec, sent } once the cohort is in
+
+async function adminJson(method, path, body) {
+  const res = await fetch(`${APP_URL}${path}`, {
+    method,
+    headers: ADMIN_H,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const text = await res.text().catch(() => "");
+  let json = null;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    /* non-JSON error body */
+  }
+  return { ok: res.ok, status: res.status, body: json ?? text };
+}
+
+const dslErr = (r) =>
+  String(typeof r.body === "object" && r.body ? (r.body.error ?? JSON.stringify(r.body)) : r.body).slice(0, 200);
+
+function dslCohort(tsMs) {
+  const events = [];
+  for (let i = 0; i < DSL_REQ_N; i++) {
+    const e = {
+      type: "metric",
+      event_name: DSL_REQ,
+      value: 1,
+      ts: tsMs,
+      properties: {
+        route: DSL_ROUTES[i % 3],
+        outcome: DSL_OUTCOMES[i % 3],
+        region: DSL_REGIONS[i % 3],
+        tier: DSL_TIERS[i % 3],
+        ms: 50 + (i % 40) * 10,
+        bytes: 1000 + i,
+      },
+    };
+    // Half identified, half anonymous — `{user_id:*}` has to separate them.
+    if (i % 2 === 0) e.user_id = `dsl-u-${i}`;
+    else e.anonymous_id = `dsl-a-${i}`;
+    events.push(e);
+  }
+  for (let i = 0; i < DSL_PAGE_N; i++) {
+    events.push({
+      type: "metric",
+      event_name: DSL_PAGE,
+      value: 1,
+      ts: tsMs,
+      anonymous_id: `dsl-a-${i}`,
+      properties: { route: DSL_ROUTES[i % 3], region: DSL_REGIONS[i % 3], ms: 20 + (i % 10) },
+    });
+  }
+  return events;
+}
+
+// Runs EARLY so Analytics Engine has the whole run to make the rows queryable —
+// measured on the canary, ingest → SQL visibility took minutes, not seconds.
+async function seedDslMetrics() {
+  if (!APP_URL || !CLIENT_KEY) return;
+  console.log("::group::Metrics DSL v2 — seed (events, definitions, cohort)");
+
+  for (const ev of DSL_EVENTS) {
+    let r = await adminJson("POST", "/api/admin/events", ev);
+    if (r.status === 409) {
+      // Already registered. PATCH rather than skip: the property ORDER is what
+      // the compiled SQL indexes into, so a drifted layout is a wrong answer
+      // rather than a cosmetic difference.
+      r = await adminJson("PATCH", `/api/admin/events/${encodeURIComponent(ev.name)}`, {
+        description: ev.description,
+        properties: ev.properties,
+      });
+    }
+    if (!r.ok) {
+      annotate(`dsl-seed: could not register event '${ev.name}' (${r.status} ${dslErr(r)})`);
+      failed++;
+      console.log("::endgroup::");
+      return;
+    }
+  }
+  ok(`events registered: ${DSL_EVENTS.map((e) => e.name).join(", ")}`);
+
+  let live = 0;
+  for (const [name, query, extra] of DSL_METRICS) {
+    let r = await adminJson("POST", "/api/admin/metrics", {
+      name,
+      event_name: DSL_REQ,
+      query,
+      ...extra,
+    });
+    if (r.status === 409) {
+      r = await adminJson("PATCH", `/api/admin/metrics/${encodeURIComponent(name)}`, {
+        event_name: DSL_REQ,
+        query,
+        ...extra,
+      });
+    }
+    if (r.ok) live++;
+    else {
+      // A BUILT primitive the API refuses is the headline finding of this leg:
+      // the grammar and the planner have come apart.
+      annotate(`dsl-seed: '${name}' refused (${r.status}) — ${query} — ${dslErr(r)}`);
+      failed++;
+    }
+  }
+  ok(`${live}/${DSL_METRICS.length} v2 metric definitions live`);
+
+  const tsMs = Date.now();
+  if (await collect(dslCohort(tsMs))) {
+    dslSeed = { tsSec: Math.floor(tsMs / 1000), sent: DSL_REQ_N + DSL_PAGE_N };
+    ok(`seeded ${DSL_REQ_N} ${DSL_REQ} + ${DSL_PAGE_N} ${DSL_PAGE}`);
+  }
+  console.log("::endgroup::");
+}
+
+// Runs LAST — the seed needs the run's length to become queryable.
+async function probeDslMetrics() {
+  if (!APP_URL) return;
+  console.log("::group::Metrics DSL v2 — read every built primitive back");
+
+  // Minute buckets, and a window that STOPS at the last closed one. Both ends
+  // are snapped to the grid by the reader, so an hourly read would floor `to`
+  // to the top of this hour and exclude the seed entirely.
+  const to = Math.floor(Date.now() / 1000);
+  const from = to - 7200;
+  const values = new Map();
+  let readOk = 0;
+  for (const [name] of DSL_METRICS) {
+    const r = await adminJson("POST", `/api/admin/metrics/${encodeURIComponent(name)}/series`, {
+      from,
+      to,
+      bucket: 60,
+    });
+    if (!r.ok) {
+      annotate(`dsl-read: '${name}' series ${r.status} — ${dslErr(r)}`);
+      failed++;
+      continue;
+    }
+    readOk++;
+    const rows = Array.isArray(r.body?.rows) ? r.body.rows : [];
+    values.set(name, rows);
+  }
+  if (readOk === DSL_METRICS.length) {
+    ok(`all ${readOk} v2 definitions planned and read clean`);
+  }
+
+  // Data-dependent, so SOFT: AE samples the seed burst, and a run whose cohort
+  // lands after the last closed minute bucket legitimately reads empty.
+  if (dslSeed) {
+    const empty = [...values.entries()].filter(([, rows]) => rows.length === 0).map(([n]) => n);
+    if (empty.length === 0) {
+      const fail = values.get("probe_dsl.neg_fail_count")?.[0]?.v;
+      const tier = values.get("probe_dsl.count_tier_set")?.[0]?.v;
+      ok(`every series carries points (tier:* counted ${tier}, negated fail count ${fail})`);
+      if (typeof fail === "number" && fail >= 0) {
+        annotate(`dsl-read: unary minus did not negate — neg_fail_count=${fail}`);
+        failed++;
+      }
+    } else {
+      console.log(
+        `  note: ${empty.length}/${values.size} series empty (AE ingest lag or sampling) — ${empty.slice(0, 4).join(", ")}`,
+      );
+    }
+  }
+
+  // The other half of the promise: a recognised-but-unrunnable name must not be
+  // storable. HARD — this one is data-independent.
+  let refused = 0;
+  for (const query of DSL_NOT_BUILT) {
+    const fn = query.slice(0, query.indexOf("(")).replace(/[^a-z0-9_]/g, "");
+    const name = `probe_dsl_unbuilt.${fn}`;
+    const r = await adminJson("POST", "/api/admin/metrics", {
+      name,
+      event_name: DSL_REQ,
+      query,
+    });
+    if (r.ok) {
+      annotate(`dsl-unbuilt: '${query}' was ACCEPTED — it will 422 on every chart and alert tick`);
+      failed++;
+      await adminJson("DELETE", `/api/admin/metrics/${encodeURIComponent(name)}`);
+      continue;
+    }
+    refused++;
+  }
+  if (refused === DSL_NOT_BUILT.length) {
+    ok(`all ${refused} not-built primitives refused at create`);
+  }
+  console.log("::endgroup::");
+}
+
 // ── run ─────────────────────────────────────────────────────────────────────
 try {
   // Reclaim any throwaway rework fixtures left running by a prior run so this run
@@ -3795,6 +4114,7 @@ try {
   if (process.env.SHIPEASY_PROBE_MUTATE) reclaimThrowawayFixtures();
   await seedLakeVerdict(); // FIRST — the lake sink's 300s roll flushes during the run
   await seedExposureTimeline(); // gate-check exposures ride the same sink roll
+  await seedDslMetrics(); // AE needs minutes to make the cohort queryable
   probeExperiments();
   await probeGates();
   await probeReferenceGates();
@@ -3832,6 +4152,7 @@ try {
   await probeIdentifyMerge();
   await probeLakeVerdict(); // LAST — verify the seed through Pipelines → R2 SQL
   await probeExposureTimeline(); // reuses the flushed lake seeds + admin exposure series
+  await probeDslMetrics(); // LAST — the v2 cohort needs the run's length to land
 } catch (err) {
   annotate(`probe failed to run: ${err?.message ?? err}`);
   process.exit(2);
