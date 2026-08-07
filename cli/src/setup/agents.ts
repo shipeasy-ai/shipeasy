@@ -1031,10 +1031,23 @@ export function addCopilotMcpNative(ctx: InstallCtx): McpResult | null {
 /** The two `claude plugin …` invocations, as argv. Scope-parameterised: the
  *  same pair runs at project scope (declared in the repo's
  *  `.claude/settings.json`) and at user scope (`~/.claude`). */
-export function claudePluginArgv(scope: "user" | "project"): { marketplace: string[]; install: string[] } {
+export function claudePluginArgv(scope: "user" | "project"): {
+  marketplace: string[];
+  install: string[];
+  marketplaceUpdate: string[];
+  update: string[];
+} {
   return {
     marketplace: ["plugin", "marketplace", "add", MARKETPLACE_SLUG, "--scope", scope],
     install: ["plugin", "install", "shipeasy@shipeasy", "--scope", scope],
+    // The refresh pair. `marketplace add` + `plugin install` are both no-ops
+    // once the plugin is present, so on their own they leave an ALREADY
+    // INSTALLED plugin pinned at its cached version — which is how a Claude
+    // user who ran `shipeasy upgrade` still ended up without a skill added to
+    // the plugin since. `marketplace update` re-pulls the repo; `plugin update`
+    // moves the install onto it.
+    marketplaceUpdate: ["plugin", "marketplace", "update", "shipeasy"],
+    update: ["plugin", "update", "shipeasy@shipeasy", "--scope", scope],
   };
 }
 
@@ -1222,6 +1235,10 @@ export interface ClaudePluginResult {
  * Both commands are idempotent (re-running exits 0), so this is safe on a
  * repeat `shipeasy setup`.
  *
+ * With `ctx.force` (what `shipeasy upgrade` passes) it also REFRESHES: both
+ * commands above no-op on an existing install, so an upgrade would otherwise
+ * leave the plugin — and every skill inside it — pinned at the cached version.
+ *
  * Falls back to registering the scope's MCP config and printing the manual
  * commands when the `claude` binary isn't present.
  */
@@ -1240,7 +1257,13 @@ export function installClaudePlugin(ctx: InstallCtx): ClaudePluginResult {
     };
   }
   if (ctx.dryRun) {
-    return { action: "installed", lines: manual.map((l) => `would run: ${l}`) };
+    const steps = ctx.force
+      ? [argv.marketplace, argv.marketplaceUpdate, argv.install, argv.update]
+      : [argv.marketplace, argv.install];
+    return {
+      action: "installed",
+      lines: steps.map((s) => `would run: claude ${shellJoin(s)}`),
+    };
   }
   // cwd matters at project scope: both commands resolve `.claude/settings.json`
   // against the process's working directory.
@@ -1250,6 +1273,9 @@ export function installClaudePlugin(ctx: InstallCtx): ClaudePluginResult {
   };
   const add = spawnSync("claude", argv.marketplace, opts);
   // `marketplace add` is idempotent-ish; a non-zero here is usually "already added".
+  // Re-pull the marketplace BEFORE installing so a first install resolves the
+  // latest revision rather than a stale clone from an earlier `add`.
+  if (ctx.force) spawnSync("claude", argv.marketplaceUpdate, opts);
   const install = spawnSync("claude", argv.install, opts);
   if (install.status !== 0) {
     return {
@@ -1261,8 +1287,17 @@ export function installClaudePlugin(ctx: InstallCtx): ClaudePluginResult {
       ],
     };
   }
-  return {
-    action: "installed",
-    lines: [`plugin installed at ${ctx.scope} scope (marketplace + shipeasy@shipeasy)`],
-  };
+  const lines = [`plugin installed at ${ctx.scope} scope (marketplace + shipeasy@shipeasy)`];
+  if (ctx.force) {
+    // The bump for an ALREADY-installed plugin — `install` above exits 0
+    // without moving it. Best-effort: a failure here still leaves a working
+    // (if older) plugin, so it reports rather than fails the upgrade.
+    const bump = spawnSync("claude", argv.update, opts);
+    lines.push(
+      bump.status === 0
+        ? "plugin updated to the latest marketplace revision (restart Claude Code to apply)"
+        : `plugin update failed (${bump.status ?? "?"}) — run: claude ${shellJoin(argv.update)}`,
+    );
+  }
+  return { action: "installed", lines };
 }

@@ -17,6 +17,7 @@ import {
   approveProjectMcpServer,
   claudeMcpAddArgv,
   claudePluginArgv,
+  installClaudePlugin,
   copilotMcpAddArgv,
   bearerForPath,
   mcpBearer,
@@ -780,6 +781,25 @@ describe("Claude native install commands", () => {
       ]);
       expect(install).toEqual(["plugin", "install", "shipeasy@shipeasy", "--scope", scope]);
     }
+  });
+
+  it("carries the refresh pair — add + install no-op on an existing install", () => {
+    const { marketplaceUpdate, update } = claudePluginArgv("user");
+    // Without these an upgrade left the plugin (and every skill in it) pinned
+    // at the cached revision.
+    expect(marketplaceUpdate).toEqual(["plugin", "marketplace", "update", "shipeasy"]);
+    expect(update).toEqual(["plugin", "update", "shipeasy@shipeasy", "--scope", "user"]);
+    expect(claudePluginArgv("project").update).toContain("project");
+  });
+
+  it("dry-runs the refresh steps only when forcing (upgrade), not on a plain setup", () => {
+    const base = { cwd: "/tmp/x", scope: "user" as const, dryRun: true };
+    const plain = installClaudePlugin({ ...base, force: false });
+    expect(plain.lines).toHaveLength(2);
+    const forced = installClaudePlugin({ ...base, force: true });
+    expect(forced.lines).toHaveLength(4);
+    expect(forced.lines.join("\n")).toContain("plugin marketplace update shipeasy");
+    expect(forced.lines.join("\n")).toContain("plugin update shipeasy@shipeasy");
   });
 
   it("pins the project on the `claude mcp add` entry, both ways", () => {

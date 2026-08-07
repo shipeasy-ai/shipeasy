@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { customOperations } from "@shipeasy/openapi/custom";
@@ -63,6 +63,12 @@ export async function fetchSdkSkill(sdk: string): Promise<string | null> {
  * Write a skill's files into `<base>/<dirName>/` — `files` maps skill-relative
  * paths (`SKILL.md`, `references/foo.md`, …) to content. Returns the SKILL.md
  * path (the skill's entry point).
+ *
+ * A REPLACE, not a merge: an existing install of the same skill is removed
+ * first, so a reference file dropped upstream doesn't survive as a stale
+ * sibling of the new SKILL.md (which is how the `skills` CLI installs, and what
+ * "update the skill" has to mean). Guarded on the dir actually being a skill —
+ * we only ever delete a directory that holds a SKILL.md.
  */
 export function writeSkillDir(
   files: Record<string, string>,
@@ -70,6 +76,7 @@ export function writeSkillDir(
   base: string,
 ): string {
   const dir = join(base, dirName);
+  if (existsSync(join(dir, "SKILL.md"))) rmSync(dir, { recursive: true, force: true });
   for (const [rel, content] of Object.entries(files)) {
     const path = join(dir, rel);
     mkdirSync(dirname(path), { recursive: true });

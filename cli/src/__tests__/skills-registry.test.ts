@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { readdirSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -13,7 +14,7 @@ import {
   skillsForFeatures,
 } from "../setup/skills-registry";
 import { SKILLS_CLI_AGENT } from "../setup/agents";
-import { parseSkillDescription, substituteSdkSnippets } from "../setup/sdk-docs";
+import { parseSkillDescription, substituteSdkSnippets, writeSkillDir } from "../setup/sdk-docs";
 
 describe("skills registry", () => {
   it("maps each feature to its full marketplace skill set (not the removed *-install)", () => {
@@ -138,6 +139,40 @@ describe("substituteSdkSnippets", () => {
   it("routes both Google agents through the skills CLI", () => {
     expect(SKILLS_CLI_AGENT.antigravity).toEqual(["antigravity", "antigravity-cli"]);
     expect(SKILLS_CLI_AGENT.gemini).toEqual(["gemini-cli"]);
+  });
+});
+
+describe("writeSkillDir", () => {
+  it("replaces a previous install instead of merging over it", () => {
+    const base = mkdtempSync(join(tmpdir(), "se-write-skill-"));
+    try {
+      writeSkillDir(
+        { "SKILL.md": "v1\n", "references/gone.md": "dropped upstream\n" },
+        "shipeasy-ops",
+        base,
+      );
+      writeSkillDir({ "SKILL.md": "v2\n", "references/kept.md": "new\n" }, "shipeasy-ops", base);
+      const dir = join(base, "shipeasy-ops");
+      expect(readFileSync(join(dir, "SKILL.md"), "utf8")).toBe("v2\n");
+      expect(existsSync(join(dir, "references", "kept.md"))).toBe(true);
+      // A reference the new version doesn't ship must not survive the update.
+      expect(existsSync(join(dir, "references", "gone.md"))).toBe(false);
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
+  });
+
+  it("only removes a directory that is actually a skill (has SKILL.md)", () => {
+    const base = mkdtempSync(join(tmpdir(), "se-write-skill-"));
+    try {
+      // A non-skill dir at the same name keeps its contents — we merge into it
+      // rather than deleting somebody else's files.
+      writeSkillDir({ "notes.md": "user's own\n" }, "shipeasy-ops", base);
+      writeSkillDir({ "SKILL.md": "v1\n" }, "shipeasy-ops", base);
+      expect(existsSync(join(base, "shipeasy-ops", "notes.md"))).toBe(true);
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
   });
 });
 
