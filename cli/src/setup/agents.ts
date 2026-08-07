@@ -1051,6 +1051,19 @@ export function claudePluginArgv(scope: "user" | "project"): {
   };
 }
 
+/**
+ * The `claude plugin …` invocations for one run, in order. A plain setup does
+ * add + install; a forced run (`shipeasy upgrade`) interleaves the two refresh
+ * commands, because add + install alone no-op on an existing install and leave
+ * the plugin — and its skills — at the cached revision.
+ */
+export function claudePluginSteps(scope: "user" | "project", force: boolean): string[][] {
+  const argv = claudePluginArgv(scope);
+  return force
+    ? [argv.marketplace, argv.marketplaceUpdate, argv.install, argv.update]
+    : [argv.marketplace, argv.install];
+}
+
 export function addClaudeMcpNative(ctx: InstallCtx): McpResult | null {
   // User scope stays on the JSON merge: `claude mcp add --scope user` writes
   // `~/.claude.json`, NOT the `~/.claude/settings.json` that the rest of this
@@ -1257,12 +1270,11 @@ export function installClaudePlugin(ctx: InstallCtx): ClaudePluginResult {
     };
   }
   if (ctx.dryRun) {
-    const steps = ctx.force
-      ? [argv.marketplace, argv.marketplaceUpdate, argv.install, argv.update]
-      : [argv.marketplace, argv.install];
     return {
       action: "installed",
-      lines: steps.map((s) => `would run: claude ${shellJoin(s)}`),
+      lines: claudePluginSteps(ctx.scope, Boolean(ctx.force)).map(
+        (s) => `would run: claude ${shellJoin(s)}`,
+      ),
     };
   }
   // cwd matters at project scope: both commands resolve `.claude/settings.json`

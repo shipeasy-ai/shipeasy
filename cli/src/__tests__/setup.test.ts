@@ -17,7 +17,7 @@ import {
   approveProjectMcpServer,
   claudeMcpAddArgv,
   claudePluginArgv,
-  installClaudePlugin,
+  claudePluginSteps,
   copilotMcpAddArgv,
   bearerForPath,
   mcpBearer,
@@ -792,14 +792,19 @@ describe("Claude native install commands", () => {
     expect(claudePluginArgv("project").update).toContain("project");
   });
 
-  it("dry-runs the refresh steps only when forcing (upgrade), not on a plain setup", () => {
-    const base = { cwd: "/tmp/x", scope: "user" as const, dryRun: true };
-    const plain = installClaudePlugin({ ...base, force: false });
-    expect(plain.lines).toHaveLength(2);
-    const forced = installClaudePlugin({ ...base, force: true });
-    expect(forced.lines).toHaveLength(4);
-    expect(forced.lines.join("\n")).toContain("plugin marketplace update shipeasy");
-    expect(forced.lines.join("\n")).toContain("plugin update shipeasy@shipeasy");
+  it("runs the refresh steps only when forcing (upgrade), not on a plain setup", () => {
+    // Pure argv, so this holds on a runner without the `claude` binary too.
+    expect(claudePluginSteps("user", false).map((s) => s.join(" "))).toEqual([
+      "plugin marketplace add shipeasy-ai/shipeasy --scope user",
+      "plugin install shipeasy@shipeasy --scope user",
+    ]);
+    expect(claudePluginSteps("project", true).map((s) => s.join(" "))).toEqual([
+      "plugin marketplace add shipeasy-ai/shipeasy --scope project",
+      // Re-pull BEFORE the install so a first install resolves the latest.
+      "plugin marketplace update shipeasy",
+      "plugin install shipeasy@shipeasy --scope project",
+      "plugin update shipeasy@shipeasy --scope project",
+    ]);
   });
 
   it("pins the project on the `claude mcp add` entry, both ways", () => {
