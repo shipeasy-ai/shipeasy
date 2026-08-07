@@ -1,0 +1,103 @@
+# File a Shipeasy ops bug whenever a workflow on `main` fails — we dogfood our
+# own queue for our own CI, instead of relying on someone noticing a red run.
+#
+# Deduped the way the ops skill demands: ONE open item per workflow. A repeat
+# failure comments the new run onto the existing item rather than filing a
+# second one, so a workflow that's been red for a week is one row with a
+# history, not seven rows. The item is closed by hand (or by the ops-work
+# loop) once the workflow is green again.
+#
+# Workflow names below must match each workflow's `name:` EXACTLY — GitHub
+# silently never triggers on a name that doesn't exist.
+name: Report CI failure
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+      - Contract Tests
+      - Publish cli
+      - Publish mcp
+      - Publish openapi
+      - Skills Contract
+      - prod-probe
+      - install · Claude Code
+      - install · Codex
+      - install · GitHub Copilot CLI
+      - install · Tier-2 agents (skills)
+    types: [completed]
+
+concurrency:
+  # One reporter at a time, so two workflows failing together can't both miss
+  # the other's item and file a duplicate.
+  group: report-ci-failure
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  report:
+    if: >
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    env:
+      # A CLI session token + the project it's bound to (`shipeasy login`'s env
+      # equivalent). The project id is the one committed in the parent repo's
+      # `.shipeasy` — not a secret, so only the token has to be configured.
+      SHIPEASY_CLI_TOKEN: ${{ secrets.SHIPEASY_CLI_TOKEN }}
+      SHIPEASY_PROJECT_ID: ${{ secrets.SHIPEASY_PROJECT_ID || 'e976b15e-3ccc-44d3-821d-87f06d5a0e43' }}
+      GH_TOKEN: ${{ github.token }}
+      WF_NAME: ${{ github.event.workflow_run.name }}
+      RUN_URL: ${{ github.event.workflow_run.html_url }}
+      RUN_ID: ${{ github.event.workflow_run.id }}
+      HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - name: Check the reporter is configured
+        run: |
+          if [ -z "$SHIPEASY_CLI_TOKEN" ]; then
+            echo "::warning::SHIPEASY_CLI_TOKEN is not set — cannot file the CI failure. Add the secret to enable this."
+          fi
+
+      - name: Install the Shipeasy CLI
+        if: env.SHIPEASY_CLI_TOKEN != ''
+        run: npm install -g @shipeasy/cli@latest
+
+      - name: File or update the ops item
+        if: env.SHIPEASY_CLI_TOKEN != ''
+        run: |
+          set -euo pipefail
+
+          # Failing job → failing step, so the item says what broke, not just
+          # that something did.
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}/jobs" --paginate \
+            --jq '.jobs[] | select(.conclusion=="failure") |
+                  "- \(.name): \([.steps[]? | select(.conclusion=="failure") | .name] | join(", "))"' \
+            > failed.txt || true
+          [ -s failed.txt ] || echo "- (no per-job detail available)" > failed.txt
+
+          BODY=$(printf 'Workflow: %s\nRun: %s\nCommit: %s\n\nFailed:\n%s\n' \
+            "$WF_NAME" "$RUN_URL" "$HEAD_SHA" "$(cat failed.txt)")
+          TITLE="CI failed: ${WF_NAME}"
+
+          # Open == anything not yet resolved/wont_fix. `ops list` prints JSON.
+          HANDLE=$(shipeasy ops list --type bug --status all --limit 200 \
+            | jq -r --arg t "$TITLE" '
+                (if type == "array" then . else .data end)
+                | map(select(.title == $t and (.status | IN("resolved","wont_fix") | not)))
+                | first | .number // empty')
+
+          if [ -n "$HANDLE" ]; then
+            echo "Already tracked as #${HANDLE} — commenting the new run onto it"
+            shipeasy ops comments create "$HANDLE" --body "$BODY"
+          else
+            shipeasy ops bug "$TITLE" \
+              --steps-to-reproduce "Push to main, or re-run: ${RUN_URL}" \
+              --actual-result "$BODY" \
+              --expected-result "The ${WF_NAME} workflow passes on main" \
+              --priority high \
+              --tags '["ci","ci-failure"]' \
+              --page-url "$RUN_URL"
+          fi
