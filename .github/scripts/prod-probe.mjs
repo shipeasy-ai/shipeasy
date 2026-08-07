@@ -32,12 +32,16 @@
 //                           admitted and others denied (incl. the bot UA regex).
 //   7. Per-condition rollout — a stack condition's own fractional rolloutPct:
 //                           non-matchers always denied, matchers pass ≈ rolloutPct.
-//   8. Metrics DSL v2     — one metric per BUILT expression primitive, created
-//                           through the admin API and read back through /series
-//                           (a definition that saves and then cannot be planned
-//                           422s the chart and silently no-ops its alert rule),
-//                           plus every NOT-BUILT primitive attempted and required
-//                           to be refused. Needs SHIPEASY_APP_URL + a client key.
+//   8. Metrics DSL v2     — one metric per expression primitive, created through
+//                           the admin API and read back through /series (a
+//                           definition that saves and then cannot be planned 422s
+//                           the chart and silently no-ops its alert rule). The
+//                           roster covers what is BUILT; a second list covers the
+//                           parity BACKLOG, and a refusal there is a finding, not
+//                           the expected answer — the target is a language where
+//                           every primitive is storable, so this leg runs RED
+//                           until the backlog empties and the annotation count is
+//                           the burn-down. Needs SHIPEASY_APP_URL + a client key.
 //
 // Exit non-zero on any drift so the Action fails (and notifies). Env:
 //   SHIPEASY_CLI_TOKEN, SHIPEASY_PROJECT_ID  — CLI auth (the CLI reads these)
@@ -3878,31 +3882,40 @@ const DSL_METRICS = [
   ["probe_dsl.avg_ms_identified", `avg(${DSL_REQ}{user_id:*}, ms)`, { unit: "ms", direction: "lower_better" }],
 ];
 
-// Every primitive the grammar RECOGNISES and the engine cannot run: residual
-// landings (no AE form at all), the sql_todo rank family (two statements, one
-// issued), and the three undesigned detectors. Each must be refused at create.
-// `count_users` / `unique` / `!=` are absent on purpose — v1 still parses them,
-// so they save as v1 rows and are not a v2 refusal to assert.
-const DSL_NOT_BUILT = [
-  `derivative(count(${DSL_REQ}))`,
-  `diff(count(${DSL_REQ}))`,
-  `cumsum(count(${DSL_REQ}))`,
-  `integral(count(${DSL_REQ}))`,
-  `week_before(count(${DSL_REQ}))`,
-  `timeshift(count(${DSL_REQ}), -604800)`,
-  `fill(count(${DSL_REQ}), zero)`,
-  `default_zero(count(${DSL_REQ}))`,
-  `ewma_5(count(${DSL_REQ}))`,
-  `median_5(count(${DSL_REQ}))`,
-  `autosmooth(count(${DSL_REQ}))`,
-  `trend_line(avg(${DSL_REQ}, ms))`,
-  `robust_trend(avg(${DSL_REQ}, ms))`,
-  `rollup(count(${DSL_REQ}), max, 3600)`,
-  `top(p(95, ${DSL_REQ}, ms) by (route), 5, mean, desc)`,
-  `count_nonzero(count(${DSL_REQ}))`,
-  `anomalies(count(${DSL_REQ}), basic, 2)`,
-  `outliers(count(${DSL_REQ}) by (route), MAD, 3)`,
-  `forecast(count(${DSL_REQ}))`,
+// The parity BACKLOG: every primitive the grammar recognises and the engine
+// cannot run yet — the residual landings (no AE form at all), the sql_todo rank
+// family (two statements, one issued), and the three undesigned detectors.
+//
+// These are held to the same bar as the roster above: each SHOULD be a live
+// metric, and a refusal at create is a FINDING, not the expected answer. The
+// probe therefore runs RED until parity is complete, and the count in the
+// annotation is the burn-down. As each one gets an emitter it starts saving,
+// joins the series read below, and the number goes down on its own — nothing
+// here needs editing when one lands.
+//
+// `count_users` / `unique` / `!=` are absent on purpose: they are REMOVED from
+// the language rather than unbuilt, and v1 still parses them, so they save as v1
+// rows and say nothing about v2.
+const DSL_PENDING = [
+  ["probe_dsl.requests_derivative", `derivative(count(${DSL_REQ}))`],
+  ["probe_dsl.requests_diff", `diff(count(${DSL_REQ}))`],
+  ["probe_dsl.requests_cumsum", `cumsum(count(${DSL_REQ}))`],
+  ["probe_dsl.requests_integral", `integral(count(${DSL_REQ}))`],
+  ["probe_dsl.requests_week_before", `week_before(count(${DSL_REQ}))`],
+  ["probe_dsl.requests_timeshift_7d", `timeshift(count(${DSL_REQ}), -604800)`],
+  ["probe_dsl.requests_filled_zero", `fill(count(${DSL_REQ}), zero)`],
+  ["probe_dsl.requests_default_zero", `default_zero(count(${DSL_REQ}))`],
+  ["probe_dsl.requests_ewma_5", `ewma_5(count(${DSL_REQ}))`],
+  ["probe_dsl.requests_median_5", `median_5(count(${DSL_REQ}))`],
+  ["probe_dsl.requests_autosmooth", `autosmooth(count(${DSL_REQ}))`],
+  ["probe_dsl.ms_trend_line", `trend_line(avg(${DSL_REQ}, ms))`],
+  ["probe_dsl.ms_robust_trend", `robust_trend(avg(${DSL_REQ}, ms))`],
+  ["probe_dsl.requests_rollup_max_1h", `rollup(count(${DSL_REQ}), max, 3600)`],
+  ["probe_dsl.p95_ms_top5_routes", `top(p(95, ${DSL_REQ}, ms) by (route), 5, mean, desc)`],
+  ["probe_dsl.requests_count_nonzero", `count_nonzero(count(${DSL_REQ}))`],
+  ["probe_dsl.requests_anomalies", `anomalies(count(${DSL_REQ}), basic, 2)`],
+  ["probe_dsl.requests_outliers_by_route", `outliers(count(${DSL_REQ}) by (route), MAD, 3)`],
+  ["probe_dsl.requests_forecast", `forecast(count(${DSL_REQ}))`],
 ];
 
 const DSL_REQ_N = 120;
@@ -3916,6 +3929,10 @@ const DSL_REGIONS = ["us", "eu", "apac"];
 const DSL_TIERS = ["free", "pro", ""];
 
 let dslSeed = null; // { tsSec, sent } once the cohort is in
+/** Backlog entries that DID save this run — they get read back like any other. */
+const dslPendingLive = [];
+/** Backlog entries still refused, with the reason the API gave. */
+const dslGaps = [];
 
 async function adminJson(method, path, body) {
   const res = await fetch(`${APP_URL}${path}`, {
@@ -4022,6 +4039,25 @@ async function seedDslMetrics() {
   }
   ok(`${live}/${DSL_METRICS.length} v2 metric definitions live`);
 
+  // The backlog, created the same way. A refusal is recorded rather than
+  // annotated here so the whole gap list lands in one place at the end of the
+  // run; an entry that saves is indistinguishable from the roster above from
+  // here on, series read included.
+  for (const [name, query] of DSL_PENDING) {
+    let r = await adminJson("POST", "/api/admin/metrics", { name, event_name: DSL_REQ, query });
+    if (r.status === 409) {
+      r = await adminJson("PATCH", `/api/admin/metrics/${encodeURIComponent(name)}`, {
+        event_name: DSL_REQ,
+        query,
+      });
+    }
+    if (r.ok) dslPendingLive.push([name, query]);
+    else dslGaps.push({ name, query, why: dslErr(r), status: r.status });
+  }
+  if (dslPendingLive.length) {
+    ok(`${dslPendingLive.length}/${DSL_PENDING.length} backlog primitives now save`);
+  }
+
   const tsMs = Date.now();
   if (await collect(dslCohort(tsMs))) {
     dslSeed = { tsSec: Math.floor(tsMs / 1000), sent: DSL_REQ_N + DSL_PAGE_N };
@@ -4042,7 +4078,8 @@ async function probeDslMetrics() {
   const from = to - 7200;
   const values = new Map();
   let readOk = 0;
-  for (const [name] of DSL_METRICS) {
+  const readRoster = [...DSL_METRICS, ...dslPendingLive];
+  for (const [name] of readRoster) {
     const r = await adminJson("POST", `/api/admin/metrics/${encodeURIComponent(name)}/series`, {
       from,
       to,
@@ -4057,7 +4094,7 @@ async function probeDslMetrics() {
     const rows = Array.isArray(r.body?.rows) ? r.body.rows : [];
     values.set(name, rows);
   }
-  if (readOk === DSL_METRICS.length) {
+  if (readOk === readRoster.length) {
     ok(`all ${readOk} v2 definitions planned and read clean`);
   }
 
@@ -4080,27 +4117,24 @@ async function probeDslMetrics() {
     }
   }
 
-  // The other half of the promise: a recognised-but-unrunnable name must not be
-  // storable. HARD — this one is data-independent.
-  let refused = 0;
-  for (const query of DSL_NOT_BUILT) {
-    const fn = query.slice(0, query.indexOf("(")).replace(/[^a-z0-9_]/g, "");
-    const name = `probe_dsl_unbuilt.${fn}`;
-    const r = await adminJson("POST", "/api/admin/metrics", {
-      name,
-      event_name: DSL_REQ,
-      query,
-    });
-    if (r.ok) {
-      annotate(`dsl-unbuilt: '${query}' was ACCEPTED — it will 422 on every chart and alert tick`);
-      failed++;
-      await adminJson("DELETE", `/api/admin/metrics/${encodeURIComponent(name)}`);
-      continue;
-    }
-    refused++;
+  // The burn-down. Every refusal is a finding: the target is a language where
+  // all 37 primitives are storable, so a name the grammar knows and the engine
+  // cannot run is work outstanding, not the expected answer. The probe stays RED
+  // until this list empties.
+  //
+  // The `why` is worth reading rather than skimming — for a name only v2
+  // recognises it is the V1 parser's message ("Unknown aggregation 'derivative'"),
+  // because resolveIr reports the v1 error when both grammars fail. The pointed
+  // v2 refusal naming what the function waits on is thrown away on the way out.
+  const done = DSL_PENDING.length - dslGaps.length;
+  for (const g of dslGaps) {
+    annotate(`dsl-parity gap: ${g.query} — ${g.status} ${g.why}`);
   }
-  if (refused === DSL_NOT_BUILT.length) {
-    ok(`all ${refused} not-built primitives refused at create`);
+  failed += dslGaps.length;
+  if (dslGaps.length === 0) {
+    ok(`DSL parity COMPLETE — all ${DSL_PENDING.length} backlog primitives save and read`);
+  } else {
+    console.log(`  DSL parity: ${done}/${DSL_PENDING.length} built, ${dslGaps.length} to go`);
   }
   console.log("::endgroup::");
 }
