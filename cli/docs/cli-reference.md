@@ -2250,7 +2250,7 @@ Bring your Shipeasy install up to date: self-updates the CLI, refreshes the codi
 `upgrade` refreshes everything a Shipeasy install accumulates, in order:
 
 1. **CLI** — installs `@shipeasy/cli@latest` globally (npm by default; `--pm` for pnpm/yarn/bun). The new version applies to your NEXT command, not the running one.
-2. **Skills** — re-fetches the marketplace how-to skills from the repo and reinstalls them into your wired agents. Claude at user scope refreshes the native plugin (MCP + skills + slash commands in one); every other agent (and Claude in-repo) reinstalls via `skills add`. Only the skills you actually have are refreshed — discovery falls back to the full catalogue when it finds none.
+2. **Skills** — re-fetches the marketplace how-to skills from the repo and reinstalls them into your wired agents. Claude at user scope refreshes the native plugin (MCP + skills + slash commands in one); every other agent (and Claude in-repo) reinstalls via `skills add`. The WHOLE catalogue is installed — skills added to the library since your last setup land here, not just newer bytes for what you already have (`--only-installed` keeps it to what's on disk).
 3. **MCP** — re-asserts the hosted MCP registration (mcp.shipeasy.ai is a static remote, so there's nothing to bump — this just repairs a stale/local entry).
 4. **SDK** — detects each onboarded target and OFFERS to bump `@shipeasy/sdk` to its latest release (prompted; `--yes` accepts, `--skip-sdk` skips).
 
@@ -2267,6 +2267,7 @@ shipeasy upgrade [options] [command]
 | `--pm <pm>` | optional | Package manager for the global CLI update (npm\|pnpm\|yarn\|bun) |
 | `--skip-cli` | optional | Don't self-update the CLI |
 | `--skip-sdk` | optional | Don't offer the SDK dependency update |
+| `--only-installed` | optional | Refresh only the skills already on disk — don't add missing ones |
 | `--yes` | optional | Non-interactive: accept the SDK update without prompting |
 | `--dry-run` | optional | Show what would change without installing anything |
 
@@ -2300,6 +2301,7 @@ shipeasy upgrade skills [options]
 | `--scope <scope>` | optional | Where skills live: project \| user (default: auto-detected) |
 | `--pm <pm>` | optional | Package manager for the global CLI update (npm\|pnpm\|yarn\|bun) |
 | `--skip-cli` | optional | Refresh skills only — don't self-update the CLI |
+| `--only-installed` | optional | Refresh only the skills already on disk — don't add missing ones |
 | `--dry-run` | optional | Show what would change without installing anything |
 
 Examples:
@@ -2344,6 +2346,7 @@ shipeasy install [options] <module>
 | `--profile <name>` | optional | i18n only: primary profile to ensure exists (default: `"en:prod"`) |
 | `--json` | optional | Output as JSON |
 | `--project <id>` | optional | Project ID override |
+| `--no-skills` | optional | Enable the module only — don't install its how-to skills |
 
 Examples:
 

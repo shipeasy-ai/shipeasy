@@ -9,7 +9,6 @@ import {
   type InstallCtx,
   ALL_AGENT_IDS,
   MCP_URL,
-  SKILLS_CLI_AGENT,
   detectAgents,
   existingMcpProjectPin,
   installClaudePlugin,
@@ -18,7 +17,7 @@ import {
   registerMcp,
 } from "../setup/agents";
 import { fetchSdkSkill, installMarketplaceSkills, installSkill } from "../setup/sdk-docs";
-import { baseSkillNames } from "../setup/skills-registry";
+import { baseSkillNames, skillsCliAgentsFor } from "../setup/skills-registry";
 import { getBoundProjectId, getBoundSdk } from "../util/project-config";
 import { listDirs } from "../util/assets";
 import { detectTargets, type TargetRecommendation } from "./scan";
@@ -53,6 +52,7 @@ interface UpgradeOpts {
   skipSdk?: boolean;
   yes?: boolean;
   dryRun?: boolean;
+  onlyInstalled?: boolean;
 }
 
 // ── small print helpers (no chalk — the CLI avoids ESM-only deps) ───────────
@@ -171,32 +171,22 @@ function resolveAgents(opts: UpgradeOpts, cwd: string): AgentId[] {
     .map((a) => a.id);
 }
 
-/** The `skills` CLI agent names that take skills via `npx skills add` for this
- *  scope — everything in {@link SKILLS_CLI_AGENT} always, Claude only at project
- *  scope (user scope gets its skills from the plugin instead). The skills CLI
- *  names Claude Code `claude-code` — bare `claude` errors "Invalid agents:
- *  claude" — and one agent can map to several names (Antigravity's IDE and CLI). */
-function skillsCliAgentsFor(agents: AgentId[], scope: "user" | "project"): string[] {
-  return [
-    ...new Set(
-      agents.flatMap((a) =>
-        a === "claude" ? (scope === "project" ? ["claude-code"] : []) : (SKILLS_CLI_AGENT[a] ?? []),
-      ),
-    ),
-  ];
-}
-
 // ── installed-skill discovery ────────────────────────────────────────────────
 
 /**
  * The marketplace how-to skills already on disk, discovered by scanning the
- * conventional skills roots for `shipeasy-*` folders. We only refresh what's
- * actually installed so an upgrade doesn't graft feature skills the user never
- * chose; when nothing is found we fall back to the full catalogue.
+ * conventional skills roots for `shipeasy-*` folders. Used to report what an
+ * upgrade ADDS versus refreshes — not to bound the set (see
+ * {@link skillsToRefresh}): a skill added to the library after the last setup
+ * exists in no root, so a disk-bounded upgrade could never install it.
  */
-function discoverInstalledSkills(cwd: string): Set<string> {
+export function discoverInstalledSkills(cwd: string): Set<string> {
   const home = homedir();
   const roots = [
+    // `skills` 1.5+ installs into the shared `.agents/skills` root and symlinks
+    // each agent dir at it, so this is where most installs actually land.
+    join(cwd, ".agents", "skills"),
+    join(home, ".agents", "skills"),
     join(cwd, ".claude", "skills"),
     join(home, ".claude", "skills"),
     join(cwd, ".cursor", "skills"),
@@ -212,6 +202,34 @@ function discoverInstalledSkills(cwd: string): Set<string> {
     }
   }
   return found;
+}
+
+export interface SkillRefreshPlan {
+  /** Everything the upgrade will install — refreshed and newly added. */
+  names: string[];
+  /** Library skills not on disk yet; installed unless `--only-installed`. */
+  added: string[];
+}
+
+/**
+ * What `upgrade` installs: the WHOLE marketplace catalogue by default, so a
+ * skill shipped after the last `shipeasy setup` (e.g. `shipeasy-ops-work`) is
+ * installed rather than skipped forever — "update" means the install matches
+ * the library, not just newer bytes for what's already there. `--only-installed`
+ * keeps the old, disk-bounded behaviour (falling back to the full catalogue when
+ * nothing is found).
+ */
+export function skillsToRefresh(installed: Set<string>, onlyInstalled = false): SkillRefreshPlan {
+  const catalogue = baseSkillNames();
+  const known = new Set(catalogue);
+  const present = [...installed].filter((n) => known.has(n));
+  if (onlyInstalled) {
+    return { names: present.length ? present.sort() : catalogue, added: [] };
+  }
+  return {
+    names: [...catalogue].sort(),
+    added: catalogue.filter((n) => !installed.has(n)).sort(),
+  };
 }
 
 // ── skills refresh (shared by `upgrade` and `upgrade skills`) ────────────────
@@ -253,14 +271,13 @@ async function refreshSkills(
     return;
   }
 
-  // Refresh exactly the marketplace how-to skills that are installed; fall back
-  // to the whole catalogue when discovery comes up empty.
-  const known = new Set(baseSkillNames());
-  const discovered = [...discoverInstalledSkills(cwd)].filter((n) => known.has(n));
-  const names = discovered.length ? discovered.sort() : baseSkillNames();
+  // Install the whole marketplace catalogue — refreshing what's on disk AND
+  // adding library skills this machine never got (`--only-installed` opts out).
+  const { names, added } = skillsToRefresh(discoverInstalledSkills(cwd), opts.onlyInstalled);
   console.log(
     `  refreshing into ${skillsCliAgents.join(", ")} · skills: ${names.join(", ")} (${sdk} snippets)`,
   );
+  if (added.length) console.log(`  + missing from this install, adding: ${added.join(", ")}`);
 
   if (opts.dryRun) {
     console.log("  (dry run — would `npx skills add` each of the above at its latest marketplace revision)");
@@ -478,6 +495,8 @@ async function runUpgrade(
 export function upgradeCommand(parent: Command, currentVersion: string): Command {
   const upgrade = parent
     .command("upgrade")
+    // `update` is what people type; it used to be an unknown-command error.
+    .alias("update")
     .description(
       "Bring your Shipeasy install up to date: self-updates the CLI, refreshes the coding-agent " +
         "wiring (Claude plugin / MCP registration) and the how-to skills from the marketplace, and " +
@@ -489,6 +508,7 @@ export function upgradeCommand(parent: Command, currentVersion: string): Command
     .option("--pm <pm>", "Package manager for the global CLI update (npm|pnpm|yarn|bun)")
     .option("--skip-cli", "Don't self-update the CLI")
     .option("--skip-sdk", "Don't offer the SDK dependency update")
+    .option("--only-installed", "Refresh only the skills already on disk — don't add missing ones")
     .option("--yes", "Non-interactive: accept the SDK update without prompting")
     .option("--dry-run", "Show what would change without installing anything")
     .action(async (_opts: UpgradeOpts, cmd: Command) => {
@@ -515,6 +535,7 @@ export function upgradeCommand(parent: Command, currentVersion: string): Command
     .option("--scope <scope>", "Where skills live: project | user (default: auto-detected)")
     .option("--pm <pm>", "Package manager for the global CLI update (npm|pnpm|yarn|bun)")
     .option("--skip-cli", "Refresh skills only — don't self-update the CLI")
+    .option("--only-installed", "Refresh only the skills already on disk — don't add missing ones")
     .option("--dry-run", "Show what would change without installing anything")
     .action(async (_opts: UpgradeOpts, cmd: Command) => {
       // optsWithGlobals — see the note on the parent `upgrade` action; a flag
@@ -538,8 +559,9 @@ export function upgradeCommand(parent: Command, currentVersion: string): Command
       "2. **Skills** — re-fetches the marketplace how-to skills from the repo and " +
       "reinstalls them into your wired agents. Claude at user scope refreshes the " +
       "native plugin (MCP + skills + slash commands in one); every other agent (and " +
-      "Claude in-repo) reinstalls via `skills add`. Only the skills you actually have " +
-      "are refreshed — discovery falls back to the full catalogue when it finds none.\n" +
+      "Claude in-repo) reinstalls via `skills add`. The WHOLE catalogue is installed — " +
+      "skills added to the library since your last setup land here, not just newer bytes " +
+      "for what you already have (`--only-installed` keeps it to what's on disk).\n" +
       "3. **MCP** — re-asserts the hosted MCP registration (mcp.shipeasy.ai is a static " +
       "remote, so there's nothing to bump — this just repairs a stale/local entry).\n" +
       "4. **SDK** — detects each onboarded target and OFFERS to bump `@shipeasy/sdk` to " +

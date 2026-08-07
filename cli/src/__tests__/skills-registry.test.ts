@@ -1,4 +1,7 @@
 import { describe, it, expect } from "vitest";
+import { readdirSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   ALWAYS_SKILLS,
   FEATURE_SKILLS,
@@ -6,6 +9,7 @@ import {
   marketplaceSkillRawUrl,
   marketplaceSkillSource,
   setupSkillNames,
+  skillsCliAgentsFor,
   skillsForFeatures,
 } from "../setup/skills-registry";
 import { SKILLS_CLI_AGENT } from "../setup/agents";
@@ -17,6 +21,7 @@ describe("skills registry", () => {
       "shipeasy-experiments",
       "shipeasy-flags",
       "shipeasy-metrics",
+      "shipeasy-migrate",
     ]);
     expect(FEATURE_SKILLS.ops).toEqual([
       "shipeasy-ops",
@@ -41,6 +46,7 @@ describe("skills registry", () => {
       "shipeasy-experiments",
       "shipeasy-flags",
       "shipeasy-metrics",
+      "shipeasy-migrate",
       "shipeasy-ops",
       "shipeasy-ops-work",
       "shipeasy-see",
@@ -50,6 +56,7 @@ describe("skills registry", () => {
       "shipeasy-experiments",
       "shipeasy-flags",
       "shipeasy-metrics",
+      "shipeasy-migrate",
     ]);
     expect(skillsForFeatures(["nope"])).toEqual([]);
   });
@@ -73,6 +80,29 @@ describe("skills registry", () => {
     for (const n of ["shipeasy-flags", "shipeasy-ops", "shipeasy-i18n", "shipeasy-alerts"]) {
       expect(names).toContain(n);
     }
+  });
+
+  // The registry is what setup and upgrade install FROM — a skill that ships in
+  // the plugin but is in no feature list (as `shipeasy-migrate` was) reaches
+  // Claude via the plugin and no other agent, ever.
+  it("covers every skill shipped in the marketplace plugin", () => {
+    const skillsDir = join(dirname(fileURLToPath(import.meta.url)), "../../../shipeasy/skills");
+    const shipped = readdirSync(skillsDir, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name)
+      .sort();
+    expect(shipped.length).toBeGreaterThan(0);
+    expect(baseSkillNames().sort()).toEqual(shipped);
+  });
+
+  it("routes claude through the skills CLI only in-repo (user scope = plugin)", () => {
+    expect(skillsCliAgentsFor(["claude"], "project")).toEqual(["claude-code"]);
+    expect(skillsCliAgentsFor(["claude"], "user")).toEqual([]);
+    expect(skillsCliAgentsFor(["claude", "cursor", "antigravity"], "user")).toEqual([
+      "cursor",
+      "antigravity",
+      "antigravity-cli",
+    ]);
   });
 
   it("builds a GitHub tree-path source under the marketplace repo", () => {

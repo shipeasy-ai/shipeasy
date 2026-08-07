@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { MARKETPLACE_SLUG, onPath } from "./agents";
+import { type AgentId, MARKETPLACE_SLUG, SKILLS_CLI_AGENT, onPath } from "./agents";
 
 /**
  * The single source of truth mapping a Shipeasy feature to the marketplace
@@ -17,8 +17,11 @@ import { MARKETPLACE_SLUG, onPath } from "./agents";
  * configs, kill switches, experiments, metrics); it maps to that whole skill set.
  */
 export const FEATURE_SKILLS: Record<string, string[]> = {
-  // release (flags/configs/killswitches/experiments/metrics)
-  flags: ["shipeasy-experiments", "shipeasy-flags", "shipeasy-metrics"],
+  // release (flags/configs/killswitches/experiments/metrics). `shipeasy-migrate`
+  // ports another platform's flags/experiments INTO Shipeasy, so it rides with
+  // the release module — without it the catalogue would be missing a shipped
+  // skill entirely, and `upgrade` (which refreshes the catalogue) never adds it.
+  flags: ["shipeasy-experiments", "shipeasy-flags", "shipeasy-metrics", "shipeasy-migrate"],
   // ops queue + feedback/errors/alerts + the see() reporting grammar
   ops: [
     "shipeasy-ops",
@@ -102,6 +105,24 @@ export function setupSkillNames(features: string[]): string[] {
  */
 export function baseSkillNames(): string[] {
   return setupSkillNames(Object.keys(FEATURE_SKILLS));
+}
+
+/**
+ * The `skills` CLI agent names that take skills for a set of wired agents at a
+ * scope — everything in {@link SKILLS_CLI_AGENT} always, Claude only at project
+ * scope (at user scope Claude gets its skills from the native plugin instead).
+ * The skills CLI names Claude Code `claude-code` — bare `claude` errors "Invalid
+ * agents: claude" — and one agent can map to several names (Antigravity's IDE
+ * and CLI). Shared by `upgrade` and `install` so they wire the same agents.
+ */
+export function skillsCliAgentsFor(agents: AgentId[], scope: "user" | "project"): string[] {
+  return [
+    ...new Set(
+      agents.flatMap((a) =>
+        a === "claude" ? (scope === "project" ? ["claude-code"] : []) : (SKILLS_CLI_AGENT[a] ?? []),
+      ),
+    ),
+  ];
 }
 
 export interface SkillsCliResult {

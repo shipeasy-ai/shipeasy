@@ -1867,7 +1867,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `name` | required | `string` | Event name. Starts with a letter, digit, or `_`; letters, digits, `_`, `-`, `.`; max 128 chars. Immutable after create — this is the handle metric queries reference. _(pattern `^[a-zA-Z0-9_][a-zA-Z0-9_\-.]{0,127}$`)_ |
+| `name` | required | `string` | Event name. Starts with a letter, digit, or `_`; letters, digits, `_`, `-`, `.`; max 50 characters. The cap is the Analytics Engine index budget — 96 bytes total, less a 36-byte project UUID and a separator — and the API has always enforced 50 while this spec advertised 128. The charset is ASCII, so characters and bytes are the same count. Immutable after create — this is the handle metric queries reference. _(pattern `^[a-zA-Z0-9_][a-zA-Z0-9_\-.]{0,49}$`)_ |
 | `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `description` | optional | `string` | Optional human-readable description of the event. |
 | `properties` | optional | `object[]` | Typed properties declared on the event. Defaults to an empty list. _(default `[]`)_ |

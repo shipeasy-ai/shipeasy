@@ -141,6 +141,10 @@ describe("command tree", () => {
     for (const mod of ["flags", "i18n", "ops"]) {
       expect(desc, `description names ${mod}`).toContain(mod);
     }
+    // An install places the module's how-to skills too (it prints "use the
+    // shipeasy-ops skill" next steps) — opt out, never opt in.
+    const skills = install!.options.find((o) => o.long === "--no-skills");
+    expect(skills, "--no-skills opt-out registered").toBeDefined();
   });
 });
 

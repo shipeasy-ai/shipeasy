@@ -1881,6 +1881,14 @@ async function runSetup(opts: SetupOpts): Promise<void> {
         instructions: false,
       });
       features = (picked as FeatureGroup[] | undefined) ?? [];
+    } else {
+      // Non-interactive with no `--features`: take everything on offer, which is
+      // exactly what the interactive prompt preselects. Silently enabling
+      // nothing here was how an agent-driven setup ended up with only
+      // `shipeasy-setup` on disk — no ops module, and no ops/see/alerts skills.
+      features = [...offered] as FeatureGroup[];
+      say(`  • non-interactive — enabling all offered modules: ${offered.join(", ")}`);
+      say("    (pass --features <list> to narrow)");
     }
 
     if (!features.length) {

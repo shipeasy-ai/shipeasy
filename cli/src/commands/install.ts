@@ -3,7 +3,11 @@ import { getApiClient, ApiError, printApiError } from "../api/client";
 import { printJson } from "../util/output";
 import { withExamples, withDetails } from "../util/examples";
 import { getPlatformModuleGates } from "../util/platform-gates";
-import { getBoundProjectId } from "../util/project-config";
+import { getBoundProjectId, getBoundSdk } from "../util/project-config";
+import { detectAgents } from "../setup/agents";
+import { installMarketplaceSkills } from "../setup/sdk-docs";
+import { skillsCliAgentsFor, skillsForFeatures } from "../setup/skills-registry";
+import { resolveScope } from "./upgrade";
 
 /**
  * `shipeasy install <module>` — the platform installer.
@@ -152,6 +156,45 @@ export async function enableModuleGroup(
   };
 }
 
+/**
+ * Install the module group's how-to skills into every wired coding agent — the
+ * half of an install that lives on disk rather than on the server. Without this
+ * `shipeasy install ops` enabled the module and then told the user to use the
+ * `shipeasy-ops` / `shipeasy-see` skills it had never placed. Claude at user
+ * scope is skipped: it gets the same skills from the native plugin.
+ *
+ * Best-effort — no agents, no network, or a `skills` CLI that can't run prints
+ * a line and leaves the (already successful) module enable alone.
+ */
+async function installModuleSkills(target: TargetName): Promise<void> {
+  const cwd = process.cwd();
+  const names = skillsForFeatures([target]);
+  if (!names.length) return;
+  const scope = resolveScope({}, cwd);
+  const agents = detectAgents(cwd)
+    .filter((a) => a.detected)
+    .map((a) => a.id);
+  const cliAgents = skillsCliAgentsFor(agents, scope);
+  if (!cliAgents.length) {
+    console.log(
+      agents.includes("claude")
+        ? "\nSkills:  come from the Claude plugin — nothing to add"
+        : `\nSkills:  no coding agent detected — install later with \`shipeasy upgrade skills\``,
+    );
+    return;
+  }
+  const batch = await installMarketplaceSkills(names, getBoundSdk(cwd) ?? "typescript", {
+    agents: cliAgents,
+    global: scope === "user",
+  });
+  console.log(`\nSkills → ${cliAgents.join(", ")} (${scope} scope):`);
+  for (const s of batch.skills) console.log(`   • ${s.name}`);
+  for (const name of batch.missing) console.log(`   ✗ ${name}: could not fetch skill`);
+  if (batch.skills.length) {
+    console.log(`   ${batch.result.action === "failed" ? "✗" : "✓"} ${batch.result.detail}`);
+  }
+}
+
 export function installCommand(parent: Command): Command {
   const install = parent
     .command("install <module>")
@@ -159,8 +202,12 @@ export function installCommand(parent: Command): Command {
     .option("--profile <name>", "i18n only: primary profile to ensure exists", "en:prod")
     .option("--json", "Output as JSON")
     .option("--project <id>", "Project ID override")
+    .option("--no-skills", "Enable the module only — don't install its how-to skills")
     .action(
-      async (moduleArg: string, opts: { profile: string; json?: boolean; project?: string }) => {
+      async (
+        moduleArg: string,
+        opts: { profile: string; json?: boolean; project?: string; skills?: boolean },
+      ) => {
         const target = moduleArg as TargetName;
         if (!(target in TARGETS)) {
           console.error(
@@ -192,8 +239,13 @@ export function installCommand(parent: Command): Command {
           const blocked = result.verify.filter((v) => v.status === 403);
 
           if (opts.json) {
+            // No skill install on this path: the `skills` CLI writes to stdout
+            // (inherited stdio), which would wreck the JSON a caller parses.
+            // Name the skills instead so the caller can run the install itself.
             return printJson({
               module: result.module,
+              skills: skillsForFeatures([target]),
+              skills_installed: false,
               enabled_modules: result.enabled_modules,
               profile_created: result.profile_created,
               verify: result.verify,
@@ -219,6 +271,10 @@ export function installCommand(parent: Command): Command {
             );
             process.exit(1);
           }
+
+          // The module's how-to skills — the on-disk half of the install, so the
+          // "next steps" below point at skills the agent actually has.
+          if (opts.skills !== false) await installModuleSkills(target);
 
           // Per-target next steps.
           if (target === "flags") {

@@ -3,7 +3,8 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Command } from "commander";
-import { cliUpdateArgv, resolveScope, sdkUpdateArgv } from "../commands/upgrade";
+import { cliUpdateArgv, resolveScope, sdkUpdateArgv, skillsToRefresh } from "../commands/upgrade";
+import { baseSkillNames } from "../setup/skills-registry";
 import { buildProgram } from "../index";
 import type { TargetRecommendation } from "../commands/scan";
 
@@ -134,6 +135,27 @@ describe("option flow (regression: --dry-run must reach the action)", () => {
     expect(opts.dryRun).toBe(true);
     expect(opts.agents).toBe("claude");
     expect(opts.scope).toBe("user");
+  });
+});
+
+describe("skillsToRefresh", () => {
+  it("adds library skills this install never got (the missing-skills bug)", () => {
+    const plan = skillsToRefresh(new Set(["shipeasy-setup", "shipeasy-flags"]));
+    expect(plan.names).toEqual([...baseSkillNames()].sort());
+    expect(plan.added).toContain("shipeasy-ops");
+    expect(plan.added).toContain("shipeasy-ops-work");
+    expect(plan.added).not.toContain("shipeasy-flags"); // already on disk → refreshed, not "added"
+  });
+
+  it("reports nothing added when the whole catalogue is already installed", () => {
+    expect(skillsToRefresh(new Set(baseSkillNames())).added).toEqual([]);
+  });
+
+  it("--only-installed keeps the old disk-bounded behaviour, with the catalogue fallback", () => {
+    const plan = skillsToRefresh(new Set(["shipeasy-flags", "not-ours"]), true);
+    expect(plan.names).toEqual(["shipeasy-flags"]);
+    expect(plan.added).toEqual([]);
+    expect(skillsToRefresh(new Set(), true).names).toEqual(baseSkillNames());
   });
 });
 
