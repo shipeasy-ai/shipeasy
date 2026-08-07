@@ -2364,7 +2364,7 @@ _Parameters_
 | --- | --- | --- | --- |
 | `name` | required | `string` | Human label for the rule, shown on the alert and the rules list. _(length 1–120)_ |
 | `metricId` | required | `string` | Id of the metric to evaluate. _(length 1–∞)_ |
-| `kind` | optional | `"normal" \| "anomaly" \| "outliers"` | What the rule watches for. `normal` compares the metric's own value — against `threshold` via `comparator`, or against the [`rangeMin`, `rangeMax`] corridor it must stay inside. `anomaly` compares it against its own seasonal baseline in sigmas: the same fit a chart draws as the band, so a point outside the drawn band is exactly a breaching bucket, and one metric can back rules at several sigmas. `outliers` compares each `by()` group against its peers in the same bucket and is refused on a metric with no grouping. _(default `"normal"`)_ |
+| `kind` | optional | `"normal" \| "anomaly" \| "outliers" \| "no_data" \| "composite"` | What the rule watches for. `normal` compares the metric's own value — against `threshold` via `comparator`, or against the [`rangeMin`, `rangeMax`] corridor it must stay inside. `anomaly` compares it against its own seasonal baseline in sigmas: the same fit a chart draws as the band, so a point outside the drawn band is exactly a breaching bucket, and one metric can back rules at several sigmas. `outliers` compares each `by()` group against its peers in the same bucket and is refused on a metric with no grouping. _(default `"normal"`)_ |
 | `comparator` | optional | `"gt" \| "gte" \| "lt" \| "lte"` | How the metric value is compared to the threshold. Read only by a `normal` rule with no range set. _(default `"gt"`)_ |
 | `threshold` | optional | `number` | Threshold the metric value is compared against. Required for a `normal` rule unless a range is given; ignored by every other kind. |
 | `rangeMin` | optional | `any` | Lower edge of the corridor the metric must stay inside. Setting either bound switches a `normal` rule off `comparator`/`threshold` and onto the range, which breaches on LEAVING it in either direction. One bound alone is a one-sided range. |
@@ -2375,7 +2375,17 @@ _Parameters_
 | `windowHours` | optional | `integer` | Lookback window (hours) the metric is aggregated over. 1–720. _(default `24`; 1–720)_ |
 | `bucketMinutes` | optional | `any` | Width of the buckets the window is split into, in minutes. Omit (or `null`) to divide the window into 12 equal buckets. The rule is judged per bucket, so this is the resolution at which "sustained" is measured — a short bucket asks the condition to hold through finer detail. |
 | `requiredBuckets` | optional | `any` | How many buckets must breach before the rule fires. Omit (or `null`) to require every bucket that had data. Buckets with nothing in them are excluded before this is counted, so on a sparse metric `null` can mean a single bucket — set this to 2 or more where one lone sample must never page. |
-| `severity` | optional | `"danger" \| "warn" \| "info"` | Severity of the raised alert. _(default `"warn"`)_ |
+| `warnThreshold` | optional | `any` | The milder bound — a second level, in the same unit the kind judges in, that raises a quieter alert before the firing level is reached. Must be strictly milder than the level the rule fires at, or it could never fire on its own. Refused on a range rule and on a `sustained` one: neither condition is a single number, so there is nothing to substitute. |
+| `recoveryThreshold` | optional | `any` | What the metric must get back to before a live alert closes. Without it a metric sitting on its threshold pages and clears once per tick. Must be on the safe side of the firing level, or equal to it. Omit (or `null`) for no hysteresis. |
+| `groupAlerts` | optional | `boolean` | Fire one alert per `by()` group instead of one for the whole metric. The firing key becomes (rule, group), so each group raises, dedupes and recovers on its own. Refused on a metric with no `by()`, and on `no_data` — a group that went silent has no rows left to be missing from. _(default `false`)_ |
+| `maxGroups` | optional | `any` | How many groups this rule may alert on at once. Omit (or `null`) for 10. Past the cap the worst groups fire and the count of the rest is stated on each ticket — a group set is customer data, and an uncapped rule on `by(user_id)` would file a ticket per user. |
+| `noDataMinutes` | optional | `any` | For a `no_data` rule: how long the silence must last. Omit (or `null`) for 15 minutes. Five is the floor — below it, ordinary ingest lag empties the trailing bucket and reads as an outage. |
+| `delayMinutes` | optional | `any` | Hold the evaluated window back this far behind live, on top of the reader's own settle grace. For a metric assembled from a source that lands in batches, whose trailing buckets are legitimately incomplete for longer than the grace covers. |
+| `autoResolveMinutes` | optional | `any` | Close a live instance that has gone this long without a fresh verdict. A rule that cannot reach a verdict deliberately leaves its alert alone, which is right for a tick and wrong for a week. Never closes an instance that is currently breaching. Omit (or `null`) to never auto-resolve. |
+| `composite` | optional | `object` | What a `composite` rule is a boolean over. `rules` are sibling alert-rule ids in the same project and `op` is how their states combine. A child's state is what the current pass concluded about it, falling back to whether it has an open instance — so a composite still means something on a tick where a child could not be evaluated, which is exactly the tick a "two of these are broken at once" rule is for. One level deep: a child may not itself be composite. |
+| `composite.op` | required | `"and" \| "or"` | How the children's states combine. |
+| `composite.rules` | required | `string[]` | Ids of the alert rules to combine. Stored sorted and de-duplicated. |
+| `severity` | optional | `"danger" \| "warn" \| "info"` | Severity of the raised alert. A `warnThreshold` breach opens one step quieter than this. _(default `"warn"`)_ |
 | `enabled` | optional | `boolean` | Whether the rule is evaluated by the cron. _(default `true`)_ |
 | `notify` | optional | `any` | Delivery target for a notification; `null` = use the project default. |
 | `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `ops_alerts_list` call. It proves you listed existing ops alerts and confirmed this one doesn't already exist before creating it. Call `ops_alerts_list` first if you don't have a fresh token. |
@@ -2425,7 +2435,7 @@ _Parameters_
 | --- | --- | --- | --- |
 | `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `name` | optional | `string` | — _(length 1–120)_ |
-| `kind` | optional | `"normal" \| "anomaly" \| "outliers"` | — |
+| `kind` | optional | `"normal" \| "anomaly" \| "outliers" \| "no_data" \| "composite"` | — |
 | `comparator` | optional | `"gt" \| "gte" \| "lt" \| "lte"` | — |
 | `threshold` | optional | `number` | — |
 | `rangeMin` | optional | `any` | Lower edge of the corridor; `null` drops it, returning the rule to comparator and threshold when both bounds are gone. |
@@ -2433,6 +2443,16 @@ _Parameters_
 | `sigma` | optional | `any` | Sigmas an `anomaly` or `outliers` rule fires at; `null` restores the default of 3. |
 | `direction` | optional | `any` | Which side an `anomaly` or `outliers` rule watches; `null` restores either. |
 | `sustained` | optional | `boolean` | Judge the window by accumulated departure rather than bucket by bucket. `anomaly` and `outliers` only; refused alongside `requiredBuckets`. |
+| `warnThreshold` | optional | `any` | The milder bound; `null` drops the warning level, leaving the rule with one. |
+| `recoveryThreshold` | optional | `any` | What the metric must get back to before a live alert closes; `null` drops the hysteresis. |
+| `groupAlerts` | optional | `boolean` | Fire one alert per `by()` group. Refused on a metric with no grouping. |
+| `maxGroups` | optional | `any` | How many groups may alert at once; `null` restores the default of 10. |
+| `noDataMinutes` | optional | `any` | How long a `no_data` rule's silence must last; `null` restores 15 minutes. |
+| `delayMinutes` | optional | `any` | How far behind live the window is held; `null` drops the delay. |
+| `autoResolveMinutes` | optional | `any` | Close a stale live instance after this long; `null` never auto-resolves. |
+| `composite` | optional | `object` | What a `composite` rule is a boolean over. `rules` are sibling alert-rule ids in the same project and `op` is how their states combine. A child's state is what the current pass concluded about it, falling back to whether it has an open instance — so a composite still means something on a tick where a child could not be evaluated, which is exactly the tick a "two of these are broken at once" rule is for. One level deep: a child may not itself be composite. |
+| `composite.op` | required | `"and" \| "or"` | How the children's states combine. |
+| `composite.rules` | required | `string[]` | Ids of the alert rules to combine. Stored sorted and de-duplicated. |
 | `windowHours` | optional | `integer` | — _(1–720)_ |
 | `bucketMinutes` | optional | `any` | Bucket width in minutes; `null` restores the default 12 buckets per window. |
 | `requiredBuckets` | optional | `any` | Buckets that must breach to fire; `null` restores "every bucket that had data". |
