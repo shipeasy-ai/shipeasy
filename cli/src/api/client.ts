@@ -1,6 +1,6 @@
 import { createClient, createClientConfig, type Client } from "@shipeasy/openapi/client";
 import { formatAuthFailure } from "@shipeasy/openapi";
-import { loadCredentials, diagnoseMissingCredentials } from "../auth/storage";
+import { loadCredentials, credentialsSource, diagnoseMissingCredentials } from "../auth/storage";
 import { getBoundProjectId } from "../util/project-config";
 
 /**
@@ -58,7 +58,13 @@ function resolveContext(projectOverride: string | undefined, opts: ApiClientOpti
     process.exit(1);
   }
   const bound = getBoundProjectId(process.cwd());
-  if (opts.requireBinding && !projectOverride && !bound) {
+  // An env-var session names its project explicitly, per process — that IS a
+  // binding, and a stricter one than `.shipeasy` (nothing stale can leak in
+  // from a parent directory). Demanding a file on top of it made the
+  // documented `SHIPEASY_CLI_TOKEN` + `SHIPEASY_PROJECT_ID` path unable to
+  // perform a single write, which is exactly what CI uses it for.
+  const envSession = credentialsSource() === "env";
+  if (opts.requireBinding && !projectOverride && !bound && !envSession) {
     console.error(
       [
         `PROJECT_NOT_BOUND: this command writes to a Shipeasy project, but no`,

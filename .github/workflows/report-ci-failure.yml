@@ -67,7 +67,12 @@ jobs:
 
       - name: Install the Shipeasy CLI
         if: env.SHIPEASY_CLI_TOKEN != ''
-        run: npm install -g @shipeasy/cli@latest
+        run: |
+          npm install -g @shipeasy/cli@latest
+          # Writes need a bound project. From 2.17.0 the env session counts as
+          # one on its own; this keeps the job working on any older CLI the
+          # registry might still be serving, and is a no-op cost otherwise.
+          shipeasy bind "$SHIPEASY_PROJECT_ID"
 
       - name: Open, update, or close this workflow's item
         if: env.SHIPEASY_CLI_TOKEN != ''

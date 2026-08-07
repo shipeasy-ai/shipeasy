@@ -105,6 +105,41 @@ describe("auth + .shipeasy resolution", () => {
     expect(credentialsSource()).toBe("env");
   });
 
+  // The binding guard exists so a write can't land on whatever project a stale
+  // login points at. An env session names its project per process, so it IS a
+  // binding — requiring a `.shipeasy` on top made the documented CI auth path
+  // (`SHIPEASY_CLI_TOKEN` + `SHIPEASY_PROJECT_ID`) unable to perform any write.
+  it("an env session satisfies the write binding guard, with no .shipeasy", () => {
+    const bare = realpathSync(mkdtempSync(join(tmpdir(), "se-unbound-")));
+    try {
+      process.chdir(bare);
+      expect(getBoundProjectId(bare)).toBeFalsy();
+      process.env.SHIPEASY_CLI_TOKEN = "sdk_env";
+      process.env.SHIPEASY_PROJECT_ID = "proj_env";
+      const cfg = getGeneratedClient({ requireBinding: true }).getConfig() as { headers: Headers };
+      expect(cfg.headers.get("X-Project-Id")).toBe("proj_env");
+      expect(cfg.headers.get("X-SDK-Key")).toBe("sdk_env");
+    } finally {
+      process.chdir(root);
+      rmSync(bare, { recursive: true, force: true });
+    }
+  });
+
+  it("a file session still needs a binding to write (the guard is intact)", () => {
+    const bare = realpathSync(mkdtempSync(join(tmpdir(), "se-unbound-")));
+    const exit = vi.spyOn(process, "exit").mockImplementation((() => {
+      throw new Error("exited");
+    }) as never);
+    try {
+      process.chdir(bare);
+      expect(() => getGeneratedClient({ requireBinding: true })).toThrow("exited");
+      expect(exit).toHaveBeenCalledWith(1);
+    } finally {
+      process.chdir(root);
+      rmSync(bare, { recursive: true, force: true });
+    }
+  });
+
   it("credentialsSource is null when there is no session at all", () => {
     rmSync(join(cfgHome, "shipeasy", "config.json"));
     expect(credentialsSource()).toBeNull();
