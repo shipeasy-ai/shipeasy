@@ -22,12 +22,14 @@
  *   pnpm --filter @shipeasy/mcp docs release    # only this top-level group
  *
  * Two outputs, generated together:
- *   • ../docs/mcp-reference.md — this package's own reference (always written).
- *   • apps/docs/.../mcp-reference.mdx — the published site page, written only
+ *   • ../docs/mcp-reference.md — this package's own reference (always written,
+ *     and always COMPLETE: it documents the server, not the product page).
+ *   • <docs repo>/generated/content/get-started/mcp-reference.mdx — written only
  *     when this package is checked out inside the monorepo (so a standalone
  *     marketplace build skips it instead of creating an orphan apps/ tree).
  */
 import { writeFileSync, mkdirSync, existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
@@ -36,15 +38,53 @@ import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { customOperations } from "@shipeasy/openapi/custom";
 import { TOOLS } from "../src/tools/schema";
 
-// HERE === marketplace/mcp/scripts. The monorepo root is three levels up
-// (mcp → marketplace → root), so apps/docs resolves there when embedded.
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LOCAL_OUT = join(HERE, "../docs/mcp-reference.md");
-const APPS_DOCS_ROOT = join(HERE, "../../../apps/docs");
-const APPS_DOCS_OUT = join(
-  APPS_DOCS_ROOT,
-  "content/docs/get-started/mcp-reference.mdx",
-);
+
+/**
+ * The docs site lives in its own repo (`shipeasy-ai/docs`) since 2026-08. The
+ * MCP reference page there is PUSHED from here — this repo owns the tool
+ * catalog, so it owns the page generated from it. Resolve a local checkout to
+ * write into, in order:
+ *
+ *   1. $SHIPEASY_DOCS_REPO
+ *   2. a sibling of this repo, or of its parent (../docs, ../shipeasy-docs)
+ *   3. ~/projects/shipeasy-docs
+ *
+ * Returns null when none exists — a contributor without the docs repo checked
+ * out is not an error. See docs/GENERATION.md in that repo.
+ */
+function resolveDocsRepo(here: string): string | null {
+  const candidates = [
+    process.env.SHIPEASY_DOCS_REPO,
+    join(here, "../../../docs"),
+    join(here, "../../../shipeasy-docs"),
+    join(here, "../../../../docs"),
+    join(here, "../../../../shipeasy-docs"),
+    join(homedir(), "projects/shipeasy-docs"),
+    join(homedir(), "projects/docs"),
+  ].filter(Boolean) as string[];
+  for (const c of candidates) {
+    if (existsSync(join(c, "generated")) && existsSync(join(c, "content/docs"))) {
+      return c;
+    }
+  }
+  return null;
+}
+
+/**
+ * Tool groups the docs site does not publish. The tools themselves are
+ * untouched — the server still advertises them; they just don't appear on
+ * docs.shipeasy.ai while those products are hidden.
+ */
+const HIDDEN_DOC_GROUPS = new Set(["experiments", "i18n"]);
+/** Individual tools hidden for the same reason, outside a hidden group. */
+const HIDDEN_DOC_TOOLS = new Set(["metrics_experiments"]);
+
+const DOCS_REPO = resolveDocsRepo(HERE);
+const DOCS_SITE_OUT = DOCS_REPO
+  ? join(DOCS_REPO, "generated/content/get-started/mcp-reference.mdx")
+  : null;
 
 // ── spec → tag tree + per-tool metadata ───────────────────────────────────────
 const require = createRequire(import.meta.url);
@@ -379,12 +419,20 @@ function hasTools(node: TagNode): boolean {
 /** Render a tag group and everything beneath it: its description, its own tool
  * leaves (sorted), then its child groups — recursing to any depth. */
 function renderNode(node: TagNode, depth: number): string {
+  // MDX only: omit the groups the docs site hides. The plain-markdown copy in
+  // this repo stays complete — it describes the server you actually run.
+  if (MDX && HIDDEN_DOC_GROUPS.has(node.slug)) return "";
   const out: string[] = [`${heading(depth)} ${node.name}`, ""];
   if (node.desc) out.push(prose(node.desc), "");
-  for (const tool of [...node.tools].sort((a, b) => a.name.localeCompare(b.name)))
+  for (const tool of [...node.tools].sort((a, b) => a.name.localeCompare(b.name))) {
+    if (MDX && HIDDEN_DOC_TOOLS.has(tool.name)) continue;
     out.push(toolBlock(tool, depth + 1));
+  }
   for (const child of node.children.values()) {
-    if (hasTools(child)) out.push(renderNode(child, depth + 1));
+    if (hasTools(child)) {
+      const rendered = renderNode(child, depth + 1);
+      if (rendered) out.push(rendered);
+    }
   }
   return out.join("\n");
 }
@@ -469,18 +517,21 @@ function main() {
   const matched = TOOLS.filter((t) => specByTool.has(t.name)).length;
   const keys = groups.map((g) => g.slug).join(", ");
 
-  const targets = [
-    { out: LOCAL_OUT, mdx: false, requireRoot: false },
-    { out: APPS_DOCS_OUT, mdx: true, requireRoot: true },
-  ];
+  const targets: { out: string; mdx: boolean }[] = [{ out: LOCAL_OUT, mdx: false }];
+  if (DOCS_SITE_OUT) targets.push({ out: DOCS_SITE_OUT, mdx: true });
+  else {
+    console.log(
+      "Skipped the docs-site page: no shipeasy-ai/docs checkout found.\n" +
+        "  Set SHIPEASY_DOCS_REPO, or clone it beside this repo. The docs repo's\n" +
+        "  nightly workflow will not cover this page — it is pushed from here.",
+    );
+  }
 
   for (const t of targets) {
-    if (t.requireRoot && !existsSync(APPS_DOCS_ROOT)) {
-      console.log(`Skipped ${t.out} (apps/docs not present — standalone build)`);
-      continue;
-    }
     MDX = t.mdx;
-    const body = [errorsSection(), ...groups.map((g) => renderNode(g, 1))].join("\n");
+    const body = [errorsSection(), ...groups.map((g) => renderNode(g, 1))]
+      .filter(Boolean)
+      .join("\n");
     mkdirSync(dirname(t.out), { recursive: true });
     writeFileSync(t.out, `${header(t.mdx)}\n${body}`);
     console.log(

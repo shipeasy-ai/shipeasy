@@ -13,10 +13,24 @@
 # It is a NO-OP unless the global @shipeasy/cli is actually linked to THIS
 # working tree — teammates who never linked the CLI pay nothing. dist/ (and
 # the .built-version stamp) is gitignored, so nothing here gets committed.
-set -euo pipefail
+# `set -e` is deliberately absent: neither job below may block a push. The CLI
+# rebuild is a local convenience, and the docs regen writes into a repo the
+# pusher may not even have.
+set -uo pipefail
 
 root=$(git rev-parse --show-toplevel)
 cli_dir="$root/cli"
+
+# Pre-push hands us one line per ref on stdin. Read it before anything else —
+# both jobs below want it, and stdin can only be drained once.
+REFS="$(cat)"
+
+# --- Job 1: keep the published CLI/MCP reference in the docs repo in sync. ---
+# shellcheck source=.githooks/docs-site-regen.sh
+. "$root/.githooks/docs-site-regen.sh"
+docs_site_regen "$REFS"
+
+# --- Job 2: keep a dev-linked global `shipeasy` binary in sync. --------------
 
 # --- Guard: only act when the global CLI is dev-linked to this working tree.
 global_link="$( { cd "$(npm root -g 2>/dev/null)/@shipeasy/cli" 2>/dev/null && pwd -P; } || true )"

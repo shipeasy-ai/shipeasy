@@ -10,30 +10,81 @@
  *   pnpm --filter @shipeasy/cli docs flags keys # only these
  *
  * Two outputs, generated together:
- *   • ../docs/cli-reference.md — this package's own reference (always written).
- *   • apps/docs/.../cli-reference.mdx — the published site page, written only
- *     when this package is checked out inside the monorepo (so a standalone
- *     marketplace build skips it instead of creating an orphan apps/ tree).
+ *   • ../docs/cli-reference.md — this package's own reference (always written,
+ *     and always COMPLETE: it documents the binary, not the product page).
+ *   • <docs repo>/generated/content/get-started/cli-reference.mdx — the
+ *     published site page, written only when a local checkout of
+ *     `shipeasy-ai/docs` is found, and with the command groups that repo hides
+ *     (experiments, i18n) filtered out.
  */
 import { writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import type { Command, Option, Argument } from "commander";
 import { buildProgram } from "../src/index";
 import { getExamples, getOutput, getDetails } from "../src/util/examples";
 
-// __dirname === marketplace/cli/scripts. The monorepo root is three levels up
-// (cli → marketplace → root), so apps/docs resolves there when embedded.
 const LOCAL_OUT = join(__dirname, "../docs/cli-reference.md");
-const APPS_DOCS_ROOT = join(__dirname, "../../../apps/docs");
-const APPS_DOCS_OUT = join(
-  APPS_DOCS_ROOT,
-  "content/docs/get-started/cli-reference.mdx",
-);
+
+/**
+ * The docs site lives in its own repo (`shipeasy-ai/docs`) since 2026-08. The
+ * CLI/MCP reference pages there are PUSHED from here — this repo owns the
+ * Commander tree and the tool catalog, so it owns the pages generated from
+ * them. Resolve a local checkout to write into, in order:
+ *
+ *   1. $SHIPEASY_DOCS_REPO
+ *   2. a sibling of this repo, or of its parent (../docs, ../shipeasy-docs)
+ *   3. ~/projects/shipeasy-docs
+ *
+ * Returns null when none exists — a contributor without the docs repo checked
+ * out is not an error, and the docs repo's nightly workflow is the safety net.
+ * See docs/GENERATION.md in that repo.
+ */
+function resolveDocsRepo(here: string): string | null {
+  const candidates = [
+    process.env.SHIPEASY_DOCS_REPO,
+    join(here, "../../../docs"),
+    join(here, "../../../shipeasy-docs"),
+    join(here, "../../../../docs"),
+    join(here, "../../../../shipeasy-docs"),
+    join(homedir(), "projects/shipeasy-docs"),
+    join(homedir(), "projects/docs"),
+  ].filter(Boolean) as string[];
+  for (const c of candidates) {
+    // `generated/` is the marker: any directory can be called "docs".
+    if (existsSync(join(c, "generated")) && existsSync(join(c, "content/docs"))) {
+      return c;
+    }
+  }
+  return null;
+}
+
+const DOCS_REPO = resolveDocsRepo(__dirname);
+const DOCS_SITE_OUT = DOCS_REPO
+  ? join(DOCS_REPO, "generated/content/get-started/cli-reference.mdx")
+  : null;
+
+/**
+ * Command paths the docs site does not publish. The commands themselves are
+ * untouched — `shipeasy release experiments list` keeps working; it just does
+ * not appear on docs.shipeasy.ai while those products are hidden. Un-hiding is
+ * this list plus the matching lists in the docs repo (see its
+ * content/_hidden/README.md).
+ */
+const HIDDEN_DOC_PATHS = [
+  "shipeasy release experiments",
+  "shipeasy metrics experiments",
+  "shipeasy i18n",
+];
+const isHiddenPath = (p: string) =>
+  HIDDEN_DOC_PATHS.some((h) => p === h || p.startsWith(h + " "));
 // Machine-readable projection of the same tree. The docs site's <Cmd> component
 // validates every command it renders against this at build time, so a prose
 // mention of a command or flag that doesn't exist fails the build instead of
 // shipping. Regenerated together with the reference so the two can't diverge.
-const APPS_DOCS_MANIFEST = join(APPS_DOCS_ROOT, "src/lib/cli-commands.json");
+const DOCS_SITE_MANIFEST = DOCS_REPO
+  ? join(DOCS_REPO, "generated/data/cli-commands.json")
+  : null;
 
 /**
  * Render target for one output file. `mdx` toggles MDX-only escaping (`{`/`<`)
@@ -110,6 +161,9 @@ function optsTable(opts: readonly Option[]): string {
  * options, examples, and return shape so no help text is dropped.
  */
 function renderCmd(cmd: Command, depth: number): string {
+  // MDX only: omit the groups the docs site hides. The plain-markdown copy in
+  // this repo stays complete — it describes the binary you actually have.
+  if (MDX && isHiddenPath(path(cmd))) return "";
   const hashes = "#".repeat(Math.min(depth + 1, 6));
   const out: string[] = [`${hashes} \`${path(cmd)}\``, ""];
 
@@ -221,36 +275,41 @@ function main() {
   );
   const names = groups.map((g) => g.name()).join(", ");
 
-  const targets = [
-    { out: LOCAL_OUT, mdx: false, requireRoot: false },
-    { out: APPS_DOCS_OUT, mdx: true, requireRoot: true },
-  ];
+  const targets: { out: string; mdx: boolean }[] = [{ out: LOCAL_OUT, mdx: false }];
+  if (DOCS_SITE_OUT) targets.push({ out: DOCS_SITE_OUT, mdx: true });
+  else {
+    console.log(
+      "Skipped the docs-site page: no shipeasy-ai/docs checkout found.\n" +
+        "  Set SHIPEASY_DOCS_REPO, or clone it beside this repo. The docs repo's\n" +
+        "  nightly workflow will not cover this page — it is pushed from here.",
+    );
+  }
 
   for (const t of targets) {
-    if (t.requireRoot && !existsSync(APPS_DOCS_ROOT)) {
-      console.log(`Skipped ${t.out} (apps/docs not present — standalone build)`);
-      continue;
-    }
     MDX = t.mdx;
-    const body = groups.map((g) => renderCmd(g, 1)).join("\n");
+    const body = groups
+      .map((g) => renderCmd(g, 1))
+      .filter(Boolean)
+      .join("\n");
     mkdirSync(dirname(t.out), { recursive: true });
     writeFileSync(t.out, `${header(t.mdx)}\n${body}`);
     console.log(`Wrote ${t.out}\n  ${groups.length} command group(s): ${names}`);
   }
 
-  // The manifest always describes the WHOLE tree, never the `filter` subset —
-  // a partial run (`pnpm docs flags`) must not silently shrink what the docs
-  // site considers a valid command.
-  if (existsSync(APPS_DOCS_ROOT)) {
+  // The manifest always describes the WHOLE tree — never the `filter` subset,
+  // and never the hidden-path subset. It is what the docs site's <Cmd> validates
+  // against, and a page may legitimately cite a command whose reference section
+  // we don't publish.
+  if (DOCS_SITE_MANIFEST) {
     const commands = buildProgram()
       .commands.flatMap((g) => collectManifest(g, []))
       .sort((a, b) => a.path.localeCompare(b.path));
-    mkdirSync(dirname(APPS_DOCS_MANIFEST), { recursive: true });
+    mkdirSync(dirname(DOCS_SITE_MANIFEST), { recursive: true });
     writeFileSync(
-      APPS_DOCS_MANIFEST,
+      DOCS_SITE_MANIFEST,
       `${JSON.stringify({ generator: "marketplace/cli/scripts/gen-cli-docs.ts", commands }, null, 2)}\n`,
     );
-    console.log(`Wrote ${APPS_DOCS_MANIFEST}\n  ${commands.length} commands`);
+    console.log(`Wrote ${DOCS_SITE_MANIFEST}\n  ${commands.length} commands`);
   }
 }
 
