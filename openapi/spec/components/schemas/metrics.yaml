@@ -196,6 +196,7 @@ QueryIr:
             kind:
               type: string
               const: count_users
+              description: "Distinct users. READ-ONLY: kept so metrics stored before its removal still round-trip. It cannot be authored — Analytics Engine samples rows and weights the survivors, and a distinct count cannot be reweighted, so it under-reports by the sample interval."
           required:
             - kind
           additionalProperties: false
@@ -298,7 +299,7 @@ QueryIr:
                   enum:
                     - count_users
                     - count_events
-                  description: Counting mode for this ratio arm.
+                  description: "Counting mode for this ratio arm. `count_users` is READ-ONLY — kept so stored metrics round-trip, refused on save."
                 metric:
                   type: string
                   minLength: 1
@@ -346,7 +347,7 @@ QueryIr:
                   enum:
                     - count_users
                     - count_events
-                  description: Counting mode for this ratio arm.
+                  description: "Counting mode for this ratio arm. `count_users` is READ-ONLY — kept so stored metrics round-trip, refused on save."
                 metric:
                   type: string
                   minLength: 1

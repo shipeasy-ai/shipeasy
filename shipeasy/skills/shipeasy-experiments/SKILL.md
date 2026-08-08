@@ -172,8 +172,9 @@ A metric ties variant → outcome. Look for:
 
 Build 2–4 candidate metrics, each as `{ event, aggregation, why }`. Examples:
 
-- `count_users(checkout_completed)` — distinct users who finished checkout. Best
-  when "did they convert?" is binary.
+- `count(checkout_completed)` — completed checkouts. There is no distinct-user
+  aggregation: `count_users` was removed because Analytics Engine samples rows
+  and a distinct count cannot be reweighted.
 - `sum(purchase, amount)` — total revenue. Best when bigger basket is the win
   condition.
 - `avg(time_to_paint, ms)` — page-load metric. Best for perf experiments.
@@ -231,7 +232,7 @@ mcp tool: release_experiments_create {
     { "name": "control",   "weight": 5000, "params": { "variant": "v1" } },
     { "name": "treatment", "weight": 5000, "params": { "variant": "v2" } }
   ],
-  "goal_metric": { "event": "<event_name>", "aggregation": "count_users" }
+  "goal_metric": { "event": "<event_name>", "aggregation": "count_events" }
 }
 ```
 

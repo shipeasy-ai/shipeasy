@@ -23,9 +23,9 @@
                 name: checkouts
                 folder: null
                 eventName: checkout_completed
-                query: count_users(checkout_completed)
+                query: count(checkout_completed)
                 queryIr:
-                  agg: { kind: count_users }
+                  agg: { kind: count_events }
                   metric: checkout_completed
                   filters: []
                 direction: higher_better
@@ -61,7 +61,7 @@
 
       **Use cases**
 
-      - **Track an event** — `count_users(<event>)` for unique-user counts.
+      - **Track an event** — `count(<event>)` for event counts.
       - **Sum a value** — `sum(<event>, <label>)` for revenue / quantity metrics.
       - **Experiment success metric** — create the metric, then attach its id to an experiment.
     tags:
@@ -75,13 +75,13 @@
           schema:
             $ref: ../components/schemas/metrics.yaml#/CreateMetricRequest
           examples:
-            countUsers:
-              summary: Count unique users (DSL)
-              description: Unique users who completed checkout, expressed with the query DSL.
+            countEvents:
+              summary: Count an event (DSL)
+              description: Completed checkouts, expressed with the query DSL.
               value:
                 name: checkouts
                 event_name: checkout_completed
-                query: count_users(checkout_completed)
+                query: count(checkout_completed)
             sumRevenue:
               summary: Sum a value label (DSL)
               description: Total revenue, summing the `amount` property of the `purchase` event.
@@ -99,7 +99,7 @@
                 event_name: checkout_completed
                 query_ir:
                   agg:
-                    kind: count_users
+                    kind: count_events
                   metric: checkout_completed
                   filters: []
     responses:

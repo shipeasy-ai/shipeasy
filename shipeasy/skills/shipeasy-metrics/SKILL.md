@@ -41,7 +41,7 @@ Match ops: `=`, `!=`, `=~`, `!~`. Strings quoted.
 Examples:
 
 ```
-count_users(checkout_completed)
+count(checkout_completed)
 sum(purchase{plan!="free"}, amount) by (country)
 p99(req_dur{route=~"/api/.*"}, ms) by (route, status)
 ```
@@ -130,13 +130,13 @@ Example:
 ```
 Q: Which event should `checkout_conversion` aggregate over?
    1. checkout_completed (existing, fired at apps/web/src/checkout/submit.ts:42)
-      → count_users(checkout_completed)
-      Best when "did they convert?" is binary.
+      → count(checkout_completed)
+      One row per completed checkout.
    2. purchase (existing, fires per item — emits multiple rows per checkout)
-      → count_users(purchase)
-      Same shape, but you'd need to dedupe per session.
+      → count(purchase)
+      Same shape, but it counts items, not checkouts.
    3. Add a new "checkout_success" event at apps/web/src/checkout/submit.ts:42
-      → count_users(checkout_success)
+      → count(checkout_success)
       Cleanest if the existing events carry extra noise.
 ```
 
@@ -150,9 +150,12 @@ user didn't specify them, offer the ones that matter *for this metric* with the
 tradeoff, rather than silently defaulting:
 
 - **Aggregation** — when "measure X" is ambiguous, show the real choices:
-  `count_users` (distinct converters — binary "did they?"), `count` (raw events
-  — counts repeats), `sum(value)` (magnitude, e.g. revenue), `avg`/`p95`/`p99`
-  (latency-style). The pick changes what "better" means.
+  `count` (events — a user who fires twice counts twice), `ratio(count(a),
+  count(b))` (a rate), `sum(value)` (magnitude, e.g. revenue), `avg`/`p95`/`p99`
+  (latency-style). The pick changes what "better" means. There is no
+  distinct-user aggregation: `count_users` and `unique` were removed because
+  Analytics Engine samples rows and a distinct count cannot be reweighted, so it
+  under-reports.
 - **`direction`** (`higher_better` default / `lower_better` / `neutral`) — for a
   latency, error, or cost metric the win is *down*; set `lower_better` so lift is
   read correctly. `neutral` marks a guardrail you only watch.

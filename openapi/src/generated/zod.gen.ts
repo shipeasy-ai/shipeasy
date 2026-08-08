@@ -520,7 +520,6 @@ export const zExperimentInlineMetric = z.object({
     query: z.string().min(1).max(4096).optional(),
     event: z.string().min(1).max(256).optional(),
     aggregation: z.enum([
-        'count_users',
         'count_events',
         'retention_7d',
         'retention_30d',

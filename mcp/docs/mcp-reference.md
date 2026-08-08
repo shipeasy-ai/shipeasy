@@ -1079,7 +1079,7 @@ _Parameters_
 | `goal_metric.name` | optional | `string` | Stable metric key. Single segment or `folder.name`; lowercase letters, digits, `_`/`-`; max 128 chars. _(length 0–128; pattern `^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$`)_ |
 | `goal_metric.query` | optional | `string` | Metric DSL string. Provide this OR `event`. _(length 1–4096)_ |
 | `goal_metric.event` | optional | `string` | Event name to build the metric from server-side. Auto-created if missing. _(length 1–256)_ |
-| `goal_metric.aggregation` | optional | `"count_users" \| "count_events" \| "retention_7d" \| "retention_30d" \| "sum" \| "avg"` | Reducer for the `event` form. Defaults to `count_users`. |
+| `goal_metric.aggregation` | optional | `"count_events" \| "retention_7d" \| "retention_30d" \| "sum" \| "avg"` | Reducer for the `event` form. Defaults to `count_events`. `count_users` was removed: Analytics Engine samples rows and weights the survivors, and a distinct count cannot be reweighted, so it under-reports by the sample interval. |
 | `goal_metric.value` | optional | `string` | Numeric event property for `sum`/`avg` (with `event`). _(length 1–256)_ |
 | `goal_metric.min_effect_of_interest` | optional | `any` | Per-experiment override of the metric's default minimum effect of interest (relative, 0–1) — the smallest change worth acting on for this experiment's decision. `null`/omitted inherits the metric default. For a guardrail, the non-inferiority margin. _(default `null`)_ |
 | `guardrail_metrics` | optional | `object[]` | Up to 10 guardrail metrics defined inline. Each is upserted (event + metric) and attached with role=guardrail. _(default `[]`)_ |
@@ -1429,7 +1429,7 @@ _Parameters_
 | `goal_metric.name` | optional | `string` | Stable metric key. Single segment or `folder.name`; lowercase letters, digits, `_`/`-`; max 128 chars. _(length 0–128; pattern `^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$`)_ |
 | `goal_metric.query` | optional | `string` | Metric DSL string. Provide this OR `event`. _(length 1–4096)_ |
 | `goal_metric.event` | optional | `string` | Event name to build the metric from server-side. Auto-created if missing. _(length 1–256)_ |
-| `goal_metric.aggregation` | optional | `"count_users" \| "count_events" \| "retention_7d" \| "retention_30d" \| "sum" \| "avg"` | Reducer for the `event` form. Defaults to `count_users`. |
+| `goal_metric.aggregation` | optional | `"count_events" \| "retention_7d" \| "retention_30d" \| "sum" \| "avg"` | Reducer for the `event` form. Defaults to `count_events`. `count_users` was removed: Analytics Engine samples rows and weights the survivors, and a distinct count cannot be reweighted, so it under-reports by the sample interval. |
 | `goal_metric.value` | optional | `string` | Numeric event property for `sum`/`avg` (with `event`). _(length 1–256)_ |
 | `goal_metric.min_effect_of_interest` | optional | `any` | Per-experiment override of the metric's default minimum effect of interest (relative, 0–1) — the smallest change worth acting on for this experiment's decision. `null`/omitted inherits the metric default. For a guardrail, the non-inferiority margin. _(default `null`)_ |
 | `guardrail_metrics` | optional | `object[]` | Replaces the guardrail set wholesale (event auto-upserted per entry). |
@@ -1613,7 +1613,7 @@ query is invalid or references an unregistered event / label.
 
 **Use cases**
 
-- **Track an event** — `count_users(<event>)` for unique-user counts.
+- **Track an event** — `count(<event>)` for event counts.
 - **Sum a value** — `sum(<event>, <label>)` for revenue / quantity metrics.
 - **Experiment success metric** — create the metric, then attach its id to an experiment.
 

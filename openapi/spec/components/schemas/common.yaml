@@ -95,8 +95,8 @@ ExperimentInlineMetric:
     event: { type: string, minLength: 1, maxLength: 256, description: Event name to build the metric from server-side. Auto-created if missing. }
     aggregation:
       type: string
-      enum: [count_users, count_events, retention_7d, retention_30d, sum, avg]
-      description: Reducer for the `event` form. Defaults to `count_users`.
+      enum: [count_events, retention_7d, retention_30d, sum, avg]
+      description: "Reducer for the `event` form. Defaults to `count_events`. `count_users` was removed: Analytics Engine samples rows and weights the survivors, and a distinct count cannot be reweighted, so it under-reports by the sample interval."
     value: { type: string, minLength: 1, maxLength: 256, description: Numeric event property for `sum`/`avg` (with `event`). }
     min_effect_of_interest:
       description: Per-experiment override of the metric's default minimum effect of interest (relative, 0–1) — the smallest change worth acting on for this experiment's decision. `null`/omitted inherits the metric default. For a guardrail, the non-inferiority margin.

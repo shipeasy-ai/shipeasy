@@ -4561,10 +4561,10 @@ paths:
                   name: checkouts
                   folder: null
                   eventName: checkout_completed
-                  query: count_users(checkout_completed)
+                  query: count(checkout_completed)
                   queryIr:
                     agg:
-                      kind: count_users
+                      kind: count_events
                     metric: checkout_completed
                     filters: []
                   direction: higher_better
@@ -4600,7 +4600,7 @@ paths:
 
         **Use cases**
 
-        - **Track an event** — `count_users(<event>)` for unique-user counts.
+        - **Track an event** — `count(<event>)` for event counts.
         - **Sum a value** — `sum(<event>, <label>)` for revenue / quantity metrics.
         - **Experiment success metric** — create the metric, then attach its id to an experiment.
       tags:
@@ -4614,13 +4614,13 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateMetricRequest'
             examples:
-              countUsers:
-                summary: Count unique users (DSL)
-                description: Unique users who completed checkout, expressed with the query DSL.
+              countEvents:
+                summary: Count an event (DSL)
+                description: Completed checkouts, expressed with the query DSL.
                 value:
                   name: checkouts
                   event_name: checkout_completed
-                  query: count_users(checkout_completed)
+                  query: count(checkout_completed)
               sumRevenue:
                 summary: Sum a value label (DSL)
                 description: Total revenue, summing the `amount` property of the `purchase` event.
@@ -4638,7 +4638,7 @@ paths:
                   event_name: checkout_completed
                   query_ir:
                     agg:
-                      kind: count_users
+                      kind: count_events
                     metric: checkout_completed
                     filters: []
       responses:
@@ -11220,13 +11220,12 @@ components:
         aggregation:
           type: string
           enum:
-            - count_users
             - count_events
             - retention_7d
             - retention_30d
             - sum
             - avg
-          description: Reducer for the `event` form. Defaults to `count_users`.
+          description: 'Reducer for the `event` form. Defaults to `count_events`. `count_users` was removed: Analytics Engine samples rows and weights the survivors, and a distinct count cannot be reweighted, so it under-reports by the sample interval.'
         value:
           type: string
           minLength: 1
@@ -13654,6 +13653,7 @@ components:
                 kind:
                   type: string
                   const: count_users
+                  description: 'Distinct users. READ-ONLY: kept so metrics stored before its removal still round-trip. It cannot be authored — Analytics Engine samples rows and weights the survivors, and a distinct count cannot be reweighted, so it under-reports by the sample interval.'
               required:
                 - kind
               additionalProperties: false
@@ -13756,7 +13756,7 @@ components:
                       enum:
                         - count_users
                         - count_events
-                      description: Counting mode for this ratio arm.
+                      description: Counting mode for this ratio arm. `count_users` is READ-ONLY — kept so stored metrics round-trip, refused on save.
                     metric:
                       type: string
                       minLength: 1
@@ -13804,7 +13804,7 @@ components:
                       enum:
                         - count_users
                         - count_events
-                      description: Counting mode for this ratio arm.
+                      description: Counting mode for this ratio arm. `count_users` is READ-ONLY — kept so stored metrics round-trip, refused on save.
                     metric:
                       type: string
                       minLength: 1

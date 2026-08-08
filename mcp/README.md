@@ -334,7 +334,7 @@ All mutations shell out to `@shipeasy/cli` via `execFile` (never `exec` with she
   "params_schema": { "color": "string" },
   "targeting_gate": "new_checkout",
   "success_event": "purchase_completed",
-  "success_aggregation": "count_users"
+  "success_aggregation": "count_events"
 }
 ```
 

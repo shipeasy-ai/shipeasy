@@ -1026,7 +1026,7 @@ export const listMetrics = <ThrowOnError extends boolean = false>(options?: Opti
  *
  * **Use cases**
  *
- * - **Track an event** — `count_users(<event>)` for unique-user counts.
+ * - **Track an event** — `count(<event>)` for event counts.
  * - **Sum a value** — `sum(<event>, <label>)` for revenue / quantity metrics.
  * - **Experiment success metric** — create the metric, then attach its id to an experiment.
  */

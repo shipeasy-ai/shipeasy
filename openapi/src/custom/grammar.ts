@@ -34,9 +34,9 @@ GRAMMAR (BNF)
   Query         := Agg | Ratio
   Agg           := AggFunc "(" Selector ("," Identifier)? ")" GroupBy?
   Ratio         := "ratio" "(" RatioArm "," RatioArm ")"
-  RatioArm      := ("count_users" | "count") "(" Selector ")"
-  AggFunc       := "count_users" | "count" | "sum" | "avg" | "min" | "max"
-                 | "unique" | "p50" | "p75" | "p90" | "p95" | "p99" | "p999"
+  RatioArm      := "count" "(" Selector ")"
+  AggFunc       := "count" | "sum" | "avg" | "min" | "max"
+                 | "p50" | "p75" | "p90" | "p95" | "p99" | "p999"
                  | "retention_" <N> "d"                       (N = 1..90)
   Selector      := Identifier ("{" Filter ("," Filter)* ","? "}")?
   Filter        := Identifier MatchOp StringLiteral
@@ -54,7 +54,6 @@ AGGREGATIONS
 ------------
   Function        Value label   Meaning                         In experiments
   --------------  ------------  ------------------------------  ---------------
-  count_users     forbidden     distinct users who fired it     exact
   count           forbidden     number of events (rows)         exact
   sum(e, v)       required      Σ of numeric label v            exact
   avg(e, v)       required      mean of label v                 exact
@@ -62,22 +61,26 @@ AGGREGATIONS
                                 within N days (N = 1..90)
   min(e, v)       required      minimum of label v              approx → avg *
   max(e, v)       required      maximum of label v              approx → avg *
-  unique(e, v)    required      distinct values of label v      approx → avg *
   p50 … p999(e,v) required      quantile of v (50/75/90/        approx → avg *
                                 95/99/99.9th percentile)
   ratio(a, b)     forbidden     a ÷ b (see RATIO below)         proportion **
 
   * Display-only aggregations. The experiment t-test needs a per-user mean and
-    variance, so min/max/unique/quantile are computed exactly on dashboards but
+    variance, so min/max/quantile are computed exactly on dashboards but
     collapse to a per-user \`avg\` when used as an experiment metric. If you need
-    an exact experiment metric, pick count_users / count / sum / avg / retention.
+    an exact experiment metric, pick count / sum / avg / retention.
 
   ** In an experiment a ratio collapses to a per-user 0/1 outcome (a proportion),
     not a ratio-of-sums — see RATIO.
 
   "count" is the DSL spelling of the internal count_events (one per matching
-  row); "count_users" is unique-by-user. Getting these two confused is the most
-  common mistake — count double-counts a user who fired the event twice.
+  row), so a user who fired the event twice counts twice.
+
+  There is NO distinct-count aggregation. \`count_users\` and \`unique\` were
+  removed: Analytics Engine samples rows under load and weights the survivors,
+  and a distinct count cannot be reweighted — sampling reweights rows, not sets
+  — so it under-reports by the sample interval with no way to correct it.
+  Metrics stored before the removal still render; nothing new can be authored.
 
 
 SELECTOR & FILTERS
@@ -131,13 +134,12 @@ RATIO  (success rate, conversion, failure %, …)
   can be different events:
 
     ratio(count(checkout_completed), count(checkout_started))
-    ratio(count_users(paid), count_users(signed_up))
+    ratio(count(paid), count(signed_up))
     ratio(count(payment{ok="1"}), count(payment))     one event, filtered arm
 
   Rules:
-  - Arms are limited to \`count\` and \`count_users\` — no sum/avg/quantile arm.
-  - \`count\` arms divide event counts; \`count_users\` arms divide distinct-user
-    counts. Pick one shape and use it on both arms unless you mean to mix them.
+  - Arms are limited to \`count\` — no sum/avg/quantile arm, and no distinct
+    count (see AGGREGATIONS).
   - A zero denominator yields 0, not an error.
   - No \`by (...)\` / \`without (...)\`, and no retention arm, on a ratio.
   - It is a COHORT RATE over the window — numerator events ÷ denominator events —
@@ -156,7 +158,7 @@ NOT SUPPORTED (will fail to parse)
   - general arithmetic / free-form formulas: \`count(a) + count(b)\`, \`2 * sum(x)\`,
     \`avg(a) / avg(b)\` — the ONLY division form is the fixed binary
     \`ratio(arm, arm)\` with count-style arms (see RATIO)
-  - a ratio arm that isn't \`count\` / \`count_users\`: \`ratio(sum(a, v), count(b))\`
+  - a ratio arm that isn't \`count\`: \`ratio(sum(a, v), count(b))\`
   - more than two events in one query
   - \`by (...)\` / \`without (...)\` on a ratio
   - arbitrary quantiles (only the fixed p50/p75/p90/p95/p99/p999)
@@ -166,8 +168,8 @@ NOT SUPPORTED (will fail to parse)
 
 EXAMPLES  (query  —  what it measures)
 --------------------------------------
-  count_users(checkout_completed)
-      distinct users who completed checkout.
+  count(checkout_completed)
+      number of completed checkouts.
 
   count(add_to_cart{country="US"})
       number of US add-to-cart events (a user can count many times).
@@ -181,9 +183,6 @@ EXAMPLES  (query  —  what it measures)
 
   p99(req_dur{route=~"/api*"}, ms) by (route, status)
       99th-percentile latency of /api requests, split by route and status.
-
-  unique(login{method="sso"}, device_id)
-      distinct SSO devices seen (display-only; an experiment would use per-user avg).
 
   retention_7d(session_start)
       share of users who started a new session within 7 days.

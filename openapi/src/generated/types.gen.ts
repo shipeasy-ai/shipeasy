@@ -941,9 +941,9 @@ export type ExperimentInlineMetric = {
      */
     event?: string;
     /**
-     * Reducer for the `event` form. Defaults to `count_users`.
+     * Reducer for the `event` form. Defaults to `count_events`. `count_users` was removed: Analytics Engine samples rows and weights the survivors, and a distinct count cannot be reweighted, so it under-reports by the sample interval.
      */
-    aggregation?: 'count_users' | 'count_events' | 'retention_7d' | 'retention_30d' | 'sum' | 'avg';
+    aggregation?: 'count_events' | 'retention_7d' | 'retention_30d' | 'sum' | 'avg';
     /**
      * Numeric event property for `sum`/`avg` (with `event`).
      */
@@ -2691,6 +2691,9 @@ export type QueryIr = {
      * Aggregation function applied to the source event.
      */
     agg: {
+        /**
+         * Distinct users. READ-ONLY: kept so metrics stored before its removal still round-trip. It cannot be authored — Analytics Engine samples rows and weights the survivors, and a distinct count cannot be reweighted, so it under-reports by the sample interval.
+         */
         kind: 'count_users';
     } | {
         kind: 'count_events';
@@ -2723,7 +2726,7 @@ export type QueryIr = {
          */
         numerator: {
             /**
-             * Counting mode for this ratio arm.
+             * Counting mode for this ratio arm. `count_users` is READ-ONLY — kept so stored metrics round-trip, refused on save.
              */
             agg: 'count_users' | 'count_events';
             /**
@@ -2753,7 +2756,7 @@ export type QueryIr = {
          */
         denominator: {
             /**
-             * Counting mode for this ratio arm.
+             * Counting mode for this ratio arm. `count_users` is READ-ONLY — kept so stored metrics round-trip, refused on save.
              */
             agg: 'count_users' | 'count_events';
             /**

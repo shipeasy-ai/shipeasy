@@ -25,7 +25,7 @@ describe("custom-operations registry", () => {
     const grammar = customOperations.find((o) => opId(o) === "metrics.grammar")!;
     const out = (await grammar.run({})) as { grammar: string };
     expect(out.grammar).toBe(METRIC_GRAMMAR);
-    expect(out.grammar).toContain("count_users(checkout_completed)");
+    expect(out.grammar).toContain("count(checkout_completed)");
     // Locks in the concepts the parser/IR encode but the old text omitted.
     expect(out.grammar).toContain("Value label"); // required/forbidden rules
     expect(out.grammar).toMatch(/approx.*avg/); // experiment reducer approximation

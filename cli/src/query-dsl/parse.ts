@@ -3,8 +3,8 @@
 // Grammar (BNF):
 //
 //   Query       := AggFunc "(" Selector ("," Identifier)? ")" GroupBy?
-//   AggFunc     := "count_users" | "count" | "sum" | "avg" | "min" | "max" |
-//                  "unique" | "p50" | "p75" | "p90" | "p95" | "p99" | "p999" |
+//   AggFunc     := "count" | "sum" | "avg" | "min" | "max" |
+//                  "p50" | "p75" | "p90" | "p95" | "p99" | "p999" |
 //                  "retention_" Number "d"
 //   Selector    := Identifier ("{" Filter ("," Filter)* ","? "}")?
 //   Filter      := Identifier MatchOp StringLiteral
@@ -113,14 +113,24 @@ const QUANTILE_MAP: Record<string, 0.5 | 0.75 | 0.9 | 0.95 | 0.99 | 0.999> = {
   p999: 0.999,
 };
 
+/** Distinct counts, refused in both grammars: Analytics Engine samples rows and
+ *  weights the survivors, and a distinct count cannot be reweighted (sampling
+ *  reweights rows, not sets), so it under-reports by the sample interval.
+ *  Metrics stored before the removal still render; nothing new can be authored. */
+const REMOVED_AGGS = ["count_users", "unique"];
+
 function parseAggName(name: string, pos: number): AggKind {
-  if (name === "count_users") return { kind: "count_users" };
+  if (REMOVED_AGGS.includes(name)) {
+    throw new ParseError(
+      `${name}() was removed — a distinct count cannot be corrected for Analytics Engine's sampling, so it under-reports. Use count()`,
+      pos,
+    );
+  }
   if (name === "count") return { kind: "count_events" };
   if (name === "sum") return { kind: "sum" };
   if (name === "avg") return { kind: "avg" };
   if (name === "min") return { kind: "min" };
   if (name === "max") return { kind: "max" };
-  if (name === "unique") return { kind: "unique" };
   if (name in QUANTILE_MAP) return { kind: "quantile", p: QUANTILE_MAP[name] };
   const ret = /^retention_(\d{1,2})d$/.exec(name);
   if (ret) {
