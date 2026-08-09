@@ -1772,7 +1772,8 @@ export const zListEventsResponse = z.array(z.object({
             'boolean'
         ]),
         required: z.boolean().optional().default(false),
-        description: z.string().optional().default('')
+        description: z.string().optional().default(''),
+        pending: z.boolean().optional()
     })),
     pending: z.int().gte(-9007199254740991).lte(9007199254740991),
     createdAt: z.string()
@@ -1821,7 +1822,8 @@ export const zGetEventResponse = z.object({
             'boolean'
         ]),
         required: z.boolean().optional().default(false),
-        description: z.string().optional().default('')
+        description: z.string().optional().default(''),
+        pending: z.boolean().optional()
     })),
     pending: z.int().gte(-9007199254740991).lte(9007199254740991),
     createdAt: z.string()

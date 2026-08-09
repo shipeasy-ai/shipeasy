@@ -3259,6 +3259,10 @@ export type ListEventsResponse = Array<{
          * Human-readable description of the property.
          */
         description?: string;
+        /**
+         * `true` when this property was DISCOVERED in live traffic rather than declared. Nothing is recorded for it yet — a property is written to Analytics Engine only once it owns a column, and a column is allocated when an admin declares the property (include it in a `PATCH .../events/{id}` body). Approval is a gate rather than a formality: columns are finite and permanently reserved, so auto-allocating them from customer payload keys would exhaust an event's schema irreversibly.
+         */
+        pending?: boolean;
     }>;
     /**
      * `1` if this is an auto-discovered name awaiting approval (metrics on it fail until approved), `0` if approved/usable.
@@ -3360,6 +3364,10 @@ export type GetEventResponse = {
          * Human-readable description of the property.
          */
         description?: string;
+        /**
+         * `true` when this property was DISCOVERED in live traffic rather than declared. Nothing is recorded for it yet — a property is written to Analytics Engine only once it owns a column, and a column is allocated when an admin declares the property (include it in a `PATCH .../events/{id}` body). Approval is a gate rather than a formality: columns are finite and permanently reserved, so auto-allocating them from customer payload keys would exhaust an event's schema irreversibly.
+         */
+        pending?: boolean;
     }>;
     /**
      * `1` if this is an auto-discovered name awaiting approval (metrics on it fail until approved), `0` if approved/usable.

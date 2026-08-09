@@ -14489,11 +14489,14 @@ components:
                   default: ''
                   description: Human-readable description of the property.
                   type: string
+                pending:
+                  description: '`true` when this property was DISCOVERED in live traffic rather than declared. Nothing is recorded for it yet — a property is written to Analytics Engine only once it owns a column, and a column is allocated when an admin declares the property (include it in a `PATCH .../events/{id}` body). Approval is a gate rather than a formality: columns are finite and permanently reserved, so auto-allocating them from customer payload keys would exhaust an event''s schema irreversibly.'
+                  type: boolean
               required:
                 - name
                 - type
               additionalProperties: false
-              description: One typed property declared on a catalogued event.
+              description: One typed property on a catalogued event — declared by an admin, or discovered in traffic and awaiting declaration.
             description: Typed properties declared on the event.
           pending:
             type: integer
@@ -14626,11 +14629,14 @@ components:
                 default: ''
                 description: Human-readable description of the property.
                 type: string
+              pending:
+                description: '`true` when this property was DISCOVERED in live traffic rather than declared. Nothing is recorded for it yet — a property is written to Analytics Engine only once it owns a column, and a column is allocated when an admin declares the property (include it in a `PATCH .../events/{id}` body). Approval is a gate rather than a formality: columns are finite and permanently reserved, so auto-allocating them from customer payload keys would exhaust an event''s schema irreversibly.'
+                type: boolean
             required:
               - name
               - type
             additionalProperties: false
-            description: One typed property declared on a catalogued event.
+            description: One typed property on a catalogued event — declared by an admin, or discovered in traffic and awaiting declaration.
           description: Typed properties declared on the event.
         pending:
           type: integer
