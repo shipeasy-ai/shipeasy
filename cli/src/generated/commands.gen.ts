@@ -35,6 +35,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   g_metrics.command("create")
     .description("Create a metric")
     .argument("<name>", "Stable metric key. Single segment or `folder.name`; lowercase letters, digits, `_`/`-`; max 128 chars.")
+    .option("--display-name <value>", "What a human calls the metric — \"Checkout revenue\" beside the `checkout.revenue` that identifies it. Unlike `name` it is free text, it is editable, and nothing addresses the metric by it: the dashboard leads with it and falls back to `name` when it is absent, so a metric nobody named simply reads as its key. Send `null` to clear it.")
     .option("--folder <value>", "Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).")
     .option("--event-name <value>", "Source event the query reads from.")
     .option("--query <value>", "Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`. Every label the query references — in filters, the value position, `by (…)`, or `without (…)` — must exist as a property on the tracked event's payload; a query over a label the event never carries validates fine but returns empty results.")
@@ -45,7 +46,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--display <value>", "How the metric's series is DRAWN, as opposed to what it measures. Both parts used to be DSL functions (`expected(q, seasonal)`, `forecast(q, …)`), which meant turning a band on minted a different metric; they are properties now, so every chart of the metric picks them up and nothing that JUDGES the metric — an alert rule, the experiment analyzer — reads them at all.")
     .option("--query-ir <value>", "Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body.")
     .action(async (name, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createMetric({ client, body: clean({ name: name, folder: str(opts.folder), event_name: str(opts.eventName), query: str(opts.query), winsorize_pct: num(opts.winsorizePct), default_min_effect_of_interest: num(opts.defaultMinEffectOfInterest), direction: str(opts.direction), unit: str(opts.unit), display: json(opts.display), query_ir: json(opts.queryIr) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createMetric({ client, body: clean({ name: name, display_name: str(opts.displayName), folder: str(opts.folder), event_name: str(opts.eventName), query: str(opts.query), winsorize_pct: num(opts.winsorizePct), default_min_effect_of_interest: num(opts.defaultMinEffectOfInterest), direction: str(opts.direction), unit: str(opts.unit), display: json(opts.display), query_ir: json(opts.queryIr) }) }) });
     });
   g_metrics.command("show")
     .description("Get a metric")
@@ -57,6 +58,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   g_metrics.command("update")
     .description("Update a metric")
     .argument("<id>", "Stable opaque metric id (`met_…`) or the metric's `name`.")
+    .option("--display-name <value>", "What a human calls the metric — \"Checkout revenue\" beside the `checkout.revenue` that identifies it. Unlike `name` it is free text, it is editable, and nothing addresses the metric by it: the dashboard leads with it and falls back to `name` when it is absent, so a metric nobody named simply reads as its key. Send `null` to clear it.")
     .option("--folder <value>", "Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).")
     .option("--event-name <value>", "Source event the query reads from.")
     .option("--query <value>", "Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`. Every label the query references — in filters, the value position, `by (…)`, or `without (…)` — must exist as a property on the tracked event's payload; a query over a label the event never carries validates fine but returns empty results.")
@@ -67,7 +69,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--display <value>", "How the metric's series is DRAWN, as opposed to what it measures. Both parts used to be DSL functions (`expected(q, seasonal)`, `forecast(q, …)`), which meant turning a band on minted a different metric; they are properties now, so every chart of the metric picks them up and nothing that JUDGES the metric — an alert rule, the experiment analyzer — reads them at all.")
     .option("--query-ir <value>", "Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body.")
     .action(async (id, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateMetric({ client, path: { id: id }, body: clean({ folder: str(opts.folder), event_name: str(opts.eventName), query: str(opts.query), winsorize_pct: num(opts.winsorizePct), default_min_effect_of_interest: num(opts.defaultMinEffectOfInterest), direction: str(opts.direction), unit: str(opts.unit), display: json(opts.display), query_ir: json(opts.queryIr) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.updateMetric({ client, path: { id: id }, body: clean({ display_name: str(opts.displayName), folder: str(opts.folder), event_name: str(opts.eventName), query: str(opts.query), winsorize_pct: num(opts.winsorizePct), default_min_effect_of_interest: num(opts.defaultMinEffectOfInterest), direction: str(opts.direction), unit: str(opts.unit), display: json(opts.display), query_ir: json(opts.queryIr) }) }) });
     });
   g_metrics.command("archive")
     .description("Archive a metric")
@@ -358,11 +360,19 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--window-hours <value>", "Lookback window (hours) the metric is aggregated over. 1–720.")
     .option("--bucket-minutes <value>", "Width of the buckets the window is split into, in minutes. Omit (or `null`) to divide the window into 12 equal buckets. The rule is judged per bucket, so this is the resolution at which \"sustained\" is measured — a short bucket asks the condition to hold through finer detail.")
     .option("--required-buckets <value>", "How many buckets must breach before the rule fires. Omit (or `null`) to require every bucket that had data. Buckets with nothing in them are excluded before this is counted, so on a sparse metric `null` can mean a single bucket — set this to 2 or more where one lone sample must never page.")
-    .option("--severity <value>", "Severity of the raised alert.")
+    .option("--warn-threshold <value>", "The milder bound — a second level, in the same unit the kind judges in, that raises a quieter alert before the firing level is reached. Must be strictly milder than the level the rule fires at, or it could never fire on its own. Refused on a range rule and on a `sustained` one: neither condition is a single number, so there is nothing to substitute.")
+    .option("--recovery-threshold <value>", "What the metric must get back to before a live alert closes. Without it a metric sitting on its threshold pages and clears once per tick. Must be on the safe side of the firing level, or equal to it. Omit (or `null`) for no hysteresis.")
+    .option("--group-alerts <value>", "Fire one alert per `by()` group instead of one for the whole metric. The firing key becomes (rule, group), so each group raises, dedupes and recovers on its own. Refused on a metric with no `by()`, and on `no_data` — a group that went silent has no rows left to be missing from.")
+    .option("--max-groups <value>", "How many groups this rule may alert on at once. Omit (or `null`) for 10. Past the cap the worst groups fire and the count of the rest is stated on each ticket — a group set is customer data, and an uncapped rule on `by(user_id)` would file a ticket per user.")
+    .option("--no-data-minutes <value>", "For a `no_data` rule: how long the silence must last. Omit (or `null`) for 15 minutes. Five is the floor — below it, ordinary ingest lag empties the trailing bucket and reads as an outage.")
+    .option("--delay-minutes <value>", "Hold the evaluated window back this far behind live, on top of the reader's own settle grace. For a metric assembled from a source that lands in batches, whose trailing buckets are legitimately incomplete for longer than the grace covers.")
+    .option("--auto-resolve-minutes <value>", "Close a live instance that has gone this long without a fresh verdict. A rule that cannot reach a verdict deliberately leaves its alert alone, which is right for a tick and wrong for a week. Never closes an instance that is currently breaching. Omit (or `null`) to never auto-resolve.")
+    .option("--composite <value>", "What a `composite` rule is a boolean over. `rules` are sibling alert-rule ids in the same project and `op` is how their states combine. A child's state is what the current pass concluded about it, falling back to whether it has an open instance — so a composite still means something on a tick where a child could not be evaluated, which is exactly the tick a \"two of these are broken at once\" rule is for. One level deep: a child may not itself be composite.")
+    .option("--severity <value>", "Severity of the raised alert. A `warnThreshold` breach opens one step quieter than this.")
     .option("--enabled <value>", "Whether the rule is evaluated by the cron.")
     .option("--notify <value>", "Delivery target for a notification; `null` = use the project default.")
     .action(async (opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createAlertRule({ client, body: clean({ name: str(opts.name), metricId: str(opts.metricId), kind: str(opts.kind), comparator: str(opts.comparator), threshold: num(opts.threshold), rangeMin: num(opts.rangeMin), rangeMax: num(opts.rangeMax), sigma: num(opts.sigma), direction: str(opts.direction), sustained: bool(opts.sustained), windowHours: num(opts.windowHours), bucketMinutes: num(opts.bucketMinutes), requiredBuckets: num(opts.requiredBuckets), severity: str(opts.severity), enabled: bool(opts.enabled), notify: json(opts.notify) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createAlertRule({ client, body: clean({ name: str(opts.name), metricId: str(opts.metricId), kind: str(opts.kind), comparator: str(opts.comparator), threshold: num(opts.threshold), rangeMin: num(opts.rangeMin), rangeMax: num(opts.rangeMax), sigma: num(opts.sigma), direction: str(opts.direction), sustained: bool(opts.sustained), windowHours: num(opts.windowHours), bucketMinutes: num(opts.bucketMinutes), requiredBuckets: num(opts.requiredBuckets), warnThreshold: num(opts.warnThreshold), recoveryThreshold: num(opts.recoveryThreshold), groupAlerts: bool(opts.groupAlerts), maxGroups: num(opts.maxGroups), noDataMinutes: num(opts.noDataMinutes), delayMinutes: num(opts.delayMinutes), autoResolveMinutes: num(opts.autoResolveMinutes), composite: json(opts.composite), severity: str(opts.severity), enabled: bool(opts.enabled), notify: json(opts.notify) }) }) });
     });
   g_ops_alerts.command("update")
     .description("Update an alert rule")
@@ -376,6 +386,14 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--sigma <value>", "Sigmas an `anomaly` or `outliers` rule fires at; `null` restores the default of 3.")
     .option("--direction <value>", "Which side an `anomaly` or `outliers` rule watches; `null` restores either.")
     .option("--sustained <value>", "Judge the window by accumulated departure rather than bucket by bucket. `anomaly` and `outliers` only; refused alongside `requiredBuckets`.")
+    .option("--warn-threshold <value>", "The milder bound; `null` drops the warning level, leaving the rule with one.")
+    .option("--recovery-threshold <value>", "What the metric must get back to before a live alert closes; `null` drops the hysteresis.")
+    .option("--group-alerts <value>", "Fire one alert per `by()` group. Refused on a metric with no grouping.")
+    .option("--max-groups <value>", "How many groups may alert at once; `null` restores the default of 10.")
+    .option("--no-data-minutes <value>", "How long a `no_data` rule's silence must last; `null` restores 15 minutes.")
+    .option("--delay-minutes <value>", "How far behind live the window is held; `null` drops the delay.")
+    .option("--auto-resolve-minutes <value>", "Close a stale live instance after this long; `null` never auto-resolves.")
+    .option("--composite <value>", "What a `composite` rule is a boolean over. `rules` are sibling alert-rule ids in the same project and `op` is how their states combine. A child's state is what the current pass concluded about it, falling back to whether it has an open instance — so a composite still means something on a tick where a child could not be evaluated, which is exactly the tick a \"two of these are broken at once\" rule is for. One level deep: a child may not itself be composite.")
     .option("--window-hours <value>", "")
     .option("--bucket-minutes <value>", "Bucket width in minutes; `null` restores the default 12 buckets per window.")
     .option("--required-buckets <value>", "Buckets that must breach to fire; `null` restores \"every bucket that had data\".")
@@ -383,7 +401,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--enabled <value>", "")
     .option("--notify <value>", "Delivery target for a notification; `null` = use the project default.")
     .action(async (id, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateAlertRule({ client, path: { id: id }, body: clean({ name: str(opts.name), kind: str(opts.kind), comparator: str(opts.comparator), threshold: num(opts.threshold), rangeMin: num(opts.rangeMin), rangeMax: num(opts.rangeMax), sigma: num(opts.sigma), direction: str(opts.direction), sustained: bool(opts.sustained), windowHours: num(opts.windowHours), bucketMinutes: num(opts.bucketMinutes), requiredBuckets: num(opts.requiredBuckets), severity: str(opts.severity), enabled: bool(opts.enabled), notify: json(opts.notify) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.updateAlertRule({ client, path: { id: id }, body: clean({ name: str(opts.name), kind: str(opts.kind), comparator: str(opts.comparator), threshold: num(opts.threshold), rangeMin: num(opts.rangeMin), rangeMax: num(opts.rangeMax), sigma: num(opts.sigma), direction: str(opts.direction), sustained: bool(opts.sustained), warnThreshold: num(opts.warnThreshold), recoveryThreshold: num(opts.recoveryThreshold), groupAlerts: bool(opts.groupAlerts), maxGroups: num(opts.maxGroups), noDataMinutes: num(opts.noDataMinutes), delayMinutes: num(opts.delayMinutes), autoResolveMinutes: num(opts.autoResolveMinutes), composite: json(opts.composite), windowHours: num(opts.windowHours), bucketMinutes: num(opts.bucketMinutes), requiredBuckets: num(opts.requiredBuckets), severity: str(opts.severity), enabled: bool(opts.enabled), notify: json(opts.notify) }) }) });
     });
   g_ops_alerts.command("archive")
     .description("Delete an alert rule")

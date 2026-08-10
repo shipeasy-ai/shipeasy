@@ -1530,6 +1530,11 @@ export const zListMetricsResponse = z.array(z.object({
 }));
 
 /**
+ * What a human calls the metric — "Checkout revenue" beside the `checkout.revenue` that identifies it. Unlike `name` it is free text, it is editable, and nothing addresses the metric by it: the dashboard leads with it and falls back to `name` when it is absent, so a metric nobody named simply reads as its key. Send `null` to clear it.
+ */
+export const zMetricDisplayName = z.string().nullable();
+
+/**
  * Source event the query reads from.
  */
 export const zMetricEventName = z.string().min(1);
@@ -1582,6 +1587,7 @@ export const zMetricDisplayConfig = z.object({
  */
 export const zCreateMetricWithQuery = z.object({
     name: zMetricName,
+    display_name: zMetricDisplayName.optional(),
     folder: zFolder.optional(),
     event_name: zMetricEventName,
     query: zMetricQueryDsl,
@@ -1597,6 +1603,7 @@ export const zCreateMetricWithQuery = z.object({
  */
 export const zCreateMetricWithQueryIr = z.object({
     name: zMetricName,
+    display_name: zMetricDisplayName.optional(),
     folder: zFolder.optional(),
     event_name: zMetricEventName,
     query_ir: zQueryIr,
@@ -1660,6 +1667,7 @@ export const zDeleteMetricResponse = z.object({
  * Update-metric variant that replaces the query with a `query` DSL string.
  */
 export const zUpdateMetricWithQuery = z.object({
+    display_name: zMetricDisplayName.optional(),
     folder: zFolder.optional(),
     event_name: zMetricEventName.optional(),
     query: zMetricQueryDsl,
@@ -1674,6 +1682,7 @@ export const zUpdateMetricWithQuery = z.object({
  * Update-metric variant that replaces the query with a typed `query_ir`.
  */
 export const zUpdateMetricWithQueryIr = z.object({
+    display_name: zMetricDisplayName.optional(),
     folder: zFolder.optional(),
     event_name: zMetricEventName.optional(),
     query_ir: zQueryIr,
@@ -1688,6 +1697,7 @@ export const zUpdateMetricWithQueryIr = z.object({
  * Update-metric variant that leaves the query untouched (metadata-only edit — folder, event, winsorisation, default minimum effect of interest, direction, display unit, band and projection).
  */
 export const zUpdateMetricFields = z.object({
+    display_name: zMetricDisplayName.optional(),
     folder: zFolder.optional(),
     event_name: zMetricEventName.optional(),
     winsorize_pct: zMetricWinsorizePct.optional(),

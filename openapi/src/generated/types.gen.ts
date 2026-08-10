@@ -2902,6 +2902,11 @@ export type ListMetricsResponse = Array<{
 }>;
 
 /**
+ * What a human calls the metric — "Checkout revenue" beside the `checkout.revenue` that identifies it. Unlike `name` it is free text, it is editable, and nothing addresses the metric by it: the dashboard leads with it and falls back to `name` when it is absent, so a metric nobody named simply reads as its key. Send `null` to clear it.
+ */
+export type MetricDisplayName = string | null;
+
+/**
  * Source event the query reads from.
  */
 export type MetricEventName = string;
@@ -2965,6 +2970,7 @@ export type MetricDisplayConfig = {
  */
 export type CreateMetricWithQuery = {
     name: MetricName;
+    display_name?: MetricDisplayName;
     folder?: Folder;
     event_name: MetricEventName;
     query: MetricQueryDsl;
@@ -2980,6 +2986,7 @@ export type CreateMetricWithQuery = {
  */
 export type CreateMetricWithQueryIr = {
     name: MetricName;
+    display_name?: MetricDisplayName;
     folder?: Folder;
     event_name: MetricEventName;
     query_ir: QueryIr;
@@ -3091,6 +3098,7 @@ export type DeleteMetricResponse = {
  * Update-metric variant that replaces the query with a `query` DSL string.
  */
 export type UpdateMetricWithQuery = {
+    display_name?: MetricDisplayName;
     folder?: Folder;
     event_name?: MetricEventName;
     query: MetricQueryDsl;
@@ -3105,6 +3113,7 @@ export type UpdateMetricWithQuery = {
  * Update-metric variant that replaces the query with a typed `query_ir`.
  */
 export type UpdateMetricWithQueryIr = {
+    display_name?: MetricDisplayName;
     folder?: Folder;
     event_name?: MetricEventName;
     query_ir: QueryIr;
@@ -3119,6 +3128,7 @@ export type UpdateMetricWithQueryIr = {
  * Update-metric variant that leaves the query untouched (metadata-only edit — folder, event, winsorisation, default minimum effect of interest, direction, display unit, band and projection).
  */
 export type UpdateMetricFields = {
+    display_name?: MetricDisplayName;
     folder?: Folder;
     event_name?: MetricEventName;
     winsorize_pct?: MetricWinsorizePct;

@@ -260,6 +260,7 @@ shipeasy metrics create [options] <name>
 
 | Option | | Description |
 | --- | --- | --- |
+| `--display-name <value>` | optional | What a human calls the metric — "Checkout revenue" beside the `checkout.revenue` that identifies it. Unlike `name` it is free text, it is editable, and nothing addresses the metric by it: the dashboard leads with it and falls back to `name` when it is absent, so a metric nobody named simply reads as its key. Send `null` to clear it. |
 | `--folder <value>` | optional | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `--event-name <value>` | optional | Source event the query reads from. |
 | `--query <value>` | optional | Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`. Every label the query references — in filters, the value position, `by (…)`, or `without (…)` — must exist as a property on the tracked event's payload; a query over a label the event never carries validates fine but returns empty results. |
@@ -300,6 +301,7 @@ shipeasy metrics update [options] <id>
 
 | Option | | Description |
 | --- | --- | --- |
+| `--display-name <value>` | optional | What a human calls the metric — "Checkout revenue" beside the `checkout.revenue` that identifies it. Unlike `name` it is free text, it is editable, and nothing addresses the metric by it: the dashboard leads with it and falls back to `name` when it is absent, so a metric nobody named simply reads as its key. Send `null` to clear it. |
 | `--folder <value>` | optional | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `--event-name <value>` | optional | Source event the query reads from. |
 | `--query <value>` | optional | Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`. Every label the query references — in filters, the value position, `by (…)`, or `without (…)` — must exist as a property on the tracked event's payload; a query over a label the event never carries validates fine but returns empty results. |
@@ -468,7 +470,15 @@ shipeasy ops alerts create [options]
 | `--window-hours <value>` | optional | Lookback window (hours) the metric is aggregated over. 1–720. |
 | `--bucket-minutes <value>` | optional | Width of the buckets the window is split into, in minutes. Omit (or `null`) to divide the window into 12 equal buckets. The rule is judged per bucket, so this is the resolution at which "sustained" is measured — a short bucket asks the condition to hold through finer detail. |
 | `--required-buckets <value>` | optional | How many buckets must breach before the rule fires. Omit (or `null`) to require every bucket that had data. Buckets with nothing in them are excluded before this is counted, so on a sparse metric `null` can mean a single bucket — set this to 2 or more where one lone sample must never page. |
-| `--severity <value>` | optional | Severity of the raised alert. |
+| `--warn-threshold <value>` | optional | The milder bound — a second level, in the same unit the kind judges in, that raises a quieter alert before the firing level is reached. Must be strictly milder than the level the rule fires at, or it could never fire on its own. Refused on a range rule and on a `sustained` one: neither condition is a single number, so there is nothing to substitute. |
+| `--recovery-threshold <value>` | optional | What the metric must get back to before a live alert closes. Without it a metric sitting on its threshold pages and clears once per tick. Must be on the safe side of the firing level, or equal to it. Omit (or `null`) for no hysteresis. |
+| `--group-alerts <value>` | optional | Fire one alert per `by()` group instead of one for the whole metric. The firing key becomes (rule, group), so each group raises, dedupes and recovers on its own. Refused on a metric with no `by()`, and on `no_data` — a group that went silent has no rows left to be missing from. |
+| `--max-groups <value>` | optional | How many groups this rule may alert on at once. Omit (or `null`) for 10. Past the cap the worst groups fire and the count of the rest is stated on each ticket — a group set is customer data, and an uncapped rule on `by(user_id)` would file a ticket per user. |
+| `--no-data-minutes <value>` | optional | For a `no_data` rule: how long the silence must last. Omit (or `null`) for 15 minutes. Five is the floor — below it, ordinary ingest lag empties the trailing bucket and reads as an outage. |
+| `--delay-minutes <value>` | optional | Hold the evaluated window back this far behind live, on top of the reader's own settle grace. For a metric assembled from a source that lands in batches, whose trailing buckets are legitimately incomplete for longer than the grace covers. |
+| `--auto-resolve-minutes <value>` | optional | Close a live instance that has gone this long without a fresh verdict. A rule that cannot reach a verdict deliberately leaves its alert alone, which is right for a tick and wrong for a week. Never closes an instance that is currently breaching. Omit (or `null`) to never auto-resolve. |
+| `--composite <value>` | optional | What a `composite` rule is a boolean over. `rules` are sibling alert-rule ids in the same project and `op` is how their states combine. A child's state is what the current pass concluded about it, falling back to whether it has an open instance — so a composite still means something on a tick where a child could not be evaluated, which is exactly the tick a "two of these are broken at once" rule is for. One level deep: a child may not itself be composite. |
+| `--severity <value>` | optional | Severity of the raised alert. A `warnThreshold` breach opens one step quieter than this. |
 | `--enabled <value>` | optional | Whether the rule is evaluated by the cron. |
 | `--notify <value>` | optional | Delivery target for a notification; `null` = use the project default. |
 
@@ -495,6 +505,14 @@ shipeasy ops alerts update [options] <id>
 | `--sigma <value>` | optional | Sigmas an `anomaly` or `outliers` rule fires at; `null` restores the default of 3. |
 | `--direction <value>` | optional | Which side an `anomaly` or `outliers` rule watches; `null` restores either. |
 | `--sustained <value>` | optional | Judge the window by accumulated departure rather than bucket by bucket. `anomaly` and `outliers` only; refused alongside `requiredBuckets`. |
+| `--warn-threshold <value>` | optional | The milder bound; `null` drops the warning level, leaving the rule with one. |
+| `--recovery-threshold <value>` | optional | What the metric must get back to before a live alert closes; `null` drops the hysteresis. |
+| `--group-alerts <value>` | optional | Fire one alert per `by()` group. Refused on a metric with no grouping. |
+| `--max-groups <value>` | optional | How many groups may alert at once; `null` restores the default of 10. |
+| `--no-data-minutes <value>` | optional | How long a `no_data` rule's silence must last; `null` restores 15 minutes. |
+| `--delay-minutes <value>` | optional | How far behind live the window is held; `null` drops the delay. |
+| `--auto-resolve-minutes <value>` | optional | Close a stale live instance after this long; `null` never auto-resolves. |
+| `--composite <value>` | optional | What a `composite` rule is a boolean over. `rules` are sibling alert-rule ids in the same project and `op` is how their states combine. A child's state is what the current pass concluded about it, falling back to whether it has an open instance — so a composite still means something on a tick where a child could not be evaluated, which is exactly the tick a "two of these are broken at once" rule is for. One level deep: a child may not itself be composite. |
 | `--window-hours <value>` | optional | — |
 | `--bucket-minutes <value>` | optional | Bucket width in minutes; `null` restores the default 12 buckets per window. |
 | `--required-buckets <value>` | optional | Buckets that must breach to fire; `null` restores "every bucket that had data". |

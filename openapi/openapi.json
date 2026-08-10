@@ -19322,6 +19322,18 @@
         },
         "description": "Every metric in the project (the list endpoint is not paginated)."
       },
+      "MetricDisplayName": {
+        "description": "What a human calls the metric — \"Checkout revenue\" beside the `checkout.revenue` that identifies it. Unlike `name` it is free text, it is editable, and nothing addresses the metric by it: the dashboard leads with it and falls back to `name` when it is absent, so a metric nobody named simply reads as its key. Send `null` to clear it.",
+        "maxLength": 200,
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
       "MetricEventName": {
         "type": "string",
         "minLength": 1,
@@ -19431,6 +19443,9 @@
           "name": {
             "$ref": "#/components/schemas/MetricName"
           },
+          "display_name": {
+            "$ref": "#/components/schemas/MetricDisplayName"
+          },
           "folder": {
             "$ref": "#/components/schemas/Folder"
           },
@@ -19469,6 +19484,9 @@
         "properties": {
           "name": {
             "$ref": "#/components/schemas/MetricName"
+          },
+          "display_name": {
+            "$ref": "#/components/schemas/MetricDisplayName"
           },
           "folder": {
             "$ref": "#/components/schemas/Folder"
@@ -19702,6 +19720,9 @@
       "UpdateMetricWithQuery": {
         "type": "object",
         "properties": {
+          "display_name": {
+            "$ref": "#/components/schemas/MetricDisplayName"
+          },
           "folder": {
             "$ref": "#/components/schemas/Folder"
           },
@@ -19736,6 +19757,9 @@
       "UpdateMetricWithQueryIr": {
         "type": "object",
         "properties": {
+          "display_name": {
+            "$ref": "#/components/schemas/MetricDisplayName"
+          },
           "folder": {
             "$ref": "#/components/schemas/Folder"
           },
@@ -19770,6 +19794,9 @@
       "UpdateMetricFields": {
         "type": "object",
         "properties": {
+          "display_name": {
+            "$ref": "#/components/schemas/MetricDisplayName"
+          },
           "folder": {
             "$ref": "#/components/schemas/Folder"
           },

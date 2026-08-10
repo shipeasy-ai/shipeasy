@@ -493,6 +493,17 @@ MetricDisplayUnit:
   anyOf:
     - type: string
     - type: "null"
+MetricDisplayName:
+  description: >-
+    What a human calls the metric — "Checkout revenue" beside the
+    `checkout.revenue` that identifies it. Unlike `name` it is free text, it is
+    editable, and nothing addresses the metric by it: the dashboard leads with it
+    and falls back to `name` when it is absent, so a metric nobody named simply
+    reads as its key. Send `null` to clear it.
+  maxLength: 200
+  anyOf:
+    - type: string
+    - type: "null"
 MetricDisplayConfig:
   description: >-
     How the metric's series is DRAWN, as opposed to what it measures. Both parts
@@ -554,6 +565,8 @@ CreateMetricWithQuery:
   properties:
     name:
       $ref: ./common.yaml#/MetricName
+    display_name:
+      $ref: "#/MetricDisplayName"
     folder:
       $ref: ./common.yaml#/Folder
     event_name:
@@ -581,6 +594,8 @@ CreateMetricWithQueryIr:
   properties:
     name:
       $ref: ./common.yaml#/MetricName
+    display_name:
+      $ref: "#/MetricDisplayName"
     folder:
       $ref: ./common.yaml#/Folder
     event_name:
@@ -612,6 +627,8 @@ UpdateMetricRequest:
 UpdateMetricWithQuery:
   type: object
   properties:
+    display_name:
+      $ref: "#/MetricDisplayName"
     folder:
       $ref: ./common.yaml#/Folder
     event_name:
@@ -635,6 +652,8 @@ UpdateMetricWithQuery:
 UpdateMetricWithQueryIr:
   type: object
   properties:
+    display_name:
+      $ref: "#/MetricDisplayName"
     folder:
       $ref: ./common.yaml#/Folder
     event_name:
@@ -658,6 +677,8 @@ UpdateMetricWithQueryIr:
 UpdateMetricFields:
   type: object
   properties:
+    display_name:
+      $ref: "#/MetricDisplayName"
     folder:
       $ref: ./common.yaml#/Folder
     event_name:

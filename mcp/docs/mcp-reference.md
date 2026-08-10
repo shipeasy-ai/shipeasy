@@ -1622,6 +1622,7 @@ _Parameters_
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
 | `name` | required | `string` | Stable metric key. Single segment or `folder.name`; lowercase letters, digits, `_`/`-`; max 128 chars. _(length 0–128; pattern `^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?)?$`)_ |
+| `display_name` | optional | `any` | What a human calls the metric — "Checkout revenue" beside the `checkout.revenue` that identifies it. Unlike `name` it is free text, it is editable, and nothing addresses the metric by it: the dashboard leads with it and falls back to `name` when it is absent, so a metric nobody named simply reads as its key. Send `null` to clear it. _(length 0–200)_ |
 | `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `event_name` | required | `string` | Source event the query reads from. _(length 1–∞)_ |
 | `query` | optional | `string` | Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`. Every label the query references — in filters, the value position, `by (…)`, or `without (…)` — must exist as a property on the tracked event's payload; a query over a label the event never carries validates fine but returns empty results. _(length 1–4096)_ |
@@ -1778,6 +1779,7 @@ _Parameters_
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
 | `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `display_name` | optional | `any` | What a human calls the metric — "Checkout revenue" beside the `checkout.revenue` that identifies it. Unlike `name` it is free text, it is editable, and nothing addresses the metric by it: the dashboard leads with it and falls back to `name` when it is absent, so a metric nobody named simply reads as its key. Send `null` to clear it. _(length 0–200)_ |
 | `folder` | optional | `any` | Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`). |
 | `event_name` | optional | `string` | Source event the query reads from. _(length 1–∞)_ |
 | `query` | optional | `string` | Metric query DSL string, e.g. `sum(purchase, amount)`. The alternative to `query_ir`. Every label the query references — in filters, the value position, `by (…)`, or `without (…)` — must exist as a property on the tracked event's payload; a query over a label the event never carries validates fine but returns empty results. _(length 1–4096)_ |
