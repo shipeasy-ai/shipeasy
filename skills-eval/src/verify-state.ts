@@ -130,7 +130,7 @@ async function ensureAlertSeedMetricId(cfg: EnvConfig): Promise<string | undefin
   const res = await postResource(cfg, "metrics", {
     name: ALERT_SEED_METRIC,
     event_name: ALERT_SEED_EVENT,
-    query: `count_users(${ALERT_SEED_EVENT})`,
+    query: `count(${ALERT_SEED_EVENT})`,
   }).catch(() => undefined);
   if (res?.ok) {
     const id = ((await res.json().catch(() => null)) as { id?: string } | null)?.id;
