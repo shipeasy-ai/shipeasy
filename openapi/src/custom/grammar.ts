@@ -12,10 +12,10 @@ import type { CustomOp } from "./types.js";
  * examples.
  *
  * Source of truth for semantics is the RUNTIME parser + IR that the server
- * actually runs: the main repo's `packages/query-dsl` (`parse.ts` / `ir.ts`).
- * The vendored `cli/src/query-dsl` copy is a lagging subset (no `ratio` yet) and
- * is NOT on the create path — the CLI forwards the raw `--query` string to the
- * server, which parses it. Keep this text in sync with `packages/query-dsl`.
+ * actually runs: the main repo's `packages/query-dsl` (`parse-expr.ts` /
+ * `expr.ts`). The CLI forwards the raw `--query` string to the server, which
+ * parses it — there is no second parser here to keep in step, only this text,
+ * which has to stay in sync with `packages/query-dsl`.
  */
 export const METRIC_GRAMMAR = `SHIPEASY METRIC QUERY DSL
 =========================
@@ -37,7 +37,6 @@ GRAMMAR (BNF)
   RatioArm      := "count" "(" Selector ")"
   AggFunc       := "count" | "sum" | "avg" | "min" | "max"
                  | "p50" | "p75" | "p90" | "p95" | "p99" | "p999"
-                 | "retention_" <N> "d"                       (N = 1..90)
   Selector      := Identifier ("{" Filter ("," Filter)* ","? "}")?
   Filter        := Identifier MatchOp StringLiteral
   MatchOp       := "=" | "!=" | "=~" | "!~"
@@ -57,8 +56,6 @@ AGGREGATIONS
   count           forbidden     number of events (rows)         exact
   sum(e, v)       required      Σ of numeric label v            exact
   avg(e, v)       required      mean of label v                 exact
-  retention_Nd(e) forbidden     % of users who returned         exact
-                                within N days (N = 1..90)
   min(e, v)       required      minimum of label v              approx → avg *
   max(e, v)       required      maximum of label v              approx → avg *
   p50 … p999(e,v) required      quantile of v (50/75/90/        approx → avg *
@@ -68,7 +65,7 @@ AGGREGATIONS
   * Display-only aggregations. The experiment t-test needs a per-user mean and
     variance, so min/max/quantile are computed exactly on dashboards but
     collapse to a per-user \`avg\` when used as an experiment metric. If you need
-    an exact experiment metric, pick count / sum / avg / retention.
+    an exact experiment metric, pick count / sum / avg.
 
   ** In an experiment a ratio collapses to a per-user 0/1 outcome (a proportion),
     not a ratio-of-sums — see RATIO.
@@ -141,7 +138,7 @@ RATIO  (success rate, conversion, failure %, …)
   - Arms are limited to \`count\` — no sum/avg/quantile arm, and no distinct
     count (see AGGREGATIONS).
   - A zero denominator yields 0, not an error.
-  - No \`by (...)\` / \`without (...)\`, and no retention arm, on a ratio.
+  - No \`by (...)\` / \`without (...)\` on a ratio.
   - It is a COHORT RATE over the window — numerator events ÷ denominator events —
     NOT a per-id join. It never matches an individual attempt to its outcome by a
     correlation id; it counts each side over the window and divides. If you need a
@@ -183,9 +180,6 @@ EXAMPLES  (query  —  what it measures)
 
   p99(req_dur{route=~"/api*"}, ms) by (route, status)
       99th-percentile latency of /api requests, split by route and status.
-
-  retention_7d(session_start)
-      share of users who started a new session within 7 days.
 
   ratio(count(checkout_completed), count(checkout_started))
       checkout conversion rate — completions ÷ starts over the window.
