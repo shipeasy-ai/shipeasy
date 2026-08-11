@@ -44,7 +44,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--direction <value>", "Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).")
     .option("--unit <value>", "Display unit (e.g. `ms`, `%`, `$`), or `null` when unitless.")
     .option("--display <value>", "How the metric's series is DRAWN, as opposed to what it measures. Both parts used to be DSL functions (`expected(q, seasonal)`, `forecast(q, …)`), which meant turning a band on minted a different metric; they are properties now, so every chart of the metric picks them up and nothing that JUDGES the metric — an alert rule, the experiment analyzer — reads them at all.")
-    .option("--query-ir <value>", "Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body.")
+    .option("--query-ir <value>", "A metric definition as a typed expression tree — the structured alternative to the `query` DSL string, and what the API stores. Exactly one of `query` / `query_ir` is supplied per metric body; `query` is the same definition written as text, and is the spelling to prefer.")
     .action(async (name, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.createMetric({ client, body: clean({ name: name, display_name: str(opts.displayName), folder: str(opts.folder), event_name: str(opts.eventName), query: str(opts.query), winsorize_pct: num(opts.winsorizePct), default_min_effect_of_interest: num(opts.defaultMinEffectOfInterest), direction: str(opts.direction), unit: str(opts.unit), display: json(opts.display), query_ir: json(opts.queryIr) }) }) });
     });
@@ -67,7 +67,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--direction <value>", "Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail).")
     .option("--unit <value>", "Display unit (e.g. `ms`, `%`, `$`), or `null` when unitless.")
     .option("--display <value>", "How the metric's series is DRAWN, as opposed to what it measures. Both parts used to be DSL functions (`expected(q, seasonal)`, `forecast(q, …)`), which meant turning a band on minted a different metric; they are properties now, so every chart of the metric picks them up and nothing that JUDGES the metric — an alert rule, the experiment analyzer — reads them at all.")
-    .option("--query-ir <value>", "Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body.")
+    .option("--query-ir <value>", "A metric definition as a typed expression tree — the structured alternative to the `query` DSL string, and what the API stores. Exactly one of `query` / `query_ir` is supplied per metric body; `query` is the same definition written as text, and is the spelling to prefer.")
     .action(async (id, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.updateMetric({ client, path: { id: id }, body: clean({ display_name: str(opts.displayName), folder: str(opts.folder), event_name: str(opts.eventName), query: str(opts.query), winsorize_pct: num(opts.winsorizePct), default_min_effect_of_interest: num(opts.defaultMinEffectOfInterest), direction: str(opts.direction), unit: str(opts.unit), display: json(opts.display), query_ir: json(opts.queryIr) }) }) });
     });

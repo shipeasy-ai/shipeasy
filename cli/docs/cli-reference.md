@@ -269,7 +269,7 @@ shipeasy metrics create [options] <name>
 | `--direction <value>` | optional | Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail). |
 | `--unit <value>` | optional | Display unit (e.g. `ms`, `%`, `$`), or `null` when unitless. |
 | `--display <value>` | optional | How the metric's series is DRAWN, as opposed to what it measures. Both parts used to be DSL functions (`expected(q, seasonal)`, `forecast(q, …)`), which meant turning a band on minted a different metric; they are properties now, so every chart of the metric picks them up and nothing that JUDGES the metric — an alert rule, the experiment analyzer — reads them at all. |
-| `--query-ir <value>` | optional | Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body. |
+| `--query-ir <value>` | optional | A metric definition as a typed expression tree — the structured alternative to the `query` DSL string, and what the API stores. Exactly one of `query` / `query_ir` is supplied per metric body; `query` is the same definition written as text, and is the spelling to prefer. |
 
 ### `shipeasy metrics show`
 
@@ -310,7 +310,7 @@ shipeasy metrics update [options] <id>
 | `--direction <value>` | optional | Desired direction of movement. `higher_better` (default), `lower_better`, or `neutral` (guardrail). |
 | `--unit <value>` | optional | Display unit (e.g. `ms`, `%`, `$`), or `null` when unitless. |
 | `--display <value>` | optional | How the metric's series is DRAWN, as opposed to what it measures. Both parts used to be DSL functions (`expected(q, seasonal)`, `forecast(q, …)`), which meant turning a band on minted a different metric; they are properties now, so every chart of the metric picks them up and nothing that JUDGES the metric — an alert rule, the experiment analyzer — reads them at all. |
-| `--query-ir <value>` | optional | Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body. |
+| `--query-ir <value>` | optional | A metric definition as a typed expression tree — the structured alternative to the `query` DSL string, and what the API stores. Exactly one of `query` / `query_ir` is supplied per metric body; `query` is the same definition written as text, and is the spelling to prefer. |
 
 ### `shipeasy metrics archive`
 

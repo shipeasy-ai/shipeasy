@@ -521,8 +521,6 @@ export const zExperimentInlineMetric = z.object({
     event: z.string().min(1).max(256).optional(),
     aggregation: z.enum([
         'count_events',
-        'retention_7d',
-        'retention_30d',
         'sum',
         'avg'
     ]).optional(),
@@ -1411,94 +1409,31 @@ export const zUpdateAttributeResponse = z.object({
 });
 
 /**
- * Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body.
+ * How the metric's series is DRAWN, as opposed to what it measures. Both parts used to be DSL functions (`expected(q, seasonal)`, `forecast(q, …)`), which meant turning a band on minted a different metric; they are properties now, so every chart of the metric picks them up and nothing that JUDGES the metric — an alert rule, the experiment analyzer — reads them at all.
+ */
+export const zMetricDisplayConfig = z.object({
+    band: z.object({
+        method: z.enum(['seasonal']),
+        sigma: z.number().gt(0).optional()
+    }).optional(),
+    forecast: z.object({
+        method: z.enum(['linear', 'seasonal']),
+        horizon: z.int().gte(1).lte(500).optional()
+    }).optional()
+});
+
+/**
+ * A metric definition as a typed expression tree — the structured alternative to the `query` DSL string, and what the API stores. Exactly one of `query` / `query_ir` is supplied per metric body; `query` is the same definition written as text, and is the spelling to prefer.
+ * Until 2026-08-10 this documented a single aggregation (`{agg, metric, filters}`, with `ratio` as a special case). That shape no longer exists — stored metrics were migrated and the code that read it was deleted — so a body sending it is rejected. Send the `query` string instead, or the tree below.
  */
 export const zQueryIr = z.object({
-    agg: z.union([
-        z.object({
-            kind: z.literal('count_users')
-        }),
-        z.object({
-            kind: z.literal('count_events')
-        }),
-        z.object({
-            kind: z.literal('sum')
-        }),
-        z.object({
-            kind: z.literal('avg')
-        }),
-        z.object({
-            kind: z.literal('min')
-        }),
-        z.object({
-            kind: z.literal('max')
-        }),
-        z.object({
-            kind: z.literal('unique')
-        }),
-        z.object({
-            kind: z.literal('quantile'),
-            p: z.union([
-                z.literal(0.5),
-                z.literal(0.75),
-                z.literal(0.9),
-                z.literal(0.95),
-                z.literal(0.99),
-                z.literal(0.999)
-            ])
-        }),
-        z.object({
-            kind: z.literal('retention_Nd'),
-            n: z.int().gte(1).lte(90)
-        }),
-        z.object({
-            kind: z.literal('ratio'),
-            numerator: z.object({
-                agg: z.enum(['count_users', 'count_events']),
-                metric: z.string().min(1).max(128),
-                filters: z.array(z.object({
-                    label: z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/),
-                    op: z.enum([
-                        '=',
-                        '!=',
-                        '=~',
-                        '!~'
-                    ]),
-                    value: z.string().max(512)
-                })).max(16).optional()
-            }),
-            denominator: z.object({
-                agg: z.enum(['count_users', 'count_events']),
-                metric: z.string().min(1).max(128),
-                filters: z.array(z.object({
-                    label: z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/),
-                    op: z.enum([
-                        '=',
-                        '!=',
-                        '=~',
-                        '!~'
-                    ]),
-                    value: z.string().max(512)
-                })).max(16).optional()
-            })
-        })
-    ]),
-    metric: z.string().min(1).max(128),
-    valueLabel: z.string().min(1).max(128).optional(),
-    filters: z.array(z.object({
-        label: z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/),
-        op: z.enum([
-            '=',
-            '!=',
-            '=~',
-            '!~'
-        ]),
-        value: z.string().max(512)
-    })).max(16).optional().default([]),
+    v: z.literal(2),
+    expr: z.record(z.string(), z.unknown()),
     groupBy: z.object({
         op: z.enum(['by', 'without']),
-        labels: z.array(z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/)).max(5)
-    }).optional()
+        labels: z.array(z.string().regex(/^[a-z_][a-z0-9_]{0,63}$/)).max(8)
+    }).optional(),
+    display: zMetricDisplayConfig.optional()
 });
 
 /**
@@ -1567,20 +1502,6 @@ export const zMetricDirection = z.enum([
  * Display unit (e.g. `ms`, `%`, `$`), or `null` when unitless.
  */
 export const zMetricDisplayUnit = z.string().nullable();
-
-/**
- * How the metric's series is DRAWN, as opposed to what it measures. Both parts used to be DSL functions (`expected(q, seasonal)`, `forecast(q, …)`), which meant turning a band on minted a different metric; they are properties now, so every chart of the metric picks them up and nothing that JUDGES the metric — an alert rule, the experiment analyzer — reads them at all.
- */
-export const zMetricDisplayConfig = z.object({
-    band: z.object({
-        method: z.enum(['seasonal']),
-        sigma: z.number().gt(0).optional()
-    }).optional(),
-    forecast: z.object({
-        method: z.enum(['linear', 'seasonal']),
-        horizon: z.int().gte(1).lte(500).optional()
-    }).optional()
-});
 
 /**
  * Create a metric, supplying the query as a `query` DSL string.

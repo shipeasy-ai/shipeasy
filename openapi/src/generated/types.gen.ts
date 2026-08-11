@@ -941,9 +941,9 @@ export type ExperimentInlineMetric = {
      */
     event?: string;
     /**
-     * Reducer for the `event` form. Defaults to `count_events`. `count_users` was removed: Analytics Engine samples rows and weights the survivors, and a distinct count cannot be reweighted, so it under-reports by the sample interval.
+     * Reducer for the `event` form. Defaults to `count_events`. `count_users` was removed: Analytics Engine samples rows and weights the survivors, and a distinct count cannot be reweighted, so it under-reports by the sample interval. `retention_7d` / `retention_30d` were removed on 2026-08-10: the day count reached no query and no reducer, so both produced the same number as a distinct user count and reported it as a returning-user rate.
      */
-    aggregation?: 'count_events' | 'retention_7d' | 'retention_30d' | 'sum' | 'avg';
+    aggregation?: 'count_events' | 'sum' | 'avg';
     /**
      * Numeric event property for `sum`/`avg` (with `event`).
      */
@@ -2684,142 +2684,64 @@ export type UpdateAttributeResponse = {
 };
 
 /**
- * Typed query IR — the structured alternative to the `query` DSL string. Exactly one of `query` / `query_ir` is supplied per metric body.
+ * How the metric's series is DRAWN, as opposed to what it measures. Both parts used to be DSL functions (`expected(q, seasonal)`, `forecast(q, …)`), which meant turning a band on minted a different metric; they are properties now, so every chart of the metric picks them up and nothing that JUDGES the metric — an alert rule, the experiment analyzer — reads them at all.
+ */
+export type MetricDisplayConfig = {
+    /**
+     * Shade the seasonal baseline around the series. The fit is the median of this hour of the week over the four weeks before the window, and it is the SAME fit an `anomaly` alert rule fires on — so the shaded region is exactly where such a rule would stay quiet, whether or not one exists.
+     */
+    band?: {
+        method: 'seasonal';
+        /**
+         * Half-width of the band in sigma-equivalents. Omit for 3, the sigma an alert rule also defaults to.
+         */
+        sigma?: number;
+    };
+    /**
+     * Project the series past the end of the window. Projected buckets are marked, so a chart can draw an estimate differently from a measurement.
+     */
+    forecast?: {
+        /**
+         * `linear` continues a least-squares slope over the window it is already reading. `seasonal` de-seasonalises against the four weeks before the window, fits the trend on the remainder and adds the hour-of-week term back — ask for it when the metric has a shape.
+         */
+        method: 'linear' | 'seasonal';
+        /**
+         * Buckets to project. Omit for a quarter of the window, which is the same claim at every bucket width.
+         */
+        horizon?: number;
+    };
+};
+
+/**
+ * A metric definition as a typed expression tree — the structured alternative to the `query` DSL string, and what the API stores. Exactly one of `query` / `query_ir` is supplied per metric body; `query` is the same definition written as text, and is the spelling to prefer.
+ * Until 2026-08-10 this documented a single aggregation (`{agg, metric, filters}`, with `ratio` as a special case). That shape no longer exists — stored metrics were migrated and the code that read it was deleted — so a body sending it is rejected. Send the `query` string instead, or the tree below.
  */
 export type QueryIr = {
     /**
-     * Aggregation function applied to the source event.
+     * Storage version of the definition. `2` is the only one.
      */
-    agg: {
-        /**
-         * Distinct users. READ-ONLY: kept so metrics stored before its removal still round-trip. It cannot be authored — Analytics Engine samples rows and weights the survivors, and a distinct count cannot be reweighted, so it under-reports by the sample interval.
-         */
-        kind: 'count_users';
-    } | {
-        kind: 'count_events';
-    } | {
-        kind: 'sum';
-    } | {
-        kind: 'avg';
-    } | {
-        kind: 'min';
-    } | {
-        kind: 'max';
-    } | {
-        kind: 'unique';
-    } | {
-        kind: 'quantile';
-        /**
-         * Quantile fraction (0.5 = p50 … 0.999 = p999).
-         */
-        p: 0.5 | 0.75 | 0.9 | 0.95 | 0.99 | 0.999;
-    } | {
-        kind: 'retention_Nd';
-        /**
-         * Retention window in days (1–90).
-         */
-        n: number;
-    } | {
-        kind: 'ratio';
-        /**
-         * Numerator or denominator arm of a `ratio` aggregation.
-         */
-        numerator: {
-            /**
-             * Counting mode for this ratio arm. `count_users` is READ-ONLY — kept so stored metrics round-trip, refused on save.
-             */
-            agg: 'count_users' | 'count_events';
-            /**
-             * Source event name for this ratio arm.
-             */
-            metric: string;
-            /**
-             * Optional label filters.
-             */
-            filters?: Array<{
-                /**
-                 * Event property / label identifier.
-                 */
-                label: string;
-                /**
-                 * Match operator (`=~`/`!~` are regex).
-                 */
-                op: '=' | '!=' | '=~' | '!~';
-                /**
-                 * Quoted filter value (coerced for numeric labels).
-                 */
-                value: string;
-            }>;
-        };
-        /**
-         * Numerator or denominator arm of a `ratio` aggregation.
-         */
-        denominator: {
-            /**
-             * Counting mode for this ratio arm. `count_users` is READ-ONLY — kept so stored metrics round-trip, refused on save.
-             */
-            agg: 'count_users' | 'count_events';
-            /**
-             * Source event name for this ratio arm.
-             */
-            metric: string;
-            /**
-             * Optional label filters.
-             */
-            filters?: Array<{
-                /**
-                 * Event property / label identifier.
-                 */
-                label: string;
-                /**
-                 * Match operator (`=~`/`!~` are regex).
-                 */
-                op: '=' | '!=' | '=~' | '!~';
-                /**
-                 * Quoted filter value (coerced for numeric labels).
-                 */
-                value: string;
-            }>;
-        };
+    v: 2;
+    /**
+     * The expression tree: aggregate leaves (`{node: "agg", event, agg, filters, valueLabel?}`), arithmetic over them (`{node: "binary", op, left, right}`), scalars, and function calls (`{node: "call", fn, arg, params?}`). A ratio is ordinary division of two leaves.
+     * Deliberately opaque here rather than mirrored node by node: the grammar belongs to the query language, a second copy of it in this spec would drift from the one the server enforces, and the server validates every tree by planning it before the metric saves. `GET /api/admin/metrics` returns the grammar itself; the `query` string is the same tree in the form humans and the CLI write.
+     */
+    expr: {
+        [key: string]: unknown;
     };
     /**
-     * Source event name (must equal `event_name`).
-     */
-    metric: string;
-    /**
-     * Numeric property summed/averaged for `sum`/`avg`/quantile aggregations.
-     */
-    valueLabel?: string;
-    /**
-     * Label filters on the event.
-     */
-    filters?: Array<{
-        /**
-         * Event property / label identifier.
-         */
-        label: string;
-        /**
-         * Match operator (`=~`/`!~` are regex).
-         */
-        op: '=' | '!=' | '=~' | '!~';
-        /**
-         * Quoted filter value (coerced for numeric labels).
-         */
-        value: string;
-    }>;
-    /**
-     * Optional group-by clause (ignored for experiment analysis).
+     * How the series is split. On the envelope rather than in `expr` because every leaf of one expression shares it.
      */
     groupBy?: {
         /**
-         * `by` keeps the listed labels; `without` drops them.
+         * `by` names the output dimensions; `without` names the ones to drop.
          */
         op: 'by' | 'without';
         /**
-         * Labels to group by (max 5).
+         * Labels the grouping names.
          */
         labels: Array<string>;
     };
+    display?: MetricDisplayConfig;
 };
 
 /**
@@ -2935,35 +2857,6 @@ export type MetricDirection = 'higher_better' | 'lower_better' | 'neutral';
  * Display unit (e.g. `ms`, `%`, `$`), or `null` when unitless.
  */
 export type MetricDisplayUnit = string | null;
-
-/**
- * How the metric's series is DRAWN, as opposed to what it measures. Both parts used to be DSL functions (`expected(q, seasonal)`, `forecast(q, …)`), which meant turning a band on minted a different metric; they are properties now, so every chart of the metric picks them up and nothing that JUDGES the metric — an alert rule, the experiment analyzer — reads them at all.
- */
-export type MetricDisplayConfig = {
-    /**
-     * Shade the seasonal baseline around the series. The fit is the median of this hour of the week over the four weeks before the window, and it is the SAME fit an `anomaly` alert rule fires on — so the shaded region is exactly where such a rule would stay quiet, whether or not one exists.
-     */
-    band?: {
-        method: 'seasonal';
-        /**
-         * Half-width of the band in sigma-equivalents. Omit for 3, the sigma an alert rule also defaults to.
-         */
-        sigma?: number;
-    };
-    /**
-     * Project the series past the end of the window. Projected buckets are marked, so a chart can draw an estimate differently from a measurement.
-     */
-    forecast?: {
-        /**
-         * `linear` continues a least-squares slope over the window it is already reading. `seasonal` de-seasonalises against the four weeks before the window, fits the trend on the remainder and adds the hour-of-week term back — ask for it when the metric has a shape.
-         */
-        method: 'linear' | 'seasonal';
-        /**
-         * Buckets to project. Omit for a quarter of the window, which is the same claim at every bucket width.
-         */
-        horizon?: number;
-    };
-};
 
 /**
  * Create a metric, supplying the query as a `query` DSL string.

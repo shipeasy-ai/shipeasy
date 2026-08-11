@@ -98,10 +98,13 @@
                 name: checkouts
                 event_name: checkout_completed
                 query_ir:
-                  agg:
-                    kind: count_events
-                  metric: checkout_completed
-                  filters: []
+                  v: 2
+                  expr:
+                    node: agg
+                    event: checkout_completed
+                    agg:
+                      kind: count
+                    filters: []
     responses:
       "201":
         description: Create a metric
