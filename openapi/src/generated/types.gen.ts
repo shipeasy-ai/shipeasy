@@ -4179,7 +4179,7 @@ export type CreateOpsItemResponse = {
 };
 
 /**
- * Body for `POST /ops/bug`. The same bug fields as `CreateBugRequest`, minus the `type` discriminator — the path already says what is being filed.
+ * Body for `POST /ops/bug`. The same bug fields as `CreateBugRequest`, minus the `type` discriminator — the path already says what is being filed, plus the public intake's own `dedupKey`.
  */
 export type CreatePublicBugRequest = {
     /**
@@ -4241,13 +4241,17 @@ export type CreatePublicBugRequest = {
         [key: string]: unknown;
     } | null;
     /**
+     * Caller-chosen dedupe identity for this report, stored on the ticket. A repeat submission carrying the same key does NOT file a second ticket: the open ticket already holding that key is refreshed from this payload (title and the report fields overwritten, a "re-triggered" comment appended) and returned with `deduped: true` and `updated: true`. Triage state a human owns — status, priority, assignee, tags — is left untouched, and a `resolved`/`wont_fix` ticket no longer holds the key, so a failure that comes back after being closed files a fresh ticket. Omit it to fall back to the derived (title + `context.step`) dedupe, whose repeats return the existing ticket unchanged.
+     */
+    dedupKey?: string;
+    /**
      * Where this bug's completion notification lands.
      */
     notify?: NotificationTarget | null;
 };
 
 /**
- * Response for the public ticket intake. A fresh file returns `201` with `id` + `number`; a repeat of a report already tracked by an open ticket returns `200` with that ticket's `number` and `deduped: true`.
+ * Response for the public ticket intake. A fresh file returns `201` with `id` + `number`; a repeat of a report already tracked by an open ticket returns `200` with that ticket's `number` and `deduped: true` — plus `updated: true` when a `dedupKey` re-triggered it and its fields were refreshed.
  */
 export type CreatePublicTicketResponse = {
     /**
@@ -4262,10 +4266,14 @@ export type CreatePublicTicketResponse = {
      * `true` when an open ticket already tracked this report and nothing was filed (HTTP 200). Absent on a fresh file (HTTP 201).
      */
     deduped?: boolean;
+    /**
+     * `true` when the deduped ticket was REFRESHED from this payload and got a "re-triggered" comment — only ever set alongside `deduped` on a submission that carried a `dedupKey`. Absent when the existing ticket was returned untouched.
+     */
+    updated?: boolean;
 };
 
 /**
- * Body for `POST /ops/feature-request`. The same feature-request fields as `CreateFeatureRequestRequest`, minus the `type` discriminator — the path already says what is being filed.
+ * Body for `POST /ops/feature-request`. The same feature-request fields as `CreateFeatureRequestRequest`, minus the `type` discriminator — the path already says what is being filed, plus the public intake's own `dedupKey`.
  */
 export type CreatePublicFeatureRequestRequest = {
     /**
@@ -4318,6 +4326,10 @@ export type CreatePublicFeatureRequestRequest = {
     context?: {
         [key: string]: unknown;
     } | null;
+    /**
+     * Caller-chosen dedupe identity for this request, stored on the ticket. Behaves exactly as on `POST /ops/bug`: a repeat carrying the same key refreshes the open ticket already holding it (fields overwritten, a "re-triggered" comment appended) and returns `deduped: true` with `updated: true`, instead of filing a second one.
+     */
+    dedupKey?: string;
     /**
      * Where this request's completion notification lands.
      */

@@ -2214,7 +2214,7 @@ export const zCreateOpsItemResponse = z.object({
 });
 
 /**
- * Body for `POST /ops/bug`. The same bug fields as `CreateBugRequest`, minus the `type` discriminator — the path already says what is being filed.
+ * Body for `POST /ops/bug`. The same bug fields as `CreateBugRequest`, minus the `type` discriminator — the path already says what is being filed, plus the public intake's own `dedupKey`.
  */
 export const zCreatePublicBugRequest = z.object({
     title: z.string().min(1).max(200).regex(/^\S(.*\S)?$/),
@@ -2231,20 +2231,22 @@ export const zCreatePublicBugRequest = z.object({
     userAgent: z.string().max(500).nullish(),
     viewport: z.string().max(40).nullish(),
     context: z.record(z.string(), z.unknown()).nullish(),
+    dedupKey: z.string().max(200).optional(),
     notify: zNotificationTarget.nullish()
 });
 
 /**
- * Response for the public ticket intake. A fresh file returns `201` with `id` + `number`; a repeat of a report already tracked by an open ticket returns `200` with that ticket's `number` and `deduped: true`.
+ * Response for the public ticket intake. A fresh file returns `201` with `id` + `number`; a repeat of a report already tracked by an open ticket returns `200` with that ticket's `number` and `deduped: true` — plus `updated: true` when a `dedupKey` re-triggered it and its fields were refreshed.
  */
 export const zCreatePublicTicketResponse = z.object({
     id: z.string().optional(),
     number: z.int(),
-    deduped: z.boolean().optional()
+    deduped: z.boolean().optional(),
+    updated: z.boolean().optional()
 });
 
 /**
- * Body for `POST /ops/feature-request`. The same feature-request fields as `CreateFeatureRequestRequest`, minus the `type` discriminator — the path already says what is being filed.
+ * Body for `POST /ops/feature-request`. The same feature-request fields as `CreateFeatureRequestRequest`, minus the `type` discriminator — the path already says what is being filed, plus the public intake's own `dedupKey`.
  */
 export const zCreatePublicFeatureRequestRequest = z.object({
     title: z.string().min(1).max(200).regex(/^\S(.*\S)?$/),
@@ -2259,6 +2261,7 @@ export const zCreatePublicFeatureRequestRequest = z.object({
     pageUrl: z.url().nullish(),
     userAgent: z.string().max(500).nullish(),
     context: z.record(z.string(), z.unknown()).nullish(),
+    dedupKey: z.string().max(200).optional(),
     notify: zNotificationTarget.nullish()
 });
 
