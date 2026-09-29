@@ -208,8 +208,9 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id.")
     .option("--agent <value>", "The AI agent type acking on the item's behalf — pass your own type when you are a coding agent (Claude Code passes `claude`, Cursor `cursor`, Copilot `copilot`, Jules/Gemini `jules`). Omit entirely for a human ack by the authenticated caller.")
     .option("--session-id <value>", "The agent-run session id (e.g. Claude's `session_01…`), so the dashboard can deep-link to the exact run page. Omit when the harness has no session id.")
+    .option("--launch <value>", "Whether an AI ack may FIRE the agent's connected trigger. Default `true`: an ack naming a connected agent, with no `sessionId`, starts a new provider run of that agent. Pass `false` to only record the ack — claim the item and open the run record — without starting anything, e.g. when you ARE that agent working the item yourself and have no session id to pass. Ignored on a human ack.")
     .action(async (handle, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.ackOpsItem({ client, path: { handle: handle }, body: clean({ agent: str(opts.agent), sessionId: str(opts.sessionId) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.ackOpsItem({ client, path: { handle: handle }, body: clean({ agent: str(opts.agent), sessionId: str(opts.sessionId), launch: bool(opts.launch) }) }) });
     });
   g_ops.command("notify")
     .description("Raise an attention notification")

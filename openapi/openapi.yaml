@@ -6028,6 +6028,11 @@ paths:
         list` and use one of those (or connect the agent under Settings →
         Triggers).
 
+        **Launching.** When the named agent has a connected trigger and you pass
+        no `sessionId`, the ack also fires that trigger — a new provider run
+        starts working the item. Pass `launch: false` to only claim the item and
+        record the run (you are doing the work yourself), without starting one.
+
         **Completion.** The run closes automatically on the loop's final actions —
         linking the fixing PR (`link-pr`), an ops-notify escalation, or a
         completion status change (`ready_for_qa`/`resolved`) — and the dashboard
@@ -16110,6 +16115,10 @@ components:
           type: string
           maxLength: 300
           description: The agent-run session id (e.g. Claude's `session_01…`), so the dashboard can deep-link to the exact run page. Omit when the harness has no session id.
+        launch:
+          type: boolean
+          default: true
+          description: 'Whether an AI ack may FIRE the agent''s connected trigger. Default `true`: an ack naming a connected agent, with no `sessionId`, starts a new provider run of that agent. Pass `false` to only record the ack — claim the item and open the run record — without starting anything, e.g. when you ARE that agent working the item yourself and have no session id to pass. Ignored on a human ack.'
       additionalProperties: false
       description: Body for `POST /api/admin/ops/{handle}/ack`. With `agent` set this is an AI ack — the named agent type must have a connected trigger connector in the project, or the call fails with `AGENT_NOT_CONNECTED` and instructions to query the available agents (`ops agents list`). `gemini` is accepted as an alias for `jules`. Without `agent` it is a HUMAN ack by the authenticated caller.
     AckOpsItemResponse:

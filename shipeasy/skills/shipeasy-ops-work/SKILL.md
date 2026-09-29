@@ -107,6 +107,12 @@ ack there is no run, so even a finished, PR'd item reads as untouched.
 - **No trigger connector needed.** The ack opens the run even when the project
   has no configured trigger connector for your agent type — it just records the
   run connector-less. Never skip the ack because "the agent isn't set up".
+- **Pass `--launch false` (MCP `launch: false`) when you are doing the work
+  yourself.** When your agent type HAS a connected trigger and the ack carries
+  no session id, the ack also fires that trigger — a second, cloud copy of you
+  starts on the same item. `launch: false` records the ack and opens the run
+  without firing anything. Omit it only when you mean to hand the item off to
+  the connected agent.
 - The ack moves the item into its working status for you
   (`investigating_by_ai` for an agent, `in_progress` for a human) — so you do
   **not** also issue a separate `--status in_progress` write.

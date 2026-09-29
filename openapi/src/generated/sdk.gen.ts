@@ -1394,6 +1394,11 @@ export const linkPrToOpsItem = <ThrowOnError extends boolean = false>(options: O
  * list` and use one of those (or connect the agent under Settings →
  * Triggers).
  *
+ * **Launching.** When the named agent has a connected trigger and you pass
+ * no `sessionId`, the ack also fires that trigger — a new provider run
+ * starts working the item. Pass `launch: false` to only claim the item and
+ * record the run (you are doing the work yourself), without starting one.
+ *
  * **Completion.** The run closes automatically on the loop's final actions —
  * linking the fixing PR (`link-pr`), an ops-notify escalation, or a
  * completion status change (`ready_for_qa`/`resolved`) — and the dashboard

@@ -8219,7 +8219,7 @@
       "post": {
         "operationId": "ackOpsItem",
         "summary": "Ack an item (start a run)",
-        "description": "Acknowledge a queue item — a person or an AI agent declaring \"I'm on this\nnow\". Opens a run: stamps who picked the item up and when, assigns them as\nowner, and moves the item into the matching working status\n(`investigating_by_ai` for an AI ack, `in_progress` for a human one). The\ndashboard renders the open run as a live working indicator (which agent +\ntime since the run started).\n\n**AI ack.** Pass `agent` with your own agent type (`claude`, `cursor`,\n`copilot`, `jules`; `gemini` aliases `jules`) and, when you have one, the\nrun's `sessionId` so the dashboard can deep-link to the session. If the\nproject has no connected trigger connector of that type the call fails\nwith `AGENT_NOT_CONNECTED` — list the available agents with `ops agents\nlist` and use one of those (or connect the agent under Settings →\nTriggers).\n\n**Completion.** The run closes automatically on the loop's final actions —\nlinking the fixing PR (`link-pr`), an ops-notify escalation, or a\ncompletion status change (`ready_for_qa`/`resolved`) — and the dashboard\nthen shows the run result (final action, PR, duration, session link).\nA repeat ack supersedes the previous open run.\n\n**Use case:** Call this first when picking an item up, so the team sees\nwho/what is working on it in real time.",
+        "description": "Acknowledge a queue item — a person or an AI agent declaring \"I'm on this\nnow\". Opens a run: stamps who picked the item up and when, assigns them as\nowner, and moves the item into the matching working status\n(`investigating_by_ai` for an AI ack, `in_progress` for a human one). The\ndashboard renders the open run as a live working indicator (which agent +\ntime since the run started).\n\n**AI ack.** Pass `agent` with your own agent type (`claude`, `cursor`,\n`copilot`, `jules`; `gemini` aliases `jules`) and, when you have one, the\nrun's `sessionId` so the dashboard can deep-link to the session. If the\nproject has no connected trigger connector of that type the call fails\nwith `AGENT_NOT_CONNECTED` — list the available agents with `ops agents\nlist` and use one of those (or connect the agent under Settings →\nTriggers).\n\n**Launching.** When the named agent has a connected trigger and you pass\nno `sessionId`, the ack also fires that trigger — a new provider run\nstarts working the item. Pass `launch: false` to only claim the item and\nrecord the run (you are doing the work yourself), without starting one.\n\n**Completion.** The run closes automatically on the loop's final actions —\nlinking the fixing PR (`link-pr`), an ops-notify escalation, or a\ncompletion status change (`ready_for_qa`/`resolved`) — and the dashboard\nthen shows the run result (final action, PR, duration, session link).\nA repeat ack supersedes the previous open run.\n\n**Use case:** Call this first when picking an item up, so the team sees\nwho/what is working on it in real time.",
         "tags": [
           "Ops"
         ],
@@ -22613,6 +22613,11 @@
             "type": "string",
             "maxLength": 300,
             "description": "The agent-run session id (e.g. Claude's `session_01…`), so the dashboard can deep-link to the exact run page. Omit when the harness has no session id."
+          },
+          "launch": {
+            "type": "boolean",
+            "default": true,
+            "description": "Whether an AI ack may FIRE the agent's connected trigger. Default `true`: an ack naming a connected agent, with no `sessionId`, starts a new provider run of that agent. Pass `false` to only record the ack — claim the item and open the run record — without starting anything, e.g. when you ARE that agent working the item yourself and have no session id to pass. Ignored on a human ack."
           }
         },
         "additionalProperties": false,

@@ -2424,7 +2424,8 @@ export const zAckOpsItemRequest = z.object({
         'gemini',
         'jarvis'
     ]).optional(),
-    sessionId: z.string().max(300).optional()
+    sessionId: z.string().max(300).optional(),
+    launch: z.boolean().optional().default(true)
 });
 
 /**

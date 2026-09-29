@@ -2002,6 +2002,11 @@ project has no connected trigger connector of that type the call fails
 with `AGENT_NOT_CONNECTED` — list the available agents with `ops agents list` and use one of those (or connect the agent under Settings →
 Triggers).
 
+**Launching.** When the named agent has a connected trigger and you pass
+no `sessionId`, the ack also fires that trigger — a new provider run
+starts working the item. Pass `launch: false` to only claim the item and
+record the run (you are doing the work yourself), without starting one.
+
 **Completion.** The run closes automatically on the loop's final actions —
 linking the fixing PR (`link-pr`), an ops-notify escalation, or a
 completion status change (`ready_for_qa`/`resolved`) — and the dashboard
@@ -2018,6 +2023,7 @@ _Parameters_
 | `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `agent` | optional | `"claude" \| "cursor" \| "copilot" \| "jules" \| "gemini" \| "jarvis"` | The AI agent type acking on the item's behalf — pass your own type when you are a coding agent (Claude Code passes `claude`, Cursor `cursor`, Copilot `copilot`, Jules/Gemini `jules`). Omit entirely for a human ack by the authenticated caller. |
 | `sessionId` | optional | `string` | The agent-run session id (e.g. Claude's `session_01…`), so the dashboard can deep-link to the exact run page. Omit when the harness has no session id. _(length 0–300)_ |
+| `launch` | optional | `boolean` | Whether an AI ack may FIRE the agent's connected trigger. Default `true`: an ack naming a connected agent, with no `sessionId`, starts a new provider run of that agent. Pass `false` to only record the ack — claim the item and open the run record — without starting anything, e.g. when you ARE that agent working the item yourself and have no session id to pass. Ignored on a human ack. _(default `true`)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
