@@ -11488,7 +11488,7 @@ export type ListOpsItemsData = {
          */
         scope?: 'all' | 'ready';
         /**
-         * Page size — max items to return (1–500). Defaults to 200. A page shorter than `limit` is the last one.
+         * Page size — max items to return (1–500). A page shorter than `limit` is the last one.
          */
         limit?: number;
         /**

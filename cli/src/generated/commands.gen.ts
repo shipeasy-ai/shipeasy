@@ -107,7 +107,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--status <value>", "Filter by lifecycle status, or `all` (the default). The human-gated holding state (`pending_approval`) is excluded from `all`/default and returned only when requested as the exact status.")
     .option("--priority <value>", "Filter by triage priority, or `all` (the default). Items with no priority set are returned only under `all`.")
     .option("--scope <value>", "`ready` narrows to the items ready to be picked up right now: status `open`, no open run (nobody has acked it and is still working), and either unowned (no person and no agent) or reopened (sent back to `open` after an earlier run finished). Leave `status` unset with it. `all` (the default) applies no such narrowing.")
-    .option("--limit <value>", "Page size — max items to return (1–500). Defaults to 200. A page shorter than `limit` is the last one.")
+    .option("--limit <value>", "Page size — max items to return (1–500). A page shorter than `limit` is the last one.")
     .option("--offset <value>", "Number of items to skip before the page starts. Defaults to 0. The order is stable, so `offset += limit` walks the queue page by page.")
     .option("--owner <value>", "Narrow to items owned by one person OR one agent. Matches a person by `users.id`, email, or display name, and an agent by connector id, display name, or kebab-case handle — e.g. `owner=Claude` or `owner=alice@acme.dev`. Case-insensitive exact match.")
     .option("--data <value>", "Request body as a JSON object.")

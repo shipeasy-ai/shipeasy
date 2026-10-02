@@ -5501,7 +5501,7 @@ paths:
         - name: limit
           in: query
           required: false
-          description: Page size — max items to return (1–500). Defaults to 200. A page shorter than `limit` is the last one.
+          description: Page size — max items to return (1–500). A page shorter than `limit` is the last one.
           schema:
             type: integer
             minimum: 1
