@@ -28,8 +28,8 @@ describe("custom-operations registry", () => {
     expect(out.grammar).toContain("count(checkout_completed)");
     // Locks in the concepts the parser/IR encode but the old text omitted.
     expect(out.grammar).toContain("Value label"); // required/forbidden rules
-    expect(out.grammar).toMatch(/approx.*avg/); // experiment reducer approximation
-    expect(out.grammar).toContain("NOT SUPPORTED"); // no formulas/subqueries
+    expect(out.grammar).toMatch(/collapse to a per-user `avg`/); // experiment reducer approximation
+    expect(out.grammar).toContain("REFUSED BY NAME"); // spellings the parser rejects
   });
 
   it("docs get rejects an unknown SDK before any fetch", async () => {
