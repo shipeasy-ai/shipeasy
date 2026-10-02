@@ -4858,7 +4858,13 @@ export const zListOpsItemsQuery = z.object({
         zOpsItemStatus,
         z.literal('all')
     ]).optional().default('all'),
+    priority: z.union([
+        zOpsItemPriority,
+        z.literal('all')
+    ]).optional().default('all'),
+    scope: z.enum(['all', 'ready']).optional().default('all'),
     limit: z.coerce.number().int().gte(1).lte(500).optional().default(200),
+    offset: z.coerce.number().int().gte(0).lte(100000).optional().default(0),
     owner: z.string().optional()
 });
 

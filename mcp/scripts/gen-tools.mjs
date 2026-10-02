@@ -3,7 +3,11 @@
 // emits src/generated/tools.gen.ts:
 //   • tool name      ← tag `parent` chain slugs + the x-cli verb, joined by `_`
 //                      (Flags<Release + create → `release_flags_create`)
-//   • description    ← operation summary + the first paragraph of its description
+//   • description    ← operation summary + the first paragraph of its description,
+//                      or the operation's `x-mcp.description` verbatim when set
+//   • required inputs← spec-required params, plus any query param marked
+//                      `x-mcp.required` (optional over HTTP, mandatory for an
+//                      agent — the dispatch refuses the call without it)
 //   • inputSchema    ← path params + query params + request-body properties
 //                      (JSON Schema, with enums/constraints carried through)
 //   • synthetic verbs← x-cli.commands[] with a `preset` body (start/stop/restore,
@@ -70,6 +74,14 @@ const toolDesc = (verbSummary, op) => {
   return body && body !== base ? `${base}. ${body}` : base;
 };
 
+// `x-mcp.description` replaces the derived description outright — for a tool
+// whose usage (filters, paging) does not fit the capped first paragraph.
+const mcpDescription = (op) => {
+  const d = op["x-mcp"]?.description;
+  return d ? String(d).replace(/\s+/g, " ").trim() : null;
+};
+const firstSentence = (s) => (s ? String(s).replace(/\s+/g, " ").trim().split(/(?<=\.)\s/)[0] : "");
+
 // Strip vendor extensions / examples and resolve any stray $ref so the property
 // schema is a clean JSON Schema for `inputSchema`. (Component schemas are already
 // flattened — zero intra-schema $refs — so a shallow deref per node suffices.)
@@ -79,7 +91,7 @@ function cleanSchema(s) {
   if (Array.isArray(s)) return s.map(cleanSchema);
   const out = {};
   for (const [k, v] of Object.entries(s)) {
-    if (k === "x-cli" || k === "example" || k === "examples") continue;
+    if (k === "x-cli" || k === "x-mcp" || k === "example" || k === "examples") continue;
     out[k] = v && typeof v === "object" ? cleanSchema(v) : v;
   }
   return out;
@@ -190,9 +202,18 @@ for (const [, item] of Object.entries(spec.paths)) {
         properties[pp.name] = withDesc(cleanSchema(pp.schema), pp.description);
         required.push(pp.name);
       }
+      // `x-mcp.required` params are optional on the wire but mandatory here.
+      // Their spec `default` is dropped from the tool schema (a default reads as
+      // "may be omitted") and the dispatch checks for them, since neither MCP
+      // server validates `required` itself.
+      const mcpRequired = [];
       for (const qp of queryParams) {
-        properties[qp.name] = withDesc(cleanSchema(qp.schema), qp.description);
-        if (qp.required) required.push(qp.name);
+        const forced = qp["x-mcp"]?.required === true;
+        const schema = cleanSchema(qp.schema);
+        if (forced) delete schema.default;
+        properties[qp.name] = withDesc(schema, qp.description);
+        if (qp.required || forced) required.push(qp.name);
+        if (forced) mcpRequired.push({ name: qp.name, hint: firstSentence(qp.description) });
       }
       if (verbBodyProps) {
         for (const bp of verbBodyProps) {
@@ -221,13 +242,16 @@ for (const [, item] of Object.entries(spec.paths)) {
         ];
         if (fields.length) callParts.push(`body: clean({ ${fields.join(", ")} })`);
       }
-      const call = `api.${op.operationId}({ ${callParts.join(", ")} }).then(unwrap)`;
+      const sdkCall = `api.${op.operationId}({ ${callParts.join(", ")} }).then(unwrap)`;
+      const call = mcpRequired.length
+        ? `requireArgs(${q(name)}, args, ${JSON.stringify(mcpRequired)}).then(() => ${sdkCall})`
+        : sdkCall;
 
       const tool = {
         name,
         mutates,
         annotations,
-        description: toolDesc(v.summary, op),
+        description: mcpDescription(op) ?? toolDesc(v.summary, op),
         inputSchema: { type: "object", properties, required },
         call,
       };
@@ -260,7 +284,7 @@ lines.push("// generated sdk fns. Regenerate with `pnpm gen:tools`.");
 lines.push('import type { Tool } from "@modelcontextprotocol/sdk/types.js";');
 lines.push('import type { Client } from "@shipeasy/openapi/client";');
 lines.push('import * as api from "@shipeasy/openapi/client";');
-lines.push('import { clean, unwrap } from "../tools/_gen-runtime.js";');
+lines.push('import { clean, requireArgs, unwrap } from "../tools/_gen-runtime.js";');
 lines.push("");
 lines.push("export const GENERATED_TOOLS: Tool[] = [");
 for (const t of tools) {

@@ -59,6 +59,31 @@ export function clean(obj: Record<string, unknown>): never {
   return out as unknown as never;
 }
 
+/**
+ * Refuse a call that omits an argument the tool requires but the admin API
+ * would quietly default (a spec param marked `x-mcp.required`, e.g. `ops_list`'s
+ * page size). Neither MCP server validates `required` against the input schema,
+ * so the generated dispatch checks here — and the message names the argument and
+ * what it means, so the calling agent can correct itself and retry.
+ *
+ * Async so a refusal surfaces as a rejected dispatch promise, like every other
+ * tool failure.
+ */
+export async function requireArgs(
+  tool: string,
+  args: Record<string, unknown>,
+  required: readonly { name: string; hint: string }[],
+): Promise<void> {
+  const missing = required.filter((r) => args[r.name] === undefined || args[r.name] === null);
+  if (missing.length === 0) return;
+  const lines = missing.map((r) => `\`${r.name}\` — ${r.hint}`);
+  throw new ApiError(
+    `${tool} requires ${missing.map((r) => `\`${r.name}\``).join(", ")}. Retry the call with:\n${lines.join("\n")}`,
+    400,
+    "MISSING_ARGUMENT",
+  );
+}
+
 /** Minimal view of a JSON Schema node — only what `reviveArg` inspects. */
 type JsonSchemaNode = { type?: unknown; enum?: unknown };
 

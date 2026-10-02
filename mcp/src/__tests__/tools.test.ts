@@ -165,6 +165,51 @@ describe("generated tool catalog", () => {
 describe("generated dispatch", () => {
   afterEach(() => vi.unstubAllGlobals());
 
+  it("refuses ops_list without a page size, naming the argument, and sends nothing", async () => {
+    const { fn, calls } = captureFetch(() => []);
+    vi.stubGlobal("fetch", fn);
+    const { GENERATED_DISPATCH } = await import("../tools/registry.js");
+    const { getGeneratedClient } = await import("../tools/_gen-runtime.js");
+    const handle = await getGeneratedClient();
+    await expect(GENERATED_DISPATCH.ops_list(handle!.client, { status: "open" })).rejects.toThrow(
+      /ops_list requires `limit`/,
+    );
+    expect(calls).toHaveLength(0);
+  });
+
+  it("dispatches ops_list with its paging + filter args on the query string", async () => {
+    const { fn, calls } = captureFetch(() => []);
+    vi.stubGlobal("fetch", fn);
+    const { GENERATED_DISPATCH } = await import("../tools/registry.js");
+    const { getGeneratedClient } = await import("../tools/_gen-runtime.js");
+    const handle = await getGeneratedClient();
+    await GENERATED_DISPATCH.ops_list(handle!.client, {
+      limit: 25,
+      offset: 50,
+      scope: "ready",
+      priority: "critical",
+    });
+    const url = new URL(calls[0].url);
+    expect(url.pathname).toBe("/api/admin/ops");
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      limit: "25",
+      offset: "50",
+      scope: "ready",
+      priority: "critical",
+    });
+  });
+
+  it("advertises ops_list's page size as required, with the filters in the description", async () => {
+    const { TOOLS } = await import("../tools/schema.js");
+    const tool = TOOLS.find((t) => t.name === "ops_list")!;
+    expect(tool.inputSchema.required).toEqual(["limit"]);
+    // A `default` on a required input reads as "may be omitted".
+    expect((tool.inputSchema.properties!.limit as { default?: number }).default).toBeUndefined();
+    for (const word of ["limit", "offset", "type", "status", "priority", "owner", "scope"]) {
+      expect(tool.description).toContain(`\`${word}`);
+    }
+  });
+
   it("dispatches release_flags_create to POST /api/admin/gates with the body", async () => {
     const { fn, calls } = captureFetch(() => ({ id: "gate-1", name: "my_gate" }));
     vi.stubGlobal("fetch", fn);
