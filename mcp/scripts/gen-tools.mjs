@@ -230,7 +230,10 @@ for (const [, item] of Object.entries(spec.paths)) {
       // ── dispatch call ──
       const callParts = ["client"];
       if (pathParams.length)
-        callParts.push(`path: { ${pathParams.map((p) => `${q(p.name)}: args[${q(p.name)}] as string`).join(", ")} }`);
+        // `as never`, not `as string`: a path param can be an enum (e.g. the tags
+        // API's `entityType`), which a bare string doesn't satisfy. The server
+        // validates the value either way.
+        callParts.push(`path: { ${pathParams.map((p) => `${q(p.name)}: args[${q(p.name)}] as never`).join(", ")} }`);
       if (queryParams.length)
         callParts.push(`query: clean({ ${queryParams.map((p) => `${q(p.name)}: args[${q(p.name)}]`).join(", ")} })`);
       if (!verbBodyProps && bodySchema) {

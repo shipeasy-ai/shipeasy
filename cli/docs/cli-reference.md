@@ -1105,6 +1105,79 @@ shipeasy projects update [options] <id>
 | `--error-autoclose-days <value>` | optional | Days an `open` tracked error may go unseen before the nightly sweep auto-resolves it. `0` disables auto-close for this project. |
 | `--error-ticket-min-occurrences <value>` | optional | Occurrence count a tracked error must cross before an `error` ticket is auto-filed into the ops queue. Requires a paid plan — the request is rejected with 403 on a plan without the `ops_auto_error_issues` entitlement. |
 
+## `shipeasy tags`
+
+Tags: free-form, project-scoped labels any item can carry — queue items (bugs, feature requests, error/alert tickets), flags, configs, kill switches, metrics, tracked errors, alert rules, and experiments all share one tag roster.
+
+```bash
+shipeasy tags [options] [command]
+```
+
+### `shipeasy tags list`
+
+List the project's tags
+
+```bash
+shipeasy tags list [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--q <value>` | optional | Case-insensitive substring filter on the tag name. Omit to return every tag. |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+### `shipeasy tags get`
+
+Read an item's tags
+
+```bash
+shipeasy tags get [options] <entityType> <entityId>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `entityType` | required | The kind of item — `ops`, `flag`, `config`, `killswitch`, `metric`, `error`, `alert_rule`, or `experiment`. |
+| `entityId` | required | The item's handle — an ops item's number (e.g. `7`) or id; a flag/config/killswitch/metric/alert rule/experiment's name or id; a tracked error's id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+### `shipeasy tags set`
+
+Replace an item's tags
+
+```bash
+shipeasy tags set [options] <entityType> <entityId>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `entityType` | required | The kind of item — `ops`, `flag`, `config`, `killswitch`, `metric`, `error`, `alert_rule`, or `experiment`. |
+| `entityId` | required | The item's handle — an ops item's number (e.g. `7`) or id; a flag/config/killswitch/metric/alert rule/experiment's name or id; a tracked error's id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--tags <value>` | optional | The complete tag set the item should carry — tags not listed are detached. Names are get-or-created (a new name mints a project tag), deduped case-insensitively; `[]` clears every tag. |
+
+### `shipeasy tags update`
+
+Add or remove tags on an item
+
+```bash
+shipeasy tags update [options] <entityType> <entityId>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `entityType` | required | The kind of item — `ops`, `flag`, `config`, `killswitch`, `metric`, `error`, `alert_rule`, or `experiment`. |
+| `entityId` | required | The item's handle — an ops item's number (e.g. `7`) or id; a flag/config/killswitch/metric/alert rule/experiment's name or id; a tracked error's id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--add <value>` | optional | Tag names to attach (get-or-created by name, case-insensitive). Already-attached names are a no-op. |
+| `--remove <value>` | optional | Tag names to detach (case-insensitive). Names the item doesn't carry are a no-op. A name in both lists is removed. |
+
 ## `shipeasy release`
 
 Feature delivery — flags, kill switches, dynamic configs, A/B experiments, and the universes they bucket in.

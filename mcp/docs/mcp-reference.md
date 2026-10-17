@@ -3117,6 +3117,111 @@ _Errors_ — beyond the [common errors](#errors):
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 
+## Tags
+
+Tags: free-form, project-scoped labels any item can carry — queue items
+(bugs, feature requests, error/alert tickets), flags, configs, kill
+switches, metrics, tracked errors, alert rules, and experiments all share
+one tag roster.
+
+**Identity.** A tag is its name, unique case-insensitively per project. A
+tag is born the first time it's attached — there is no separate create.
+
+**Addressing.** An item is named by `entityType` + its handle (an ops
+item's number, a resource's name, or any id). `set` replaces the full tag
+set; `update` adds/removes names incrementally.
+
+### `tags_get`
+
+**Read an item's tags**
+
+Returns the tags attached to one item. The item is addressed by kind (`entityType`) plus its handle, so the same call reads tags off a queue item, a flag, a config, a kill switch, a metric, a tracked error, an alert rule, or an experiment.
+
+**Use case:** Check an item's current tags before editing them.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `entityType` | required | `"ops" \| "flag" \| "config" \| "killswitch" \| "metric" \| "error" \| "alert_rule" \| "experiment"` | The kind of item a tag set hangs off: `ops` (any queue item — bug, feature request, error/alert/measure-plan ticket), `flag` (feature gate), `config` (dynamic config), `killswitch`, `metric`, `error` (tracked error group), `alert_rule`, or `experiment`. |
+| `entityId` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
+### `tags_list`
+
+**List the project's tags**
+
+Returns every tag in the project — the shared roster any item (queue items, flags, configs, kill switches, metrics, tracked errors, alert rules, experiments) can carry. Sorted by name.
+
+**Use case:** See which tags already exist before tagging an item, so you reuse `ios` instead of minting `iOS-app`.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `q` | optional | `string` | Case-insensitive substring filter on the tag name. Omit to return every tag. _(length 0–64)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+
+### `tags_set`
+
+**Replace an item's tags**
+
+Replaces the item's whole tag set with `tags`: names not yet in the project are created, attached names not in the list are detached, and `[]` clears every tag. Names are deduped case-insensitively, reusing an existing tag's casing (sending `iOS` when `ios` exists attaches `ios`).
+
+**Use cases**
+
+- **Tag an item** — `{ "tags": ["checkout", "ios"] }`.
+- **Clear tags** — `{ "tags": [] }`.
+
+To add or remove a few tags without restating the rest, use the incremental `PATCH` instead.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `entityType` | required | `"ops" \| "flag" \| "config" \| "killswitch" \| "metric" \| "error" \| "alert_rule" \| "experiment"` | The kind of item a tag set hangs off: `ops` (any queue item — bug, feature request, error/alert/measure-plan ticket), `flag` (feature gate), `config` (dynamic config), `killswitch`, `metric`, `error` (tracked error group), `alert_rule`, or `experiment`. |
+| `entityId` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `tags` | required | `string[]` | The complete tag set the item should carry — tags not listed are detached. Names are get-or-created (a new name mints a project tag), deduped case-insensitively; `[]` clears every tag. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+### `tags_update`
+
+**Add or remove tags on an item**
+
+Edits an item's tags incrementally: attaches every name in `add` (creating project tags as needed) and detaches every name in `remove`, leaving the item's other tags untouched. Matching is case-insensitive; a name in both lists ends up removed.
+
+**Use cases**
+
+- **Add a tag** — `{ "add": ["regression"] }`.
+- **Swap a tag** — `{ "add": ["p1"], "remove": ["p2"] }`.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `entityType` | required | `"ops" \| "flag" \| "config" \| "killswitch" \| "metric" \| "error" \| "alert_rule" \| "experiment"` | The kind of item a tag set hangs off: `ops` (any queue item — bug, feature request, error/alert/measure-plan ticket), `flag` (feature gate), `config` (dynamic config), `killswitch`, `metric`, `error` (tracked error group), `alert_rule`, or `experiment`. |
+| `entityId` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `add` | optional | `string[]` | Tag names to attach (get-or-created by name, case-insensitive). Already-attached names are a no-op. _(default `[]`)_ |
+| `remove` | optional | `string[]` | Tag names to detach (case-insensitive). Names the item doesn't carry are a no-op. A name in both lists is removed. _(default `[]`)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
 ## Auth
 
 Device-flow (PKCE) authentication shared with the CLI — authenticate once and every mutating tool can write. The token is stored in `~/.config/shipeasy/config.json`.

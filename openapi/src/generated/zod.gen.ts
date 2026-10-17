@@ -3822,6 +3822,53 @@ export const zSearchResponse = z.object({
     hits: z.array(zSearchHit)
 });
 
+export const zTag = z.object({
+    id: z.string(),
+    name: z.string()
+});
+
+/**
+ * The project's tags, sorted by name.
+ */
+export const zListTagsResponse = z.array(zTag);
+
+/**
+ * The kind of item a tag set hangs off: `ops` (any queue item — bug, feature request, error/alert/measure-plan ticket), `flag` (feature gate), `config` (dynamic config), `killswitch`, `metric`, `error` (tracked error group), `alert_rule`, or `experiment`.
+ */
+export const zTaggableEntityType = z.enum([
+    'ops',
+    'flag',
+    'config',
+    'killswitch',
+    'metric',
+    'error',
+    'alert_rule',
+    'experiment'
+]);
+
+export const zEntityTagsResponse = z.object({
+    entityType: zTaggableEntityType,
+    entityId: z.string(),
+    tags: z.array(z.string())
+});
+
+/**
+ * A tag name. Trimmed; matched case-insensitively against the project's existing tags.
+ */
+export const zTagName = z.string().min(1).max(64);
+
+export const zSetEntityTagsRequest = z.object({
+    tags: z.array(zTagName).max(50)
+});
+
+/**
+ * Incremental tag edit — pass `add`, `remove`, or both. Every other tag on the item is left as is.
+ */
+export const zUpdateEntityTagsRequest = z.object({
+    add: z.array(zTagName).max(50).optional().default([]),
+    remove: z.array(zTagName).max(50).optional().default([])
+});
+
 /**
  * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
  */
@@ -5679,3 +5726,62 @@ export const zSearchResourcesQuery = z.object({
  * Search project resources
  */
 export const zSearchResourcesResponse = zSearchResponse;
+
+export const zListTagsHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zListTagsQuery = z.object({
+    q: z.string().max(64).optional()
+});
+
+/**
+ * List the project's tags
+ */
+export const zListTagsResponse2 = zListTagsResponse;
+
+export const zGetEntityTagsHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zGetEntityTagsPath = z.object({
+    entityType: zTaggableEntityType,
+    entityId: zResourceId
+});
+
+/**
+ * Read an item's tags
+ */
+export const zGetEntityTagsResponse = zEntityTagsResponse;
+
+export const zUpdateEntityTagsBody = zUpdateEntityTagsRequest;
+
+export const zUpdateEntityTagsHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zUpdateEntityTagsPath = z.object({
+    entityType: zTaggableEntityType,
+    entityId: zResourceId
+});
+
+/**
+ * Add or remove tags on an item
+ */
+export const zUpdateEntityTagsResponse = zEntityTagsResponse;
+
+export const zSetEntityTagsBody = zSetEntityTagsRequest;
+
+export const zSetEntityTagsHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zSetEntityTagsPath = z.object({
+    entityType: zTaggableEntityType,
+    entityId: zResourceId
+});
+
+/**
+ * Replace an item's tags
+ */
+export const zSetEntityTagsResponse = zEntityTagsResponse;

@@ -260,6 +260,19 @@ tags:
       Continue) schedule on their own surface — typically a GitHub Actions
       `schedule:` cron running the platform's headless CLI with the shared
       trigger prompt.
+  - name: Tags
+    description: |-
+      Tags: free-form, project-scoped labels any item can carry — queue items
+      (bugs, feature requests, error/alert tickets), flags, configs, kill
+      switches, metrics, tracked errors, alert rules, and experiments all share
+      one tag roster.
+
+      **Identity.** A tag is its name, unique case-insensitively per project. A
+      tag is born the first time it's attached — there is no separate create.
+
+      **Addressing.** An item is named by `entityType` + its handle (an ops
+      item's number, a resource's name, or any id). `set` replaces the full tag
+      set; `update` adds/removes names incrementally.
   - name: Connectors
     description: |-
       Outbound integrations: the per-project destinations feedback + trigger
@@ -440,6 +453,10 @@ paths:
     $ref: ./paths/keys.yaml#/~1api~1admin~1keys~1{id}~1revoke
   /api/admin/search:
     $ref: ./paths/search.yaml#/~1api~1admin~1search
+  /api/admin/tags:
+    $ref: ./paths/tags.yaml#/~1api~1admin~1tags
+  /api/admin/tags/{entityType}/{entityId}:
+    $ref: ./paths/tags.yaml#/~1api~1admin~1tags~1{entityType}~1{entityId}
 components:
   securitySchemes:
     bearerSdkKey:

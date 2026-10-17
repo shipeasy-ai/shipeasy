@@ -7400,6 +7400,65 @@ export type SearchResponse = {
     hits: Array<SearchHit>;
 };
 
+export type Tag = {
+    /**
+     * Stable opaque tag id.
+     */
+    id: string;
+    /**
+     * Display name — also the tag's identity, unique case-insensitively within the project.
+     */
+    name: string;
+};
+
+/**
+ * The project's tags, sorted by name.
+ */
+export type ListTagsResponse = Array<Tag>;
+
+/**
+ * The kind of item a tag set hangs off: `ops` (any queue item — bug, feature request, error/alert/measure-plan ticket), `flag` (feature gate), `config` (dynamic config), `killswitch`, `metric`, `error` (tracked error group), `alert_rule`, or `experiment`.
+ */
+export type TaggableEntityType = 'ops' | 'flag' | 'config' | 'killswitch' | 'metric' | 'error' | 'alert_rule' | 'experiment';
+
+export type EntityTagsResponse = {
+    entityType: TaggableEntityType;
+    /**
+     * The item's canonical id (the handle you passed, resolved).
+     */
+    entityId: string;
+    /**
+     * The tag names now attached to the item, sorted by name.
+     */
+    tags: Array<string>;
+};
+
+/**
+ * A tag name. Trimmed; matched case-insensitively against the project's existing tags.
+ */
+export type TagName = string;
+
+export type SetEntityTagsRequest = {
+    /**
+     * The complete tag set the item should carry — tags not listed are detached. Names are get-or-created (a new name mints a project tag), deduped case-insensitively; `[]` clears every tag.
+     */
+    tags: Array<TagName>;
+};
+
+/**
+ * Incremental tag edit — pass `add`, `remove`, or both. Every other tag on the item is left as is.
+ */
+export type UpdateEntityTagsRequest = {
+    /**
+     * Tag names to attach (get-or-created by name, case-insensitive). Already-attached names are a no-op.
+     */
+    add?: Array<TagName>;
+    /**
+     * Tag names to detach (case-insensitive). Names the item doesn't carry are a no-op. A name in both lists is removed.
+     */
+    remove?: Array<TagName>;
+};
+
 /**
  * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
  */
@@ -14923,3 +14982,239 @@ export type SearchResourcesResponses = {
 };
 
 export type SearchResourcesResponse = SearchResourcesResponses[keyof SearchResourcesResponses];
+
+export type ListTagsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Case-insensitive substring filter on the tag name. Omit to return every tag.
+         */
+        q?: string;
+    };
+    url: '/api/admin/tags';
+};
+
+export type ListTagsErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type ListTagsError = ListTagsErrors[keyof ListTagsErrors];
+
+export type ListTagsResponses = {
+    /**
+     * List the project's tags
+     */
+    200: ListTagsResponse;
+};
+
+export type ListTagsResponse2 = ListTagsResponses[keyof ListTagsResponses];
+
+export type GetEntityTagsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The kind of item — `ops`, `flag`, `config`, `killswitch`, `metric`, `error`, `alert_rule`, or `experiment`.
+         */
+        entityType: TaggableEntityType;
+        /**
+         * The item's handle — an ops item's number (e.g. `7`) or id; a flag/config/killswitch/metric/alert rule/experiment's name or id; a tracked error's id.
+         */
+        entityId: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/tags/{entityType}/{entityId}';
+};
+
+export type GetEntityTagsErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type GetEntityTagsError = GetEntityTagsErrors[keyof GetEntityTagsErrors];
+
+export type GetEntityTagsResponses = {
+    /**
+     * Read an item's tags
+     */
+    200: EntityTagsResponse;
+};
+
+export type GetEntityTagsResponse = GetEntityTagsResponses[keyof GetEntityTagsResponses];
+
+export type UpdateEntityTagsData = {
+    body: UpdateEntityTagsRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The kind of item — `ops`, `flag`, `config`, `killswitch`, `metric`, `error`, `alert_rule`, or `experiment`.
+         */
+        entityType: TaggableEntityType;
+        /**
+         * The item's handle — an ops item's number (e.g. `7`) or id; a flag/config/killswitch/metric/alert rule/experiment's name or id; a tracked error's id.
+         */
+        entityId: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/tags/{entityType}/{entityId}';
+};
+
+export type UpdateEntityTagsErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type UpdateEntityTagsError = UpdateEntityTagsErrors[keyof UpdateEntityTagsErrors];
+
+export type UpdateEntityTagsResponses = {
+    /**
+     * Add or remove tags on an item
+     */
+    200: EntityTagsResponse;
+};
+
+export type UpdateEntityTagsResponse = UpdateEntityTagsResponses[keyof UpdateEntityTagsResponses];
+
+export type SetEntityTagsData = {
+    body: SetEntityTagsRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The kind of item — `ops`, `flag`, `config`, `killswitch`, `metric`, `error`, `alert_rule`, or `experiment`.
+         */
+        entityType: TaggableEntityType;
+        /**
+         * The item's handle — an ops item's number (e.g. `7`) or id; a flag/config/killswitch/metric/alert rule/experiment's name or id; a tracked error's id.
+         */
+        entityId: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/tags/{entityType}/{entityId}';
+};
+
+export type SetEntityTagsErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type SetEntityTagsError = SetEntityTagsErrors[keyof SetEntityTagsErrors];
+
+export type SetEntityTagsResponses = {
+    /**
+     * Replace an item's tags
+     */
+    200: EntityTagsResponse;
+};
+
+export type SetEntityTagsResponse = SetEntityTagsResponses[keyof SetEntityTagsResponses];

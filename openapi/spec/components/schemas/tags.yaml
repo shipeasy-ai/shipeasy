@@ -1,0 +1,91 @@
+TaggableEntityType:
+  type: string
+  enum:
+    - ops
+    - flag
+    - config
+    - killswitch
+    - metric
+    - error
+    - alert_rule
+    - experiment
+  description: >-
+    The kind of item a tag set hangs off: `ops` (any queue item — bug, feature
+    request, error/alert/measure-plan ticket), `flag` (feature gate), `config`
+    (dynamic config), `killswitch`, `metric`, `error` (tracked error group),
+    `alert_rule`, or `experiment`.
+TagName:
+  type: string
+  minLength: 1
+  maxLength: 64
+  description: A tag name. Trimmed; matched case-insensitively against the project's existing tags.
+Tag:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Stable opaque tag id.
+    name:
+      type: string
+      description: Display name — also the tag's identity, unique case-insensitively within the project.
+  required:
+    - id
+    - name
+  additionalProperties: false
+ListTagsResponse:
+  type: array
+  items:
+    $ref: "#/Tag"
+  description: The project's tags, sorted by name.
+EntityTagsResponse:
+  type: object
+  properties:
+    entityType:
+      $ref: "#/TaggableEntityType"
+    entityId:
+      type: string
+      description: The item's canonical id (the handle you passed, resolved).
+    tags:
+      type: array
+      items:
+        type: string
+      description: The tag names now attached to the item, sorted by name.
+  required:
+    - entityType
+    - entityId
+    - tags
+  additionalProperties: false
+SetEntityTagsRequest:
+  type: object
+  properties:
+    tags:
+      type: array
+      maxItems: 50
+      items:
+        $ref: "#/TagName"
+      description: >-
+        The complete tag set the item should carry — tags not listed are
+        detached. Names are get-or-created (a new name mints a project tag),
+        deduped case-insensitively; `[]` clears every tag.
+  required:
+    - tags
+  additionalProperties: false
+UpdateEntityTagsRequest:
+  type: object
+  properties:
+    add:
+      type: array
+      maxItems: 50
+      items:
+        $ref: "#/TagName"
+      default: []
+      description: Tag names to attach (get-or-created by name, case-insensitive). Already-attached names are a no-op.
+    remove:
+      type: array
+      maxItems: 50
+      items:
+        $ref: "#/TagName"
+      default: []
+      description: Tag names to detach (case-insensitive). Names the item doesn't carry are a no-op. A name in both lists is removed.
+  additionalProperties: false
+  description: Incremental tag edit — pass `add`, `remove`, or both. Every other tag on the item is left as is.

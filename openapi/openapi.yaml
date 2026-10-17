@@ -258,6 +258,19 @@ tags:
       Continue) schedule on their own surface — typically a GitHub Actions
       `schedule:` cron running the platform's headless CLI with the shared
       trigger prompt.
+  - name: Tags
+    description: |-
+      Tags: free-form, project-scoped labels any item can carry — queue items
+      (bugs, feature requests, error/alert tickets), flags, configs, kill
+      switches, metrics, tracked errors, alert rules, and experiments all share
+      one tag roster.
+
+      **Identity.** A tag is its name, unique case-insensitively per project. A
+      tag is born the first time it's attached — there is no separate create.
+
+      **Addressing.** An item is named by `entityType` + its handle (an ops
+      item's number, a resource's name, or any id). `set` replaces the full tag
+      set; `update` adds/removes names incrementally.
   - name: Connectors
     description: |-
       Outbound integrations: the per-project destinations feedback + trigger
@@ -9756,6 +9769,276 @@ paths:
         - FORBIDDEN
       x-cli:
         name: search
+  /api/admin/tags:
+    get:
+      operationId: listTags
+      summary: List the project's tags
+      description: |-
+        Returns every tag in the project — the shared roster any item (queue items, flags, configs, kill switches, metrics, tracked errors, alert rules, experiments) can carry. Sorted by name.
+
+        **Use case:** See which tags already exist before tagging an item, so you reuse `ios` instead of minting `iOS-app`.
+      tags:
+        - Tags
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: q
+          in: query
+          required: false
+          description: Case-insensitive substring filter on the tag name. Omit to return every tag.
+          schema:
+            type: string
+            maxLength: 64
+      responses:
+        '200':
+          description: List the project's tags
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListTagsResponse'
+              example:
+                - id: tag_01j7w8a1b2c3d4e5f6g7h8i9j0
+                  name: checkout
+                - id: tag_01j7w8a1b2c3d4e5f6g7h8i9j1
+                  name: ios
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+      x-cli:
+        name: list
+  /api/admin/tags/{entityType}/{entityId}:
+    get:
+      operationId: getEntityTags
+      summary: Read an item's tags
+      description: |-
+        Returns the tags attached to one item. The item is addressed by kind (`entityType`) plus its handle, so the same call reads tags off a queue item, a flag, a config, a kill switch, a metric, a tracked error, an alert rule, or an experiment.
+
+        **Use case:** Check an item's current tags before editing them.
+      tags:
+        - Tags
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: entityType
+          in: path
+          required: true
+          description: The kind of item — `ops`, `flag`, `config`, `killswitch`, `metric`, `error`, `alert_rule`, or `experiment`.
+          schema:
+            $ref: '#/components/schemas/TaggableEntityType'
+        - name: entityId
+          in: path
+          required: true
+          description: The item's handle — an ops item's number (e.g. `7`) or id; a flag/config/killswitch/metric/alert rule/experiment's name or id; a tracked error's id.
+          schema:
+            $ref: '#/components/schemas/ResourceId'
+      responses:
+        '200':
+          description: Read an item's tags
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityTagsResponse'
+              example:
+                entityType: ops
+                entityId: fb_01j7w8a1b2c3d4e5f6g7h8i9j0
+                tags:
+                  - checkout
+                  - ios
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+      x-cli:
+        name: get
+        positional:
+          - entityType
+          - entityId
+    put:
+      operationId: setEntityTags
+      summary: Replace an item's tags
+      description: |-
+        Replaces the item's whole tag set with `tags`: names not yet in the project are created, attached names not in the list are detached, and `[]` clears every tag. Names are deduped case-insensitively, reusing an existing tag's casing (sending `iOS` when `ios` exists attaches `ios`).
+
+        **Use cases**
+
+        - **Tag an item** — `{ "tags": ["checkout", "ios"] }`.
+        - **Clear tags** — `{ "tags": [] }`.
+
+        To add or remove a few tags without restating the rest, use the incremental `PATCH` instead.
+      tags:
+        - Tags
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: entityType
+          in: path
+          required: true
+          description: The kind of item — `ops`, `flag`, `config`, `killswitch`, `metric`, `error`, `alert_rule`, or `experiment`.
+          schema:
+            $ref: '#/components/schemas/TaggableEntityType'
+        - name: entityId
+          in: path
+          required: true
+          description: The item's handle — an ops item's number (e.g. `7`) or id; a flag/config/killswitch/metric/alert rule/experiment's name or id; a tracked error's id.
+          schema:
+            $ref: '#/components/schemas/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetEntityTagsRequest'
+            examples:
+              tag:
+                summary: Set the item's tags
+                value:
+                  tags:
+                    - checkout
+                    - ios
+              clear:
+                summary: Remove every tag
+                value:
+                  tags: []
+      responses:
+        '200':
+          description: Replace an item's tags
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityTagsResponse'
+              example:
+                entityType: ops
+                entityId: fb_01j7w8a1b2c3d4e5f6g7h8i9j0
+                tags:
+                  - checkout
+                  - ios
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+        - VALIDATION
+      x-cli:
+        name: set
+        positional:
+          - entityType
+          - entityId
+    patch:
+      operationId: updateEntityTags
+      summary: Add or remove tags on an item
+      description: |-
+        Edits an item's tags incrementally: attaches every name in `add` (creating project tags as needed) and detaches every name in `remove`, leaving the item's other tags untouched. Matching is case-insensitive; a name in both lists ends up removed.
+
+        **Use cases**
+
+        - **Add a tag** — `{ "add": ["regression"] }`.
+        - **Swap a tag** — `{ "add": ["p1"], "remove": ["p2"] }`.
+      tags:
+        - Tags
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: entityType
+          in: path
+          required: true
+          description: The kind of item — `ops`, `flag`, `config`, `killswitch`, `metric`, `error`, `alert_rule`, or `experiment`.
+          schema:
+            $ref: '#/components/schemas/TaggableEntityType'
+        - name: entityId
+          in: path
+          required: true
+          description: The item's handle — an ops item's number (e.g. `7`) or id; a flag/config/killswitch/metric/alert rule/experiment's name or id; a tracked error's id.
+          schema:
+            $ref: '#/components/schemas/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEntityTagsRequest'
+            examples:
+              add:
+                summary: Attach one tag
+                value:
+                  add:
+                    - regression
+              swap:
+                summary: Replace one tag with another
+                value:
+                  add:
+                    - p1
+                  remove:
+                    - p2
+      responses:
+        '200':
+          description: Add or remove tags on an item
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityTagsResponse'
+              example:
+                entityType: ops
+                entityId: fb_01j7w8a1b2c3d4e5f6g7h8i9j0
+                tags:
+                  - checkout
+                  - ios
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+        - VALIDATION
+      x-cli:
+        name: update
+        positional:
+          - entityType
+          - entityId
 components:
   securitySchemes:
     bearerSdkKey:
@@ -19686,6 +19969,90 @@ components:
       required:
         - hits
       additionalProperties: false
+    Tag:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Stable opaque tag id.
+        name:
+          type: string
+          description: Display name — also the tag's identity, unique case-insensitively within the project.
+      required:
+        - id
+        - name
+      additionalProperties: false
+    ListTagsResponse:
+      type: array
+      items:
+        $ref: '#/components/schemas/Tag'
+      description: The project's tags, sorted by name.
+    TaggableEntityType:
+      type: string
+      enum:
+        - ops
+        - flag
+        - config
+        - killswitch
+        - metric
+        - error
+        - alert_rule
+        - experiment
+      description: 'The kind of item a tag set hangs off: `ops` (any queue item — bug, feature request, error/alert/measure-plan ticket), `flag` (feature gate), `config` (dynamic config), `killswitch`, `metric`, `error` (tracked error group), `alert_rule`, or `experiment`.'
+    EntityTagsResponse:
+      type: object
+      properties:
+        entityType:
+          $ref: '#/components/schemas/TaggableEntityType'
+        entityId:
+          type: string
+          description: The item's canonical id (the handle you passed, resolved).
+        tags:
+          type: array
+          items:
+            type: string
+          description: The tag names now attached to the item, sorted by name.
+      required:
+        - entityType
+        - entityId
+        - tags
+      additionalProperties: false
+    TagName:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: A tag name. Trimmed; matched case-insensitively against the project's existing tags.
+    SetEntityTagsRequest:
+      type: object
+      properties:
+        tags:
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/TagName'
+          description: The complete tag set the item should carry — tags not listed are detached. Names are get-or-created (a new name mints a project tag), deduped case-insensitively; `[]` clears every tag.
+      required:
+        - tags
+      additionalProperties: false
+    UpdateEntityTagsRequest:
+      type: object
+      properties:
+        add:
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/TagName'
+          default: []
+          description: Tag names to attach (get-or-created by name, case-insensitive). Already-attached names are a no-op.
+        remove:
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/TagName'
+          default: []
+          description: Tag names to detach (case-insensitive). Names the item doesn't carry are a no-op. A name in both lists is removed.
+      additionalProperties: false
+      description: Incremental tag edit — pass `add`, `remove`, or both. Every other tag on the item is left as is.
   responses:
     BadRequest:
       description: The request was malformed (bad JSON or missing project scope).

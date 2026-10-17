@@ -10,8 +10,8 @@ export const ALL_TOOLS: Tool[] = TOOLS;
  * server, and the @-mention Slack bot). Now that the whole CRUD/read surface is
  * registry-driven, the allow-list is a PREFIX POLICY over the registry tools
  * rather than a hand-maintained literal list — every `release_*`, `metrics_*`,
- * `events_*`, `ops_*` (the unified queue + `ops_alerts_*`), `attributes_*`, and
- * `docs_*` tool, plus `projects_current`.
+ * `events_*`, `ops_*` (the unified queue + `ops_alerts_*`), `attributes_*`,
+ * `tags_*`, and `docs_*` tool, plus `projects_current`.
  *
  * Excluded by policy: `i18n_*` (translation workflow), `projects_upsert`, and
  * `auth_*` (install/identity surface).
@@ -29,6 +29,8 @@ const ASSISTANT_PREFIXES = [
   "metrics_",
   "ops_",
   "docs_",
+  // Tags hang off items in every module, so they ride along with all of them.
+  "tags_",
 ];
 
 export const EXPERIMENT_TOOL_NAMES: string[] = REGISTRY_TOOLS.map((t) => t.name).filter(
