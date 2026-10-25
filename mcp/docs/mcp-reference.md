@@ -2248,7 +2248,7 @@ _Errors_ — beyond the [common errors](#errors):
 
 Returns the unified ops queue (bugs, feature requests, errors, alerts, measurement plans) in work order — highest priority first, oldest first within a priority — so consumers work it top-down. Every filter is applied in SQL before paging, and filters combine with AND. Human-gated holding states (items awaiting human sign-off in the dashboard) are never returned by `all`/default status.
 
-**Filters:** `type` (one item type), `status` (one lifecycle status), `priority` (one triage priority), `owner` (one person or agent), and `scope=ready` — the items ready to be picked up right now: `open`, with nobody working them (no open run), and either unowned or reopened (sent back to `open` after an earlier run finished).
+**Filters:** `type` (one item type), `status` (one lifecycle status, or `unresolved` — everything not yet `resolved`/`wont_fix`), `priority` (one triage priority), `owner` (one person or agent), and `scope=ready` — the items ready to be picked up right now: `open`, with nobody working them (no open run), and either unowned or reopened (sent back to `open` after an earlier run finished).
 
 **Paging:** `limit` is the page size and `offset` the number of items to skip. The order is stable, so walk the queue with `offset += limit`; a page shorter than `limit` is the last one.
 
@@ -2259,7 +2259,7 @@ _Parameters_
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
 | `type` | optional | `any` | Filter by item type, or `all` (the default). Every type a returned item can carry is filterable, including the auto-filed ones. _(default `"all"`)_ |
-| `status` | optional | `any` | Filter by lifecycle status, or `all` (the default). The human-gated holding state (`pending_approval`) is excluded from `all`/default and returned only when requested as the exact status. _(default `"all"`)_ |
+| `status` | optional | `any` | Filter by one lifecycle status, `unresolved` for every status that is not `resolved` or `wont_fix`, or `all` for every status. Defaults to `all` over HTTP; the CLI and MCP tool default to `unresolved`, so pass `all` there to include resolved and won't-fix items. The human-gated holding state (`pending_approval`) is excluded from `unresolved` and `all`, and returned only when requested as the exact status. _(default `"unresolved"`)_ |
 | `priority` | optional | `any` | Filter by triage priority, or `all` (the default). Items with no priority set are returned only under `all`. _(default `"all"`)_ |
 | `scope` | optional | `"all" \| "ready"` | `ready` narrows to the items ready to be picked up right now: status `open`, no open run (nobody has acked it and is still working), and either unowned (no person and no agent) or reopened (sent back to `open` after an earlier run finished). Leave `status` unset with it. `all` (the default) applies no such narrowing. _(default `"all"`)_ |
 | `limit` | required | `integer` | Page size — max items to return (1–500). A page shorter than `limit` is the last one. _(1–500)_ |

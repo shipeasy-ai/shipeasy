@@ -26,7 +26,7 @@ non-obvious flags are shown.
 | --- | --- | --- |
 | File a bug | `ops_bug` | `shipeasy ops bug "<title>" --actual-result … --steps-to-reproduce … --page-url …` |
 | File a feature request | `ops_feature` | `shipeasy ops feature "<title>" --description … --use-case …` |
-| List / filter the whole queue | `ops_list` | `shipeasy ops list [--type bug\|feature_request\|error\|alert\|all] [--status <status>\|all] [--limit N]` |
+| List / filter the whole queue | `ops_list` | `shipeasy ops list [--type bug\|feature_request\|error\|alert\|all] [--status <status>\|unresolved\|all] [--limit N]` (default `unresolved` — no resolved/wont_fix) |
 | Read one item | `ops_get` | `shipeasy ops get <handle>` |
 | Triage — set status / priority | `ops_update` | `shipeasy ops update <handle> --status <status> --priority <p>` |
 | Edit an item's content | `ops_update` | `shipeasy ops update <handle> --title … --description … --actual-result …` |
@@ -42,7 +42,8 @@ Both a terse "log that as a bug" and a detailed context dump follow the same two
 steps, ending in the file call:
 
 1. **`ops_list`** — scan the queue for the same issue (match on the described
-   symptom). This is the dedup check.
+   symptom). This is the dedup check. It lists unresolved items by default;
+   pass `status: "all"` to also catch a matching resolved/wont_fix one.
 2. **File the complete report** — `ops_bug` for a bug (or `ops_feature` for a
    feature request), with a full title + actual result + steps to reproduce +
    page URL. When step 1 surfaces a matching item, augment that one with

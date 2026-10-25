@@ -837,7 +837,7 @@ shipeasy ops list [options]
 | Option | | Description |
 | --- | --- | --- |
 | `--type <value>` | optional | Filter by item type, or `all` (the default). Every type a returned item can carry is filterable, including the auto-filed ones. |
-| `--status <value>` | optional | Filter by lifecycle status, or `all` (the default). The human-gated holding state (`pending_approval`) is excluded from `all`/default and returned only when requested as the exact status. |
+| `--status <value>` | optional | Filter by one lifecycle status, `unresolved` for every status that is not `resolved` or `wont_fix`, or `all` for every status. Defaults to `all` over HTTP; the CLI and MCP tool default to `unresolved`, so pass `all` there to include resolved and won't-fix items. The human-gated holding state (`pending_approval`) is excluded from `unresolved` and `all`, and returned only when requested as the exact status. (default: `"unresolved"`) |
 | `--priority <value>` | optional | Filter by triage priority, or `all` (the default). Items with no priority set are returned only under `all`. |
 | `--scope <value>` | optional | `ready` narrows to the items ready to be picked up right now: status `open`, no open run (nobody has acked it and is still working), and either unowned (no person and no agent) or reopened (sent back to `open` after an earlier run finished). Leave `status` unset with it. `all` (the default) applies no such narrowing. |
 | `--limit <value>` | optional | Page size — max items to return (1–500). A page shorter than `limit` is the last one. |

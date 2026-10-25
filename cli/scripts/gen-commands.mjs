@@ -235,7 +235,9 @@ for (const grp of sortedGroups) {
     // option flags: query params + body props not positional/preset/hidden
     const opts = [];
     for (const qp of cmd.queryParams) {
-      opts.push({ field: qp.name, loc: "query", flag: kebab(qp.name), key: camel(qp.name), coerce: coercer(qp.schema), desc: firstLine(qp.schema?.description || qp.description) });
+      // `x-cli.default` replaces the param's HTTP default for the CLI (e.g.
+      // `ops list` lists `open` items unless `--status all` is passed).
+      opts.push({ field: qp.name, loc: "query", flag: kebab(qp.name), key: camel(qp.name), coerce: coercer(qp.schema), desc: firstLine(qp.schema?.description || qp.description), default: qp["x-cli"]?.default });
     }
     if (cmd.bodyProps) {
       for (const bp of cmd.bodyProps) {
@@ -305,7 +307,7 @@ for (const grp of sortedGroups) {
       if (cmd.summary) lines.push(`    .description(${q(cmd.summary)})`);
       if (cmd.aliases.length) lines.push(`    .aliases(${JSON.stringify(cmd.aliases)})`);
       for (const p of posInfo) lines.push(`    .argument(${q("<" + p.name + ">")}, ${q(p.desc)})`);
-      for (const o of opts) lines.push(`    .option(${q("--" + o.flag + " <value>")}, ${q(o.desc)})`);
+      for (const o of opts) lines.push(`    .option(${q("--" + o.flag + " <value>")}, ${q(o.desc)}${o.default === undefined ? "" : `, ${q(String(o.default))}`})`);
       if (cmd.help) lines.push(`    .addHelpText("after", ${q("\n" + cmd.help + "\n")})`);
       lines.push(`    .action(async (${actionArgs}) => {`);
       lines.push(`      await ctx.run({ mutates: ${mutates}, invoke: (client) => ${call} });`);

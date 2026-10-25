@@ -4903,6 +4903,7 @@ export const zListOpsItemsQuery = z.object({
     ]).optional().default('all'),
     status: z.union([
         zOpsItemStatus,
+        z.literal('unresolved'),
         z.literal('all')
     ]).optional().default('all'),
     priority: z.union([

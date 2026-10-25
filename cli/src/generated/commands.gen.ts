@@ -105,7 +105,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   g_ops.command("list")
     .description("List the operational queue")
     .option("--type <value>", "Filter by item type, or `all` (the default). Every type a returned item can carry is filterable, including the auto-filed ones.")
-    .option("--status <value>", "Filter by lifecycle status, or `all` (the default). The human-gated holding state (`pending_approval`) is excluded from `all`/default and returned only when requested as the exact status.")
+    .option("--status <value>", "Filter by one lifecycle status, `unresolved` for every status that is not `resolved` or `wont_fix`, or `all` for every status. Defaults to `all` over HTTP; the CLI and MCP tool default to `unresolved`, so pass `all` there to include resolved and won't-fix items. The human-gated holding state (`pending_approval`) is excluded from `unresolved` and `all`, and returned only when requested as the exact status.", "unresolved")
     .option("--priority <value>", "Filter by triage priority, or `all` (the default). Items with no priority set are returned only under `all`.")
     .option("--scope <value>", "`ready` narrows to the items ready to be picked up right now: status `open`, no open run (nobody has acked it and is still working), and either unowned (no person and no agent) or reopened (sent back to `open` after an earlier run finished). Leave `status` unset with it. `all` (the default) applies no such narrowing.")
     .option("--limit <value>", "Page size — max items to return (1–500). A page shorter than `limit` is the last one.")

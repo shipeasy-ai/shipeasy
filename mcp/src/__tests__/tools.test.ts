@@ -196,7 +196,25 @@ describe("generated dispatch", () => {
       offset: "50",
       scope: "ready",
       priority: "critical",
+      status: "unresolved",
     });
+  });
+
+  it("lists only unresolved ops items unless the caller asks for another status", async () => {
+    const { fn, calls } = captureFetch(() => []);
+    vi.stubGlobal("fetch", fn);
+    const { GENERATED_DISPATCH } = await import("../tools/registry.js");
+    const { getGeneratedClient } = await import("../tools/_gen-runtime.js");
+    const handle = await getGeneratedClient();
+    await GENERATED_DISPATCH.ops_list(handle!.client, { limit: 10 });
+    await GENERATED_DISPATCH.ops_list(handle!.client, { limit: 10, status: "all" });
+    await GENERATED_DISPATCH.ops_list(handle!.client, { limit: 10, status: "resolved" });
+    expect(calls.map((c) => new URL(c.url).searchParams.get("status"))).toEqual(["unresolved", "all", "resolved"]);
+
+    const { TOOLS } = await import("../tools/schema.js");
+    const tool = TOOLS.find((t) => t.name === "ops_list")!;
+    expect((tool.inputSchema.properties!.status as { default?: string }).default).toBe("unresolved");
+    expect(tool.description).toContain("DEFAULTS TO `unresolved`");
   });
 
   it("advertises ops_list's page size as required, with the filters in the description", async () => {

@@ -8,6 +8,8 @@
 //   • required inputs← spec-required params, plus any query param marked
 //                      `x-mcp.required` (optional over HTTP, mandatory for an
 //                      agent — the dispatch refuses the call without it)
+//   • tool defaults  ← a query param's `x-mcp.default` replaces its HTTP default
+//                      (e.g. `ops_list` lists `open` items unless asked for more)
 //   • inputSchema    ← path params + query params + request-body properties
 //                      (JSON Schema, with enums/constraints carried through)
 //   • synthetic verbs← x-cli.commands[] with a `preset` body (start/stop/restore,
@@ -211,6 +213,7 @@ for (const [, item] of Object.entries(spec.paths)) {
         const forced = qp["x-mcp"]?.required === true;
         const schema = cleanSchema(qp.schema);
         if (forced) delete schema.default;
+        if (qp["x-mcp"]?.default !== undefined) schema.default = qp["x-mcp"].default;
         properties[qp.name] = withDesc(schema, qp.description);
         if (qp.required || forced) required.push(qp.name);
         if (forced) mcpRequired.push({ name: qp.name, hint: firstSentence(qp.description) });
@@ -235,7 +238,16 @@ for (const [, item] of Object.entries(spec.paths)) {
         // validates the value either way.
         callParts.push(`path: { ${pathParams.map((p) => `${q(p.name)}: args[${q(p.name)}] as never`).join(", ")} }`);
       if (queryParams.length)
-        callParts.push(`query: clean({ ${queryParams.map((p) => `${q(p.name)}: args[${q(p.name)}]`).join(", ")} })`);
+        // An `x-mcp.default` is sent by the dispatch itself, not just advertised
+        // in the schema: neither MCP server fills schema defaults in.
+        callParts.push(
+          `query: clean({ ${queryParams
+            .map((p) => {
+              const d = p["x-mcp"]?.default;
+              return `${q(p.name)}: args[${q(p.name)}]${d === undefined ? "" : ` ?? ${JSON.stringify(d)}`}`;
+            })
+            .join(", ")} })`,
+        );
       if (!verbBodyProps && bodySchema) {
         callParts.push(`body: args["body"] as never`);
       } else if (verbBodyProps) {

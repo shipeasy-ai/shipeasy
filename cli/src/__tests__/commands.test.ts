@@ -148,6 +148,14 @@ describe("command tree", () => {
     const skills = install!.options.find((o) => o.long === "--no-skills");
     expect(skills, "--no-skills opt-out registered").toBeDefined();
   });
+
+  it("`ops list` lists unresolved items unless --status says otherwise", () => {
+    const ops = program.commands.find((c) => c.name() === "ops");
+    const list = ops!.commands.find((c) => c.name() === "list");
+    const status = list!.options.find((o) => o.long === "--status");
+    // The HTTP default is `all`; the CLI narrows to the work still to do.
+    expect(status!.defaultValue).toBe("unresolved");
+  });
 });
 
 describe("every command renders --help", () => {

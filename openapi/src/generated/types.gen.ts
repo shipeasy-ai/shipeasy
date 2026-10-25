@@ -11535,9 +11535,9 @@ export type ListOpsItemsData = {
          */
         type?: 'bug' | 'feature_request' | 'error' | 'alert' | 'measure_plan' | 'all';
         /**
-         * Filter by lifecycle status, or `all` (the default). The human-gated holding state (`pending_approval`) is excluded from `all`/default and returned only when requested as the exact status.
+         * Filter by one lifecycle status, `unresolved` for every status that is not `resolved` or `wont_fix`, or `all` for every status. Defaults to `all` over HTTP; the CLI and MCP tool default to `unresolved`, so pass `all` there to include resolved and won't-fix items. The human-gated holding state (`pending_approval`) is excluded from `unresolved` and `all`, and returned only when requested as the exact status.
          */
-        status?: OpsItemStatus | 'all';
+        status?: OpsItemStatus | 'unresolved' | 'all';
         /**
          * Filter by triage priority, or `all` (the default). Items with no priority set are returned only under `all`.
          */
