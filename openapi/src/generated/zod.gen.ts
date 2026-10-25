@@ -2581,6 +2581,113 @@ export const zUpdateOpsInvestigationRequest = z.object({
 });
 
 /**
+ * Where a question stands — `open` (waiting on a person), `completed` (answered), or `cancelled` (withdrawn by the asker).
+ */
+export const zOpsQuestionStatus = z.enum([
+    'open',
+    'completed',
+    'cancelled'
+]);
+
+/**
+ * A person's answer to a question.
+ */
+export const zOpsQuestionAnswer = z.object({
+    selected: z.array(z.string()),
+    other: z.string().nullable()
+});
+
+/**
+ * How the answer gets back to the asker — `resume` re-fires the asking run's trigger connector on the item once every question that run asked is answered; `poll` fires nothing and the asker reads `GET .../questions`.
+ */
+export const zOpsQuestionDelivery = z.enum(['resume', 'poll']);
+
+/**
+ * One structured question on a queue item and, once answered, its answer.
+ */
+export const zOpsQuestion = z.object({
+    id: z.string(),
+    feedbackId: z.string(),
+    header: z.string(),
+    question: z.string(),
+    options: z.array(z.object({
+        label: z.string(),
+        description: z.string().nullable()
+    })),
+    multiSelect: z.boolean(),
+    status: zOpsQuestionStatus,
+    answer: zOpsQuestionAnswer.nullable(),
+    answeredBy: z.string().nullable(),
+    answeredAt: z.string().nullable(),
+    agent: z.enum([
+        'jarvis',
+        'claude',
+        'cursor',
+        'copilot',
+        'jules'
+    ]).nullable(),
+    askedBy: z.string().nullable(),
+    runId: z.string().nullable(),
+    delivery: zOpsQuestionDelivery,
+    deliveredAt: z.string().nullable(),
+    deliveryError: z.string().nullable(),
+    createdAt: z.string(),
+    updatedAt: z.string()
+});
+
+/**
+ * Response for `GET /api/admin/ops/{handle}/questions` — the item's questions, newest first (max 100).
+ */
+export const zListOpsQuestionsResponse = z.array(zOpsQuestion);
+
+/**
+ * One choice offered by a question — rendered as a radio, or a checkbox when the question is `multiSelect`.
+ */
+export const zOpsQuestionOption = z.object({
+    label: z.string().min(1).max(120),
+    description: z.string().max(500).optional()
+});
+
+/**
+ * One question to ask — the `AskUserQuestion` shape.
+ */
+export const zAskOpsQuestionInput = z.object({
+    header: z.string().min(1).max(24),
+    question: z.string().min(1).max(2000),
+    options: z.array(zOpsQuestionOption).min(2).max(4),
+    multiSelect: z.boolean().optional().default(false)
+});
+
+/**
+ * Body for `POST /api/admin/ops/{handle}/questions`.
+ */
+export const zAskOpsQuestionsRequest = z.object({
+    questions: z.array(zAskOpsQuestionInput).min(1).max(4),
+    runId: z.string().max(200).optional(),
+    agent: z.enum([
+        'jarvis',
+        'claude',
+        'cursor',
+        'copilot',
+        'jules'
+    ]).optional(),
+    delivery: zOpsQuestionDelivery.optional()
+});
+
+/**
+ * Response for `POST /api/admin/ops/{handle}/questions` — the created questions, in the order asked.
+ */
+export const zAskOpsQuestionsResponse = z.array(zOpsQuestion);
+
+/**
+ * Body for `POST /api/admin/ops/{handle}/questions/{questionId}/answer` — pick option labels, write a free-text answer, or both (multi-select only).
+ */
+export const zAnswerOpsQuestionRequest = z.object({
+    selected: z.array(z.string().max(120)).max(4).optional(),
+    other: z.string().max(10000).optional()
+});
+
+/**
  * One connected, assignable AI agent (an authenticated trigger connector).
  */
 export const zOpsAgentProfile = z.object({
@@ -5060,6 +5167,71 @@ export const zUpdateOpsInvestigationPath = z.object({
  * The updated investigation record
  */
 export const zUpdateOpsInvestigationResponse = zOpsInvestigation;
+
+export const zListOpsQuestionsHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zListOpsQuestionsPath = z.object({
+    handle: zResourceId
+});
+
+export const zListOpsQuestionsQuery = z.object({
+    status: z.union([
+        zOpsQuestionStatus,
+        z.literal('all')
+    ]).optional().default('all')
+});
+
+/**
+ * List an item's questions
+ */
+export const zListOpsQuestionsResponse2 = zListOpsQuestionsResponse;
+
+export const zAskOpsQuestionsBody = zAskOpsQuestionsRequest;
+
+export const zAskOpsQuestionsHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zAskOpsQuestionsPath = z.object({
+    handle: zResourceId
+});
+
+/**
+ * The created questions, in the order asked
+ */
+export const zAskOpsQuestionsResponse2 = zAskOpsQuestionsResponse;
+
+export const zAnswerOpsQuestionBody = zAnswerOpsQuestionRequest;
+
+export const zAnswerOpsQuestionHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zAnswerOpsQuestionPath = z.object({
+    handle: zResourceId,
+    questionId: zResourceId
+});
+
+/**
+ * The answered question
+ */
+export const zAnswerOpsQuestionResponse = zOpsQuestion;
+
+export const zCancelOpsQuestionHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zCancelOpsQuestionPath = z.object({
+    handle: zResourceId,
+    questionId: zResourceId
+});
+
+/**
+ * The withdrawn question
+ */
+export const zCancelOpsQuestionResponse = zOpsQuestion;
 
 export const zListOpsAgentsHeaders = z.object({
     'X-Project-Id': z.string().optional()

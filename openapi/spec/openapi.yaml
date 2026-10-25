@@ -218,6 +218,24 @@ tags:
       the AI-write seam the cockpit's detail panel renders: `list` reads what a
       previous run found, `create` appends a new record, and `update` fills in the
       `working` run record you were handed (findings, PR, confidence) as you work.
+  - name: Questions
+    parent: Ops
+    description: |-
+      Structured questions an agent asks the team about a queue item — the
+      `AskUserQuestion` shape: a short `header`, the `question`, 2–4 `options`
+      (label + description), and `multiSelect` for checkboxes instead of radios.
+      Every question also accepts a free-text "Other" answer. Open questions sit
+      at the very top of the item's detail panel and mark the row in the queue.
+
+      **Asking.** `ask` posts 1–4 questions at once. Several agents (or several
+      runs) may have questions open on the same item at the same time.
+
+      **Getting the answer back.** `delivery: resume` (the default for a run
+      launched through a trigger connector) re-fires that same agent on the
+      item once every question its run asked is answered, continuing the same
+      run record with the answers in the prompt. `delivery: poll` (the default
+      for a live, connector-less session such as Claude Code in a terminal)
+      fires nothing — call `list` until the status reads `completed`.
   - name: Projects
     description: |-
       Projects: the account-level container every other resource is scoped to.
@@ -383,6 +401,12 @@ paths:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1investigation
   /api/admin/ops/{handle}/investigation/{investigationId}:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1investigation~1{investigationId}
+  /api/admin/ops/{handle}/questions:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1questions
+  /api/admin/ops/{handle}/questions/{questionId}/answer:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1questions~1{questionId}~1answer
+  /api/admin/ops/{handle}/questions/{questionId}/cancel:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1questions~1{questionId}~1cancel
   /api/admin/agent-profiles:
     $ref: ./paths/ops.yaml#/~1api~1admin~1agent-profiles
   /api/admin/ops/{handle}/comments:

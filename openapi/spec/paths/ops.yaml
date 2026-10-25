@@ -834,7 +834,9 @@
       (`kind: investigated`), a blocking question for the team (`kind:
       question`), or how to verify the fix (`kind: ready_for_qa` with
       `qaNotes`). Append-only and create-only, so it is safe for restricted ops
-      keys.
+      keys. For a decision between options you can name, ask a structured
+      question instead (`ops questions ask`) — it is answerable in one tap and
+      the answer comes back to your run.
 
       **Use case:** After working an item, leave a findings write-up (summary,
       markdown findings, sources inspected, confidence) so the team — and the
@@ -977,6 +979,275 @@
       positional:
         - handle
         - investigationId
+/api/admin/ops/{handle}/questions:
+  get:
+    operationId: listOpsQuestions
+    summary: List an item's questions
+    description: |-
+      The structured questions asked on a queue item, with their answers —
+      newest first (max 100). Pull this to read the answers to questions you
+      asked: an answered question reads `status: completed` and carries
+      `answer.selected` (the option labels picked) and `answer.other` (the
+      free-text "Other" reply, or `null`).
+
+      **Use case:** You asked with `delivery: poll` from a live session — poll
+      this until your questions read `completed`, then continue with the answers.
+    tags:
+      - Questions
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: handle
+        in: path
+        required: true
+        description: Per-project item number (e.g. `7`) or the full ops item id.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+      - name: status
+        in: query
+        required: false
+        description: Filter by question status, or `all` (the default).
+        schema:
+          default: all
+          anyOf:
+            - $ref: ../components/schemas/ops.yaml#/OpsQuestionStatus
+            - type: string
+              const: all
+    responses:
+      "200":
+        description: List an item's questions
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/ListOpsQuestionsResponse
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: list
+      positional:
+        - handle
+  post:
+    operationId: askOpsQuestions
+    summary: Ask the team questions about an item
+    description: |-
+      Ask 1–4 structured questions about a queue item — the way to get a
+      decision from a person when the implementation needs one. Each question
+      is the `AskUserQuestion` shape: a short `header` chip, the full
+      `question`, 2–4 `options` (`label` + `description`), and `multiSelect`
+      (checkboxes instead of radios). The person can always answer "Other" in
+      free text, so never add an "Other" option yourself. The questions render
+      at the very top of the item's detail panel and mark the row in the queue.
+
+      **Delivery.** `resume` re-fires your trigger-connector run on the item
+      once every question it asked is answered, continuing the same run record
+      with the answers in the prompt — stop after asking. `poll` fires nothing;
+      poll `GET .../questions` instead. Omitted, it is `resume` when `runId`
+      names a run launched through a trigger connector, else `poll`.
+
+      **Use case:** Blocked on a product decision (which behaviour to keep,
+      which of two fixes to ship) — ask instead of guessing, then wait for the
+      answer.
+    tags:
+      - Questions
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: handle
+        in: path
+        required: true
+        description: Per-project item number (e.g. `7`) or the full ops item id.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/AskOpsQuestionsRequest
+          examples:
+            single:
+              summary: Ask one radio question
+              value:
+                runId: 0d3f4c8e-7a51-4c2e-9b1f-1e2d3c4b5a69
+                questions:
+                  - header: Legacy param
+                    question: Should the fix keep honouring the legacy `?v=1` query param?
+                    multiSelect: false
+                    options:
+                      - label: Keep it
+                        description: Old links keep working; the redirect stays
+                      - label: Drop it
+                        description: Simpler code; old links land on the default view
+    responses:
+      "200":
+        description: The created questions, in the order asked
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/AskOpsQuestionsResponse
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: ask
+      positional:
+        - handle
+/api/admin/ops/{handle}/questions/{questionId}/answer:
+  post:
+    operationId: answerOpsQuestion
+    summary: Answer a question
+    description: |-
+      Answer one open question on a queue item — pick option labels in
+      `selected` (exactly one unless the question is `multiSelect`) and/or
+      write a free-text `other`. The question moves to `completed`. When it was
+      the last open question of a `resume` run, that agent is re-fired on the
+      item with every answer. A person's action: never allow-listed for
+      restricted ops keys.
+
+      **Use case:** Unblock an agent from the CLI instead of the dashboard.
+    tags:
+      - Questions
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: handle
+        in: path
+        required: true
+        description: Per-project item number (e.g. `7`) or the full ops item id.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+      - name: questionId
+        in: path
+        required: true
+        description: The question id (from `ask` or `list`).
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/AnswerOpsQuestionRequest
+          examples:
+            option:
+              summary: Pick an option
+              value:
+                selected:
+                  - Keep it
+            other:
+              summary: Answer in free text
+              value:
+                other: Keep it for a release, then drop it
+    responses:
+      "200":
+        description: The answered question
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/OpsQuestion
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - INVALID_TRANSITION
+      - VALIDATION
+    x-cli:
+      name: answer
+      positional:
+        - handle
+        - questionId
+/api/admin/ops/{handle}/questions/{questionId}/cancel:
+  post:
+    operationId: cancelOpsQuestion
+    summary: Withdraw a question
+    description: |-
+      Withdraw one open question you asked — it no longer needs an answer
+      (you found it out yourself, or the item moved on). The question moves to
+      `cancelled` and leaves the detail panel. Withdrawing the last open
+      question of a run delivers nothing.
+
+      **Use case:** You asked, then answered it yourself from the code — take
+      it off the person's plate.
+    tags:
+      - Questions
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: handle
+        in: path
+        required: true
+        description: Per-project item number (e.g. `7`) or the full ops item id.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+      - name: questionId
+        in: path
+        required: true
+        description: The question id (from `ask` or `list`).
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    responses:
+      "200":
+        description: The withdrawn question
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/OpsQuestion
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - INVALID_TRANSITION
+    x-cli:
+      name: cancel
+      positional:
+        - handle
+        - questionId
 /api/admin/agent-profiles:
   get:
     operationId: listOpsAgents

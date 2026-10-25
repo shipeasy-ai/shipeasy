@@ -119,6 +119,11 @@
       "description": "Investigation records on a queue item — the structured, read-only write-ups\nan AI agent produces while working it (findings / a blocking question / QA\nnotes), plus the `working` run rows an ack or an AI hand-off opens. This is\nthe AI-write seam the cockpit's detail panel renders: `list` reads what a\nprevious run found, `create` appends a new record, and `update` fills in the\n`working` run record you were handed (findings, PR, confidence) as you work."
     },
     {
+      "name": "Questions",
+      "parent": "Ops",
+      "description": "Structured questions an agent asks the team about a queue item — the\n`AskUserQuestion` shape: a short `header`, the `question`, 2–4 `options`\n(label + description), and `multiSelect` for checkboxes instead of radios.\nEvery question also accepts a free-text \"Other\" answer. Open questions sit\nat the very top of the item's detail panel and mark the row in the queue.\n\n**Asking.** `ask` posts 1–4 questions at once. Several agents (or several\nruns) may have questions open on the same item at the same time.\n\n**Getting the answer back.** `delivery: resume` (the default for a run\nlaunched through a trigger connector) re-fires that same agent on the\nitem once every question its run asked is answered, continuing the same\nrun record with the answers in the prompt. `delivery: poll` (the default\nfor a live, connector-less session such as Claude Code in a terminal)\nfires nothing — call `list` until the status reads `completed`."
+    },
+    {
       "name": "Projects",
       "description": "Projects: the account-level container every other resource is scoped to.\n\n**Account-level, not bound-project-level.** Both operations resolve from the caller's credential rather than the `.shipeasy`-bound project — `current` reads the project the auth header maps to, and `upsert` find-or-creates under the session's owner. Neither touches the local `.shipeasy` binding; recording the result there is a consumer side-effect layered on top.\n\n**Idempotent upsert.** A project is keyed by `(owner_email, domain)`. Calling `upsert` again with the same domain returns the existing project with `created: false`, so it is safe to run on every install."
     },
@@ -8433,7 +8438,7 @@
       "post": {
         "operationId": "createOpsInvestigation",
         "summary": "Record an investigation",
-        "description": "Append one structured investigation record to a queue item — the AI-write\nseam the cockpit's detail panel renders read-only. Post your findings\n(`kind: investigated`), a blocking question for the team (`kind:\nquestion`), or how to verify the fix (`kind: ready_for_qa` with\n`qaNotes`). Append-only and create-only, so it is safe for restricted ops\nkeys.\n\n**Use case:** After working an item, leave a findings write-up (summary,\nmarkdown findings, sources inspected, confidence) so the team — and the\nnext agent run — sees what you learned.",
+        "description": "Append one structured investigation record to a queue item — the AI-write\nseam the cockpit's detail panel renders read-only. Post your findings\n(`kind: investigated`), a blocking question for the team (`kind:\nquestion`), or how to verify the fix (`kind: ready_for_qa` with\n`qaNotes`). Append-only and create-only, so it is safe for restricted ops\nkeys. For a decision between options you can name, ask a structured\nquestion instead (`ops questions ask`) — it is answerable in one tap and\nthe answer comes back to your run.\n\n**Use case:** After working an item, leave a findings write-up (summary,\nmarkdown findings, sources inspected, confidence) so the team — and the\nnext agent run — sees what you learned.",
         "tags": [
           "Investigations"
         ],
@@ -8625,6 +8630,362 @@
           "positional": [
             "handle",
             "investigationId"
+          ]
+        }
+      }
+    },
+    "/api/admin/ops/{handle}/questions": {
+      "get": {
+        "operationId": "listOpsQuestions",
+        "summary": "List an item's questions",
+        "description": "The structured questions asked on a queue item, with their answers —\nnewest first (max 100). Pull this to read the answers to questions you\nasked: an answered question reads `status: completed` and carries\n`answer.selected` (the option labels picked) and `answer.other` (the\nfree-text \"Other\" reply, or `null`).\n\n**Use case:** You asked with `delivery: poll` from a live session — poll\nthis until your questions read `completed`, then continue with the answers.",
+        "tags": [
+          "Questions"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "description": "Per-project item number (e.g. `7`) or the full ops item id.",
+            "schema": {
+              "$ref": "#/components/schemas/ResourceId"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Filter by question status, or `all` (the default).",
+            "schema": {
+              "default": "all",
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/OpsQuestionStatus"
+                },
+                {
+                  "type": "string",
+                  "const": "all"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List an item's questions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListOpsQuestionsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND"
+        ],
+        "x-cli": {
+          "name": "list",
+          "positional": [
+            "handle"
+          ]
+        }
+      },
+      "post": {
+        "operationId": "askOpsQuestions",
+        "summary": "Ask the team questions about an item",
+        "description": "Ask 1–4 structured questions about a queue item — the way to get a\ndecision from a person when the implementation needs one. Each question\nis the `AskUserQuestion` shape: a short `header` chip, the full\n`question`, 2–4 `options` (`label` + `description`), and `multiSelect`\n(checkboxes instead of radios). The person can always answer \"Other\" in\nfree text, so never add an \"Other\" option yourself. The questions render\nat the very top of the item's detail panel and mark the row in the queue.\n\n**Delivery.** `resume` re-fires your trigger-connector run on the item\nonce every question it asked is answered, continuing the same run record\nwith the answers in the prompt — stop after asking. `poll` fires nothing;\npoll `GET .../questions` instead. Omitted, it is `resume` when `runId`\nnames a run launched through a trigger connector, else `poll`.\n\n**Use case:** Blocked on a product decision (which behaviour to keep,\nwhich of two fixes to ship) — ask instead of guessing, then wait for the\nanswer.",
+        "tags": [
+          "Questions"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "description": "Per-project item number (e.g. `7`) or the full ops item id.",
+            "schema": {
+              "$ref": "#/components/schemas/ResourceId"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AskOpsQuestionsRequest"
+              },
+              "examples": {
+                "single": {
+                  "summary": "Ask one radio question",
+                  "value": {
+                    "runId": "0d3f4c8e-7a51-4c2e-9b1f-1e2d3c4b5a69",
+                    "questions": [
+                      {
+                        "header": "Legacy param",
+                        "question": "Should the fix keep honouring the legacy `?v=1` query param?",
+                        "multiSelect": false,
+                        "options": [
+                          {
+                            "label": "Keep it",
+                            "description": "Old links keep working; the redirect stays"
+                          },
+                          {
+                            "label": "Drop it",
+                            "description": "Simpler code; old links land on the default view"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The created questions, in the order asked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AskOpsQuestionsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "ask",
+          "positional": [
+            "handle"
+          ]
+        }
+      }
+    },
+    "/api/admin/ops/{handle}/questions/{questionId}/answer": {
+      "post": {
+        "operationId": "answerOpsQuestion",
+        "summary": "Answer a question",
+        "description": "Answer one open question on a queue item — pick option labels in\n`selected` (exactly one unless the question is `multiSelect`) and/or\nwrite a free-text `other`. The question moves to `completed`. When it was\nthe last open question of a `resume` run, that agent is re-fired on the\nitem with every answer. A person's action: never allow-listed for\nrestricted ops keys.\n\n**Use case:** Unblock an agent from the CLI instead of the dashboard.",
+        "tags": [
+          "Questions"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "description": "Per-project item number (e.g. `7`) or the full ops item id.",
+            "schema": {
+              "$ref": "#/components/schemas/ResourceId"
+            }
+          },
+          {
+            "name": "questionId",
+            "in": "path",
+            "required": true,
+            "description": "The question id (from `ask` or `list`).",
+            "schema": {
+              "$ref": "#/components/schemas/ResourceId"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnswerOpsQuestionRequest"
+              },
+              "examples": {
+                "option": {
+                  "summary": "Pick an option",
+                  "value": {
+                    "selected": [
+                      "Keep it"
+                    ]
+                  }
+                },
+                "other": {
+                  "summary": "Answer in free text",
+                  "value": {
+                    "other": "Keep it for a release, then drop it"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The answered question",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsQuestion"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "INVALID_TRANSITION",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "answer",
+          "positional": [
+            "handle",
+            "questionId"
+          ]
+        }
+      }
+    },
+    "/api/admin/ops/{handle}/questions/{questionId}/cancel": {
+      "post": {
+        "operationId": "cancelOpsQuestion",
+        "summary": "Withdraw a question",
+        "description": "Withdraw one open question you asked — it no longer needs an answer\n(you found it out yourself, or the item moved on). The question moves to\n`cancelled` and leaves the detail panel. Withdrawing the last open\nquestion of a run delivers nothing.\n\n**Use case:** You asked, then answered it yourself from the code — take\nit off the person's plate.",
+        "tags": [
+          "Questions"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "description": "Per-project item number (e.g. `7`) or the full ops item id.",
+            "schema": {
+              "$ref": "#/components/schemas/ResourceId"
+            }
+          },
+          {
+            "name": "questionId",
+            "in": "path",
+            "required": true,
+            "description": "The question id (from `ask` or `list`).",
+            "schema": {
+              "$ref": "#/components/schemas/ResourceId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The withdrawn question",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsQuestion"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "INVALID_TRANSITION"
+        ],
+        "x-cli": {
+          "name": "cancel",
+          "positional": [
+            "handle",
+            "questionId"
           ]
         }
       }
@@ -23701,6 +24062,371 @@
         "additionalProperties": false,
         "minProperties": 1,
         "description": "Body for `PATCH /api/admin/ops/{handle}/investigation/{investigationId}` — a partial update of one existing investigation record (typically the `working` run record you were handed). Send only the fields you want to change; at least one is required."
+      },
+      "OpsQuestionStatus": {
+        "type": "string",
+        "enum": [
+          "open",
+          "completed",
+          "cancelled"
+        ],
+        "description": "Where a question stands — `open` (waiting on a person), `completed` (answered), or `cancelled` (withdrawn by the asker)."
+      },
+      "OpsQuestionAnswer": {
+        "type": "object",
+        "properties": {
+          "selected": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The option labels the person picked (empty when they only answered \"Other\")."
+          },
+          "other": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The free-text \"Other\" answer, or `null`."
+          }
+        },
+        "required": [
+          "selected",
+          "other"
+        ],
+        "additionalProperties": false,
+        "description": "A person's answer to a question."
+      },
+      "OpsQuestionDelivery": {
+        "type": "string",
+        "enum": [
+          "resume",
+          "poll"
+        ],
+        "description": "How the answer gets back to the asker — `resume` re-fires the asking run's trigger connector on the item once every question that run asked is answered; `poll` fires nothing and the asker reads `GET .../questions`."
+      },
+      "OpsQuestion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Question id."
+          },
+          "feedbackId": {
+            "type": "string",
+            "description": "The queue item the question hangs off."
+          },
+          "header": {
+            "type": "string",
+            "description": "Short chip label for the question."
+          },
+          "question": {
+            "type": "string",
+            "description": "The full question (markdown)."
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "description": "The option's display text."
+                },
+                "description": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "What picking the option means, or `null`."
+                }
+              },
+              "required": [
+                "label",
+                "description"
+              ],
+              "additionalProperties": false,
+              "description": "One offered choice."
+            },
+            "description": "The offered choices, in order."
+          },
+          "multiSelect": {
+            "type": "boolean",
+            "description": "Whether several options may be picked."
+          },
+          "status": {
+            "$ref": "#/components/schemas/OpsQuestionStatus"
+          },
+          "answer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpsQuestionAnswer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The person's answer, or `null` while the question is open (or was withdrawn)."
+          },
+          "answeredBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Email of the person who answered, or `null`."
+          },
+          "answeredAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO-8601 timestamp of the answer, or `null`."
+          },
+          "agent": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "jarvis",
+                  "claude",
+                  "cursor",
+                  "copilot",
+                  "jules"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The agent that asked, or `null` (asked by a person or an unattributed key)."
+          },
+          "askedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Email of the person who asked, when a human asked, or `null`."
+          },
+          "runId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The run (investigation record id) the question was asked under, or `null`."
+          },
+          "delivery": {
+            "$ref": "#/components/schemas/OpsQuestionDelivery"
+          },
+          "deliveredAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO-8601 timestamp the answer was re-delivered to the asking run (`resume` only), or `null`."
+          },
+          "deliveryError": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why a `resume` re-delivery failed, or `null`."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO-8601 creation timestamp."
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO-8601 last-update timestamp."
+          }
+        },
+        "required": [
+          "id",
+          "feedbackId",
+          "header",
+          "question",
+          "options",
+          "multiSelect",
+          "status",
+          "answer",
+          "answeredBy",
+          "answeredAt",
+          "agent",
+          "askedBy",
+          "runId",
+          "delivery",
+          "deliveredAt",
+          "deliveryError",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "description": "One structured question on a queue item and, once answered, its answer."
+      },
+      "ListOpsQuestionsResponse": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/OpsQuestion"
+        },
+        "description": "Response for `GET /api/admin/ops/{handle}/questions` — the item's questions, newest first (max 100)."
+      },
+      "OpsQuestionOption": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "The option's display text — short (1–5 words). Answers name options by this label."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "What picking this option means — its trade-off or consequence."
+          }
+        },
+        "required": [
+          "label"
+        ],
+        "additionalProperties": false,
+        "description": "One choice offered by a question — rendered as a radio, or a checkbox when the question is `multiSelect`."
+      },
+      "AskOpsQuestionInput": {
+        "type": "object",
+        "properties": {
+          "header": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 24,
+            "description": "Very short chip label for the question (max 24 chars), e.g. `Auth method`."
+          },
+          "question": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "The complete question, ending with a question mark (markdown)."
+          },
+          "options": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/components/schemas/OpsQuestionOption"
+            },
+            "description": "2–4 distinct choices. Do not add an \"Other\" option — a free-text answer is always offered."
+          },
+          "multiSelect": {
+            "type": "boolean",
+            "default": false,
+            "description": "`true` lets the person pick several options (checkboxes); `false` (the default) exactly one (radios)."
+          }
+        },
+        "required": [
+          "header",
+          "question",
+          "options"
+        ],
+        "additionalProperties": false,
+        "description": "One question to ask — the `AskUserQuestion` shape."
+      },
+      "AskOpsQuestionsRequest": {
+        "type": "object",
+        "properties": {
+          "questions": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/components/schemas/AskOpsQuestionInput"
+            },
+            "description": "1–4 questions to ask at once."
+          },
+          "runId": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "The run (investigation record id) you are working the item under — the `runId` an ack or a launch handed you. Ties the questions to that run so a `resume` delivery continues it."
+          },
+          "agent": {
+            "type": "string",
+            "enum": [
+              "jarvis",
+              "claude",
+              "cursor",
+              "copilot",
+              "jules"
+            ],
+            "description": "The agent type asking — pass your own type when you are a coding agent. Defaults to the run's agent."
+          },
+          "delivery": {
+            "$ref": "#/components/schemas/OpsQuestionDelivery"
+          }
+        },
+        "required": [
+          "questions"
+        ],
+        "additionalProperties": false,
+        "description": "Body for `POST /api/admin/ops/{handle}/questions`."
+      },
+      "AskOpsQuestionsResponse": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/OpsQuestion"
+        },
+        "description": "Response for `POST /api/admin/ops/{handle}/questions` — the created questions, in the order asked."
+      },
+      "AnswerOpsQuestionRequest": {
+        "type": "object",
+        "properties": {
+          "selected": {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "description": "The option labels picked — exactly one for a single-select question (unless answering only with `other`), one or more for `multiSelect`."
+          },
+          "other": {
+            "type": "string",
+            "maxLength": 10000,
+            "description": "A free-text \"Other\" answer."
+          }
+        },
+        "additionalProperties": false,
+        "minProperties": 1,
+        "description": "Body for `POST /api/admin/ops/{handle}/questions/{questionId}/answer` — pick option labels, write a free-text answer, or both (multi-select only)."
       },
       "OpsAgentProfile": {
         "type": "object",

@@ -149,6 +149,54 @@ repeated in the runbooks:
   [escalate](#escalate-raise-a-bell-notification-when-the-fix-isnt-in-code)**
   — then move on.
 
+### Ask, don't guess — structured questions
+
+When the implementation needs a **person's decision** — which of two
+behaviours to keep, which fix to ship, whether a change is in scope — **ask it
+as a structured question** instead of guessing, burying it in findings, or
+leaving it in a comment. `shipeasy ops questions ask <handle>` (MCP
+`ops_questions_ask`) takes 1–4 questions in the `AskUserQuestion` shape:
+
+```json
+{
+  "runId": "<the run id your ack / launch handed you>",
+  "questions": [
+    {
+      "header": "Legacy param",
+      "question": "Should the fix keep honouring the legacy `?v=1` query param?",
+      "multiSelect": false,
+      "options": [
+        { "label": "Keep it", "description": "Old links keep working; the redirect stays" },
+        { "label": "Drop it", "description": "Simpler code; old links land on the default view" }
+      ]
+    }
+  ]
+}
+```
+
+- `header` ≤ 24 chars, a chip label. `options` 2–4, each a short `label` +
+  the trade-off in `description`. `multiSelect: true` for checkboxes.
+- **Never add an "Other" option** — a free-text answer is always offered.
+- Questions land at the very top of the item's detail panel, mark the row in
+  the queue, and push a notification to the team's phones. Several questions —
+  from you or other agents — can be open on one item at once.
+- **Getting the answer back:**
+  - **Live session** (Claude Code / Cursor in a terminal or IDE — anything
+    that can keep running): the default is `delivery: poll`. Keep working on
+    whatever doesn't depend on the answer, then poll `shipeasy ops questions
+    list <handle> --status completed` (MCP `ops_questions_list`) until your
+    questions read `completed`; `answer.selected` holds the picked labels,
+    `answer.other` the free-text reply.
+  - **Unattended trigger run** (a cloud run launched through a connector):
+    pass your `runId` and the default is `delivery: resume`. **Stop after
+    asking** — leave the run open, don't flip the status. Once every question
+    you asked is answered, the same agent is re-fired on the item with the
+    answers in the prompt, continuing the same run record.
+- Found the answer yourself meanwhile? Withdraw it: `shipeasy ops questions
+  cancel <handle> <questionId>`.
+- Escalation (below) is for work a human must **do**; a question is for a
+  decision a human must **make** between options you can name.
+
 ### 1b. Report and continue
 
 One short paragraph per item, then the next:
@@ -194,8 +242,10 @@ sees it on the dashboard bell. This is the durable escalation channel.
 Fire it when — and only when — the work genuinely isn't yours to land in code:
 
 - a missing credential / device / prod-only env you can't reproduce against;
-- a **product decision** (anything you'd otherwise `wont_fix`) or a
-  prioritisation call;
+- a **product decision** you can't frame as options (anything you'd
+  otherwise `wont_fix`) or a prioritisation call — when you CAN name the
+  options, [ask a structured question](#ask-dont-guess--structured-questions)
+  instead;
 - an env var, network/allowlist, billing, or **alert-rule definition** knob
   that only a human (not the ops key) can change;
 - a bug whose only repro is a **recording you can't watch**;

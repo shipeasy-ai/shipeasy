@@ -4974,6 +4974,190 @@ export type UpdateOpsInvestigationRequest = {
 };
 
 /**
+ * Where a question stands — `open` (waiting on a person), `completed` (answered), or `cancelled` (withdrawn by the asker).
+ */
+export type OpsQuestionStatus = 'open' | 'completed' | 'cancelled';
+
+/**
+ * A person's answer to a question.
+ */
+export type OpsQuestionAnswer = {
+    /**
+     * The option labels the person picked (empty when they only answered "Other").
+     */
+    selected: Array<string>;
+    /**
+     * The free-text "Other" answer, or `null`.
+     */
+    other: string | null;
+};
+
+/**
+ * How the answer gets back to the asker — `resume` re-fires the asking run's trigger connector on the item once every question that run asked is answered; `poll` fires nothing and the asker reads `GET .../questions`.
+ */
+export type OpsQuestionDelivery = 'resume' | 'poll';
+
+/**
+ * One structured question on a queue item and, once answered, its answer.
+ */
+export type OpsQuestion = {
+    /**
+     * Question id.
+     */
+    id: string;
+    /**
+     * The queue item the question hangs off.
+     */
+    feedbackId: string;
+    /**
+     * Short chip label for the question.
+     */
+    header: string;
+    /**
+     * The full question (markdown).
+     */
+    question: string;
+    /**
+     * The offered choices, in order.
+     */
+    options: Array<{
+        /**
+         * The option's display text.
+         */
+        label: string;
+        /**
+         * What picking the option means, or `null`.
+         */
+        description: string | null;
+    }>;
+    /**
+     * Whether several options may be picked.
+     */
+    multiSelect: boolean;
+    status: OpsQuestionStatus;
+    /**
+     * The person's answer, or `null` while the question is open (or was withdrawn).
+     */
+    answer: OpsQuestionAnswer | null;
+    /**
+     * Email of the person who answered, or `null`.
+     */
+    answeredBy: string | null;
+    /**
+     * ISO-8601 timestamp of the answer, or `null`.
+     */
+    answeredAt: string | null;
+    /**
+     * The agent that asked, or `null` (asked by a person or an unattributed key).
+     */
+    agent: 'jarvis' | 'claude' | 'cursor' | 'copilot' | 'jules' | null;
+    /**
+     * Email of the person who asked, when a human asked, or `null`.
+     */
+    askedBy: string | null;
+    /**
+     * The run (investigation record id) the question was asked under, or `null`.
+     */
+    runId: string | null;
+    delivery: OpsQuestionDelivery;
+    /**
+     * ISO-8601 timestamp the answer was re-delivered to the asking run (`resume` only), or `null`.
+     */
+    deliveredAt: string | null;
+    /**
+     * Why a `resume` re-delivery failed, or `null`.
+     */
+    deliveryError: string | null;
+    /**
+     * ISO-8601 creation timestamp.
+     */
+    createdAt: string;
+    /**
+     * ISO-8601 last-update timestamp.
+     */
+    updatedAt: string;
+};
+
+/**
+ * Response for `GET /api/admin/ops/{handle}/questions` — the item's questions, newest first (max 100).
+ */
+export type ListOpsQuestionsResponse = Array<OpsQuestion>;
+
+/**
+ * One choice offered by a question — rendered as a radio, or a checkbox when the question is `multiSelect`.
+ */
+export type OpsQuestionOption = {
+    /**
+     * The option's display text — short (1–5 words). Answers name options by this label.
+     */
+    label: string;
+    /**
+     * What picking this option means — its trade-off or consequence.
+     */
+    description?: string;
+};
+
+/**
+ * One question to ask — the `AskUserQuestion` shape.
+ */
+export type AskOpsQuestionInput = {
+    /**
+     * Very short chip label for the question (max 24 chars), e.g. `Auth method`.
+     */
+    header: string;
+    /**
+     * The complete question, ending with a question mark (markdown).
+     */
+    question: string;
+    /**
+     * 2–4 distinct choices. Do not add an "Other" option — a free-text answer is always offered.
+     */
+    options: Array<OpsQuestionOption>;
+    /**
+     * `true` lets the person pick several options (checkboxes); `false` (the default) exactly one (radios).
+     */
+    multiSelect?: boolean;
+};
+
+/**
+ * Body for `POST /api/admin/ops/{handle}/questions`.
+ */
+export type AskOpsQuestionsRequest = {
+    /**
+     * 1–4 questions to ask at once.
+     */
+    questions: Array<AskOpsQuestionInput>;
+    /**
+     * The run (investigation record id) you are working the item under — the `runId` an ack or a launch handed you. Ties the questions to that run so a `resume` delivery continues it.
+     */
+    runId?: string;
+    /**
+     * The agent type asking — pass your own type when you are a coding agent. Defaults to the run's agent.
+     */
+    agent?: 'jarvis' | 'claude' | 'cursor' | 'copilot' | 'jules';
+    delivery?: OpsQuestionDelivery;
+};
+
+/**
+ * Response for `POST /api/admin/ops/{handle}/questions` — the created questions, in the order asked.
+ */
+export type AskOpsQuestionsResponse = Array<OpsQuestion>;
+
+/**
+ * Body for `POST /api/admin/ops/{handle}/questions/{questionId}/answer` — pick option labels, write a free-text answer, or both (multi-select only).
+ */
+export type AnswerOpsQuestionRequest = {
+    /**
+     * The option labels picked — exactly one for a single-select question (unless answering only with `other`), one or more for `multiSelect`.
+     */
+    selected?: Array<string>;
+    /**
+     * A free-text "Other" answer.
+     */
+    other?: string;
+};
+
+/**
  * One connected, assignable AI agent (an authenticated trigger connector).
  */
 export type OpsAgentProfile = {
@@ -12192,6 +12376,231 @@ export type UpdateOpsInvestigationResponses = {
 };
 
 export type UpdateOpsInvestigationResponse = UpdateOpsInvestigationResponses[keyof UpdateOpsInvestigationResponses];
+
+export type ListOpsQuestionsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Per-project item number (e.g. `7`) or the full ops item id.
+         */
+        handle: ResourceId;
+    };
+    query?: {
+        /**
+         * Filter by question status, or `all` (the default).
+         */
+        status?: OpsQuestionStatus | 'all';
+    };
+    url: '/api/admin/ops/{handle}/questions';
+};
+
+export type ListOpsQuestionsErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type ListOpsQuestionsError = ListOpsQuestionsErrors[keyof ListOpsQuestionsErrors];
+
+export type ListOpsQuestionsResponses = {
+    /**
+     * List an item's questions
+     */
+    200: ListOpsQuestionsResponse;
+};
+
+export type ListOpsQuestionsResponse2 = ListOpsQuestionsResponses[keyof ListOpsQuestionsResponses];
+
+export type AskOpsQuestionsData = {
+    body: AskOpsQuestionsRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Per-project item number (e.g. `7`) or the full ops item id.
+         */
+        handle: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/ops/{handle}/questions';
+};
+
+export type AskOpsQuestionsErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type AskOpsQuestionsError = AskOpsQuestionsErrors[keyof AskOpsQuestionsErrors];
+
+export type AskOpsQuestionsResponses = {
+    /**
+     * The created questions, in the order asked
+     */
+    200: AskOpsQuestionsResponse;
+};
+
+export type AskOpsQuestionsResponse2 = AskOpsQuestionsResponses[keyof AskOpsQuestionsResponses];
+
+export type AnswerOpsQuestionData = {
+    body: AnswerOpsQuestionRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Per-project item number (e.g. `7`) or the full ops item id.
+         */
+        handle: ResourceId;
+        /**
+         * The question id (from `ask` or `list`).
+         */
+        questionId: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/ops/{handle}/questions/{questionId}/answer';
+};
+
+export type AnswerOpsQuestionErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type AnswerOpsQuestionError = AnswerOpsQuestionErrors[keyof AnswerOpsQuestionErrors];
+
+export type AnswerOpsQuestionResponses = {
+    /**
+     * The answered question
+     */
+    200: OpsQuestion;
+};
+
+export type AnswerOpsQuestionResponse = AnswerOpsQuestionResponses[keyof AnswerOpsQuestionResponses];
+
+export type CancelOpsQuestionData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Per-project item number (e.g. `7`) or the full ops item id.
+         */
+        handle: ResourceId;
+        /**
+         * The question id (from `ask` or `list`).
+         */
+        questionId: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/ops/{handle}/questions/{questionId}/cancel';
+};
+
+export type CancelOpsQuestionErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+};
+
+export type CancelOpsQuestionError = CancelOpsQuestionErrors[keyof CancelOpsQuestionErrors];
+
+export type CancelOpsQuestionResponses = {
+    /**
+     * The withdrawn question
+     */
+    200: OpsQuestion;
+};
+
+export type CancelOpsQuestionResponse = CancelOpsQuestionResponses[keyof CancelOpsQuestionResponses];
 
 export type ListOpsAgentsData = {
     body?: never;
