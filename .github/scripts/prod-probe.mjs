@@ -127,6 +127,10 @@ const listGates = () => cli(["release", "flags", "list", "--limit", "500"]).data
 const listExperiments = () => cli(["release", "experiments", "list", "--limit", "500"]).data ?? [];
 const experimentResults = (exp) => cli(["release", "experiments", "results", exp]);
 const listKillswitches = () => cli(["release", "killswitch", "list", "--limit", "500"]).data ?? [];
+// The wire spells a killswitch as a leaf `name` beside its `folder`; the edge
+// keys `/sdk/evaluate`'s `killswitches` map — and the admin API resolves a
+// handle — by the full dotted path. Address both by `ksPath`, never `name`.
+const ksPath = (k) => (k.folder ? `${k.folder}.${k.name}` : k.name);
 const listUniverses = () =>
   cli(["release", "experiments", "universes", "list", "--limit", "500"]).data ?? [];
 const listConfigs = () => cli(["release", "configs", "list", "--limit", "500"]).data ?? [];
@@ -771,7 +775,7 @@ async function probeKillswitches() {
   for (const k of list) {
     const prod = k.envs?.prod ?? {};
     const hasSwitches = prod.switches && Object.keys(prod.switches).length > 0;
-    const actual = got[k.name];
+    const actual = got[ksPath(k)];
     let pass;
     if (hasSwitches) {
       pass = actual && typeof actual === "object" &&
@@ -780,10 +784,10 @@ async function probeKillswitches() {
       pass = !!actual === !!prod.value && typeof actual !== "object";
     }
     if (pass) {
-      ok(`killswitch ${k.name}: ${hasSwitches ? "switches match" : `value=${!!prod.value}`}`);
+      ok(`killswitch ${ksPath(k)}: ${hasSwitches ? "switches match" : `value=${!!prod.value}`}`);
     } else {
       annotate(
-        `killswitch ${k.name}: edge=${JSON.stringify(actual)} vs config ${JSON.stringify(hasSwitches ? prod.switches : prod.value)}`,
+        `killswitch ${ksPath(k)}: edge=${JSON.stringify(actual)} vs config ${JSON.stringify(hasSwitches ? prod.switches : prod.value)}`,
       );
       failed++;
     }
@@ -1024,8 +1028,8 @@ async function probeKillswitchPropagation() {
   const orig = ks.envs.prod.switches[key];
   const flipped = !orig;
   const setSwitch = (val) =>
-    cliText(["release", "killswitch", "set", ks.name, "--env", "prod", "--switch-key", key, "--value", String(val)]);
-  const read = async () => (await evaluate({ anonymous_id: "ksp-probe" })).killswitches?.[ks.name]?.[key];
+    cliText(["release", "killswitch", "set", ksPath(ks), "--env", "prod", "--switch-key", key, "--value", String(val)]);
+  const read = async () => (await evaluate({ anonymous_id: "ksp-probe" })).killswitches?.[ksPath(ks)]?.[key];
   // Poll `read()` up to KSP_POLL_MS for it to equal `want`; returns the last value seen.
   const pollFor = async (want) => {
     let live;
@@ -1036,7 +1040,7 @@ async function probeKillswitchPropagation() {
     }
     return live;
   };
-  console.log(`::group::Killswitch switch propagation (${ks.name}.${key})`);
+  console.log(`::group::Killswitch switch propagation (${ksPath(ks)}.${key})`);
   let restored = false;
   try {
     setSwitch(flipped);
@@ -3883,8 +3887,8 @@ const DSL_METRICS = [
 ];
 
 // The parity BACKLOG: every primitive the grammar recognises and the engine
-// cannot run yet — the residual landings (no AE form at all), the sql_todo rank
-// family (two statements, one issued), and the three undesigned detectors.
+// cannot run yet — the residual landings (no AE form at all) and the sql_todo
+// rank family (two statements, one issued).
 //
 // These are held to the same bar as the roster above: each SHOULD be a live
 // metric, and a refusal at create is a FINDING, not the expected answer. The
@@ -3896,6 +3900,12 @@ const DSL_METRICS = [
 // `count_users` / `unique` / `!=` are absent on purpose: they are REMOVED from
 // the language rather than unbuilt, and v1 still parses them, so they save as v1
 // rows and say nothing about v2.
+//
+// `anomalies` / `outliers` / `forecast` are absent for the same reason: they
+// were the "undesigned detectors" and are now out of the language by design
+// (query-dsl `UNDESIGNED`) — detection moved onto the alert rule (kind
+// `anomaly` / `outliers`), the projection onto the metric's `display.forecast`.
+// Their create refusal is the intended answer, not a gap.
 const DSL_PENDING = [
   ["probe_dsl.requests_derivative", `derivative(count(${DSL_REQ}))`],
   ["probe_dsl.requests_diff", `diff(count(${DSL_REQ}))`],
@@ -3913,9 +3923,6 @@ const DSL_PENDING = [
   ["probe_dsl.requests_rollup_max_1h", `rollup(count(${DSL_REQ}), max, 3600)`],
   ["probe_dsl.p95_ms_top5_routes", `top(p(95, ${DSL_REQ}, ms) by (route), 5, mean, desc)`],
   ["probe_dsl.requests_count_nonzero", `count_nonzero(count(${DSL_REQ}))`],
-  ["probe_dsl.requests_anomalies", `anomalies(count(${DSL_REQ}), basic, 2)`],
-  ["probe_dsl.requests_outliers_by_route", `outliers(count(${DSL_REQ}) by (route), MAD, 3)`],
-  ["probe_dsl.requests_forecast", `forecast(count(${DSL_REQ}))`],
 ];
 
 const DSL_REQ_N = 120;
