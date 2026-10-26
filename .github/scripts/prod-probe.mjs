@@ -127,10 +127,14 @@ const listGates = () => cli(["release", "flags", "list", "--limit", "500"]).data
 const listExperiments = () => cli(["release", "experiments", "list", "--limit", "500"]).data ?? [];
 const experimentResults = (exp) => cli(["release", "experiments", "results", exp]);
 const listKillswitches = () => cli(["release", "killswitch", "list", "--limit", "500"]).data ?? [];
-// The wire spells a killswitch as a leaf `name` beside its `folder`; the edge
-// keys `/sdk/evaluate`'s `killswitches` map — and the admin API resolves a
-// handle — by the full dotted path. Address both by `ksPath`, never `name`.
-const ksPath = (k) => (k.folder ? `${k.folder}.${k.name}` : k.name);
+// The admin wire spells a foldered config/killswitch as a leaf `name` beside
+// its `folder`, and the two other surfaces each want the joined path — in
+// DIFFERENT spellings. The admin API resolves a handle by D1's dotted path
+// (`probe.killswitch`); the flags blob, and so /sdk/evaluate's `configs` and
+// `killswitches` maps, key it `folder/name` (core `pathKey`/`folderKey`).
+// Neither is `name`.
+const adminPath = (r) => (r.folder ? `${r.folder}.${r.name}` : r.name);
+const edgeKey = (r) => (r.folder ? `${r.folder}/${r.name}` : r.name);
 const listUniverses = () =>
   cli(["release", "experiments", "universes", "list", "--limit", "500"]).data ?? [];
 const listConfigs = () => cli(["release", "configs", "list", "--limit", "500"]).data ?? [];
@@ -775,7 +779,7 @@ async function probeKillswitches() {
   for (const k of list) {
     const prod = k.envs?.prod ?? {};
     const hasSwitches = prod.switches && Object.keys(prod.switches).length > 0;
-    const actual = got[ksPath(k)];
+    const actual = got[edgeKey(k)];
     let pass;
     if (hasSwitches) {
       pass = actual && typeof actual === "object" &&
@@ -784,10 +788,10 @@ async function probeKillswitches() {
       pass = !!actual === !!prod.value && typeof actual !== "object";
     }
     if (pass) {
-      ok(`killswitch ${ksPath(k)}: ${hasSwitches ? "switches match" : `value=${!!prod.value}`}`);
+      ok(`killswitch ${edgeKey(k)}: ${hasSwitches ? "switches match" : `value=${!!prod.value}`}`);
     } else {
       annotate(
-        `killswitch ${ksPath(k)}: edge=${JSON.stringify(actual)} vs config ${JSON.stringify(hasSwitches ? prod.switches : prod.value)}`,
+        `killswitch ${edgeKey(k)}: edge=${JSON.stringify(actual)} vs config ${JSON.stringify(hasSwitches ? prod.switches : prod.value)}`,
       );
       failed++;
     }
@@ -986,9 +990,9 @@ async function probeConfigs() {
   const got = (await evaluate({ anonymous_id: "cfg-probe" })).configs ?? {};
   console.log(`::group::Configs (${configs.length})`);
   for (const c of configs) {
-    if (c.name in got && got[c.name] !== undefined) ok(`config ${c.name}: resolves to client`);
+    if (got[edgeKey(c)] !== undefined) ok(`config ${edgeKey(c)}: resolves to client`);
     else {
-      annotate(`config ${c.name}: NOT resolved on /sdk/evaluate (publish/KV gap)`);
+      annotate(`config ${edgeKey(c)}: NOT resolved on /sdk/evaluate (publish/KV gap)`);
       failed++;
     }
   }
@@ -1028,8 +1032,8 @@ async function probeKillswitchPropagation() {
   const orig = ks.envs.prod.switches[key];
   const flipped = !orig;
   const setSwitch = (val) =>
-    cliText(["release", "killswitch", "set", ksPath(ks), "--env", "prod", "--switch-key", key, "--value", String(val)]);
-  const read = async () => (await evaluate({ anonymous_id: "ksp-probe" })).killswitches?.[ksPath(ks)]?.[key];
+    cliText(["release", "killswitch", "set", adminPath(ks), "--env", "prod", "--switch-key", key, "--value", String(val)]);
+  const read = async () => (await evaluate({ anonymous_id: "ksp-probe" })).killswitches?.[edgeKey(ks)]?.[key];
   // Poll `read()` up to KSP_POLL_MS for it to equal `want`; returns the last value seen.
   const pollFor = async (want) => {
     let live;
@@ -1040,7 +1044,7 @@ async function probeKillswitchPropagation() {
     }
     return live;
   };
-  console.log(`::group::Killswitch switch propagation (${ksPath(ks)}.${key})`);
+  console.log(`::group::Killswitch switch propagation (${edgeKey(ks)}.${key})`);
   let restored = false;
   try {
     setSwitch(flipped);
