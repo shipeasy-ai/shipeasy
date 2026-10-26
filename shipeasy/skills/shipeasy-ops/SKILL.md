@@ -24,8 +24,8 @@ non-obvious flags are shown.
 
 | Use case | MCP tool | CLI |
 | --- | --- | --- |
-| File a bug | `ops_bug` | `shipeasy ops bug "<title>" --actual-result … --steps-to-reproduce … --page-url …` |
-| File a feature request | `ops_feature` | `shipeasy ops feature "<title>" --description … --use-case …` |
+| File a bug | `ops_bug` | `shipeasy ops bug "<title>" --actual-result … --steps-to-reproduce … --page-url … [--tags ios,checkout]` |
+| File a feature request | `ops_feature` | `shipeasy ops feature "<title>" --description … --use-case … [--tags …]` |
 | List / filter the whole queue | `ops_list` | `shipeasy ops list [--type bug\|feature_request\|error\|alert\|all] [--status <status>\|unresolved\|all] [--limit N]` (default `unresolved` — no resolved/wont_fix) |
 | Read one item | `ops_get` | `shipeasy ops get <handle>` |
 | Triage — set status / priority | `ops_update` | `shipeasy ops update <handle> --status <status> --priority <p>` |
@@ -48,6 +48,9 @@ steps, ending in the file call:
    feature request), with a full title + actual result + steps to reproduce +
    page URL. When step 1 surfaces a matching item, augment that one with
    `ops_update` and point the user to it; otherwise file the new one.
+   Label it with `tags` (tag names, e.g. `["ios", "checkout"]`): a name matching
+   an existing project tag case-insensitively reuses it, any other creates one —
+   so prefer the names `tags_list` already shows over new spellings.
 
 A "can you log/file/report this as a bug" ask is a request to create the item,
 so carry through to the `ops_bug` (or `ops_update`) write.

@@ -4020,6 +4020,11 @@ export type ListOpsItemsResponse = Array<{
 }>;
 
 /**
+ * A tag name. Trimmed; matched case-insensitively against the project's existing tags.
+ */
+export type TagName = string;
+
+/**
  * Bug-kind fields for `POST /api/admin/ops` (sent with `type: bug`).
  */
 export type CreateBugRequest = {
@@ -4060,9 +4065,9 @@ export type CreateBugRequest = {
      */
     subscribers?: Array<string>;
     /**
-     * Tag names to attach at creation (get-or-created by name, deduped case-insensitively).
+     * Tag names to label the item with, e.g. `["ios", "checkout"]`. Each name is matched case-insensitively against the project's existing tags and reuses that tag (keeping its stored casing) when one matches; a name with no match creates a new project tag.
      */
-    tags?: Array<string>;
+    tags?: Array<TagName>;
     /**
      * Email of the reporter, or `null`.
      */
@@ -4128,9 +4133,9 @@ export type CreateFeatureRequestRequest = {
      */
     subscribers?: Array<string>;
     /**
-     * Tag names to attach at creation (get-or-created by name, deduped case-insensitively).
+     * Tag names to label the item with, e.g. `["ios", "checkout"]`. Each name is matched case-insensitively against the project's existing tags and reuses that tag (keeping its stored casing) when one matches; a name with no match creates a new project tag.
      */
-    tags?: Array<string>;
+    tags?: Array<TagName>;
     /**
      * Email of the reporter, or `null`.
      */
@@ -4215,9 +4220,9 @@ export type CreatePublicBugRequest = {
      */
     subscribers?: Array<string>;
     /**
-     * Tag names to attach at creation (get-or-created by name, deduped case-insensitively).
+     * Tag names to label the item with, e.g. `["ios", "checkout"]`. Each name is matched case-insensitively against the project's existing tags and reuses that tag (keeping its stored casing) when one matches; a name with no match creates a new project tag. Here the tags only label the ticket: the project's tag rules (owner/status/agent routing) are not applied to a public report while it awaits approval.
      */
-    tags?: Array<string>;
+    tags?: Array<TagName>;
     /**
      * Email of the reporter, or `null`.
      */
@@ -4305,9 +4310,9 @@ export type CreatePublicFeatureRequestRequest = {
      */
     subscribers?: Array<string>;
     /**
-     * Tag names to attach at creation (get-or-created by name, deduped case-insensitively).
+     * Tag names to label the item with, e.g. `["ios", "checkout"]`. Each name is matched case-insensitively against the project's existing tags and reuses that tag (keeping its stored casing) when one matches; a name with no match creates a new project tag. Here the tags only label the ticket: the project's tag rules (owner/status/agent routing) are not applied to a public report while it awaits approval.
      */
-    tags?: Array<string>;
+    tags?: Array<TagName>;
     /**
      * Email of the reporter, or `null`.
      */
@@ -7616,11 +7621,6 @@ export type EntityTagsResponse = {
      */
     tags: Array<string>;
 };
-
-/**
- * A tag name. Trimmed; matched case-insensitively against the project's existing tags.
- */
-export type TagName = string;
 
 export type SetEntityTagsRequest = {
     /**

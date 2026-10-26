@@ -187,7 +187,7 @@ lines.push("// The full CLI command tree, projected from the spec's tags + x-cli
 lines.push("// the generated sdk fns. Regenerate with `pnpm gen:cli`.");
 lines.push('import type { Command } from "commander";');
 lines.push('import * as api from "@shipeasy/openapi/client";');
-lines.push('import { type GenCtx, defineGroup, num, bool, str, json, clean } from "../commands/_gen-runtime.js";');
+lines.push('import { type GenCtx, defineGroup, num, bool, str, list, json, clean } from "../commands/_gen-runtime.js";');
 lines.push("");
 lines.push("export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {");
 

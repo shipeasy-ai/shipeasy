@@ -2055,7 +2055,7 @@ _Parameters_
 | `status` | optional | `any` | Initial lifecycle status; defaults to `open` when omitted. |
 | `assigneeId` | optional | `any` | The `users.id` of the person to assign as owner at creation, or `null`. |
 | `subscribers` | optional | `string[]` | Emails of teammates to subscribe to this item's Slack pings at creation. _(default `[]`)_ |
-| `tags` | optional | `string[]` | Tag names to attach at creation (get-or-created by name, deduped case-insensitively). _(default `[]`)_ |
+| `tags` | optional | `string[]` | Tag names to label the item with, e.g. `["ios", "checkout"]`. Each name is matched case-insensitively against the project's existing tags and reuses that tag (keeping its stored casing) when one matches; a name with no match creates a new project tag. _(default `[]`)_ |
 | `reporterEmail` | optional | `any` | Email of the reporter, or `null`. |
 | `pageUrl` | optional | `any` | URL of the page the bug relates to, or `null`. |
 | `userAgent` | optional | `any` | Reporter's user-agent string, or `null`. |
@@ -2094,7 +2094,7 @@ _Parameters_
 | `status` | optional | `any` | Initial lifecycle status; defaults to `open` when omitted. |
 | `assigneeId` | optional | `any` | The `users.id` of the person to assign as owner at creation, or `null`. |
 | `subscribers` | optional | `string[]` | Emails of teammates to subscribe to this item's Slack pings at creation. _(default `[]`)_ |
-| `tags` | optional | `string[]` | Tag names to attach at creation (get-or-created by name, deduped case-insensitively). _(default `[]`)_ |
+| `tags` | optional | `string[]` | Tag names to label the item with, e.g. `["ios", "checkout"]`. Each name is matched case-insensitively against the project's existing tags and reuses that tag (keeping its stored casing) when one matches; a name with no match creates a new project tag. _(default `[]`)_ |
 | `reporterEmail` | optional | `any` | Email of the reporter, or `null`. |
 | `pageUrl` | optional | `any` | URL of the page the bug relates to, or `null`. |
 | `userAgent` | optional | `any` | Reporter's user-agent string, or `null`. |
@@ -2133,7 +2133,7 @@ _Parameters_
 | `status` | optional | `any` | Initial lifecycle status; defaults to `open` when omitted. |
 | `assigneeId` | optional | `any` | The `users.id` of the person to assign as owner at creation, or `null`. |
 | `subscribers` | optional | `string[]` | Emails of teammates to subscribe to this item's Slack pings at creation. _(default `[]`)_ |
-| `tags` | optional | `string[]` | Tag names to attach at creation (get-or-created by name, deduped case-insensitively). _(default `[]`)_ |
+| `tags` | optional | `string[]` | Tag names to label the item with, e.g. `["ios", "checkout"]`. Each name is matched case-insensitively against the project's existing tags and reuses that tag (keeping its stored casing) when one matches; a name with no match creates a new project tag. _(default `[]`)_ |
 | `reporterEmail` | optional | `any` | Email of the reporter, or `null`. |
 | `pageUrl` | optional | `any` | URL of the page the request relates to, or `null`. |
 | `userAgent` | optional | `any` | Reporter's user-agent string, or `null`. |

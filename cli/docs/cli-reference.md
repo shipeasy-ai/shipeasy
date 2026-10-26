@@ -946,7 +946,7 @@ shipeasy ops create [options] <title>
 | `--status <value>` | optional | Initial lifecycle status; defaults to `open` when omitted. |
 | `--assignee-id <value>` | optional | The `users.id` of the person to assign as owner at creation, or `null`. |
 | `--subscribers <value>` | optional | Emails of teammates to subscribe to this item's Slack pings at creation. |
-| `--tags <value>` | optional | Tag names to attach at creation (get-or-created by name, deduped case-insensitively). |
+| `--tags <value>` | optional | Tag names to label the item with, e.g. `["ios", "checkout"]`. Each name is matched case-insensitively against the project's existing tags and reuses that tag (keeping its stored casing) when one matches; a name with no match creates a new project tag. |
 | `--reporter-email <value>` | optional | Email of the reporter, or `null`. |
 | `--page-url <value>` | optional | URL of the page the bug relates to, or `null`. |
 | `--user-agent <value>` | optional | Reporter's user-agent string, or `null`. |
@@ -977,7 +977,7 @@ shipeasy ops bug [options] <title>
 | `--status <value>` | optional | Initial lifecycle status; defaults to `open` when omitted. |
 | `--assignee-id <value>` | optional | The `users.id` of the person to assign as owner at creation, or `null`. |
 | `--subscribers <value>` | optional | Emails of teammates to subscribe to this item's Slack pings at creation. |
-| `--tags <value>` | optional | Tag names to attach at creation (get-or-created by name, deduped case-insensitively). |
+| `--tags <value>` | optional | Tag names to label the item with, e.g. `["ios", "checkout"]`. Each name is matched case-insensitively against the project's existing tags and reuses that tag (keeping its stored casing) when one matches; a name with no match creates a new project tag. |
 | `--reporter-email <value>` | optional | Email of the reporter, or `null`. |
 | `--page-url <value>` | optional | URL of the page the bug relates to, or `null`. |
 | `--user-agent <value>` | optional | Reporter's user-agent string, or `null`. |
@@ -1005,7 +1005,7 @@ shipeasy ops feature [options] <title>
 | `--status <value>` | optional | Initial lifecycle status; defaults to `open` when omitted. |
 | `--assignee-id <value>` | optional | The `users.id` of the person to assign as owner at creation, or `null`. |
 | `--subscribers <value>` | optional | Emails of teammates to subscribe to this item's Slack pings at creation. |
-| `--tags <value>` | optional | Tag names to attach at creation (get-or-created by name, deduped case-insensitively). |
+| `--tags <value>` | optional | Tag names to label the item with, e.g. `["ios", "checkout"]`. Each name is matched case-insensitively against the project's existing tags and reuses that tag (keeping its stored casing) when one matches; a name with no match creates a new project tag. |
 | `--reporter-email <value>` | optional | Email of the reporter, or `null`. |
 | `--page-url <value>` | optional | URL of the page the request relates to, or `null`. |
 | `--user-agent <value>` | optional | Reporter's user-agent string, or `null`. |

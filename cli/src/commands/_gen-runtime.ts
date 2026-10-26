@@ -74,6 +74,21 @@ export const bool = (v: unknown): boolean | undefined => {
   if (["false", "0", "no", "off"].includes(s)) return false;
   throw new ApiError(`expected true|false, got "${String(v)}"`, 400);
 };
+/**
+ * A token-list flag (tag names, emails, enum values): a comma list
+ * (`ios,checkout`) — entries trimmed, blanks dropped — or anything `json()`
+ * takes, so a JSON array and `null` keep working.
+ */
+export const list = (v: unknown): unknown => {
+  if (v === undefined) return undefined;
+  if (typeof v !== "string") return v;
+  const s = v.trim();
+  if (s.startsWith("[") || s === "null") return json(s);
+  return s
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+};
 export const json = (v: unknown): unknown => {
   if (v === undefined) return undefined;
   if (typeof v !== "string") return v;

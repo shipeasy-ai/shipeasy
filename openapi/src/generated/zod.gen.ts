@@ -2156,6 +2156,11 @@ export const zListOpsItemsResponse = z.array(z.object({
 }));
 
 /**
+ * A tag name. Trimmed; matched case-insensitively against the project's existing tags.
+ */
+export const zTagName = z.string().min(1).max(64);
+
+/**
  * Bug-kind fields for `POST /api/admin/ops` (sent with `type: bug`).
  */
 export const zCreateBugRequest = z.object({
@@ -2168,7 +2173,7 @@ export const zCreateBugRequest = z.object({
     status: zOpsItemStatus.optional(),
     assigneeId: z.string().nullish(),
     subscribers: z.array(z.email()).optional().default([]),
-    tags: z.array(z.string()).optional().default([]),
+    tags: z.array(zTagName).max(50).optional().default([]),
     reporterEmail: z.email().nullish(),
     pageUrl: z.url().nullish(),
     userAgent: z.string().max(500).nullish(),
@@ -2189,7 +2194,7 @@ export const zCreateFeatureRequestRequest = z.object({
     status: zOpsItemStatus.optional(),
     assigneeId: z.string().nullish(),
     subscribers: z.array(z.email()).optional().default([]),
-    tags: z.array(z.string()).optional().default([]),
+    tags: z.array(zTagName).max(50).optional().default([]),
     reporterEmail: z.email().nullish(),
     pageUrl: z.url().nullish(),
     userAgent: z.string().max(500).nullish(),
@@ -2225,7 +2230,7 @@ export const zCreatePublicBugRequest = z.object({
     status: zOpsItemStatus.optional(),
     assigneeId: z.string().nullish(),
     subscribers: z.array(z.email()).optional().default([]),
-    tags: z.array(z.string()).optional().default([]),
+    tags: z.array(zTagName).max(50).optional().default([]),
     reporterEmail: z.email().nullish(),
     pageUrl: z.url().nullish(),
     userAgent: z.string().max(500).nullish(),
@@ -2256,7 +2261,7 @@ export const zCreatePublicFeatureRequestRequest = z.object({
     status: zOpsItemStatus.optional(),
     assigneeId: z.string().nullish(),
     subscribers: z.array(z.email()).optional().default([]),
-    tags: z.array(z.string()).optional().default([]),
+    tags: z.array(zTagName).max(50).optional().default([]),
     reporterEmail: z.email().nullish(),
     pageUrl: z.url().nullish(),
     userAgent: z.string().max(500).nullish(),
@@ -3958,11 +3963,6 @@ export const zEntityTagsResponse = z.object({
     entityId: z.string(),
     tags: z.array(z.string())
 });
-
-/**
- * A tag name. Trimmed; matched case-insensitively against the project's existing tags.
- */
-export const zTagName = z.string().min(1).max(64);
 
 export const zSetEntityTagsRequest = z.object({
     tags: z.array(zTagName).max(50)

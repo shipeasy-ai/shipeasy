@@ -22217,6 +22217,12 @@
         },
         "description": "A page of queue items, newest first."
       },
+      "TagName": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64,
+        "description": "A tag name. Trimmed; matched case-insensitively against the project's existing tags."
+      },
       "CreateBugRequest": {
         "type": "object",
         "properties": {
@@ -22293,11 +22299,12 @@
           },
           "tags": {
             "type": "array",
+            "maxItems": 50,
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/TagName"
             },
             "default": [],
-            "description": "Tag names to attach at creation (get-or-created by name, deduped case-insensitively)."
+            "description": "Tag names to label the item with, e.g. `[\"ios\", \"checkout\"]`. Each name is matched case-insensitively against the project's existing tags and reuses that tag (keeping its stored casing) when one matches; a name with no match creates a new project tag."
           },
           "reporterEmail": {
             "anyOf": [
@@ -22448,11 +22455,12 @@
           },
           "tags": {
             "type": "array",
+            "maxItems": 50,
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/TagName"
             },
             "default": [],
-            "description": "Tag names to attach at creation (get-or-created by name, deduped case-insensitively)."
+            "description": "Tag names to label the item with, e.g. `[\"ios\", \"checkout\"]`. Each name is matched case-insensitively against the project's existing tags and reuses that tag (keeping its stored casing) when one matches; a name with no match creates a new project tag."
           },
           "reporterEmail": {
             "anyOf": [
@@ -22633,11 +22641,12 @@
           },
           "tags": {
             "type": "array",
+            "maxItems": 50,
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/TagName"
             },
             "default": [],
-            "description": "Tag names to attach at creation (get-or-created by name, deduped case-insensitively)."
+            "description": "Tag names to label the item with, e.g. `[\"ios\", \"checkout\"]`. Each name is matched case-insensitively against the project's existing tags and reuses that tag (keeping its stored casing) when one matches; a name with no match creates a new project tag. Here the tags only label the ticket: the project's tag rules (owner/status/agent routing) are not applied to a public report while it awaits approval."
           },
           "reporterEmail": {
             "anyOf": [
@@ -22811,11 +22820,12 @@
           },
           "tags": {
             "type": "array",
+            "maxItems": 50,
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/TagName"
             },
             "default": [],
-            "description": "Tag names to attach at creation (get-or-created by name, deduped case-insensitively)."
+            "description": "Tag names to label the item with, e.g. `[\"ios\", \"checkout\"]`. Each name is matched case-insensitively against the project's existing tags and reuses that tag (keeping its stored casing) when one matches; a name with no match creates a new project tag. Here the tags only label the ticket: the project's tag rules (owner/status/agent routing) are not applied to a public report while it awaits approval."
           },
           "reporterEmail": {
             "anyOf": [
@@ -29080,12 +29090,6 @@
           "tags"
         ],
         "additionalProperties": false
-      },
-      "TagName": {
-        "type": "string",
-        "minLength": 1,
-        "maxLength": 64,
-        "description": "A tag name. Trimmed; matched case-insensitively against the project's existing tags."
       },
       "SetEntityTagsRequest": {
         "type": "object",

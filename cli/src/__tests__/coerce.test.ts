@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { makeCoercer, scalarType } from "../../scripts/coerce.mjs";
+import { list } from "../commands/_gen-runtime";
 
 /** Stand-in for the generator's spec-aware $ref resolver. */
 const SCHEMAS: Record<string, unknown> = {
@@ -39,6 +40,20 @@ describe("coercer", () => {
     expect(coerce({ type: "array" })).toBe("json");
   });
 
+  it("gives an array of short tokens the comma-list helper", () => {
+    const tagName = { type: "string", minLength: 1, maxLength: 64 };
+    expect(coerce({ type: "array", items: tagName })).toBe("list");
+    expect(coerce({ type: "array", items: { type: "string", format: "email" } })).toBe("list");
+    expect(coerce({ type: "array", items: { $ref: "#/OpsItemStatus" } })).toBe("list");
+  });
+
+  it("keeps free-text and non-string arrays JSON-only (their items can hold commas)", () => {
+    expect(coerce({ type: "array", items: { type: "string" } })).toBe("json");
+    expect(coerce({ type: "array", items: { type: "string", maxLength: 120 } })).toBe("json");
+    expect(coerce({ type: "array", items: { type: "object" } })).toBe("json");
+    expect(coerce({ type: "array", items: { type: "integer" } })).toBe("json");
+  });
+
   it("unwraps a nullable union to its single real branch", () => {
     expect(coerce({ anyOf: [{ type: "string" }, { type: "null" }] })).toBe("str");
     expect(coerce({ anyOf: [{ type: "integer" }, { type: "null" }] })).toBe("num");
@@ -74,5 +89,18 @@ describe("coercer", () => {
     expect(coerce({ anyOf: [{ type: "string" }, { type: "integer" }] })).toBe("json");
     expect(coerce({ anyOf: [{ type: "object" }, { type: "object" }] })).toBe("json");
     expect(coerce({ allOf: [{ type: "string" }] })).toBe("json");
+  });
+});
+
+describe("list (runtime)", () => {
+  it("splits a comma list, trimming and dropping blanks", () => {
+    expect(list("ios, Checkout ,,")).toEqual(["ios", "Checkout"]);
+    expect(list("ios")).toEqual(["ios"]);
+  });
+
+  it("still takes a JSON array and null", () => {
+    expect(list('["a,b", "c"]')).toEqual(["a,b", "c"]);
+    expect(list("null")).toBeNull();
+    expect(list(undefined)).toBeUndefined();
   });
 });

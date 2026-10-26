@@ -5,9 +5,11 @@
 type Schema = Record<string, any>;
 
 /** The CLI coercion helpers emitted into commands.gen.ts. */
-export type Coercion = "str" | "num" | "bool" | "json";
+export type Coercion = "str" | "num" | "bool" | "list" | "json";
 
 export declare const scalarType: (b: Schema) => string | null;
+
+export declare const isTokenList: (item: Schema) => boolean;
 
 export declare const makeCoercer: (
   deref: (o: Schema) => Schema,
