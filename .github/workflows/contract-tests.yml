@@ -7,11 +7,14 @@
 # run locally.
 #
 # ── Required secret ──────────────────────────────────────────────────────────
-#   MONOREPO_TOKEN  A GitHub PAT (or fine-grained token) with `contents:read`
-#                   on the app monorepo (vshaveyko/shipeasy2), used to check it
-#                   out here so we can boot apps/ui-rr. Without it the checkout
-#                   step fails. All other credentials (AUTH_SECRET etc.) are
-#                   non-secret test values baked into the harness.
+#   MONOREPO_DEPLOY_KEY  Private half of a READ-ONLY deploy key on the app
+#                   monorepo (vshaveyko/shipeasy2), used to check it out here
+#                   so we can boot apps/ui-rr. A deploy key, not a PAT: the
+#                   PAT this used to take (MONOREPO_TOKEN) expired silently and
+#                   blocked every publish from 2026-08-10 to 2026-10-26. Its
+#                   submodules are all public, so they clone without it. All
+#                   other credentials (AUTH_SECRET etc.) are non-secret test
+#                   values baked into the harness.
 name: Contract Tests
 
 on:
@@ -54,7 +57,7 @@ jobs:
         with:
           repository: ${{ env.APP_REPO }}
           ref: ${{ env.APP_REF }}
-          token: ${{ secrets.MONOREPO_TOKEN }}
+          ssh-key: ${{ secrets.MONOREPO_DEPLOY_KEY }}
           submodules: true
           path: app
 
