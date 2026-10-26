@@ -2,7 +2,7 @@
 
 Human-filed feature requests. Unlike a bug, the *shape* is undecided — the
 risk is building the wrong thing or building too much. Shared mechanics
-(atomic diff, gate, status lifecycle) are in SKILL.md §1a; this is the
+(atomic diff, gate, status lifecycle) are in SKILL.md §1b; this is the
 feature-specific flow.
 
 1. Read `title`, `description`, `useCase`, `priority`, and

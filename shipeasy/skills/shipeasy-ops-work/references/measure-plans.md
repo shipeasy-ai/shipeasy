@@ -4,7 +4,7 @@ Auto-filed by the in-dashboard website assistant, which can create
 metrics/experiments/alert rules over the API but **can't edit the repo** — it
 created what it could and filed the rest here for you. The item is
 half-instrumented by design; your job is the code half. Shared mechanics
-(atomic diff, gate, status lifecycle) are in SKILL.md §1a; this is the
+(atomic diff, gate, status lifecycle) are in SKILL.md §1b; this is the
 measure-plan-specific flow.
 
 ## The plan is a best-effort proposal, not a spec

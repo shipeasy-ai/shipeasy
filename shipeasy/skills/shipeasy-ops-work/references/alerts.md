@@ -3,7 +3,7 @@
 Auto-filed by the platform when an alert transitions to active. The *alert*
 auto-resolves when its condition clears; the **ticket** is the work record.
 Not every alert is a code bug — triage the source first. Shared mechanics
-(atomic diff, gate, status lifecycle) are in SKILL.md §1a; this is the
+(atomic diff, gate, status lifecycle) are in SKILL.md §1b; this is the
 alert-specific flow.
 
 1. `context.alert` is hydrated: `source`, `severity`, `observedValue`,

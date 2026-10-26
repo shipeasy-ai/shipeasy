@@ -3,7 +3,7 @@
 Auto-filed by the platform when a tracked production error crosses the
 occurrence threshold. The investigation context is already baked into the
 ticket — you're fixing a throw, not diagnosing from scratch. Shared mechanics
-(atomic diff, gate, status lifecycle) are in SKILL.md §1a; this is the
+(atomic diff, gate, status lifecycle) are in SKILL.md §1b; this is the
 error-specific flow.
 
 1. `context.error` is hydrated from the live tracked-error row — `errorType`,

@@ -3,7 +3,7 @@
 Human-filed bug reports (devtools nub, public widget, CLI, dashboard). The
 report is a human's description of a symptom — your job is to turn it into a
 reproducible cause. Shared mechanics (atomic diff, gate, status lifecycle) are
-in SKILL.md §1a; this is the bug-specific flow.
+in SKILL.md §1b; this is the bug-specific flow.
 
 1. `shipeasy ops get <handle>` — the bug fields are `title`,
    `stepsToReproduce`, `actualResult`, `expectedResult`, `priority`,

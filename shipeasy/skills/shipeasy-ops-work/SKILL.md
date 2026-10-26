@@ -120,7 +120,45 @@ ack there is no run, so even a finished, PR'd item reads as untouched.
 Later status writes use `shipeasy ops update <handle> --status <status>` (the
 `<handle>` is the per-item `#number` or the full id; the API resolves either).
 
-### 1a. Work the item per its type runbook
+### 1a. Read the item's questions — answered ones are decisions
+
+Right after the ack, before reading code or planning the fix, read every
+structured question on the item: `shipeasy ops questions list <handle>` (MCP
+`ops_questions_list`, default `status=all`). `ops get` does **not** carry
+them — this call is the only way to see them. Questions asked by *any* run
+count, not just yours: an earlier session, another agent, or a teammate may
+have asked them.
+
+- **`completed` = a decision the team made. It is binding and takes priority.**
+  Each answer (`answer.selected` labels, plus the free-text `answer.other`,
+  which refines or overrides the picked option) outranks your own judgment,
+  the runbook's default, the item's original description, and any plan or
+  code from an earlier run. Build to it. If existing code — an earlier
+  attempt, an open PR on the item — contradicts an answer, change it to match
+  the answer; never keep the old behaviour because it was already written.
+  Two answers that contradict each other: the later `answeredAt` wins.
+  An answer that would break a hard constraint (security, data loss, a repo
+  rule): don't silently override it and don't silently follow it — ask a
+  follow-up question naming the conflict.
+- **`open` = the decision is not made yet.** Don't guess the point it covers
+  and **don't re-ask it** (no duplicate of a question already open). Work only
+  what doesn't depend on it, then wait per [delivery](#ask-dont-guess--structured-questions)
+  — a live session polls, an unattended run stops and leaves the run open. If
+  nothing on the item can move without the answer, leave the status as is and
+  go to the next item.
+- **`cancelled`** — withdrawn; ignore it.
+
+**Resumed run.** When your prompt opens with "The team answered the questions
+you asked on this item", you were re-fired with the answers. Still run the
+list above — it carries every question on the item, including other runs'
+answers — then continue the earlier work, reshaped to the answers.
+
+Carry the decisions through to the end: name each applied answer in the item
+report (`Decisions:` line, [§1c](#1c-report-and-continue)) and, in `--pr`
+mode, in the PR body, so the reviewer can check the diff against what the team
+chose.
+
+### 1b. Work the item per its type runbook
 
 Each type has its own runbook — the `runbook` column in the queue table
 above. **Read the runbook before working the first item of that type**
@@ -192,20 +230,25 @@ leaving it in a comment. `shipeasy ops questions ask <handle>` (MCP
     asking** — leave the run open, don't flip the status. Once every question
     you asked is answered, the same agent is re-fired on the item with the
     answers in the prompt, continuing the same run record.
+- Before asking, check [the item's questions](#1a-read-the-items-questions--answered-ones-are-decisions):
+  a question already answered is a decision to apply, and one already open
+  is a wait, not a reason to ask again.
 - Found the answer yourself meanwhile? Withdraw it: `shipeasy ops questions
   cancel <handle> <questionId>`.
 - Escalation (below) is for work a human must **do**; a question is for a
   decision a human must **make** between options you can name.
 
-### 1b. Report and continue
+### 1c. Report and continue
 
 One short paragraph per item, then the next:
 
 ```
-✔ #<number> [<type>] "<title>" → <resolved|ready_for_qa|fixed-in-code|acknowledged>
+✔ #<number> [<type>] "<title>" → <resolved|ready_for_qa|fixed-in-code|acknowledged|waiting-on-answer>
   Cause:  <one line>
   Fix:    <files changed, one line each | "no code change — ops ack">
+  Decisions: <"<header>: <answer>" per answered question applied | "—">
   Verify: <test cmd | dev-server URL | "manual" | "watch fingerprint drop off">
+  Asked:  <"<header>" per question you opened and are waiting on | "—">
   Notify: <"raised: <title>" when you escalated via ops notify | "—">
   PR:     <url | "—">
 ```
@@ -298,7 +341,9 @@ above:
    status the ops key may do — it touches `connector_data.github.pr` only.
 
 3. **PR body = that item's story + its closing keyword.** The body carries
-   the item's id/number, cause, fix, and verification notes. If the item has
+   the item's id/number, cause, fix, verification notes, and a **Decisions**
+   section listing each answered question the diff follows (question → the
+   team's answer, [§1a](#1a-read-the-items-questions--answered-ones-are-decisions)). If the item has
    a connected GitHub issue (see 4), put the closing keyword on its own line
    so merging the PR **auto-closes that issue**:
 
@@ -348,6 +393,9 @@ push straight to the default branch.
 - **One PR per item in `--pr` mode.** Never bundle two items into one PR.
 - **Never delete anything.** Resolving / fixing-in-code are the terminal
   states; deletion is a human call made in the UI.
+- **Answered questions win.** Read the item's questions before working it;
+  a `completed` answer outranks your judgment, the runbook, the description,
+  and earlier work — build to it, and never re-ask an open one.
 - **Never flip `wont_fix` without asking** — product decision.
 - **Recordings need human acknowledgement** — don't claim a bug fixed if you
   skipped its recording.
