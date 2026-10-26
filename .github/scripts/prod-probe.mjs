@@ -77,7 +77,7 @@
 //                                              bucket their throwaway fixtures in
 //                                              (default "probe_stats"; created if missing).
 //                                              Requires a Pro+ plan (sequential + CUPED).
-//   SHIPEASY_PROBE_MAX_MS (default 50)       — latency p95 budget for /sdk/evaluate
+//   SHIPEASY_PROBE_MAX_MS (default 50)       — p95 budget for /sdk/evaluate over a /healthz round-trip
 //   SHIPEASY_CATALOG_TOKEN                   — R2 SQL token for the event-lake verdict
 //                                              + exposure-timeline legs (Pipelines → R2
 //                                              Data Catalog; needs R2 SQL read + Data
@@ -1221,25 +1221,53 @@ async function probeStatsEffect() {
 }
 
 // ── latency: client-facing /sdk/evaluate must be fast (<50ms target) ─────────
+// The budget is for what /sdk/evaluate COSTS, not for where GitHub put the
+// runner. Raw end-to-end p95 swung 9ms → 74ms between runs with no change on
+// the server (Workers Observability: wall p50 1ms / p95 6ms for the same
+// requests) — it tracks the runner's region and its route to a colo. So each
+// evaluate is interleaved with a GET /healthz on the same Worker and host (no
+// middleware, no KV — pure round-trip), and the leg asserts on the gap between
+// the two distributions at the same percentile. Not a per-pair difference: a
+// jitter spike lands on one side of a pair and counts in full, so that p95
+// measures the network's tail, not the server's. Raw end-to-end is printed.
 async function probeLatency() {
   if (!CLIENT_KEY) return;
-  const N = 50;
+  const N = 100; // two p95s subtracted — each needs enough samples to sit still
   const MAX_MS = Number(process.env.SHIPEASY_PROBE_MAX_MS || "50");
-  for (let i = 0; i < 3; i++) await evaluate({ anonymous_id: "lat-warm" }); // warm TLS + isolate
+  const rtt = async () => {
+    const res = await fetch(`${EDGE_URL}/healthz`);
+    await res.arrayBuffer();
+    if (!res.ok) throw new Error(`/healthz ${res.status}`);
+  };
+  for (let i = 0; i < 3; i++) {
+    await evaluate({ anonymous_id: "lat-warm" }); // warm TLS + isolate
+    await rtt();
+  }
   const times = [];
+  const bases = [];
   for (let i = 0; i < N; i++) {
     const t0 = performance.now();
+    await rtt();
+    const t1 = performance.now();
     await evaluate({ anonymous_id: `lat:${i}` });
-    times.push(performance.now() - t0);
+    const t2 = performance.now();
+    bases.push(t1 - t0);
+    times.push(t2 - t1);
   }
-  times.sort((a, b) => a - b);
-  const q = (p) => times[Math.min(times.length - 1, Math.floor(times.length * p))];
-  const p50 = q(0.5), p95 = q(0.95), p99 = q(0.99), max = times[times.length - 1];
-  console.log(`::group::Latency — /sdk/evaluate (${N} reqs, end-to-end from CI runner)`);
-  console.log(`  p50=${p50.toFixed(1)}ms p95=${p95.toFixed(1)}ms p99=${p99.toFixed(1)}ms max=${max.toFixed(1)}ms (target p95<${MAX_MS}ms)`);
-  if (p95 <= MAX_MS) ok(`latency: p95 ${p95.toFixed(1)}ms ≤ ${MAX_MS}ms`);
+  const pct = (xs, p) => {
+    const sorted = [...xs].sort((a, b) => a - b);
+    return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * p))];
+  };
+  const p50 = pct(times, 0.5), p95 = pct(times, 0.95), p99 = pct(times, 0.99);
+  const base50 = pct(bases, 0.5), base95 = pct(bases, 0.95);
+  const over50 = p50 - base50, over95 = p95 - base95;
+  console.log(`::group::Latency — /sdk/evaluate (${N} reqs, each paired with /healthz)`);
+  console.log(`  end-to-end      p50=${p50.toFixed(1)}ms p95=${p95.toFixed(1)}ms p99=${p99.toFixed(1)}ms`);
+  console.log(`  /healthz (RTT)  p50=${base50.toFixed(1)}ms p95=${base95.toFixed(1)}ms`);
+  console.log(`  over RTT        p50=${over50.toFixed(1)}ms p95=${over95.toFixed(1)}ms (target p95<${MAX_MS}ms)`);
+  if (over95 <= MAX_MS) ok(`latency: p95 ${over95.toFixed(1)}ms over round-trip ≤ ${MAX_MS}ms (end-to-end p95 ${p95.toFixed(1)}ms)`);
   else {
-    annotate(`latency: p95 ${p95.toFixed(1)}ms > ${MAX_MS}ms (end-to-end incl. CI→edge network)`);
+    annotate(`latency: /sdk/evaluate p95 ${over95.toFixed(1)}ms over the /healthz round-trip > ${MAX_MS}ms (end-to-end p95 ${p95.toFixed(1)}ms, RTT p95 ${base95.toFixed(1)}ms)`);
     failed++;
   }
   console.log("::endgroup::");
