@@ -20,6 +20,18 @@ export const DEFAULT_CONFIG = {
   /** Source directory to scan (relative to project root) */
   srcDir: "src",
 
+  /** Prefix for every generated key, common.* included (e.g. "landing" gives
+   *  `landing.hero.title`). Keeps two apps that share a profile from minting the
+   *  same key for different copy — push is insert-only, so the second one loses. */
+  keyPrefix: "",
+
+  /** What to do with a string evaluated at import time (outside any function
+   *  or class body): "skip" leaves it alone and reports it, "thunk" turns a
+   *  safe top-level `const X = …` into `const X = () => …` and its reads into
+   *  `X()` (lib/thunk.mjs) and skips the rest, "wrap" wraps it anyway. A
+   *  module-scope `t()` is frozen at its fallback for good. */
+  moduleScope: "skip",
+
   /** Output JSON file for extracted keys (relative to project root) */
   outputJson: "src/i18n/en.json",
 
@@ -470,6 +482,14 @@ function validateMergedConfig(config) {
 
   if (!Array.isArray(config.dedup.predefined)) {
     throw new Error('Config "dedup.predefined" must be an array of strings');
+  }
+
+  if (typeof config.keyPrefix !== "string" || !/^([a-z][\w-]*(\.[a-z][\w-]*)*)?$/i.test(config.keyPrefix)) {
+    throw new Error('Config "keyPrefix" must be a dot-separated key prefix (or "")');
+  }
+
+  if (!["skip", "thunk", "wrap"].includes(config.moduleScope)) {
+    throw new Error('Config "moduleScope" must be "skip", "thunk" or "wrap"');
   }
 
   if (!Array.isArray(config.containerDirs)) {

@@ -17,6 +17,7 @@ import { parseFile, traverse, t } from "./lib/parse.mjs";
 import { isTranslatableString, toSourceString } from "./lib/strings.mjs";
 import { filePathToScope, stringToSubKey } from "./lib/keys.mjs";
 import { buildCommonKeys } from "./lib/dedup.mjs";
+import { planThunks } from "./lib/thunk.mjs";
 
 // ── Skip-file regexes (built from config globs) ──────────────────────────────
 
@@ -106,6 +107,7 @@ function transformFile(
   commonKeys,
   parameterizedTemplates,
   config,
+  extraEdits = [],
 ) {
   if (!extractions.length) return { source, changed: false, keys: {} };
 
@@ -124,8 +126,9 @@ function transformFile(
   for (const ext of extractions) {
     // Determine key
     let key;
+    const prefix = config.keyPrefix ? `${config.keyPrefix}.` : "";
     if (commonKeys.has(ext.original)) {
-      key = commonKeys.get(ext.original);
+      key = prefix + commonKeys.get(ext.original);
     } else if (stringKeyCache.has(ext.original)) {
       key = stringKeyCache.get(ext.original);
     } else {
@@ -133,7 +136,7 @@ function transformFile(
       const count = (usedSubKeys.get(subKey) ?? 0) + 1;
       usedSubKeys.set(subKey, count);
       if (count > 1) subKey = `${subKey}${count}`;
-      key = `${scope}.${subKey}`;
+      key = `${prefix}${scope}.${subKey}`;
       stringKeyCache.set(ext.original, key);
     }
 
@@ -153,15 +156,10 @@ function transformFile(
     }
 
     const keyStr = `'${key.replace(/'/g, "\\'")}'`;
-    // Published @shipeasy/sdk's `i18n.t` is typed `t(key, vars?)` — it does
-    // NOT accept a positional fallback string in its public type (the
-    // runtime would, but the d.ts doesn't expose it). To keep emitted code
-    // typesafe under `tsc --noEmit`, omit the fallback at the call site.
-    // The fallback is still persisted in `en.json`, and the SDK returns the
-    // key string when the CDN hasn't populated yet — so visible behavior is
-    // identical once translations load.
-    void fallbackStr;
-    const call = `${config.function}(${keyStr}${varsArg})`;
+    // The fallback goes in the call (`t(key, fallback, vars?)`, the documented
+    // form). Without it `t()` returns the bare key until the loader has run, so
+    // SSR / prerendered HTML ships "landing.hero.title" instead of the copy.
+    const call = `${config.function}(${keyStr}, ${fallbackStr}${varsArg})`;
 
     let newText;
     if (ext.wrapBraces) {
@@ -173,9 +171,11 @@ function transformFile(
     replacements.push({ start: ext.start, end: ext.end, newText });
   }
 
-  // Apply replacements in reverse order
+  // Apply replacements in reverse order. On a shared start the wider edit goes
+  // first, so a zero-width insertion (a thunk's `() => (`) lands in front of it.
+  replacements.push(...extraEdits);
   let result = source;
-  replacements.sort((a, b) => b.start - a.start);
+  replacements.sort((a, b) => b.start - a.start || b.end - a.end);
   for (const r of replacements) {
     result = result.slice(0, r.start) + r.newText + result.slice(r.end);
   }
@@ -294,6 +294,7 @@ export async function run(config, options = {}) {
   // ── Step 3: Extract (Pass 1) ───────────────────────────────────────────
 
   const allFiles = [];
+  const moduleScopeSkipped = [];
   let totalExtractions = 0;
 
   for (const filePath of files) {
@@ -342,6 +343,34 @@ export async function run(config, options = {}) {
     // Single babel traverse with all type visitors merged
     traverse(ast, mergedVisitors);
 
+    // A string outside every function/class body is evaluated once, at import:
+    // wrapped there, `t()` freezes the fallback before translations load and the
+    // label can never change. Leave those for a human to turn into a thunk.
+    // "thunk" rewrites the declarations it can prove safe into getters
+    // (lib/thunk.mjs) and skips the rest.
+    let thunkEdits = [];
+    if (config.moduleScope !== "wrap" && extractions.length) {
+      const bodies = [];
+      traverse(ast, {
+        "Function|Class"(p) {
+          bodies.push([p.node.start, p.node.end]);
+          p.skip();
+        },
+      });
+      const inBody = (ext) => bodies.some(([s, e]) => ext.start >= s && ext.end <= e);
+      const atModule = extractions.filter((e) => !inBody(e));
+      let kept = new Set();
+      if (config.moduleScope === "thunk" && atModule.length) {
+        ({ edits: thunkEdits, kept } = planThunks(ast, source, atModule));
+      }
+      for (let i = extractions.length - 1; i >= 0; i--) {
+        const ext = extractions[i];
+        if (inBody(ext) || kept.has(ext)) continue;
+        extractions.splice(i, 1);
+        moduleScopeSkipped.push({ filePath, original: ext.original });
+      }
+    }
+
     // Remove overlapping extractions (keep the one starting earlier / larger)
     extractions.sort((a, b) => a.start - b.start || b.end - b.start - (a.end - a.start));
     const deduped = [];
@@ -354,7 +383,7 @@ export async function run(config, options = {}) {
     }
 
     if (deduped.length > 0) {
-      allFiles.push({ filePath, source, ast, extractions: deduped });
+      allFiles.push({ filePath, source, ast, extractions: deduped, thunkEdits });
       totalExtractions += deduped.length;
       if (verbose) {
         console.log(`  ${path.relative(rootDir, filePath)}: ${deduped.length} strings`);
@@ -391,7 +420,7 @@ export async function run(config, options = {}) {
   const allTranslations = {};
   let filesModified = 0;
 
-  for (const { filePath, source, ast, extractions } of allFiles) {
+  for (const { filePath, source, ast, extractions, thunkEdits } of allFiles) {
     const {
       source: newSource,
       changed,
@@ -404,6 +433,7 @@ export async function run(config, options = {}) {
       commonKeys,
       parameterizedTemplates,
       config,
+      thunkEdits,
     );
     if (!changed) continue;
     filesModified++;
@@ -444,10 +474,21 @@ export async function run(config, options = {}) {
   console.log(`  Common (deduped):   ${commonCount} unique keys, ${commonOccurrences} occurrences`);
   console.log(`  File-scoped keys:   ${totalKeys - commonCount}`);
   console.log(`  Total keys in JSON: ${totalKeys}`);
+  if (moduleScopeSkipped.length) {
+    console.log(`  Module-scope skips: ${moduleScopeSkipped.length} (wrap as () => t(...) by hand)`);
+  }
   if (!dryRun) {
     console.log(`  Translation file:   ${path.relative(rootDir, outputJson)}`);
   }
   console.log("  ===================================================\n");
+
+  if (verbose && moduleScopeSkipped.length) {
+    console.log("  Skipped at module scope:");
+    for (const { filePath, original } of moduleScopeSkipped) {
+      console.log(`    ${path.relative(rootDir, filePath)}  "${original}"`);
+    }
+    console.log();
+  }
 
   // Top common strings
   if (commonCount > 0) {

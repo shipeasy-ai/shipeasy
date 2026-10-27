@@ -31,8 +31,16 @@ export default {
 
     return {
       JSXText(path, addExtraction) {
-        const raw = path.node.value;
-        const trimmed = raw.trim();
+        // `value` is entity-decoded (`it&apos;s` → `it's`), so it can't size a
+        // source range — the raw text can. The fallback is what React renders:
+        // decoded, each line trimmed, lines joined by one space.
+        const node = path.node;
+        const raw = node.extra?.raw ?? node.value;
+        const trimmed = node.value
+          .split(/\r\n|\n|\r/)
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .join(" ");
         if (!isTranslatableString(trimmed)) return;
 
         // Skip if has element siblings (mixed content)
@@ -45,10 +53,9 @@ export default {
         // But skip if text is between two text-bearing elements
         if (hasElementSiblings && trimmed.length < 3) return;
 
-        // Find exact position of trimmed text within node
-        const textStartInRaw = raw.indexOf(trimmed[0]);
-        const absStart = path.node.start + textStartInRaw;
-        const absEnd = absStart + trimmed.length;
+        // Replace the raw text minus its surrounding whitespace
+        const absStart = node.start + (raw.length - raw.trimStart().length);
+        const absEnd = node.start + raw.trimEnd().length;
 
         addExtraction({
           start: absStart,

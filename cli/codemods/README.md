@@ -267,6 +267,20 @@ Reads existing i18next translation files for fallback text.
   // Output translation JSON file (merged on each run)
   "outputJson": "src/i18n/en.json",
 
+  // Prefix for every generated key, common.* included ("landing" gives
+  // landing.hero.title). Two apps sharing one profile each need their own:
+  // push is insert-only, so a key both apps mint keeps whichever copy landed first
+  "keyPrefix": "",
+
+  // Copy evaluated at import time (outside every function/class body) is frozen
+  // at its fallback, so it is never wrapped as-is:
+  //   "skip"  — leave it and list it in the report (default)
+  //   "thunk" — rewrite a safe top-level `const X = …` to `const X = () => …`
+  //             and its reads to `X()`; skip the rest (exported, `let`, read at
+  //             module scope, used in a hook dependency array or `typeof X`)
+  //   "wrap"  — wrap it anyway
+  "moduleScope": "skip",
+
   // Glob patterns of files to skip
   "skipFiles": [
     "**/*.test.*",
