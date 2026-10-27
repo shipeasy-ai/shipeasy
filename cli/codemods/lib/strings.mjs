@@ -193,6 +193,41 @@ export function isTranslatableString(str) {
   return true;
 }
 
+/**
+ * Returns `true` for strings that are code or markup rather than copy — the
+ * shapes `isTranslatableString` lets through, mostly template literals whose
+ * context (a JSX child, a known prop) looked translatable. `str` may carry
+ * `{{var}}` placeholders from an interpolated template.
+ *
+ * @param {string} str
+ * @returns {boolean}
+ */
+export function looksLikeCode(str) {
+  const s = str.trim();
+  const bare = s.replace(/\{\{\w+\}\}/g, " ").trim();
+  // Placeholders, digits and punctuation only: "{{n}}%", "#{{id}}", "{{h}}h"
+  if (!/[A-Za-z]{2,}/.test(bare)) return true;
+  // CSS: custom props, functions, declarations
+  const filled = s.replace(/\{\{\w+\}\}/g, "x");
+  if (/var\(--|color-mix\(|url\(#|calc\(|^--[\w-]+\s*:/.test(filled)) return true;
+  if (/^[a-z][a-z-]*\s*:\s*[^\s].*;$/.test(filled)) return true;
+  // SVG path data: "M0 {{y}} L50 {{y2}} …"
+  if (/^[MmLlHhVvCcSsQqTtAaZz]/.test(bare) && bare.split(/\s+/).every((w) => /^[MmLlHhVvCcSsQqTtAaZz]?-?[\d.,]*$/.test(w))) return true;
+  // Tailwind: variant prefixes and arbitrary values
+  if (/(^|\s)!?(sm|md|lg|xl|2xl|hover|focus|active|disabled|dark|group-hover|peer-[\w-]+|data-\[[^\]]*\]|aria-[\w-]+):[\w[-]/.test(s)) return true;
+  if (/(^|\s)[a-z][\w-]*-\[[^\]]+\]/.test(s)) return true;
+  // Code tokens: calls, tags, dotted identifiers / hostnames, ns:name, regexes
+  if (/^[\w$.]+\(\)$/.test(s)) return true;
+  if (/^<\/?[a-z][\w-]*\s*\/?>$/.test(s)) return true;
+  if (/^[a-z_$][\w$-]*(\.[\w$-]+)+$/.test(s)) return true;
+  if (/^[a-z][\w-]*:[a-z_][\w-]*$/.test(s)) return true;
+  if (/^[a-z]+[:.]$/.test(s)) return true;
+  if (/^\^.*\$$/.test(s)) return true;
+  // An identifier with an interpolated tail: "variant_{{i}}", "tab-{{id}}"
+  if (s !== bare && /^[a-z0-9_.:#/-]+$/.test(s.replace(/\{\{\w+\}\}/g, ""))) return true;
+  return false;
+}
+
 // ── Source-code string escaping ──────────────────────────────────────────
 
 /**

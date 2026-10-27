@@ -86,7 +86,7 @@ export default {
             }
             usedVarNames.add(varName);
             template += `{{${varName}}}`;
-            vars.push({ varName, start: expr.start, end: expr.end });
+            vars.push({ varName, start: expr.start, end: expr.end, node: expr });
           }
         }
 
@@ -116,7 +116,10 @@ export default {
                 let exprSrc = source.slice(v.start, v.end);
                 // Wrap complex expressions with String() for type safety:
                 // member access chains (.label, .name) might return ReactNode or other non-scalar
-                if (/\?\./.test(exprSrc)) {
+                // Only a chain that can itself be nullish gets `?? ''` — a `?.`
+                // nested inside (`a?.b ? x : ""`) can't, and TS rejects the
+                // unreachable operand (TS2869).
+                if (t.isOptionalMemberExpression(v.node) || t.isOptionalCallExpression(v.node)) {
                   exprSrc = `String((${exprSrc}) ?? '')`;
                 } else if (/\.\w+$/.test(exprSrc) && !/\(/.test(exprSrc)) {
                   exprSrc = `String(${exprSrc})`;

@@ -111,7 +111,7 @@ export default {
             }
             usedVarNames.add(varName);
             template += `{{${varName}}}`;
-            vars.push({ varName, start: expr.start, end: expr.end });
+            vars.push({ varName, start: expr.start, end: expr.end, node: expr });
           }
         }
 
@@ -127,7 +127,9 @@ export default {
             vars
               .map((v) => {
                 let exprSrc = source.slice(v.start, v.end);
-                if (/\?\./.test(exprSrc)) {
+                // Same rule as template-literal: only a chain that can itself
+                // be nullish gets `?? ''` (else TS2869/TS2881).
+                if (t.isOptionalMemberExpression(v.node) || t.isOptionalCallExpression(v.node)) {
                   exprSrc = `String((${exprSrc}) ?? '')`;
                 } else if (/\.\w+$/.test(exprSrc) && !/\(/.test(exprSrc)) {
                   exprSrc = `String(${exprSrc})`;

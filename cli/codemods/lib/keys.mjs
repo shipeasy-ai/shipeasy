@@ -43,10 +43,18 @@ export function filePathToScope(filePath, srcDir, containerDirs) {
     .map((s) => s.replace(/^\[\.{3}(.+)\]$/, "$1").replace(/^\[(.+)\]$/, "$1"))
     .map((s) => s.replace(/^@/, ""));
 
-  // Route files: _private.billing.invoices -> billing.invoices
+  // Route files: _private.billing.invoices -> billing.invoices. In the folder
+  // form (routes/<route>/route.tsx — React Router flatRoutes, Remix) the file is
+  // always `route`, so the route's name is the folder; without this every route
+  // module shared the scope `routes.route`.
   if (segs[0] === "routes") {
-    const routeFile = segs[segs.length - 1];
-    const parts = routeFile.split(".").filter((p) => !p.startsWith("_"));
+    const last = segs[segs.length - 1];
+    const routeName = last === "route" && segs.length > 2 ? segs[1] : last;
+    const parts = routeName
+      .split(".")
+      // `_layout` segments and `$param`s name no page; `foo_` only unnests
+      .filter((p) => p && !p.startsWith("_") && !p.startsWith("$"))
+      .map((p) => p.replace(/_$/, ""));
     segs = ["routes", ...parts];
   }
 

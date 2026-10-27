@@ -7,6 +7,14 @@
 
 import { commonKeyFromString } from "./keys.mjs";
 
+// One number per match, thousands separators and decimals included ("1,000",
+// "2.5"), so "1,000 / group" becomes "{{n1}} / group", not "{{n1}},{{n2}} …".
+// A fresh RegExp per call — it's global, and .test() would carry lastIndex.
+export const numberRe = () => /\b\d+(?:[.,]\d+)*\b/g;
+// Stands in for a number while templates are grouped. Not a letter, so copy
+// that happens to contain "N" survives.
+const NUM = "\u0000";
+
 // ── Default predefined common strings ────────────────────────────────────
 
 const DEFAULT_PREDEFINED_COMMON = new Set([
@@ -150,16 +158,16 @@ export function buildCommonKeys(allFiles, config) {
   }
 
   // Number parameterization: strings that differ only by digits should share one key.
-  // Group by template (digits -> N), promote groups with 2+ variants.
+  // Group by template (each number -> a sentinel), promote groups with 2+ variants.
   const parameterizedTemplates = new Map(); // original -> template with {{n1}} placeholders
 
   const byTemplate = new Map(); // template -> Set<original>
   for (const { extractions } of allFiles) {
     for (const ext of extractions) {
       if (common.has(ext.original)) continue;
-      if (!/\b\d+\b/.test(ext.original)) continue;
+      if (!numberRe().test(ext.original)) continue;
       if (!/[a-zA-Z]/.test(ext.original)) continue;
-      const tpl = ext.original.replace(/\b\d+\b/g, "N");
+      const tpl = ext.original.replace(numberRe(), NUM);
       if (!byTemplate.has(tpl)) byTemplate.set(tpl, new Set());
       byTemplate.get(tpl).add(ext.original);
     }
@@ -168,8 +176,8 @@ export function buildCommonKeys(allFiles, config) {
     if (variants.size < 2) continue;
     // Build a parameterized key and template from the pattern
     let varIdx = 0;
-    const paramKey = commonKeyFromString(tpl.replace(/N/g, () => "n"));
-    const paramTemplate = tpl.replace(/N/g, () => `{{n${++varIdx}}}`);
+    const paramKey = commonKeyFromString(tpl.replaceAll(NUM, "n"));
+    const paramTemplate = tpl.replaceAll(NUM, () => `{{n${++varIdx}}}`);
     for (const original of variants) {
       common.set(original, paramKey);
       // Store the parameterized template for this string

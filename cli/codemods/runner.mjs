@@ -14,9 +14,9 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { parseFile, traverse, t } from "./lib/parse.mjs";
-import { isTranslatableString, toSourceString } from "./lib/strings.mjs";
+import { isTranslatableString, looksLikeCode, toSourceString } from "./lib/strings.mjs";
 import { filePathToScope, stringToSubKey } from "./lib/keys.mjs";
-import { buildCommonKeys } from "./lib/dedup.mjs";
+import { buildCommonKeys, numberRe } from "./lib/dedup.mjs";
 import { planThunks } from "./lib/thunk.mjs";
 
 // ── Skip-file regexes (built from config globs) ──────────────────────────────
@@ -35,7 +35,11 @@ function globToRegex(glob) {
 
 // ── Import injection ─────────────────────────────────────────────────────────
 
-function addImport(source, ast, importStatement) {
+// Returns the import as a zero-width edit in ORIGINAL source coordinates (or
+// null when it's already there), so it is applied in the same pass as every
+// other replacement. Splicing it into the already-edited text at an AST offset
+// put it mid-line whenever an edit above the last import changed length.
+function importEdit(source, ast, importStatement) {
   // Already imported?
   const importObj = importStatement.match(/\{([^}]+)\}/)?.[1]?.trim();
   const importFrom = importStatement.match(/from\s+['"]([^'"]+)['"]/)?.[1];
@@ -43,7 +47,7 @@ function addImport(source, ast, importStatement) {
     const re = new RegExp(
       `import\\s*\\{[^}]*\\b${importObj.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b[^}]*\\}\\s*from\\s*['"]${importFrom.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}['"]`,
     );
-    if (re.test(source)) return source;
+    if (re.test(source)) return null;
   }
 
   // Find position after last import or directive
@@ -61,9 +65,9 @@ function addImport(source, ast, importStatement) {
   }
 
   if (insertAfter > 0) {
-    return source.slice(0, insertAfter) + "\n" + importStatement + source.slice(insertAfter);
+    return { start: insertAfter, end: insertAfter, newText: "\n" + importStatement };
   }
-  return importStatement + "\n" + source;
+  return { start: 0, end: 0, newText: importStatement + "\n" };
 }
 
 // ── File discovery ───────────────────────────────────────────────────────────
@@ -108,6 +112,7 @@ function transformFile(
   parameterizedTemplates,
   config,
   extraEdits = [],
+  claimedKeys = new Map(),
 ) {
   if (!extractions.length) return { source, changed: false, keys: {} };
 
@@ -137,6 +142,13 @@ function transformFile(
       usedSubKeys.set(subKey, count);
       if (count > 1) subKey = `${subKey}${count}`;
       key = `${prefix}${scope}.${subKey}`;
+      // Another file with the same scope may already hold this key for different
+      // copy (keys merge into one JSON, so one fallback would silently win).
+      let n = 2;
+      const base = key;
+      while (claimedKeys.has(key) && claimedKeys.get(key) !== (parameterizedTemplates.get(ext.original) ?? ext.original)) {
+        key = `${base}${n++}`;
+      }
       stringKeyCache.set(ext.original, key);
     }
 
@@ -144,15 +156,18 @@ function transformFile(
     const paramTpl = parameterizedTemplates.get(ext.original);
     let fallbackStr, varsArg;
     if (paramTpl && !ext.templateVarsSource) {
-      const digits = ext.original.match(/\b\d+\b/g) ?? [];
-      const varEntries = digits.map((d, i) => `n${i + 1}: ${d}`);
+      const digits = ext.original.match(numberRe()) ?? [];
+      // Strings, not number literals: "1,000" and "007" aren't valid numbers.
+      const varEntries = digits.map((d, i) => `n${i + 1}: ${JSON.stringify(d)}`);
       fallbackStr = toSourceString(paramTpl);
       varsArg = varEntries.length ? `, { ${varEntries.join(", ")} }` : "";
       keys[key] = paramTpl;
+      claimedKeys.set(key, paramTpl);
     } else {
       fallbackStr = toSourceString(ext.original);
       varsArg = ext.templateVarsSource || "";
       keys[key] = ext.original;
+      claimedKeys.set(key, ext.original);
     }
 
     const keyStr = `'${key.replace(/'/g, "\\'")}'`;
@@ -174,15 +189,13 @@ function transformFile(
   // Apply replacements in reverse order. On a shared start the wider edit goes
   // first, so a zero-width insertion (a thunk's `() => (`) lands in front of it.
   replacements.push(...extraEdits);
+  const imp = importEdit(source, ast, `import { ${importName} } from '${config.sdk}'`);
+  if (imp) replacements.push(imp);
   let result = source;
   replacements.sort((a, b) => b.start - a.start || b.end - a.end);
   for (const r of replacements) {
     result = result.slice(0, r.start) + r.newText + result.slice(r.end);
   }
-
-  // Add import
-  const importStatement = `import { ${importName} } from '${config.sdk}'`;
-  result = addImport(result, ast, importStatement);
 
   return { source: result, changed: true, keys };
 }
@@ -313,6 +326,10 @@ export async function run(config, options = {}) {
     const addExtraction = (ext) => {
       if (ext.start == null || ext.end == null) return;
       if (ext.start >= ext.end) return;
+      // Most type modules import isTranslatableString directly rather than the
+      // skip-aware helper, so skipStrings is enforced here for all of them.
+      if (skipStringsSet.has(ext.original) || skipStringsSet.has(ext.original.trim())) return;
+      if (looksLikeCode(ext.original)) return;
       extractions.push(ext);
     };
 
@@ -343,6 +360,25 @@ export async function run(config, options = {}) {
     // Single babel traverse with all type visitors merged
     traverse(ast, mergedVisitors);
 
+    // Type visitors check only the attribute a string sits in directly, so a
+    // ternary or template inside one (`className={on ? "x" : ""}`,
+    // `aria-controls={`tab-${id}`}`) slipped through. Drop anything under a
+    // skipped attribute, however deep.
+    if (extractions.length) {
+      const skipped = [];
+      traverse(ast, {
+        JSXAttribute(p) {
+          const n = p.node.name;
+          const name = t.isJSXNamespacedName(n) ? `${n.namespace.name}:${n.name.name}` : n.name;
+          if (skipAttrs.has(name)) skipped.push([p.node.start, p.node.end]);
+        },
+      });
+      for (let i = extractions.length - 1; i >= 0; i--) {
+        const e = extractions[i];
+        if (skipped.some(([s, en]) => e.start >= s && e.end <= en)) extractions.splice(i, 1);
+      }
+    }
+
     // A string outside every function/class body is evaluated once, at import:
     // wrapped there, `t()` freezes the fallback before translations load and the
     // label can never change. Leave those for a human to turn into a thunk.
@@ -369,6 +405,23 @@ export async function run(config, options = {}) {
         extractions.splice(i, 1);
         moduleScopeSkipped.push({ filePath, original: ext.original });
       }
+    }
+
+    // `t(key, fallback)` returns the fallback's literal type, so an untyped
+    // `let label = "Project default"` would reject every later reassignment.
+    // Widen those declarations to `string` explicitly.
+    if (extractions.length) {
+      traverse(ast, {
+        VariableDeclaration(p) {
+          if (p.node.kind === "const") return;
+          for (const d of p.node.declarations) {
+            if (!t.isIdentifier(d.id) || d.id.typeAnnotation || !d.init) continue;
+            if (!t.isStringLiteral(d.init) && !t.isTemplateLiteral(d.init) && !t.isConditionalExpression(d.init) && !t.isLogicalExpression(d.init)) continue;
+            if (!extractions.some((e) => e.start >= d.init.start && e.end <= d.init.end)) continue;
+            thunkEdits.push({ start: d.id.end, end: d.id.end, newText: ": string" });
+          }
+        },
+      });
     }
 
     // Remove overlapping extractions (keep the one starting earlier / larger)
@@ -418,6 +471,8 @@ export async function run(config, options = {}) {
   // ── Step 5: Transform (Pass 3) ─────────────────────────────────────────
 
   const allTranslations = {};
+  // key -> the copy it was minted for, across every file in this run
+  const claimedKeys = new Map();
   let filesModified = 0;
 
   for (const { filePath, source, ast, extractions, thunkEdits } of allFiles) {
@@ -434,6 +489,7 @@ export async function run(config, options = {}) {
       parameterizedTemplates,
       config,
       thunkEdits,
+      claimedKeys,
     );
     if (!changed) continue;
     filesModified++;
