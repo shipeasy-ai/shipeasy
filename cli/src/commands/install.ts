@@ -126,11 +126,7 @@ export async function enableModuleGroup(
       "/api/admin/i18n/profiles",
     );
     if (!profiles.some((p) => p.name === profile)) {
-      await client.request("POST", "/api/admin/i18n/profiles", {
-        name: profile,
-        locales: ["en"],
-        default_locale: "en",
-      });
+      await client.request("POST", "/api/admin/i18n/profiles", { name: profile });
       profileCreated = true;
     }
   }

@@ -3072,19 +3072,17 @@ shipeasy i18n profiles create [options] <name>
 
 | Option | | Description |
 | --- | --- | --- |
-| `--locales <locales>` | optional | Comma-separated locale list (defaults to 'en') (default: `["en"]`) |
-| `--default-locale <locale>` | optional | Default locale (defaults to first --locales entry) |
 | `--json` | optional | Output as JSON |
 | `--project <id>` | optional | Project ID override |
 
 Examples:
 
 ```bash
-# Create a profile with one locale
+# Create the English production profile
 shipeasy i18n profiles create en:prod
 
-# Multiple locales with a default
-shipeasy i18n profiles create fr:prod --locales fr,fr-CA --default-locale fr
+# Add a French one beside it
+shipeasy i18n profiles create fr:prod
 ```
 
 ### `shipeasy i18n codemod`

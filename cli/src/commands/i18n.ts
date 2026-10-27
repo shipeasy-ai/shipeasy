@@ -660,34 +660,21 @@ export function i18nCommand(parent: Command): Command {
   const profilesCreate = profiles
     .command("create <name>")
     .description("Create an i18n profile (e.g. 'default', 'en:prod')")
-    .option(
-      "--locales <locales>",
-      "Comma-separated locale list (defaults to 'en')",
-      (v: string) =>
-        v
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean),
-      ["en"],
-    )
-    .option("--default-locale <locale>", "Default locale (defaults to first --locales entry)")
     .option("--json", "Output as JSON")
     .option("--project <id>", "Project ID override")
     .action(
       async (
         name: string,
-        opts: { locales: string[]; defaultLocale?: string; json?: boolean; project?: string },
+        opts: { json?: boolean; project?: string },
       ) => {
         try {
           const client = getApiClient(opts.project, { requireBinding: true });
           const created = await client.request<{ id: string; name: string }>(
             "POST",
             "/api/admin/i18n/profiles",
-            {
-              name,
-              locales: opts.locales,
-              default_locale: opts.defaultLocale ?? opts.locales[0],
-            },
+            // A profile is only a name — the API's request schema is strict, so
+            // any extra field (the old locales / default_locale) is a 422.
+            { name },
           );
           if (opts.json) return printJson(created);
           console.log(`Created profile '${created.name}' (id ${created.id.slice(0, 8)})`);
@@ -699,11 +686,8 @@ export function i18nCommand(parent: Command): Command {
     );
 
   withExamples(profilesCreate, [
-    { note: "Create a profile with one locale", run: "shipeasy i18n profiles create en:prod" },
-    {
-      note: "Multiple locales with a default",
-      run: "shipeasy i18n profiles create fr:prod --locales fr,fr-CA --default-locale fr",
-    },
+    { note: "Create the English production profile", run: "shipeasy i18n profiles create en:prod" },
+    { note: "Add a French one beside it", run: "shipeasy i18n profiles create fr:prod" },
   ]);
 
   return i18n;
