@@ -2293,6 +2293,65 @@ _Errors_ — beyond the [common errors](#errors):
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `VALIDATION` — The request body failed structural (schema) validation.
 
+### `ops_qa_notes_create`
+
+**Add a QA note to an item**
+
+Append one typed QA note to a queue item. `kind` is `narrowing` (what now
+passes vs what still fails), `clarification` (what "fixed" now means),
+`verification` (requires a `verdict` of `pass` or `fail`, and `body` says
+what was checked) or `correction` (withdraws an earlier framing). Notes
+are append-only and appear in the item's QA notes section, not in the
+comment thread. The author is the caller's identity; pass `agent` to
+record the note as written by that agent type's QA automation. A `fail` verdict never changes the item's
+status by itself: the dashboard offers an explicit "Reopen item" action,
+and `ops update --status open` does the same from the CLI.
+
+**Use case:** QA automation records "verified on production: FAIL, the
+second facet still errors" as data an agent can read back.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `kind` | required | `"narrowing" \| "clarification" \| "verification" \| "correction"` | What a QA note is — `narrowing` (only part of the bug still fails), `clarification` (changes what "fixed" means), `verification` (a pass/fail verdict on a fix) or `correction` (withdraws an earlier framing). |
+| `body` | required | `string` | The note (markdown). _(length 1–10000)_ |
+| `verdict` | optional | `"pass" \| "fail"` | The outcome a `verification` note records. |
+| `agent` | optional | `"jarvis" \| "claude" \| "cursor" \| "copilot" \| "jules"` | The agent type writing the note — pass your own type when you are QA automation. Omitted, the note is attributed to the caller's identity. |
+| `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `ops_qa_notes_list` call. It proves you listed existing ops qa notes and confirmed this one doesn't already exist before creating it. Call `ops_qa_notes_list` first if you don't have a fresh token. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+### `ops_qa_notes_list`
+
+**List an item's QA notes**
+
+The typed QA notes on a queue item, newest first (max 200) — narrowing,
+clarification, verification and correction notes, each with its author and
+time. They are separate from the comment thread: read these to learn the
+CURRENT QA state of a ticket (what remains failing, what "fixed" now means,
+the last verification verdict) without parsing prose comments.
+
+**Use case:** A coding agent picks an item up and checks the latest
+`verification` verdict and any `narrowing` note before touching the code.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `kind` | optional | `"narrowing" \| "clarification" \| "verification" \| "correction"` | What a QA note is — `narrowing` (only part of the bug still fails), `clarification` (changes what "fixed" means), `verification` (a pass/fail verdict on a fix) or `correction` (withdraws an earlier framing). |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
 ### `ops_update`
 
 **Update a queue item**
@@ -2416,7 +2475,7 @@ _Parameters_
 | `composite.rules` | required | `string[]` | Ids of the alert rules to combine. Stored sorted and de-duplicated. |
 | `severity` | optional | `"danger" \| "warn" \| "info"` | Severity of the raised alert. A `warnThreshold` breach opens one step quieter than this. _(default `"warn"`)_ |
 | `enabled` | optional | `boolean` | Whether the rule is evaluated by the cron. _(default `true`)_ |
-| `notify` | optional | `any` | Delivery target for a notification; `null` = use the project default. |
+| `notify` | optional | `any` | Delivery target for a rule's alert; `null` = use the project default. The `NotificationTarget` shape plus the in-app switch. |
 | `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `ops_alerts_list` call. It proves you listed existing ops alerts and confirmed this one doesn't already exist before creating it. Call `ops_alerts_list` first if you don't have a fresh token. |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -2487,7 +2546,7 @@ _Parameters_
 | `requiredBuckets` | optional | `any` | Buckets that must breach to fire; `null` restores "every bucket that had data". |
 | `severity` | optional | `"danger" \| "warn" \| "info"` | — |
 | `enabled` | optional | `boolean` | — |
-| `notify` | optional | `any` | Delivery target for a notification; `null` = use the project default. |
+| `notify` | optional | `any` | Delivery target for a rule's alert; `null` = use the project default. The `NotificationTarget` shape plus the in-app switch. |
 
 _Errors_ — beyond the [common errors](#errors):
 

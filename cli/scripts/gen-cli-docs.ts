@@ -18,6 +18,7 @@
  *     (experiments, i18n) filtered out.
  */
 import { writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { scrubPublicDocs } from "../../openapi/scripts/public-docs-scrub";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import type { Command, Option, Argument } from "commander";
@@ -292,7 +293,10 @@ function main() {
       .filter(Boolean)
       .join("\n");
     mkdirSync(dirname(t.out), { recursive: true });
-    writeFileSync(t.out, `${header(t.mdx)}\n${body}`);
+    const page = `${header(t.mdx)}\n${body}`;
+    // The docs-site copy drops unmarketed products (experiments, universes,
+    // i18n); the in-repo copy stays complete — it documents the CLI itself.
+    writeFileSync(t.out, t.mdx ? scrubPublicDocs(page) : page);
     console.log(`Wrote ${t.out}\n  ${groups.length} command group(s): ${names}`);
   }
 

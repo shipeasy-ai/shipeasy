@@ -5163,6 +5163,72 @@ export type AnswerOpsQuestionRequest = {
 };
 
 /**
+ * What a QA note is — `narrowing` (only part of the bug still fails), `clarification` (changes what "fixed" means), `verification` (a pass/fail verdict on a fix) or `correction` (withdraws an earlier framing).
+ */
+export type OpsQaNoteKind = 'narrowing' | 'clarification' | 'verification' | 'correction';
+
+/**
+ * The outcome a `verification` note records.
+ */
+export type OpsQaNoteVerdict = 'pass' | 'fail';
+
+/**
+ * One typed, append-only QA note on a queue item.
+ */
+export type OpsQaNote = {
+    /**
+     * Note id.
+     */
+    id: string;
+    /**
+     * The queue item the note hangs off.
+     */
+    feedbackId: string;
+    kind: OpsQaNoteKind;
+    /**
+     * The pass/fail verdict of a `verification` note; `null` for every other kind.
+     */
+    verdict: OpsQaNoteVerdict | null;
+    /**
+     * The note (markdown) — for a `verification`, what was checked.
+     */
+    body: string;
+    /**
+     * Email of the person (or the key's actor) who wrote the note, or `null` when an agent wrote it.
+     */
+    authorEmail: string | null;
+    /**
+     * The agent type that wrote the note (QA automation), or `null` for a person.
+     */
+    authorAgent: 'jarvis' | 'claude' | 'cursor' | 'copilot' | 'jules' | null;
+    /**
+     * ISO-8601 creation timestamp.
+     */
+    createdAt: string;
+};
+
+/**
+ * Response for `GET /api/admin/ops/{handle}/qa-notes` — the item's QA notes, newest first (max 200).
+ */
+export type ListOpsQaNotesResponse = Array<OpsQaNote>;
+
+/**
+ * Body for `POST /api/admin/ops/{handle}/qa-notes`. A `verification` note requires `verdict`; every other kind rejects it.
+ */
+export type CreateOpsQaNoteRequest = {
+    kind: OpsQaNoteKind;
+    /**
+     * The note (markdown).
+     */
+    body: string;
+    verdict?: OpsQaNoteVerdict;
+    /**
+     * The agent type writing the note — pass your own type when you are QA automation. Omitted, the note is attributed to the caller's identity.
+     */
+    agent?: 'jarvis' | 'claude' | 'cursor' | 'copilot' | 'jules';
+};
+
+/**
  * One connected, assignable AI agent (an authenticated trigger connector).
  */
 export type OpsAgentProfile = {
@@ -5341,6 +5407,21 @@ export type AlertCompositeSpec = {
     rules: Array<string>;
 };
 
+/**
+ * Delivery target for a rule's alert; `null` = use the project default. The `NotificationTarget` shape plus the in-app switch.
+ */
+export type AlertRuleNotify = {
+    slackChannel?: {
+        id: string;
+        name: string;
+    } | null;
+    email?: string | null;
+    /**
+     * Whether the in-app notification (the dashboard bell and Home) is recorded when the rule fires. Absent or `null` means on; `false` skips it for this rule.
+     */
+    inApp?: boolean | null;
+} | null;
+
 export type ListAlertRulesResponse = Array<{
     /**
      * Stable opaque alert-rule id.
@@ -5442,7 +5523,7 @@ export type ListAlertRulesResponse = Array<{
      * Whether the rule is evaluated by the cron.
      */
     enabled: boolean;
-    notify: NotificationTarget;
+    notify: AlertRuleNotify;
     /**
      * ISO-8601 timestamp of creation.
      */
@@ -5543,7 +5624,7 @@ export type CreateAlertRuleRequest = {
      * Whether the rule is evaluated by the cron.
      */
     enabled?: boolean;
-    notify?: NotificationTarget;
+    notify?: AlertRuleNotify;
 };
 
 export type CreateAlertRuleResponse = {
@@ -5622,7 +5703,7 @@ export type UpdateAlertRuleRequest = {
     requiredBuckets?: number | null;
     severity?: 'danger' | 'warn' | 'info';
     enabled?: boolean;
-    notify?: NotificationTarget;
+    notify?: AlertRuleNotify;
 };
 
 export type UpdateAlertRuleResponse = {
@@ -7460,6 +7541,10 @@ export type KeyRecord = {
      * Last 4 characters of the raw token, so the dashboard mask is matchable against the held key. `null` for keys minted before this column.
      */
     last4: string | null;
+    /**
+     * Where the key was minted. `cli` (a signed-in CLI session from device auth), `mobile` (a mobile app login), `dashboard` (the "New API key" dialog) or `api` (minted with another key — CLI, MCP, agents). Set at mint time; keys that predate the column were backfilled from their label, defaulting to `dashboard`.
+     */
+    origin: 'cli' | 'mobile' | 'dashboard' | 'api';
 };
 
 /**
@@ -12601,6 +12686,115 @@ export type CancelOpsQuestionResponses = {
 };
 
 export type CancelOpsQuestionResponse = CancelOpsQuestionResponses[keyof CancelOpsQuestionResponses];
+
+export type ListOpsQaNotesData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Per-project item number (e.g. `7`) or the full ops item id.
+         */
+        handle: ResourceId;
+    };
+    query?: {
+        /**
+         * Only notes of this kind.
+         */
+        kind?: OpsQaNoteKind;
+    };
+    url: '/api/admin/ops/{handle}/qa-notes';
+};
+
+export type ListOpsQaNotesErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type ListOpsQaNotesError = ListOpsQaNotesErrors[keyof ListOpsQaNotesErrors];
+
+export type ListOpsQaNotesResponses = {
+    /**
+     * List an item's QA notes
+     */
+    200: ListOpsQaNotesResponse;
+};
+
+export type ListOpsQaNotesResponse2 = ListOpsQaNotesResponses[keyof ListOpsQaNotesResponses];
+
+export type CreateOpsQaNoteData = {
+    body: CreateOpsQaNoteRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Per-project item number (e.g. `7`) or the full ops item id.
+         */
+        handle: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/ops/{handle}/qa-notes';
+};
+
+export type CreateOpsQaNoteErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type CreateOpsQaNoteError = CreateOpsQaNoteErrors[keyof CreateOpsQaNoteErrors];
+
+export type CreateOpsQaNoteResponses = {
+    /**
+     * The created note
+     */
+    200: OpsQaNote;
+};
+
+export type CreateOpsQaNoteResponse = CreateOpsQaNoteResponses[keyof CreateOpsQaNoteResponses];
 
 export type ListOpsAgentsData = {
     body?: never;

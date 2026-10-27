@@ -2693,6 +2693,62 @@ export const zAnswerOpsQuestionRequest = z.object({
 });
 
 /**
+ * What a QA note is — `narrowing` (only part of the bug still fails), `clarification` (changes what "fixed" means), `verification` (a pass/fail verdict on a fix) or `correction` (withdraws an earlier framing).
+ */
+export const zOpsQaNoteKind = z.enum([
+    'narrowing',
+    'clarification',
+    'verification',
+    'correction'
+]);
+
+/**
+ * The outcome a `verification` note records.
+ */
+export const zOpsQaNoteVerdict = z.enum(['pass', 'fail']);
+
+/**
+ * One typed, append-only QA note on a queue item.
+ */
+export const zOpsQaNote = z.object({
+    id: z.string(),
+    feedbackId: z.string(),
+    kind: zOpsQaNoteKind,
+    verdict: zOpsQaNoteVerdict.nullable(),
+    body: z.string(),
+    authorEmail: z.string().nullable(),
+    authorAgent: z.enum([
+        'jarvis',
+        'claude',
+        'cursor',
+        'copilot',
+        'jules'
+    ]).nullable(),
+    createdAt: z.string()
+});
+
+/**
+ * Response for `GET /api/admin/ops/{handle}/qa-notes` — the item's QA notes, newest first (max 200).
+ */
+export const zListOpsQaNotesResponse = z.array(zOpsQaNote);
+
+/**
+ * Body for `POST /api/admin/ops/{handle}/qa-notes`. A `verification` note requires `verdict`; every other kind rejects it.
+ */
+export const zCreateOpsQaNoteRequest = z.object({
+    kind: zOpsQaNoteKind,
+    body: z.string().min(1).max(10000),
+    verdict: zOpsQaNoteVerdict.optional(),
+    agent: z.enum([
+        'jarvis',
+        'claude',
+        'cursor',
+        'copilot',
+        'jules'
+    ]).optional()
+});
+
+/**
  * One connected, assignable AI agent (an authenticated trigger connector).
  */
 export const zOpsAgentProfile = z.object({
@@ -2792,6 +2848,18 @@ export const zAlertCompositeSpec = z.object({
     rules: z.array(z.string().min(1)).min(2)
 });
 
+/**
+ * Delivery target for a rule's alert; `null` = use the project default. The `NotificationTarget` shape plus the in-app switch.
+ */
+export const zAlertRuleNotify = z.object({
+    slackChannel: z.object({
+        id: z.string().min(1),
+        name: z.string().min(1)
+    }).nullish(),
+    email: z.email().nullish(),
+    inApp: z.boolean().nullish()
+}).nullable();
+
 export const zListAlertRulesResponse = z.array(z.object({
     id: z.string(),
     name: z.string(),
@@ -2837,7 +2905,7 @@ export const zListAlertRulesResponse = z.array(z.object({
         'info'
     ]),
     enabled: z.boolean(),
-    notify: zNotificationTarget,
+    notify: zAlertRuleNotify,
     createdAt: z.string(),
     updatedAt: z.string()
 }));
@@ -2885,7 +2953,7 @@ export const zCreateAlertRuleRequest = z.object({
         'info'
     ]).optional().default('warn'),
     enabled: z.boolean().optional().default(true),
-    notify: zNotificationTarget.optional()
+    notify: zAlertRuleNotify.optional()
 });
 
 export const zCreateAlertRuleResponse = z.object({
@@ -2938,7 +3006,7 @@ export const zUpdateAlertRuleRequest = z.object({
         'info'
     ]).optional(),
     enabled: z.boolean().optional(),
-    notify: zNotificationTarget.optional()
+    notify: zAlertRuleNotify.optional()
 });
 
 export const zUpdateAlertRuleResponse = z.object({
@@ -3829,7 +3897,13 @@ export const zKeyRecord = z.object({
     name: z.string().nullable(),
     description: z.string().nullable(),
     scopes: z.array(z.string()).nullable(),
-    last4: z.string().nullable()
+    last4: z.string().nullable(),
+    origin: z.enum([
+        'cli',
+        'mobile',
+        'dashboard',
+        'api'
+    ])
 });
 
 /**
@@ -5233,6 +5307,38 @@ export const zCancelOpsQuestionPath = z.object({
  * The withdrawn question
  */
 export const zCancelOpsQuestionResponse = zOpsQuestion;
+
+export const zListOpsQaNotesHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zListOpsQaNotesPath = z.object({
+    handle: zResourceId
+});
+
+export const zListOpsQaNotesQuery = z.object({
+    kind: zOpsQaNoteKind.optional()
+});
+
+/**
+ * List an item's QA notes
+ */
+export const zListOpsQaNotesResponse2 = zListOpsQaNotesResponse;
+
+export const zCreateOpsQaNoteBody = zCreateOpsQaNoteRequest;
+
+export const zCreateOpsQaNoteHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zCreateOpsQaNotePath = z.object({
+    handle: zResourceId
+});
+
+/**
+ * The created note
+ */
+export const zCreateOpsQaNoteResponse = zOpsQaNote;
 
 export const zListOpsAgentsHeaders = z.object({
     'X-Project-Id': z.string().optional()

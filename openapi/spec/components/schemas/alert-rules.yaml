@@ -1,3 +1,29 @@
+AlertRuleNotify:
+  anyOf:
+    - type: object
+      properties:
+        slackChannel:
+          anyOf:
+            - type: object
+              properties:
+                id: { type: string, minLength: 1 }
+                name: { type: string, minLength: 1 }
+              required: [id, name]
+              additionalProperties: false
+            - type: "null"
+        email:
+          anyOf:
+            - type: string
+              format: email
+            - type: "null"
+        inApp:
+          anyOf:
+            - type: boolean
+            - type: "null"
+          description: Whether the in-app notification (the dashboard bell and Home) is recorded when the rule fires. Absent or `null` means on; `false` skips it for this rule.
+      additionalProperties: false
+    - type: "null"
+  description: Delivery target for a rule's alert; `null` = use the project default. The `NotificationTarget` shape plus the in-app switch.
 AlertCompositeSpec:
   type: object
   description: >-
@@ -172,7 +198,7 @@ ListAlertRulesResponse:
         type: boolean
         description: Whether the rule is evaluated by the cron.
       notify:
-        $ref: ./common.yaml#/NotificationTarget
+        $ref: "#/AlertRuleNotify"
       createdAt:
         type: string
         description: ISO-8601 timestamp of creation.
@@ -415,7 +441,7 @@ CreateAlertRuleRequest:
       description: Whether the rule is evaluated by the cron.
       type: boolean
     notify:
-      $ref: ./common.yaml#/NotificationTarget
+      $ref: "#/AlertRuleNotify"
   required:
     - name
     - metricId
@@ -551,7 +577,7 @@ UpdateAlertRuleRequest:
     enabled:
       type: boolean
     notify:
-      $ref: ./common.yaml#/NotificationTarget
+      $ref: "#/AlertRuleNotify"
   additionalProperties: false
 UpdateAlertRuleResponse:
   type: object

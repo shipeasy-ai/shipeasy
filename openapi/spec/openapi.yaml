@@ -236,6 +236,17 @@ tags:
       run record with the answers in the prompt. `delivery: poll` (the default
       for a live, connector-less session such as Claude Code in a terminal)
       fires nothing — call `list` until the status reads `completed`.
+  - name: QA notes
+    parent: Ops
+    description: |-
+      Typed QA notes on a queue item — the QA follow-up that is not discussion.
+      Each note is one of four kinds: `narrowing` (only part of the bug still
+      fails), `clarification` (changes what "fixed" means), `verification` (a
+      `pass` / `fail` verdict on a fix) or `correction` (withdraws an earlier
+      framing). Notes are append-only, carry their author and time, and render in
+      their own section of the item's detail panel, separate from the comment
+      thread. A failing verification offers a "Reopen item" action in the
+      dashboard; it is always an explicit click, never a side effect of `create`.
   - name: Projects
     description: |-
       Projects: the account-level container every other resource is scoped to.
@@ -407,6 +418,8 @@ paths:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1questions~1{questionId}~1answer
   /api/admin/ops/{handle}/questions/{questionId}/cancel:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1questions~1{questionId}~1cancel
+  /api/admin/ops/{handle}/qa-notes:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1qa-notes
   /api/admin/agent-profiles:
     $ref: ./paths/ops.yaml#/~1api~1admin~1agent-profiles
   /api/admin/ops/{handle}/comments:

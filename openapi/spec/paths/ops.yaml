@@ -1248,6 +1248,132 @@
       positional:
         - handle
         - questionId
+/api/admin/ops/{handle}/qa-notes:
+  get:
+    operationId: listOpsQaNotes
+    summary: List an item's QA notes
+    description: |-
+      The typed QA notes on a queue item, newest first (max 200) — narrowing,
+      clarification, verification and correction notes, each with its author and
+      time. They are separate from the comment thread: read these to learn the
+      CURRENT QA state of a ticket (what remains failing, what "fixed" now means,
+      the last verification verdict) without parsing prose comments.
+
+      **Use case:** A coding agent picks an item up and checks the latest
+      `verification` verdict and any `narrowing` note before touching the code.
+    tags:
+      - QA notes
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: handle
+        in: path
+        required: true
+        description: Per-project item number (e.g. `7`) or the full ops item id.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+      - name: kind
+        in: query
+        required: false
+        description: Only notes of this kind.
+        schema:
+          $ref: ../components/schemas/ops.yaml#/OpsQaNoteKind
+    responses:
+      "200":
+        description: List an item's QA notes
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/ListOpsQaNotesResponse
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: list
+      positional:
+        - handle
+  post:
+    operationId: createOpsQaNote
+    summary: Add a QA note to an item
+    description: |-
+      Append one typed QA note to a queue item. `kind` is `narrowing` (what now
+      passes vs what still fails), `clarification` (what "fixed" now means),
+      `verification` (requires a `verdict` of `pass` or `fail`, and `body` says
+      what was checked) or `correction` (withdraws an earlier framing). Notes
+      are append-only and appear in the item's QA notes section, not in the
+      comment thread. The author is the caller's identity; pass `agent` to
+      record the note as written by that agent type's QA automation. A `fail` verdict never changes the item's
+      status by itself: the dashboard offers an explicit "Reopen item" action,
+      and `ops update --status open` does the same from the CLI.
+
+      **Use case:** QA automation records "verified on production: FAIL, the
+      second facet still errors" as data an agent can read back.
+    tags:
+      - QA notes
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: handle
+        in: path
+        required: true
+        description: Per-project item number (e.g. `7`) or the full ops item id.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/CreateOpsQaNoteRequest
+          examples:
+            verification:
+              summary: A failing verification
+              value:
+                kind: verification
+                verdict: fail
+                body: Retested on production after the deploy — the export still drops the second sheet
+            narrowing:
+              summary: Narrow a bug to the facet that still fails
+              value:
+                kind: narrowing
+                body: The list view is fixed; only the detail panel still shows the stale count
+    responses:
+      "200":
+        description: The created note
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/OpsQaNote
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: create
+      positional:
+        - handle
 /api/admin/agent-profiles:
   get:
     operationId: listOpsAgents

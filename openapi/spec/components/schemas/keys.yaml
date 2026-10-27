@@ -77,6 +77,14 @@ KeyRecord:
         - type: string
         - type: "null"
       description: Last 4 characters of the raw token, so the dashboard mask is matchable against the held key. `null` for keys minted before this column.
+    origin:
+      type: string
+      enum:
+        - cli
+        - mobile
+        - dashboard
+        - api
+      description: Where the key was minted. `cli` (a signed-in CLI session from device auth), `mobile` (a mobile app login), `dashboard` (the "New API key" dialog) or `api` (minted with another key — CLI, MCP, agents). Set at mint time; keys that predate the column were backfilled from their label, defaulting to `dashboard`.
   required:
     - id
     - type
@@ -89,6 +97,7 @@ KeyRecord:
     - description
     - scopes
     - last4
+    - origin
   additionalProperties: false
 UpdateKeyRequest:
   type: object

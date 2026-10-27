@@ -124,6 +124,11 @@
       "description": "Structured questions an agent asks the team about a queue item — the\n`AskUserQuestion` shape: a short `header`, the `question`, 2–4 `options`\n(label + description), and `multiSelect` for checkboxes instead of radios.\nEvery question also accepts a free-text \"Other\" answer. Open questions sit\nat the very top of the item's detail panel and mark the row in the queue.\n\n**Asking.** `ask` posts 1–4 questions at once. Several agents (or several\nruns) may have questions open on the same item at the same time.\n\n**Getting the answer back.** `delivery: resume` (the default for a run\nlaunched through a trigger connector) re-fires that same agent on the\nitem once every question its run asked is answered, continuing the same\nrun record with the answers in the prompt. `delivery: poll` (the default\nfor a live, connector-less session such as Claude Code in a terminal)\nfires nothing — call `list` until the status reads `completed`."
     },
     {
+      "name": "QA notes",
+      "parent": "Ops",
+      "description": "Typed QA notes on a queue item — the QA follow-up that is not discussion.\nEach note is one of four kinds: `narrowing` (only part of the bug still\nfails), `clarification` (changes what \"fixed\" means), `verification` (a\n`pass` / `fail` verdict on a fix) or `correction` (withdraws an earlier\nframing). Notes are append-only, carry their author and time, and render in\ntheir own section of the item's detail panel, separate from the comment\nthread. A failing verification offers a \"Reopen item\" action in the\ndashboard; it is always an explicit click, never a side effect of `create`."
+    },
+    {
       "name": "Projects",
       "description": "Projects: the account-level container every other resource is scoped to.\n\n**Account-level, not bound-project-level.** Both operations resolve from the caller's credential rather than the `.shipeasy`-bound project — `current` reads the project the auth header maps to, and `upsert` find-or-creates under the session's owner. Neither touches the local `.shipeasy` binding; recording the result there is a consumer side-effect layered on top.\n\n**Idempotent upsert.** A project is keyed by `(owner_email, domain)`. Calling `upsert` again with the same domain returns the existing project with `created: false`, so it is safe to run on every install."
     },
@@ -8986,6 +8991,167 @@
           "positional": [
             "handle",
             "questionId"
+          ]
+        }
+      }
+    },
+    "/api/admin/ops/{handle}/qa-notes": {
+      "get": {
+        "operationId": "listOpsQaNotes",
+        "summary": "List an item's QA notes",
+        "description": "The typed QA notes on a queue item, newest first (max 200) — narrowing,\nclarification, verification and correction notes, each with its author and\ntime. They are separate from the comment thread: read these to learn the\nCURRENT QA state of a ticket (what remains failing, what \"fixed\" now means,\nthe last verification verdict) without parsing prose comments.\n\n**Use case:** A coding agent picks an item up and checks the latest\n`verification` verdict and any `narrowing` note before touching the code.",
+        "tags": [
+          "QA notes"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "description": "Per-project item number (e.g. `7`) or the full ops item id.",
+            "schema": {
+              "$ref": "#/components/schemas/ResourceId"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "description": "Only notes of this kind.",
+            "schema": {
+              "$ref": "#/components/schemas/OpsQaNoteKind"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List an item's QA notes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListOpsQaNotesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND"
+        ],
+        "x-cli": {
+          "name": "list",
+          "positional": [
+            "handle"
+          ]
+        }
+      },
+      "post": {
+        "operationId": "createOpsQaNote",
+        "summary": "Add a QA note to an item",
+        "description": "Append one typed QA note to a queue item. `kind` is `narrowing` (what now\npasses vs what still fails), `clarification` (what \"fixed\" now means),\n`verification` (requires a `verdict` of `pass` or `fail`, and `body` says\nwhat was checked) or `correction` (withdraws an earlier framing). Notes\nare append-only and appear in the item's QA notes section, not in the\ncomment thread. The author is the caller's identity; pass `agent` to\nrecord the note as written by that agent type's QA automation. A `fail` verdict never changes the item's\nstatus by itself: the dashboard offers an explicit \"Reopen item\" action,\nand `ops update --status open` does the same from the CLI.\n\n**Use case:** QA automation records \"verified on production: FAIL, the\nsecond facet still errors\" as data an agent can read back.",
+        "tags": [
+          "QA notes"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "description": "Per-project item number (e.g. `7`) or the full ops item id.",
+            "schema": {
+              "$ref": "#/components/schemas/ResourceId"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOpsQaNoteRequest"
+              },
+              "examples": {
+                "verification": {
+                  "summary": "A failing verification",
+                  "value": {
+                    "kind": "verification",
+                    "verdict": "fail",
+                    "body": "Retested on production after the deploy — the export still drops the second sheet"
+                  }
+                },
+                "narrowing": {
+                  "summary": "Narrow a bug to the facet that still fails",
+                  "value": {
+                    "kind": "narrowing",
+                    "body": "The list view is fixed; only the detail panel still shows the stale count"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The created note",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsQaNote"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "create",
+          "positional": [
+            "handle"
           ]
         }
       }
@@ -24438,6 +24604,141 @@
         "minProperties": 1,
         "description": "Body for `POST /api/admin/ops/{handle}/questions/{questionId}/answer` — pick option labels, write a free-text answer, or both (multi-select only)."
       },
+      "OpsQaNoteKind": {
+        "type": "string",
+        "enum": [
+          "narrowing",
+          "clarification",
+          "verification",
+          "correction"
+        ],
+        "description": "What a QA note is — `narrowing` (only part of the bug still fails), `clarification` (changes what \"fixed\" means), `verification` (a pass/fail verdict on a fix) or `correction` (withdraws an earlier framing)."
+      },
+      "OpsQaNoteVerdict": {
+        "type": "string",
+        "enum": [
+          "pass",
+          "fail"
+        ],
+        "description": "The outcome a `verification` note records."
+      },
+      "OpsQaNote": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Note id."
+          },
+          "feedbackId": {
+            "type": "string",
+            "description": "The queue item the note hangs off."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/OpsQaNoteKind"
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpsQaNoteVerdict"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The pass/fail verdict of a `verification` note; `null` for every other kind."
+          },
+          "body": {
+            "type": "string",
+            "description": "The note (markdown) — for a `verification`, what was checked."
+          },
+          "authorEmail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Email of the person (or the key's actor) who wrote the note, or `null` when an agent wrote it."
+          },
+          "authorAgent": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "jarvis",
+                  "claude",
+                  "cursor",
+                  "copilot",
+                  "jules"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The agent type that wrote the note (QA automation), or `null` for a person."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO-8601 creation timestamp."
+          }
+        },
+        "required": [
+          "id",
+          "feedbackId",
+          "kind",
+          "verdict",
+          "body",
+          "authorEmail",
+          "authorAgent",
+          "createdAt"
+        ],
+        "additionalProperties": false,
+        "description": "One typed, append-only QA note on a queue item."
+      },
+      "ListOpsQaNotesResponse": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/OpsQaNote"
+        },
+        "description": "Response for `GET /api/admin/ops/{handle}/qa-notes` — the item's QA notes, newest first (max 200)."
+      },
+      "CreateOpsQaNoteRequest": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/OpsQaNoteKind"
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000,
+            "description": "The note (markdown)."
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/OpsQaNoteVerdict"
+          },
+          "agent": {
+            "type": "string",
+            "enum": [
+              "jarvis",
+              "claude",
+              "cursor",
+              "copilot",
+              "jules"
+            ],
+            "description": "The agent type writing the note — pass your own type when you are QA automation. Omitted, the note is attributed to the caller's identity."
+          }
+        },
+        "required": [
+          "kind",
+          "body"
+        ],
+        "additionalProperties": false,
+        "description": "Body for `POST /api/admin/ops/{handle}/qa-notes`. A `verification` note requires `verdict`; every other kind rejects it."
+      },
       "OpsAgentProfile": {
         "type": "object",
         "properties": {
@@ -24741,6 +25042,67 @@
         ],
         "additionalProperties": false
       },
+      "AlertRuleNotify": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "slackChannel": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "email": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "inApp": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Whether the in-app notification (the dashboard bell and Home) is recorded when the rule fires. Absent or `null` means on; `false` skips it for this rule."
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Delivery target for a rule's alert; `null` = use the project default. The `NotificationTarget` shape plus the in-app switch."
+      },
       "ListAlertRulesResponse": {
         "type": "array",
         "items": {
@@ -24970,7 +25332,7 @@
               "description": "Whether the rule is evaluated by the cron."
             },
             "notify": {
-              "$ref": "#/components/schemas/NotificationTarget"
+              "$ref": "#/components/schemas/AlertRuleNotify"
             },
             "createdAt": {
               "type": "string",
@@ -25240,7 +25602,7 @@
             "type": "boolean"
           },
           "notify": {
-            "$ref": "#/components/schemas/NotificationTarget"
+            "$ref": "#/components/schemas/AlertRuleNotify"
           }
         },
         "required": [
@@ -25481,7 +25843,7 @@
             "type": "boolean"
           },
           "notify": {
-            "$ref": "#/components/schemas/NotificationTarget"
+            "$ref": "#/components/schemas/AlertRuleNotify"
           }
         },
         "additionalProperties": false
@@ -28749,6 +29111,16 @@
               }
             ],
             "description": "Last 4 characters of the raw token, so the dashboard mask is matchable against the held key. `null` for keys minted before this column."
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "cli",
+              "mobile",
+              "dashboard",
+              "api"
+            ],
+            "description": "Where the key was minted. `cli` (a signed-in CLI session from device auth), `mobile` (a mobile app login), `dashboard` (the \"New API key\" dialog) or `api` (minted with another key — CLI, MCP, agents). Set at mint time; keys that predate the column were backfilled from their label, defaulting to `dashboard`."
           }
         },
         "required": [
@@ -28762,7 +29134,8 @@
           "name",
           "description",
           "scopes",
-          "last4"
+          "last4",
+          "origin"
         ],
         "additionalProperties": false
       },

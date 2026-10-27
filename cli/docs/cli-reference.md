@@ -704,6 +704,50 @@ shipeasy ops investigations update [options] <handle> <investigationId>
 | `--completed-at <value>` | optional | ISO-8601 timestamp the work finished. Set it (or flip `kind` off `working`) to mark a run record done. |
 | `--session-id <value>` | optional | The agent-run session id, so the dashboard can deep-link to the run. |
 
+### `shipeasy ops qa-notes`
+
+Typed QA notes on a queue item — the QA follow-up that is not discussion.
+
+```bash
+shipeasy ops qa-notes [options] [command]
+```
+
+#### `shipeasy ops qa-notes list`
+
+List an item's QA notes
+
+```bash
+shipeasy ops qa-notes list [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--kind <value>` | optional | Only notes of this kind. |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+#### `shipeasy ops qa-notes create`
+
+Add a QA note to an item
+
+```bash
+shipeasy ops qa-notes create [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--kind <value>` | optional | What a QA note is — `narrowing` (only part of the bug still fails), `clarification` (changes what "fixed" means), `verification` (a pass/fail verdict on a fix) or `correction` (withdraws an earlier framing). |
+| `--body <value>` | optional | The note (markdown). |
+| `--verdict <value>` | optional | The outcome a `verification` note records. |
+| `--agent <value>` | optional | The agent type writing the note — pass your own type when you are QA automation. Omitted, the note is attributed to the caller's identity. |
+
 ### `shipeasy ops questions`
 
 Structured questions an agent asks the team about a queue item — the `AskUserQuestion` shape: a short `header`, the `question`, 2–4 `options` (label + description), and `multiSelect` for checkboxes instead of radios.
