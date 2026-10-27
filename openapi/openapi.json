@@ -28974,7 +28974,8 @@
               "experiment",
               "config",
               "killswitch",
-              "metric"
+              "metric",
+              "ops"
             ],
             "description": "Resource family — drives the result group + icon in the palette. (`member` hits are surfaced first.)"
           },

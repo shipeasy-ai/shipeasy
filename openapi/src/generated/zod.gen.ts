@@ -3919,7 +3919,8 @@ export const zSearchHit = z.object({
         'experiment',
         'config',
         'killswitch',
-        'metric'
+        'metric',
+        'ops'
     ]),
     id: z.string(),
     name: z.string(),

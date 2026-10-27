@@ -7563,7 +7563,7 @@ export type SearchHit = {
     /**
      * Resource family — drives the result group + icon in the palette. (`member` hits are surfaced first.)
      */
-    type: 'member' | 'gate' | 'experiment' | 'config' | 'killswitch' | 'metric';
+    type: 'member' | 'gate' | 'experiment' | 'config' | 'killswitch' | 'metric' | 'ops';
     /**
      * Stable identifier used to deep-link into the row's detail pane. For `member` hits this is the teammate's email; for everything else it is the resource id.
      */
