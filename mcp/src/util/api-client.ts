@@ -2,6 +2,7 @@ import { formatAuthFailure } from "@shipeasy/openapi";
 import { ApiError } from "../tools/_gen-runtime.js";
 import { readConfig, diagnoseMissingConfig, type ShipeasyConfig } from "../auth/config.js";
 import { getBoundProjectIdSync } from "./project-config.js";
+import { viaHeaders } from "./via.js";
 
 export { ApiError };
 
@@ -40,6 +41,7 @@ export async function getApiClient(): Promise<ApiClient | null> {
         "X-SDK-Key": _cfg.cli_token,
         "Content-Type": "application/json",
         "X-Project-Id": projectId,
+        ...viaHeaders(),
       },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });

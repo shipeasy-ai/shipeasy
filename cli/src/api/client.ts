@@ -2,6 +2,21 @@ import { createClient, createClientConfig, type Client } from "@shipeasy/openapi
 import { formatAuthFailure } from "@shipeasy/openapi";
 import { loadCredentials, credentialsSource, diagnoseMissingCredentials } from "../auth/storage";
 import { getBoundProjectId } from "../util/project-config";
+import { detectHarness } from "../setup/agents";
+
+/**
+ * Provenance headers on every admin-API call: this is the CLI, and — when a
+ * coding agent is running it — which one. The dashboard prints them next to the
+ * item's activity and comments ("via CLI · Claude"). A label, not a credential;
+ * the server folds the agent name to its own slug.
+ */
+export function viaHeaders(env: NodeJS.ProcessEnv = process.env): Record<string, string> {
+  const { label } = detectHarness(env);
+  return {
+    "X-Shipeasy-Via": "cli",
+    ...(label ? { "X-Shipeasy-Agent": label } : {}),
+  };
+}
 
 /**
  * Uniform admin-API error. (The generated client returns errors as data; the
@@ -99,7 +114,7 @@ export function getGeneratedClient(opts: ApiClientOptions = {}, projectOverride?
   return createClient(
     createClientConfig({
       baseUrl,
-      headers: { "X-SDK-Key": token, "X-Project-Id": projectId },
+      headers: { "X-SDK-Key": token, "X-Project-Id": projectId, ...viaHeaders() },
     }),
   );
 }
@@ -118,6 +133,7 @@ export function getApiClient(projectOverride?: string, opts: ApiClientOptions = 
         "X-SDK-Key": token,
         "Content-Type": "application/json",
         "X-Project-Id": projectId,
+        ...viaHeaders(),
       },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
@@ -138,7 +154,7 @@ export function getApiClient(projectOverride?: string, opts: ApiClientOptions = 
   async function requestRaw(method: string, path: string): Promise<Response> {
     const res = await fetch(`${baseUrl}${path}`, {
       method,
-      headers: { "X-SDK-Key": token, "X-Project-Id": projectId },
+      headers: { "X-SDK-Key": token, "X-Project-Id": projectId, ...viaHeaders() },
     });
     if (!res.ok) throw new ApiError(`HTTP ${res.status} on ${path}`, res.status);
     return res;

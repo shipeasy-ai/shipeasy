@@ -1,6 +1,7 @@
 import { createClient, createClientConfig, type Client } from "@shipeasy/openapi/client";
 import { readConfig, type ShipeasyConfig } from "../auth/config.js";
 import { getBoundProjectIdSync } from "../util/project-config.js";
+import { viaHeaders } from "../util/via.js";
 
 /**
  * Runtime the generated tool tree (`src/generated/tools.gen.ts`) is wired
@@ -164,7 +165,7 @@ export async function getGeneratedClient(): Promise<ClientHandle | null> {
   const client = createClient(
     createClientConfig({
       baseUrl: cfg.app_base_url.replace(/\/$/, ""),
-      headers: { "X-SDK-Key": cfg.cli_token, "X-Project-Id": projectId },
+      headers: { "X-SDK-Key": cfg.cli_token, "X-Project-Id": projectId, ...viaHeaders() },
     }),
   );
   return { client, cfg, projectId, bound: !!bound };

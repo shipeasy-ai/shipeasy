@@ -20,6 +20,7 @@ import { getGeneratedClient, reviveStructuredArgs } from "./tools/_gen-runtime.j
 import { detectAckAgent, detectAckSession } from "./tools/ack-agent.js";
 import { wireInBlock } from "./tools/wire-in.js";
 import { notAuthenticated, notBound, ok, apiErr } from "./util/api-client.js";
+import { setMcpClientName } from "./util/via.js";
 import {
   LIST_TOKEN_PARAM,
   guardEnabled,
@@ -53,6 +54,8 @@ export async function startStdioServer(): Promise<void> {
 
   server.setRequestHandler(CallToolRequestSchema, async ({ params }) => {
     const toolName = params.name;
+    // Label every write this call makes with the agent behind the connection.
+    setMcpClientName(server.getClientVersion()?.name);
     const toolDef = TOOLS.find((t) => t.name === toolName);
     if (!toolDef) {
       return {
