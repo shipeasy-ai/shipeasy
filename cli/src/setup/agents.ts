@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawnSync, type SpawnSyncOptions } from "node:child_process";
 import { existsSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { delimiter, join, resolve, sep } from "node:path";
@@ -23,7 +23,7 @@ export const HARNESS_LOGIN_TIMEOUT_MS = 180_000;
 
 /** spawnSync options that cap the run and SIGKILL it (a stuck harness ignores
  *  SIGTERM while it waits on its callback server). */
-export function bounded<T extends Record<string, unknown>>(
+export function bounded<T extends SpawnSyncOptions>(
   opts: T,
   timeout = cmdTimeoutMs(),
 ): T & { timeout: number; killSignal: "SIGKILL" } {

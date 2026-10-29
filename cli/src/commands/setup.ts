@@ -47,6 +47,7 @@ import {
   writeDocBundle,
 } from "../setup/doc-bundle";
 import { ensureSkillsCli, setupSkillNames } from "../setup/skills-registry";
+import { clearPendingKeys, findPendingKey, recordPendingKey } from "../setup/pending-keys";
 import {
   type FileResult,
   writeAgentsMd,
@@ -514,6 +515,32 @@ async function mintKey(
   // leaves a multi-app repo with a column of indistinguishable keys.
   const client = getApiClient(projectId, { requireBinding: true });
   return client.request<KeyCreated>("POST", "/api/admin/keys", { type, env, name });
+}
+
+/**
+ * Mint a key and write its value to the crash-safe ledger BEFORE returning, so
+ * a kill between "minted" (step 4) and "persisted into the repo" (step 5) can't
+ * orphan a live credential - the next run finds it and reuses it (shipeasy #276).
+ */
+async function mintAndRecord(
+  type: "server" | "client",
+  env: string,
+  projectId: string,
+  name: string,
+  root: string,
+): Promise<KeyCreated> {
+  const key = await mintKey(type, env, projectId, name);
+  recordPendingKey({
+    id: key.id,
+    type,
+    env,
+    key: key.key,
+    project_id: projectId,
+    root,
+    name,
+    minted_at: new Date().toISOString(),
+  });
+  return key;
 }
 
 // ── generic coding-agent handoff (any harness) ──────────────────────────────
@@ -1421,14 +1448,28 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     const mintedBy = session?.user_email;
     if (needServer) {
       const name = labelFor("server", mintedBy, mintedAt);
-      serverKey = await mintKey("server", keyEnv, projectId, name);
-      say(`  ✓ server key minted (${keyEnv}): ${maskKey(serverKey.key)}`);
+      const reused = findPendingKey({ project_id: projectId, env: keyEnv, type: "server", root });
+      serverKey = reused
+        ? { id: reused.id, type: "server", env: keyEnv, key: reused.key }
+        : await mintAndRecord("server", keyEnv, projectId, name, root);
+      say(
+        reused
+          ? `  ↻ server key reused from an interrupted run (${keyEnv}): ${maskKey(serverKey.key)}`
+          : `  ✓ server key minted (${keyEnv}): ${maskKey(serverKey.key)}`,
+      );
       say(`    ${dim(name)}`);
     }
     if (needClient) {
       const name = labelFor("client", mintedBy, mintedAt);
-      clientKey = await mintKey("client", keyEnv, projectId, name);
-      say(`  ✓ client key minted (${keyEnv}): ${maskKey(clientKey.key)} (public)`);
+      const reused = findPendingKey({ project_id: projectId, env: keyEnv, type: "client", root });
+      clientKey = reused
+        ? { id: reused.id, type: "client", env: keyEnv, key: reused.key }
+        : await mintAndRecord("client", keyEnv, projectId, name, root);
+      say(
+        reused
+          ? `  ↻ client key reused from an interrupted run (${keyEnv}): ${maskKey(clientKey.key)} (public)`
+          : `  ✓ client key minted (${keyEnv}): ${maskKey(clientKey.key)} (public)`,
+      );
       say(`    ${dim(name)}`);
     }
   }
@@ -1555,6 +1596,10 @@ async function runSetup(opts: SetupOpts): Promise<void> {
       );
     }
   }
+
+  // Every minted key is now in the repo's env (or the run threw before here and
+  // the ledger keeps it for the retry) - nothing left to recover.
+  if (!dryRun && (serverKey || clientKey)) clearPendingKeys({ project_id: projectId, root });
 
   // 5b. Install the SDK how-to skill(s) into the wired agents (runs `npx
   // skills`). Claude gets everything from its plugin at either scope; every
