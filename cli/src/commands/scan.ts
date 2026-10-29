@@ -212,8 +212,20 @@ function searchInDir(dir: string, pattern: RegExp, root: string, maxDepth: numbe
   return null;
 }
 
+/**
+ * The Shipeasy SDK version a JS/TS repo declares. The installer writes
+ * `@shipeasy/sdk` (see `installHint`), so that is what must be read back; the
+ * pre-scope `shipeasy` name is still honoured for repos installed by an older
+ * CLI. Looking up only `shipeasy` made every freshly onboarded repo report "not
+ * installed" - setup redid the install and `upgrade` never found an SDK to bump
+ * (shipeasy #275).
+ */
+export function declaredSdkVersion(deps: Record<string, string>): string | null {
+  return deps["@shipeasy/sdk"] ?? deps["shipeasy"] ?? null;
+}
+
 function detectShipeasyExp(deps: Record<string, string>, root: string): ShipeasySdkState {
-  const version = deps["shipeasy"] ?? null;
+  const version = declaredSdkVersion(deps);
   if (!version) return { installed: false, version: null, configured: false };
 
   const envFiles = [".env", ".env.local", ".env.production", ".env.development"];
@@ -228,7 +240,7 @@ function detectShipeasyExp(deps: Record<string, string>, root: string): Shipeasy
   }
   const configured = envKeys.has("SHIPEASY_SERVER_KEY");
 
-  const subentryPattern = /from ['"]shipeasy\/(react|vue|svelte|angular)['"]/;
+  const subentryPattern = /from ['"](?:@shipeasy\/sdk|shipeasy)\/(react|vue|svelte|angular)['"]/;
   let subentry: string | undefined;
   for (const entry of ["src/", "app/", "pages/"]) {
     const dir = path.join(root, entry);
@@ -244,7 +256,7 @@ function detectShipeasyExp(deps: Record<string, string>, root: string): Shipeasy
 }
 
 function detectShipeasyI18n(deps: Record<string, string>, root: string): ShipeasySdkState {
-  const version = deps["shipeasy"] ?? null;
+  const version = declaredSdkVersion(deps);
   if (!version) return { installed: false, version: null, configured: false };
 
   const envFiles = [".env", ".env.local", ".env.production", ".env.development"];

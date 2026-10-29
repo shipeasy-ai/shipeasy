@@ -160,6 +160,36 @@ describe("detect (detectTargets / discoverTargets)", () => {
     });
   });
 
+  // The installer writes `@shipeasy/sdk`; the detector used to look up the bare
+  // `shipeasy` name, so a repo produced by `setup` read back as "not installed"
+  // (setup re-ran the install, `upgrade` found no SDK to bump) - shipeasy #275.
+  describe("a repo produced by setup", () => {
+    const repo = (deps: Record<string, string>): string => {
+      const root = realpathSync(mkdtempSync(join(tmpdir(), "se-onboarded-")));
+      writeFileSync(join(root, "package.json"), JSON.stringify({ name: "app", dependencies: deps }));
+      writeFileSync(join(root, ".env"), "SHIPEASY_SERVER_KEY=sdk_server_x\n");
+      return root;
+    };
+
+    it("reads the @shipeasy/sdk dependency and reports already_onboarded", async () => {
+      const root = repo({ "@shipeasy/sdk": "^7.9.0" });
+      const { targets } = await detectTargets([root]);
+      const sdk = targets[0]!.shipeasy.experimentation_sdk;
+      expect(sdk.installed).toBe(true);
+      expect(sdk.version).toBe("^7.9.0");
+      expect(targets[0]!.recommendation.action).toBe("already_onboarded");
+      expect(targets[0]!.recommendation.install).toBeNull();
+      rmSync(root, { recursive: true, force: true });
+    });
+
+    it("still honours the pre-scope `shipeasy` name from an older CLI", async () => {
+      const root = repo({ shipeasy: "^1.0.0" });
+      const { targets } = await detectTargets([root]);
+      expect(targets[0]!.recommendation.action).toBe("already_onboarded");
+      rmSync(root, { recursive: true, force: true });
+    });
+  });
+
   it("flags the workspace root as skip when scanning the whole tree", async () => {
     const { targets } = await detectTargets([dir]);
     const root = targets.find((t) => t.recommendation.action === "skip_workspace_root");
