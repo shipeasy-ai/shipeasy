@@ -1303,7 +1303,7 @@ shipeasy tags update [options] <entityType> <entityId>
 
 ## `shipeasy release`
 
-Feature delivery — flags, kill switches, dynamic configs, A/B experiments, and the universes they bucket in.
+Feature delivery — flags, killswitches, dynamic configs, A/B experiments, and the universes they bucket in.
 
 ```bash
 shipeasy release [options] [command]

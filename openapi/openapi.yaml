@@ -21,7 +21,7 @@ security:
   - bearerSdkKey: []
 tags:
   - name: Release
-    summary: Feature delivery — flags, kill switches, dynamic configs, A/B experiments, and the universes they bucket in.
+    summary: Feature delivery — flags, killswitches, dynamic configs, A/B experiments, and the universes they bucket in.
     kind: nav
     description: |-
       Release: the feature-delivery surface. One roof over the five resources
