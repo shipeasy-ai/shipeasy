@@ -5327,6 +5327,62 @@ export type CreateOpsCommentResponse = {
 };
 
 /**
+ * Body for `POST /api/admin/ops/{handle}/attachments` and `POST /api/admin/ops/{handle}/comment-media`. Exactly one of `contentBase64` / `url` is required.
+ */
+export type CreateOpsAttachmentRequest = {
+    /**
+     * The file bytes, base64-encoded (a bare string or a `data:<mime>;base64,` URI). Pass this or `url`, not both.
+     */
+    contentBase64?: string;
+    /**
+     * A public https URL for the server to fetch the file from (no IP literals or internal hosts; max 25 MiB). Pass this or `contentBase64`, not both.
+     */
+    url?: string;
+    /**
+     * File name, e.g. `checkout-overflow.png`. Defaults to the last segment of `url`, else `file`.
+     */
+    filename?: string;
+    /**
+     * Media type, e.g. `image/png`. Defaults from the data URI, the fetched response, or the filename extension.
+     */
+    mimeType?: string;
+    /**
+     * Attachment kind. Defaults from the media type (image → screenshot, video → recording, else file). Ignored by the comment-media upload.
+     */
+    kind?: 'screenshot' | 'recording' | 'file';
+};
+
+/**
+ * Response for `POST /api/admin/ops/{handle}/attachments`.
+ */
+export type CreateOpsAttachmentResponse = {
+    /**
+     * Newly created attachment id.
+     */
+    id: string;
+    filename: string;
+    kind: 'screenshot' | 'recording' | 'file';
+    mimeType: string;
+    sizeBytes: number;
+};
+
+/**
+ * Response for `POST /api/admin/ops/{handle}/comment-media`.
+ */
+export type CreateOpsCommentMediaResponse = {
+    /**
+     * Newly created media id.
+     */
+    id: string;
+    /**
+     * Relative URL to embed in a comment body as a markdown image.
+     */
+    url: string;
+    mimeType: string;
+    sizeBytes: number;
+};
+
+/**
  * Body for `POST /api/admin/notifications`. In `title`, `summary`, and each step, reference admin entities inline with tokens — `#42` (feedback item), `@gate:<name>` (alias `@flag:`), `@experiment:<name>` (`@exp:`), `@config:<name>`, `@killswitch:<name>` (`@ks:`), `@metric:<name>`, `@universe:<name>`, `@alert:<name>` — where `<name>` is the entity's immutable name/slug (e.g. `features.checkout`). The dashboard renders each token as a live hover chip deep-linking to the entity; tokens degrade to plain text elsewhere, so they're always safe to use.
  */
 export type NotifyOpsRequest = {
@@ -12934,6 +12990,118 @@ export type CreateOpsCommentResponses = {
 };
 
 export type CreateOpsCommentResponse2 = CreateOpsCommentResponses[keyof CreateOpsCommentResponses];
+
+export type CreateOpsAttachmentData = {
+    body: CreateOpsAttachmentRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Per-project item number (e.g. `7`) or the full ops item id.
+         */
+        handle: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/ops/{handle}/attachments';
+};
+
+export type CreateOpsAttachmentErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The request body exceeded the intake's fixed size cap (16 KB).
+     */
+    413: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type CreateOpsAttachmentError = CreateOpsAttachmentErrors[keyof CreateOpsAttachmentErrors];
+
+export type CreateOpsAttachmentResponses = {
+    /**
+     * Attach a screenshot to an item
+     */
+    201: CreateOpsAttachmentResponse;
+};
+
+export type CreateOpsAttachmentResponse2 = CreateOpsAttachmentResponses[keyof CreateOpsAttachmentResponses];
+
+export type CreateOpsCommentMediaData = {
+    body: CreateOpsAttachmentRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Per-project item number (e.g. `7`) or the full ops item id.
+         */
+        handle: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/ops/{handle}/comment-media';
+};
+
+export type CreateOpsCommentMediaErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The request body exceeded the intake's fixed size cap (16 KB).
+     */
+    413: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type CreateOpsCommentMediaError = CreateOpsCommentMediaErrors[keyof CreateOpsCommentMediaErrors];
+
+export type CreateOpsCommentMediaResponses = {
+    /**
+     * Upload an image to embed in a comment
+     */
+    201: CreateOpsCommentMediaResponse;
+};
+
+export type CreateOpsCommentMediaResponse2 = CreateOpsCommentMediaResponses[keyof CreateOpsCommentMediaResponses];
 
 export type NotifyOpsData = {
     body: NotifyOpsRequest;

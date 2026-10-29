@@ -2581,6 +2581,39 @@ _Errors_ — beyond the [common errors](#errors):
 
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 
+### Attachments
+
+Screenshots, recordings, and files attached to a bug or feature request —
+the evidence a QA lane captures at verification time. Upload by base64
+bytes or a public https URL; append-only.
+
+#### `ops_attachments_create`
+
+**Attach a screenshot to an item**
+
+Attach a screenshot, screen recording, or file to a bug or feature request, so the fixer sees what QA saw instead of reconstructing it from measurements. Send the bytes as `contentBase64` (a bare base64 string or a `data:` URI) or give a public https `url` for the server to fetch — exactly one of the two. The `kind` (`screenshot` | `recording` | `file`) defaults from the media type. Up to 25 MiB.
+
+Error and alert tickets cannot carry attachments (`422`). Append-only: there is no replace or delete, so it is safe for restricted ops keys.
+
+**Use case:** A QA lane captures a screenshot at verification time and the filing agent attaches it to the bug or feature request it just filed.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `contentBase64` | optional | `string` | The file bytes, base64-encoded (a bare string or a `data:<mime>;base64,` URI). Pass this or `url`, not both. |
+| `url` | optional | `string` | A public https URL for the server to fetch the file from (no IP literals or internal hosts; max 25 MiB). Pass this or `contentBase64`, not both. _(format: uri)_ |
+| `filename` | optional | `string` | File name, e.g. `checkout-overflow.png`. Defaults to the last segment of `url`, else `file`. |
+| `mimeType` | optional | `string` | Media type, e.g. `image/png`. Defaults from the data URI, the fetched response, or the filename extension. |
+| `kind` | optional | `"screenshot" \| "recording" \| "file"` | Attachment kind. Defaults from the media type (image → screenshot, video → recording, else file). Ignored by the comment-media upload. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
 ### Comments
 
 Comments on a queue item — the discussion thread that hangs off any bug,
@@ -2639,6 +2672,33 @@ _Errors_ — beyond the [common errors](#errors):
 
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
+#### `ops_comments_upload_media`
+
+**Upload an image to embed in a comment**
+
+Upload an image to embed in a comment on a queue item. Takes the same body as the attachment upload (`contentBase64` or `url`). The response carries a relative `url` — reference it from the comment body as a markdown image (`![caption](url)`) in `ops comments create`, so an evidence comment shows the screenshot inline.
+
+Append-only, safe for restricted ops keys.
+
+**Use case:** Put a screenshot inside an evidence comment rather than on the item itself.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `contentBase64` | optional | `string` | The file bytes, base64-encoded (a bare string or a `data:<mime>;base64,` URI). Pass this or `url`, not both. |
+| `url` | optional | `string` | A public https URL for the server to fetch the file from (no IP literals or internal hosts; max 25 MiB). Pass this or `contentBase64`, not both. _(format: uri)_ |
+| `filename` | optional | `string` | File name, e.g. `checkout-overflow.png`. Defaults to the last segment of `url`, else `file`. |
+| `mimeType` | optional | `string` | Media type, e.g. `image/png`. Defaults from the data URI, the fetched response, or the filename extension. |
+| `kind` | optional | `"screenshot" \| "recording" \| "file"` | Attachment kind. Defaults from the media type (image → screenshot, video → recording, else file). Ignored by the comment-media upload. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
 
 ### Investigations
 
