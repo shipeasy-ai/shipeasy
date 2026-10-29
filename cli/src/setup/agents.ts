@@ -958,6 +958,27 @@ export function existingMcpProjectPin(agent: AgentId, ctx: InstallCtx): string |
   return match ? match[1] : null;
 }
 
+/**
+ * Harnesses whose MCP config is USER-GLOBAL whatever `--scope` says: Copilot (VS
+ * Code's user-profile `mcp.json` + the CLI's `~/.copilot/mcp-config.json`, kept
+ * off-repo on purpose so they can carry the bearer) and Antigravity (a single
+ * `~/.gemini/config/mcp_config.json`, no per-repo file exists). One file per
+ * machine means one `shipeasy` entry per machine - so a second repo bound to a
+ * different project must not silently ride the first project's registration and
+ * token (shipeasy #277).
+ */
+export function isGlobalOnlyAgent(agent: AgentId): boolean {
+  return agent === "copilot" || agent === "antigravity";
+}
+
+/** The OTHER project a global-only agent's existing entry is pinned to, or null
+ *  when there is no entry, no pin, or it already points at this project. */
+export function foreignGlobalPin(agent: AgentId, ctx: InstallCtx): string | null {
+  if (!isGlobalOnlyAgent(agent) || !ctx.projectId) return null;
+  const pin = existingMcpProjectPin(agent, ctx);
+  return pin && pin !== ctx.projectId ? pin : null;
+}
+
 function registerJsonMcp(
   agent: AgentId,
   target: { path: string; key: "mcpServers" | "servers" },
@@ -972,16 +993,28 @@ function registerJsonMcp(
     target.key,
   );
   if (replaced && !ctx.force) {
+    const other = foreignGlobalPin(agent, ctx);
     return {
       action: "skipped",
-      detail: `${target.path} already has a 'shipeasy' entry (use --force to replace)`,
+      detail: other
+        ? `${target.path} is user-global (one file for every repo on this machine) and already ` +
+          `registers 'shipeasy' for project ${other}, not ${ctx.projectId} - left as is, so ${agent} ` +
+          `keeps talking to ${other} with that project's token. Re-run with --force to repoint it ` +
+          `at ${ctx.projectId}`
+        : `${target.path} already has a 'shipeasy' entry (use --force to replace)`,
     };
   }
+  // Said on every write, not just the conflict: project scope is the default,
+  // and "wrote <home path>" gives no hint that it outlives this repo.
+  const globalNote =
+    isGlobalOnlyAgent(agent) && ctx.scope === "project"
+      ? ` (user-global: ${agent} has no per-project MCP config, so this applies to every repo on this machine)`
+      : "";
   if (ctx.dryRun) {
-    return { action: replaced ? "updated" : "wrote", detail: target.path };
+    return { action: replaced ? "updated" : "wrote", detail: target.path + globalNote };
   }
   writeJsonConfig(target.path, config);
-  return { action: replaced ? "updated" : "wrote", detail: target.path };
+  return { action: replaced ? "updated" : "wrote", detail: target.path + globalNote };
 }
 
 /**
@@ -1238,7 +1271,13 @@ export function registerMcp(agent: AgentId, ctx: InstallCtx): McpResult {
     const file = jsonTarget ? registerJsonMcp(agent, jsonTarget, ctx) : null;
     // Must run AFTER the profile write: a stale workspace entry would shadow it.
     const pruned = pruneVscodeWorkspaceMcp(ctx);
-    const native = addCopilotMcpNative(ctx);
+    // Another project already owns the global registration: leave the CLI's
+    // config alone too, or the two Copilot surfaces would point at different
+    // projects.
+    const native =
+      file?.action === "skipped" && foreignGlobalPin(agent, ctx)
+        ? null
+        : addCopilotMcpNative(ctx);
     const parts = [file?.detail, native?.detail, pruned?.detail].filter(Boolean);
     if (!file && !native) return { action: "error", detail: "no MCP target for copilot" };
     return {

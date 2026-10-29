@@ -9,6 +9,7 @@ import {
   ALL_AGENT_IDS,
   MCP_AUTH_COMMANDS,
   addClaudeMcpNative,
+  antigravityMcpPath,
   antigravityServerSpec,
   geminiMcpAddArgv,
   normalizeAgentId,
@@ -872,6 +873,94 @@ describe("Claude native install commands", () => {
       expect(addClaudeMcpNative({ cwd: "/tmp/x", scope: "project", force: false, dryRun: false })).toBeNull();
     } finally {
       process.env.PATH = PATH;
+    }
+  });
+});
+
+describe("user-global harnesses at project scope (shipeasy #277)", () => {
+  const realPath = process.env.PATH;
+  const realHome = process.env.HOME;
+  const realXdg = process.env.XDG_CONFIG_HOME;
+  let fakeHome: string;
+  beforeEach(() => {
+    process.env.PATH = "";
+    fakeHome = tmp();
+    process.env.HOME = fakeHome;
+    process.env.XDG_CONFIG_HOME = join(fakeHome, ".config");
+  });
+  afterEach(() => {
+    process.env.PATH = realPath;
+    process.env.HOME = realHome;
+    restoreEnv("XDG_CONFIG_HOME", realXdg);
+    rmSync(fakeHome, { recursive: true, force: true });
+  });
+  const at = (cwd: string, projectId: string): InstallCtx => ({
+    cwd,
+    scope: "project",
+    force: false,
+    dryRun: false,
+    projectId,
+    mcpToken: "sdk_admin_x",
+  });
+
+  it("discloses on the write that the file is user-global", () => {
+    const dir = tmp();
+    try {
+      const r = registerMcp("antigravity", at(dir, "proj-a"));
+      expect(r.action).toBe("wrote");
+      expect(r.detail).toContain(antigravityMcpPath());
+      expect(r.detail).toMatch(/user-global/);
+      expect(r.detail).toMatch(/every repo on this machine/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  for (const agent of ["antigravity", "copilot"] as const) {
+    it(`${agent}: a second project does not silently ride the first project's registration`, () => {
+      const a = tmp();
+      const b = tmp();
+      try {
+        registerMcp(agent, at(a, "proj-a"));
+        const second = registerMcp(agent, at(b, "proj-b"));
+        expect(second.action).toBe("skipped");
+        // Names both projects and the way out - not just "already has an entry".
+        expect(second.detail).toContain("proj-a");
+        expect(second.detail).toContain("proj-b");
+        expect(second.detail).toMatch(/--force/);
+        const path = agent === "copilot" ? vscodeUserMcpPath() : antigravityMcpPath();
+        expect(readFileSync(path, "utf8")).toContain("proj-a");
+        expect(readFileSync(path, "utf8")).not.toContain("proj-b");
+      } finally {
+        rmSync(a, { recursive: true, force: true });
+        rmSync(b, { recursive: true, force: true });
+      }
+    });
+  }
+
+  it("--force repoints the global entry at the new project", () => {
+    const a = tmp();
+    const b = tmp();
+    try {
+      registerMcp("antigravity", at(a, "proj-a"));
+      const forced = registerMcp("antigravity", { ...at(b, "proj-b"), force: true });
+      expect(forced.action).toBe("updated");
+      expect(readFileSync(antigravityMcpPath(), "utf8")).toContain("proj-b");
+    } finally {
+      rmSync(a, { recursive: true, force: true });
+      rmSync(b, { recursive: true, force: true });
+    }
+  });
+
+  it("re-running for the SAME project stays a plain already-registered skip", () => {
+    const a = tmp();
+    try {
+      registerMcp("antigravity", at(a, "proj-a"));
+      const again = registerMcp("antigravity", at(a, "proj-a"));
+      expect(again.action).toBe("skipped");
+      expect(again.detail).not.toMatch(/not proj-a/);
+    } finally {
+      rmSync(a, { recursive: true, force: true });
     }
   });
 });
