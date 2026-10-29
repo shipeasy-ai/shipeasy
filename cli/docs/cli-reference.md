@@ -480,7 +480,7 @@ shipeasy ops alerts create [options]
 | `--composite <value>` | optional | What a `composite` rule is a boolean over. `rules` are sibling alert-rule ids in the same project and `op` is how their states combine. A child's state is what the current pass concluded about it, falling back to whether it has an open instance — so a composite still means something on a tick where a child could not be evaluated, which is exactly the tick a "two of these are broken at once" rule is for. One level deep: a child may not itself be composite. |
 | `--severity <value>` | optional | Severity of the raised alert. A `warnThreshold` breach opens one step quieter than this. |
 | `--enabled <value>` | optional | Whether the rule is evaluated by the cron. |
-| `--notify <value>` | optional | Delivery target for a notification; `null` = use the project default. |
+| `--notify <value>` | optional | Delivery target for a rule's alert; `null` = use the project default. The `NotificationTarget` shape plus the in-app switch. |
 
 #### `shipeasy ops alerts update`
 
@@ -518,7 +518,7 @@ shipeasy ops alerts update [options] <id>
 | `--required-buckets <value>` | optional | Buckets that must breach to fire; `null` restores "every bucket that had data". |
 | `--severity <value>` | optional | — |
 | `--enabled <value>` | optional | — |
-| `--notify <value>` | optional | Delivery target for a notification; `null` = use the project default. |
+| `--notify <value>` | optional | Delivery target for a rule's alert; `null` = use the project default. The `NotificationTarget` shape plus the in-app switch. |
 
 #### `shipeasy ops alerts archive`
 
@@ -535,6 +535,34 @@ shipeasy ops alerts archive [options] <id>
 | Option | | Description |
 | --- | --- | --- |
 | `--data <value>` | optional | Request body as a JSON object. |
+
+### `shipeasy ops attachments`
+
+Screenshots, recordings, and files attached to a bug or feature request — the evidence a QA lane captures at verification time.
+
+```bash
+shipeasy ops attachments [options] [command]
+```
+
+#### `shipeasy ops attachments create`
+
+Attach a screenshot to an item
+
+```bash
+shipeasy ops attachments create [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--content-base64 <value>` | optional | The file bytes, base64-encoded (a bare string or a `data:<mime>;base64,` URI). Pass this or `url`, not both. |
+| `--url <value>` | optional | A public https URL for the server to fetch the file from (no IP literals or internal hosts; max 25 MiB). Pass this or `contentBase64`, not both. |
+| `--filename <value>` | optional | File name, e.g. `checkout-overflow.png`. Defaults to the last segment of `url`, else `file`. |
+| `--mime-type <value>` | optional | Media type, e.g. `image/png`. Defaults from the data URI, the fetched response, or the filename extension. |
+| `--kind <value>` | optional | Attachment kind. Defaults from the media type (image → screenshot, video → recording, else file). Ignored by the comment-media upload. |
 
 ### `shipeasy ops comments`
 
@@ -576,6 +604,26 @@ shipeasy ops comments create [options] <handle>
 | --- | --- | --- |
 | `--body <value>` | optional | The comment body as markdown. Mentions (`@teammate`, `@shipeasy`) are parsed from it. |
 | `--parent-id <value>` | optional | Reply under this top-level comment. Omit / `null` for a top-level comment. Replying to a reply attaches to the same top-level parent (threading is one level deep). |
+
+#### `shipeasy ops comments upload-media`
+
+Upload an image to embed in a comment
+
+```bash
+shipeasy ops comments upload-media [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--content-base64 <value>` | optional | The file bytes, base64-encoded (a bare string or a `data:<mime>;base64,` URI). Pass this or `url`, not both. |
+| `--url <value>` | optional | A public https URL for the server to fetch the file from (no IP literals or internal hosts; max 25 MiB). Pass this or `contentBase64`, not both. |
+| `--filename <value>` | optional | File name, e.g. `checkout-overflow.png`. Defaults to the last segment of `url`, else `file`. |
+| `--mime-type <value>` | optional | Media type, e.g. `image/png`. Defaults from the data URI, the fetched response, or the filename extension. |
+| `--kind <value>` | optional | Attachment kind. Defaults from the media type (image → screenshot, video → recording, else file). Ignored by the comment-media upload. |
 
 ### `shipeasy ops fired-alerts`
 
