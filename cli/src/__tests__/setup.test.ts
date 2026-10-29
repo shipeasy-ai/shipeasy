@@ -765,6 +765,35 @@ describe("applyAgent", () => {
   });
 });
 
+describe("applyAgent - a hung harness is bounded (shipeasy #273)", () => {
+  it("kills a `codex mcp add` that never returns and reports the agent as failed", () => {
+    const dir = tmp();
+    const bin = tmp();
+    const PATH = process.env.PATH;
+    const T = process.env.SHIPEASY_HARNESS_TIMEOUT_MS;
+    try {
+      // Stand-in for codex blocking on its OAuth callback server.
+      writeFileSync(join(bin, "codex"), "#!/bin/sh\nsleep 30\n", { mode: 0o755 });
+      process.env.PATH = `${bin}:${PATH}`;
+      process.env.SHIPEASY_HARNESS_TIMEOUT_MS = "400";
+      const t0 = Date.now();
+      const lines = applyAgent("codex", ctx(dir));
+      expect(Date.now() - t0).toBeLessThan(10_000);
+      const out = lines.join("\n");
+      expect(out).toMatch(/codex mcp add timed out/);
+      expect(out).toMatch(/setup continues/);
+      // The manual fallback is still handed over.
+      expect(out).toContain("[mcp_servers.shipeasy]");
+    } finally {
+      process.env.PATH = PATH;
+      if (T === undefined) delete process.env.SHIPEASY_HARNESS_TIMEOUT_MS;
+      else process.env.SHIPEASY_HARNESS_TIMEOUT_MS = T;
+      rmSync(dir, { recursive: true, force: true });
+      rmSync(bin, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("Claude native install commands", () => {
   it("installs the plugin at BOTH scopes, declaring project scope in-repo", () => {
     for (const scope of ["user", "project"] as const) {

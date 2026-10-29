@@ -26,6 +26,7 @@ import {
   SKILLS_CLI_AGENT,
   detectAgents,
   detectHarness,
+  HARNESS_CMD_TIMEOUT_MS,
   installClaudePlugin,
   onPath,
   probeMcpReady,
@@ -1346,7 +1347,14 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     );
     for (const agent of selected) {
       say(`\n  **${agent}**:`);
-      for (const line of applyAgent(agent, ctx)) say(line);
+      if (!dryRun) say(`  · wiring (each harness command is capped at ${HARNESS_CMD_TIMEOUT_MS / 1000}s)`);
+      // One misbehaving harness must not take the rest of onboarding with it:
+      // a throw here is reported against this agent and the loop moves on.
+      try {
+        for (const line of applyAgent(agent, ctx)) say(line);
+      } catch (err) {
+        say(`  ✗ ${agent}: wiring failed - ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
     // Universal instructions — benefits every agent (and any we don't special-case).
     say("");

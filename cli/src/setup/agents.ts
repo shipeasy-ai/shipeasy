@@ -5,6 +5,46 @@ import { delimiter, join, resolve, sep } from "node:path";
 import { mergeMcpServer, readJsonConfig, writeJsonConfig } from "../util/json-config";
 
 /**
+ * Every harness shell-out in this file is bounded. A harness binary can block
+ * forever on something no `--yes` reaches: `codex mcp add --url` starts an OAuth
+ * sign-in and waits on a browser callback that never comes in a headless run,
+ * which used to wedge the whole of `shipeasy setup` at "codex:" with no output
+ * and no way out (shipeasy #273). A timeout turns that into a reported failure
+ * for that one agent, and setup carries on with the rest.
+ */
+export const HARNESS_CMD_TIMEOUT_MS = 30_000;
+/** `SHIPEASY_HARNESS_TIMEOUT_MS` overrides it (slow machines; tests). */
+function cmdTimeoutMs(): number {
+  const n = Number(process.env.SHIPEASY_HARNESS_TIMEOUT_MS);
+  return Number.isFinite(n) && n > 0 ? n : HARNESS_CMD_TIMEOUT_MS;
+}
+/** An interactive `<agent> mcp login` legitimately waits on a human in a browser. */
+export const HARNESS_LOGIN_TIMEOUT_MS = 180_000;
+
+/** spawnSync options that cap the run and SIGKILL it (a stuck harness ignores
+ *  SIGTERM while it waits on its callback server). */
+export function bounded<T extends Record<string, unknown>>(
+  opts: T,
+  timeout = cmdTimeoutMs(),
+): T & { timeout: number; killSignal: "SIGKILL" } {
+  return { ...opts, timeout, killSignal: "SIGKILL" };
+}
+
+/** True when {@link bounded}'s timeout killed the child. */
+export function timedOut(res: { error?: Error | undefined }): boolean {
+  return (res.error as NodeJS.ErrnoException | undefined)?.code === "ETIMEDOUT";
+}
+
+/** Human wording for a killed harness command: says what likely blocked it and
+ *  that setup moved on, so the reader isn't left guessing why nothing happened. */
+export function timeoutMessage(label: string, ms = cmdTimeoutMs()): string {
+  return (
+    `${label} timed out after ${Math.round(ms / 100) / 10}s (probably waiting on a browser ` +
+    `sign-in or a prompt) - skipped, setup continues`
+  );
+}
+
+/**
  * The coding agents `shipeasy setup` knows how to wire up. Detection mirrors
  * what wrangler does — look for the agent's binary on PATH and/or its
  * well-known config directory.
@@ -335,10 +375,11 @@ export function approveProjectMcpServer(ctx: InstallCtx, name = "shipeasy"): Mcp
  */
 export function claudeServerState(name: string): "pending" | "connected" | "other" | null {
   if (!onPath("claude")) return null;
-  const res = spawnSync("claude", ["mcp", "get", name], {
-    stdio: ["ignore", "pipe", "pipe"],
-    encoding: "utf8",
-  });
+  const res = spawnSync(
+    "claude",
+    ["mcp", "get", name],
+    bounded({ stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" }),
+  );
   return parseClaudeServerState(`${res.stdout ?? ""}${res.stderr ?? ""}`);
 }
 
@@ -385,10 +426,17 @@ export function runMcpAuth(agent: AgentId, opts: { dryRun?: boolean } = {}): Mcp
   }
   if (probe.code === "pending-trust") return CLAUDE_PENDING;
   for (const pre of cmd.pre ?? []) {
-    spawnSync(cmd.bin, pre, { stdio: ["ignore", "ignore", "ignore"] });
+    spawnSync(cmd.bin, pre, bounded({ stdio: ["ignore", "ignore", "ignore"] }));
   }
-  const res = spawnSync(cmd.bin, cmd.argv, { stdio: "inherit" });
+  const res = spawnSync(
+    cmd.bin,
+    cmd.argv,
+    bounded({ stdio: "inherit" }, HARNESS_LOGIN_TIMEOUT_MS),
+  );
   if (res.status === 0) return { action: "authorized", detail: line };
+  if (timedOut(res)) {
+    return { action: "failed", detail: timeoutMessage(`\`${line}\``, HARNESS_LOGIN_TIMEOUT_MS) };
+  }
   // The login itself can be what discovers the pending state (`claude mcp login`
   // exits 1 with *"is from .mcp.json and awaiting approval"*). Its stdio is
   // inherited — we can't read that text without swallowing the OAuth URL the
@@ -561,7 +609,11 @@ export function probeMcpReady(agent: AgentId, opts: { dryRun?: boolean } = {}): 
   if (!cmd) return { state: "unknown", detail: "no scriptable probe for this client" };
   if (!onPath(cmd.bin)) return { state: "unknown", detail: `\`${cmd.bin}\` not on PATH` };
 
-  const res = spawnSync(cmd.bin, cmd.argv, { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" });
+  const res = spawnSync(
+    cmd.bin,
+    cmd.argv,
+    bounded({ stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" }),
+  );
   const out = `${res.stdout ?? ""}${res.stderr ?? ""}`;
   const verdict = cmd.parse(out);
   if (verdict) return verdict;
@@ -1014,9 +1066,10 @@ export function addCopilotMcpNative(ctx: InstallCtx): McpResult | null {
   // `add` refuses an existing name; a forced re-pin is remove-then-add. The
   // remove is best-effort — the add below reports the real outcome.
   if (ctx.force) {
-    spawnSync("copilot", ["mcp", "remove", "shipeasy"], { stdio: ["ignore", "pipe", "pipe"] });
+    spawnSync("copilot", ["mcp", "remove", "shipeasy"], bounded({ stdio: ["ignore", "pipe", "pipe"] }));
   }
-  const res = spawnSync("copilot", argv, { cwd: ctx.cwd, stdio: ["ignore", "pipe", "pipe"] });
+  const res = spawnSync("copilot", argv, bounded({ cwd: ctx.cwd, stdio: ["ignore", "pipe", "pipe"] }));
+  if (timedOut(res)) return { action: "error", detail: timeoutMessage("copilot mcp add") };
   if (res.status !== 0) {
     const why = `${res.stderr ?? ""}${res.stdout ?? ""}`.trim().split("\n")[0];
     // Already registered is the common non-zero here, and it isn't a failure.
@@ -1089,14 +1142,16 @@ export function addClaudeMcpNative(ctx: InstallCtx): McpResult | null {
   // `add` refuses to overwrite, so a forced re-pin is remove-then-add. A failing
   // remove is not fatal on its own — the add below reports the real outcome.
   if (present) {
-    spawnSync("claude", ["mcp", "remove", "shipeasy", "--scope", "project"], {
-      cwd: ctx.cwd,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    spawnSync(
+      "claude",
+      ["mcp", "remove", "shipeasy", "--scope", "project"],
+      bounded({ cwd: ctx.cwd, stdio: ["ignore", "pipe", "pipe"] }),
+    );
   }
   // cwd matters: `--scope project` resolves `.mcp.json` against the process's
   // working directory, not ours.
-  const res = spawnSync("claude", argv, { cwd: ctx.cwd, stdio: ["ignore", "pipe", "pipe"] });
+  const res = spawnSync("claude", argv, bounded({ cwd: ctx.cwd, stdio: ["ignore", "pipe", "pipe"] }));
+  if (timedOut(res)) return { action: "error", detail: timeoutMessage("claude mcp add") };
   if (res.status !== 0) {
     const why = `${res.stderr ?? ""}${res.stdout ?? ""}`.trim().split("\n")[0];
     return {
@@ -1149,7 +1204,8 @@ function addGeminiMcpNative(ctx: InstallCtx): McpResult | null {
   if (!onPath("gemini")) return null;
   const argv = geminiMcpAddArgv(ctx);
   if (ctx.dryRun) return { action: "shell", detail: `would run: gemini ${shellJoin(argv)}` };
-  const res = spawnSync("gemini", argv, { cwd: ctx.cwd, stdio: ["ignore", "pipe", "pipe"] });
+  const res = spawnSync("gemini", argv, bounded({ cwd: ctx.cwd, stdio: ["ignore", "pipe", "pipe"] }));
+  if (timedOut(res)) return { action: "error", detail: timeoutMessage("gemini mcp add") };
   if (res.status !== 0) {
     const why = `${res.stderr ?? ""}${res.stdout ?? ""}`.trim().split("\n")[0];
     return { action: "error", detail: `gemini mcp add failed (${res.status ?? "?"})${why ? `: ${why}` : ""}` };
@@ -1217,9 +1273,17 @@ export function registerMcp(agent: AgentId, ctx: InstallCtx): McpResult {
         detail: `would run: codex mcp add shipeasy --url ${url}`,
       };
     }
-    const res = spawnSync("codex", ["mcp", "add", "shipeasy", "--url", url], {
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    const res = spawnSync(
+      "codex",
+      ["mcp", "add", "shipeasy", "--url", url],
+      bounded({ stdio: ["ignore", "pipe", "pipe"] }),
+    );
+    if (timedOut(res)) {
+      return {
+        action: "error",
+        detail: `${timeoutMessage("codex mcp add")}. Add manually:\n\n${codexTomlSnippet(ctx.projectId)}`,
+      };
+    }
     if (res.status !== 0) {
       return {
         action: "error",
@@ -1279,10 +1343,10 @@ export function installClaudePlugin(ctx: InstallCtx): ClaudePluginResult {
   }
   // cwd matters at project scope: both commands resolve `.claude/settings.json`
   // against the process's working directory.
-  const opts: Parameters<typeof spawnSync>[2] = {
-    cwd: ctx.cwd,
-    stdio: ["ignore", "pipe", "pipe"],
-  };
+  const opts: Parameters<typeof spawnSync>[2] = bounded(
+    { cwd: ctx.cwd, stdio: ["ignore", "pipe", "pipe"] },
+    cmdTimeoutMs() * 4,
+  );
   const add = spawnSync("claude", argv.marketplace, opts);
   // `marketplace add` is idempotent-ish; a non-zero here is usually "already added".
   // Re-pull the marketplace BEFORE installing so a first install resolves the
