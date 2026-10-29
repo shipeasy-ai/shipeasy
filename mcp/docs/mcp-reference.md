@@ -55,7 +55,7 @@ Hand-written tools (`projects_upsert` and auth) layer the `.shipeasy` bind or th
 
 ## Release
 
-Feature delivery — flags, kill switches, dynamic configs, A/B experiments, and the universes they bucket in.
+Feature delivery — flags, killswitches, dynamic configs, A/B experiments, and the universes they bucket in.
 
 ### Flags
 

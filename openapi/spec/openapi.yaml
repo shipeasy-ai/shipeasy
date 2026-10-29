@@ -22,7 +22,7 @@ security:
 tags:
   - name: Release
     summary: >-
-      Feature delivery — flags, kill switches, dynamic configs, A/B experiments,
+      Feature delivery — flags, killswitches, dynamic configs, A/B experiments,
       and the universes they bucket in.
     kind: nav
     description: |-
