@@ -2054,6 +2054,7 @@ _Parameters_
 | `priority` | optional | `any` | Initial triage priority, or `null`. |
 | `status` | optional | `any` | Initial lifecycle status; defaults to `open` when omitted. |
 | `assigneeId` | optional | `any` | The `users.id` of the person to assign as owner at creation, or `null`. |
+| `delegateConnectorId` | optional | `string` | The agent connector the filer chose to delegate this item to at creation. When set, the server launches that one agent and skips any tag-rule auto-launch, so the filer's choice prevails and only one run starts. |
 | `subscribers` | optional | `string[]` | Emails of teammates to subscribe to this item's Slack pings at creation. _(default `[]`)_ |
 | `tags` | optional | `string[]` | Tag names to label the item with, e.g. `["ios", "checkout"]`. Each name is matched case-insensitively against the project's existing tags and reuses that tag (keeping its stored casing) when one matches; a name with no match creates a new project tag. _(default `[]`)_ |
 | `reporterEmail` | optional | `any` | Email of the reporter, or `null`. |
@@ -2093,6 +2094,7 @@ _Parameters_
 | `priority` | optional | `any` | Initial triage priority, or `null`. |
 | `status` | optional | `any` | Initial lifecycle status; defaults to `open` when omitted. |
 | `assigneeId` | optional | `any` | The `users.id` of the person to assign as owner at creation, or `null`. |
+| `delegateConnectorId` | optional | `string` | The agent connector the filer chose to delegate this item to at creation. When set, the server launches that one agent and skips any tag-rule auto-launch, so the filer's choice prevails and only one run starts. |
 | `subscribers` | optional | `string[]` | Emails of teammates to subscribe to this item's Slack pings at creation. _(default `[]`)_ |
 | `tags` | optional | `string[]` | Tag names to label the item with, e.g. `["ios", "checkout"]`. Each name is matched case-insensitively against the project's existing tags and reuses that tag (keeping its stored casing) when one matches; a name with no match creates a new project tag. _(default `[]`)_ |
 | `reporterEmail` | optional | `any` | Email of the reporter, or `null`. |
@@ -2132,6 +2134,7 @@ _Parameters_
 | `priority` | optional | `any` | Initial triage priority, or `null`. |
 | `status` | optional | `any` | Initial lifecycle status; defaults to `open` when omitted. |
 | `assigneeId` | optional | `any` | The `users.id` of the person to assign as owner at creation, or `null`. |
+| `delegateConnectorId` | optional | `string` | The agent connector the filer chose to delegate this item to at creation. When set, the server launches that one agent and skips any tag-rule auto-launch, so the filer's choice prevails and only one run starts. |
 | `subscribers` | optional | `string[]` | Emails of teammates to subscribe to this item's Slack pings at creation. _(default `[]`)_ |
 | `tags` | optional | `string[]` | Tag names to label the item with, e.g. `["ios", "checkout"]`. Each name is matched case-insensitively against the project's existing tags and reuses that tag (keeping its stored casing) when one matches; a name with no match creates a new project tag. _(default `[]`)_ |
 | `reporterEmail` | optional | `any` | Email of the reporter, or `null`. |
@@ -2699,6 +2702,47 @@ _Errors_ — beyond the [common errors](#errors):
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 - `VALIDATION` — The request body failed structural (schema) validation.
+
+### Activity
+
+The change history of queue items — status, priority, owner and tag moves,
+edits, comments, acknowledgements, and every pull-request event (linked,
+unlinked, merged, closed unmerged). Read it per item or across the whole
+project, filtered by kind and time, to learn what changed since a given
+moment instead of diffing status lists.
+
+#### `ops_activity_list`
+
+**List queue activity**
+
+The activity feed of the project's queue items, newest first: every status,
+priority, owner, tag and content change, every comment, every alert
+acknowledgement, and every pull-request event (`linked`, `unlinked`,
+`merged`, `closed` unmerged). Each entry names the item it belongs to, who
+made the change (or `github` for a merge/close the webhook observed) and
+when.
+
+Filter to one item with `item`, to one kind of change with `field`, and to a
+time window with `since` / `until` (ISO-8601, exclusive). Pass
+`field=pr` and `since` to learn which PRs were added to an item since you
+last looked, instead of diffing status lists.
+
+**Use case:** A QA agent polling for "what PRs were linked to item 7 since T?"
+or "what changed on this project since T?".
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `item` | optional | `string` | Narrow to one item — its per-project number (e.g. `7`) or full id. Omit for the whole project. _(length 1–128)_ |
+| `field` | optional | `"status" \| "priority" \| "owner" \| "tags" \| "ack" \| "pr" \| "comment" \| "edit"` | Which kind of change an activity entry records. `pr` is a pull-request event (see `pr.event`); `comment` carries an excerpt in `to`; `edit` names the edited content fields in `added`. |
+| `since` | optional | `string` | Only entries strictly after this ISO-8601 instant. _(format: date-time)_ |
+| `until` | optional | `string` | Only entries strictly before this ISO-8601 instant. _(format: date-time)_ |
+| `limit` | optional | `integer` | Maximum entries to return (1-200). Defaults to 100. _(1–200)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 
 ### Investigations
 
