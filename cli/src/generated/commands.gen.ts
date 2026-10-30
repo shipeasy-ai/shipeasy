@@ -11,6 +11,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   const g_projects = defineGroup(program, "projects", { summary: "Projects: the account-level container every other resource is scoped to.", help: "Projects: the account-level container every other resource is scoped to.\n\n**Account-level, not bound-project-level.** Both operations resolve from the caller's credential rather than the `.shipeasy`-bound project — `current` reads the project the auth header maps to, and `upsert` find-or-creates under the session's owner. Neither touches the local `.shipeasy` binding; recording the result there is a consumer side-effect layered on top.\n\n**Idempotent upsert.** A project is keyed by `(owner_email, domain)`. Calling `upsert` again with the same domain returns the existing project with `created: false`, so it is safe to run on every install.", aliases: [] });
   const g_tags = defineGroup(program, "tags", { summary: "Tags: free-form, project-scoped labels any item can carry — queue items (bugs, feature requests, error/alert tickets), flags, configs, kill switches, metrics, tracked errors, alert rules, and experiments all share one tag roster.", help: "Tags: free-form, project-scoped labels any item can carry — queue items\n(bugs, feature requests, error/alert tickets), flags, configs, kill\nswitches, metrics, tracked errors, alert rules, and experiments all share\none tag roster.\n\n**Identity.** A tag is its name, unique case-insensitively per project. A\ntag is born the first time it's attached — there is no separate create.\n\n**Addressing.** An item is named by `entityType` + its handle (an ops\nitem's number, a resource's name, or any id). `set` replaces the full tag\nset; `update` adds/removes names incrementally.", aliases: [] });
   const g_metrics_events = defineGroup(g_metrics, "events", { summary: "Events: the catalog of event names (and their typed properties) that metric queries reference.", help: "Events: the catalog of event names (and their typed properties) that metric queries reference.\n\n**Auto-discovery.** The SDK's `/collect` ingest path records any unknown event name it receives as a `pending` row (`pending: 1`) so you can review it. Metrics defined on a pending event fail until it is approved.\n\n**Approval.** `POST /{id}/approve` promotes a pending event to usable (`pending: 0`), optionally declaring its folder/description/properties in the same call. Registering a brand-new event via `POST` that matches a pending name approves it instead of failing with a conflict.\n\n**Properties.** Each event can declare typed properties (`name`, `type` of `string|number|boolean`, `required`). On update/approve the `properties` array replaces the full set — there is no merge.\n\n**Deletion.** Soft-delete (the user-facing verb is `archive`). Blocked while any metric still references the event — delete those metrics first.", aliases: [] });
+  const g_ops_activity = defineGroup(g_ops, "activity", { summary: "The change history of queue items — status, priority, owner and tag moves, edits, comments, acknowledgements, and every pull-request event (linked, unlinked, merged, closed unmerged).", help: "The change history of queue items — status, priority, owner and tag moves,\nedits, comments, acknowledgements, and every pull-request event (linked,\nunlinked, merged, closed unmerged). Read it per item or across the whole\nproject, filtered by kind and time, to learn what changed since a given\nmoment instead of diffing status lists.", aliases: [] });
   const g_ops_agents = defineGroup(g_ops, "agents", { summary: "Connected AI agents — one per authenticated trigger connector (Claude / Cursor / Copilot / Jules).", help: "Connected AI agents — one per authenticated trigger connector (Claude /\nCursor / Copilot / Jules). The read-only roster behind agent assignment\nand the `ops ack` agent types: an AI ack (`ops ack <handle> --agent\n<type>`) requires the type to appear here, so this list is where an\n`AGENT_NOT_CONNECTED` error sends you.", aliases: [] });
   const g_ops_alerts = defineGroup(g_ops, "alerts", { summary: "Alert rules: the metric-threshold definitions the analysis cron evaluates each run.", help: "Alert rules: the metric-threshold definitions the analysis cron evaluates each run.\n\n**What fires.** Each rule binds a `metricId`, a `comparator` (`gt`/`gte`/`lt`/`lte`), and a `threshold`. On every cron pass the cron aggregates the metric over the trailing `windowHours` and raises an alert at `severity` when `value comparator threshold` holds.\n\n**Immutable metric.** The bound metric (and its aggregation) is fixed at create time — there is no update path for `metricId`. Tune `threshold`/`comparator`/`windowHours`/`severity`/`name`/`enabled` instead, or delete + recreate to repoint the rule at a different metric.\n\n**Delivery.** `notify` optionally targets a Slack channel and/or email for this rule; `null` falls back to the project's default notification settings. Slack targets require a connected Slack connector.", aliases: ["ar"] });
   const g_ops_attachments = defineGroup(g_ops, "attachments", { summary: "Screenshots, recordings, and files attached to a bug or feature request — the evidence a QA lane captures at verification time.", help: "Screenshots, recordings, and files attached to a bug or feature request —\nthe evidence a QA lane captures at verification time. Upload by base64\nbytes or a public https URL; append-only.", aliases: [] });
@@ -128,6 +129,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--priority <value>", "Initial triage priority, or `null`.")
     .option("--status <value>", "Initial lifecycle status; defaults to `open` when omitted.")
     .option("--assignee-id <value>", "The `users.id` of the person to assign as owner at creation, or `null`.")
+    .option("--delegate-connector-id <value>", "The agent connector the filer chose to delegate this item to at creation. When set, the server launches that one agent and skips any tag-rule auto-launch, so the filer's choice prevails and only one run starts.")
     .option("--subscribers <value>", "Emails of teammates to subscribe to this item's Slack pings at creation.")
     .option("--tags <value>", "Tag names to label the item with, e.g. `[\"ios\", \"checkout\"]`. Each name is matched case-insensitively against the project's existing tags and reuses that tag (keeping its stored casing) when one matches; a name with no match creates a new project tag.")
     .option("--reporter-email <value>", "Email of the reporter, or `null`.")
@@ -139,7 +141,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--description <value>", "What the feature is.")
     .option("--use-case <value>", "Why it's needed / the use case.")
     .action(async (title, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, type: str(opts.type), stepsToReproduce: str(opts.stepsToReproduce), actualResult: str(opts.actualResult), expectedResult: str(opts.expectedResult), priority: str(opts.priority), status: str(opts.status), assigneeId: str(opts.assigneeId), subscribers: list(opts.subscribers), tags: list(opts.tags), reporterEmail: str(opts.reporterEmail), pageUrl: str(opts.pageUrl), userAgent: str(opts.userAgent), viewport: str(opts.viewport), context: json(opts.context), notify: str(opts.notify), description: str(opts.description), useCase: str(opts.useCase) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, type: str(opts.type), stepsToReproduce: str(opts.stepsToReproduce), actualResult: str(opts.actualResult), expectedResult: str(opts.expectedResult), priority: str(opts.priority), status: str(opts.status), assigneeId: str(opts.assigneeId), delegateConnectorId: str(opts.delegateConnectorId), subscribers: list(opts.subscribers), tags: list(opts.tags), reporterEmail: str(opts.reporterEmail), pageUrl: str(opts.pageUrl), userAgent: str(opts.userAgent), viewport: str(opts.viewport), context: json(opts.context), notify: str(opts.notify), description: str(opts.description), useCase: str(opts.useCase) }) }) });
     });
   g_ops.command("bug")
     .description("File a bug report.")
@@ -150,6 +152,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--priority <value>", "Initial triage priority, or `null`.")
     .option("--status <value>", "Initial lifecycle status; defaults to `open` when omitted.")
     .option("--assignee-id <value>", "The `users.id` of the person to assign as owner at creation, or `null`.")
+    .option("--delegate-connector-id <value>", "The agent connector the filer chose to delegate this item to at creation. When set, the server launches that one agent and skips any tag-rule auto-launch, so the filer's choice prevails and only one run starts.")
     .option("--subscribers <value>", "Emails of teammates to subscribe to this item's Slack pings at creation.")
     .option("--tags <value>", "Tag names to label the item with, e.g. `[\"ios\", \"checkout\"]`. Each name is matched case-insensitively against the project's existing tags and reuses that tag (keeping its stored casing) when one matches; a name with no match creates a new project tag.")
     .option("--reporter-email <value>", "Email of the reporter, or `null`.")
@@ -159,7 +162,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--context <value>", "Arbitrary capture context, or `null`.")
     .option("--notify <value>", "Where this bug's completion notification lands.")
     .action(async (title, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, stepsToReproduce: str(opts.stepsToReproduce), actualResult: str(opts.actualResult), expectedResult: str(opts.expectedResult), priority: str(opts.priority), status: str(opts.status), assigneeId: str(opts.assigneeId), subscribers: list(opts.subscribers), tags: list(opts.tags), reporterEmail: str(opts.reporterEmail), pageUrl: str(opts.pageUrl), userAgent: str(opts.userAgent), viewport: str(opts.viewport), context: json(opts.context), notify: str(opts.notify), type: "bug" }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, stepsToReproduce: str(opts.stepsToReproduce), actualResult: str(opts.actualResult), expectedResult: str(opts.expectedResult), priority: str(opts.priority), status: str(opts.status), assigneeId: str(opts.assigneeId), delegateConnectorId: str(opts.delegateConnectorId), subscribers: list(opts.subscribers), tags: list(opts.tags), reporterEmail: str(opts.reporterEmail), pageUrl: str(opts.pageUrl), userAgent: str(opts.userAgent), viewport: str(opts.viewport), context: json(opts.context), notify: str(opts.notify), type: "bug" }) }) });
     });
   g_ops.command("feature")
     .description("File a feature request.")
@@ -169,6 +172,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--priority <value>", "Initial triage priority, or `null`.")
     .option("--status <value>", "Initial lifecycle status; defaults to `open` when omitted.")
     .option("--assignee-id <value>", "The `users.id` of the person to assign as owner at creation, or `null`.")
+    .option("--delegate-connector-id <value>", "The agent connector the filer chose to delegate this item to at creation. When set, the server launches that one agent and skips any tag-rule auto-launch, so the filer's choice prevails and only one run starts.")
     .option("--subscribers <value>", "Emails of teammates to subscribe to this item's Slack pings at creation.")
     .option("--tags <value>", "Tag names to label the item with, e.g. `[\"ios\", \"checkout\"]`. Each name is matched case-insensitively against the project's existing tags and reuses that tag (keeping its stored casing) when one matches; a name with no match creates a new project tag.")
     .option("--reporter-email <value>", "Email of the reporter, or `null`.")
@@ -177,7 +181,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--context <value>", "Arbitrary capture context, or `null`.")
     .option("--notify <value>", "Where this request's completion notification lands.")
     .action(async (title, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, description: str(opts.description), useCase: str(opts.useCase), priority: str(opts.priority), status: str(opts.status), assigneeId: str(opts.assigneeId), subscribers: list(opts.subscribers), tags: list(opts.tags), reporterEmail: str(opts.reporterEmail), pageUrl: str(opts.pageUrl), userAgent: str(opts.userAgent), context: json(opts.context), notify: str(opts.notify), type: "feature_request" }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, description: str(opts.description), useCase: str(opts.useCase), priority: str(opts.priority), status: str(opts.status), assigneeId: str(opts.assigneeId), delegateConnectorId: str(opts.delegateConnectorId), subscribers: list(opts.subscribers), tags: list(opts.tags), reporterEmail: str(opts.reporterEmail), pageUrl: str(opts.pageUrl), userAgent: str(opts.userAgent), context: json(opts.context), notify: str(opts.notify), type: "feature_request" }) }) });
     });
   g_ops.command("get")
     .description("Get one queue item")
@@ -365,6 +369,17 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--properties <value>", "Replaces the full property set (no merge). Omit to leave properties unchanged.")
     .action(async (id, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.approveEvent({ client, path: { id: id }, body: clean({ folder: str(opts.folder), description: str(opts.description), properties: json(opts.properties) }) }) });
+    });
+  g_ops_activity.command("list")
+    .description("List queue activity")
+    .option("--item <value>", "Narrow to one item — its per-project number (e.g. `7`) or full id. Omit for the whole project.")
+    .option("--field <value>", "Narrow to one kind of change.")
+    .option("--since <value>", "Only entries strictly after this ISO-8601 instant.")
+    .option("--until <value>", "Only entries strictly before this ISO-8601 instant.")
+    .option("--limit <value>", "Maximum entries to return (1-200). Defaults to 100.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.listOpsActivity({ client, query: clean({ item: str(opts.item), field: str(opts.field), since: str(opts.since), until: str(opts.until), limit: num(opts.limit) }), body: json(opts.data) as never }) });
     });
   g_ops_agents.command("list")
     .description("List connected AI agents")

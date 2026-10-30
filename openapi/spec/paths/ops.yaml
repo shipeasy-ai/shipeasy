@@ -1408,6 +1408,86 @@
       - FORBIDDEN
     x-cli:
       name: list
+/api/admin/ops/activity:
+  get:
+    operationId: listOpsActivity
+    summary: List queue activity
+    description: |-
+      The activity feed of the project's queue items, newest first: every status,
+      priority, owner, tag and content change, every comment, every alert
+      acknowledgement, and every pull-request event (`linked`, `unlinked`,
+      `merged`, `closed` unmerged). Each entry names the item it belongs to, who
+      made the change (or `github` for a merge/close the webhook observed) and
+      when.
+
+      Filter to one item with `item`, to one kind of change with `field`, and to a
+      time window with `since` / `until` (ISO-8601, exclusive). Pass
+      `field=pr` and `since` to learn which PRs were added to an item since you
+      last looked, instead of diffing status lists.
+
+      **Use case:** A QA agent polling for "what PRs were linked to item 7 since T?"
+      or "what changed on this project since T?".
+    tags:
+      - Activity
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: item
+        in: query
+        required: false
+        description: Narrow to one item — its per-project number (e.g. `7`) or full id. Omit for the whole project.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      - name: field
+        in: query
+        required: false
+        description: Narrow to one kind of change.
+        schema:
+          $ref: ../components/schemas/ops.yaml#/OpsActivityField
+      - name: since
+        in: query
+        required: false
+        description: Only entries strictly after this ISO-8601 instant.
+        schema:
+          type: string
+          format: date-time
+      - name: until
+        in: query
+        required: false
+        description: Only entries strictly before this ISO-8601 instant.
+        schema:
+          type: string
+          format: date-time
+      - name: limit
+        in: query
+        required: false
+        description: Maximum entries to return (1-200). Defaults to 100.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 200
+    responses:
+      "200":
+        description: List queue activity
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/ListOpsActivityResponse
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+    x-cli:
+      name: list
 /api/admin/ops/{handle}/comments:
   get:
     operationId: listOpsComments

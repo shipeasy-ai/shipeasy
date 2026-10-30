@@ -394,6 +394,31 @@ Operational queue: the unified table of bug reports, feature requests, and auto-
 shipeasy ops [options] [command]
 ```
 
+### `shipeasy ops activity`
+
+The change history of queue items — status, priority, owner and tag moves, edits, comments, acknowledgements, and every pull-request event (linked, unlinked, merged, closed unmerged).
+
+```bash
+shipeasy ops activity [options] [command]
+```
+
+#### `shipeasy ops activity list`
+
+List queue activity
+
+```bash
+shipeasy ops activity list [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--item <value>` | optional | Narrow to one item — its per-project number (e.g. `7`) or full id. Omit for the whole project. |
+| `--field <value>` | optional | Narrow to one kind of change. |
+| `--since <value>` | optional | Only entries strictly after this ISO-8601 instant. |
+| `--until <value>` | optional | Only entries strictly before this ISO-8601 instant. |
+| `--limit <value>` | optional | Maximum entries to return (1-200). Defaults to 100. |
+| `--data <value>` | optional | Request body as a JSON object. |
+
 ### `shipeasy ops agents`
 
 Connected AI agents — one per authenticated trigger connector (Claude / Cursor / Copilot / Jules).
@@ -1037,6 +1062,7 @@ shipeasy ops create [options] <title>
 | `--priority <value>` | optional | Initial triage priority, or `null`. |
 | `--status <value>` | optional | Initial lifecycle status; defaults to `open` when omitted. |
 | `--assignee-id <value>` | optional | The `users.id` of the person to assign as owner at creation, or `null`. |
+| `--delegate-connector-id <value>` | optional | The agent connector the filer chose to delegate this item to at creation. When set, the server launches that one agent and skips any tag-rule auto-launch, so the filer's choice prevails and only one run starts. |
 | `--subscribers <value>` | optional | Emails of teammates to subscribe to this item's Slack pings at creation. |
 | `--tags <value>` | optional | Tag names to label the item with, e.g. `["ios", "checkout"]`. Each name is matched case-insensitively against the project's existing tags and reuses that tag (keeping its stored casing) when one matches; a name with no match creates a new project tag. |
 | `--reporter-email <value>` | optional | Email of the reporter, or `null`. |
@@ -1068,6 +1094,7 @@ shipeasy ops bug [options] <title>
 | `--priority <value>` | optional | Initial triage priority, or `null`. |
 | `--status <value>` | optional | Initial lifecycle status; defaults to `open` when omitted. |
 | `--assignee-id <value>` | optional | The `users.id` of the person to assign as owner at creation, or `null`. |
+| `--delegate-connector-id <value>` | optional | The agent connector the filer chose to delegate this item to at creation. When set, the server launches that one agent and skips any tag-rule auto-launch, so the filer's choice prevails and only one run starts. |
 | `--subscribers <value>` | optional | Emails of teammates to subscribe to this item's Slack pings at creation. |
 | `--tags <value>` | optional | Tag names to label the item with, e.g. `["ios", "checkout"]`. Each name is matched case-insensitively against the project's existing tags and reuses that tag (keeping its stored casing) when one matches; a name with no match creates a new project tag. |
 | `--reporter-email <value>` | optional | Email of the reporter, or `null`. |
@@ -1096,6 +1123,7 @@ shipeasy ops feature [options] <title>
 | `--priority <value>` | optional | Initial triage priority, or `null`. |
 | `--status <value>` | optional | Initial lifecycle status; defaults to `open` when omitted. |
 | `--assignee-id <value>` | optional | The `users.id` of the person to assign as owner at creation, or `null`. |
+| `--delegate-connector-id <value>` | optional | The agent connector the filer chose to delegate this item to at creation. When set, the server launches that one agent and skips any tag-rule auto-launch, so the filer's choice prevails and only one run starts. |
 | `--subscribers <value>` | optional | Emails of teammates to subscribe to this item's Slack pings at creation. |
 | `--tags <value>` | optional | Tag names to label the item with, e.g. `["ios", "checkout"]`. Each name is matched case-insensitively against the project's existing tags and reuses that tag (keeping its stored casing) when one matches; a name with no match creates a new project tag. |
 | `--reporter-email <value>` | optional | Email of the reporter, or `null`. |

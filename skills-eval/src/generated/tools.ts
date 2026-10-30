@@ -39,6 +39,7 @@ export const KNOWN_TOOLS: readonly string[] = [
   "metrics_unarchive",
   "metrics_update",
   "ops_ack",
+  "ops_activity_list",
   "ops_agents_list",
   "ops_alerts_archive",
   "ops_alerts_channels",
