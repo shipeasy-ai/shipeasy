@@ -1378,7 +1378,14 @@ async function probeServerBlobs() {
     APPEND_UNIVERSE,
     MX_UNIVERSE,
   ]);
-  const THROWAWAY_FLAGS = new Set(["probe_exp_targeting", "probe_exp_holdout", "probe_holdout_bad"]);
+  const THROWAWAY_FLAGS = new Set([
+    "probe_exp_targeting",
+    "probe_exp_holdout",
+    "probe_holdout_bad",
+    // durable-overrides fixture gates (created in-run, so absent from the cached blob)
+    "probe_ovr_target",
+    "probe_ovr_cohort",
+  ]);
   const gates = listGates().filter((g) => g.enabled && !THROWAWAY_FLAGS.has(g.name));
   const exps = listExperiments().filter(
     (e) => e.status === "running" && !THROWAWAY_UNIS.has(e.universe),
