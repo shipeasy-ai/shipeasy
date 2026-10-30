@@ -22,7 +22,7 @@ security:
 tags:
   - name: Release
     summary: >-
-      Feature delivery — flags, kill switches, dynamic configs, A/B experiments,
+      Feature delivery — flags, killswitches, dynamic configs, A/B experiments,
       and the universes they bucket in.
     kind: nav
     description: |-
@@ -199,6 +199,12 @@ tags:
       and the `ops ack` agent types: an AI ack (`ops ack <handle> --agent
       <type>`) requires the type to appear here, so this list is where an
       `AGENT_NOT_CONNECTED` error sends you.
+  - name: Attachments
+    parent: Ops
+    description: |-
+      Screenshots, recordings, and files attached to a bug or feature request —
+      the evidence a QA lane captures at verification time. Upload by base64
+      bytes or a public https URL; append-only.
   - name: Comments
     parent: Ops
     description: |-
@@ -434,6 +440,10 @@ paths:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1comments
   /api/admin/ops/activity:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1activity
+  /api/admin/ops/{handle}/attachments:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1attachments
+  /api/admin/ops/{handle}/comment-media:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1comment-media
   /api/admin/notifications:
     $ref: ./paths/ops.yaml#/~1api~1admin~1notifications
   /api/admin/slack/channels:

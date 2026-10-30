@@ -2869,6 +2869,46 @@ export const zListOpsActivityResponse = z.object({
 });
 
 /**
+ * Body for `POST /api/admin/ops/{handle}/attachments` and `POST /api/admin/ops/{handle}/comment-media`. Exactly one of `contentBase64` / `url` is required.
+ */
+export const zCreateOpsAttachmentRequest = z.object({
+    contentBase64: z.string().optional(),
+    url: z.url().optional(),
+    filename: z.string().optional(),
+    mimeType: z.string().optional(),
+    kind: z.enum([
+        'screenshot',
+        'recording',
+        'file'
+    ]).optional()
+});
+
+/**
+ * Response for `POST /api/admin/ops/{handle}/attachments`.
+ */
+export const zCreateOpsAttachmentResponse = z.object({
+    id: z.string(),
+    filename: z.string(),
+    kind: z.enum([
+        'screenshot',
+        'recording',
+        'file'
+    ]),
+    mimeType: z.string(),
+    sizeBytes: z.int()
+});
+
+/**
+ * Response for `POST /api/admin/ops/{handle}/comment-media`.
+ */
+export const zCreateOpsCommentMediaResponse = z.object({
+    id: z.string(),
+    url: z.string(),
+    mimeType: z.string(),
+    sizeBytes: z.int()
+});
+
+/**
  * Body for `POST /api/admin/notifications`. In `title`, `summary`, and each step, reference admin entities inline with tokens — `#42` (feedback item), `@gate:<name>` (alias `@flag:`), `@experiment:<name>` (`@exp:`), `@config:<name>`, `@killswitch:<name>` (`@ks:`), `@metric:<name>`, `@universe:<name>`, `@alert:<name>` — where `<name>` is the entity's immutable name/slug (e.g. `features.checkout`). The dashboard renders each token as a live hover chip deep-linking to the entity; tokens degrade to plain text elsewhere, so they're always safe to use.
  */
 export const zNotifyOpsRequest = z.object({
@@ -5452,6 +5492,36 @@ export const zListOpsActivityQuery = z.object({
  * List queue activity
  */
 export const zListOpsActivityResponse2 = zListOpsActivityResponse;
+
+export const zCreateOpsAttachmentBody = zCreateOpsAttachmentRequest;
+
+export const zCreateOpsAttachmentHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zCreateOpsAttachmentPath = z.object({
+    handle: zResourceId
+});
+
+/**
+ * Attach a screenshot to an item
+ */
+export const zCreateOpsAttachmentResponse2 = zCreateOpsAttachmentResponse;
+
+export const zCreateOpsCommentMediaBody = zCreateOpsAttachmentRequest;
+
+export const zCreateOpsCommentMediaHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zCreateOpsCommentMediaPath = z.object({
+    handle: zResourceId
+});
+
+/**
+ * Upload an image to embed in a comment
+ */
+export const zCreateOpsCommentMediaResponse2 = zCreateOpsCommentMediaResponse;
 
 export const zNotifyOpsBody = zNotifyOpsRequest;
 

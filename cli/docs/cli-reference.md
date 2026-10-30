@@ -561,6 +561,34 @@ shipeasy ops alerts archive [options] <id>
 | --- | --- | --- |
 | `--data <value>` | optional | Request body as a JSON object. |
 
+### `shipeasy ops attachments`
+
+Screenshots, recordings, and files attached to a bug or feature request — the evidence a QA lane captures at verification time.
+
+```bash
+shipeasy ops attachments [options] [command]
+```
+
+#### `shipeasy ops attachments create`
+
+Attach a screenshot to an item
+
+```bash
+shipeasy ops attachments create [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--content-base64 <value>` | optional | The file bytes, base64-encoded (a bare string or a `data:<mime>;base64,` URI). Pass this or `url`, not both. |
+| `--url <value>` | optional | A public https URL for the server to fetch the file from (no IP literals or internal hosts; max 25 MiB). Pass this or `contentBase64`, not both. |
+| `--filename <value>` | optional | File name, e.g. `checkout-overflow.png`. Defaults to the last segment of `url`, else `file`. |
+| `--mime-type <value>` | optional | Media type, e.g. `image/png`. Defaults from the data URI, the fetched response, or the filename extension. |
+| `--kind <value>` | optional | Attachment kind. Defaults from the media type (image → screenshot, video → recording, else file). Ignored by the comment-media upload. |
+
 ### `shipeasy ops comments`
 
 Comments on a queue item — the discussion thread that hangs off any bug, feature request, or auto-filed error/alert ticket.
@@ -601,6 +629,26 @@ shipeasy ops comments create [options] <handle>
 | --- | --- | --- |
 | `--body <value>` | optional | The comment body as markdown. Mentions (`@teammate`, `@shipeasy`) are parsed from it. |
 | `--parent-id <value>` | optional | Reply under this top-level comment. Omit / `null` for a top-level comment. Replying to a reply attaches to the same top-level parent (threading is one level deep). |
+
+#### `shipeasy ops comments upload-media`
+
+Upload an image to embed in a comment
+
+```bash
+shipeasy ops comments upload-media [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--content-base64 <value>` | optional | The file bytes, base64-encoded (a bare string or a `data:<mime>;base64,` URI). Pass this or `url`, not both. |
+| `--url <value>` | optional | A public https URL for the server to fetch the file from (no IP literals or internal hosts; max 25 MiB). Pass this or `contentBase64`, not both. |
+| `--filename <value>` | optional | File name, e.g. `checkout-overflow.png`. Defaults to the last segment of `url`, else `file`. |
+| `--mime-type <value>` | optional | Media type, e.g. `image/png`. Defaults from the data URI, the fetched response, or the filename extension. |
+| `--kind <value>` | optional | Attachment kind. Defaults from the media type (image → screenshot, video → recording, else file). Ignored by the comment-media upload. |
 
 ### `shipeasy ops fired-alerts`
 
@@ -1328,7 +1376,7 @@ shipeasy tags update [options] <entityType> <entityId>
 
 ## `shipeasy release`
 
-Feature delivery — flags, kill switches, dynamic configs, A/B experiments, and the universes they bucket in.
+Feature delivery — flags, killswitches, dynamic configs, A/B experiments, and the universes they bucket in.
 
 ```bash
 shipeasy release [options] [command]

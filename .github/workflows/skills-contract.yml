@@ -23,14 +23,9 @@ on:
       - "openapi/**"
       - "skills-contract/**"
       - "pnpm-workspace.yaml"
+  # PRs run unfiltered: Actions minutes are free on this public repo, and
+  # automerge.yml merges only once every check on the PR head is green.
   pull_request:
-    paths:
-      - "shipeasy/skills/**"
-      - "cli/**"
-      - "mcp/**"
-      - "openapi/**"
-      - "skills-contract/**"
-      - "pnpm-workspace.yaml"
   workflow_dispatch:
 
 jobs:

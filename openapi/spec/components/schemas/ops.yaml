@@ -1951,6 +1951,77 @@ CreateOpsCommentResponse:
     - id
   additionalProperties: false
   description: Response for `POST /api/admin/ops/{handle}/comments`.
+CreateOpsAttachmentRequest:
+  type: object
+  properties:
+    contentBase64:
+      type: string
+      description: The file bytes, base64-encoded (a bare string or a `data:<mime>;base64,` URI). Pass this or `url`, not both.
+    url:
+      type: string
+      format: uri
+      description: A public https URL for the server to fetch the file from (no IP literals or internal hosts; max 25 MiB). Pass this or `contentBase64`, not both.
+    filename:
+      type: string
+      description: File name, e.g. `checkout-overflow.png`. Defaults to the last segment of `url`, else `file`.
+    mimeType:
+      type: string
+      description: Media type, e.g. `image/png`. Defaults from the data URI, the fetched response, or the filename extension.
+    kind:
+      type: string
+      enum:
+        - screenshot
+        - recording
+        - file
+      description: Attachment kind. Defaults from the media type (image → screenshot, video → recording, else file). Ignored by the comment-media upload.
+  additionalProperties: false
+  description: Body for `POST /api/admin/ops/{handle}/attachments` and `POST /api/admin/ops/{handle}/comment-media`. Exactly one of `contentBase64` / `url` is required.
+CreateOpsAttachmentResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Newly created attachment id.
+    filename:
+      type: string
+    kind:
+      type: string
+      enum:
+        - screenshot
+        - recording
+        - file
+    mimeType:
+      type: string
+    sizeBytes:
+      type: integer
+  required:
+    - id
+    - filename
+    - kind
+    - mimeType
+    - sizeBytes
+  additionalProperties: false
+  description: Response for `POST /api/admin/ops/{handle}/attachments`.
+CreateOpsCommentMediaResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Newly created media id.
+    url:
+      type: string
+      description: Relative URL to embed in a comment body as a markdown image.
+    mimeType:
+      type: string
+    sizeBytes:
+      type: integer
+  required:
+    - id
+    - url
+    - mimeType
+    - sizeBytes
+  additionalProperties: false
+  description: Response for `POST /api/admin/ops/{handle}/comment-media`.
 NotifyOpsRequest:
   type: object
   properties:
