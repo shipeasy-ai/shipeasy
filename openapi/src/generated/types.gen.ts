@@ -6558,6 +6558,14 @@ export type ListI18nKeysResponse = {
          */
         profileName: string | null;
         /**
+         * Id of the experiment this key's copy change is linked to, or `null` when it is not linked; absent from servers that predate the link. A data link only — it does not change what the key serves.
+         */
+        experimentId?: string | null;
+        /**
+         * Name of the linked experiment, or `null` when the key is not linked.
+         */
+        experimentName?: string | null;
+        /**
          * ISO-8601 timestamp of the last edit.
          */
         updatedAt: string;
@@ -6694,6 +6702,10 @@ export type UpdateI18nKeyRequest = {
      * Explicit `{{var}}` placeholder names in the value. Omit to auto-derive them from the value.
      */
     variables?: Array<string>;
+    /**
+     * Link this key's copy change to an experiment (id or name) so the change can be tracked against it. `null` removes the link; omit to leave the current link untouched. A data link only — it does not change what the key serves.
+     */
+    experimentId?: string | null;
 };
 
 /**
