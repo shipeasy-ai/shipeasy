@@ -3155,6 +3155,35 @@ Projects: the account-level container every other resource is scoped to.
 
 **Idempotent upsert.** A project is keyed by `(owner_email, domain)`. Calling `upsert` again with the same domain returns the existing project with `created: false`, so it is safe to run on every install.
 
+### `api_keys_create`
+
+**Create an API key**
+
+Mints a new API key and returns the plaintext token **once** — it is stored hashed and can never be retrieved again, so capture it on creation.
+
+Only `type` is required. `env` is **required** for `server` and `client` keys (the key is bound to one environment, which is the read-env isolation boundary); for `admin` and `ops` keys `env` is ignored and the key is pinned to `prod`. Expiry is fixed for some types: `admin` keys always get a 90-day expiry and `ops` keys a short sliding window, regardless of `expiresInDays`. Only `server`/`client` keys count toward the plan key limit.
+
+**Use cases**
+
+- **Back-end key** — `{ "type": "server", "env": "prod" }` for the production server SDK.
+- **Public browser key** — `{ "type": "client", "env": "prod", "name": "marketing site" }` to embed in the browser SDK.
+- **Scoped, expiring key** — `{ "type": "server", "env": "staging", "scopes": ["gates:evaluate"], "expiresInDays": 30 }` for a time-boxed integration.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `type` | required | `"server" \| "client" \| "admin" \| "ops"` | Key kind to mint. `server` (back-end), `client` (public, browser), `admin` (CLI/devtools token), `ops` (restricted unattended-trigger credential). `admin`/`ops` keys don't count toward the plan key limit. |
+| `name` | optional | `string` | Optional human label. Programmatic (API) mints that omit it get an auto-generated descriptive name; dashboard mints may leave it blank. The cap is generous because provenance labels are composed, not typed — `shipeasy setup` mints keys named with the stack, package, date, and operator that produced them, which does not fit in a one-line-input budget. _(length 1–160)_ |
+| `scopes` | optional | `"experiments:read" \| "gates:evaluate" \| "events:write" \| "configs:write" \| "experiments:write" \| "tickets:public_create"[]` | Optional permission strings recorded on the key. `tickets:public_create` is enforced: a client key needs it (plus the project's `allowPublicTickets` setting) to file a `pending_approval` bug via the public `POST /cli/report` endpoint. The rest are audit/display only. |
+| `expiresInDays` | optional | `any` | Days until the key expires (1–3650), or `null`/omitted for a key that never expires. Ignored for `admin` keys (fixed 90-day expiry) and `ops` keys (short sliding window). |
+| `env` | required | `"dev" \| "staging" \| "prod"` | Environment to bind the key to. Always required. For `server`/`client` keys it is the isolation boundary the worker reads from; `admin`/`ops` keys are env-agnostic and pinned to `prod` by the handler regardless of the value sent. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `VALIDATION` — The request body failed structural (schema) validation.
+- `PLAN_LIMIT` — The action would exceed a plan quota (e.g. the tier's maximum experiments, metrics, or configs). Upgrade the plan or archive an existing resource.
+
 ### `projects_current`
 
 **Show the current project**
