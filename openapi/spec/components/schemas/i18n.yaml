@@ -95,7 +95,7 @@ ListI18nKeysResponse:
               - type: string
               - type: "null"
           experimentId:
-            description: Id of the experiment this key's copy change is linked to, or `null` when it is not linked. A data link only — it does not change what the key serves.
+            description: Id of the experiment this key's copy change is linked to, or `null` when it is not linked; absent from servers that predate the link. A data link only — it does not change what the key serves.
             anyOf:
               - type: string
               - type: "null"
@@ -118,8 +118,6 @@ ListI18nKeysResponse:
           - variables
           - profileId
           - profileName
-          - experimentId
-          - experimentName
           - updatedAt
           - updatedBy
         additionalProperties: false
