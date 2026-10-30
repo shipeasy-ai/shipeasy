@@ -1737,6 +1737,30 @@ export const createOpsCommentMedia = <ThrowOnError extends boolean = false>(opti
 });
 
 /**
+ * List queue activity
+ *
+ * The activity feed of the project's queue items, newest first: every status,
+ * priority, owner, tag and content change, every comment, every alert
+ * acknowledgement, and every pull-request event (`linked`, `unlinked`,
+ * `merged`, `closed` unmerged). Each entry names the item it belongs to, who
+ * made the change (or `github` for a merge/close the webhook observed) and
+ * when.
+ *
+ * Filter to one item with `item`, to one kind of change with `field`, and to a
+ * time window with `since` / `until` (ISO-8601, exclusive). Pass
+ * `field=pr` and `since` to learn which PRs were added to an item since you
+ * last looked, instead of diffing status lists.
+ *
+ * **Use case:** A QA agent polling for "what PRs were linked to item 7 since T?"
+ * or "what changed on this project since T?".
+ */
+export const listOpsActivity = <ThrowOnError extends boolean = false>(options?: Options<ListOpsActivityData, ThrowOnError>): RequestResult<ListOpsActivityResponses, ListOpsActivityErrors, ThrowOnError> => (options?.client ?? client).get<ListOpsActivityResponses, ListOpsActivityErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/ops/activity',
+    ...options
+});
+
+/**
  * Raise an attention notification
  *
  * Raise a 'needs your attention' bell notification. Create-only and idempotent on `dedupeKey` — re-raising with the same key updates the one card instead of stacking duplicates. It never reads, marks read, or deletes the feed, so it is safe for restricted ops keys.

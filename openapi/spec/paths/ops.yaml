@@ -1480,6 +1480,8 @@
         $ref: ../components/responses.yaml#/Unauthorized
       "403":
         $ref: ../components/responses.yaml#/Forbidden
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
     x-error-codes:
       - BAD_REQUEST
       - UNAUTHORIZED

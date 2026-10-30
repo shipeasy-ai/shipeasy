@@ -129,6 +129,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--priority <value>", "Initial triage priority, or `null`.")
     .option("--status <value>", "Initial lifecycle status; defaults to `open` when omitted.")
     .option("--assignee-id <value>", "The `users.id` of the person to assign as owner at creation, or `null`.")
+    .option("--delegate-connector-id <value>", "The agent connector the filer chose to delegate this item to at creation. When set, the server launches that one agent and skips any tag-rule auto-launch, so the filer's choice prevails and only one run starts.")
     .option("--subscribers <value>", "Emails of teammates to subscribe to this item's Slack pings at creation.")
     .option("--tags <value>", "Tag names to label the item with, e.g. `[\"ios\", \"checkout\"]`. Each name is matched case-insensitively against the project's existing tags and reuses that tag (keeping its stored casing) when one matches; a name with no match creates a new project tag.")
     .option("--reporter-email <value>", "Email of the reporter, or `null`.")
@@ -140,7 +141,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--description <value>", "What the feature is.")
     .option("--use-case <value>", "Why it's needed / the use case.")
     .action(async (title, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, type: str(opts.type), stepsToReproduce: str(opts.stepsToReproduce), actualResult: str(opts.actualResult), expectedResult: str(opts.expectedResult), priority: str(opts.priority), status: str(opts.status), assigneeId: str(opts.assigneeId), subscribers: list(opts.subscribers), tags: list(opts.tags), reporterEmail: str(opts.reporterEmail), pageUrl: str(opts.pageUrl), userAgent: str(opts.userAgent), viewport: str(opts.viewport), context: json(opts.context), notify: str(opts.notify), description: str(opts.description), useCase: str(opts.useCase) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, type: str(opts.type), stepsToReproduce: str(opts.stepsToReproduce), actualResult: str(opts.actualResult), expectedResult: str(opts.expectedResult), priority: str(opts.priority), status: str(opts.status), assigneeId: str(opts.assigneeId), delegateConnectorId: str(opts.delegateConnectorId), subscribers: list(opts.subscribers), tags: list(opts.tags), reporterEmail: str(opts.reporterEmail), pageUrl: str(opts.pageUrl), userAgent: str(opts.userAgent), viewport: str(opts.viewport), context: json(opts.context), notify: str(opts.notify), description: str(opts.description), useCase: str(opts.useCase) }) }) });
     });
   g_ops.command("bug")
     .description("File a bug report.")
@@ -151,6 +152,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--priority <value>", "Initial triage priority, or `null`.")
     .option("--status <value>", "Initial lifecycle status; defaults to `open` when omitted.")
     .option("--assignee-id <value>", "The `users.id` of the person to assign as owner at creation, or `null`.")
+    .option("--delegate-connector-id <value>", "The agent connector the filer chose to delegate this item to at creation. When set, the server launches that one agent and skips any tag-rule auto-launch, so the filer's choice prevails and only one run starts.")
     .option("--subscribers <value>", "Emails of teammates to subscribe to this item's Slack pings at creation.")
     .option("--tags <value>", "Tag names to label the item with, e.g. `[\"ios\", \"checkout\"]`. Each name is matched case-insensitively against the project's existing tags and reuses that tag (keeping its stored casing) when one matches; a name with no match creates a new project tag.")
     .option("--reporter-email <value>", "Email of the reporter, or `null`.")
@@ -160,7 +162,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--context <value>", "Arbitrary capture context, or `null`.")
     .option("--notify <value>", "Where this bug's completion notification lands.")
     .action(async (title, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, stepsToReproduce: str(opts.stepsToReproduce), actualResult: str(opts.actualResult), expectedResult: str(opts.expectedResult), priority: str(opts.priority), status: str(opts.status), assigneeId: str(opts.assigneeId), subscribers: list(opts.subscribers), tags: list(opts.tags), reporterEmail: str(opts.reporterEmail), pageUrl: str(opts.pageUrl), userAgent: str(opts.userAgent), viewport: str(opts.viewport), context: json(opts.context), notify: str(opts.notify), type: "bug" }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, stepsToReproduce: str(opts.stepsToReproduce), actualResult: str(opts.actualResult), expectedResult: str(opts.expectedResult), priority: str(opts.priority), status: str(opts.status), assigneeId: str(opts.assigneeId), delegateConnectorId: str(opts.delegateConnectorId), subscribers: list(opts.subscribers), tags: list(opts.tags), reporterEmail: str(opts.reporterEmail), pageUrl: str(opts.pageUrl), userAgent: str(opts.userAgent), viewport: str(opts.viewport), context: json(opts.context), notify: str(opts.notify), type: "bug" }) }) });
     });
   g_ops.command("feature")
     .description("File a feature request.")
@@ -170,6 +172,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--priority <value>", "Initial triage priority, or `null`.")
     .option("--status <value>", "Initial lifecycle status; defaults to `open` when omitted.")
     .option("--assignee-id <value>", "The `users.id` of the person to assign as owner at creation, or `null`.")
+    .option("--delegate-connector-id <value>", "The agent connector the filer chose to delegate this item to at creation. When set, the server launches that one agent and skips any tag-rule auto-launch, so the filer's choice prevails and only one run starts.")
     .option("--subscribers <value>", "Emails of teammates to subscribe to this item's Slack pings at creation.")
     .option("--tags <value>", "Tag names to label the item with, e.g. `[\"ios\", \"checkout\"]`. Each name is matched case-insensitively against the project's existing tags and reuses that tag (keeping its stored casing) when one matches; a name with no match creates a new project tag.")
     .option("--reporter-email <value>", "Email of the reporter, or `null`.")
@@ -178,7 +181,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--context <value>", "Arbitrary capture context, or `null`.")
     .option("--notify <value>", "Where this request's completion notification lands.")
     .action(async (title, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, description: str(opts.description), useCase: str(opts.useCase), priority: str(opts.priority), status: str(opts.status), assigneeId: str(opts.assigneeId), subscribers: list(opts.subscribers), tags: list(opts.tags), reporterEmail: str(opts.reporterEmail), pageUrl: str(opts.pageUrl), userAgent: str(opts.userAgent), context: json(opts.context), notify: str(opts.notify), type: "feature_request" }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, description: str(opts.description), useCase: str(opts.useCase), priority: str(opts.priority), status: str(opts.status), assigneeId: str(opts.assigneeId), delegateConnectorId: str(opts.delegateConnectorId), subscribers: list(opts.subscribers), tags: list(opts.tags), reporterEmail: str(opts.reporterEmail), pageUrl: str(opts.pageUrl), userAgent: str(opts.userAgent), context: json(opts.context), notify: str(opts.notify), type: "feature_request" }) }) });
     });
   g_ops.command("get")
     .description("Get one queue item")

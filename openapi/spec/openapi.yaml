@@ -444,6 +444,8 @@ paths:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1attachments
   /api/admin/ops/{handle}/comment-media:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1comment-media
+  /api/admin/ops/activity:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1activity
   /api/admin/notifications:
     $ref: ./paths/ops.yaml#/~1api~1admin~1notifications
   /api/admin/slack/channels:

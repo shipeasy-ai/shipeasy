@@ -2054,6 +2054,7 @@ _Parameters_
 | `priority` | optional | `any` | Initial triage priority, or `null`. |
 | `status` | optional | `any` | Initial lifecycle status; defaults to `open` when omitted. |
 | `assigneeId` | optional | `any` | The `users.id` of the person to assign as owner at creation, or `null`. |
+| `delegateConnectorId` | optional | `string` | The agent connector the filer chose to delegate this item to at creation. When set, the server launches that one agent and skips any tag-rule auto-launch, so the filer's choice prevails and only one run starts. |
 | `subscribers` | optional | `string[]` | Emails of teammates to subscribe to this item's Slack pings at creation. _(default `[]`)_ |
 | `tags` | optional | `string[]` | Tag names to label the item with, e.g. `["ios", "checkout"]`. Each name is matched case-insensitively against the project's existing tags and reuses that tag (keeping its stored casing) when one matches; a name with no match creates a new project tag. _(default `[]`)_ |
 | `reporterEmail` | optional | `any` | Email of the reporter, or `null`. |
@@ -2093,6 +2094,7 @@ _Parameters_
 | `priority` | optional | `any` | Initial triage priority, or `null`. |
 | `status` | optional | `any` | Initial lifecycle status; defaults to `open` when omitted. |
 | `assigneeId` | optional | `any` | The `users.id` of the person to assign as owner at creation, or `null`. |
+| `delegateConnectorId` | optional | `string` | The agent connector the filer chose to delegate this item to at creation. When set, the server launches that one agent and skips any tag-rule auto-launch, so the filer's choice prevails and only one run starts. |
 | `subscribers` | optional | `string[]` | Emails of teammates to subscribe to this item's Slack pings at creation. _(default `[]`)_ |
 | `tags` | optional | `string[]` | Tag names to label the item with, e.g. `["ios", "checkout"]`. Each name is matched case-insensitively against the project's existing tags and reuses that tag (keeping its stored casing) when one matches; a name with no match creates a new project tag. _(default `[]`)_ |
 | `reporterEmail` | optional | `any` | Email of the reporter, or `null`. |
@@ -2132,6 +2134,7 @@ _Parameters_
 | `priority` | optional | `any` | Initial triage priority, or `null`. |
 | `status` | optional | `any` | Initial lifecycle status; defaults to `open` when omitted. |
 | `assigneeId` | optional | `any` | The `users.id` of the person to assign as owner at creation, or `null`. |
+| `delegateConnectorId` | optional | `string` | The agent connector the filer chose to delegate this item to at creation. When set, the server launches that one agent and skips any tag-rule auto-launch, so the filer's choice prevails and only one run starts. |
 | `subscribers` | optional | `string[]` | Emails of teammates to subscribe to this item's Slack pings at creation. _(default `[]`)_ |
 | `tags` | optional | `string[]` | Tag names to label the item with, e.g. `["ios", "checkout"]`. Each name is matched case-insensitively against the project's existing tags and reuses that tag (keeping its stored casing) when one matches; a name with no match creates a new project tag. _(default `[]`)_ |
 | `reporterEmail` | optional | `any` | Email of the reporter, or `null`. |
