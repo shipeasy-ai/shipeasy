@@ -155,7 +155,8 @@ for (const [, item] of Object.entries(spec.paths)) {
     // superseded by per-env publish flags on create/update).
     if (xcli.hidden) continue;
     const tag = op.tags?.[0];
-    if (SKIP_TAGS.has(tag)) continue;
+    // `x-mcp.expose` opts one op of a skipped tag back in (API Keys: only `createKey`).
+    if (SKIP_TAGS.has(tag) && op["x-mcp"]?.expose !== true) continue;
     const segs = tagChain(tag).map((t) => slug(t.name));
 
     const allParams = [...(pathItem.parameters ?? []), ...(op.parameters ?? [])].map(deref);

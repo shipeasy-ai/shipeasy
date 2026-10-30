@@ -2355,6 +2355,64 @@ _Errors_ — beyond the [common errors](#errors):
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 
+### `ops_routing_rules_create`
+
+**Create a tag automation rule**
+
+Appends one rule after the existing ones; existing rules are untouched.
+The rule fires on a newly filed item carrying any of `tags` (or whose type
+is in `types`) and applies its actions: `user` assigns a person,
+`connector` hands the item to a connected coding agent (launching a run,
+steered by `agentPrompt`), `status` / `priority` set triage fields, and
+`subscribers` emails people. Tags are created on first use.
+
+Returns `400` when the rule has no tag or type, or no action. Returns the
+full rule list after the append.
+
+**Use cases**
+
+- **Auto-fix** — tag `ai-fix` hands the item to a connected agent with a steering prompt.
+- **Triage** — every `error` ticket goes to `high` priority and an on-call email.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `tags` | optional | `string[]` | Tag names the rule matches (case-insensitive). Tags are created on first use. |
+| `types` | optional | `"error" \| "alert" \| "bug" \| "feature_request"[]` | Ticket types the rule also fires on. |
+| `enabled` | optional | `boolean` | Whether the rule is live. Defaults to `true`. |
+| `user` | optional | `string` | Person to assign — a user id. _(length 1–128)_ |
+| `connector` | optional | `string` | Connected coding agent to hand the item to — a connector id from `ops agents list`. _(length 1–128)_ |
+| `agentPrompt` | optional | `string` | Steering prompt for the launched agent. Only kept alongside a `connector`. _(length 0–4000)_ |
+| `status` | optional | `"open" \| "pending_approval" \| "investigating_by_ai" \| "in_progress" \| "blocked" \| "ready_for_qa" \| "resolved" \| "wont_fix"` | Lifecycle status of a queue item. The working flow is `open` → `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`, terminal from any earlier stage). `blocked` marks an item that can't progress until an external dependency clears — a working state a human sets and clears. `ready_for_qa` is what a developer sets once a fix lands; `resolved` is the QA sign-off, normally flipped in the dashboard after verification — set it directly from code only when the fix has been verified end-to-end. `investigating_by_ai` is a system-owned display state — set when the AI agent (Jarvis) picks an item up to investigate, never chosen by a human — so it is shown but not offered as a manual choice. `pending_approval` is the one human-gated holding state: it parks an item OUT of the work queue until a human promotes it to `open` in the dashboard, so `GET /api/admin/ops` excludes it under `status=all`/default and returns it only when requested as an exact `status`. It covers untriaged inbound that must never be auto-implemented — connector requests filed from a customer's connectors panel, and questions funnelled in from the "Stuck in onboarding?" assistant — where approving means flipping the status to `open`. Two earlier values were removed in favour of this single gate: `triage` (the onboarding-help bucket, now `pending_approval`) and `triaged` (a redundant "looked at but not started" step, now plain `open`). |
+| `priority` | optional | `"nice_to_have" \| "medium" \| "high" \| "critical"` | Triage priority of a queue item. The lowest tier is `nice_to_have` (not `low`) — carried over from the feature-request "importance" scale this priority set replaced. |
+| `subscribers` | optional | `string[]` | Emails notified about matching items. |
+| `skipApproval` | optional | `boolean` | Let a matching public-intake ticket skip `pending_approval`. Defaults to `false`. |
+| `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `ops_routing_rules_list` call. It proves you listed existing ops routing rules and confirmed this one doesn't already exist before creating it. Call `ops_routing_rules_list` first if you don't have a fresh token. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+
+### `ops_routing_rules_list`
+
+**List tag automation rules**
+
+The project's tag automation rules in evaluation order. Each rule matches
+newly filed queue items by tag (or ticket type) and applies its actions —
+assign a person, launch a connected coding agent, set status or priority,
+subscribe emails.
+
+**Use case:** Check what automation already exists before adding a rule, so a new one doesn't duplicate or shadow it.
+
+_Parameters_
+
+_No parameters._
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+
 ### `ops_update`
 
 **Update a queue item**
@@ -3293,6 +3351,7 @@ _Parameters_
 | `value` | required | `string` | New value for the key (the only overwrite path). |
 | `description` | optional | `string` | Optional human note to store with the key. |
 | `variables` | optional | `string[]` | Explicit `{{var}}` placeholder names in the value. Omit to auto-derive them from the value. |
+| `experimentId` | optional | `any` | Link this key's copy change to an experiment (id or name) so the change can be tracked against it. `null` removes the link; omit to leave the current link untouched. A data link only — it does not change what the key serves. |
 
 ### Drafts
 

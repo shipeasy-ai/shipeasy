@@ -8,6 +8,12 @@ import { clean, requireArgs, unwrap } from "../tools/_gen-runtime.js";
 
 export const GENERATED_TOOLS: Tool[] = [
   {
+    name: "api_keys_create",
+    description: "Create an API key. Mints a new API key and returns the plaintext token **once** — it is stored hashed and can never be retrieved again, so capture it on creation.",
+    inputSchema: {"type":"object","properties":{"type":{"type":"string","enum":["server","client","admin","ops"],"description":"Key kind to mint. `server` (back-end), `client` (public, browser), `admin` (CLI/devtools token), `ops` (restricted unattended-trigger credential). `admin`/`ops` keys don't count toward the plan key limit."},"name":{"type":"string","minLength":1,"maxLength":160,"description":"Optional human label. Programmatic (API) mints that omit it get an auto-generated descriptive name; dashboard mints may leave it blank. The cap is generous because provenance labels are composed, not typed — `shipeasy setup` mints keys named with the stack, package, date, and operator that produced them, which does not fit in a one-line-input budget."},"scopes":{"type":"array","items":{"type":"string","enum":["experiments:read","gates:evaluate","events:write","configs:write","experiments:write","tickets:public_create"]},"description":"Optional permission strings recorded on the key. `tickets:public_create` is enforced: a client key needs it (plus the project's `allowPublicTickets` setting) to file a `pending_approval` bug via the public `POST /cli/report` endpoint. The rest are audit/display only."},"expiresInDays":{"anyOf":[{"type":"integer","minimum":1,"maximum":3650},{"type":"null"}],"description":"Days until the key expires (1–3650), or `null`/omitted for a key that never expires. Ignored for `admin` keys (fixed 90-day expiry) and `ops` keys (short sliding window)."},"env":{"type":"string","enum":["dev","staging","prod"],"description":"Environment to bind the key to. Always required. For `server`/`client` keys it is the isolation boundary the worker reads from; `admin`/`ops` keys are env-agnostic and pinned to `prod` by the handler regardless of the value sent."}},"required":["type","env"]},
+    annotations: {"title":"Api Keys Create","readOnlyHint":false,"destructiveHint":false,"idempotentHint":false},
+  },
+  {
     name: "errors_get",
     description: "Get a tracked error. Returns a single tracked error by its id, including the latest occurrence's stack, extras, and consequence, plus `occurrences` — the sampled per-instance detail rows behind the issue (newest first; exhaustive while the issue is small, thinned at volume, capped at 100). Returns…",
     inputSchema: {"type":"object","properties":{"id":{"type":"string","minLength":1,"maxLength":128,"description":"A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row."}},"required":["id"]},
@@ -773,6 +779,7 @@ export const GENERATED_TOOLS: Tool[] = [
 
 /** tool name → whether it mutates (drives the server's binding guard). */
 export const GENERATED_MUTATES: Record<string, boolean> = {
+  "api_keys_create": true,
   "errors_get": false,
   "errors_list": false,
   "errors_resolve": true,
@@ -904,6 +911,7 @@ export const GENERATED_MUTATES: Record<string, boolean> = {
 
 /** tool name → (client, args) → unwrapped sdk result. */
 export const GENERATED_DISPATCH: Record<string, (client: Client, args: Record<string, unknown>) => Promise<unknown>> = {
+  "api_keys_create": (client, args) => api.createKey({ client, body: clean({ "type": args["type"], "name": args["name"], "scopes": args["scopes"], "expiresInDays": args["expiresInDays"], "env": args["env"] }) }).then(unwrap) as Promise<unknown>,
   "errors_get": (client, args) => api.getError({ client, path: { "id": args["id"] as never } }).then(unwrap) as Promise<unknown>,
   "errors_list": (client, args) => api.listErrors({ client, query: clean({ "status": args["status"], "q": args["q"], "limit": args["limit"] }) }).then(unwrap) as Promise<unknown>,
   "errors_resolve": (client, args) => api.resolveError({ client, path: { "id": args["id"] as never } }).then(unwrap) as Promise<unknown>,

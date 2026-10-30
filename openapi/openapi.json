@@ -13772,6 +13772,9 @@
         ],
         "x-cli": {
           "name": "create"
+        },
+        "x-mcp": {
+          "expose": true
         }
       }
     },
