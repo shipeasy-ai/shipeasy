@@ -5541,6 +5541,10 @@ export type OpsRoutingRule = {
      * A public-intake ticket this rule matches skips `pending_approval` and runs the rule on filing, instead of waiting for a human to approve it.
      */
     skipApproval: boolean;
+    /**
+     * While a matching public-intake ticket waits in `pending_approval`, the rule's agent safety-triages it and tags it from the central triage set. Needs a `connector`; always `false` alongside `skipApproval`.
+     */
+    triage: boolean;
 };
 
 export type ListOpsRoutingRulesResponse = Array<OpsRoutingRule>;

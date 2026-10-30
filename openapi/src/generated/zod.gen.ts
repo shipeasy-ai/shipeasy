@@ -2933,7 +2933,8 @@ export const zOpsRoutingRule = z.object({
     status: zOpsItemStatus.nullable(),
     priority: zOpsItemPriorityOrNull,
     subscribers: z.array(z.email()).max(20),
-    skipApproval: z.boolean()
+    skipApproval: z.boolean(),
+    triage: z.boolean()
 });
 
 export const zListOpsRoutingRulesResponse = z.array(zOpsRoutingRule);
