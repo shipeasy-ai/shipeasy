@@ -4061,6 +4061,10 @@ export type CreateBugRequest = {
      */
     assigneeId?: string | null;
     /**
+     * The agent connector the filer chose to delegate this item to at creation. When set, the server launches that one agent and skips any tag-rule auto-launch, so the filer's choice prevails and only one run starts.
+     */
+    delegateConnectorId?: string;
+    /**
      * Emails of teammates to subscribe to this item's Slack pings at creation.
      */
     subscribers?: Array<string>;
@@ -4128,6 +4132,10 @@ export type CreateFeatureRequestRequest = {
      * The `users.id` of the person to assign as owner at creation, or `null`.
      */
     assigneeId?: string | null;
+    /**
+     * The agent connector the filer chose to delegate this item to at creation. When set, the server launches that one agent and skips any tag-rule auto-launch, so the filer's choice prevails and only one run starts.
+     */
+    delegateConnectorId?: string;
     /**
      * Emails of teammates to subscribe to this item's Slack pings at creation.
      */
