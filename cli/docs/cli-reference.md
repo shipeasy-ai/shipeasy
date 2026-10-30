@@ -900,6 +900,47 @@ shipeasy ops questions cancel [options] <handle> <questionId>
 | --- | --- | --- |
 | `--data <value>` | optional | Request body as a JSON object. |
 
+### `shipeasy ops routing-rules`
+
+Tag automation rules — the project's "when an item carries tag X, do Y" settings.
+
+```bash
+shipeasy ops routing-rules [options] [command]
+```
+
+#### `shipeasy ops routing-rules list`
+
+List tag automation rules
+
+```bash
+shipeasy ops routing-rules list [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+#### `shipeasy ops routing-rules create`
+
+Create a tag automation rule
+
+```bash
+shipeasy ops routing-rules create [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--tags <value>` | optional | Tag names the rule matches (case-insensitive). Tags are created on first use. |
+| `--types <value>` | optional | Ticket types the rule also fires on. |
+| `--enabled <value>` | optional | Whether the rule is live. Defaults to `true`. |
+| `--user <value>` | optional | Person to assign — a user id. |
+| `--connector <value>` | optional | Connected coding agent to hand the item to — a connector id from `ops agents list`. |
+| `--agent-prompt <value>` | optional | Steering prompt for the launched agent. Only kept alongside a `connector`. |
+| `--status <value>` | optional | Lifecycle status of a queue item. The working flow is `open` → `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`, terminal from any earlier stage). `blocked` marks an item that can't progress until an external dependency clears — a working state a human sets and clears. `ready_for_qa` is what a developer sets once a fix lands; `resolved` is the QA sign-off, normally flipped in the dashboard after verification — set it directly from code only when the fix has been verified end-to-end. `investigating_by_ai` is a system-owned display state — set when the AI agent (Jarvis) picks an item up to investigate, never chosen by a human — so it is shown but not offered as a manual choice. `pending_approval` is the one human-gated holding state: it parks an item OUT of the work queue until a human promotes it to `open` in the dashboard, so `GET /api/admin/ops` excludes it under `status=all`/default and returns it only when requested as an exact `status`. It covers untriaged inbound that must never be auto-implemented — connector requests filed from a customer's connectors panel, and questions funnelled in from the "Stuck in onboarding?" assistant — where approving means flipping the status to `open`. Two earlier values were removed in favour of this single gate: `triage` (the onboarding-help bucket, now `pending_approval`) and `triaged` (a redundant "looked at but not started" step, now plain `open`). |
+| `--priority <value>` | optional | Triage priority of a queue item. The lowest tier is `nice_to_have` (not `low`) — carried over from the feature-request "importance" scale this priority set replaced. |
+| `--subscribers <value>` | optional | Emails notified about matching items. |
+| `--skip-approval <value>` | optional | Let a matching public-intake ticket skip `pending_approval`. Defaults to `false`. |
+
 ### `shipeasy ops trigger`
 
 Recurring coding-agent triggers: the scheduled, unattended runs that burn down the ops queue in `--pr` mode (one PR per fixed item; nothing auto-merges).

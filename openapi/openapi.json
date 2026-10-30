@@ -13772,6 +13772,9 @@
         ],
         "x-cli": {
           "name": "create"
+        },
+        "x-mcp": {
+          "expose": true
         }
       }
     },
@@ -25756,6 +25759,10 @@
           "skipApproval": {
             "type": "boolean",
             "description": "A public-intake ticket this rule matches skips `pending_approval` and runs the rule on filing, instead of waiting for a human to approve it."
+          },
+          "triage": {
+            "type": "boolean",
+            "description": "While a matching public-intake ticket waits in `pending_approval`, the rule's agent safety-triages it and tags it from the central triage set. Needs a `connector`; always `false` alongside `skipApproval`."
           }
         },
         "required": [
@@ -25768,7 +25775,8 @@
           "status",
           "priority",
           "subscribers",
-          "skipApproval"
+          "skipApproval",
+          "triage"
         ],
         "additionalProperties": false
       },
@@ -27879,6 +27887,28 @@
                     }
                   ]
                 },
+                "experimentId": {
+                  "description": "Id of the experiment this key's copy change is linked to, or `null` when it is not linked; absent from servers that predate the link. A data link only — it does not change what the key serves.",
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "experimentName": {
+                  "description": "Name of the linked experiment, or `null` when the key is not linked.",
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "updatedAt": {
                   "description": "ISO-8601 timestamp of the last edit.",
                   "type": "string"
@@ -28115,6 +28145,19 @@
               "minLength": 1,
               "maxLength": 64
             }
+          },
+          "experimentId": {
+            "description": "Link this key's copy change to an experiment (id or name) so the change can be tracked against it. `null` removes the link; omit to leave the current link untouched. A data link only — it does not change what the key serves.",
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [

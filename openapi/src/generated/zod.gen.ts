@@ -2933,7 +2933,8 @@ export const zOpsRoutingRule = z.object({
     status: zOpsItemStatus.nullable(),
     priority: zOpsItemPriorityOrNull,
     subscribers: z.array(z.email()).max(20),
-    skipApproval: z.boolean()
+    skipApproval: z.boolean(),
+    triage: z.boolean()
 });
 
 export const zListOpsRoutingRulesResponse = z.array(zOpsRoutingRule);
@@ -3428,6 +3429,8 @@ export const zListI18nKeysResponse = z.object({
         variables: z.array(z.string()).nullable(),
         profileId: z.string(),
         profileName: z.string().nullable(),
+        experimentId: z.string().nullish(),
+        experimentName: z.string().nullish(),
         updatedAt: z.string(),
         updatedBy: z.string()
     })),
@@ -3486,7 +3489,8 @@ export const zPushI18nKeysResponse = z.object({
 export const zUpdateI18nKeyRequest = z.object({
     value: z.string(),
     description: z.string().optional(),
-    variables: z.array(z.string().min(1).max(64)).max(32).optional()
+    variables: z.array(z.string().min(1).max(64)).max(32).optional(),
+    experimentId: z.string().min(1).max(128).nullish()
 });
 
 /**

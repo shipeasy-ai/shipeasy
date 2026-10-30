@@ -245,7 +245,11 @@ roots.set(
 // Tools with no tag-prefix match are placed explicitly under an existing group.
 // `whoami` is the flat top-level alias of getCurrentProject — nest it with the
 // other Projects tools.
-const EXPLICIT: Record<string, string[]> = { whoami: ["projects"] };
+const EXPLICIT: Record<string, string[]> = {
+  whoami: ["projects"],
+  // `createKey` is the one API Keys op exposed to MCP (x-mcp.expose); keys are project-scoped.
+  api_keys_create: ["projects"],
+};
 
 // Flatten the tree into joined-slug paths for longest-prefix tool placement.
 const tagPaths: { joined: string; path: string[] }[] = [];
