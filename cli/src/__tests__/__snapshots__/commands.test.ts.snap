@@ -48,6 +48,8 @@ exports[`command tree > matches the registered command surface (snapshot) 1`] = 
   "metrics update",
   "ops",
   "ops ack",
+  "ops activity",
+  "ops activity list",
   "ops agents",
   "ops agents list",
   "ops alerts",
