@@ -3,6 +3,7 @@
 
 /** Every MCP tool suffix (the name minus the `mcp__<server>__` prefix). */
 export const KNOWN_TOOLS: readonly string[] = [
+  "api_keys_create",
   "auth_check",
   "auth_login",
   "auth_logout",

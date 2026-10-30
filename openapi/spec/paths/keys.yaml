@@ -132,6 +132,8 @@
       - PLAN_LIMIT
     x-cli:
       name: create
+    x-mcp:
+      expose: true
 /api/admin/keys/{id}:
   patch:
     operationId: updateKey

@@ -2355,6 +2355,64 @@ _Errors_ — beyond the [common errors](#errors):
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 
+### `ops_routing_rules_create`
+
+**Create a tag automation rule**
+
+Appends one rule after the existing ones; existing rules are untouched.
+The rule fires on a newly filed item carrying any of `tags` (or whose type
+is in `types`) and applies its actions: `user` assigns a person,
+`connector` hands the item to a connected coding agent (launching a run,
+steered by `agentPrompt`), `status` / `priority` set triage fields, and
+`subscribers` emails people. Tags are created on first use.
+
+Returns `400` when the rule has no tag or type, or no action. Returns the
+full rule list after the append.
+
+**Use cases**
+
+- **Auto-fix** — tag `ai-fix` hands the item to a connected agent with a steering prompt.
+- **Triage** — every `error` ticket goes to `high` priority and an on-call email.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `tags` | optional | `string[]` | Tag names the rule matches (case-insensitive). Tags are created on first use. |
+| `types` | optional | `"error" \| "alert" \| "bug" \| "feature_request"[]` | Ticket types the rule also fires on. |
+| `enabled` | optional | `boolean` | Whether the rule is live. Defaults to `true`. |
+| `user` | optional | `string` | Person to assign — a user id. _(length 1–128)_ |
+| `connector` | optional | `string` | Connected coding agent to hand the item to — a connector id from `ops agents list`. _(length 1–128)_ |
+| `agentPrompt` | optional | `string` | Steering prompt for the launched agent. Only kept alongside a `connector`. _(length 0–4000)_ |
+| `status` | optional | `"open" \| "pending_approval" \| "investigating_by_ai" \| "in_progress" \| "blocked" \| "ready_for_qa" \| "resolved" \| "wont_fix"` | Lifecycle status of a queue item. The working flow is `open` → `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`, terminal from any earlier stage). `blocked` marks an item that can't progress until an external dependency clears — a working state a human sets and clears. `ready_for_qa` is what a developer sets once a fix lands; `resolved` is the QA sign-off, normally flipped in the dashboard after verification — set it directly from code only when the fix has been verified end-to-end. `investigating_by_ai` is a system-owned display state — set when the AI agent (Jarvis) picks an item up to investigate, never chosen by a human — so it is shown but not offered as a manual choice. `pending_approval` is the one human-gated holding state: it parks an item OUT of the work queue until a human promotes it to `open` in the dashboard, so `GET /api/admin/ops` excludes it under `status=all`/default and returns it only when requested as an exact `status`. It covers untriaged inbound that must never be auto-implemented — connector requests filed from a customer's connectors panel, and questions funnelled in from the "Stuck in onboarding?" assistant — where approving means flipping the status to `open`. Two earlier values were removed in favour of this single gate: `triage` (the onboarding-help bucket, now `pending_approval`) and `triaged` (a redundant "looked at but not started" step, now plain `open`). |
+| `priority` | optional | `"nice_to_have" \| "medium" \| "high" \| "critical"` | Triage priority of a queue item. The lowest tier is `nice_to_have` (not `low`) — carried over from the feature-request "importance" scale this priority set replaced. |
+| `subscribers` | optional | `string[]` | Emails notified about matching items. |
+| `skipApproval` | optional | `boolean` | Let a matching public-intake ticket skip `pending_approval`. Defaults to `false`. |
+| `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `ops_routing_rules_list` call. It proves you listed existing ops routing rules and confirmed this one doesn't already exist before creating it. Call `ops_routing_rules_list` first if you don't have a fresh token. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+
+### `ops_routing_rules_list`
+
+**List tag automation rules**
+
+The project's tag automation rules in evaluation order. Each rule matches
+newly filed queue items by tag (or ticket type) and applies its actions —
+assign a person, launch a connected coding agent, set status or priority,
+subscribe emails.
+
+**Use case:** Check what automation already exists before adding a rule, so a new one doesn't duplicate or shadow it.
+
+_Parameters_
+
+_No parameters._
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+
 ### `ops_update`
 
 **Update a queue item**
@@ -3097,6 +3155,35 @@ Projects: the account-level container every other resource is scoped to.
 
 **Idempotent upsert.** A project is keyed by `(owner_email, domain)`. Calling `upsert` again with the same domain returns the existing project with `created: false`, so it is safe to run on every install.
 
+### `api_keys_create`
+
+**Create an API key**
+
+Mints a new API key and returns the plaintext token **once** — it is stored hashed and can never be retrieved again, so capture it on creation.
+
+Only `type` is required. `env` is **required** for `server` and `client` keys (the key is bound to one environment, which is the read-env isolation boundary); for `admin` and `ops` keys `env` is ignored and the key is pinned to `prod`. Expiry is fixed for some types: `admin` keys always get a 90-day expiry and `ops` keys a short sliding window, regardless of `expiresInDays`. Only `server`/`client` keys count toward the plan key limit.
+
+**Use cases**
+
+- **Back-end key** — `{ "type": "server", "env": "prod" }` for the production server SDK.
+- **Public browser key** — `{ "type": "client", "env": "prod", "name": "marketing site" }` to embed in the browser SDK.
+- **Scoped, expiring key** — `{ "type": "server", "env": "staging", "scopes": ["gates:evaluate"], "expiresInDays": 30 }` for a time-boxed integration.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `type` | required | `"server" \| "client" \| "admin" \| "ops"` | Key kind to mint. `server` (back-end), `client` (public, browser), `admin` (CLI/devtools token), `ops` (restricted unattended-trigger credential). `admin`/`ops` keys don't count toward the plan key limit. |
+| `name` | optional | `string` | Optional human label. Programmatic (API) mints that omit it get an auto-generated descriptive name; dashboard mints may leave it blank. The cap is generous because provenance labels are composed, not typed — `shipeasy setup` mints keys named with the stack, package, date, and operator that produced them, which does not fit in a one-line-input budget. _(length 1–160)_ |
+| `scopes` | optional | `"experiments:read" \| "gates:evaluate" \| "events:write" \| "configs:write" \| "experiments:write" \| "tickets:public_create"[]` | Optional permission strings recorded on the key. `tickets:public_create` is enforced: a client key needs it (plus the project's `allowPublicTickets` setting) to file a `pending_approval` bug via the public `POST /cli/report` endpoint. The rest are audit/display only. |
+| `expiresInDays` | optional | `any` | Days until the key expires (1–3650), or `null`/omitted for a key that never expires. Ignored for `admin` keys (fixed 90-day expiry) and `ops` keys (short sliding window). |
+| `env` | required | `"dev" \| "staging" \| "prod"` | Environment to bind the key to. Always required. For `server`/`client` keys it is the isolation boundary the worker reads from; `admin`/`ops` keys are env-agnostic and pinned to `prod` by the handler regardless of the value sent. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `VALIDATION` — The request body failed structural (schema) validation.
+- `PLAN_LIMIT` — The action would exceed a plan quota (e.g. the tier's maximum experiments, metrics, or configs). Upgrade the plan or archive an existing resource.
+
 ### `projects_current`
 
 **Show the current project**
@@ -3293,6 +3380,7 @@ _Parameters_
 | `value` | required | `string` | New value for the key (the only overwrite path). |
 | `description` | optional | `string` | Optional human note to store with the key. |
 | `variables` | optional | `string[]` | Explicit `{{var}}` placeholder names in the value. Omit to auto-derive them from the value. |
+| `experimentId` | optional | `any` | Link this key's copy change to an experiment (id or name) so the change can be tracked against it. `null` removes the link; omit to leave the current link untouched. A data link only — it does not change what the key serves. |
 
 ### Drafts
 
