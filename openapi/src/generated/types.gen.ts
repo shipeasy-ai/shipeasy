@@ -13263,6 +13263,10 @@ export type ListOpsActivityErrors = {
      * The key is valid but not allowed to perform this action.
      */
     403: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
 };
 
 export type ListOpsActivityError = ListOpsActivityErrors[keyof ListOpsActivityErrors];
