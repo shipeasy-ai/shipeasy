@@ -5496,6 +5496,96 @@ export type ListOpsActivityResponse = {
 };
 
 /**
+ * A ticket type a tag rule can also fire on. Error and alert tickets carry no tags, so a rule that should catch them matches on type.
+ */
+export type OpsRoutingRuleType = 'error' | 'alert' | 'bug' | 'feature_request';
+
+/**
+ * One tag automation rule. A rule fires on a newly filed queue item that carries ANY of its `tags` (or whose `type` is in `types`) and applies its actions — assign a person, hand the item to a connected coding agent (which launches a run), set a status or priority, and subscribe emails. Rules are evaluated in order; each action is optional but a rule needs at least one.
+ */
+export type OpsRoutingRule = {
+    /**
+     * Tag names the rule matches (case-insensitive). Tags are created on first use.
+     */
+    tags: Array<string>;
+    /**
+     * Ticket types the rule also fires on. A rule needs at least one tag or type.
+     */
+    types: Array<OpsRoutingRuleType>;
+    /**
+     * Whether the rule is live. Defaults to `true` on create.
+     */
+    enabled: boolean;
+    /**
+     * Person to assign — a user id. `null` leaves the owner alone.
+     */
+    user: string | null;
+    /**
+     * Connected coding agent to hand the item to — a connector id from `ops agents list`. Launches a run when the rule fires.
+     */
+    connector: string | null;
+    /**
+     * Steering prompt for the launched agent. Only kept alongside a `connector`.
+     */
+    agentPrompt: string | null;
+    /**
+     * Status to set on a matching item.
+     */
+    status: OpsItemStatus | null;
+    priority: OpsItemPriorityOrNull;
+    /**
+     * Emails notified about matching items.
+     */
+    subscribers: Array<string>;
+    /**
+     * A public-intake ticket this rule matches skips `pending_approval` and runs the rule on filing, instead of waiting for a human to approve it.
+     */
+    skipApproval: boolean;
+};
+
+export type ListOpsRoutingRulesResponse = Array<OpsRoutingRule>;
+
+/**
+ * Appends one tag automation rule after the existing ones; the existing rules are untouched. Needs at least one of `tags` / `types` and at least one action (`user`, `connector`, `status`, `priority` or `subscribers`).
+ */
+export type CreateOpsRoutingRuleRequest = {
+    /**
+     * Tag names the rule matches (case-insensitive). Tags are created on first use.
+     */
+    tags?: Array<string>;
+    /**
+     * Ticket types the rule also fires on.
+     */
+    types?: Array<OpsRoutingRuleType>;
+    /**
+     * Whether the rule is live. Defaults to `true`.
+     */
+    enabled?: boolean;
+    /**
+     * Person to assign — a user id.
+     */
+    user?: string;
+    /**
+     * Connected coding agent to hand the item to — a connector id from `ops agents list`.
+     */
+    connector?: string;
+    /**
+     * Steering prompt for the launched agent. Only kept alongside a `connector`.
+     */
+    agentPrompt?: string;
+    status?: OpsItemStatus;
+    priority?: OpsItemPriority;
+    /**
+     * Emails notified about matching items.
+     */
+    subscribers?: Array<string>;
+    /**
+     * Let a matching public-intake ticket skip `pending_approval`. Defaults to `false`.
+     */
+    skipApproval?: boolean;
+};
+
+/**
  * Body for `POST /api/admin/notifications`. In `title`, `summary`, and each step, reference admin entities inline with tokens — `#42` (feedback item), `@gate:<name>` (alias `@flag:`), `@experiment:<name>` (`@exp:`), `@config:<name>`, `@killswitch:<name>` (`@ks:`), `@metric:<name>`, `@universe:<name>`, `@alert:<name>` — where `<name>` is the entity's immutable name/slug (e.g. `features.checkout`). The dashboard renders each token as a live hover chip deep-linking to the entity; tokens degrade to plain text elsewhere, so they're always safe to use.
  */
 export type NotifyOpsRequest = {
@@ -6468,6 +6558,14 @@ export type ListI18nKeysResponse = {
          */
         profileName: string | null;
         /**
+         * Id of the experiment this key's copy change is linked to, or `null` when it is not linked; absent from servers that predate the link. A data link only — it does not change what the key serves.
+         */
+        experimentId?: string | null;
+        /**
+         * Name of the linked experiment, or `null` when the key is not linked.
+         */
+        experimentName?: string | null;
+        /**
          * ISO-8601 timestamp of the last edit.
          */
         updatedAt: string;
@@ -6604,6 +6702,10 @@ export type UpdateI18nKeyRequest = {
      * Explicit `{{var}}` placeholder names in the value. Omit to auto-derive them from the value.
      */
     variables?: Array<string>;
+    /**
+     * Link this key's copy change to an experiment (id or name) so the change can be tracked against it. `null` removes the link; omit to leave the current link untouched. A data link only — it does not change what the key serves.
+     */
+    experimentId?: string | null;
 };
 
 /**
@@ -13279,6 +13381,88 @@ export type ListOpsActivityResponses = {
 };
 
 export type ListOpsActivityResponse2 = ListOpsActivityResponses[keyof ListOpsActivityResponses];
+
+export type ListOpsRoutingRulesData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/admin/ops/routing-rules';
+};
+
+export type ListOpsRoutingRulesErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+};
+
+export type ListOpsRoutingRulesError = ListOpsRoutingRulesErrors[keyof ListOpsRoutingRulesErrors];
+
+export type ListOpsRoutingRulesResponses = {
+    /**
+     * List tag automation rules
+     */
+    200: ListOpsRoutingRulesResponse;
+};
+
+export type ListOpsRoutingRulesResponse2 = ListOpsRoutingRulesResponses[keyof ListOpsRoutingRulesResponses];
+
+export type CreateOpsRoutingRuleData = {
+    body: CreateOpsRoutingRuleRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/admin/ops/routing-rules';
+};
+
+export type CreateOpsRoutingRuleErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type CreateOpsRoutingRuleError = CreateOpsRoutingRuleErrors[keyof CreateOpsRoutingRuleErrors];
+
+export type CreateOpsRoutingRuleResponses = {
+    /**
+     * The rules after the append
+     */
+    200: ListOpsRoutingRulesResponse;
+};
+
+export type CreateOpsRoutingRuleResponse = CreateOpsRoutingRuleResponses[keyof CreateOpsRoutingRuleResponses];
 
 export type NotifyOpsData = {
     body: NotifyOpsRequest;

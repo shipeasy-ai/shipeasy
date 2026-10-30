@@ -68,6 +68,8 @@ export const KNOWN_TOOLS: readonly string[] = [
   "ops_questions_ask",
   "ops_questions_cancel",
   "ops_questions_list",
+  "ops_routing_rules_create",
+  "ops_routing_rules_list",
   "ops_trigger_create_claude",
   "ops_trigger_create_copilot",
   "ops_trigger_create_cursor",

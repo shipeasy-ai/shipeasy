@@ -124,6 +124,11 @@
       "description": "The change history of queue items — status, priority, owner and tag moves,\nedits, comments, acknowledgements, and every pull-request event (linked,\nunlinked, merged, closed unmerged). Read it per item or across the whole\nproject, filtered by kind and time, to learn what changed since a given\nmoment instead of diffing status lists."
     },
     {
+      "name": "Routing rules",
+      "parent": "Ops",
+      "description": "Tag automation rules — the project's \"when an item carries tag X, do Y\"\nsettings. A rule matches newly filed queue items by tag (or ticket type)\nand assigns a person, hands the item to a connected coding agent, sets\nstatus or priority, or subscribes emails. Rules run in order; `create`\nappends one without touching the rest."
+    },
+    {
       "name": "Investigations",
       "parent": "Ops",
       "description": "Investigation records on a queue item — the structured, read-only write-ups\nan AI agent produces while working it (findings / a blocking question / QA\nnotes), plus the `working` run rows an ack or an AI hand-off opens. This is\nthe AI-write seam the cockpit's detail panel renders: `list` reads what a\nprevious run found, `create` appends a new record, and `update` fills in the\n`working` run record you were handed (findings, PR, confidence) as you work."
@@ -9630,6 +9635,129 @@
         ],
         "x-cli": {
           "name": "list"
+        }
+      }
+    },
+    "/api/admin/ops/routing-rules": {
+      "get": {
+        "operationId": "listOpsRoutingRules",
+        "summary": "List tag automation rules",
+        "description": "The project's tag automation rules in evaluation order. Each rule matches\nnewly filed queue items by tag (or ticket type) and applies its actions —\nassign a person, launch a connected coding agent, set status or priority,\nsubscribe emails.\n\n**Use case:** Check what automation already exists before adding a rule, so a new one doesn't duplicate or shadow it.",
+        "tags": [
+          "Routing rules"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List tag automation rules",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListOpsRoutingRulesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN"
+        ],
+        "x-cli": {
+          "name": "list"
+        }
+      },
+      "post": {
+        "operationId": "createOpsRoutingRule",
+        "summary": "Create a tag automation rule",
+        "description": "Appends one rule after the existing ones; existing rules are untouched.\nThe rule fires on a newly filed item carrying any of `tags` (or whose type\nis in `types`) and applies its actions: `user` assigns a person,\n`connector` hands the item to a connected coding agent (launching a run,\nsteered by `agentPrompt`), `status` / `priority` set triage fields, and\n`subscribers` emails people. Tags are created on first use.\n\nReturns `400` when the rule has no tag or type, or no action. Returns the\nfull rule list after the append.\n\n**Use cases**\n\n- **Auto-fix** — tag `ai-fix` hands the item to a connected agent with a steering prompt.\n- **Triage** — every `error` ticket goes to `high` priority and an on-call email.",
+        "tags": [
+          "Routing rules"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOpsRoutingRuleRequest"
+              },
+              "examples": {
+                "triage": {
+                  "summary": "Prioritise every error ticket",
+                  "value": {
+                    "types": [
+                      "error"
+                    ],
+                    "priority": "high",
+                    "subscribers": [
+                      "oncall@example.com"
+                    ]
+                  }
+                },
+                "autoFix": {
+                  "summary": "Hand tagged items to a coding agent",
+                  "value": {
+                    "tags": [
+                      "ai-fix"
+                    ],
+                    "connector": "con_01j7w8a1b2c3d4e5f6g7h8i9j0",
+                    "agentPrompt": "Reproduce, fix at the root cause, open one PR"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The rules after the append",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListOpsRoutingRulesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN"
+        ],
+        "x-cli": {
+          "name": "create"
         }
       }
     },
@@ -25528,6 +25656,193 @@
         "additionalProperties": false,
         "description": "Response for `GET /api/admin/ops/activity` — newest first."
       },
+      "OpsRoutingRuleType": {
+        "type": "string",
+        "enum": [
+          "error",
+          "alert",
+          "bug",
+          "feature_request"
+        ],
+        "description": "A ticket type a tag rule can also fire on. Error and alert tickets carry no tags, so a rule that should catch them matches on type."
+      },
+      "OpsRoutingRule": {
+        "type": "object",
+        "description": "One tag automation rule. A rule fires on a newly filed queue item that carries ANY of its `tags` (or whose `type` is in `types`) and applies its actions — assign a person, hand the item to a connected coding agent (which launches a run), set a status or priority, and subscribe emails. Rules are evaluated in order; each action is optional but a rule needs at least one.",
+        "properties": {
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "maxItems": 20,
+            "description": "Tag names the rule matches (case-insensitive). Tags are created on first use."
+          },
+          "types": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpsRoutingRuleType"
+            },
+            "maxItems": 4,
+            "description": "Ticket types the rule also fires on. A rule needs at least one tag or type."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the rule is live. Defaults to `true` on create."
+          },
+          "user": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Person to assign — a user id. `null` leaves the owner alone."
+          },
+          "connector": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Connected coding agent to hand the item to — a connector id from `ops agents list`. Launches a run when the rule fires."
+          },
+          "agentPrompt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Steering prompt for the launched agent. Only kept alongside a `connector`."
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpsItemStatus"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Status to set on a matching item."
+          },
+          "priority": {
+            "$ref": "#/components/schemas/OpsItemPriorityOrNull"
+          },
+          "subscribers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "email"
+            },
+            "maxItems": 20,
+            "description": "Emails notified about matching items."
+          },
+          "skipApproval": {
+            "type": "boolean",
+            "description": "A public-intake ticket this rule matches skips `pending_approval` and runs the rule on filing, instead of waiting for a human to approve it."
+          }
+        },
+        "required": [
+          "tags",
+          "types",
+          "enabled",
+          "user",
+          "connector",
+          "agentPrompt",
+          "status",
+          "priority",
+          "subscribers",
+          "skipApproval"
+        ],
+        "additionalProperties": false
+      },
+      "ListOpsRoutingRulesResponse": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/OpsRoutingRule"
+        }
+      },
+      "CreateOpsRoutingRuleRequest": {
+        "type": "object",
+        "description": "Appends one tag automation rule after the existing ones; the existing rules are untouched. Needs at least one of `tags` / `types` and at least one action (`user`, `connector`, `status`, `priority` or `subscribers`).",
+        "properties": {
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "maxItems": 20,
+            "description": "Tag names the rule matches (case-insensitive). Tags are created on first use."
+          },
+          "types": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpsRoutingRuleType"
+            },
+            "maxItems": 4,
+            "description": "Ticket types the rule also fires on."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the rule is live. Defaults to `true`."
+          },
+          "user": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Person to assign — a user id."
+          },
+          "connector": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Connected coding agent to hand the item to — a connector id from `ops agents list`."
+          },
+          "agentPrompt": {
+            "type": "string",
+            "maxLength": 4000,
+            "description": "Steering prompt for the launched agent. Only kept alongside a `connector`."
+          },
+          "status": {
+            "$ref": "#/components/schemas/OpsItemStatus"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/OpsItemPriority"
+          },
+          "subscribers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "email"
+            },
+            "maxItems": 20,
+            "description": "Emails notified about matching items."
+          },
+          "skipApproval": {
+            "type": "boolean",
+            "description": "Let a matching public-intake ticket skip `pending_approval`. Defaults to `false`."
+          }
+        },
+        "additionalProperties": false
+      },
       "NotifyOpsRequest": {
         "type": "object",
         "properties": {
@@ -27564,6 +27879,28 @@
                     }
                   ]
                 },
+                "experimentId": {
+                  "description": "Id of the experiment this key's copy change is linked to, or `null` when it is not linked; absent from servers that predate the link. A data link only — it does not change what the key serves.",
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "experimentName": {
+                  "description": "Name of the linked experiment, or `null` when the key is not linked.",
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "updatedAt": {
                   "description": "ISO-8601 timestamp of the last edit.",
                   "type": "string"
@@ -27800,6 +28137,19 @@
               "minLength": 1,
               "maxLength": 64
             }
+          },
+          "experimentId": {
+            "description": "Link this key's copy change to an experiment (id or name) so the change can be tracked against it. `null` removes the link; omit to leave the current link untouched. A data link only — it does not change what the key serves.",
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [

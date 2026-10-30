@@ -223,6 +223,14 @@ tags:
       unlinked, merged, closed unmerged). Read it per item or across the whole
       project, filtered by kind and time, to learn what changed since a given
       moment instead of diffing status lists.
+  - name: Routing rules
+    parent: Ops
+    description: |-
+      Tag automation rules — the project's "when an item carries tag X, do Y"
+      settings. A rule matches newly filed queue items by tag (or ticket type)
+      and assigns a person, hands the item to a connected coding agent, sets
+      status or priority, or subscribes emails. Rules run in order; `create`
+      appends one without touching the rest.
   - name: Investigations
     parent: Ops
     description: |-
@@ -444,6 +452,8 @@ paths:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1comment-media
   /api/admin/ops/activity:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1activity
+  /api/admin/ops/routing-rules:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1routing-rules
   /api/admin/notifications:
     $ref: ./paths/ops.yaml#/~1api~1admin~1notifications
   /api/admin/slack/channels:

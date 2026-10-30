@@ -2911,6 +2911,50 @@ export const zListOpsActivityResponse = z.object({
 });
 
 /**
+ * A ticket type a tag rule can also fire on. Error and alert tickets carry no tags, so a rule that should catch them matches on type.
+ */
+export const zOpsRoutingRuleType = z.enum([
+    'error',
+    'alert',
+    'bug',
+    'feature_request'
+]);
+
+/**
+ * One tag automation rule. A rule fires on a newly filed queue item that carries ANY of its `tags` (or whose `type` is in `types`) and applies its actions — assign a person, hand the item to a connected coding agent (which launches a run), set a status or priority, and subscribe emails. Rules are evaluated in order; each action is optional but a rule needs at least one.
+ */
+export const zOpsRoutingRule = z.object({
+    tags: z.array(z.string().min(1).max(64)).max(20),
+    types: z.array(zOpsRoutingRuleType).max(4),
+    enabled: z.boolean(),
+    user: z.string().min(1).max(128).nullable(),
+    connector: z.string().min(1).max(128).nullable(),
+    agentPrompt: z.string().max(4000).nullable(),
+    status: zOpsItemStatus.nullable(),
+    priority: zOpsItemPriorityOrNull,
+    subscribers: z.array(z.email()).max(20),
+    skipApproval: z.boolean()
+});
+
+export const zListOpsRoutingRulesResponse = z.array(zOpsRoutingRule);
+
+/**
+ * Appends one tag automation rule after the existing ones; the existing rules are untouched. Needs at least one of `tags` / `types` and at least one action (`user`, `connector`, `status`, `priority` or `subscribers`).
+ */
+export const zCreateOpsRoutingRuleRequest = z.object({
+    tags: z.array(z.string().min(1).max(64)).max(20).optional(),
+    types: z.array(zOpsRoutingRuleType).max(4).optional(),
+    enabled: z.boolean().optional(),
+    user: z.string().min(1).max(128).optional(),
+    connector: z.string().min(1).max(128).optional(),
+    agentPrompt: z.string().max(4000).optional(),
+    status: zOpsItemStatus.optional(),
+    priority: zOpsItemPriority.optional(),
+    subscribers: z.array(z.email()).max(20).optional(),
+    skipApproval: z.boolean().optional()
+});
+
+/**
  * Body for `POST /api/admin/notifications`. In `title`, `summary`, and each step, reference admin entities inline with tokens — `#42` (feedback item), `@gate:<name>` (alias `@flag:`), `@experiment:<name>` (`@exp:`), `@config:<name>`, `@killswitch:<name>` (`@ks:`), `@metric:<name>`, `@universe:<name>`, `@alert:<name>` — where `<name>` is the entity's immutable name/slug (e.g. `features.checkout`). The dashboard renders each token as a live hover chip deep-linking to the entity; tokens degrade to plain text elsewhere, so they're always safe to use.
  */
 export const zNotifyOpsRequest = z.object({
@@ -3384,6 +3428,8 @@ export const zListI18nKeysResponse = z.object({
         variables: z.array(z.string()).nullable(),
         profileId: z.string(),
         profileName: z.string().nullable(),
+        experimentId: z.string().nullish(),
+        experimentName: z.string().nullish(),
         updatedAt: z.string(),
         updatedBy: z.string()
     })),
@@ -3442,7 +3488,8 @@ export const zPushI18nKeysResponse = z.object({
 export const zUpdateI18nKeyRequest = z.object({
     value: z.string(),
     description: z.string().optional(),
-    variables: z.array(z.string().min(1).max(64)).max(32).optional()
+    variables: z.array(z.string().min(1).max(64)).max(32).optional(),
+    experimentId: z.string().min(1).max(128).nullish()
 });
 
 /**
@@ -5524,6 +5571,26 @@ export const zListOpsActivityQuery = z.object({
  * List queue activity
  */
 export const zListOpsActivityResponse2 = zListOpsActivityResponse;
+
+export const zListOpsRoutingRulesHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+/**
+ * List tag automation rules
+ */
+export const zListOpsRoutingRulesResponse2 = zListOpsRoutingRulesResponse;
+
+export const zCreateOpsRoutingRuleBody = zCreateOpsRoutingRuleRequest;
+
+export const zCreateOpsRoutingRuleHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+/**
+ * The rules after the append
+ */
+export const zCreateOpsRoutingRuleResponse = zListOpsRoutingRulesResponse;
 
 export const zNotifyOpsBody = zNotifyOpsRequest;
 
