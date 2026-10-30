@@ -2812,65 +2812,6 @@ export const zCreateOpsCommentResponse = z.object({
 });
 
 /**
- * Which kind of change an activity entry records. `pr` is a pull-request event (see `pr.event`); `comment` carries an excerpt in `to`; `edit` names the edited content fields in `added`.
- */
-export const zOpsActivityField = z.enum([
-    'status',
-    'priority',
-    'owner',
-    'tags',
-    'ack',
-    'pr',
-    'comment',
-    'edit'
-]);
-
-/**
- * The pull request a `pr` activity entry is about.
- */
-export const zOpsActivityPr = z.object({
-    event: z.enum([
-        'linked',
-        'unlinked',
-        'merged',
-        'closed'
-    ]),
-    number: z.int(),
-    url: z.string().nullable(),
-    repo: z.string().nullable(),
-    title: z.string().nullable(),
-    author: z.string().nullable()
-});
-
-/**
- * One change recorded against a queue item.
- */
-export const zOpsActivityEntry = z.object({
-    id: z.string(),
-    at: z.string(),
-    itemId: z.string(),
-    itemNumber: z.int().nullable(),
-    itemTitle: z.string(),
-    actor: z.string(),
-    actorType: z.string(),
-    via: z.string().nullable(),
-    viaAgent: z.string().nullable(),
-    field: zOpsActivityField,
-    from: z.string().nullable(),
-    to: z.string().nullable(),
-    added: z.array(z.string()),
-    removed: z.array(z.string()),
-    pr: zOpsActivityPr.nullable()
-});
-
-/**
- * Response for `GET /api/admin/ops/activity` — newest first.
- */
-export const zListOpsActivityResponse = z.object({
-    activity: z.array(zOpsActivityEntry)
-});
-
-/**
  * Body for `POST /api/admin/ops/{handle}/attachments` and `POST /api/admin/ops/{handle}/comment-media`. Exactly one of `contentBase64` / `url` is required.
  */
 export const zCreateOpsAttachmentRequest = z.object({
@@ -5536,23 +5477,6 @@ export const zCreateOpsCommentPath = z.object({
  * Comment on an item
  */
 export const zCreateOpsCommentResponse2 = zCreateOpsCommentResponse;
-
-export const zListOpsActivityHeaders = z.object({
-    'X-Project-Id': z.string().optional()
-});
-
-export const zListOpsActivityQuery = z.object({
-    item: z.string().min(1).max(128).optional(),
-    field: zOpsActivityField.optional(),
-    since: z.iso.datetime().optional(),
-    until: z.iso.datetime().optional(),
-    limit: z.coerce.number().int().gte(1).lte(200).optional()
-});
-
-/**
- * List queue activity
- */
-export const zListOpsActivityResponse2 = zListOpsActivityResponse;
 
 export const zCreateOpsAttachmentBody = zCreateOpsAttachmentRequest;
 

@@ -1675,30 +1675,6 @@ export const createOpsComment = <ThrowOnError extends boolean = false>(options: 
 });
 
 /**
- * List queue activity
- *
- * The activity feed of the project's queue items, newest first: every status,
- * priority, owner, tag and content change, every comment, every alert
- * acknowledgement, and every pull-request event (`linked`, `unlinked`,
- * `merged`, `closed` unmerged). Each entry names the item it belongs to, who
- * made the change (or `github` for a merge/close the webhook observed) and
- * when.
- *
- * Filter to one item with `item`, to one kind of change with `field`, and to a
- * time window with `since` / `until` (ISO-8601, exclusive). Pass
- * `field=pr` and `since` to learn which PRs were added to an item since you
- * last looked, instead of diffing status lists.
- *
- * **Use case:** A QA agent polling for "what PRs were linked to item 7 since T?"
- * or "what changed on this project since T?".
- */
-export const listOpsActivity = <ThrowOnError extends boolean = false>(options?: Options<ListOpsActivityData, ThrowOnError>): RequestResult<ListOpsActivityResponses, ListOpsActivityErrors, ThrowOnError> => (options?.client ?? client).get<ListOpsActivityResponses, ListOpsActivityErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/admin/ops/activity',
-    ...options
-});
-
-/**
  * Attach a screenshot to an item
  *
  * Attach a screenshot, screen recording, or file to a bug or feature request, so the fixer sees what QA saw instead of reconstructing it from measurements. Send the bytes as `contentBase64` (a bare base64 string or a `data:` URI) or give a public https `url` for the server to fetch — exactly one of the two. The `kind` (`screenshot` | `recording` | `file`) defaults from the media type. Up to 25 MiB.
