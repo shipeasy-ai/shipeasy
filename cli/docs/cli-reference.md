@@ -394,6 +394,31 @@ Operational queue: the unified table of bug reports, feature requests, and auto-
 shipeasy ops [options] [command]
 ```
 
+### `shipeasy ops activity`
+
+The change history of queue items — status, priority, owner and tag moves, edits, comments, acknowledgements, and every pull-request event (linked, unlinked, merged, closed unmerged).
+
+```bash
+shipeasy ops activity [options] [command]
+```
+
+#### `shipeasy ops activity list`
+
+List queue activity
+
+```bash
+shipeasy ops activity list [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--item <value>` | optional | Narrow to one item — its per-project number (e.g. `7`) or full id. Omit for the whole project. |
+| `--field <value>` | optional | Narrow to one kind of change. |
+| `--since <value>` | optional | Only entries strictly after this ISO-8601 instant. |
+| `--until <value>` | optional | Only entries strictly before this ISO-8601 instant. |
+| `--limit <value>` | optional | Maximum entries to return (1-200). Defaults to 100. |
+| `--data <value>` | optional | Request body as a JSON object. |
+
 ### `shipeasy ops agents`
 
 Connected AI agents — one per authenticated trigger connector (Claude / Cursor / Copilot / Jules).
@@ -480,7 +505,7 @@ shipeasy ops alerts create [options]
 | `--composite <value>` | optional | What a `composite` rule is a boolean over. `rules` are sibling alert-rule ids in the same project and `op` is how their states combine. A child's state is what the current pass concluded about it, falling back to whether it has an open instance — so a composite still means something on a tick where a child could not be evaluated, which is exactly the tick a "two of these are broken at once" rule is for. One level deep: a child may not itself be composite. |
 | `--severity <value>` | optional | Severity of the raised alert. A `warnThreshold` breach opens one step quieter than this. |
 | `--enabled <value>` | optional | Whether the rule is evaluated by the cron. |
-| `--notify <value>` | optional | Delivery target for a notification; `null` = use the project default. |
+| `--notify <value>` | optional | Delivery target for a rule's alert; `null` = use the project default. The `NotificationTarget` shape plus the in-app switch. |
 
 #### `shipeasy ops alerts update`
 
@@ -518,7 +543,7 @@ shipeasy ops alerts update [options] <id>
 | `--required-buckets <value>` | optional | Buckets that must breach to fire; `null` restores "every bucket that had data". |
 | `--severity <value>` | optional | — |
 | `--enabled <value>` | optional | — |
-| `--notify <value>` | optional | Delivery target for a notification; `null` = use the project default. |
+| `--notify <value>` | optional | Delivery target for a rule's alert; `null` = use the project default. The `NotificationTarget` shape plus the in-app switch. |
 
 #### `shipeasy ops alerts archive`
 

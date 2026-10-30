@@ -182,6 +182,12 @@ export const GENERATED_TOOLS: Tool[] = [
     annotations: {"title":"Ops Ack","readOnlyHint":false,"destructiveHint":false,"idempotentHint":false},
   },
   {
+    name: "ops_activity_list",
+    description: "List queue activity. The activity feed of the project's queue items, newest first: every status, priority, owner, tag and content change, every comment, every alert acknowledgement, and every pull-request event (`linked`, `unlinked`, `merged`, `closed` unmerged). Each entry names the item it belon…",
+    inputSchema: {"type":"object","properties":{"item":{"type":"string","minLength":1,"maxLength":128,"description":"Narrow to one item — its per-project number (e.g. `7`) or full id. Omit for the whole project."},"field":{"type":"string","enum":["status","priority","owner","tags","ack","pr","comment","edit"],"description":"Which kind of change an activity entry records. `pr` is a pull-request event (see `pr.event`); `comment` carries an excerpt in `to`; `edit` names the edited content fields in `added`."},"since":{"type":"string","format":"date-time","description":"Only entries strictly after this ISO-8601 instant."},"until":{"type":"string","format":"date-time","description":"Only entries strictly before this ISO-8601 instant."},"limit":{"type":"integer","minimum":1,"maximum":200,"description":"Maximum entries to return (1-200). Defaults to 100."}},"required":[]},
+    annotations: {"title":"Ops Activity List","readOnlyHint":true},
+  },
+  {
     name: "ops_agents_list",
     description: "List connected AI agents. The project's connected AI agents — one per authenticated trigger connector (Claude / Cursor / Copilot / Jules). These are the agent types `ops ack` accepts and the agents a queue item can be assigned to.",
     inputSchema: {"type":"object","properties":{},"required":[]},
@@ -772,6 +778,7 @@ export const GENERATED_MUTATES: Record<string, boolean> = {
   "metrics_unarchive": true,
   "metrics_update": true,
   "ops_ack": true,
+  "ops_activity_list": false,
   "ops_agents_list": false,
   "ops_alerts_archive": true,
   "ops_alerts_channels": false,
@@ -898,6 +905,7 @@ export const GENERATED_DISPATCH: Record<string, (client: Client, args: Record<st
   "metrics_unarchive": (client, args) => api.unarchiveMetric({ client, path: { "id": args["id"] as never } }).then(unwrap) as Promise<unknown>,
   "metrics_update": (client, args) => api.updateMetric({ client, path: { "id": args["id"] as never }, body: clean({ "display_name": args["display_name"], "folder": args["folder"], "event_name": args["event_name"], "query": args["query"], "winsorize_pct": args["winsorize_pct"], "default_min_effect_of_interest": args["default_min_effect_of_interest"], "direction": args["direction"], "unit": args["unit"], "display": args["display"], "query_ir": args["query_ir"] }) }).then(unwrap) as Promise<unknown>,
   "ops_ack": (client, args) => api.ackOpsItem({ client, path: { "handle": args["handle"] as never }, body: clean({ "agent": args["agent"], "sessionId": args["sessionId"], "launch": args["launch"] }) }).then(unwrap) as Promise<unknown>,
+  "ops_activity_list": (client, args) => api.listOpsActivity({ client, query: clean({ "item": args["item"], "field": args["field"], "since": args["since"], "until": args["until"], "limit": args["limit"] }) }).then(unwrap) as Promise<unknown>,
   "ops_agents_list": (client, args) => api.listOpsAgents({ client }).then(unwrap) as Promise<unknown>,
   "ops_alerts_archive": (client, args) => api.deleteAlertRule({ client, path: { "id": args["id"] as never } }).then(unwrap) as Promise<unknown>,
   "ops_alerts_channels": (client, args) => api.listSlackChannels({ client }).then(unwrap) as Promise<unknown>,

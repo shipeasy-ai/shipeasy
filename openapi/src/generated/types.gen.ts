@@ -5327,6 +5327,111 @@ export type CreateOpsCommentResponse = {
 };
 
 /**
+ * Which kind of change an activity entry records. `pr` is a pull-request event (see `pr.event`); `comment` carries an excerpt in `to`; `edit` names the edited content fields in `added`.
+ */
+export type OpsActivityField = 'status' | 'priority' | 'owner' | 'tags' | 'ack' | 'pr' | 'comment' | 'edit';
+
+/**
+ * The pull request a `pr` activity entry is about.
+ */
+export type OpsActivityPr = {
+    /**
+     * What happened to the pull request. `closed` means closed WITHOUT merging.
+     */
+    event: 'linked' | 'unlinked' | 'merged' | 'closed';
+    /**
+     * PR number within its repository.
+     */
+    number: number;
+    /**
+     * The pull request's URL, when known.
+     */
+    url: string | null;
+    /**
+     * `owner/repo` the pull request lives in, when known.
+     */
+    repo: string | null;
+    /**
+     * The pull request's title, when GitHub was reachable.
+     */
+    title: string | null;
+    /**
+     * The pull request's GitHub author, when known.
+     */
+    author: string | null;
+};
+
+/**
+ * One change recorded against a queue item.
+ */
+export type OpsActivityEntry = {
+    /**
+     * Activity entry id.
+     */
+    id: string;
+    /**
+     * ISO-8601 timestamp of the change.
+     */
+    at: string;
+    /**
+     * The queue item the change belongs to.
+     */
+    itemId: string;
+    /**
+     * The item's per-project number.
+     */
+    itemNumber: number | null;
+    /**
+     * The item's title.
+     */
+    itemTitle: string;
+    /**
+     * Who made the change — a teammate email, a key's actor, or `github` for a PR outcome the webhook observed.
+     */
+    actor: string;
+    /**
+     * `user`, `cli` or `system`.
+     */
+    actorType: string;
+    /**
+     * The door the change came through (`dashboard`, `cli`, `mcp`, …).
+     */
+    via: string | null;
+    /**
+     * The AI agent that drove the change, when one did.
+     */
+    viaAgent: string | null;
+    field: OpsActivityField;
+    /**
+     * The previous value of a scalar field.
+     */
+    from: string | null;
+    /**
+     * The new value of a scalar field, or a comment excerpt.
+     */
+    to: string | null;
+    /**
+     * Tags added, or the content fields edited.
+     */
+    added: Array<string>;
+    /**
+     * Tags removed.
+     */
+    removed: Array<string>;
+    /**
+     * The pull-request event, for `pr` entries; `null` otherwise.
+     */
+    pr: OpsActivityPr | null;
+};
+
+/**
+ * Response for `GET /api/admin/ops/activity` — newest first.
+ */
+export type ListOpsActivityResponse = {
+    activity: Array<OpsActivityEntry>;
+};
+
+/**
  * Body for `POST /api/admin/notifications`. In `title`, `summary`, and each step, reference admin entities inline with tokens — `#42` (feedback item), `@gate:<name>` (alias `@flag:`), `@experiment:<name>` (`@exp:`), `@config:<name>`, `@killswitch:<name>` (`@ks:`), `@metric:<name>`, `@universe:<name>`, `@alert:<name>` — where `<name>` is the entity's immutable name/slug (e.g. `features.checkout`). The dashboard renders each token as a live hover chip deep-linking to the entity; tokens degrade to plain text elsewhere, so they're always safe to use.
  */
 export type NotifyOpsRequest = {
@@ -12934,6 +13039,66 @@ export type CreateOpsCommentResponses = {
 };
 
 export type CreateOpsCommentResponse2 = CreateOpsCommentResponses[keyof CreateOpsCommentResponses];
+
+export type ListOpsActivityData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Narrow to one item — its per-project number (e.g. `7`) or full id. Omit for the whole project.
+         */
+        item?: string;
+        /**
+         * Narrow to one kind of change.
+         */
+        field?: OpsActivityField;
+        /**
+         * Only entries strictly after this ISO-8601 instant.
+         */
+        since?: string;
+        /**
+         * Only entries strictly before this ISO-8601 instant.
+         */
+        until?: string;
+        /**
+         * Maximum entries to return (1-200). Defaults to 100.
+         */
+        limit?: number;
+    };
+    url: '/api/admin/ops/activity';
+};
+
+export type ListOpsActivityErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+};
+
+export type ListOpsActivityError = ListOpsActivityErrors[keyof ListOpsActivityErrors];
+
+export type ListOpsActivityResponses = {
+    /**
+     * List queue activity
+     */
+    200: ListOpsActivityResponse;
+};
+
+export type ListOpsActivityResponse2 = ListOpsActivityResponses[keyof ListOpsActivityResponses];
 
 export type NotifyOpsData = {
     body: NotifyOpsRequest;

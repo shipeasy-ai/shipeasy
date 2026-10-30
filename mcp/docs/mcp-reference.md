@@ -2640,6 +2640,47 @@ _Errors_ — beyond the [common errors](#errors):
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 
+### Activity
+
+The change history of queue items — status, priority, owner and tag moves,
+edits, comments, acknowledgements, and every pull-request event (linked,
+unlinked, merged, closed unmerged). Read it per item or across the whole
+project, filtered by kind and time, to learn what changed since a given
+moment instead of diffing status lists.
+
+#### `ops_activity_list`
+
+**List queue activity**
+
+The activity feed of the project's queue items, newest first: every status,
+priority, owner, tag and content change, every comment, every alert
+acknowledgement, and every pull-request event (`linked`, `unlinked`,
+`merged`, `closed` unmerged). Each entry names the item it belongs to, who
+made the change (or `github` for a merge/close the webhook observed) and
+when.
+
+Filter to one item with `item`, to one kind of change with `field`, and to a
+time window with `since` / `until` (ISO-8601, exclusive). Pass
+`field=pr` and `since` to learn which PRs were added to an item since you
+last looked, instead of diffing status lists.
+
+**Use case:** A QA agent polling for "what PRs were linked to item 7 since T?"
+or "what changed on this project since T?".
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `item` | optional | `string` | Narrow to one item — its per-project number (e.g. `7`) or full id. Omit for the whole project. _(length 1–128)_ |
+| `field` | optional | `"status" \| "priority" \| "owner" \| "tags" \| "ack" \| "pr" \| "comment" \| "edit"` | Which kind of change an activity entry records. `pr` is a pull-request event (see `pr.event`); `comment` carries an excerpt in `to`; `edit` names the edited content fields in `added`. |
+| `since` | optional | `string` | Only entries strictly after this ISO-8601 instant. _(format: date-time)_ |
+| `until` | optional | `string` | Only entries strictly before this ISO-8601 instant. _(format: date-time)_ |
+| `limit` | optional | `integer` | Maximum entries to return (1-200). Defaults to 100. _(1–200)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+
 ### Investigations
 
 Investigation records on a queue item — the structured, read-only write-ups

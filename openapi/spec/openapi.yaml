@@ -209,6 +209,14 @@ tags:
       **Mentions.** `@teammate` in a body raises an in-app notification for that
       person; `@shipeasy` asks Jarvis (the AI agent) to read the item and reply.
       Comments authored by Jarvis carry `authorType: system`.
+  - name: Activity
+    parent: Ops
+    description: |-
+      The change history of queue items — status, priority, owner and tag moves,
+      edits, comments, acknowledgements, and every pull-request event (linked,
+      unlinked, merged, closed unmerged). Read it per item or across the whole
+      project, filtered by kind and time, to learn what changed since a given
+      moment instead of diffing status lists.
   - name: Investigations
     parent: Ops
     description: |-
@@ -424,6 +432,8 @@ paths:
     $ref: ./paths/ops.yaml#/~1api~1admin~1agent-profiles
   /api/admin/ops/{handle}/comments:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1comments
+  /api/admin/ops/activity:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1activity
   /api/admin/notifications:
     $ref: ./paths/ops.yaml#/~1api~1admin~1notifications
   /api/admin/slack/channels:

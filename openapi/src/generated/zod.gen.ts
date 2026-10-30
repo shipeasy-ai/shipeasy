@@ -2810,6 +2810,65 @@ export const zCreateOpsCommentResponse = z.object({
 });
 
 /**
+ * Which kind of change an activity entry records. `pr` is a pull-request event (see `pr.event`); `comment` carries an excerpt in `to`; `edit` names the edited content fields in `added`.
+ */
+export const zOpsActivityField = z.enum([
+    'status',
+    'priority',
+    'owner',
+    'tags',
+    'ack',
+    'pr',
+    'comment',
+    'edit'
+]);
+
+/**
+ * The pull request a `pr` activity entry is about.
+ */
+export const zOpsActivityPr = z.object({
+    event: z.enum([
+        'linked',
+        'unlinked',
+        'merged',
+        'closed'
+    ]),
+    number: z.int(),
+    url: z.string().nullable(),
+    repo: z.string().nullable(),
+    title: z.string().nullable(),
+    author: z.string().nullable()
+});
+
+/**
+ * One change recorded against a queue item.
+ */
+export const zOpsActivityEntry = z.object({
+    id: z.string(),
+    at: z.string(),
+    itemId: z.string(),
+    itemNumber: z.int().nullable(),
+    itemTitle: z.string(),
+    actor: z.string(),
+    actorType: z.string(),
+    via: z.string().nullable(),
+    viaAgent: z.string().nullable(),
+    field: zOpsActivityField,
+    from: z.string().nullable(),
+    to: z.string().nullable(),
+    added: z.array(z.string()),
+    removed: z.array(z.string()),
+    pr: zOpsActivityPr.nullable()
+});
+
+/**
+ * Response for `GET /api/admin/ops/activity` — newest first.
+ */
+export const zListOpsActivityResponse = z.object({
+    activity: z.array(zOpsActivityEntry)
+});
+
+/**
  * Body for `POST /api/admin/notifications`. In `title`, `summary`, and each step, reference admin entities inline with tokens — `#42` (feedback item), `@gate:<name>` (alias `@flag:`), `@experiment:<name>` (`@exp:`), `@config:<name>`, `@killswitch:<name>` (`@ks:`), `@metric:<name>`, `@universe:<name>`, `@alert:<name>` — where `<name>` is the entity's immutable name/slug (e.g. `features.checkout`). The dashboard renders each token as a live hover chip deep-linking to the entity; tokens degrade to plain text elsewhere, so they're always safe to use.
  */
 export const zNotifyOpsRequest = z.object({
@@ -5376,6 +5435,23 @@ export const zCreateOpsCommentPath = z.object({
  * Comment on an item
  */
 export const zCreateOpsCommentResponse2 = zCreateOpsCommentResponse;
+
+export const zListOpsActivityHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zListOpsActivityQuery = z.object({
+    item: z.string().min(1).max(128).optional(),
+    field: zOpsActivityField.optional(),
+    since: z.iso.datetime().optional(),
+    until: z.iso.datetime().optional(),
+    limit: z.coerce.number().int().gte(1).lte(200).optional()
+});
+
+/**
+ * List queue activity
+ */
+export const zListOpsActivityResponse2 = zListOpsActivityResponse;
 
 export const zNotifyOpsBody = zNotifyOpsRequest;
 
