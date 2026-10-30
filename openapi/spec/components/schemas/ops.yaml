@@ -2903,3 +2903,144 @@ MarkNotificationsReadRequest:
       description: Mark just this notification read. Omit to mark the caller's whole feed read.
   additionalProperties: false
   description: "Body for `POST /api/admin/notifications/feed`. An empty body (`{}`) marks ALL of the caller's notifications read."
+OpsRoutingRuleType:
+  type: string
+  enum:
+    - error
+    - alert
+    - bug
+    - feature_request
+  description: A ticket type a tag rule can also fire on. Error and alert tickets carry no tags, so a rule that should catch them matches on type.
+OpsRoutingRule:
+  type: object
+  description: >-
+    One tag automation rule. A rule fires on a newly filed queue item that
+    carries ANY of its `tags` (or whose `type` is in `types`) and applies its
+    actions — assign a person, hand the item to a connected coding agent
+    (which launches a run), set a status or priority, and subscribe emails.
+    Rules are evaluated in order; each action is optional but a rule needs at
+    least one.
+  properties:
+    tags:
+      type: array
+      items:
+        type: string
+        minLength: 1
+        maxLength: 64
+      maxItems: 20
+      description: Tag names the rule matches (case-insensitive). Tags are created on first use.
+    types:
+      type: array
+      items:
+        $ref: "#/OpsRoutingRuleType"
+      maxItems: 4
+      description: Ticket types the rule also fires on. A rule needs at least one tag or type.
+    enabled:
+      type: boolean
+      description: Whether the rule is live. Defaults to `true` on create.
+    user:
+      anyOf:
+        - type: string
+          minLength: 1
+          maxLength: 128
+        - type: "null"
+      description: Person to assign — a user id. `null` leaves the owner alone.
+    connector:
+      anyOf:
+        - type: string
+          minLength: 1
+          maxLength: 128
+        - type: "null"
+      description: Connected coding agent to hand the item to — a connector id from `ops agents list`. Launches a run when the rule fires.
+    agentPrompt:
+      anyOf:
+        - type: string
+          maxLength: 4000
+        - type: "null"
+      description: Steering prompt for the launched agent. Only kept alongside a `connector`.
+    status:
+      anyOf:
+        - $ref: "#/OpsItemStatus"
+        - type: "null"
+      description: Status to set on a matching item.
+    priority:
+      $ref: "#/OpsItemPriorityOrNull"
+    subscribers:
+      type: array
+      items:
+        type: string
+        format: email
+      maxItems: 20
+      description: Emails notified about matching items.
+    skipApproval:
+      type: boolean
+      description: A public-intake ticket this rule matches skips `pending_approval` and runs the rule on filing, instead of waiting for a human to approve it.
+  required:
+    - tags
+    - types
+    - enabled
+    - user
+    - connector
+    - agentPrompt
+    - status
+    - priority
+    - subscribers
+    - skipApproval
+  additionalProperties: false
+ListOpsRoutingRulesResponse:
+  type: array
+  items:
+    $ref: "#/OpsRoutingRule"
+CreateOpsRoutingRuleRequest:
+  type: object
+  description: >-
+    Appends one tag automation rule after the existing ones; the existing rules
+    are untouched. Needs at least one of `tags` / `types` and at least one
+    action (`user`, `connector`, `status`, `priority` or `subscribers`).
+  properties:
+    tags:
+      type: array
+      items:
+        type: string
+        minLength: 1
+        maxLength: 64
+      maxItems: 20
+      description: Tag names the rule matches (case-insensitive). Tags are created on first use.
+    types:
+      type: array
+      items:
+        $ref: "#/OpsRoutingRuleType"
+      maxItems: 4
+      description: Ticket types the rule also fires on.
+    enabled:
+      type: boolean
+      description: Whether the rule is live. Defaults to `true`.
+    user:
+      type: string
+      minLength: 1
+      maxLength: 128
+      description: Person to assign — a user id.
+    connector:
+      type: string
+      minLength: 1
+      maxLength: 128
+      description: Connected coding agent to hand the item to — a connector id from `ops agents list`.
+    agentPrompt:
+      type: string
+      maxLength: 4000
+      description: Steering prompt for the launched agent. Only kept alongside a `connector`.
+    status:
+      $ref: "#/OpsItemStatus"
+    priority:
+      $ref: "#/OpsItemPriority"
+    subscribers:
+      type: array
+      items:
+        type: string
+        format: email
+      maxItems: 20
+      description: Emails notified about matching items.
+    skipApproval:
+      type: boolean
+      description: Let a matching public-intake ticket skip `pending_approval`. Defaults to `false`.
+  additionalProperties: false
