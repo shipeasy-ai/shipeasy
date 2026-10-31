@@ -3,7 +3,7 @@
 // the generated sdk fns. Regenerate with `pnpm gen:cli`.
 import type { Command } from "commander";
 import * as api from "@shipeasy/openapi/client";
-import { type GenCtx, defineGroup, num, bool, str, list, json, clean } from "../commands/_gen-runtime.js";
+import { type GenCtx, defineGroup, num, bool, str, strOrNull, list, json, clean } from "../commands/_gen-runtime.js";
 
 export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   const g_metrics = defineGroup(program, "metrics", { summary: "Metrics: the event-backed queries that drive tracking dashboards and experiment success / guardrail measurement.", help: "Metrics: the event-backed queries that drive tracking dashboards and\nexperiment success / guardrail measurement.\n\n**Definition.** Each metric pins one source event (`event_name`), one\naggregation, and (for `sum`/`avg`/quantile) a numeric value label. The\nquery is expressed as the DSL string (`query`, e.g. `sum(purchase, amount)`)\nor its typed IR (`query_ir`) — supply exactly one.\n\n**Identity.** Keyed by a stable `name` (single segment or `folder.name`).\nResolve endpoints accept the `id` or the `name`.\n\n**Deletion.** Archive (soft-delete). Blocked while the metric is attached\nto a running experiment — stop those first.", aliases: [] });
@@ -52,7 +52,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--display <value>", "How the metric's series is DRAWN, as opposed to what it measures. Both parts used to be DSL functions (`expected(q, seasonal)`, `forecast(q, …)`), which meant turning a band on minted a different metric; they are properties now, so every chart of the metric picks them up and nothing that JUDGES the metric — an alert rule, the experiment analyzer — reads them at all.")
     .option("--query-ir <value>", "A metric definition as a typed expression tree — the structured alternative to the `query` DSL string, and what the API stores. Exactly one of `query` / `query_ir` is supplied per metric body; `query` is the same definition written as text, and is the spelling to prefer.")
     .action(async (name, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createMetric({ client, body: clean({ name: name, display_name: str(opts.displayName), folder: str(opts.folder), event_name: str(opts.eventName), query: str(opts.query), winsorize_pct: num(opts.winsorizePct), default_min_effect_of_interest: num(opts.defaultMinEffectOfInterest), direction: str(opts.direction), unit: str(opts.unit), display: json(opts.display), query_ir: json(opts.queryIr) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createMetric({ client, body: clean({ name: name, display_name: strOrNull(opts.displayName), folder: strOrNull(opts.folder), event_name: str(opts.eventName), query: str(opts.query), winsorize_pct: num(opts.winsorizePct), default_min_effect_of_interest: num(opts.defaultMinEffectOfInterest), direction: str(opts.direction), unit: strOrNull(opts.unit), display: json(opts.display), query_ir: json(opts.queryIr) }) }) });
     });
   g_metrics.command("show")
     .description("Get a metric")
@@ -75,7 +75,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--display <value>", "How the metric's series is DRAWN, as opposed to what it measures. Both parts used to be DSL functions (`expected(q, seasonal)`, `forecast(q, …)`), which meant turning a band on minted a different metric; they are properties now, so every chart of the metric picks them up and nothing that JUDGES the metric — an alert rule, the experiment analyzer — reads them at all.")
     .option("--query-ir <value>", "A metric definition as a typed expression tree — the structured alternative to the `query` DSL string, and what the API stores. Exactly one of `query` / `query_ir` is supplied per metric body; `query` is the same definition written as text, and is the spelling to prefer.")
     .action(async (id, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateMetric({ client, path: { id: id }, body: clean({ display_name: str(opts.displayName), folder: str(opts.folder), event_name: str(opts.eventName), query: str(opts.query), winsorize_pct: num(opts.winsorizePct), default_min_effect_of_interest: num(opts.defaultMinEffectOfInterest), direction: str(opts.direction), unit: str(opts.unit), display: json(opts.display), query_ir: json(opts.queryIr) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.updateMetric({ client, path: { id: id }, body: clean({ display_name: strOrNull(opts.displayName), folder: strOrNull(opts.folder), event_name: str(opts.eventName), query: str(opts.query), winsorize_pct: num(opts.winsorizePct), default_min_effect_of_interest: num(opts.defaultMinEffectOfInterest), direction: str(opts.direction), unit: strOrNull(opts.unit), display: json(opts.display), query_ir: json(opts.queryIr) }) }) });
     });
   g_metrics.command("archive")
     .description("Archive a metric")
@@ -142,7 +142,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--description <value>", "What the feature is.")
     .option("--use-case <value>", "Why it's needed / the use case.")
     .action(async (title, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, type: str(opts.type), stepsToReproduce: str(opts.stepsToReproduce), actualResult: str(opts.actualResult), expectedResult: str(opts.expectedResult), priority: str(opts.priority), status: str(opts.status), assigneeId: str(opts.assigneeId), delegateConnectorId: str(opts.delegateConnectorId), subscribers: list(opts.subscribers), tags: list(opts.tags), reporterEmail: str(opts.reporterEmail), pageUrl: str(opts.pageUrl), userAgent: str(opts.userAgent), viewport: str(opts.viewport), context: json(opts.context), notify: str(opts.notify), description: str(opts.description), useCase: str(opts.useCase) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, type: str(opts.type), stepsToReproduce: str(opts.stepsToReproduce), actualResult: str(opts.actualResult), expectedResult: str(opts.expectedResult), priority: strOrNull(opts.priority), status: str(opts.status), assigneeId: strOrNull(opts.assigneeId), delegateConnectorId: str(opts.delegateConnectorId), subscribers: list(opts.subscribers), tags: list(opts.tags), reporterEmail: strOrNull(opts.reporterEmail), pageUrl: strOrNull(opts.pageUrl), userAgent: strOrNull(opts.userAgent), viewport: strOrNull(opts.viewport), context: json(opts.context), notify: str(opts.notify), description: str(opts.description), useCase: str(opts.useCase) }) }) });
     });
   g_ops.command("bug")
     .description("File a bug report.")
@@ -163,7 +163,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--context <value>", "Arbitrary capture context, or `null`.")
     .option("--notify <value>", "Where this bug's completion notification lands.")
     .action(async (title, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, stepsToReproduce: str(opts.stepsToReproduce), actualResult: str(opts.actualResult), expectedResult: str(opts.expectedResult), priority: str(opts.priority), status: str(opts.status), assigneeId: str(opts.assigneeId), delegateConnectorId: str(opts.delegateConnectorId), subscribers: list(opts.subscribers), tags: list(opts.tags), reporterEmail: str(opts.reporterEmail), pageUrl: str(opts.pageUrl), userAgent: str(opts.userAgent), viewport: str(opts.viewport), context: json(opts.context), notify: str(opts.notify), type: "bug" }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, stepsToReproduce: str(opts.stepsToReproduce), actualResult: str(opts.actualResult), expectedResult: str(opts.expectedResult), priority: strOrNull(opts.priority), status: str(opts.status), assigneeId: strOrNull(opts.assigneeId), delegateConnectorId: str(opts.delegateConnectorId), subscribers: list(opts.subscribers), tags: list(opts.tags), reporterEmail: strOrNull(opts.reporterEmail), pageUrl: strOrNull(opts.pageUrl), userAgent: strOrNull(opts.userAgent), viewport: strOrNull(opts.viewport), context: json(opts.context), notify: str(opts.notify), type: "bug" }) }) });
     });
   g_ops.command("feature")
     .description("File a feature request.")
@@ -182,7 +182,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--context <value>", "Arbitrary capture context, or `null`.")
     .option("--notify <value>", "Where this request's completion notification lands.")
     .action(async (title, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, description: str(opts.description), useCase: str(opts.useCase), priority: str(opts.priority), status: str(opts.status), assigneeId: str(opts.assigneeId), delegateConnectorId: str(opts.delegateConnectorId), subscribers: list(opts.subscribers), tags: list(opts.tags), reporterEmail: str(opts.reporterEmail), pageUrl: str(opts.pageUrl), userAgent: str(opts.userAgent), context: json(opts.context), notify: str(opts.notify), type: "feature_request" }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, description: str(opts.description), useCase: str(opts.useCase), priority: strOrNull(opts.priority), status: str(opts.status), assigneeId: strOrNull(opts.assigneeId), delegateConnectorId: str(opts.delegateConnectorId), subscribers: list(opts.subscribers), tags: list(opts.tags), reporterEmail: strOrNull(opts.reporterEmail), pageUrl: strOrNull(opts.pageUrl), userAgent: strOrNull(opts.userAgent), context: json(opts.context), notify: str(opts.notify), type: "feature_request" }) }) });
     });
   g_ops.command("get")
     .description("Get one queue item")
@@ -205,7 +205,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--description <value>", "Updated description.")
     .option("--use-case <value>", "Updated use case.")
     .action(async (handle, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateOpsItem({ client, path: { handle: handle }, body: clean({ title: str(opts.title), stepsToReproduce: str(opts.stepsToReproduce), actualResult: str(opts.actualResult), expectedResult: str(opts.expectedResult), status: str(opts.status), priority: str(opts.priority), githubPrNumber: num(opts.githubPrNumber), notify: str(opts.notify), description: str(opts.description), useCase: str(opts.useCase) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.updateOpsItem({ client, path: { handle: handle }, body: clean({ title: str(opts.title), stepsToReproduce: str(opts.stepsToReproduce), actualResult: str(opts.actualResult), expectedResult: str(opts.expectedResult), status: str(opts.status), priority: strOrNull(opts.priority), githubPrNumber: num(opts.githubPrNumber), notify: str(opts.notify), description: str(opts.description), useCase: str(opts.useCase) }) }) });
     });
   g_ops.command("link-pr")
     .description("Link a fixing PR")
@@ -224,7 +224,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--remove-blocking <value>", "Items (number or id) this one should stop blocking. Unlinked items are a no-op.")
     .option("--duplicate-of <value>", "Mark this item as a duplicate of another (number or id), replacing any earlier canonical; `null` clears it. Omit to leave it unchanged. The item's status is not changed — close it separately if the duplicate should leave the queue.")
     .action(async (handle, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateOpsLinks({ client, path: { handle: handle }, body: clean({ addBlockedBy: json(opts.addBlockedBy), removeBlockedBy: json(opts.removeBlockedBy), addBlocking: json(opts.addBlocking), removeBlocking: json(opts.removeBlocking), duplicateOf: str(opts.duplicateOf) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.updateOpsLinks({ client, path: { handle: handle }, body: clean({ addBlockedBy: list(opts.addBlockedBy), removeBlockedBy: list(opts.removeBlockedBy), addBlocking: list(opts.addBlocking), removeBlocking: list(opts.removeBlocking), duplicateOf: strOrNull(opts.duplicateOf) }) }) });
     });
   g_ops.command("ack")
     .description("Ack an item (start a run)")
@@ -243,7 +243,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--href <value>", "Dashboard-relative deep link to the related item. `null` is accepted and treated as \"no link\".")
     .option("--dedupe-key <value>", "Stable per-escalation key (e.g. `feedback:7`) so re-runs dedupe to one row.")
     .action(async (opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.notifyOps({ client, body: clean({ title: str(opts.title), summary: str(opts.summary), steps: json(opts.steps), href: str(opts.href), dedupeKey: str(opts.dedupeKey) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.notifyOps({ client, body: clean({ title: str(opts.title), summary: str(opts.summary), steps: json(opts.steps), href: strOrNull(opts.href), dedupeKey: str(opts.dedupeKey) }) }) });
     });
   g_projects.command("current")
     .description("Show the current project")
@@ -348,7 +348,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--description <value>", "Optional human-readable description of the event.")
     .option("--properties <value>", "Typed properties declared on the event. Defaults to an empty list.")
     .action(async (name, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createEvent({ client, body: clean({ name: name, folder: str(opts.folder), description: str(opts.description), properties: json(opts.properties) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createEvent({ client, body: clean({ name: name, folder: strOrNull(opts.folder), description: str(opts.description), properties: json(opts.properties) }) }) });
     });
   g_metrics_events.command("get")
     .description("Get an event")
@@ -364,7 +364,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--description <value>", "New description for the event.")
     .option("--properties <value>", "Replaces the full property set (no merge). Omit to leave properties unchanged.")
     .action(async (id, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateEvent({ client, path: { id: id }, body: clean({ folder: str(opts.folder), description: str(opts.description), properties: json(opts.properties) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.updateEvent({ client, path: { id: id }, body: clean({ folder: strOrNull(opts.folder), description: str(opts.description), properties: json(opts.properties) }) }) });
     });
   g_metrics_events.command("archive")
     .description("Archive an event")
@@ -380,7 +380,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--description <value>", "New description for the event.")
     .option("--properties <value>", "Replaces the full property set (no merge). Omit to leave properties unchanged.")
     .action(async (id, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.approveEvent({ client, path: { id: id }, body: clean({ folder: str(opts.folder), description: str(opts.description), properties: json(opts.properties) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.approveEvent({ client, path: { id: id }, body: clean({ folder: strOrNull(opts.folder), description: str(opts.description), properties: json(opts.properties) }) }) });
     });
   g_ops_activity.command("list")
     .description("List queue activity")
@@ -439,7 +439,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--enabled <value>", "Whether the rule is evaluated by the cron.")
     .option("--notify <value>", "Delivery target for a rule's alert; `null` = use the project default. The `NotificationTarget` shape plus the in-app switch.")
     .action(async (opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createAlertRule({ client, body: clean({ name: str(opts.name), metricId: str(opts.metricId), kind: str(opts.kind), comparator: str(opts.comparator), threshold: num(opts.threshold), rangeMin: num(opts.rangeMin), rangeMax: num(opts.rangeMax), sigma: num(opts.sigma), direction: str(opts.direction), sustained: bool(opts.sustained), windowHours: num(opts.windowHours), bucketMinutes: num(opts.bucketMinutes), requiredBuckets: num(opts.requiredBuckets), warnThreshold: num(opts.warnThreshold), recoveryThreshold: num(opts.recoveryThreshold), groupAlerts: bool(opts.groupAlerts), maxGroups: num(opts.maxGroups), noDataMinutes: num(opts.noDataMinutes), delayMinutes: num(opts.delayMinutes), autoResolveMinutes: num(opts.autoResolveMinutes), composite: json(opts.composite), severity: str(opts.severity), enabled: bool(opts.enabled), notify: json(opts.notify) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createAlertRule({ client, body: clean({ name: str(opts.name), metricId: str(opts.metricId), kind: str(opts.kind), comparator: str(opts.comparator), threshold: num(opts.threshold), rangeMin: num(opts.rangeMin), rangeMax: num(opts.rangeMax), sigma: num(opts.sigma), direction: strOrNull(opts.direction), sustained: bool(opts.sustained), windowHours: num(opts.windowHours), bucketMinutes: num(opts.bucketMinutes), requiredBuckets: num(opts.requiredBuckets), warnThreshold: num(opts.warnThreshold), recoveryThreshold: num(opts.recoveryThreshold), groupAlerts: bool(opts.groupAlerts), maxGroups: num(opts.maxGroups), noDataMinutes: num(opts.noDataMinutes), delayMinutes: num(opts.delayMinutes), autoResolveMinutes: num(opts.autoResolveMinutes), composite: json(opts.composite), severity: str(opts.severity), enabled: bool(opts.enabled), notify: json(opts.notify) }) }) });
     });
   g_ops_alerts.command("update")
     .description("Update an alert rule")
@@ -468,7 +468,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--enabled <value>", "")
     .option("--notify <value>", "Delivery target for a rule's alert; `null` = use the project default. The `NotificationTarget` shape plus the in-app switch.")
     .action(async (id, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateAlertRule({ client, path: { id: id }, body: clean({ name: str(opts.name), kind: str(opts.kind), comparator: str(opts.comparator), threshold: num(opts.threshold), rangeMin: num(opts.rangeMin), rangeMax: num(opts.rangeMax), sigma: num(opts.sigma), direction: str(opts.direction), sustained: bool(opts.sustained), warnThreshold: num(opts.warnThreshold), recoveryThreshold: num(opts.recoveryThreshold), groupAlerts: bool(opts.groupAlerts), maxGroups: num(opts.maxGroups), noDataMinutes: num(opts.noDataMinutes), delayMinutes: num(opts.delayMinutes), autoResolveMinutes: num(opts.autoResolveMinutes), composite: json(opts.composite), windowHours: num(opts.windowHours), bucketMinutes: num(opts.bucketMinutes), requiredBuckets: num(opts.requiredBuckets), severity: str(opts.severity), enabled: bool(opts.enabled), notify: json(opts.notify) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.updateAlertRule({ client, path: { id: id }, body: clean({ name: str(opts.name), kind: str(opts.kind), comparator: str(opts.comparator), threshold: num(opts.threshold), rangeMin: num(opts.rangeMin), rangeMax: num(opts.rangeMax), sigma: num(opts.sigma), direction: strOrNull(opts.direction), sustained: bool(opts.sustained), warnThreshold: num(opts.warnThreshold), recoveryThreshold: num(opts.recoveryThreshold), groupAlerts: bool(opts.groupAlerts), maxGroups: num(opts.maxGroups), noDataMinutes: num(opts.noDataMinutes), delayMinutes: num(opts.delayMinutes), autoResolveMinutes: num(opts.autoResolveMinutes), composite: json(opts.composite), windowHours: num(opts.windowHours), bucketMinutes: num(opts.bucketMinutes), requiredBuckets: num(opts.requiredBuckets), severity: str(opts.severity), enabled: bool(opts.enabled), notify: json(opts.notify) }) }) });
     });
   g_ops_alerts.command("archive")
     .description("Delete an alert rule")
@@ -501,7 +501,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--body <value>", "The comment body as markdown. Mentions (`@teammate`, `@shipeasy`) are parsed from it.")
     .option("--parent-id <value>", "Reply under this top-level comment. Omit / `null` for a top-level comment. Replying to a reply attaches to the same top-level parent (threading is one level deep).")
     .action(async (handle, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createOpsComment({ client, path: { handle: handle }, body: clean({ body: str(opts.body), parentId: str(opts.parentId) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createOpsComment({ client, path: { handle: handle }, body: clean({ body: str(opts.body), parentId: strOrNull(opts.parentId) }) }) });
     });
   g_ops_comments.command("upload-media")
     .description("Upload an image to embed in a comment")
@@ -528,7 +528,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--assignee-id <value>", "PERSON owner — a `users.id`, or `null` to clear the assignment.")
     .option("--agent <value>", "AGENT owner — a connected trigger connector's id (`connectors.id`), the built-in `\"jarvis\"` (Enterprise plan only — rejected with `403` otherwise), or `null` to clear. Stored in `assigneeConnectorId` or `assigneeAgent` depending on the value; the two are mutually exclusive.")
     .action(async (id, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateAlert({ client, path: { id: id }, body: clean({ status: str(opts.status), assigneeId: str(opts.assigneeId), agent: str(opts.agent) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.updateAlert({ client, path: { id: id }, body: clean({ status: str(opts.status), assigneeId: strOrNull(opts.assigneeId), agent: strOrNull(opts.agent) }) }) });
     });
   g_ops_investigations.command("list")
     .description("List an item's investigation records")
@@ -731,7 +731,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--staging <value>", "Seed the **staging** env's initial value (version 1), overriding `value` for staging. Published immediately. Must match `schema`.")
     .option("--prod <value>", "Seed the **prod** env's initial value (version 1), overriding `value` for prod. Published immediately. Must match `schema`.")
     .action(async (name, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createConfig({ client, body: clean({ name: name, description: str(opts.description), folder: str(opts.folder), schema: json(opts.schema), value: json(opts.value), dev: json(opts.dev), staging: json(opts.staging), prod: json(opts.prod) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createConfig({ client, body: clean({ name: name, description: str(opts.description), folder: strOrNull(opts.folder), schema: json(opts.schema), value: json(opts.value), dev: json(opts.dev), staging: json(opts.staging), prod: json(opts.prod) }) }) });
     });
   g_release_configs.command("get")
     .description("Get one config")
@@ -750,7 +750,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--prod <value>", "Publish a new version to the **prod** env only, immediately (no draft). Overrides `value` for prod. Must match the effective schema.")
     .option("--folder <value>", "Optional folder name grouping items in the dashboard. Alphanumeric, `_` or `-` (no `/`). Part of the SDK lookup key (`<folder>/<name>`).")
     .action(async (id, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateConfig({ client, path: { id: id }, body: clean({ schema: json(opts.schema), value: json(opts.value), dev: json(opts.dev), staging: json(opts.staging), prod: json(opts.prod), folder: str(opts.folder) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.updateConfig({ client, path: { id: id }, body: clean({ schema: json(opts.schema), value: json(opts.value), dev: json(opts.dev), staging: json(opts.staging), prod: json(opts.prod), folder: strOrNull(opts.folder) }) }) });
     });
   g_release_configs.command("archive")
     .description("Delete a dynamic config")
@@ -802,7 +802,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--goal-metric <value>", "Inline metric — a DSL `query`, or an `event` (+ `aggregation`/`value`) the server compiles into one.")
     .option("--guardrail-metrics <value>", "Up to 10 guardrail metrics defined inline. Each is upserted (event + metric) and attached with role=guardrail.")
     .action(async (name, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createExperiment({ client, body: clean({ name: name, description: str(opts.description), hypothesis: str(opts.hypothesis), tag: str(opts.tag), owner_email: str(opts.ownerEmail), audience: str(opts.audience), bucket_by: str(opts.bucketBy), folder: str(opts.folder), universe: str(opts.universe), targeting_gate: str(opts.targetingGate), holdout_gate: str(opts.holdoutGate), allocation_pct: num(opts.allocationPct), allocation_percent: num(opts.allocationPercent), reserved_headroom: num(opts.reservedHeadroom), salt: str(opts.salt), params: json(opts.params), groups: json(opts.groups), significance_threshold: num(opts.significanceThreshold), min_runtime_days: num(opts.minRuntimeDays), min_sample_size: num(opts.minSampleSize), sequential_testing: bool(opts.sequentialTesting), goal_metric: json(opts.goalMetric), guardrail_metrics: json(opts.guardrailMetrics) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createExperiment({ client, body: clean({ name: name, description: strOrNull(opts.description), hypothesis: strOrNull(opts.hypothesis), tag: strOrNull(opts.tag), owner_email: strOrNull(opts.ownerEmail), audience: strOrNull(opts.audience), bucket_by: strOrNull(opts.bucketBy), folder: strOrNull(opts.folder), universe: str(opts.universe), targeting_gate: strOrNull(opts.targetingGate), holdout_gate: strOrNull(opts.holdoutGate), allocation_pct: num(opts.allocationPct), allocation_percent: num(opts.allocationPercent), reserved_headroom: num(opts.reservedHeadroom), salt: str(opts.salt), params: json(opts.params), groups: json(opts.groups), significance_threshold: num(opts.significanceThreshold), min_runtime_days: num(opts.minRuntimeDays), min_sample_size: num(opts.minSampleSize), sequential_testing: bool(opts.sequentialTesting), goal_metric: json(opts.goalMetric), guardrail_metrics: json(opts.guardrailMetrics) }) }) });
     });
   g_release_experiments.command("get")
     .description("Get one experiment")
@@ -838,7 +838,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--goal-metric <value>", "Inline metric — a DSL `query`, or an `event` (+ `aggregation`/`value`) the server compiles into one.")
     .option("--guardrail-metrics <value>", "Replaces the guardrail set wholesale (event auto-upserted per entry).")
     .action(async (id, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateExperiment({ client, path: { id: id }, body: clean({ name: str(opts.name), description: str(opts.description), hypothesis: str(opts.hypothesis), tag: str(opts.tag), owner_email: str(opts.ownerEmail), audience: str(opts.audience), bucket_by: str(opts.bucketBy), folder: str(opts.folder), targeting_gate: str(opts.targetingGate), holdout_gate: str(opts.holdoutGate), allocation_pct: num(opts.allocationPct), reserved_headroom: num(opts.reservedHeadroom), allocation_percent: num(opts.allocationPercent), salt: str(opts.salt), universe: str(opts.universe), params: json(opts.params), groups: json(opts.groups), significance_threshold: num(opts.significanceThreshold), min_runtime_days: num(opts.minRuntimeDays), min_sample_size: num(opts.minSampleSize), sequential_testing: bool(opts.sequentialTesting), goal_metric: json(opts.goalMetric), guardrail_metrics: json(opts.guardrailMetrics) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.updateExperiment({ client, path: { id: id }, body: clean({ name: str(opts.name), description: strOrNull(opts.description), hypothesis: strOrNull(opts.hypothesis), tag: strOrNull(opts.tag), owner_email: strOrNull(opts.ownerEmail), audience: strOrNull(opts.audience), bucket_by: strOrNull(opts.bucketBy), folder: strOrNull(opts.folder), targeting_gate: strOrNull(opts.targetingGate), holdout_gate: strOrNull(opts.holdoutGate), allocation_pct: num(opts.allocationPct), reserved_headroom: num(opts.reservedHeadroom), allocation_percent: num(opts.allocationPercent), salt: str(opts.salt), universe: str(opts.universe), params: json(opts.params), groups: json(opts.groups), significance_threshold: num(opts.significanceThreshold), min_runtime_days: num(opts.minRuntimeDays), min_sample_size: num(opts.minSampleSize), sequential_testing: bool(opts.sequentialTesting), goal_metric: json(opts.goalMetric), guardrail_metrics: json(opts.guardrailMetrics) }) }) });
     });
   g_release_experiments.command("archive")
     .description("Delete an experiment")
@@ -936,7 +936,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--group <value>", "Group label for dashboard organisation (e.g. team or product area).")
     .option("--owner-email <value>", "Owner contact. Displayed verbatim; not used for auth.")
     .action(async (name, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createGate({ client, body: clean({ name: name, type: str(opts.type), enabled: bool(opts.enabled), rollout_pct: num(opts.rolloutPct), rollout_percent: num(opts.rolloutPercent), rules: json(opts.rules), salt: str(opts.salt), stack: json(opts.stack), title: str(opts.title), description: str(opts.description), folder: str(opts.folder), group: str(opts.group), owner_email: str(opts.ownerEmail) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createGate({ client, body: clean({ name: name, type: str(opts.type), enabled: bool(opts.enabled), rollout_pct: num(opts.rolloutPct), rollout_percent: num(opts.rolloutPercent), rules: json(opts.rules), salt: str(opts.salt), stack: json(opts.stack), title: str(opts.title), description: str(opts.description), folder: strOrNull(opts.folder), group: str(opts.group), owner_email: str(opts.ownerEmail) }) }) });
     });
   g_release_flags.command("get")
     .description("Get one gate")
@@ -960,7 +960,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--group <value>", "Group label for dashboard organisation (e.g. team or product area).")
     .option("--owner-email <value>", "Owner contact. Displayed verbatim; not used for auth.")
     .action(async (id, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateGate({ client, path: { id: id }, body: clean({ type: str(opts.type), rollout_pct: num(opts.rolloutPct), rollout_percent: num(opts.rolloutPercent), rules: json(opts.rules), enabled: bool(opts.enabled), stack: json(opts.stack), title: str(opts.title), description: str(opts.description), folder: str(opts.folder), group: str(opts.group), owner_email: str(opts.ownerEmail) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.updateGate({ client, path: { id: id }, body: clean({ type: str(opts.type), rollout_pct: num(opts.rolloutPct), rollout_percent: num(opts.rolloutPercent), rules: json(opts.rules), enabled: bool(opts.enabled), stack: json(opts.stack), title: str(opts.title), description: str(opts.description), folder: strOrNull(opts.folder), group: str(opts.group), owner_email: str(opts.ownerEmail) }) }) });
     });
   g_release_flags.command("archive")
     .description("Delete a feature gate")
@@ -1038,7 +1038,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--value <value>", "Default value applied to every env at creation. Defaults to `false`. Use `true` to ship the killswitch pre-tripped.")
     .option("--switches <value>", "Initial per-switch overrides applied to every env. Empty/omitted leaves the killswitch with only the flat `value`.")
     .action(async (name, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createKillswitch({ client, body: clean({ name: name, description: str(opts.description), folder: str(opts.folder), value: bool(opts.value), switches: json(opts.switches) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createKillswitch({ client, body: clean({ name: name, description: str(opts.description), folder: strOrNull(opts.folder), value: bool(opts.value), switches: json(opts.switches) }) }) });
     });
   g_release_killswitch.command("get")
     .description("Get one killswitch")
@@ -1055,7 +1055,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--value <value>", "Flat value applied to every env. Publishes a new version per env when set. Omit to leave values unchanged.")
     .option("--switches <value>", "Replace the switches map wholesale on every env. To edit a single entry on a single env use `PUT /{id}/switch` instead.")
     .action(async (id, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateKillswitch({ client, path: { id: id }, body: clean({ description: str(opts.description), folder: str(opts.folder), value: bool(opts.value), switches: json(opts.switches) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.updateKillswitch({ client, path: { id: id }, body: clean({ description: strOrNull(opts.description), folder: strOrNull(opts.folder), value: bool(opts.value), switches: json(opts.switches) }) }) });
     });
   g_release_killswitch.command("archive")
     .description("Delete a killswitch")
@@ -1096,7 +1096,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--value <value>", "The value to publish. Omit (or `null`) to flip whatever is stored now — read-modify-write in one call. Pass an explicit `true`/`false` to make the call idempotent, so a retry can't undo the first attempt.")
     .option("--env <value>", "Environment to publish on. Defaults to `prod` — the environment an incident response means when it says \"kill it\".")
     .action(async (id, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.toggleKillswitch({ client, path: { id: id }, body: clean({ switchKey: str(opts.switchKey), value: bool(opts.value), env: str(opts.env) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.toggleKillswitch({ client, path: { id: id }, body: clean({ switchKey: strOrNull(opts.switchKey), value: bool(opts.value), env: str(opts.env) }) }) });
     });
   g_release_experiments_universes.command("list")
     .description("List universes")
@@ -1117,7 +1117,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--recommended-headroom <value>", "Basis points of reserved headroom seeded into each new experiment created in this universe (0 = none). Lets variants be appended into a running experiment without reshuffling.")
     .option("--param-schema <value>", "The universe-owned config schema — an ordered `{ name, type, default }[]`. Experiments may only override values per variant, never add fields. `null` starts an empty schema.")
     .action(async (name, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createUniverse({ client, body: clean({ name: name, folder: str(opts.folder), description: str(opts.description), unit_type: str(opts.unitType), holdout_range: json(opts.holdoutRange), recommended_headroom: num(opts.recommendedHeadroom), param_schema: json(opts.paramSchema) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createUniverse({ client, body: clean({ name: name, folder: strOrNull(opts.folder), description: strOrNull(opts.description), unit_type: str(opts.unitType), holdout_range: json(opts.holdoutRange), recommended_headroom: num(opts.recommendedHeadroom), param_schema: json(opts.paramSchema) }) }) });
     });
   g_release_experiments_universes.command("update")
     .description("Update a universe")
@@ -1128,7 +1128,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--recommended-headroom <value>", "Basis points of reserved headroom seeded into new experiments in this universe.")
     .option("--param-schema <value>", "Replace the universe config schema. Additive changes + default edits are always allowed; removing a param a running experiment overrides is rejected (deprecate-only).")
     .action(async (id, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateUniverse({ client, path: { id: id }, body: clean({ folder: str(opts.folder), description: str(opts.description), holdout_range: json(opts.holdoutRange), recommended_headroom: num(opts.recommendedHeadroom), param_schema: json(opts.paramSchema) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.updateUniverse({ client, path: { id: id }, body: clean({ folder: strOrNull(opts.folder), description: strOrNull(opts.description), holdout_range: json(opts.holdoutRange), recommended_headroom: num(opts.recommendedHeadroom), param_schema: json(opts.paramSchema) }) }) });
     });
   g_release_experiments_universes.command("archive")
     .description("Delete a universe")
@@ -1216,7 +1216,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--auto <value>", "")
     .option("--rules <value>", "")
     .action(async (id, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateGateTemplate({ client, path: { id: id }, body: clean({ name: str(opts.name), description: str(opts.description), category: str(opts.category), icon_key: str(opts.iconKey), auto: bool(opts.auto), rules: json(opts.rules) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.updateGateTemplate({ client, path: { id: id }, body: clean({ name: str(opts.name), description: str(opts.description), category: str(opts.category), icon_key: strOrNull(opts.iconKey), auto: bool(opts.auto), rules: json(opts.rules) }) }) });
     });
   g_release_flags_templates.command("archive")
     .description("Delete a gate template")

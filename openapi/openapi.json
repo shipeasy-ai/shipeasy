@@ -24194,6 +24194,12 @@
         "additionalProperties": false,
         "description": "Response for `POST /api/admin/ops/{handle}/link-pr` — the item id and the resulting PR link."
       },
+      "OpsItemHandle": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64,
+        "description": "A queue item's per-project number (e.g. `12`, `#12` also accepted) or its full id."
+      },
       "UpdateOpsLinksRequest": {
         "type": "object",
         "properties": {
@@ -24201,7 +24207,7 @@
             "type": "array",
             "maxItems": 50,
             "items": {
-              "$ref": "#/components/schemas/ResourceId"
+              "$ref": "#/components/schemas/OpsItemHandle"
             },
             "default": [],
             "description": "Items (number or id) to record as blocking this one. Already-linked items are a no-op."
@@ -24210,7 +24216,7 @@
             "type": "array",
             "maxItems": 50,
             "items": {
-              "$ref": "#/components/schemas/ResourceId"
+              "$ref": "#/components/schemas/OpsItemHandle"
             },
             "default": [],
             "description": "Items (number or id) to stop recording as blocking this one. Unlinked items are a no-op."
@@ -24219,7 +24225,7 @@
             "type": "array",
             "maxItems": 50,
             "items": {
-              "$ref": "#/components/schemas/ResourceId"
+              "$ref": "#/components/schemas/OpsItemHandle"
             },
             "default": [],
             "description": "Items (number or id) this one blocks. Already-linked items are a no-op."
@@ -24228,7 +24234,7 @@
             "type": "array",
             "maxItems": 50,
             "items": {
-              "$ref": "#/components/schemas/ResourceId"
+              "$ref": "#/components/schemas/OpsItemHandle"
             },
             "default": [],
             "description": "Items (number or id) this one should stop blocking. Unlinked items are a no-op."
@@ -24236,7 +24242,7 @@
           "duplicateOf": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ResourceId"
+                "$ref": "#/components/schemas/OpsItemHandle"
               },
               {
                 "type": "null"

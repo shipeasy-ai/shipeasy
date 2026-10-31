@@ -2441,14 +2441,19 @@ export const zLinkPrToOpsItemResponse = z.object({
 });
 
 /**
+ * A queue item's per-project number (e.g. `12`, `#12` also accepted) or its full id.
+ */
+export const zOpsItemHandle = z.string().min(1).max(64);
+
+/**
  * Incremental edit of an item's relations — pass any mix of fields; omitted ones are left as is. A link that would make an item block (or duplicate) itself, directly or through a chain, is rejected with `409`.
  */
 export const zUpdateOpsLinksRequest = z.object({
-    addBlockedBy: z.array(zResourceId).max(50).optional().default([]),
-    removeBlockedBy: z.array(zResourceId).max(50).optional().default([]),
-    addBlocking: z.array(zResourceId).max(50).optional().default([]),
-    removeBlocking: z.array(zResourceId).max(50).optional().default([]),
-    duplicateOf: zResourceId.nullish()
+    addBlockedBy: z.array(zOpsItemHandle).max(50).optional().default([]),
+    removeBlockedBy: z.array(zOpsItemHandle).max(50).optional().default([]),
+    addBlocking: z.array(zOpsItemHandle).max(50).optional().default([]),
+    removeBlocking: z.array(zOpsItemHandle).max(50).optional().default([]),
+    duplicateOf: zOpsItemHandle.nullish()
 });
 
 /**

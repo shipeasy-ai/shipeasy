@@ -17335,6 +17335,11 @@ components:
         - pr
       additionalProperties: false
       description: Response for `POST /api/admin/ops/{handle}/link-pr` — the item id and the resulting PR link.
+    OpsItemHandle:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: A queue item's per-project number (e.g. `12`, `#12` also accepted) or its full id.
     UpdateOpsLinksRequest:
       type: object
       properties:
@@ -17342,33 +17347,33 @@ components:
           type: array
           maxItems: 50
           items:
-            $ref: '#/components/schemas/ResourceId'
+            $ref: '#/components/schemas/OpsItemHandle'
           default: []
           description: Items (number or id) to record as blocking this one. Already-linked items are a no-op.
         removeBlockedBy:
           type: array
           maxItems: 50
           items:
-            $ref: '#/components/schemas/ResourceId'
+            $ref: '#/components/schemas/OpsItemHandle'
           default: []
           description: Items (number or id) to stop recording as blocking this one. Unlinked items are a no-op.
         addBlocking:
           type: array
           maxItems: 50
           items:
-            $ref: '#/components/schemas/ResourceId'
+            $ref: '#/components/schemas/OpsItemHandle'
           default: []
           description: Items (number or id) this one blocks. Already-linked items are a no-op.
         removeBlocking:
           type: array
           maxItems: 50
           items:
-            $ref: '#/components/schemas/ResourceId'
+            $ref: '#/components/schemas/OpsItemHandle'
           default: []
           description: Items (number or id) this one should stop blocking. Unlinked items are a no-op.
         duplicateOf:
           anyOf:
-            - $ref: '#/components/schemas/ResourceId'
+            - $ref: '#/components/schemas/OpsItemHandle'
             - type: 'null'
           description: Mark this item as a duplicate of another (number or id), replacing any earlier canonical; `null` clears it. Omit to leave it unchanged. The item's status is not changed — close it separately if the duplicate should leave the queue.
       additionalProperties: false

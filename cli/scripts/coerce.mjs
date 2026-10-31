@@ -35,12 +35,18 @@ export const makeCoercer =
   (deref) =>
   (schema) => {
     let s = deref(schema) ?? {};
+    // A string the spec lets the caller CLEAR (`X | null`) takes the literal
+    // `null` as JSON null — `--duplicate-of null` unlinks instead of sending
+    // the four-letter string, the same rule `list()` applies to arrays.
+    let nullable = Array.isArray(s.type) && s.type.includes("null");
     // unwrap a nullable union ([{type:X},{type:null}]) to its single real branch
     const union = s.anyOf || s.oneOf;
     if (union) {
-      const real = union
-        .map(deref)
-        .filter((b) => (Array.isArray(b.type) ? !b.type.includes("null") : b.type !== "null"));
+      const all = union.map(deref);
+      const real = all.filter((b) =>
+        Array.isArray(b.type) ? !b.type.includes("null") : b.type !== "null",
+      );
+      if (real.length < all.length) nullable = true;
       if (real.length === 1) s = real[0];
       else {
         // A union whose branches are all the SAME scalar is still that scalar on
@@ -59,5 +65,5 @@ export const makeCoercer =
     if (t === "boolean") return "bool";
     if (t === "array" && isTokenList(deref(s.items) ?? {})) return "list";
     if (t === "array" || t === "object") return "json";
-    return "str";
+    return nullable && t === "string" ? "strOrNull" : "str";
   };

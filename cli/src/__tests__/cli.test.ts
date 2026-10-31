@@ -71,6 +71,7 @@ describe("shipeasy CLI", () => {
     ["ops", "get", "7"],
     ["ops", "update", "7", "--status", "resolved"],
     ["ops", "link-pr", "7", "44", "--url", "https://github.com/a/b/pull/44"],
+    ["ops", "links", "7", "--add-blocked-by", "12,13", "--duplicate-of", "null"],
     ["ops", "alerts", "list"],
   ])("`%s` fails closed when not logged in", async (...argv: string[]) => {
     vi.resetModules();

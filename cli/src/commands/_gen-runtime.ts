@@ -61,6 +61,9 @@ export function defineGroup(
 // ── option coercion (string flag value → typed body/query field) ────────────
 // Each returns `undefined` when the flag was not supplied, so `clean()` drops it.
 export const str = (v: unknown): string | undefined => (v === undefined ? undefined : String(v));
+/** A clearable string flag (`X | null` in the spec): the literal `null` sends JSON null. */
+export const strOrNull = (v: unknown): string | null | undefined =>
+  v === undefined ? undefined : v === null || v === "null" ? null : String(v);
 export const num = (v: unknown): number | undefined => {
   if (v === undefined) return undefined;
   const n = Number(v);

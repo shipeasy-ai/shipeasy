@@ -31,6 +31,7 @@ non-obvious flags are shown.
 | Triage — set status / priority | `ops_update` | `shipeasy ops update <handle> --status <status> --priority <p>` |
 | Edit an item's content | `ops_update` | `shipeasy ops update <handle> --title … --description … --actual-result …` |
 | Link the fixing PR | `ops_link_pr` | `shipeasy ops link-pr <handle> --pr-number <n>` (errors/alerts need `--pr-url`) |
+| Relate items — blocked by / blocking / duplicate of | `ops_links` | `shipeasy ops links <handle> --add-blocked-by 12,13 --duplicate-of 8` (`--remove-…` unlinks; `--duplicate-of null` clears) |
 | Escalate — raise a human-attention card | `ops_notify` | `shipeasy ops notify --title … --summary … --steps '[…]' --dedupe-key feedback:<n>` |
 
 `<handle>` = the item's per-project `number` (e.g. `7`) **or** its full id — the
@@ -47,7 +48,9 @@ steps, ending in the file call:
 2. **File the complete report** — `ops_bug` for a bug (or `ops_feature` for a
    feature request), with a full title + actual result + steps to reproduce +
    page URL. When step 1 surfaces a matching item, augment that one with
-   `ops_update` and point the user to it; otherwise file the new one.
+   `ops_update` and point the user to it; otherwise file the new one. If a
+   duplicate slips in anyway, mark it with `ops_links` (`duplicateOf`) rather
+   than leaving two open items.
    Label it with `tags` (tag names, e.g. `["ios", "checkout"]`): a name matching
    an existing project tag case-insensitively reuses it, any other creates one —
    so prefer the names `tags_list` already shows over new spellings.

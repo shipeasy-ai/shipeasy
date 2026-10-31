@@ -4679,29 +4679,34 @@ export type LinkPrToOpsItemResponse = {
 };
 
 /**
+ * A queue item's per-project number (e.g. `12`, `#12` also accepted) or its full id.
+ */
+export type OpsItemHandle = string;
+
+/**
  * Incremental edit of an item's relations — pass any mix of fields; omitted ones are left as is. A link that would make an item block (or duplicate) itself, directly or through a chain, is rejected with `409`.
  */
 export type UpdateOpsLinksRequest = {
     /**
      * Items (number or id) to record as blocking this one. Already-linked items are a no-op.
      */
-    addBlockedBy?: Array<ResourceId>;
+    addBlockedBy?: Array<OpsItemHandle>;
     /**
      * Items (number or id) to stop recording as blocking this one. Unlinked items are a no-op.
      */
-    removeBlockedBy?: Array<ResourceId>;
+    removeBlockedBy?: Array<OpsItemHandle>;
     /**
      * Items (number or id) this one blocks. Already-linked items are a no-op.
      */
-    addBlocking?: Array<ResourceId>;
+    addBlocking?: Array<OpsItemHandle>;
     /**
      * Items (number or id) this one should stop blocking. Unlinked items are a no-op.
      */
-    removeBlocking?: Array<ResourceId>;
+    removeBlocking?: Array<OpsItemHandle>;
     /**
      * Mark this item as a duplicate of another (number or id), replacing any earlier canonical; `null` clears it. Omit to leave it unchanged. The item's status is not changed — close it separately if the duplicate should leave the queue.
      */
-    duplicateOf?: ResourceId | null;
+    duplicateOf?: OpsItemHandle | null;
 };
 
 /**

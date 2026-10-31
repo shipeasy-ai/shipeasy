@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { makeCoercer, scalarType } from "../../scripts/coerce.mjs";
-import { list } from "../commands/_gen-runtime";
+import { list, strOrNull } from "../commands/_gen-runtime";
 
 /** Stand-in for the generator's spec-aware $ref resolver. */
 const SCHEMAS: Record<string, unknown> = {
@@ -55,7 +55,7 @@ describe("coercer", () => {
   });
 
   it("unwraps a nullable union to its single real branch", () => {
-    expect(coerce({ anyOf: [{ type: "string" }, { type: "null" }] })).toBe("str");
+    expect(coerce({ anyOf: [{ type: "string" }, { type: "null" }] })).toBe("strOrNull");
     expect(coerce({ anyOf: [{ type: "integer" }, { type: "null" }] })).toBe("num");
   });
 
@@ -102,5 +102,18 @@ describe("list (runtime)", () => {
     expect(list('["a,b", "c"]')).toEqual(["a,b", "c"]);
     expect(list("null")).toBeNull();
     expect(list(undefined)).toBeUndefined();
+  });
+});
+
+describe("strOrNull", () => {
+  it("sends JSON null for the literal null, the string otherwise", () => {
+    expect(strOrNull("null")).toBeNull();
+    expect(strOrNull("8")).toBe("8");
+    expect(strOrNull(undefined)).toBeUndefined();
+  });
+
+  it("is picked for a clearable string, not a plain one", () => {
+    expect(coerce({ type: ["string", "null"] })).toBe("strOrNull");
+    expect(coerce({ type: "string" })).toBe("str");
   });
 });

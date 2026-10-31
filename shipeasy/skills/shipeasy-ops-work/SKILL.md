@@ -92,6 +92,14 @@ Do the steps below for **one** item, then restart with the next. Do not
 interleave. Do not parallelise. Different items almost always touch different
 files; serial keeps blame clean and lets the user halt mid-loop.
 
+**Skip blocked and duplicate items.** `ops get <handle>` carries the item's
+relations: when `blockedBy` lists an item that is not `resolved`/`wont_fix`,
+the work is waiting on it — skip this one (the blocker is in the queue too) and
+say so in the report; when `duplicateOf` is set, the work belongs to that
+canonical item — skip this one. If working an item shows it is really blocked
+by, or a duplicate of, another, record that with `shipeasy ops links <handle>
+--add-blocked-by <n>` / `--duplicate-of <n>` (MCP `ops_links`).
+
 **Ack the item the moment you pick it up — always, before any work.** Run
 `shipeasy ops ack <handle>` (MCP `ops_ack`). This is the ONE call that records
 who's on the item: it opens a **run** — the record the dashboard renders as a
