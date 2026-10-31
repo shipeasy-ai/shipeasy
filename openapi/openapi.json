@@ -9496,6 +9496,14 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/AnswerOpsQaQuestionRequest"
+              },
+              "examples": {
+                "answer": {
+                  "summary": "Answer with QA's decision",
+                  "value": {
+                    "answer": "Hide it — archived metrics never show on experiment readouts"
+                  }
+                }
               }
             }
           }

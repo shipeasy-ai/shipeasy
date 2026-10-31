@@ -1621,6 +1621,11 @@
         application/json:
           schema:
             $ref: ../components/schemas/ops.yaml#/AnswerOpsQaQuestionRequest
+          examples:
+            answer:
+              summary: Answer with QA's decision
+              value:
+                answer: Hide it — archived metrics never show on experiment readouts
     responses:
       "200":
         description: The answered question
