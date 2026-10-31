@@ -2348,6 +2348,38 @@ export const zOpsQaQuestion = z.object({
 });
 
 /**
+ * A link group: the items connected by blocked-by / blocking / duplicate-of links, which the dashboard shows and moves together. Its master is the one member agent runs work on — the first open member that is not a duplicate and has no open blocker, then the most urgent priority, then the oldest. Closed members only lead once every member is closed.
+ */
+export const zOpsItemGroup = z.object({
+    master: zOpsItemRef,
+    items: z.array(zOpsItemRef)
+});
+
+/**
+ * One linked item's content, inlined into `ops get` by `include=linked` so a run reads the whole group in one call. Its comments, attachments and runs are on its own `ops get`.
+ */
+export const zOpsLinkedItem = z.object({
+    id: z.string(),
+    number: z.number().nullable(),
+    type: z.enum([
+        'bug',
+        'feature_request',
+        'error',
+        'alert',
+        'measure_plan'
+    ]),
+    title: z.string(),
+    status: zOpsItemStatus,
+    priority: zOpsItemPriority.nullable(),
+    description: z.string().optional(),
+    stepsToReproduce: z.string().optional(),
+    actualResult: z.string().optional(),
+    expectedResult: z.string().optional(),
+    useCase: z.string().optional(),
+    createdAt: z.string().optional()
+});
+
+/**
  * One queue item, any of the five types. Shared fields apply to all; `stepsToReproduce`/`actualResult`/`expectedResult` are bug-specific, `description`/`useCase` feature-specific. The auto-collected browser fields (page URL, user-agent, viewport) live under `context.browser` for bug/feature. `context` also carries the hydrated per-type payload for auto-filed `error`/`alert`/`measure_plan` tickets, `attachments` lists any uploaded files, and `related` gives deep links to the underlying resources.
  */
 export const zGetOpsItemResponse = z.object({
@@ -2380,6 +2412,8 @@ export const zGetOpsItemResponse = z.object({
     duplicateOf: zOpsItemRef.nullish(),
     duplicates: z.array(zOpsItemRef).optional(),
     qaQuestions: z.array(zOpsQaQuestion).optional(),
+    group: zOpsItemGroup.nullish(),
+    linkedItems: z.array(zOpsLinkedItem).optional(),
     connectorData: zConnectorData.nullish(),
     notify: zNotificationTarget.nullish(),
     assigneeId: z.string().nullish(),
@@ -2500,6 +2534,23 @@ export const zOpsItemLinksResponse = z.object({
     blocking: z.array(zOpsItemRef),
     duplicateOf: zOpsItemRef.nullable(),
     duplicates: z.array(zOpsItemRef)
+});
+
+/**
+ * Triage fields applied to EVERY member of the item's link group. Pass at least one field.
+ */
+export const zUpdateOpsGroupRequest = z.object({
+    status: zOpsItemStatus.optional(),
+    priority: zOpsItemPriorityOrNull.optional()
+});
+
+/**
+ * The group after a group-wide update.
+ */
+export const zOpsItemGroupResponse = z.object({
+    id: z.string(),
+    group: zOpsItemGroup,
+    updated: z.number()
 });
 
 /**
@@ -5417,6 +5468,10 @@ export const zGetOpsItemPath = z.object({
     handle: zResourceId
 });
 
+export const zGetOpsItemQuery = z.object({
+    include: z.enum(['linked']).optional()
+});
+
 /**
  * Get one queue item
  */
@@ -5466,6 +5521,21 @@ export const zUpdateOpsLinksPath = z.object({
  * Link related items
  */
 export const zUpdateOpsLinksResponse = zOpsItemLinksResponse;
+
+export const zUpdateOpsGroupBody = zUpdateOpsGroupRequest;
+
+export const zUpdateOpsGroupHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zUpdateOpsGroupPath = z.object({
+    handle: zResourceId
+});
+
+/**
+ * Update a linked group
+ */
+export const zUpdateOpsGroupResponse = zOpsItemGroupResponse;
 
 export const zAckOpsItemBody = zAckOpsItemRequest;
 

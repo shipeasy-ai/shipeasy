@@ -8009,7 +8009,7 @@
       "get": {
         "operationId": "getOpsItem",
         "summary": "Get one queue item",
-        "description": "Fetch a single queue item by its per-project `number` or full id.\n\n**Use case:** Inspect one item's full detail before updating its status or linking a PR.",
+        "description": "Fetch a single queue item by its per-project `number` or full id.\n\nAn item linked to others (blocked by / blocking / duplicate of) carries its `group`: every connected item, and the `master` agent runs work through. Pass `include=linked` to inline the other members' content as `linkedItems`, so one call reads the whole group.\n\n**Use cases**\n\n- **Inspect one item** before updating its status or linking a PR.\n- **Pick up linked work** — `include=linked` reads the master and everything tied to it before a run starts.",
         "tags": [
           "Ops"
         ],
@@ -8024,6 +8024,18 @@
             "description": "Per-project item number (e.g. `7`) or the full ops item id.",
             "schema": {
               "$ref": "#/components/schemas/ResourceId"
+            }
+          },
+          {
+            "name": "include",
+            "in": "query",
+            "required": false,
+            "description": "`linked` inlines the content of every other member of the item's link group as `linkedItems`.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "linked"
+              ]
             }
           }
         ],
@@ -8440,11 +8452,122 @@
         }
       }
     },
+    "/api/admin/ops/{handle}/group": {
+      "patch": {
+        "operationId": "updateOpsGroup",
+        "summary": "Update a linked group",
+        "description": "Applies `status` and/or `priority` to every item in this item's link group — the items tied to it, directly or through a chain, by blocked-by / blocking / duplicate-of links (see `group` on `ops get`). Each member goes through the normal item update, so activity, audit, run close-out and the error sync happen exactly as for a one-item edit. Members already in the requested state are left alone. An item with no links is a group of one.\n\n**Use cases**\n\n- **The fix landed for the whole group** — `{ \"status\": \"resolved\" }` on any member.\n- **Drop the group** — `{ \"status\": \"wont_fix\" }`.\n- **Escalate it together** — `{ \"priority\": \"critical\" }`.",
+        "tags": [
+          "Ops"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "description": "Per-project item number (e.g. `7`) or the full ops item id — any member of the group.",
+            "schema": {
+              "$ref": "#/components/schemas/ResourceId"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOpsGroupRequest"
+              },
+              "examples": {
+                "resolve": {
+                  "summary": "Resolve the whole group",
+                  "value": {
+                    "status": "resolved"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Update a linked group",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsItemGroupResponse"
+                },
+                "example": {
+                  "id": "fb_01j7w8a1b2c3d4e5f6g7h8i9j0",
+                  "group": {
+                    "master": {
+                      "id": "fb_01j7w8a1b2c3d4e5f6g7h8i9j1",
+                      "number": 12,
+                      "type": "bug",
+                      "title": "Checkout total ignores the coupon",
+                      "status": "resolved"
+                    },
+                    "items": [
+                      {
+                        "id": "fb_01j7w8a1b2c3d4e5f6g7h8i9j1",
+                        "number": 12,
+                        "type": "bug",
+                        "title": "Checkout total ignores the coupon",
+                        "status": "resolved"
+                      },
+                      {
+                        "id": "fb_01j7w8a1b2c3d4e5f6g7h8i9j0",
+                        "number": 14,
+                        "type": "bug",
+                        "title": "Coupon not applied at checkout",
+                        "status": "resolved"
+                      }
+                    ]
+                  },
+                  "updated": 2
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "group",
+          "positional": [
+            "handle"
+          ]
+        }
+      }
+    },
     "/api/admin/ops/{handle}/ack": {
       "post": {
         "operationId": "ackOpsItem",
         "summary": "Ack an item (start a run)",
-        "description": "Acknowledge a queue item — a person or an AI agent declaring \"I'm on this\nnow\". Opens a run: stamps who picked the item up and when, assigns them as\nowner, and moves the item into the matching working status\n(`investigating_by_ai` for an AI ack, `in_progress` for a human one). The\ndashboard renders the open run as a live working indicator (which agent +\ntime since the run started).\n\n**AI ack.** Pass `agent` with your own agent type (`claude`, `cursor`,\n`copilot`, `jules`; `gemini` aliases `jules`) and, when you have one, the\nrun's `sessionId` so the dashboard can deep-link to the session. If the\nproject has no connected trigger connector of that type the call fails\nwith `AGENT_NOT_CONNECTED` — list the available agents with `ops agents\nlist` and use one of those (or connect the agent under Settings →\nTriggers).\n\n**Launching.** When the named agent has a connected trigger and you pass\nno `sessionId`, the ack also fires that trigger — a new provider run\nstarts working the item. Pass `launch: false` to only claim the item and\nrecord the run (you are doing the work yourself), without starting one.\n\n**Completion.** The run closes automatically on the loop's final actions —\nlinking the fixing PR (`link-pr`), an ops-notify escalation, or a\ncompletion status change (`ready_for_qa`/`resolved`) — and the dashboard\nthen shows the run result (final action, PR, duration, session link).\nA repeat ack supersedes the previous open run.\n\n**Use case:** Call this first when picking an item up, so the team sees\nwho/what is working on it in real time.",
+        "description": "Acknowledge a queue item — a person or an AI agent declaring \"I'm on this\nnow\". Opens a run: stamps who picked the item up and when, assigns them as\nowner, and moves the item into the matching working status\n(`investigating_by_ai` for an AI ack, `in_progress` for a human one). The\ndashboard renders the open run as a live working indicator (which agent +\ntime since the run started).\n\n**AI ack.** Pass `agent` with your own agent type (`claude`, `cursor`,\n`copilot`, `jules`; `gemini` aliases `jules`) and, when you have one, the\nrun's `sessionId` so the dashboard can deep-link to the session. If the\nproject has no connected trigger connector of that type the call fails\nwith `AGENT_NOT_CONNECTED` — list the available agents with `ops agents\nlist` and use one of those (or connect the agent under Settings →\nTriggers).\n\n**Launching.** When the named agent has a connected trigger and you pass\nno `sessionId`, the ack also fires that trigger — a new provider run\nstarts working the item. Pass `launch: false` to only claim the item and\nrecord the run (you are doing the work yourself), without starting one.\nA launch on an item linked to others (see `group` on `ops get`) is only\nallowed on the group's master — any other member answers `409`\n`INVALID_TRANSITION`, naming the master to ack instead.\n\n**Completion.** The run closes automatically on the loop's final actions —\nlinking the fixing PR (`link-pr`), an ops-notify escalation, or a\ncompletion status change (`ready_for_qa`/`resolved`) — and the dashboard\nthen shows the run result (final action, PR, duration, session link).\nA repeat ack supersedes the previous open run.\n\n**Use case:** Call this first when picking an item up, so the team sees\nwho/what is working on it in real time.",
         "tags": [
           "Ops"
         ],
@@ -8509,6 +8632,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
           }
@@ -8519,6 +8645,7 @@
           "FORBIDDEN",
           "NOT_FOUND",
           "AGENT_NOT_CONNECTED",
+          "INVALID_TRANSITION",
           "VALIDATION"
         ],
         "x-cli": {
@@ -24114,6 +24241,110 @@
         "additionalProperties": false,
         "description": "A question put to QA on a queue item, with QA's answer once given."
       },
+      "OpsItemGroup": {
+        "type": "object",
+        "properties": {
+          "master": {
+            "$ref": "#/components/schemas/OpsItemRef"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpsItemRef"
+            },
+            "description": "Every member of the group, this item included, master first. The rest follow in the order the master is picked by."
+          }
+        },
+        "required": [
+          "master",
+          "items"
+        ],
+        "additionalProperties": false,
+        "description": "A link group: the items connected by blocked-by / blocking / duplicate-of links, which the dashboard shows and moves together. Its master is the one member agent runs work on — the first open member that is not a duplicate and has no open blocker, then the most urgent priority, then the oldest. Closed members only lead once every member is closed."
+      },
+      "OpsLinkedItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable opaque item id."
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Per-project item number (the `#7` handle), or `null` if unnumbered."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "bug",
+              "feature_request",
+              "error",
+              "alert",
+              "measure_plan"
+            ],
+            "description": "Queue item type."
+          },
+          "title": {
+            "type": "string",
+            "description": "One-line item title."
+          },
+          "status": {
+            "$ref": "#/components/schemas/OpsItemStatus"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpsItemPriority"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Triage priority, or `null` if not yet set."
+          },
+          "description": {
+            "type": "string",
+            "description": "Feature description (`feature_request`), empty string otherwise."
+          },
+          "stepsToReproduce": {
+            "type": "string",
+            "description": "Bug repro steps (`bug`), empty string otherwise."
+          },
+          "actualResult": {
+            "type": "string",
+            "description": "What happened (`bug`), empty string otherwise."
+          },
+          "expectedResult": {
+            "type": "string",
+            "description": "What was expected (`bug`), empty string otherwise."
+          },
+          "useCase": {
+            "type": "string",
+            "description": "Feature use case (`feature_request`), empty string otherwise."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO-8601 creation timestamp."
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "type",
+          "title",
+          "status",
+          "priority"
+        ],
+        "additionalProperties": {},
+        "description": "One linked item's content, inlined into `ops get` by `include=linked` so a run reads the whole group in one call. Its comments, attachments and runs are on its own `ops get`."
+      },
       "GetOpsItemResponse": {
         "type": "object",
         "properties": {
@@ -24281,6 +24512,24 @@
               "$ref": "#/components/schemas/OpsQaQuestion"
             },
             "description": "Questions put to QA on this item, newest first (max 100), each with QA's answer once given. List the project-wide backlog with `ops list --qa-questions open`; ask with `ops qa-questions ask`."
+          },
+          "group": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpsItemGroup"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The link group this item belongs to — every item tied to it, directly or through a chain, by a blocked-by / blocking / duplicate-of link — or `null` when it has no links. Agent runs only work a group through its `master`; read the other members before starting, and close them together with `PATCH /api/admin/ops/{handle}/group`."
+          },
+          "linkedItems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpsLinkedItem"
+            },
+            "description": "The full content of every OTHER member of the link group, master first. Present only when the request passes `include=linked`."
           },
           "connectorData": {
             "anyOf": [
@@ -24704,6 +24953,42 @@
         ],
         "additionalProperties": false,
         "description": "Every relation of one queue item — \"blocked by\" / \"blocking\" and \"duplicate of\" / \"duplicates\" — in both directions."
+      },
+      "UpdateOpsGroupRequest": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/OpsItemStatus"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/OpsItemPriorityOrNull"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Triage fields applied to EVERY member of the item's link group. Pass at least one field."
+      },
+      "OpsItemGroupResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Id of the item the call was made on."
+          },
+          "group": {
+            "$ref": "#/components/schemas/OpsItemGroup"
+          },
+          "updated": {
+            "type": "number",
+            "description": "How many members actually changed — members already in the requested state are left alone."
+          }
+        },
+        "required": [
+          "id",
+          "group",
+          "updated"
+        ],
+        "additionalProperties": false,
+        "description": "The group after a group-wide update."
       },
       "AckOpsItemRequest": {
         "type": "object",

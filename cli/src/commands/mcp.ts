@@ -63,8 +63,11 @@ function readMcpConfig(path: string): McpConfigFile | null {
   }
 }
 
-function formatMcp(agent: AgentId, r: McpResult): string {
+function formatMcp(agent: AgentId, r: McpResult, dryRun = false): string {
   const label = AGENT_LABEL[agent];
+  if (dryRun && (r.action === "wrote" || r.action === "updated")) {
+    return `• ${label}: (dry run — would ${r.action === "wrote" ? "write" : "update"} ${r.detail})`;
+  }
   switch (r.action) {
     case "wrote":
       return `✓ ${label}: wrote ${r.detail}`;
@@ -138,7 +141,7 @@ export function mcpCommand(parent: Command): void {
             continue;
           }
           const r = registerMcp(agent, ctx);
-          console.log(formatMcp(agent, r));
+          console.log(formatMcp(agent, r, !!opts.dryRun));
           if (r.action === "wrote" || r.action === "updated" || r.action === "shell") wrote++;
           else skipped++;
         }

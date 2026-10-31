@@ -189,9 +189,10 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   g_ops.command("get")
     .description("Get one queue item")
     .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id.")
+    .option("--include <value>", "`linked` inlines the content of every other member of the item's link group as `linkedItems`.")
     .option("--data <value>", "Request body as a JSON object.")
     .action(async (handle, opts) => {
-      await ctx.run({ mutates: false, invoke: (client) => api.getOpsItem({ client, path: { handle: handle }, body: json(opts.data) as never }) });
+      await ctx.run({ mutates: false, invoke: (client) => api.getOpsItem({ client, path: { handle: handle }, query: clean({ include: str(opts.include) }), body: json(opts.data) as never }) });
     });
   g_ops.command("update")
     .description("Update a queue item")
@@ -227,6 +228,14 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--duplicate-of <value>", "Mark this item as a duplicate of another (number or id), replacing any earlier canonical; `null` clears it. Omit to leave it unchanged. While the canonical is still open, the item closes as `wont_fix`; a canonical that is already `resolved`/`wont_fix` leaves the item's status alone.")
     .action(async (handle, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.updateOpsLinks({ client, path: { handle: handle }, body: clean({ addBlockedBy: list(opts.addBlockedBy), removeBlockedBy: list(opts.removeBlockedBy), addBlocking: list(opts.addBlocking), removeBlocking: list(opts.removeBlocking), duplicateOf: strOrNull(opts.duplicateOf) }) }) });
+    });
+  g_ops.command("group")
+    .description("Update a linked group")
+    .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id — any member of the group.")
+    .option("--status <value>", "Lifecycle status of a queue item. The working flow is `open` → `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`, terminal from any earlier stage). `blocked` marks an item that can't progress until an external dependency clears — a working state a human sets and clears. `ready_for_qa` is what a developer sets once a fix lands; `resolved` is the QA sign-off, normally flipped in the dashboard after verification — set it directly from code only when the fix has been verified end-to-end. `investigating_by_ai` is a system-owned display state — set when the AI agent (Jarvis) picks an item up to investigate, never chosen by a human — so it is shown but not offered as a manual choice. `pending_approval` is the one human-gated holding state: it parks an item OUT of the work queue until a human promotes it to `open` in the dashboard, so `GET /api/admin/ops` excludes it under `status=all`/default and returns it only when requested as an exact `status`. It covers untriaged inbound that must never be auto-implemented — connector requests filed from a customer's connectors panel, and questions funnelled in from the \"Stuck in onboarding?\" assistant — where approving means flipping the status to `open`. Two earlier values were removed in favour of this single gate: `triage` (the onboarding-help bucket, now `pending_approval`) and `triaged` (a redundant \"looked at but not started\" step, now plain `open`).")
+    .option("--priority <value>", "Triage priority, or `null` when not set (in an update, `null` clears it).")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.updateOpsGroup({ client, path: { handle: handle }, body: clean({ status: str(opts.status), priority: strOrNull(opts.priority) }) }) });
     });
   g_ops.command("ack")
     .description("Ack an item (start a run)")

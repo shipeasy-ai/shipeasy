@@ -175,12 +175,12 @@ function summarize(desc: string, max = 160): string {
   return s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s;
 }
 
-function formatMcp(r: McpResult): string {
+function formatMcp(r: McpResult, dryRun = false): string {
   switch (r.action) {
     case "wrote":
-      return `  ✓ MCP: wrote ${r.detail}`;
+      return dryRun ? `  • MCP: (dry run — would write ${r.detail})` : `  ✓ MCP: wrote ${r.detail}`;
     case "updated":
-      return `  ✓ MCP: updated ${r.detail}`;
+      return dryRun ? `  • MCP: (dry run — would update ${r.detail})` : `  ✓ MCP: updated ${r.detail}`;
     case "skipped":
       return `  • MCP: ${r.detail}`;
     case "shell":
@@ -192,7 +192,10 @@ function formatMcp(r: McpResult): string {
   }
 }
 
-function formatFile(label: string, r: FileResult): string {
+function formatFile(label: string, r: FileResult, dryRun = false): string {
+  if (dryRun && r.action !== "skipped") {
+    return `  • ${label}: (dry run — would ${r.action === "wrote" ? "write" : "update"} ${r.path})`;
+  }
   const verb = r.action === "skipped" ? "already current" : r.action;
   return `  ${r.action === "skipped" ? "•" : "✓"} ${label}: ${verb} ${r.action === "skipped" ? "" : r.path}`.trimEnd();
 }
@@ -224,18 +227,18 @@ export function applyAgent(agent: AgentId, ctx: InstallCtx): string[] {
     // lists both, `shipeasy` and `plugin:shipeasy:shipeasy` — the pinned one is
     // what we probe and authenticate.)
     if (ctx.scope === "project") {
-      lines.push(formatMcp(registerMcp("claude", ctx)));
+      lines.push(formatMcp(registerMcp("claude", ctx), ctx.dryRun));
       // A `.mcp.json` server stays "⏸ Pending approval" until the user approves
       // it for this project — which blocks `claude mcp login` outright — so
       // record the approval they already gave by picking Claude here.
-      lines.push(formatMcp(approveProjectMcpServer(ctx)));
+      lines.push(formatMcp(approveProjectMcpServer(ctx), ctx.dryRun));
     }
     return lines;
   }
 
-  lines.push(formatMcp(registerMcp(agent, ctx)));
-  if (agent === "cursor") lines.push(formatFile("rule", writeCursorRule(ctx)));
-  if (agent === "copilot") lines.push(formatFile("instructions", writeCopilotInstructions(ctx)));
+  lines.push(formatMcp(registerMcp(agent, ctx), ctx.dryRun));
+  if (agent === "cursor") lines.push(formatFile("rule", writeCursorRule(ctx), ctx.dryRun));
+  if (agent === "copilot") lines.push(formatFile("instructions", writeCopilotInstructions(ctx), ctx.dryRun));
   return lines;
 }
 
@@ -1385,7 +1388,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     }
     // Universal instructions — benefits every agent (and any we don't special-case).
     say("");
-    say(formatFile("AGENTS.md", writeAgentsMd(ctx)));
+    say(formatFile("AGENTS.md", writeAgentsMd(ctx), ctx.dryRun));
   }
 
   // 4. Mint SDK keys (env-locked; values persisted in step 5, never logged)
