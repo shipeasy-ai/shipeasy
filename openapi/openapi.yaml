@@ -267,6 +267,15 @@ tags:
       their own section of the item's detail panel, separate from the comment
       thread. A failing verification offers a "Reopen item" action in the
       dashboard; it is always an explicit click, never a side effect of `create`.
+  - name: QA questions
+    parent: Ops
+    description: |-
+      Questions put to QA on a queue item — for when the person or agent working
+      an item does not know the answer and wants QA's call without a build or a
+      meeting. `ask` records the question; QA (a person, or an agent assigned the
+      QA role) finds the backlog with `ops list --qa-questions open`, reads the
+      item (`ops get` carries a `qaQuestions` field), and `answer`s it. Answers
+      are plain text and the asker reads them back with `list` or `ops get`.
   - name: Projects
     description: |-
       Projects: the account-level container every other resource is scoped to.
@@ -5568,6 +5577,16 @@ paths:
               - all
               - ready
             default: all
+        - name: qaQuestions
+          in: query
+          required: false
+          description: '`open` narrows to the items with at least one unanswered QA question — the backlog QA answers first (read each with `ops get`, answer with `ops qa-questions answer`). `all` (the default) applies no such narrowing.'
+          schema:
+            type: string
+            enum:
+              - all
+              - open
+            default: all
         - name: limit
           in: query
           required: false
@@ -6888,6 +6907,183 @@ paths:
         name: create
         positional:
           - handle
+  /api/admin/ops/{handle}/qa-questions:
+    get:
+      operationId: listOpsQaQuestions
+      summary: List an item's QA questions
+      description: |-
+        The questions put to QA on a queue item, newest first (max 100), each with
+        QA's answer once given. `ops get` returns the same list as `qaQuestions`.
+
+        **Use case:** After asking QA, poll this until the question reads `answered`.
+      tags:
+        - QA questions
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: handle
+          in: path
+          required: true
+          description: Per-project item number (e.g. `7`) or the full ops item id.
+          schema:
+            $ref: '#/components/schemas/ResourceId'
+        - name: status
+          in: query
+          required: false
+          description: Only questions in this status.
+          schema:
+            $ref: '#/components/schemas/OpsQaQuestionStatus'
+      responses:
+        '200':
+          description: List an item's QA questions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListOpsQaQuestionsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+      x-cli:
+        name: list
+        positional:
+          - handle
+    post:
+      operationId: askOpsQaQuestion
+      summary: Ask QA a question about an item
+      description: |-
+        Put a question to QA on a queue item — use it when you do not know the
+        answer yourself and QA's decision unblocks the work. The question is open
+        until QA answers it; it surfaces on the item (`ops get` → `qaQuestions`)
+        and in the project-wide QA backlog (`ops list --qa-questions open`). The
+        asker is the caller's identity; pass `agent` to record it as asked by that
+        agent type.
+
+        **Use case:** A coding agent cannot tell whether an empty state is a bug or
+        intended; it asks QA and carries on with the rest of the item.
+      tags:
+        - QA questions
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: handle
+          in: path
+          required: true
+          description: Per-project item number (e.g. `7`) or the full ops item id.
+          schema:
+            $ref: '#/components/schemas/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AskOpsQaQuestionRequest'
+            examples:
+              ask:
+                summary: Ask whether behaviour is intended
+                value:
+                  question: Should an archived metric still show on the experiment readout, or be hidden?
+      responses:
+        '200':
+          description: The created question
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpsQaQuestion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+        - VALIDATION
+      x-cli:
+        name: ask
+        positional:
+          - handle
+  /api/admin/ops/{handle}/qa-questions/{questionId}/answer:
+    post:
+      operationId: answerOpsQaQuestion
+      summary: Answer a QA question
+      description: |-
+        Answer one open QA question. The question moves to `answered` and the
+        answer shows on the item. An answered question cannot be answered again
+        (409); ask a new one to follow up. The answerer is the caller's identity;
+        pass `agent` to record it as answered by that agent type's QA automation.
+
+        **Use case:** QA reads the backlog, checks the build, and replies "hide it —
+        archived metrics never show on readouts".
+      tags:
+        - QA questions
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: handle
+          in: path
+          required: true
+          description: Per-project item number (e.g. `7`) or the full ops item id.
+          schema:
+            $ref: '#/components/schemas/ResourceId'
+        - name: questionId
+          in: path
+          required: true
+          description: The question id (from `ask`, `list` or `ops get`).
+          schema:
+            $ref: '#/components/schemas/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnswerOpsQaQuestionRequest'
+      responses:
+        '200':
+          description: The answered question
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpsQaQuestion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+        - INVALID_TRANSITION
+        - VALIDATION
+      x-cli:
+        name: answer
+        positional:
+          - handle
+          - questionId
   /api/admin/agent-profiles:
     get:
       operationId: listOpsAgents
@@ -17042,6 +17238,85 @@ components:
         - status
       additionalProperties: false
       description: A compact reference to another queue item — enough to name it and tell whether it is still open.
+    OpsQaQuestionStatus:
+      type: string
+      enum:
+        - open
+        - answered
+      description: 'Where a QA question stands: `open` (waiting on QA) or `answered`.'
+    OpsQaQuestion:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Question id.
+        feedbackId:
+          type: string
+          description: The queue item the question hangs off.
+        question:
+          type: string
+          description: The question for QA (markdown).
+        status:
+          $ref: '#/components/schemas/OpsQaQuestionStatus'
+        askedByEmail:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: Email of the person (or the key's actor) who asked, or `null` when an agent asked.
+        askedByAgent:
+          anyOf:
+            - type: string
+              enum:
+                - jarvis
+                - claude
+                - cursor
+                - copilot
+                - jules
+            - type: 'null'
+          description: The agent type that asked, or `null` for a person.
+        answer:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: QA's answer (markdown), or `null` while the question is open.
+        answeredByEmail:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: Email of the person who answered, or `null` while open or when an agent answered.
+        answeredByAgent:
+          anyOf:
+            - type: string
+              enum:
+                - jarvis
+                - claude
+                - cursor
+                - copilot
+                - jules
+            - type: 'null'
+          description: The agent type (QA automation) that answered, or `null` for a person or while open.
+        answeredAt:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: ISO-8601 answer timestamp, or `null` while open.
+        createdAt:
+          type: string
+          description: ISO-8601 creation timestamp.
+      required:
+        - id
+        - feedbackId
+        - question
+        - status
+        - askedByEmail
+        - askedByAgent
+        - answer
+        - answeredByEmail
+        - answeredByAgent
+        - answeredAt
+        - createdAt
+      additionalProperties: false
+      description: A question put to QA on a queue item, with QA's answer once given.
     GetOpsItemResponse:
       type: object
       properties:
@@ -17140,6 +17415,11 @@ components:
           items:
             $ref: '#/components/schemas/OpsItemRef'
           description: Items marked as duplicates of this one — their reports add context to this item.
+        qaQuestions:
+          type: array
+          items:
+            $ref: '#/components/schemas/OpsQaQuestion'
+          description: Questions put to QA on this item, newest first (max 100), each with QA's answer once given. List the project-wide backlog with `ops list --qa-questions open`; ask with `ops qa-questions ask`.
         connectorData:
           anyOf:
             - $ref: '#/components/schemas/ConnectorData'
@@ -18195,6 +18475,53 @@ components:
         - body
       additionalProperties: false
       description: Body for `POST /api/admin/ops/{handle}/qa-notes`. A `verification` note requires `verdict`; every other kind rejects it.
+    ListOpsQaQuestionsResponse:
+      type: array
+      items:
+        $ref: '#/components/schemas/OpsQaQuestion'
+      description: Response for `GET /api/admin/ops/{handle}/qa-questions` — the item's QA questions, newest first (max 100).
+    AskOpsQaQuestionRequest:
+      type: object
+      properties:
+        question:
+          type: string
+          minLength: 1
+          maxLength: 10000
+          description: What you need QA to answer (markdown). Include what you already tried.
+        agent:
+          type: string
+          enum:
+            - jarvis
+            - claude
+            - cursor
+            - copilot
+            - jules
+          description: The agent type asking — pass your own type when you are a coding agent. Omitted, the question is attributed to the caller's identity.
+      required:
+        - question
+      additionalProperties: false
+      description: Body for `POST /api/admin/ops/{handle}/qa-questions`.
+    AnswerOpsQaQuestionRequest:
+      type: object
+      properties:
+        answer:
+          type: string
+          minLength: 1
+          maxLength: 10000
+          description: QA's answer (markdown).
+        agent:
+          type: string
+          enum:
+            - jarvis
+            - claude
+            - cursor
+            - copilot
+            - jules
+          description: The agent type answering — pass your own type when you are QA automation. Omitted, the answer is attributed to the caller's identity.
+      required:
+        - answer
+      additionalProperties: false
+      description: Body for `POST /api/admin/ops/{handle}/qa-questions/{questionId}/answer`.
     OpsAgentProfile:
       type: object
       properties:

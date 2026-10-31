@@ -2314,6 +2314,40 @@ export const zOpsItemRef = z.object({
 });
 
 /**
+ * Where a QA question stands: `open` (waiting on QA) or `answered`.
+ */
+export const zOpsQaQuestionStatus = z.enum(['open', 'answered']);
+
+/**
+ * A question put to QA on a queue item, with QA's answer once given.
+ */
+export const zOpsQaQuestion = z.object({
+    id: z.string(),
+    feedbackId: z.string(),
+    question: z.string(),
+    status: zOpsQaQuestionStatus,
+    askedByEmail: z.string().nullable(),
+    askedByAgent: z.enum([
+        'jarvis',
+        'claude',
+        'cursor',
+        'copilot',
+        'jules'
+    ]).nullable(),
+    answer: z.string().nullable(),
+    answeredByEmail: z.string().nullable(),
+    answeredByAgent: z.enum([
+        'jarvis',
+        'claude',
+        'cursor',
+        'copilot',
+        'jules'
+    ]).nullable(),
+    answeredAt: z.string().nullable(),
+    createdAt: z.string()
+});
+
+/**
  * One queue item, any of the five types. Shared fields apply to all; `stepsToReproduce`/`actualResult`/`expectedResult` are bug-specific, `description`/`useCase` feature-specific. The auto-collected browser fields (page URL, user-agent, viewport) live under `context.browser` for bug/feature. `context` also carries the hydrated per-type payload for auto-filed `error`/`alert`/`measure_plan` tickets, `attachments` lists any uploaded files, and `related` gives deep links to the underlying resources.
  */
 export const zGetOpsItemResponse = z.object({
@@ -2345,6 +2379,7 @@ export const zGetOpsItemResponse = z.object({
     blocking: z.array(zOpsItemRef).optional(),
     duplicateOf: zOpsItemRef.nullish(),
     duplicates: z.array(zOpsItemRef).optional(),
+    qaQuestions: z.array(zOpsQaQuestion).optional(),
     connectorData: zConnectorData.nullish(),
     notify: zNotificationTarget.nullish(),
     assigneeId: z.string().nullish(),
@@ -2789,6 +2824,39 @@ export const zCreateOpsQaNoteRequest = z.object({
     kind: zOpsQaNoteKind,
     body: z.string().min(1).max(10000),
     verdict: zOpsQaNoteVerdict.optional(),
+    agent: z.enum([
+        'jarvis',
+        'claude',
+        'cursor',
+        'copilot',
+        'jules'
+    ]).optional()
+});
+
+/**
+ * Response for `GET /api/admin/ops/{handle}/qa-questions` — the item's QA questions, newest first (max 100).
+ */
+export const zListOpsQaQuestionsResponse = z.array(zOpsQaQuestion);
+
+/**
+ * Body for `POST /api/admin/ops/{handle}/qa-questions`.
+ */
+export const zAskOpsQaQuestionRequest = z.object({
+    question: z.string().min(1).max(10000),
+    agent: z.enum([
+        'jarvis',
+        'claude',
+        'cursor',
+        'copilot',
+        'jules'
+    ]).optional()
+});
+
+/**
+ * Body for `POST /api/admin/ops/{handle}/qa-questions/{questionId}/answer`.
+ */
+export const zAnswerOpsQaQuestionRequest = z.object({
+    answer: z.string().min(1).max(10000),
     agent: z.enum([
         'jarvis',
         'claude',
@@ -5292,6 +5360,7 @@ export const zListOpsItemsQuery = z.object({
         z.literal('all')
     ]).optional().default('all'),
     scope: z.enum(['all', 'ready']).optional().default('all'),
+    qaQuestions: z.enum(['all', 'open']).optional().default('all'),
     limit: z.coerce.number().int().gte(1).lte(500).optional().default(200),
     offset: z.coerce.number().int().gte(0).lte(100000).optional().default(0),
     owner: z.string().optional()
@@ -5553,6 +5622,54 @@ export const zCreateOpsQaNotePath = z.object({
  * The created note
  */
 export const zCreateOpsQaNoteResponse = zOpsQaNote;
+
+export const zListOpsQaQuestionsHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zListOpsQaQuestionsPath = z.object({
+    handle: zResourceId
+});
+
+export const zListOpsQaQuestionsQuery = z.object({
+    status: zOpsQaQuestionStatus.optional()
+});
+
+/**
+ * List an item's QA questions
+ */
+export const zListOpsQaQuestionsResponse2 = zListOpsQaQuestionsResponse;
+
+export const zAskOpsQaQuestionBody = zAskOpsQaQuestionRequest;
+
+export const zAskOpsQaQuestionHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zAskOpsQaQuestionPath = z.object({
+    handle: zResourceId
+});
+
+/**
+ * The created question
+ */
+export const zAskOpsQaQuestionResponse = zOpsQaQuestion;
+
+export const zAnswerOpsQaQuestionBody = zAnswerOpsQaQuestionRequest;
+
+export const zAnswerOpsQaQuestionHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zAnswerOpsQaQuestionPath = z.object({
+    handle: zResourceId,
+    questionId: zResourceId
+});
+
+/**
+ * The answered question
+ */
+export const zAnswerOpsQaQuestionResponse = zOpsQaQuestion;
 
 export const zListOpsAgentsHeaders = z.object({
     'X-Project-Id': z.string().optional()

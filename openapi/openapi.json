@@ -144,6 +144,11 @@
       "description": "Typed QA notes on a queue item — the QA follow-up that is not discussion.\nEach note is one of four kinds: `narrowing` (only part of the bug still\nfails), `clarification` (changes what \"fixed\" means), `verification` (a\n`pass` / `fail` verdict on a fix) or `correction` (withdraws an earlier\nframing). Notes are append-only, carry their author and time, and render in\ntheir own section of the item's detail panel, separate from the comment\nthread. A failing verification offers a \"Reopen item\" action in the\ndashboard; it is always an explicit click, never a side effect of `create`."
     },
     {
+      "name": "QA questions",
+      "parent": "Ops",
+      "description": "Questions put to QA on a queue item — for when the person or agent working\nan item does not know the answer and wants QA's call without a build or a\nmeeting. `ask` records the question; QA (a person, or an agent assigned the\nQA role) finds the backlog with `ops list --qa-questions open`, reads the\nitem (`ops get` carries a `qaQuestions` field), and `answer`s it. Answers\nare plain text and the asker reads them back with `list` or `ops get`."
+    },
+    {
       "name": "Projects",
       "description": "Projects: the account-level container every other resource is scoped to.\n\n**Account-level, not bound-project-level.** Both operations resolve from the caller's credential rather than the `.shipeasy`-bound project — `current` reads the project the auth header maps to, and `upsert` find-or-creates under the session's owner. Neither touches the local `.shipeasy` binding; recording the result there is a consumer side-effect layered on top.\n\n**Idempotent upsert.** A project is keyed by `(owner_email, domain)`. Calling `upsert` again with the same domain returns the existing project with `created: false`, so it is safe to run on every install."
     },
@@ -7548,6 +7553,20 @@
             }
           },
           {
+            "name": "qaQuestions",
+            "in": "query",
+            "required": false,
+            "description": "`open` narrows to the items with at least one unanswered QA question — the backlog QA answers first (read each with `ops get`, answer with `ops qa-questions answer`). `all` (the default) applies no such narrowing.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "open"
+              ],
+              "default": "all"
+            }
+          },
+          {
             "name": "limit",
             "in": "query",
             "required": false,
@@ -9284,6 +9303,246 @@
           "name": "create",
           "positional": [
             "handle"
+          ]
+        }
+      }
+    },
+    "/api/admin/ops/{handle}/qa-questions": {
+      "get": {
+        "operationId": "listOpsQaQuestions",
+        "summary": "List an item's QA questions",
+        "description": "The questions put to QA on a queue item, newest first (max 100), each with\nQA's answer once given. `ops get` returns the same list as `qaQuestions`.\n\n**Use case:** After asking QA, poll this until the question reads `answered`.",
+        "tags": [
+          "QA questions"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "description": "Per-project item number (e.g. `7`) or the full ops item id.",
+            "schema": {
+              "$ref": "#/components/schemas/ResourceId"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Only questions in this status.",
+            "schema": {
+              "$ref": "#/components/schemas/OpsQaQuestionStatus"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List an item's QA questions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListOpsQaQuestionsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND"
+        ],
+        "x-cli": {
+          "name": "list",
+          "positional": [
+            "handle"
+          ]
+        }
+      },
+      "post": {
+        "operationId": "askOpsQaQuestion",
+        "summary": "Ask QA a question about an item",
+        "description": "Put a question to QA on a queue item — use it when you do not know the\nanswer yourself and QA's decision unblocks the work. The question is open\nuntil QA answers it; it surfaces on the item (`ops get` → `qaQuestions`)\nand in the project-wide QA backlog (`ops list --qa-questions open`). The\nasker is the caller's identity; pass `agent` to record it as asked by that\nagent type.\n\n**Use case:** A coding agent cannot tell whether an empty state is a bug or\nintended; it asks QA and carries on with the rest of the item.",
+        "tags": [
+          "QA questions"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "description": "Per-project item number (e.g. `7`) or the full ops item id.",
+            "schema": {
+              "$ref": "#/components/schemas/ResourceId"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AskOpsQaQuestionRequest"
+              },
+              "examples": {
+                "ask": {
+                  "summary": "Ask whether behaviour is intended",
+                  "value": {
+                    "question": "Should an archived metric still show on the experiment readout, or be hidden?"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The created question",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsQaQuestion"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "ask",
+          "positional": [
+            "handle"
+          ]
+        }
+      }
+    },
+    "/api/admin/ops/{handle}/qa-questions/{questionId}/answer": {
+      "post": {
+        "operationId": "answerOpsQaQuestion",
+        "summary": "Answer a QA question",
+        "description": "Answer one open QA question. The question moves to `answered` and the\nanswer shows on the item. An answered question cannot be answered again\n(409); ask a new one to follow up. The answerer is the caller's identity;\npass `agent` to record it as answered by that agent type's QA automation.\n\n**Use case:** QA reads the backlog, checks the build, and replies \"hide it —\narchived metrics never show on readouts\".",
+        "tags": [
+          "QA questions"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "description": "Per-project item number (e.g. `7`) or the full ops item id.",
+            "schema": {
+              "$ref": "#/components/schemas/ResourceId"
+            }
+          },
+          {
+            "name": "questionId",
+            "in": "path",
+            "required": true,
+            "description": "The question id (from `ask`, `list` or `ops get`).",
+            "schema": {
+              "$ref": "#/components/schemas/ResourceId"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnswerOpsQaQuestionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The answered question",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsQaQuestion"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "INVALID_TRANSITION",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "answer",
+          "positional": [
+            "handle",
+            "questionId"
           ]
         }
       }
@@ -23720,6 +23979,133 @@
         "additionalProperties": false,
         "description": "A compact reference to another queue item — enough to name it and tell whether it is still open."
       },
+      "OpsQaQuestionStatus": {
+        "type": "string",
+        "enum": [
+          "open",
+          "answered"
+        ],
+        "description": "Where a QA question stands: `open` (waiting on QA) or `answered`."
+      },
+      "OpsQaQuestion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Question id."
+          },
+          "feedbackId": {
+            "type": "string",
+            "description": "The queue item the question hangs off."
+          },
+          "question": {
+            "type": "string",
+            "description": "The question for QA (markdown)."
+          },
+          "status": {
+            "$ref": "#/components/schemas/OpsQaQuestionStatus"
+          },
+          "askedByEmail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Email of the person (or the key's actor) who asked, or `null` when an agent asked."
+          },
+          "askedByAgent": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "jarvis",
+                  "claude",
+                  "cursor",
+                  "copilot",
+                  "jules"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The agent type that asked, or `null` for a person."
+          },
+          "answer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "QA's answer (markdown), or `null` while the question is open."
+          },
+          "answeredByEmail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Email of the person who answered, or `null` while open or when an agent answered."
+          },
+          "answeredByAgent": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "jarvis",
+                  "claude",
+                  "cursor",
+                  "copilot",
+                  "jules"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The agent type (QA automation) that answered, or `null` for a person or while open."
+          },
+          "answeredAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO-8601 answer timestamp, or `null` while open."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO-8601 creation timestamp."
+          }
+        },
+        "required": [
+          "id",
+          "feedbackId",
+          "question",
+          "status",
+          "askedByEmail",
+          "askedByAgent",
+          "answer",
+          "answeredByEmail",
+          "answeredByAgent",
+          "answeredAt",
+          "createdAt"
+        ],
+        "additionalProperties": false,
+        "description": "A question put to QA on a queue item, with QA's answer once given."
+      },
       "GetOpsItemResponse": {
         "type": "object",
         "properties": {
@@ -23880,6 +24266,13 @@
               "$ref": "#/components/schemas/OpsItemRef"
             },
             "description": "Items marked as duplicates of this one — their reports add context to this item."
+          },
+          "qaQuestions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpsQaQuestion"
+            },
+            "description": "Questions put to QA on this item, newest first (max 100), each with QA's answer once given. List the project-wide backlog with `ops list --qa-questions open`; ask with `ops qa-questions ask`."
           },
           "connectorData": {
             "anyOf": [
@@ -25466,6 +25859,67 @@
         ],
         "additionalProperties": false,
         "description": "Body for `POST /api/admin/ops/{handle}/qa-notes`. A `verification` note requires `verdict`; every other kind rejects it."
+      },
+      "ListOpsQaQuestionsResponse": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/OpsQaQuestion"
+        },
+        "description": "Response for `GET /api/admin/ops/{handle}/qa-questions` — the item's QA questions, newest first (max 100)."
+      },
+      "AskOpsQaQuestionRequest": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000,
+            "description": "What you need QA to answer (markdown). Include what you already tried."
+          },
+          "agent": {
+            "type": "string",
+            "enum": [
+              "jarvis",
+              "claude",
+              "cursor",
+              "copilot",
+              "jules"
+            ],
+            "description": "The agent type asking — pass your own type when you are a coding agent. Omitted, the question is attributed to the caller's identity."
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "additionalProperties": false,
+        "description": "Body for `POST /api/admin/ops/{handle}/qa-questions`."
+      },
+      "AnswerOpsQaQuestionRequest": {
+        "type": "object",
+        "properties": {
+          "answer": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000,
+            "description": "QA's answer (markdown)."
+          },
+          "agent": {
+            "type": "string",
+            "enum": [
+              "jarvis",
+              "claude",
+              "cursor",
+              "copilot",
+              "jules"
+            ],
+            "description": "The agent type answering — pass your own type when you are QA automation. Omitted, the answer is attributed to the caller's identity."
+          }
+        },
+        "required": [
+          "answer"
+        ],
+        "additionalProperties": false,
+        "description": "Body for `POST /api/admin/ops/{handle}/qa-questions/{questionId}/answer`."
       },
       "OpsAgentProfile": {
         "type": "object",
