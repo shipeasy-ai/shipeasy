@@ -2297,6 +2297,23 @@ export const zOpsItemRelated = z.object({
 });
 
 /**
+ * A compact reference to another queue item — enough to name it and tell whether it is still open.
+ */
+export const zOpsItemRef = z.object({
+    id: z.string(),
+    number: z.number().nullable(),
+    type: z.enum([
+        'bug',
+        'feature_request',
+        'error',
+        'alert',
+        'measure_plan'
+    ]),
+    title: z.string(),
+    status: zOpsItemStatus
+});
+
+/**
  * One queue item, any of the five types. Shared fields apply to all; `stepsToReproduce`/`actualResult`/`expectedResult` are bug-specific, `description`/`useCase` feature-specific. The auto-collected browser fields (page URL, user-agent, viewport) live under `context.browser` for bug/feature. `context` also carries the hydrated per-type payload for auto-filed `error`/`alert`/`measure_plan` tickets, `attachments` lists any uploaded files, and `related` gives deep links to the underlying resources.
  */
 export const zGetOpsItemResponse = z.object({
@@ -2324,6 +2341,10 @@ export const zGetOpsItemResponse = z.object({
     context: zOpsItemContext.nullable(),
     attachments: z.array(zOpsItemAttachment),
     related: zOpsItemRelated,
+    blockedBy: z.array(zOpsItemRef).optional(),
+    blocking: z.array(zOpsItemRef).optional(),
+    duplicateOf: zOpsItemRef.nullish(),
+    duplicates: z.array(zOpsItemRef).optional(),
     connectorData: zConnectorData.nullish(),
     notify: zNotificationTarget.nullish(),
     assigneeId: z.string().nullish(),
@@ -2417,6 +2438,28 @@ export const zLinkPrToOpsItemRequest = z.object({
 export const zLinkPrToOpsItemResponse = z.object({
     id: z.string(),
     pr: zGithubPrLink.nullable()
+});
+
+/**
+ * Incremental edit of an item's relations — pass any mix of fields; omitted ones are left as is. A link that would make an item block (or duplicate) itself, directly or through a chain, is rejected with `409`.
+ */
+export const zUpdateOpsLinksRequest = z.object({
+    addBlockedBy: z.array(zResourceId).max(50).optional().default([]),
+    removeBlockedBy: z.array(zResourceId).max(50).optional().default([]),
+    addBlocking: z.array(zResourceId).max(50).optional().default([]),
+    removeBlocking: z.array(zResourceId).max(50).optional().default([]),
+    duplicateOf: zResourceId.nullish()
+});
+
+/**
+ * Every relation of one queue item — "blocked by" / "blocking" and "duplicate of" / "duplicates" — in both directions.
+ */
+export const zOpsItemLinksResponse = z.object({
+    id: z.string(),
+    blockedBy: z.array(zOpsItemRef),
+    blocking: z.array(zOpsItemRef),
+    duplicateOf: zOpsItemRef.nullable(),
+    duplicates: z.array(zOpsItemRef)
 });
 
 /**
@@ -5334,6 +5377,21 @@ export const zLinkPrToOpsItemPath = z.object({
  * Link a fixing PR
  */
 export const zLinkPrToOpsItemResponse2 = zLinkPrToOpsItemResponse;
+
+export const zUpdateOpsLinksBody = zUpdateOpsLinksRequest;
+
+export const zUpdateOpsLinksHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zUpdateOpsLinksPath = z.object({
+    handle: zResourceId
+});
+
+/**
+ * Link related items
+ */
+export const zUpdateOpsLinksResponse = zOpsItemLinksResponse;
 
 export const zAckOpsItemBody = zAckOpsItemRequest;
 

@@ -4412,6 +4412,29 @@ export type OpsItemRelated = {
 };
 
 /**
+ * A compact reference to another queue item — enough to name it and tell whether it is still open.
+ */
+export type OpsItemRef = {
+    /**
+     * Stable opaque item id.
+     */
+    id: string;
+    /**
+     * Per-project item number (the `#7` handle), or `null` if unnumbered.
+     */
+    number: number | null;
+    /**
+     * Queue item type.
+     */
+    type: 'bug' | 'feature_request' | 'error' | 'alert' | 'measure_plan';
+    /**
+     * One-line item title.
+     */
+    title: string;
+    status: OpsItemStatus;
+};
+
+/**
  * One queue item, any of the five types. Shared fields apply to all; `stepsToReproduce`/`actualResult`/`expectedResult` are bug-specific, `description`/`useCase` feature-specific. The auto-collected browser fields (page URL, user-agent, viewport) live under `context.browser` for bug/feature. `context` also carries the hydrated per-type payload for auto-filed `error`/`alert`/`measure_plan` tickets, `attachments` lists any uploaded files, and `related` gives deep links to the underlying resources.
  */
 export type GetOpsItemResponse = {
@@ -4481,6 +4504,22 @@ export type GetOpsItemResponse = {
      */
     attachments: Array<OpsItemAttachment>;
     related: OpsItemRelated;
+    /**
+     * Items that block this one. While any of them is not `resolved`/`wont_fix` the item is blocked — work its blockers first. Edit with `PATCH /api/admin/ops/{handle}/links`.
+     */
+    blockedBy?: Array<OpsItemRef>;
+    /**
+     * Items this one blocks — closing it unblocks them.
+     */
+    blocking?: Array<OpsItemRef>;
+    /**
+     * The canonical item this one duplicates, or `null`. Work happens on the canonical item.
+     */
+    duplicateOf?: OpsItemRef | null;
+    /**
+     * Items marked as duplicates of this one — their reports add context to this item.
+     */
+    duplicates?: Array<OpsItemRef>;
     /**
      * Per-connector linkage recorded for this item, keyed by connector provider. Populated as connectors act on the item (e.g. GitHub opens an issue, Slack posts a message); more than one provider can be present at once. `null` if no connector has touched the item.
      */
@@ -4637,6 +4676,58 @@ export type LinkPrToOpsItemResponse = {
      * The PR link now recorded on the item (`connectorData.github.pr`), or `null` after an unlink (`prNumber: null`).
      */
     pr: GithubPrLink | null;
+};
+
+/**
+ * Incremental edit of an item's relations — pass any mix of fields; omitted ones are left as is. A link that would make an item block (or duplicate) itself, directly or through a chain, is rejected with `409`.
+ */
+export type UpdateOpsLinksRequest = {
+    /**
+     * Items (number or id) to record as blocking this one. Already-linked items are a no-op.
+     */
+    addBlockedBy?: Array<ResourceId>;
+    /**
+     * Items (number or id) to stop recording as blocking this one. Unlinked items are a no-op.
+     */
+    removeBlockedBy?: Array<ResourceId>;
+    /**
+     * Items (number or id) this one blocks. Already-linked items are a no-op.
+     */
+    addBlocking?: Array<ResourceId>;
+    /**
+     * Items (number or id) this one should stop blocking. Unlinked items are a no-op.
+     */
+    removeBlocking?: Array<ResourceId>;
+    /**
+     * Mark this item as a duplicate of another (number or id), replacing any earlier canonical; `null` clears it. Omit to leave it unchanged. The item's status is not changed — close it separately if the duplicate should leave the queue.
+     */
+    duplicateOf?: ResourceId | null;
+};
+
+/**
+ * Every relation of one queue item — "blocked by" / "blocking" and "duplicate of" / "duplicates" — in both directions.
+ */
+export type OpsItemLinksResponse = {
+    /**
+     * Id of the item the links were edited on.
+     */
+    id: string;
+    /**
+     * Items that block this one, oldest link first. While any of them is not `resolved`/`wont_fix` the item is blocked.
+     */
+    blockedBy: Array<OpsItemRef>;
+    /**
+     * Items this one blocks, oldest link first.
+     */
+    blocking: Array<OpsItemRef>;
+    /**
+     * The canonical item this one duplicates, or `null`.
+     */
+    duplicateOf: OpsItemRef | null;
+    /**
+     * Items marked as duplicates of this one, oldest link first.
+     */
+    duplicates: Array<OpsItemRef>;
 };
 
 /**
@@ -12528,6 +12619,62 @@ export type LinkPrToOpsItemResponses = {
 };
 
 export type LinkPrToOpsItemResponse2 = LinkPrToOpsItemResponses[keyof LinkPrToOpsItemResponses];
+
+export type UpdateOpsLinksData = {
+    body: UpdateOpsLinksRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Per-project item number (e.g. `7`) or the full ops item id.
+         */
+        handle: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/ops/{handle}/links';
+};
+
+export type UpdateOpsLinksErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type UpdateOpsLinksError = UpdateOpsLinksErrors[keyof UpdateOpsLinksErrors];
+
+export type UpdateOpsLinksResponses = {
+    /**
+     * Link related items
+     */
+    200: OpsItemLinksResponse;
+};
+
+export type UpdateOpsLinksResponse = UpdateOpsLinksResponses[keyof UpdateOpsLinksResponses];
 
 export type AckOpsItemData = {
     body?: AckOpsItemRequest;

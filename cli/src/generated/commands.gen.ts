@@ -215,6 +215,17 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .action(async (handle, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.linkPrToOpsItem({ client, path: { handle: handle }, body: clean({ prNumber: num(opts.prNumber), prUrl: str(opts.prUrl) }) }) });
     });
+  g_ops.command("links")
+    .description("Link related items")
+    .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id.")
+    .option("--add-blocked-by <value>", "Items (number or id) to record as blocking this one. Already-linked items are a no-op.")
+    .option("--remove-blocked-by <value>", "Items (number or id) to stop recording as blocking this one. Unlinked items are a no-op.")
+    .option("--add-blocking <value>", "Items (number or id) this one blocks. Already-linked items are a no-op.")
+    .option("--remove-blocking <value>", "Items (number or id) this one should stop blocking. Unlinked items are a no-op.")
+    .option("--duplicate-of <value>", "Mark this item as a duplicate of another (number or id), replacing any earlier canonical; `null` clears it. Omit to leave it unchanged. The item's status is not changed — close it separately if the duplicate should leave the queue.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.updateOpsLinks({ client, path: { handle: handle }, body: clean({ addBlockedBy: json(opts.addBlockedBy), removeBlockedBy: json(opts.removeBlockedBy), addBlocking: json(opts.addBlocking), removeBlocking: json(opts.removeBlocking), duplicateOf: str(opts.duplicateOf) }) }) });
+    });
   g_ops.command("ack")
     .description("Ack an item (start a run)")
     .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id.")

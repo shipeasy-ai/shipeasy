@@ -688,6 +688,93 @@
       name: link-pr
       positional:
         - handle
+/api/admin/ops/{handle}/links:
+  patch:
+    operationId: updateOpsLinks
+    summary: Link related items
+    description: |-
+      Edits how this queue item relates to others: which items block it ("blocked by"), which items it blocks ("blocking"), and which item it duplicates ("duplicate of"). The blocker lists are incremental — already-linked or never-linked items are no-ops and every other relation is left as is; `duplicateOf` sets or (with `null`) clears the one canonical item. An item with a blocker that is not `resolved`/`wont_fix` sits in the dashboard's Blocked lane. The relations show on `ops get` as `blockedBy` / `blocking` / `duplicateOf` / `duplicates`.
+
+      A link that would make an item block or duplicate itself — directly or through a chain — is rejected with `409`; an item from another project doesn't resolve (`404`). Marking a duplicate does not change its status.
+
+      **Use cases**
+
+      - **This item can't move until #12 lands** — `{ "addBlockedBy": ["12"] }`.
+      - **Split work: this item gates #20 and #21** — `{ "addBlocking": ["20", "21"] }`.
+      - **The dependency turned out not to be one** — `{ "removeBlockedBy": ["12"] }`.
+      - **Same bug was filed twice** — `{ "duplicateOf": "8" }` on the newer item, then close it.
+    tags:
+      - Ops
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: handle
+        in: path
+        required: true
+        description: Per-project item number (e.g. `7`) or the full ops item id.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/UpdateOpsLinksRequest
+          examples:
+            blockedBy:
+              summary: Record a blocker
+              value:
+                addBlockedBy:
+                  - "12"
+            blocking:
+              summary: Record the items this one gates
+              value:
+                addBlocking:
+                  - "20"
+                  - "21"
+            duplicate:
+              summary: Mark as a duplicate
+              value:
+                duplicateOf: "8"
+    responses:
+      "200":
+        description: Link related items
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/OpsItemLinksResponse
+            example:
+              id: fb_01j7w8a1b2c3d4e5f6g7h8i9j0
+              blockedBy:
+                - id: fb_01j7w8a1b2c3d4e5f6g7h8i9j1
+                  number: 12
+                  type: bug
+                  title: Checkout total ignores the coupon
+                  status: in_progress
+              blocking: []
+              duplicateOf: null
+              duplicates: []
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: links
+      positional:
+        - handle
 /api/admin/ops/{handle}/ack:
   post:
     operationId: ackOpsItem

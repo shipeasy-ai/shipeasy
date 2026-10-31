@@ -1231,6 +1231,26 @@ shipeasy ops link-pr [options] <handle>
 | `--pr-number <value>` | optional | PR number to record on the item. `null` unlinks the PR. |
 | `--pr-url <value>` | optional | Explicit PR URL. Required for error/alert tickets (no GitHub issue to derive the URL from). |
 
+### `shipeasy ops links`
+
+Link related items
+
+```bash
+shipeasy ops links [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--add-blocked-by <value>` | optional | Items (number or id) to record as blocking this one. Already-linked items are a no-op. |
+| `--remove-blocked-by <value>` | optional | Items (number or id) to stop recording as blocking this one. Unlinked items are a no-op. |
+| `--add-blocking <value>` | optional | Items (number or id) this one blocks. Already-linked items are a no-op. |
+| `--remove-blocking <value>` | optional | Items (number or id) this one should stop blocking. Unlinked items are a no-op. |
+| `--duplicate-of <value>` | optional | Mark this item as a duplicate of another (number or id), replacing any earlier canonical; `null` clears it. Omit to leave it unchanged. The item's status is not changed — close it separately if the duplicate should leave the queue. |
+
 ### `shipeasy ops ack`
 
 Ack an item (start a run)

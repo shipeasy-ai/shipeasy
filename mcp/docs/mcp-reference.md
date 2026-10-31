@@ -2245,6 +2245,38 @@ _Errors_ — beyond the [common errors](#errors):
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 - `VALIDATION` — The request body failed structural (schema) validation.
 
+### `ops_links`
+
+**Link related items**
+
+Edits how this queue item relates to others: which items block it ("blocked by"), which items it blocks ("blocking"), and which item it duplicates ("duplicate of"). The blocker lists are incremental — already-linked or never-linked items are no-ops and every other relation is left as is; `duplicateOf` sets or (with `null`) clears the one canonical item. An item with a blocker that is not `resolved`/`wont_fix` sits in the dashboard's Blocked lane. The relations show on `ops get` as `blockedBy` / `blocking` / `duplicateOf` / `duplicates`.
+
+A link that would make an item block or duplicate itself — directly or through a chain — is rejected with `409`; an item from another project doesn't resolve (`404`). Marking a duplicate does not change its status.
+
+**Use cases**
+
+- **This item can't move until #12 lands** — `{ "addBlockedBy": ["12"] }`.
+- **Split work: this item gates #20 and #21** — `{ "addBlocking": ["20", "21"] }`.
+- **The dependency turned out not to be one** — `{ "removeBlockedBy": ["12"] }`.
+- **Same bug was filed twice** — `{ "duplicateOf": "8" }` on the newer item, then close it.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `addBlockedBy` | optional | `string[]` | Items (number or id) to record as blocking this one. Already-linked items are a no-op. _(default `[]`)_ |
+| `removeBlockedBy` | optional | `string[]` | Items (number or id) to stop recording as blocking this one. Unlinked items are a no-op. _(default `[]`)_ |
+| `addBlocking` | optional | `string[]` | Items (number or id) this one blocks. Already-linked items are a no-op. _(default `[]`)_ |
+| `removeBlocking` | optional | `string[]` | Items (number or id) this one should stop blocking. Unlinked items are a no-op. _(default `[]`)_ |
+| `duplicateOf` | optional | `any` | Mark this item as a duplicate of another (number or id), replacing any earlier canonical; `null` clears it. Omit to leave it unchanged. The item's status is not changed — close it separately if the duplicate should leave the queue. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
 ### `ops_list`
 
 **List the operational queue**
