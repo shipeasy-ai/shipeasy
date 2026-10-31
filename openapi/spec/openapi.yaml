@@ -27,9 +27,9 @@ tags:
     kind: nav
     description: |-
       Release: the feature-delivery surface. One roof over the five resources
-      that decide which code path a user gets — feature gates (flags), kill
-      switches, dynamic configs, A/B/n experiments, and the universes that bucket
-      them — each exposed as its own subcommand group.
+      that decide which code path a user gets — feature gates (flags),
+      killswitches, dynamic configs, A/B/n experiments, and the universes that
+      bucket them — each exposed as its own subcommand group.
 
       **Groups.**
       - `flags` — boolean feature gates: AND-combined targeting rules + a percentage rollout (basis points), evaluated on the SDK hot path.
@@ -314,9 +314,9 @@ tags:
   - name: Tags
     description: |-
       Tags: free-form, project-scoped labels any item can carry — queue items
-      (bugs, feature requests, error/alert tickets), flags, configs, kill
-      switches, metrics, tracked errors, alert rules, and experiments all share
-      one tag roster.
+      (bugs, feature requests, error/alert tickets), flags, configs,
+      killswitches, metrics, tracked errors, alert rules, and experiments all
+      share one tag roster.
 
       **Identity.** A tag is its name, unique case-insensitively per project. A
       tag is born the first time it's attached — there is no separate create.

@@ -1367,7 +1367,7 @@ shipeasy projects update [options] <id>
 
 ## `shipeasy tags`
 
-Tags: free-form, project-scoped labels any item can carry — queue items (bugs, feature requests, error/alert tickets), flags, configs, kill switches, metrics, tracked errors, alert rules, and experiments all share one tag roster.
+Tags: free-form, project-scoped labels any item can carry — queue items (bugs, feature requests, error/alert tickets), flags, configs, killswitches, metrics, tracked errors, alert rules, and experiments all share one tag roster.
 
 ```bash
 shipeasy tags [options] [command]

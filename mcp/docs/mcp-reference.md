@@ -3540,9 +3540,9 @@ _Errors_ — beyond the [common errors](#errors):
 ## Tags
 
 Tags: free-form, project-scoped labels any item can carry — queue items
-(bugs, feature requests, error/alert tickets), flags, configs, kill
-switches, metrics, tracked errors, alert rules, and experiments all share
-one tag roster.
+(bugs, feature requests, error/alert tickets), flags, configs,
+killswitches, metrics, tracked errors, alert rules, and experiments all
+share one tag roster.
 
 **Identity.** A tag is its name, unique case-insensitively per project. A
 tag is born the first time it's attached — there is no separate create.
