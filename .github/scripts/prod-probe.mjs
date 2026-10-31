@@ -123,6 +123,7 @@ function cliText(args) {
 // the default output (there is no `--json` flag) and list endpoints return a
 // `{ data: [...] }` envelope. These wrappers issue the commands directly and
 // return the bare array the checks below expect.
+const PRE_RUN_GATES = new Set();
 const listGates = () => cli(["release", "flags", "list", "--limit", "500"]).data ?? [];
 const listExperiments = () => cli(["release", "experiments", "list", "--limit", "500"]).data ?? [];
 const experimentResults = (exp) => cli(["release", "experiments", "results", exp]);
@@ -1386,7 +1387,18 @@ async function probeServerBlobs() {
     "probe_ovr_target",
     "probe_ovr_cohort",
   ]);
-  const gates = listGates().filter((g) => g.enabled && !THROWAWAY_FLAGS.has(g.name));
+  // Gates created by ANY leg of this run (ensureGate etc.) are absent from the
+  // ~600s-cached blob by construction — exempt them generically, and name them.
+  const inRun = listGates().filter(
+    (g) => g.enabled && !THROWAWAY_FLAGS.has(g.name) && PRE_RUN_GATES.size > 0 && !PRE_RUN_GATES.has(g.name),
+  );
+  if (inRun.length) {
+    console.log(`  exempt (created in this run, not in cached blob): ${inRun.map((g) => g.name).join(", ")}`);
+  }
+  const inRunNames = new Set(inRun.map((g) => g.name));
+  const gates = listGates().filter(
+    (g) => g.enabled && !THROWAWAY_FLAGS.has(g.name) && !inRunNames.has(g.name),
+  );
   const exps = listExperiments().filter(
     (e) => e.status === "running" && !THROWAWAY_UNIS.has(e.universe),
   );
@@ -1394,7 +1406,14 @@ async function probeServerBlobs() {
   let gmiss = 0;
   for (const g of gates) {
     const bg = blobGates[g.name];
-    if (!bg || bg.rolloutPct !== g.rolloutPct || !!bg.enabled !== !!g.enabled) gmiss++;
+    if (!bg || bg.rolloutPct !== g.rolloutPct || !!bg.enabled !== !!g.enabled) {
+      gmiss++;
+      console.log(
+        `  drift: ${g.name} admin(rolloutPct=${g.rolloutPct}, enabled=${g.enabled}) blob=${
+          bg ? `(rolloutPct=${bg.rolloutPct}, enabled=${bg.enabled})` : "MISSING"
+        }`,
+      );
+    }
   }
   if (gmiss === 0) ok(`/sdk/flags carries all ${gates.length} gates with matching rollout/enabled`);
   else {
@@ -4192,6 +4211,9 @@ try {
   // one fixture it needs, asserts, then stops it again). The MUTATE stats legs
   // already stop their own fixtures in a finally.
   if (process.env.SHIPEASY_PROBE_MUTATE) reclaimThrowawayFixtures();
+  // Gate names present BEFORE any leg runs: anything else was created in-run and
+  // is legitimately absent from the CDN-cached /sdk/flags blob (see probeServerBlobs).
+  for (const g of listGates()) PRE_RUN_GATES.add(g.name);
   await seedLakeVerdict(); // FIRST — the lake sink's 300s roll flushes during the run
   await seedExposureTimeline(); // gate-check exposures ride the same sink roll
   await seedDslMetrics(); // AE needs minutes to make the cohort queryable
