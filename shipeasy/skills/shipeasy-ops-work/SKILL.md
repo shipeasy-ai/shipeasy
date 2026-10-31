@@ -100,7 +100,7 @@ and has no open blocker. Work a group ONLY through its master:
 
 - The item is **not** the group's master → skip it and say so in the report
   (its work is the master's; the master is in the queue too). An ack that
-  starts an agent on a non-master answers `409 LINKED_ITEM_NOT_MASTER`.
+  starts an agent on a non-master answers `409` naming the master.
 - The item **is** the master → read the whole group before you start:
   `shipeasy ops get <handle> --include linked` (MCP `ops_get` with
   `include: "linked"`) inlines every other member's content as `linkedItems`.

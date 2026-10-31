@@ -50,7 +50,6 @@ All error codes:
 | `METRIC_NOT_FOUND` | The referenced metric does not exist or is not visible to the caller. |
 | `METRIC_UNKNOWN_ID` | The supplied metric id is malformed or not recognised. |
 | `AGENT_NOT_CONNECTED` | The named AI agent type has no connected trigger connector in this project — list the available agents (`ops agents list` / `GET /api/admin/agent-profiles`) and use one of those, or connect the agent under Settings → Triggers. |
-| `LINKED_ITEM_NOT_MASTER` | The item is linked to others (blocked by / blocking / duplicate of) and is not its group's master — agent runs work a linked group only through its master, which the message names; ack that item instead. |
 
 Hand-written tools (`projects_upsert` and auth) layer the `.shipeasy` bind or the device-auth flow on top of the admin API rather than being plain spec calls, so they don't use this envelope. All filesystem / AST tooling (project detection, i18n source scanners / codemods / loader install) now lives in the `shipeasy` CLI, not this MCP server.
 
@@ -2009,7 +2008,7 @@ starts working the item. Pass `launch: false` to only claim the item and
 record the run (you are doing the work yourself), without starting one.
 A launch on an item linked to others (see `group` on `ops get`) is only
 allowed on the group's master — any other member answers `409`
-`LINKED_ITEM_NOT_MASTER`, naming the master to ack instead.
+`INVALID_TRANSITION`, naming the master to ack instead.
 
 **Completion.** The run closes automatically on the loop's final actions —
 linking the fixing PR (`link-pr`), an ops-notify escalation, or a
@@ -2034,7 +2033,7 @@ _Errors_ — beyond the [common errors](#errors):
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 - `AGENT_NOT_CONNECTED` — The named AI agent type has no connected trigger connector in this project — list the available agents (`ops agents list` / `GET /api/admin/agent-profiles`) and use one of those, or connect the agent under Settings → Triggers.
-- `LINKED_ITEM_NOT_MASTER` — The item is linked to others (blocked by / blocking / duplicate of) and is not its group's master — agent runs work a linked group only through its master, which the message names; ack that item instead.
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
 - `VALIDATION` — The request body failed structural (schema) validation.
 
 ### `ops_bug`

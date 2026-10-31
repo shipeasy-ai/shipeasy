@@ -1085,8 +1085,7 @@
           "EXPERIMENT_IMMUTABLE_FIELD",
           "METRIC_NOT_FOUND",
           "METRIC_UNKNOWN_ID",
-          "AGENT_NOT_CONNECTED",
-          "LINKED_ITEM_NOT_MASTER"
+          "AGENT_NOT_CONNECTED"
         ],
         "x-enum-descriptions": {
           "BAD_REQUEST": "Malformed request (bad JSON, missing project scope).",
@@ -1113,8 +1112,7 @@
           "EXPERIMENT_IMMUTABLE_FIELD": "A field that is immutable while the experiment is running was modified.",
           "METRIC_NOT_FOUND": "The referenced metric does not exist or is not visible to the caller.",
           "METRIC_UNKNOWN_ID": "The supplied metric id is malformed or not recognised.",
-          "AGENT_NOT_CONNECTED": "The named AI agent type has no connected trigger connector in this project — list the available agents (`ops agents list` / `GET /api/admin/agent-profiles`) and use one of those, or connect the agent under Settings → Triggers.",
-          "LINKED_ITEM_NOT_MASTER": "The item is linked to others (blocked by / blocking / duplicate of) and is not its group's master — agent runs work a linked group only through its master, which the message names; ack that item instead."
+          "AGENT_NOT_CONNECTED": "The named AI agent type has no connected trigger connector in this project — list the available agents (`ops agents list` / `GET /api/admin/agent-profiles`) and use one of those, or connect the agent under Settings → Triggers."
         }
       },
       "Error": {

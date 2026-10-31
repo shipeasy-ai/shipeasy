@@ -1454,7 +1454,7 @@ export const updateOpsGroup = <ThrowOnError extends boolean = false>(options: Op
  * record the run (you are doing the work yourself), without starting one.
  * A launch on an item linked to others (see `group` on `ops get`) is only
  * allowed on the group's master — any other member answers `409`
- * `LINKED_ITEM_NOT_MASTER`, naming the master to ack instead.
+ * `INVALID_TRANSITION`, naming the master to ack instead.
  *
  * **Completion.** The run closes automatically on the loop's final actions —
  * linking the fixing PR (`link-pr`), an ops-notify escalation, or a

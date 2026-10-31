@@ -137,8 +137,7 @@ export const zErrorCode = z.enum([
     'EXPERIMENT_IMMUTABLE_FIELD',
     'METRIC_NOT_FOUND',
     'METRIC_UNKNOWN_ID',
-    'AGENT_NOT_CONNECTED',
-    'LINKED_ITEM_NOT_MASTER'
+    'AGENT_NOT_CONNECTED'
 ]);
 
 /**

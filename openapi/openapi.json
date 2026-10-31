@@ -8548,7 +8548,7 @@
       "post": {
         "operationId": "ackOpsItem",
         "summary": "Ack an item (start a run)",
-        "description": "Acknowledge a queue item — a person or an AI agent declaring \"I'm on this\nnow\". Opens a run: stamps who picked the item up and when, assigns them as\nowner, and moves the item into the matching working status\n(`investigating_by_ai` for an AI ack, `in_progress` for a human one). The\ndashboard renders the open run as a live working indicator (which agent +\ntime since the run started).\n\n**AI ack.** Pass `agent` with your own agent type (`claude`, `cursor`,\n`copilot`, `jules`; `gemini` aliases `jules`) and, when you have one, the\nrun's `sessionId` so the dashboard can deep-link to the session. If the\nproject has no connected trigger connector of that type the call fails\nwith `AGENT_NOT_CONNECTED` — list the available agents with `ops agents\nlist` and use one of those (or connect the agent under Settings →\nTriggers).\n\n**Launching.** When the named agent has a connected trigger and you pass\nno `sessionId`, the ack also fires that trigger — a new provider run\nstarts working the item. Pass `launch: false` to only claim the item and\nrecord the run (you are doing the work yourself), without starting one.\nA launch on an item linked to others (see `group` on `ops get`) is only\nallowed on the group's master — any other member answers `409`\n`LINKED_ITEM_NOT_MASTER`, naming the master to ack instead.\n\n**Completion.** The run closes automatically on the loop's final actions —\nlinking the fixing PR (`link-pr`), an ops-notify escalation, or a\ncompletion status change (`ready_for_qa`/`resolved`) — and the dashboard\nthen shows the run result (final action, PR, duration, session link).\nA repeat ack supersedes the previous open run.\n\n**Use case:** Call this first when picking an item up, so the team sees\nwho/what is working on it in real time.",
+        "description": "Acknowledge a queue item — a person or an AI agent declaring \"I'm on this\nnow\". Opens a run: stamps who picked the item up and when, assigns them as\nowner, and moves the item into the matching working status\n(`investigating_by_ai` for an AI ack, `in_progress` for a human one). The\ndashboard renders the open run as a live working indicator (which agent +\ntime since the run started).\n\n**AI ack.** Pass `agent` with your own agent type (`claude`, `cursor`,\n`copilot`, `jules`; `gemini` aliases `jules`) and, when you have one, the\nrun's `sessionId` so the dashboard can deep-link to the session. If the\nproject has no connected trigger connector of that type the call fails\nwith `AGENT_NOT_CONNECTED` — list the available agents with `ops agents\nlist` and use one of those (or connect the agent under Settings →\nTriggers).\n\n**Launching.** When the named agent has a connected trigger and you pass\nno `sessionId`, the ack also fires that trigger — a new provider run\nstarts working the item. Pass `launch: false` to only claim the item and\nrecord the run (you are doing the work yourself), without starting one.\nA launch on an item linked to others (see `group` on `ops get`) is only\nallowed on the group's master — any other member answers `409`\n`INVALID_TRANSITION`, naming the master to ack instead.\n\n**Completion.** The run closes automatically on the loop's final actions —\nlinking the fixing PR (`link-pr`), an ops-notify escalation, or a\ncompletion status change (`ready_for_qa`/`resolved`) — and the dashboard\nthen shows the run result (final action, PR, duration, session link).\nA repeat ack supersedes the previous open run.\n\n**Use case:** Call this first when picking an item up, so the team sees\nwho/what is working on it in real time.",
         "tags": [
           "Ops"
         ],
@@ -8626,7 +8626,7 @@
           "FORBIDDEN",
           "NOT_FOUND",
           "AGENT_NOT_CONNECTED",
-          "LINKED_ITEM_NOT_MASTER",
+          "INVALID_TRANSITION",
           "VALIDATION"
         ],
         "x-cli": {
@@ -15235,8 +15235,7 @@
           "EXPERIMENT_IMMUTABLE_FIELD",
           "METRIC_NOT_FOUND",
           "METRIC_UNKNOWN_ID",
-          "AGENT_NOT_CONNECTED",
-          "LINKED_ITEM_NOT_MASTER"
+          "AGENT_NOT_CONNECTED"
         ],
         "x-enum-descriptions": {
           "BAD_REQUEST": "Malformed request (bad JSON, missing project scope).",
@@ -15263,8 +15262,7 @@
           "EXPERIMENT_IMMUTABLE_FIELD": "A field that is immutable while the experiment is running was modified.",
           "METRIC_NOT_FOUND": "The referenced metric does not exist or is not visible to the caller.",
           "METRIC_UNKNOWN_ID": "The supplied metric id is malformed or not recognised.",
-          "AGENT_NOT_CONNECTED": "The named AI agent type has no connected trigger connector in this project — list the available agents (`ops agents list` / `GET /api/admin/agent-profiles`) and use one of those, or connect the agent under Settings → Triggers.",
-          "LINKED_ITEM_NOT_MASTER": "The item is linked to others (blocked by / blocking / duplicate of) and is not its group's master — agent runs work a linked group only through its master, which the message names; ack that item instead."
+          "AGENT_NOT_CONNECTED": "The named AI agent type has no connected trigger connector in this project — list the available agents (`ops agents list` / `GET /api/admin/agent-profiles`) and use one of those, or connect the agent under Settings → Triggers."
         }
       },
       "Error": {
