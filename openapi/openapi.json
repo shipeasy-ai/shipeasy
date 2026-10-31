@@ -25763,6 +25763,21 @@
           "triage": {
             "type": "boolean",
             "description": "While a matching public-intake ticket waits in `pending_approval`, the rule's agent safety-triages it and tags it from the central triage set. Needs a `connector`; always `false` alongside `skipApproval`."
+          },
+          "triageAgent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who does the triage — `null` means the rule's own `connector`, `jarvis` (Enterprise), or a connector id. Only meaningful with `triage`."
+          },
+          "triageAutoApprove": {
+            "type": "boolean",
+            "description": "With `triage`, approve the ticket automatically when the agent tags it safe and nothing else. Off means a human still approves."
           }
         },
         "required": [
@@ -25776,7 +25791,9 @@
           "priority",
           "subscribers",
           "skipApproval",
-          "triage"
+          "triage",
+          "triageAgent",
+          "triageAutoApprove"
         ],
         "additionalProperties": false
       },

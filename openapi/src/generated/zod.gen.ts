@@ -2934,7 +2934,9 @@ export const zOpsRoutingRule = z.object({
     priority: zOpsItemPriorityOrNull,
     subscribers: z.array(z.email()).max(20),
     skipApproval: z.boolean(),
-    triage: z.boolean()
+    triage: z.boolean(),
+    triageAgent: z.string().nullable(),
+    triageAutoApprove: z.boolean()
 });
 
 export const zListOpsRoutingRulesResponse = z.array(zOpsRoutingRule);
