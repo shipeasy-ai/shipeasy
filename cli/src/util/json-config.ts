@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
 export function readJsonConfig<T = Record<string, unknown>>(path: string): T | null {
@@ -12,9 +12,31 @@ export function readJsonConfig<T = Record<string, unknown>>(path: string): T | n
   }
 }
 
+/** True when the serialized config carries a credential (bearer token / auth header). */
+function carriesCredential(body: string): boolean {
+  return /Bearer\s|"Authorization"|"authorization"|"X-Shipeasy-Key"/i.test(body);
+}
+
+/**
+ * Write a JSON config. A file that carries a credential (the MCP bearer) is
+ * created 0600 and chmod'd to 0600 if it already existed with looser bits;
+ * parent dirs this call creates are 0700 in that case. Credential-free
+ * configs keep the default (umask-derived) mode.
+ */
 export function writeJsonConfig(path: string, data: unknown): void {
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, JSON.stringify(data, null, 2) + "\n", "utf8");
+  const body = JSON.stringify(data, null, 2) + "\n";
+  const secret = carriesCredential(body);
+  mkdirSync(dirname(path), { recursive: true, ...(secret ? { mode: 0o700 } : {}) });
+  if (secret) {
+    writeFileSync(path, body, { encoding: "utf8", mode: 0o600 });
+    try {
+      chmodSync(path, 0o600); // writeFileSync's mode only applies to new files
+    } catch {
+      /* best effort (e.g. Windows) */
+    }
+  } else {
+    writeFileSync(path, body, "utf8");
+  }
 }
 
 type McpConfig = Record<string, unknown>;
