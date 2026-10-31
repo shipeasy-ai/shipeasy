@@ -93,6 +93,20 @@
             - all
             - ready
           default: all
+      - name: qaQuestions
+        in: query
+        required: false
+        description: >-
+          `open` narrows to the items with at least one unanswered QA question —
+          the backlog QA answers first (read each with `ops get`, answer with
+          `ops qa-questions answer`). `all` (the default) applies no such
+          narrowing.
+        schema:
+          type: string
+          enum:
+            - all
+            - open
+          default: all
       - name: limit
         in: query
         required: false
@@ -1561,6 +1575,188 @@
       name: create
       positional:
         - handle
+/api/admin/ops/{handle}/qa-questions:
+  get:
+    operationId: listOpsQaQuestions
+    summary: List an item's QA questions
+    description: |-
+      The questions put to QA on a queue item, newest first (max 100), each with
+      QA's answer once given. `ops get` returns the same list as `qaQuestions`.
+
+      **Use case:** After asking QA, poll this until the question reads `answered`.
+    tags:
+      - QA questions
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: handle
+        in: path
+        required: true
+        description: Per-project item number (e.g. `7`) or the full ops item id.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+      - name: status
+        in: query
+        required: false
+        description: Only questions in this status.
+        schema:
+          $ref: ../components/schemas/ops.yaml#/OpsQaQuestionStatus
+    responses:
+      "200":
+        description: List an item's QA questions
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/ListOpsQaQuestionsResponse
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: list
+      positional:
+        - handle
+  post:
+    operationId: askOpsQaQuestion
+    summary: Ask QA a question about an item
+    description: |-
+      Put a question to QA on a queue item — use it when you do not know the
+      answer yourself and QA's decision unblocks the work. The question is open
+      until QA answers it; it surfaces on the item (`ops get` → `qaQuestions`)
+      and in the project-wide QA backlog (`ops list --qa-questions open`). The
+      asker is the caller's identity; pass `agent` to record it as asked by that
+      agent type.
+
+      **Use case:** A coding agent cannot tell whether an empty state is a bug or
+      intended; it asks QA and carries on with the rest of the item.
+    tags:
+      - QA questions
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: handle
+        in: path
+        required: true
+        description: Per-project item number (e.g. `7`) or the full ops item id.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/AskOpsQaQuestionRequest
+          examples:
+            ask:
+              summary: Ask whether behaviour is intended
+              value:
+                question: Should an archived metric still show on the experiment readout, or be hidden?
+    responses:
+      "200":
+        description: The created question
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/OpsQaQuestion
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: ask
+      positional:
+        - handle
+/api/admin/ops/{handle}/qa-questions/{questionId}/answer:
+  post:
+    operationId: answerOpsQaQuestion
+    summary: Answer a QA question
+    description: |-
+      Answer one open QA question. The question moves to `answered` and the
+      answer shows on the item. An answered question cannot be answered again
+      (409); ask a new one to follow up. The answerer is the caller's identity;
+      pass `agent` to record it as answered by that agent type's QA automation.
+
+      **Use case:** QA reads the backlog, checks the build, and replies "hide it —
+      archived metrics never show on readouts".
+    tags:
+      - QA questions
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: handle
+        in: path
+        required: true
+        description: Per-project item number (e.g. `7`) or the full ops item id.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+      - name: questionId
+        in: path
+        required: true
+        description: The question id (from `ask`, `list` or `ops get`).
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/AnswerOpsQaQuestionRequest
+          examples:
+            answer:
+              summary: Answer with QA's decision
+              value:
+                answer: Hide it — archived metrics never show on experiment readouts
+    responses:
+      "200":
+        description: The answered question
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/OpsQaQuestion
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - INVALID_TRANSITION
+      - VALIDATION
+    x-cli:
+      name: answer
+      positional:
+        - handle
+        - questionId
 /api/admin/agent-profiles:
   get:
     operationId: listOpsAgents

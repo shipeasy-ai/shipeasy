@@ -269,6 +269,15 @@ tags:
       their own section of the item's detail panel, separate from the comment
       thread. A failing verification offers a "Reopen item" action in the
       dashboard; it is always an explicit click, never a side effect of `create`.
+  - name: QA questions
+    parent: Ops
+    description: |-
+      Questions put to QA on a queue item — for when the person or agent working
+      an item does not know the answer and wants QA's call without a build or a
+      meeting. `ask` records the question; QA (a person, or an agent assigned the
+      QA role) finds the backlog with `ops list --qa-questions open`, reads the
+      item (`ops get` carries a `qaQuestions` field), and `answer`s it. Answers
+      are plain text and the asker reads them back with `list` or `ops get`.
   - name: Projects
     description: |-
       Projects: the account-level container every other resource is scoped to.
@@ -446,6 +455,10 @@ paths:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1questions~1{questionId}~1cancel
   /api/admin/ops/{handle}/qa-notes:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1qa-notes
+  /api/admin/ops/{handle}/qa-questions:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1qa-questions
+  /api/admin/ops/{handle}/qa-questions/{questionId}/answer:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1qa-questions~1{questionId}~1answer
   /api/admin/agent-profiles:
     $ref: ./paths/ops.yaml#/~1api~1admin~1agent-profiles
   /api/admin/ops/{handle}/comments:

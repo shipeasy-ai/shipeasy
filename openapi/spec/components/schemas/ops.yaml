@@ -236,6 +236,11 @@ GetOpsItemResponse:
       items:
         $ref: "#/OpsItemRef"
       description: Items marked as duplicates of this one — their reports add context to this item.
+    qaQuestions:
+      type: array
+      items:
+        $ref: "#/OpsQaQuestion"
+      description: Questions put to QA on this item, newest first (max 100), each with QA's answer once given. List the project-wide backlog with `ops list --qa-questions open`; ask with `ops qa-questions ask`.
     group:
       anyOf:
         - $ref: "#/OpsItemGroup"
@@ -3081,6 +3086,132 @@ ListOpsQaNotesResponse:
   items:
     $ref: "#/OpsQaNote"
   description: Response for `GET /api/admin/ops/{handle}/qa-notes` — the item's QA notes, newest first (max 200).
+OpsQaQuestionStatus:
+  type: string
+  enum:
+    - open
+    - answered
+  description: "Where a QA question stands: `open` (waiting on QA) or `answered`."
+OpsQaQuestion:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Question id.
+    feedbackId:
+      type: string
+      description: The queue item the question hangs off.
+    question:
+      type: string
+      description: The question for QA (markdown).
+    status:
+      $ref: "#/OpsQaQuestionStatus"
+    askedByEmail:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Email of the person (or the key's actor) who asked, or `null` when an agent asked.
+    askedByAgent:
+      anyOf:
+        - type: string
+          enum:
+            - jarvis
+            - claude
+            - cursor
+            - copilot
+            - jules
+        - type: "null"
+      description: The agent type that asked, or `null` for a person.
+    answer:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: QA's answer (markdown), or `null` while the question is open.
+    answeredByEmail:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Email of the person who answered, or `null` while open or when an agent answered.
+    answeredByAgent:
+      anyOf:
+        - type: string
+          enum:
+            - jarvis
+            - claude
+            - cursor
+            - copilot
+            - jules
+        - type: "null"
+      description: The agent type (QA automation) that answered, or `null` for a person or while open.
+    answeredAt:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: ISO-8601 answer timestamp, or `null` while open.
+    createdAt:
+      type: string
+      description: ISO-8601 creation timestamp.
+  required:
+    - id
+    - feedbackId
+    - question
+    - status
+    - askedByEmail
+    - askedByAgent
+    - answer
+    - answeredByEmail
+    - answeredByAgent
+    - answeredAt
+    - createdAt
+  additionalProperties: false
+  description: A question put to QA on a queue item, with QA's answer once given.
+AskOpsQaQuestionRequest:
+  type: object
+  properties:
+    question:
+      type: string
+      minLength: 1
+      maxLength: 10000
+      description: What you need QA to answer (markdown). Include what you already tried.
+    agent:
+      type: string
+      enum:
+        - jarvis
+        - claude
+        - cursor
+        - copilot
+        - jules
+      description: The agent type asking — pass your own type when you are a coding agent. Omitted, the question is attributed to the caller's identity.
+  required:
+    - question
+  additionalProperties: false
+  description: "Body for `POST /api/admin/ops/{handle}/qa-questions`."
+AnswerOpsQaQuestionRequest:
+  type: object
+  properties:
+    answer:
+      type: string
+      minLength: 1
+      maxLength: 10000
+      description: QA's answer (markdown).
+    agent:
+      type: string
+      enum:
+        - jarvis
+        - claude
+        - cursor
+        - copilot
+        - jules
+      description: The agent type answering — pass your own type when you are QA automation. Omitted, the answer is attributed to the caller's identity.
+  required:
+    - answer
+  additionalProperties: false
+  description: "Body for `POST /api/admin/ops/{handle}/qa-questions/{questionId}/answer`."
+ListOpsQaQuestionsResponse:
+  type: array
+  items:
+    $ref: "#/OpsQaQuestion"
+  description: Response for `GET /api/admin/ops/{handle}/qa-questions` — the item's QA questions, newest first (max 100).
 NotificationFeedItem:
   type: object
   properties:

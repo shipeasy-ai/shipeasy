@@ -2333,6 +2333,7 @@ _Parameters_
 | `status` | optional | `any` | Filter by one lifecycle status, `unresolved` for every status that is not `resolved` or `wont_fix`, or `all` for every status. Defaults to `all` over HTTP; the CLI and MCP tool default to `unresolved`, so pass `all` there to include resolved and won't-fix items. The human-gated holding state (`pending_approval`) is excluded from `unresolved` and `all`, and returned only when requested as the exact status. _(default `"unresolved"`)_ |
 | `priority` | optional | `any` | Filter by triage priority, or `all` (the default). Items with no priority set are returned only under `all`. _(default `"all"`)_ |
 | `scope` | optional | `"all" \| "ready"` | `ready` narrows to the items ready to be picked up right now: status `open`, no open run (nobody has acked it and is still working), and either unowned (no person and no agent) or reopened (sent back to `open` after an earlier run finished). Leave `status` unset with it. `all` (the default) applies no such narrowing. _(default `"all"`)_ |
+| `qaQuestions` | optional | `"all" \| "open"` | `open` narrows to the items with at least one unanswered QA question — the backlog QA answers first (read each with `ops get`, answer with `ops qa-questions answer`). `all` (the default) applies no such narrowing. _(default `"all"`)_ |
 | `limit` | required | `integer` | Page size — max items to return (1–500). A page shorter than `limit` is the last one. _(1–500)_ |
 | `offset` | optional | `integer` | Number of items to skip before the page starts. Defaults to 0. The order is stable, so `offset += limit` walks the queue page by page. _(default `0`; 0–100000)_ |
 | `owner` | optional | `string` | Narrow to items owned by one person OR one agent. Matches a person by `users.id`, email, or display name, and an agent by connector id, display name, or kebab-case handle — e.g. `owner=Claude` or `owner=alice@acme.dev`. Case-insensitive exact match. |
@@ -2417,6 +2418,83 @@ _Parameters_
 | --- | --- | --- | --- |
 | `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `kind` | optional | `"narrowing" \| "clarification" \| "verification" \| "correction"` | What a QA note is — `narrowing` (only part of the bug still fails), `clarification` (changes what "fixed" means), `verification` (a pass/fail verdict on a fix) or `correction` (withdraws an earlier framing). |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
+### `ops_qa_questions_answer`
+
+**Answer a QA question**
+
+Answer one open QA question. The question moves to `answered` and the
+answer shows on the item. An answered question cannot be answered again
+(409); ask a new one to follow up. The answerer is the caller's identity;
+pass `agent` to record it as answered by that agent type's QA automation.
+
+**Use case:** QA reads the backlog, checks the build, and replies "hide it —
+archived metrics never show on readouts".
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `questionId` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `answer` | required | `string` | QA's answer (markdown). _(length 1–10000)_ |
+| `agent` | optional | `"jarvis" \| "claude" \| "cursor" \| "copilot" \| "jules"` | The agent type answering — pass your own type when you are QA automation. Omitted, the answer is attributed to the caller's identity. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+### `ops_qa_questions_ask`
+
+**Ask QA a question about an item**
+
+Put a question to QA on a queue item — use it when you do not know the
+answer yourself and QA's decision unblocks the work. The question is open
+until QA answers it; it surfaces on the item (`ops get` → `qaQuestions`)
+and in the project-wide QA backlog (`ops list --qa-questions open`). The
+asker is the caller's identity; pass `agent` to record it as asked by that
+agent type.
+
+**Use case:** A coding agent cannot tell whether an empty state is a bug or
+intended; it asks QA and carries on with the rest of the item.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `question` | required | `string` | What you need QA to answer (markdown). Include what you already tried. _(length 1–10000)_ |
+| `agent` | optional | `"jarvis" \| "claude" \| "cursor" \| "copilot" \| "jules"` | The agent type asking — pass your own type when you are a coding agent. Omitted, the question is attributed to the caller's identity. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+### `ops_qa_questions_list`
+
+**List an item's QA questions**
+
+The questions put to QA on a queue item, newest first (max 100), each with
+QA's answer once given. `ops get` returns the same list as `qaQuestions`.
+
+**Use case:** After asking QA, poll this until the question reads `answered`.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `status` | optional | `"open" \| "answered"` | Where a QA question stands: `open` (waiting on QA) or `answered`. |
 
 _Errors_ — beyond the [common errors](#errors):
 

@@ -821,6 +821,66 @@ shipeasy ops qa-notes create [options] <handle>
 | `--verdict <value>` | optional | The outcome a `verification` note records. |
 | `--agent <value>` | optional | The agent type writing the note — pass your own type when you are QA automation. Omitted, the note is attributed to the caller's identity. |
 
+### `shipeasy ops qa-questions`
+
+Questions put to QA on a queue item — for when the person or agent working an item does not know the answer and wants QA's call without a build or a meeting.
+
+```bash
+shipeasy ops qa-questions [options] [command]
+```
+
+#### `shipeasy ops qa-questions list`
+
+List an item's QA questions
+
+```bash
+shipeasy ops qa-questions list [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--status <value>` | optional | Only questions in this status. |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+#### `shipeasy ops qa-questions ask`
+
+Ask QA a question about an item
+
+```bash
+shipeasy ops qa-questions ask [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--question <value>` | optional | What you need QA to answer (markdown). Include what you already tried. |
+| `--agent <value>` | optional | The agent type asking — pass your own type when you are a coding agent. Omitted, the question is attributed to the caller's identity. |
+
+#### `shipeasy ops qa-questions answer`
+
+Answer a QA question
+
+```bash
+shipeasy ops qa-questions answer [options] <handle> <questionId>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
+| `questionId` | required | The question id (from `ask`, `list` or `ops get`). |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--answer <value>` | optional | QA's answer (markdown). |
+| `--agent <value>` | optional | The agent type answering — pass your own type when you are QA automation. Omitted, the answer is attributed to the caller's identity. |
+
 ### `shipeasy ops questions`
 
 Structured questions an agent asks the team about a queue item — the `AskUserQuestion` shape: a short `header`, the `question`, 2–4 `options` (label + description), and `multiSelect` for checkboxes instead of radios.
@@ -1077,6 +1137,7 @@ shipeasy ops list [options]
 | `--status <value>` | optional | Filter by one lifecycle status, `unresolved` for every status that is not `resolved` or `wont_fix`, or `all` for every status. Defaults to `all` over HTTP; the CLI and MCP tool default to `unresolved`, so pass `all` there to include resolved and won't-fix items. The human-gated holding state (`pending_approval`) is excluded from `unresolved` and `all`, and returned only when requested as the exact status. (default: `"unresolved"`) |
 | `--priority <value>` | optional | Filter by triage priority, or `all` (the default). Items with no priority set are returned only under `all`. |
 | `--scope <value>` | optional | `ready` narrows to the items ready to be picked up right now: status `open`, no open run (nobody has acked it and is still working), and either unowned (no person and no agent) or reopened (sent back to `open` after an earlier run finished). Leave `status` unset with it. `all` (the default) applies no such narrowing. |
+| `--qa-questions <value>` | optional | `open` narrows to the items with at least one unanswered QA question — the backlog QA answers first (read each with `ops get`, answer with `ops qa-questions answer`). `all` (the default) applies no such narrowing. |
 | `--limit <value>` | optional | Page size — max items to return (1–500). A page shorter than `limit` is the last one. |
 | `--offset <value>` | optional | Number of items to skip before the page starts. Defaults to 0. The order is stable, so `offset += limit` walks the queue page by page. |
 | `--owner <value>` | optional | Narrow to items owned by one person OR one agent. Matches a person by `users.id`, email, or display name, and an agent by connector id, display name, or kebab-case handle — e.g. `owner=Claude` or `owner=alice@acme.dev`. Case-insensitive exact match. |

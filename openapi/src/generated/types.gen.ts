@@ -4435,6 +4435,58 @@ export type OpsItemRef = {
 };
 
 /**
+ * Where a QA question stands: `open` (waiting on QA) or `answered`.
+ */
+export type OpsQaQuestionStatus = 'open' | 'answered';
+
+/**
+ * A question put to QA on a queue item, with QA's answer once given.
+ */
+export type OpsQaQuestion = {
+    /**
+     * Question id.
+     */
+    id: string;
+    /**
+     * The queue item the question hangs off.
+     */
+    feedbackId: string;
+    /**
+     * The question for QA (markdown).
+     */
+    question: string;
+    status: OpsQaQuestionStatus;
+    /**
+     * Email of the person (or the key's actor) who asked, or `null` when an agent asked.
+     */
+    askedByEmail: string | null;
+    /**
+     * The agent type that asked, or `null` for a person.
+     */
+    askedByAgent: 'jarvis' | 'claude' | 'cursor' | 'copilot' | 'jules' | null;
+    /**
+     * QA's answer (markdown), or `null` while the question is open.
+     */
+    answer: string | null;
+    /**
+     * Email of the person who answered, or `null` while open or when an agent answered.
+     */
+    answeredByEmail: string | null;
+    /**
+     * The agent type (QA automation) that answered, or `null` for a person or while open.
+     */
+    answeredByAgent: 'jarvis' | 'claude' | 'cursor' | 'copilot' | 'jules' | null;
+    /**
+     * ISO-8601 answer timestamp, or `null` while open.
+     */
+    answeredAt: string | null;
+    /**
+     * ISO-8601 creation timestamp.
+     */
+    createdAt: string;
+};
+
+/**
  * A link group: the items connected by blocked-by / blocking / duplicate-of links, which the dashboard shows and moves together. Its master is the one member agent runs work on — the first open member that is not a duplicate and has no open blocker, then the most urgent priority, then the oldest. Closed members only lead once every member is closed.
  */
 export type OpsItemGroup = {
@@ -4583,6 +4635,10 @@ export type GetOpsItemResponse = {
      * Items marked as duplicates of this one — their reports add context to this item.
      */
     duplicates?: Array<OpsItemRef>;
+    /**
+     * Questions put to QA on this item, newest first (max 100), each with QA's answer once given. List the project-wide backlog with `ops list --qa-questions open`; ask with `ops qa-questions ask`.
+     */
+    qaQuestions?: Array<OpsQaQuestion>;
     /**
      * The link group this item belongs to — every item tied to it, directly or through a chain, by a blocked-by / blocking / duplicate-of link — or `null` when it has no links. Agent runs only work a group through its `master`; read the other members before starting, and close them together with `PATCH /api/admin/ops/{handle}/group`.
      */
@@ -5422,6 +5478,39 @@ export type CreateOpsQaNoteRequest = {
     verdict?: OpsQaNoteVerdict;
     /**
      * The agent type writing the note — pass your own type when you are QA automation. Omitted, the note is attributed to the caller's identity.
+     */
+    agent?: 'jarvis' | 'claude' | 'cursor' | 'copilot' | 'jules';
+};
+
+/**
+ * Response for `GET /api/admin/ops/{handle}/qa-questions` — the item's QA questions, newest first (max 100).
+ */
+export type ListOpsQaQuestionsResponse = Array<OpsQaQuestion>;
+
+/**
+ * Body for `POST /api/admin/ops/{handle}/qa-questions`.
+ */
+export type AskOpsQaQuestionRequest = {
+    /**
+     * What you need QA to answer (markdown). Include what you already tried.
+     */
+    question: string;
+    /**
+     * The agent type asking — pass your own type when you are a coding agent. Omitted, the question is attributed to the caller's identity.
+     */
+    agent?: 'jarvis' | 'claude' | 'cursor' | 'copilot' | 'jules';
+};
+
+/**
+ * Body for `POST /api/admin/ops/{handle}/qa-questions/{questionId}/answer`.
+ */
+export type AnswerOpsQaQuestionRequest = {
+    /**
+     * QA's answer (markdown).
+     */
+    answer: string;
+    /**
+     * The agent type answering — pass your own type when you are QA automation. Omitted, the answer is attributed to the caller's identity.
      */
     agent?: 'jarvis' | 'claude' | 'cursor' | 'copilot' | 'jules';
 };
@@ -12289,6 +12378,10 @@ export type ListOpsItemsData = {
          */
         scope?: 'all' | 'ready';
         /**
+         * `open` narrows to the items with at least one unanswered QA question — the backlog QA answers first (read each with `ops get`, answer with `ops qa-questions answer`). `all` (the default) applies no such narrowing.
+         */
+        qaQuestions?: 'all' | 'open';
+        /**
          * Page size — max items to return (1–500). A page shorter than `limit` is the last one.
          */
         limit?: number;
@@ -13385,6 +13478,175 @@ export type CreateOpsQaNoteResponses = {
 };
 
 export type CreateOpsQaNoteResponse = CreateOpsQaNoteResponses[keyof CreateOpsQaNoteResponses];
+
+export type ListOpsQaQuestionsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Per-project item number (e.g. `7`) or the full ops item id.
+         */
+        handle: ResourceId;
+    };
+    query?: {
+        /**
+         * Only questions in this status.
+         */
+        status?: OpsQaQuestionStatus;
+    };
+    url: '/api/admin/ops/{handle}/qa-questions';
+};
+
+export type ListOpsQaQuestionsErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type ListOpsQaQuestionsError = ListOpsQaQuestionsErrors[keyof ListOpsQaQuestionsErrors];
+
+export type ListOpsQaQuestionsResponses = {
+    /**
+     * List an item's QA questions
+     */
+    200: ListOpsQaQuestionsResponse;
+};
+
+export type ListOpsQaQuestionsResponse2 = ListOpsQaQuestionsResponses[keyof ListOpsQaQuestionsResponses];
+
+export type AskOpsQaQuestionData = {
+    body: AskOpsQaQuestionRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Per-project item number (e.g. `7`) or the full ops item id.
+         */
+        handle: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/ops/{handle}/qa-questions';
+};
+
+export type AskOpsQaQuestionErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type AskOpsQaQuestionError = AskOpsQaQuestionErrors[keyof AskOpsQaQuestionErrors];
+
+export type AskOpsQaQuestionResponses = {
+    /**
+     * The created question
+     */
+    200: OpsQaQuestion;
+};
+
+export type AskOpsQaQuestionResponse = AskOpsQaQuestionResponses[keyof AskOpsQaQuestionResponses];
+
+export type AnswerOpsQaQuestionData = {
+    body: AnswerOpsQaQuestionRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Per-project item number (e.g. `7`) or the full ops item id.
+         */
+        handle: ResourceId;
+        /**
+         * The question id (from `ask`, `list` or `ops get`).
+         */
+        questionId: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/ops/{handle}/qa-questions/{questionId}/answer';
+};
+
+export type AnswerOpsQaQuestionErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type AnswerOpsQaQuestionError = AnswerOpsQaQuestionErrors[keyof AnswerOpsQaQuestionErrors];
+
+export type AnswerOpsQaQuestionResponses = {
+    /**
+     * The answered question
+     */
+    200: OpsQaQuestion;
+};
+
+export type AnswerOpsQaQuestionResponse = AnswerOpsQaQuestionResponses[keyof AnswerOpsQaQuestionResponses];
 
 export type ListOpsAgentsData = {
     body?: never;
