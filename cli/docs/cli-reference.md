@@ -1249,7 +1249,7 @@ shipeasy ops links [options] <handle>
 | `--remove-blocked-by <value>` | optional | Items (number or id) to stop recording as blocking this one. Unlinked items are a no-op. |
 | `--add-blocking <value>` | optional | Items (number or id) this one blocks. Already-linked items are a no-op. |
 | `--remove-blocking <value>` | optional | Items (number or id) this one should stop blocking. Unlinked items are a no-op. |
-| `--duplicate-of <value>` | optional | Mark this item as a duplicate of another (number or id), replacing any earlier canonical; `null` clears it. Omit to leave it unchanged. The item's status is not changed — close it separately if the duplicate should leave the queue. |
+| `--duplicate-of <value>` | optional | Mark this item as a duplicate of another (number or id), replacing any earlier canonical; `null` clears it. Omit to leave it unchanged. While the canonical is still open, the item closes as `wont_fix`; a canonical that is already `resolved`/`wont_fix` leaves the item's status alone. |
 
 ### `shipeasy ops ack`
 

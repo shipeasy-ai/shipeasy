@@ -4704,7 +4704,7 @@ export type UpdateOpsLinksRequest = {
      */
     removeBlocking?: Array<OpsItemHandle>;
     /**
-     * Mark this item as a duplicate of another (number or id), replacing any earlier canonical; `null` clears it. Omit to leave it unchanged. The item's status is not changed — close it separately if the duplicate should leave the queue.
+     * Mark this item as a duplicate of another (number or id), replacing any earlier canonical; `null` clears it. Omit to leave it unchanged. While the canonical is still open, the item closes as `wont_fix`; a canonical that is already `resolved`/`wont_fix` leaves the item's status alone.
      */
     duplicateOf?: OpsItemHandle | null;
 };

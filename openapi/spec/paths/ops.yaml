@@ -695,14 +695,14 @@
     description: |-
       Edits how this queue item relates to others: which items block it ("blocked by"), which items it blocks ("blocking"), and which item it duplicates ("duplicate of"). The blocker lists are incremental — already-linked or never-linked items are no-ops and every other relation is left as is; `duplicateOf` sets or (with `null`) clears the one canonical item. An item with a blocker that is not `resolved`/`wont_fix` sits in the dashboard's Blocked lane. The relations show on `ops get` as `blockedBy` / `blocking` / `duplicateOf` / `duplicates`.
 
-      A link that would make an item block or duplicate itself — directly or through a chain — is rejected with `409`; an item from another project doesn't resolve (`404`). Marking a duplicate does not change its status.
+      A link that would make an item block or duplicate itself — directly or through a chain — is rejected with `409`; an item from another project doesn't resolve (`404`). Marking an item a duplicate of a still-open item closes it as `wont_fix`; if the canonical is already `resolved`/`wont_fix` (or the item itself is already closed) its status is left alone.
 
       **Use cases**
 
       - **This item can't move until #12 lands** — `{ "addBlockedBy": ["12"] }`.
       - **Split work: this item gates #20 and #21** — `{ "addBlocking": ["20", "21"] }`.
       - **The dependency turned out not to be one** — `{ "removeBlockedBy": ["12"] }`.
-      - **Same bug was filed twice** — `{ "duplicateOf": "8" }` on the newer item, then close it.
+      - **Same bug was filed twice** — `{ "duplicateOf": "8" }` on the newer item — it closes as `wont_fix` while #8 is open.
     tags:
       - Ops
     parameters:

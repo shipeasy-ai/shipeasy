@@ -930,7 +930,7 @@ UpdateOpsLinksRequest:
       anyOf:
         - $ref: "#/OpsItemHandle"
         - type: "null"
-      description: Mark this item as a duplicate of another (number or id), replacing any earlier canonical; `null` clears it. Omit to leave it unchanged. The item's status is not changed — close it separately if the duplicate should leave the queue.
+      description: Mark this item as a duplicate of another (number or id), replacing any earlier canonical; `null` clears it. Omit to leave it unchanged. While the canonical is still open, the item closes as `wont_fix`; a canonical that is already `resolved`/`wont_fix` leaves the item's status alone.
   additionalProperties: false
   description: "Incremental edit of an item's relations — pass any mix of fields; omitted ones are left as is. A link that would make an item block (or duplicate) itself, directly or through a chain, is rejected with `409`."
 ConnectorData:

@@ -222,7 +222,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--remove-blocked-by <value>", "Items (number or id) to stop recording as blocking this one. Unlinked items are a no-op.")
     .option("--add-blocking <value>", "Items (number or id) this one blocks. Already-linked items are a no-op.")
     .option("--remove-blocking <value>", "Items (number or id) this one should stop blocking. Unlinked items are a no-op.")
-    .option("--duplicate-of <value>", "Mark this item as a duplicate of another (number or id), replacing any earlier canonical; `null` clears it. Omit to leave it unchanged. The item's status is not changed — close it separately if the duplicate should leave the queue.")
+    .option("--duplicate-of <value>", "Mark this item as a duplicate of another (number or id), replacing any earlier canonical; `null` clears it. Omit to leave it unchanged. While the canonical is still open, the item closes as `wont_fix`; a canonical that is already `resolved`/`wont_fix` leaves the item's status alone.")
     .action(async (handle, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.updateOpsLinks({ client, path: { handle: handle }, body: clean({ addBlockedBy: list(opts.addBlockedBy), removeBlockedBy: list(opts.removeBlockedBy), addBlocking: list(opts.addBlocking), removeBlocking: list(opts.removeBlocking), duplicateOf: strOrNull(opts.duplicateOf) }) }) });
     });
