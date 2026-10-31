@@ -5545,6 +5545,14 @@ export type OpsRoutingRule = {
      * While a matching public-intake ticket waits in `pending_approval`, the rule's agent safety-triages it and tags it from the central triage set. Needs a `connector`; always `false` alongside `skipApproval`.
      */
     triage: boolean;
+    /**
+     * Who does the triage — `null` means the rule's own `connector`, `jarvis` (Enterprise), or a connector id. Only meaningful with `triage`.
+     */
+    triageAgent: string | null;
+    /**
+     * With `triage`, approve the ticket automatically when the agent tags it safe and nothing else. Off means a human still approves.
+     */
+    triageAutoApprove: boolean;
 };
 
 export type ListOpsRoutingRulesResponse = Array<OpsRoutingRule>;
