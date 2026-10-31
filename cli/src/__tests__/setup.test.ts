@@ -744,6 +744,19 @@ describe("applyAgent", () => {
     }
   });
 
+  it("dry run says 'would write' and never claims a write (shipeasy #429)", () => {
+    const dir = tmp();
+    try {
+      const out = applyAgent("cursor", ctx(dir, { dryRun: true })).join("\n");
+      expect(out).toMatch(/dry run — would write .*mcp\.json/);
+      expect(out).toMatch(/dry run — would write .*shipeasy\.mdc/);
+      expect(out).not.toMatch(/wrote /);
+      expect(existsSync(join(dir, ".cursor"))).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("pre-approves the .mcp.json server for Claude at project scope", () => {
     const dir = tmp();
     const PATH = process.env.PATH;
