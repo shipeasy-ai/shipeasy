@@ -32,6 +32,7 @@ non-obvious flags are shown.
 | Edit an item's content | `ops_update` | `shipeasy ops update <handle> --title … --description … --actual-result …` |
 | Link the fixing PR | `ops_link_pr` | `shipeasy ops link-pr <handle> --pr-number <n>` (errors/alerts need `--pr-url`) |
 | Relate items — blocked by / blocking / duplicate of | `ops_links` | `shipeasy ops links <handle> --add-blocked-by 12,13 --duplicate-of 8` (`--remove-…` unlinks; `--duplicate-of null` clears) |
+| Close / re-prioritise a linked group together | `ops_group` | `shipeasy ops group <handle> --status resolved` (any member; every linked item changes) |
 | Escalate — raise a human-attention card | `ops_notify` | `shipeasy ops notify --title … --summary … --steps '[…]' --dedupe-key feedback:<n>` |
 
 `<handle>` = the item's per-project `number` (e.g. `7`) **or** its full id — the

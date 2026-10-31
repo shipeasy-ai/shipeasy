@@ -1187,6 +1187,7 @@ shipeasy ops get [options] <handle>
 
 | Option | | Description |
 | --- | --- | --- |
+| `--include <value>` | optional | `linked` inlines the content of every other member of the item's link group as `linkedItems`. |
 | `--data <value>` | optional | Request body as a JSON object. |
 
 ### `shipeasy ops update`
@@ -1250,6 +1251,23 @@ shipeasy ops links [options] <handle>
 | `--add-blocking <value>` | optional | Items (number or id) this one blocks. Already-linked items are a no-op. |
 | `--remove-blocking <value>` | optional | Items (number or id) this one should stop blocking. Unlinked items are a no-op. |
 | `--duplicate-of <value>` | optional | Mark this item as a duplicate of another (number or id), replacing any earlier canonical; `null` clears it. Omit to leave it unchanged. While the canonical is still open, the item closes as `wont_fix`; a canonical that is already `resolved`/`wont_fix` leaves the item's status alone. |
+
+### `shipeasy ops group`
+
+Update a linked group
+
+```bash
+shipeasy ops group [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id — any member of the group. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--status <value>` | optional | Lifecycle status of a queue item. The working flow is `open` → `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`, terminal from any earlier stage). `blocked` marks an item that can't progress until an external dependency clears — a working state a human sets and clears. `ready_for_qa` is what a developer sets once a fix lands; `resolved` is the QA sign-off, normally flipped in the dashboard after verification — set it directly from code only when the fix has been verified end-to-end. `investigating_by_ai` is a system-owned display state — set when the AI agent (Jarvis) picks an item up to investigate, never chosen by a human — so it is shown but not offered as a manual choice. `pending_approval` is the one human-gated holding state: it parks an item OUT of the work queue until a human promotes it to `open` in the dashboard, so `GET /api/admin/ops` excludes it under `status=all`/default and returns it only when requested as an exact `status`. It covers untriaged inbound that must never be auto-implemented — connector requests filed from a customer's connectors panel, and questions funnelled in from the "Stuck in onboarding?" assistant — where approving means flipping the status to `open`. Two earlier values were removed in favour of this single gate: `triage` (the onboarding-help bucket, now `pending_approval`) and `triaged` (a redundant "looked at but not started" step, now plain `open`). |
+| `--priority <value>` | optional | Triage priority, or `null` when not set (in an update, `null` clears it). |
 
 ### `shipeasy ops ack`
 

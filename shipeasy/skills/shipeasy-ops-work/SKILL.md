@@ -92,13 +92,25 @@ Do the steps below for **one** item, then restart with the next. Do not
 interleave. Do not parallelise. Different items almost always touch different
 files; serial keeps blame clean and lets the user halt mid-loop.
 
-**Skip blocked and duplicate items.** `ops get <handle>` carries the item's
-relations: when `blockedBy` lists an item that is not `resolved`/`wont_fix`,
-the work is waiting on it — skip this one (the blocker is in the queue too) and
-say so in the report; when `duplicateOf` is set, the work belongs to that
-canonical item — skip this one. If working an item shows it is really blocked
-by, or a duplicate of, another, record that with `shipeasy ops links <handle>
---add-blocked-by <n>` / `--duplicate-of <n>` (MCP `ops_links`).
+**Linked items are one unit of work — worked through the group's master.**
+`ops get <handle>` carries the item's relations (`blockedBy` / `blocking` /
+`duplicateOf` / `duplicates`) and, when it has any, its `group`: every item
+tied to it, and the `master` — the first open member that is not a duplicate
+and has no open blocker. Work a group ONLY through its master:
+
+- The item is **not** the group's master → skip it and say so in the report
+  (its work is the master's; the master is in the queue too). An ack that
+  starts an agent on a non-master answers `409 LINKED_ITEM_NOT_MASTER`.
+- The item **is** the master → read the whole group before you start:
+  `shipeasy ops get <handle> --include linked` (MCP `ops_get` with
+  `include: "linked"`) inlines every other member's content as `linkedItems`.
+  Fix what they need together, and when the fix lands close them together —
+  `shipeasy ops group <handle> --status ready_for_qa` (or `resolved` /
+  `wont_fix`; MCP `ops_group`) applies the status to every member.
+
+If working an item shows it is really blocked by, or a duplicate of, another,
+record that with `shipeasy ops links <handle> --add-blocked-by <n>` /
+`--duplicate-of <n>` (MCP `ops_links`).
 
 **Ack the item the moment you pick it up — always, before any work.** Run
 `shipeasy ops ack <handle>` (MCP `ops_ack`). This is the ONE call that records

@@ -236,6 +236,16 @@ GetOpsItemResponse:
       items:
         $ref: "#/OpsItemRef"
       description: Items marked as duplicates of this one — their reports add context to this item.
+    group:
+      anyOf:
+        - $ref: "#/OpsItemGroup"
+        - type: "null"
+      description: "The link group this item belongs to — every item tied to it, directly or through a chain, by a blocked-by / blocking / duplicate-of link — or `null` when it has no links. Agent runs only work a group through its `master`; read the other members before starting, and close them together with `PATCH /api/admin/ops/{handle}/group`."
+    linkedItems:
+      type: array
+      items:
+        $ref: "#/OpsLinkedItem"
+      description: "The full content of every OTHER member of the link group, master first. Present only when the request passes `include=linked`."
     connectorData:
       anyOf:
         - $ref: "#/ConnectorData"
@@ -890,6 +900,104 @@ OpsItemLinksResponse:
     - duplicates
   additionalProperties: false
   description: "Every relation of one queue item — \"blocked by\" / \"blocking\" and \"duplicate of\" / \"duplicates\" — in both directions."
+OpsItemGroup:
+  type: object
+  properties:
+    master:
+      $ref: "#/OpsItemRef"
+    items:
+      type: array
+      items:
+        $ref: "#/OpsItemRef"
+      description: Every member of the group, this item included, master first. The rest follow in the order the master is picked by.
+  required:
+    - master
+    - items
+  additionalProperties: false
+  description: "A link group: the items connected by blocked-by / blocking / duplicate-of links, which the dashboard shows and moves together. Its master is the one member agent runs work on — the first open member that is not a duplicate and has no open blocker, then the most urgent priority, then the oldest. Closed members only lead once every member is closed."
+OpsLinkedItem:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Stable opaque item id.
+    number:
+      anyOf:
+        - type: number
+        - type: "null"
+      description: Per-project item number (the `#7` handle), or `null` if unnumbered.
+    type:
+      type: string
+      enum:
+        - bug
+        - feature_request
+        - error
+        - alert
+        - measure_plan
+      description: Queue item type.
+    title:
+      type: string
+      description: One-line item title.
+    status:
+      $ref: "#/OpsItemStatus"
+    priority:
+      anyOf:
+        - $ref: "#/OpsItemPriority"
+        - type: "null"
+      description: Triage priority, or `null` if not yet set.
+    description:
+      type: string
+      description: Feature description (`feature_request`), empty string otherwise.
+    stepsToReproduce:
+      type: string
+      description: Bug repro steps (`bug`), empty string otherwise.
+    actualResult:
+      type: string
+      description: What happened (`bug`), empty string otherwise.
+    expectedResult:
+      type: string
+      description: What was expected (`bug`), empty string otherwise.
+    useCase:
+      type: string
+      description: Feature use case (`feature_request`), empty string otherwise.
+    createdAt:
+      type: string
+      description: ISO-8601 creation timestamp.
+  required:
+    - id
+    - number
+    - type
+    - title
+    - status
+    - priority
+  additionalProperties: {}
+  description: One linked item's content, inlined into `ops get` by `include=linked` so a run reads the whole group in one call. Its comments, attachments and runs are on its own `ops get`.
+UpdateOpsGroupRequest:
+  type: object
+  properties:
+    status:
+      $ref: "#/OpsItemStatus"
+    priority:
+      $ref: "#/OpsItemPriorityOrNull"
+  additionalProperties: false
+  description: "Triage fields applied to EVERY member of the item's link group. Pass at least one field."
+OpsItemGroupResponse:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Id of the item the call was made on.
+    group:
+      $ref: "#/OpsItemGroup"
+    updated:
+      type: number
+      description: How many members actually changed — members already in the requested state are left alone.
+  required:
+    - id
+    - group
+    - updated
+  additionalProperties: false
+  description: The group after a group-wide update.
 OpsItemHandle:
   type: string
   minLength: 1

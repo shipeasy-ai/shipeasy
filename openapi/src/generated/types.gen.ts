@@ -221,7 +221,7 @@ export type ListGatesResponse = {
 /**
  * Stable, machine-readable error code. Mirrors the `ErrorCode` catalogue in `@shipeasy/core`. Each operation lists the subset it can return under `x-error-codes`.
  */
-export type ErrorCode = 'BAD_REQUEST' | 'UNAUTHORIZED' | 'FORBIDDEN' | 'PLAN_REQUIRED' | 'NOT_FOUND' | 'ALREADY_EXISTS' | 'INVALID_TRANSITION' | 'IMMUTABLE_FIELD' | 'READ_ONLY' | 'REFERENCED_IN_USE' | 'VALIDATION' | 'REFERENCED_NOT_FOUND' | 'GROUPS_WEIGHT_SUM' | 'EVENT_PENDING' | 'INTERNAL' | 'PLAN_LIMIT' | 'EXPERIMENT_NO_GOAL_METRIC' | 'EXPERIMENT_ARCHIVED_RESTART' | 'EXPERIMENT_RESTORE_INVALID' | 'EXPERIMENT_NOT_RUNNING' | 'EXPERIMENT_RUNNING_ARCHIVE' | 'EXPERIMENT_IMMUTABLE_FIELD' | 'METRIC_NOT_FOUND' | 'METRIC_UNKNOWN_ID' | 'AGENT_NOT_CONNECTED';
+export type ErrorCode = 'BAD_REQUEST' | 'UNAUTHORIZED' | 'FORBIDDEN' | 'PLAN_REQUIRED' | 'NOT_FOUND' | 'ALREADY_EXISTS' | 'INVALID_TRANSITION' | 'IMMUTABLE_FIELD' | 'READ_ONLY' | 'REFERENCED_IN_USE' | 'VALIDATION' | 'REFERENCED_NOT_FOUND' | 'GROUPS_WEIGHT_SUM' | 'EVENT_PENDING' | 'INTERNAL' | 'PLAN_LIMIT' | 'EXPERIMENT_NO_GOAL_METRIC' | 'EXPERIMENT_ARCHIVED_RESTART' | 'EXPERIMENT_RESTORE_INVALID' | 'EXPERIMENT_NOT_RUNNING' | 'EXPERIMENT_RUNNING_ARCHIVE' | 'EXPERIMENT_IMMUTABLE_FIELD' | 'METRIC_NOT_FOUND' | 'METRIC_UNKNOWN_ID' | 'AGENT_NOT_CONNECTED' | 'LINKED_ITEM_NOT_MASTER';
 
 /**
  * Uniform error envelope returned by every admin endpoint on a non-2xx status. `error` is the human-readable message; `code` is the stable machine code (present whenever the failure maps to a catalogued `ErrorCode`); `detail` carries extra context (validation paths, conflicting field); `fields` maps each failing input field to its own message; `instructions` is optional actionable guidance for resolving the error; `schema` echoes back the expected JSON Schema when a value failed schema validation.
@@ -4435,6 +4435,69 @@ export type OpsItemRef = {
 };
 
 /**
+ * A link group: the items connected by blocked-by / blocking / duplicate-of links, which the dashboard shows and moves together. Its master is the one member agent runs work on — the first open member that is not a duplicate and has no open blocker, then the most urgent priority, then the oldest. Closed members only lead once every member is closed.
+ */
+export type OpsItemGroup = {
+    master: OpsItemRef;
+    /**
+     * Every member of the group, this item included, master first. The rest follow in the order the master is picked by.
+     */
+    items: Array<OpsItemRef>;
+};
+
+/**
+ * One linked item's content, inlined into `ops get` by `include=linked` so a run reads the whole group in one call. Its comments, attachments and runs are on its own `ops get`.
+ */
+export type OpsLinkedItem = {
+    /**
+     * Stable opaque item id.
+     */
+    id: string;
+    /**
+     * Per-project item number (the `#7` handle), or `null` if unnumbered.
+     */
+    number: number | null;
+    /**
+     * Queue item type.
+     */
+    type: 'bug' | 'feature_request' | 'error' | 'alert' | 'measure_plan';
+    /**
+     * One-line item title.
+     */
+    title: string;
+    status: OpsItemStatus;
+    /**
+     * Triage priority, or `null` if not yet set.
+     */
+    priority: OpsItemPriority | null;
+    /**
+     * Feature description (`feature_request`), empty string otherwise.
+     */
+    description?: string;
+    /**
+     * Bug repro steps (`bug`), empty string otherwise.
+     */
+    stepsToReproduce?: string;
+    /**
+     * What happened (`bug`), empty string otherwise.
+     */
+    actualResult?: string;
+    /**
+     * What was expected (`bug`), empty string otherwise.
+     */
+    expectedResult?: string;
+    /**
+     * Feature use case (`feature_request`), empty string otherwise.
+     */
+    useCase?: string;
+    /**
+     * ISO-8601 creation timestamp.
+     */
+    createdAt?: string;
+    [key: string]: unknown;
+};
+
+/**
  * One queue item, any of the five types. Shared fields apply to all; `stepsToReproduce`/`actualResult`/`expectedResult` are bug-specific, `description`/`useCase` feature-specific. The auto-collected browser fields (page URL, user-agent, viewport) live under `context.browser` for bug/feature. `context` also carries the hydrated per-type payload for auto-filed `error`/`alert`/`measure_plan` tickets, `attachments` lists any uploaded files, and `related` gives deep links to the underlying resources.
  */
 export type GetOpsItemResponse = {
@@ -4520,6 +4583,14 @@ export type GetOpsItemResponse = {
      * Items marked as duplicates of this one — their reports add context to this item.
      */
     duplicates?: Array<OpsItemRef>;
+    /**
+     * The link group this item belongs to — every item tied to it, directly or through a chain, by a blocked-by / blocking / duplicate-of link — or `null` when it has no links. Agent runs only work a group through its `master`; read the other members before starting, and close them together with `PATCH /api/admin/ops/{handle}/group`.
+     */
+    group?: OpsItemGroup | null;
+    /**
+     * The full content of every OTHER member of the link group, master first. Present only when the request passes `include=linked`.
+     */
+    linkedItems?: Array<OpsLinkedItem>;
     /**
      * Per-connector linkage recorded for this item, keyed by connector provider. Populated as connectors act on the item (e.g. GitHub opens an issue, Slack posts a message); more than one provider can be present at once. `null` if no connector has touched the item.
      */
@@ -4733,6 +4804,29 @@ export type OpsItemLinksResponse = {
      * Items marked as duplicates of this one, oldest link first.
      */
     duplicates: Array<OpsItemRef>;
+};
+
+/**
+ * Triage fields applied to EVERY member of the item's link group. Pass at least one field.
+ */
+export type UpdateOpsGroupRequest = {
+    status?: OpsItemStatus;
+    priority?: OpsItemPriorityOrNull;
+};
+
+/**
+ * The group after a group-wide update.
+ */
+export type OpsItemGroupResponse = {
+    /**
+     * Id of the item the call was made on.
+     */
+    id: string;
+    group: OpsItemGroup;
+    /**
+     * How many members actually changed — members already in the requested state are left alone.
+     */
+    updated: number;
 };
 
 /**
@@ -12471,7 +12565,12 @@ export type GetOpsItemData = {
          */
         handle: ResourceId;
     };
-    query?: never;
+    query?: {
+        /**
+         * `linked` inlines the content of every other member of the item's link group as `linkedItems`.
+         */
+        include?: 'linked';
+    };
     url: '/api/admin/ops/{handle}';
 };
 
@@ -12681,6 +12780,58 @@ export type UpdateOpsLinksResponses = {
 
 export type UpdateOpsLinksResponse = UpdateOpsLinksResponses[keyof UpdateOpsLinksResponses];
 
+export type UpdateOpsGroupData = {
+    body: UpdateOpsGroupRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Per-project item number (e.g. `7`) or the full ops item id — any member of the group.
+         */
+        handle: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/ops/{handle}/group';
+};
+
+export type UpdateOpsGroupErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type UpdateOpsGroupError = UpdateOpsGroupErrors[keyof UpdateOpsGroupErrors];
+
+export type UpdateOpsGroupResponses = {
+    /**
+     * Update a linked group
+     */
+    200: OpsItemGroupResponse;
+};
+
+export type UpdateOpsGroupResponse = UpdateOpsGroupResponses[keyof UpdateOpsGroupResponses];
+
 export type AckOpsItemData = {
     body?: AckOpsItemRequest;
     headers?: {
@@ -12716,6 +12867,10 @@ export type AckOpsItemErrors = {
      * The resource does not exist or is not visible to the caller.
      */
     404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
     /**
      * The request body failed validation.
      */

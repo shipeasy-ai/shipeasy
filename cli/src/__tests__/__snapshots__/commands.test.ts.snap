@@ -71,6 +71,7 @@ exports[`command tree > matches the registered command surface (snapshot) 1`] = 
   "ops fired-alerts list",
   "ops fired-alerts update",
   "ops get",
+  "ops group",
   "ops investigations",
   "ops investigations create",
   "ops investigations list",

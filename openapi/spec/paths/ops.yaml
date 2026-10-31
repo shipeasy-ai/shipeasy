@@ -467,7 +467,12 @@
     description: |-
       Fetch a single queue item by its per-project `number` or full id.
 
-      **Use case:** Inspect one item's full detail before updating its status or linking a PR.
+      An item linked to others (blocked by / blocking / duplicate of) carries its `group`: every connected item, and the `master` agent runs work through. Pass `include=linked` to inline the other members' content as `linkedItems`, so one call reads the whole group.
+
+      **Use cases**
+
+      - **Inspect one item** before updating its status or linking a PR.
+      - **Pick up linked work** — `include=linked` reads the master and everything tied to it before a run starts.
     tags:
       - Ops
     parameters:
@@ -478,6 +483,14 @@
         description: Per-project item number (e.g. `7`) or the full ops item id.
         schema:
           $ref: ../components/schemas/common.yaml#/ResourceId
+      - name: include
+        in: query
+        required: false
+        description: "`linked` inlines the content of every other member of the item's link group as `linkedItems`."
+        schema:
+          type: string
+          enum:
+            - linked
     responses:
       "200":
         description: Get one queue item
@@ -775,6 +788,87 @@
       name: links
       positional:
         - handle
+/api/admin/ops/{handle}/group:
+  patch:
+    operationId: updateOpsGroup
+    summary: Update a linked group
+    description: |-
+      Applies `status` and/or `priority` to every item in this item's link group — the items tied to it, directly or through a chain, by blocked-by / blocking / duplicate-of links (see `group` on `ops get`). Each member goes through the normal item update, so activity, audit, run close-out and the error sync happen exactly as for a one-item edit. Members already in the requested state are left alone. An item with no links is a group of one.
+
+      **Use cases**
+
+      - **The fix landed for the whole group** — `{ "status": "resolved" }` on any member.
+      - **Drop the group** — `{ "status": "wont_fix" }`.
+      - **Escalate it together** — `{ "priority": "critical" }`.
+    tags:
+      - Ops
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: handle
+        in: path
+        required: true
+        description: Per-project item number (e.g. `7`) or the full ops item id — any member of the group.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/UpdateOpsGroupRequest
+          examples:
+            resolve:
+              summary: Resolve the whole group
+              value:
+                status: resolved
+    responses:
+      "200":
+        description: Update a linked group
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/OpsItemGroupResponse
+            example:
+              id: fb_01j7w8a1b2c3d4e5f6g7h8i9j0
+              group:
+                master:
+                  id: fb_01j7w8a1b2c3d4e5f6g7h8i9j1
+                  number: 12
+                  type: bug
+                  title: Checkout total ignores the coupon
+                  status: resolved
+                items:
+                  - id: fb_01j7w8a1b2c3d4e5f6g7h8i9j1
+                    number: 12
+                    type: bug
+                    title: Checkout total ignores the coupon
+                    status: resolved
+                  - id: fb_01j7w8a1b2c3d4e5f6g7h8i9j0
+                    number: 14
+                    type: bug
+                    title: Coupon not applied at checkout
+                    status: resolved
+              updated: 2
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: group
+      positional:
+        - handle
 /api/admin/ops/{handle}/ack:
   post:
     operationId: ackOpsItem
@@ -799,6 +893,9 @@
       no `sessionId`, the ack also fires that trigger — a new provider run
       starts working the item. Pass `launch: false` to only claim the item and
       record the run (you are doing the work yourself), without starting one.
+      A launch on an item linked to others (see `group` on `ops get`) is only
+      allowed on the group's master — any other member answers `409`
+      `LINKED_ITEM_NOT_MASTER`, naming the master to ack instead.
 
       **Completion.** The run closes automatically on the loop's final actions —
       linking the fixing PR (`link-pr`), an ops-notify escalation, or a
@@ -851,6 +948,8 @@
         $ref: ../components/responses.yaml#/Forbidden
       "404":
         $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
       "422":
         $ref: ../components/responses.yaml#/UnprocessableEntity
     x-error-codes:
@@ -859,6 +958,7 @@
       - FORBIDDEN
       - NOT_FOUND
       - AGENT_NOT_CONNECTED
+      - LINKED_ITEM_NOT_MASTER
       - VALIDATION
     x-cli:
       name: ack

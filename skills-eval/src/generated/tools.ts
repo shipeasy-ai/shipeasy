@@ -57,6 +57,7 @@ export const KNOWN_TOOLS: readonly string[] = [
   "ops_fired_alerts_list",
   "ops_fired_alerts_update",
   "ops_get",
+  "ops_group",
   "ops_investigations_create",
   "ops_investigations_list",
   "ops_investigations_update",

@@ -430,6 +430,8 @@ paths:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1link-pr
   /api/admin/ops/{handle}/links:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1links
+  /api/admin/ops/{handle}/group:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1group
   /api/admin/ops/{handle}/ack:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1ack
   /api/admin/ops/{handle}/investigation:
