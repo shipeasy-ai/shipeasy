@@ -2210,50 +2210,18 @@ _Errors_ — beyond the [common errors](#errors):
 
 Fetch a single queue item by its per-project `number` or full id.
 
-An item linked to others (blocked by / blocking / duplicate of) carries its `group`: every connected item, and the `master` agent runs work through. Pass `include=linked` to inline the other members' content as `linkedItems`, so one call reads the whole group.
-
-**Use cases**
-
-- **Inspect one item** before updating its status or linking a PR.
-- **Pick up linked work** — `include=linked` reads the master and everything tied to it before a run starts.
+**Use case:** Inspect one item's full detail before updating its status or linking a PR.
 
 _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
 | `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
-| `include` | optional | `"linked"` | `linked` inlines the content of every other member of the item's link group as `linkedItems`. |
 
 _Errors_ — beyond the [common errors](#errors):
 
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
-
-### `ops_group`
-
-**Update a linked group**
-
-Applies `status` and/or `priority` to every item in this item's link group — the items tied to it, directly or through a chain, by blocked-by / blocking / duplicate-of links (see `group` on `ops get`). Each member goes through the normal item update, so activity, audit, run close-out and the error sync happen exactly as for a one-item edit. Members already in the requested state are left alone. An item with no links is a group of one.
-
-**Use cases**
-
-- **The fix landed for the whole group** — `{ "status": "resolved" }` on any member.
-- **Drop the group** — `{ "status": "wont_fix" }`.
-- **Escalate it together** — `{ "priority": "critical" }`.
-
-_Parameters_
-
-| Parameter | | Type | Description |
-| --- | --- | --- | --- |
-| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
-| `status` | optional | `"open" \| "pending_approval" \| "investigating_by_ai" \| "in_progress" \| "blocked" \| "ready_for_qa" \| "resolved" \| "wont_fix"` | Lifecycle status of a queue item. The working flow is `open` → `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`, terminal from any earlier stage). `blocked` marks an item that can't progress until an external dependency clears — a working state a human sets and clears. `ready_for_qa` is what a developer sets once a fix lands; `resolved` is the QA sign-off, normally flipped in the dashboard after verification — set it directly from code only when the fix has been verified end-to-end. `investigating_by_ai` is a system-owned display state — set when the AI agent (Jarvis) picks an item up to investigate, never chosen by a human — so it is shown but not offered as a manual choice. `pending_approval` is the one human-gated holding state: it parks an item OUT of the work queue until a human promotes it to `open` in the dashboard, so `GET /api/admin/ops` excludes it under `status=all`/default and returns it only when requested as an exact `status`. It covers untriaged inbound that must never be auto-implemented — connector requests filed from a customer's connectors panel, and questions funnelled in from the "Stuck in onboarding?" assistant — where approving means flipping the status to `open`. Two earlier values were removed in favour of this single gate: `triage` (the onboarding-help bucket, now `pending_approval`) and `triaged` (a redundant "looked at but not started" step, now plain `open`). |
-| `priority` | optional | `any` | Triage priority, or `null` when not set (in an update, `null` clears it). |
-
-_Errors_ — beyond the [common errors](#errors):
-
-- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
-- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
-- `VALIDATION` — The request body failed structural (schema) validation.
 
 ### `ops_link_pr`
 
