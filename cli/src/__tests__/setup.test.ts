@@ -940,11 +940,41 @@ describe("user-global harnesses at project scope (shipeasy #277)", () => {
         // Names both projects and the way out - not just "already has an entry".
         expect(second.detail).toContain("proj-a");
         expect(second.detail).toContain("proj-b");
-        expect(second.detail).toMatch(/--force/);
+        expect(second.detail).toMatch(/mcp install --client \w+ --force/);
         const path = agent === "copilot" ? vscodeUserMcpPath() : antigravityMcpPath();
         expect(readFileSync(path, "utf8")).toContain("proj-a");
         expect(readFileSync(path, "utf8")).not.toContain("proj-b");
       } finally {
+        rmSync(a, { recursive: true, force: true });
+        rmSync(b, { recursive: true, force: true });
+      }
+    });
+  }
+
+  for (const agent of ["antigravity", "copilot"] as const) {
+    it(`${agent}: step 10 does not claim pre-auth for an entry left pinned to another project`, async () => {
+      const a = tmp();
+      const b = tmp();
+      const logs: string[] = [];
+      const spy = vi.spyOn(console, "log").mockImplementation((...x: unknown[]) => void logs.push(x.join(" ")));
+      try {
+        registerMcp(agent, at(a, "proj-a"));
+        const ctx = at(b, "proj-b");
+        registerMcp(agent, ctx); // skipped: foreign pin
+        const out = await mcpAuthHandoff([agent], false, { ctx });
+        const text = logs.join("\n");
+        expect(text).not.toMatch(/pre-authenticated/);
+        expect(text).toContain("proj-a");
+        expect(text).toContain(`shipeasy mcp install --client ${agent} --force`);
+        expect(out.verified).toEqual([]);
+        // Once repointed, the claim is true again.
+        logs.length = 0;
+        registerMcp(agent, { ...ctx, force: true });
+        const after = await mcpAuthHandoff([agent], false, { ctx });
+        expect(logs.join("\n")).toMatch(/pre-authenticated/);
+        expect(after.verified).toEqual([agent]);
+      } finally {
+        spy.mockRestore();
         rmSync(a, { recursive: true, force: true });
         rmSync(b, { recursive: true, force: true });
       }

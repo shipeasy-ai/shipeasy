@@ -999,8 +999,8 @@ function registerJsonMcp(
       detail: other
         ? `${target.path} is user-global (one file for every repo on this machine) and already ` +
           `registers 'shipeasy' for project ${other}, not ${ctx.projectId} - left as is, so ${agent} ` +
-          `keeps talking to ${other} with that project's token. Re-run with --force to repoint it ` +
-          `at ${ctx.projectId}`
+          `keeps talking to ${other} with that project's token. Repoint it with ` +
+          `\`shipeasy mcp install --client ${agent} --force\` (setup itself has no --force)`
         : `${target.path} already has a 'shipeasy' entry (use --force to replace)`,
     };
   }

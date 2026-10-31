@@ -22,6 +22,7 @@ import {
   approveProjectMcpServer,
   claudeServerState,
   mcpBearer,
+  foreignGlobalPin,
   normalizeAgentId,
   SKILLS_CLI_AGENT,
   detectAgents,
@@ -950,8 +951,30 @@ export async function mcpAuthHandoff(
   // IDE still signing in by hand. Setup now writes VS Code's *user-profile*
   // mcp.json instead (off-repo, so it carries the bearer too), so both surfaces
   // are done here and there is no browser step left to instruct.
-  const preAuthed = opts.ctx ? selected.filter((id) => mcpBearer(id, opts.ctx!)) : [];
-  const needsOauth = selected.filter((id) => !preAuthed.includes(id));
+  //
+  // Only for agents whose entry setup actually (re)wrote. A user-global entry
+  // (Copilot, Antigravity) that is still pinned to ANOTHER project was skipped by
+  // the step-3 write, so it carries that project's token, not this session's key
+  // — claiming "pre-authenticated" there is false, and sending it through OAuth
+  // would authorize the wrong project. Report it as held elsewhere instead.
+  const heldElsewhere = new Map<AgentId, string>();
+  if (opts.ctx) {
+    for (const id of selected) {
+      const other = foreignGlobalPin(id, opts.ctx);
+      if (other) heldElsewhere.set(id, other);
+    }
+  }
+  const preAuthed = opts.ctx
+    ? selected.filter((id) => !heldElsewhere.has(id) && mcpBearer(id, opts.ctx!))
+    : [];
+  const needsOauth = selected.filter((id) => !preAuthed.includes(id) && !heldElsewhere.has(id));
+  for (const [id, other] of heldElsewhere) {
+    say(
+      `  ✗ ${id}: NOT re-pointed — its user-global MCP entry is still pinned to project ${other}, ` +
+        `not ${opts.ctx!.projectId}, and keeps that project's token. ` +
+        `Repoint it from this repo with: shipeasy mcp install --client ${id} --force`,
+    );
+  }
   for (const id of preAuthed) {
     say(
       id === "copilot"
