@@ -1358,6 +1358,19 @@ export interface ClaudePluginResult {
  * Falls back to registering the scope's MCP config and printing the manual
  * commands when the `claude` binary isn't present.
  */
+/**
+ * The MCP line for the no-`claude`-binary fallback. A dry run writes nothing,
+ * so "wrote"/"updated" become "(dry run — would write|update <path>)" — the
+ * same wording every other setup step uses.
+ */
+export function mcpFallbackLine(mcp: McpResult, dryRun: boolean): string {
+  if (mcp.action === "skipped") return `MCP: ${mcp.detail}`;
+  if (dryRun && (mcp.action === "wrote" || mcp.action === "updated")) {
+    return `MCP: (dry run — would ${mcp.action === "wrote" ? "write" : "update"} ${mcp.detail})`;
+  }
+  return `MCP: ${mcp.action} ${mcp.detail}`;
+}
+
 export function installClaudePlugin(ctx: InstallCtx): ClaudePluginResult {
   const argv = claudePluginArgv(ctx.scope);
   const manual = [`claude ${shellJoin(argv.marketplace)}`, `claude ${shellJoin(argv.install)}`];
@@ -1366,7 +1379,7 @@ export function installClaudePlugin(ctx: InstallCtx): ClaudePluginResult {
     return {
       action: "manual",
       lines: [
-        `MCP: ${mcp.action === "skipped" ? mcp.detail : `${mcp.action} ${mcp.detail}`}`,
+        mcpFallbackLine(mcp, ctx.dryRun),
         "`claude` not on PATH — install the plugin once Claude Code is available:",
         ...manual.map((l) => `  ${l}`),
       ],
