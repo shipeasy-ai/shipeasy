@@ -2,7 +2,12 @@ import { spawnSync, type SpawnSyncOptions } from "node:child_process";
 import { existsSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { delimiter, join, resolve, sep } from "node:path";
-import { mergeMcpServer, readJsonConfig, writeJsonConfig } from "../util/json-config";
+import {
+  mergeMcpServer,
+  readJsonConfig,
+  tightenCredentialFile,
+  writeJsonConfig,
+} from "../util/json-config";
 
 /**
  * Every harness shell-out in this file is bounded. A harness binary can block
@@ -979,6 +984,46 @@ export function foreignGlobalPin(agent: AgentId, ctx: InstallCtx): string | null
   return pin && pin !== ctx.projectId ? pin : null;
 }
 
+/**
+ * Every user-global MCP config a past (or current) CLI may have put the session
+ * bearer into. `shipeasy upgrade` sweeps these so a 0644 file written by an old
+ * CLI is made private even when nothing in it needs rewriting (shipeasy #435).
+ */
+export function bearerCarryingConfigPaths(): string[] {
+  const home = homedir();
+  return [
+    vscodeUserMcpPath(),
+    antigravityMcpPath(),
+    join(home, ".gemini", "settings.json"),
+    join(home, ".claude", "settings.json"),
+    join(home, ".claude.json"),
+    join(home, ".cursor", "mcp.json"),
+    join(home, ".copilot", "mcp-config.json"),
+  ];
+}
+
+/** Tighten every existing bearer-carrying MCP config to 0600; returns the paths changed. */
+export function sweepBearerConfigPerms(dryRun = false): string[] {
+  return bearerCarryingConfigPaths().filter((p) => tightenCredentialFile(p, dryRun));
+}
+
+/**
+ * Does the agent's on-disk MCP entry actually carry THIS session's key? The
+ * truth step 10 should report when no step-3 write result is at hand.
+ */
+export function entryCarriesSessionKey(agent: AgentId, ctx: InstallCtx): boolean {
+  if (!ctx.mcpToken) return false;
+  const target = jsonMcpTarget(agent, ctx);
+  if (!target) return false;
+  try {
+    const cfg = readJsonConfig<Record<string, Record<string, any>>>(target.path);
+    const headers = cfg?.[target.key]?.shipeasy?.headers as Record<string, unknown> | undefined;
+    return headers?.Authorization === `Bearer ${ctx.mcpToken}`;
+  } catch {
+    return false;
+  }
+}
+
 function registerJsonMcp(
   agent: AgentId,
   target: { path: string; key: "mcpServers" | "servers" },
@@ -994,14 +1039,19 @@ function registerJsonMcp(
   );
   if (replaced && !ctx.force) {
     const other = foreignGlobalPin(agent, ctx);
+    // Leaving the entry as is must not leave a 0644 file holding a bearer that
+    // an older CLI wrote (shipeasy #435): tighten it without rewriting.
+    const tightened = tightenCredentialFile(target.path, ctx.dryRun);
+    const modeNote = tightened ? ` (permissions tightened to 0600)` : "";
     return {
       action: "skipped",
-      detail: other
+      detail:
+        (other
         ? `${target.path} is user-global (one file for every repo on this machine) and already ` +
           `registers 'shipeasy' for project ${other}, not ${ctx.projectId} - left as is, so ${agent} ` +
           `keeps talking to ${other} with that project's token. Repoint it with ` +
           `\`shipeasy mcp install --client ${agent} --force\` (setup itself has no --force)`
-        : `${target.path} already has a 'shipeasy' entry (use --force to replace)`,
+        : `${target.path} already has a 'shipeasy' entry (use --force to replace)`) + modeNote,
     };
   }
   // Said on every write, not just the conflict: project scope is the default,

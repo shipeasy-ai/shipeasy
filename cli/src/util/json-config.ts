@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
 export function readJsonConfig<T = Record<string, unknown>>(path: string): T | null {
@@ -15,6 +15,25 @@ export function readJsonConfig<T = Record<string, unknown>>(path: string): T | n
 /** True when the serialized config carries a credential (bearer token / auth header). */
 function carriesCredential(body: string): boolean {
   return /Bearer\s|"Authorization"|"authorization"|"X-Shipeasy-Key"/i.test(body);
+}
+
+/**
+ * Tighten an ALREADY-WRITTEN config that carries a credential to 0600, without
+ * rewriting it. For the paths where we leave an existing entry as is (skip path
+ * of `mcp install`, `shipeasy upgrade`) but an earlier CLI version created the
+ * file 0644. Returns true when the mode was changed; false when the file is
+ * absent, unreadable, carries no credential, or is already private.
+ */
+export function tightenCredentialFile(path: string, dryRun = false): boolean {
+  try {
+    if (!existsSync(path)) return false;
+    if (!carriesCredential(readFileSync(path, "utf8"))) return false;
+    if ((statSync(path).mode & 0o077) === 0) return false;
+    if (!dryRun) chmodSync(path, 0o600);
+    return true;
+  } catch {
+    return false; // best effort (e.g. Windows, EPERM on a file we don't own)
+  }
 }
 
 /**
