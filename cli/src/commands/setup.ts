@@ -22,6 +22,8 @@ import {
   approveProjectMcpServer,
   claudeServerState,
   mcpBearer,
+  entryCarriesSessionKey,
+  jsonMcpTarget,
   foreignGlobalPin,
   normalizeAgentId,
   SKILLS_CLI_AGENT,
@@ -211,7 +213,12 @@ function formatFile(label: string, r: FileResult, dryRun = false): string {
  * Returns the log lines to surface. Pure w.r.t. its inputs except for the file
  * writes / shell-outs the ctx requests (suppressed under dryRun).
  */
-export function applyAgent(agent: AgentId, ctx: InstallCtx): string[] {
+export function applyAgent(
+  agent: AgentId,
+  ctx: InstallCtx,
+  /** Out-param: the step-3 MCP write result per agent, so step 10 reports what happened. */
+  results?: Map<AgentId, McpResult>,
+): string[] {
   const lines: string[] = [];
   if (agent === "claude") {
     const r = installClaudePlugin(ctx);
@@ -228,7 +235,9 @@ export function applyAgent(agent: AgentId, ctx: InstallCtx): string[] {
     // lists both, `shipeasy` and `plugin:shipeasy:shipeasy` — the pinned one is
     // what we probe and authenticate.)
     if (ctx.scope === "project") {
-      lines.push(formatMcp(registerMcp("claude", ctx), ctx.dryRun));
+      const mcp = registerMcp("claude", ctx);
+      results?.set("claude", mcp);
+      lines.push(formatMcp(mcp, ctx.dryRun));
       // A `.mcp.json` server stays "⏸ Pending approval" until the user approves
       // it for this project — which blocks `claude mcp login` outright — so
       // record the approval they already gave by picking Claude here.
@@ -237,7 +246,9 @@ export function applyAgent(agent: AgentId, ctx: InstallCtx): string[] {
     return lines;
   }
 
-  lines.push(formatMcp(registerMcp(agent, ctx), ctx.dryRun));
+  const mcp = registerMcp(agent, ctx);
+  results?.set(agent, mcp);
+  lines.push(formatMcp(mcp, ctx.dryRun));
   if (agent === "cursor") lines.push(formatFile("rule", writeCursorRule(ctx), ctx.dryRun));
   if (agent === "copilot") lines.push(formatFile("instructions", writeCopilotInstructions(ctx), ctx.dryRun));
   return lines;
@@ -936,7 +947,7 @@ export interface McpAuthOutcome {
 export async function mcpAuthHandoff(
   selected: AgentId[],
   interactive: boolean,
-  opts: { dryRun?: boolean; ctx?: InstallCtx } = {},
+  opts: { dryRun?: boolean; ctx?: InstallCtx; mcpWrites?: Map<AgentId, McpResult> } = {},
 ): Promise<McpAuthOutcome> {
   // Caller owns the step heading — this is step 10 of `shipeasy setup`, and the
   // "no agents wired" case still needs the heading printed above it.
@@ -964,10 +975,43 @@ export async function mcpAuthHandoff(
       if (other) heldElsewhere.set(id, other);
     }
   }
+  // "Pre-authenticated" must describe what step 3 actually did. With the write
+  // result in hand: only "wrote"/"updated" (the bearer went in this run). Without
+  // one (direct callers), fall back to reading the entry off disk and checking
+  // it carries THIS session's key. A user-scope entry that already existed
+  // ("use --force to replace") keeps whatever key it had — not this session's.
+  const leftAsIs = new Map<AgentId, string>();
+  const carriesKey = (id: AgentId): boolean => {
+    const ctx = opts.ctx!;
+    if (!mcpBearer(id, ctx)) return false;
+    const w = opts.mcpWrites?.get(id);
+    if (w) {
+      if (w.action === "wrote" || w.action === "updated") return true;
+      if (w.action === "skipped") return false;
+      return entryCarriesSessionKey(id, ctx); // shell-out / manual: verify on disk
+    }
+    // Direct callers with no write info: verify on disk where we can read the
+    // entry; codex (TOML) has no bearer anyway, so mcpBearer already excluded it.
+    return jsonMcpTarget(id, ctx) ? entryCarriesSessionKey(id, ctx) : true;
+  };
   const preAuthed = opts.ctx
-    ? selected.filter((id) => !heldElsewhere.has(id) && mcpBearer(id, opts.ctx!))
+    ? selected.filter((id) => {
+        if (heldElsewhere.has(id) || !mcpBearer(id, opts.ctx!)) return false;
+        if (carriesKey(id)) return true;
+        leftAsIs.set(id, id);
+        return false;
+      })
     : [];
-  const needsOauth = selected.filter((id) => !preAuthed.includes(id) && !heldElsewhere.has(id));
+  const needsOauth = selected.filter(
+    (id) => !preAuthed.includes(id) && !heldElsewhere.has(id) && !leftAsIs.has(id),
+  );
+  for (const id of leftAsIs.keys()) {
+    say(
+      `  • ${id}: its existing 'shipeasy' MCP entry was left as is, so it does NOT carry this ` +
+        `session's key (it keeps whatever credential it had). Replace it with: ` +
+        `shipeasy mcp install --client ${id} --force`,
+    );
+  }
   for (const [id, other] of heldElsewhere) {
     say(
       `  ✗ ${id}: NOT re-pointed — its user-global MCP entry is still pinned to project ${other}, ` +
@@ -1381,6 +1425,9 @@ async function runSetup(opts: SetupOpts): Promise<void> {
     projectId: projectId || undefined,
     mcpToken: cliSession?.token,
   };
+  // Step 3's per-agent MCP write result — step 10's "pre-authenticated" claim
+  // is derived from it, never from "a session token exists".
+  const mcpWrites = new Map<AgentId, McpResult>();
   // The `skills` CLI names for the agents that take skills via `npx skills add`
   // (not the plugin): cursor/codex/copilot. Claude is excluded at BOTH scopes —
   // it now installs the plugin either way, and the plugin already ships these
@@ -1404,7 +1451,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
       // One misbehaving harness must not take the rest of onboarding with it:
       // a throw here is reported against this agent and the loop moves on.
       try {
-        for (const line of applyAgent(agent, ctx)) say(line);
+        for (const line of applyAgent(agent, ctx, mcpWrites)) say(line);
       } catch (err) {
         say(`  ✗ ${agent}: wiring failed - ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -2084,7 +2131,7 @@ async function runSetup(opts: SetupOpts): Promise<void> {
   } else if (!selected.length) {
     say("  • no agents wired — nothing to authorize");
   } else {
-    ({ verified: mcpVerified } = await mcpAuthHandoff(selected, interactive, { dryRun, ctx }));
+    ({ verified: mcpVerified } = await mcpAuthHandoff(selected, interactive, { dryRun, ctx, mcpWrites }));
   }
 
   // 11. Remaining (non-deterministic) wiring → instructions for ANY harness

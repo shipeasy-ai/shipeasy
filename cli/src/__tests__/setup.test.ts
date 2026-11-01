@@ -1,15 +1,17 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { mkdirSync, mkdtempSync, readFileSync, existsSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, existsSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { mergeMcpServer } from "../util/json-config";
 import {
   type AgentId,
   type InstallCtx,
+  type McpResult,
   ALL_AGENT_IDS,
   MCP_AUTH_COMMANDS,
   addClaudeMcpNative,
   antigravityMcpPath,
+  sweepBearerConfigPerms,
   antigravityServerSpec,
   geminiMcpAddArgv,
   normalizeAgentId,
@@ -980,6 +982,112 @@ describe("user-global harnesses at project scope (shipeasy #277)", () => {
       }
     });
   }
+
+  describe("bearer-carrying configs are private (shipeasy #435)", () => {
+    const mode = (p: string) => statSync(p).mode & 0o777;
+    const withBearer = (key: "servers" | "mcpServers", tok = "OLD") => ({
+      [key]: { shipeasy: { url: "https://mcp.shipeasy.ai/p/proj-a/mcp", headers: { Authorization: `Bearer ${tok}` } } },
+    });
+    const put = (p: string, body: unknown) => {
+      mkdirSync(dirname(p), { recursive: true });
+      writeFileSync(p, JSON.stringify(body), { mode: 0o644 });
+      chmodSync(p, 0o644);
+    };
+
+    it("registerMcp's skip path chmods an existing 0644 file holding a bearer to 0600", () => {
+      const dir = tmp();
+      try {
+        const path = vscodeUserMcpPath();
+        put(path, withBearer("servers"));
+        const r = registerMcp("copilot", { ...at(dir, "proj-a"), scope: "user" });
+        expect(r.action).toBe("skipped");
+        expect(mode(path)).toBe(0o600);
+        expect(readFileSync(path, "utf8")).toContain("Bearer OLD"); // not rewritten
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it("the skip path leaves a credential-free file's mode alone", () => {
+      const dir = tmp();
+      try {
+        const path = join(fakeHome, ".cursor", "mcp.json");
+        put(path, { mcpServers: { shipeasy: { url: "https://mcp.shipeasy.ai/mcp" } } });
+        const r = registerMcp("cursor", { ...at(dir, "proj-a"), scope: "user" });
+        expect(r.action).toBe("skipped");
+        expect(mode(path)).toBe(0o644);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it("sweepBearerConfigPerms tightens every known bearer-carrying config, nothing else", () => {
+      const carrying = [
+        vscodeUserMcpPath(),
+        antigravityMcpPath(),
+        join(fakeHome, ".gemini", "settings.json"),
+        join(fakeHome, ".claude", "settings.json"),
+        join(fakeHome, ".cursor", "mcp.json"),
+      ];
+      for (const p of carrying) put(p, withBearer("mcpServers"));
+      const clean = join(fakeHome, ".claude.json");
+      put(clean, { projects: {} });
+      expect(sweepBearerConfigPerms(true).sort()).toEqual([...carrying].sort()); // dry run reports…
+      for (const p of carrying) expect(mode(p)).toBe(0o644); // …but changes nothing
+      expect(sweepBearerConfigPerms().sort()).toEqual([...carrying].sort());
+      for (const p of carrying) expect(mode(p)).toBe(0o600);
+      expect(mode(clean)).toBe(0o644);
+      expect(sweepBearerConfigPerms()).toEqual([]); // idempotent
+    });
+  });
+
+  describe("step 10 reflects the step-3 write for user-scope agents (shipeasy #434)", () => {
+    const userCtx = (cwd: string): InstallCtx => ({ ...at(cwd, "proj-a"), scope: "user" });
+    const paths = (): Record<string, string> => ({
+      gemini: join(fakeHome, ".gemini", "settings.json"),
+      claude: join(fakeHome, ".claude", "settings.json"),
+      cursor: join(fakeHome, ".cursor", "mcp.json"),
+    });
+    for (const agent of ["gemini", "claude", "cursor"] as const) {
+      it(`${agent}: an existing entry left as is is not reported as pre-authenticated`, async () => {
+        const dir = tmp();
+        const logs: string[] = [];
+        const spy = vi.spyOn(console, "log").mockImplementation((...x: unknown[]) => void logs.push(x.join(" ")));
+        try {
+          const path = paths()[agent]!;
+          mkdirSync(dirname(path), { recursive: true });
+          writeFileSync(
+            path,
+            JSON.stringify({ mcpServers: { shipeasy: { url: "https://mcp.shipeasy.ai/mcp", headers: { Authorization: "Bearer OLD" } } } }),
+          );
+          const ctx = userCtx(dir);
+          const mcpWrites = new Map<AgentId, McpResult>();
+          const r = registerMcp(agent, ctx);
+          mcpWrites.set(agent, r);
+          expect(r.action).toBe("skipped");
+          const out = await mcpAuthHandoff([agent], false, { ctx, mcpWrites });
+          const text = logs.join("\n");
+          expect(text).not.toMatch(/pre-authenticated/);
+          expect(text).toContain(`shipeasy mcp install --client ${agent} --force`);
+          expect(out.verified).toEqual([]);
+          // Without write info the on-disk entry decides: still not this session's key.
+          logs.length = 0;
+          await mcpAuthHandoff([agent], false, { ctx });
+          expect(logs.join("\n")).not.toMatch(/pre-authenticated/);
+          // Once actually (re)written with this run's key, the claim is true.
+          logs.length = 0;
+          const forced = registerMcp(agent, { ...ctx, force: true });
+          mcpWrites.set(agent, forced);
+          const after = await mcpAuthHandoff([agent], false, { ctx, mcpWrites });
+          expect(logs.join("\n")).toMatch(/pre-authenticated/);
+          expect(after.verified).toEqual([agent]);
+        } finally {
+          spy.mockRestore();
+          rmSync(dir, { recursive: true, force: true });
+        }
+      });
+    }
+  });
 
   it("--force repoints the global entry at the new project", () => {
     const a = tmp();

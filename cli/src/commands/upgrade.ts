@@ -15,6 +15,7 @@ import {
   normalizeAgentId,
   onPath,
   registerMcp,
+  sweepBearerConfigPerms,
 } from "../setup/agents";
 import { fetchSdkSkill, installMarketplaceSkills, installSkill } from "../setup/sdk-docs";
 import { baseSkillNames, skillsCliAgentsFor } from "../setup/skills-registry";
@@ -322,6 +323,11 @@ function refreshMcp(agents: AgentId[], scope: "user" | "project", opts: UpgradeO
   const cwd = process.cwd();
   const ctx: InstallCtx = { cwd, scope, force: true, dryRun: Boolean(opts.dryRun) };
   const bound = getBoundProjectId(cwd);
+  // Independent of which agents are wired or rewritten below: any known
+  // bearer-carrying MCP config left 0644 by an older CLI is made private.
+  for (const p of sweepBearerConfigPerms(Boolean(opts.dryRun))) {
+    console.log(`  ✓ ${opts.dryRun ? "(dry run — would tighten) " : "tightened "}${p} to 0600 (it carries a session key)`);
+  }
   if (!agents.length) {
     console.log("  • no agents — nothing to re-register");
     return;
