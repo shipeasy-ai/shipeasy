@@ -23,3 +23,8 @@ in SKILL.md §1b; this is the bug-specific flow.
    steps. Reproduce locally if the dev server is up; a failing repro you then
    flip green is the strongest verification. Work the cause systematically —
    form a hypothesis and confirm it before changing code; don't guess.
+
+**Reopened by QA?** If the item has QA notes or comments (`ops_qa_notes_list`,
+`ops_comments_list`), the newest `verification` FAIL and its "Required fixes"
+checklist outrank the original steps — see SKILL.md §1a-0. A merged PR is not
+evidence of a fix once QA has failed it.

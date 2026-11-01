@@ -140,6 +140,24 @@ ack there is no run, so even a finished, PR'd item reads as untouched.
 Later status writes use `shipeasy ops update <handle> --status <status>` (the
 `<handle>` is the per-item `#number` or the full id; the API resolves either).
 
+### 1a-0. Read the QA state first — a reopened item is worked from its newest FAIL
+
+Before anything else, read the item's QA notes and comments:
+`shipeasy ops qa-notes list <handle>` (MCP `ops_qa_notes_list`) and
+`shipeasy ops comments list <handle>` (MCP `ops_comments_list`). `ops get` carries
+neither. If the newest `verification` note has verdict **fail** (or a comment
+since the last `ready_for_qa` carries a "Required fixes" checklist), **that
+checklist is the work order — not the original ticket**:
+
+- A merged PR on the item is NOT proof it is fixed: QA already failed the
+  released build. Re-verify each checklist line against the code, fix what
+  still fails, and say per line what you changed.
+- Never close the item as "already fixed" / `ready_for_qa` on the strength of
+  the same merged PR. If a line truly is already addressed, cite the commit and
+  how to see it; if you cannot address a line, ask a structured question.
+- When closing a group master, do not flip members whose own newest QA verdict
+  is an unaddressed fail.
+
 ### 1a. Read the item's questions — answered ones are decisions
 
 Right after the ack, before reading code or planning the fix, read every
