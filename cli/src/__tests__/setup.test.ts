@@ -757,6 +757,31 @@ describe("applyAgent", () => {
     }
   });
 
+  it.each(["project", "user"] as const)(
+    "claude dry run without the claude CLI never claims a write at %s scope (shipeasy #429)",
+    (scope) => {
+      const dir = tmp();
+      const home = tmp();
+      const PATH = process.env.PATH;
+      const HOME = process.env.HOME;
+      try {
+        process.env.PATH = "";
+        process.env.HOME = home;
+        const out = applyAgent("claude", ctx(dir, { scope, dryRun: true })).join("\n");
+        expect(out).toMatch(/dry run — would (write|update) .*(\.mcp\.json|settings\.json|\.claude\.json)/);
+        expect(out).not.toMatch(/MCP: (wrote|updated) /);
+        expect(out).not.toMatch(/(wrote|updated) \//);
+        expect(existsSync(join(dir, ".mcp.json"))).toBe(false);
+        expect(existsSync(join(home, ".claude"))).toBe(false);
+      } finally {
+        restoreEnv("PATH", PATH);
+        restoreEnv("HOME", HOME);
+        rmSync(dir, { recursive: true, force: true });
+        rmSync(home, { recursive: true, force: true });
+      }
+    },
+  );
+
   it("pre-approves the .mcp.json server for Claude at project scope", () => {
     const dir = tmp();
     const PATH = process.env.PATH;
