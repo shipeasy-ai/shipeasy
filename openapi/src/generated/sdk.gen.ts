@@ -293,7 +293,7 @@ export const getExperiment = <ThrowOnError extends boolean = false>(options: Opt
  *
  * Partial update. `allocation_pct`, `groups`, `salt`, `universe`, `params` are **immutable while running** — returns `409` if you try. Stop the experiment first.
  *
- * Editing `groups` while in `draft` is fine; weights must still sum to 10000.
+ * Editing `groups` while in `draft` is fine; weights must sum to `10000 − reserved_headroom`.
  *
  * **Use cases**
  *
@@ -1444,7 +1444,7 @@ export const updateOpsGroup = <ThrowOnError extends boolean = false>(options: Op
  * time since the run started).
  *
  * **AI ack.** Pass `agent` with your own agent type (`claude`, `cursor`,
- * `copilot`, `jules`; `gemini` aliases `jules`) and, when you have one, the
+ * `copilot`, `jules`; `gemini` is also accepted and is normalized to `jules` on receipt) and, when you have one, the
  * run's `sessionId` so the dashboard can deep-link to the session. If the
  * project has no connected trigger connector of that type the call fails
  * with `AGENT_NOT_CONNECTED` — list the available agents with `ops agents

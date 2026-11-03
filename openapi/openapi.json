@@ -1051,7 +1051,7 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Stable opaque gate id (`gate_…`) or the gate's `name`.",
+            "description": "Stable opaque gate id (`gat_…`) or the gate's `name`.",
             "schema": {
               "$ref": "#/components/schemas/ResourceId"
             }
@@ -1066,7 +1066,7 @@
                   "$ref": "#/components/schemas/GateWhitelist"
                 },
                 "example": {
-                  "id": "gate_01j7w8a1b2c3d4e5f6g7h8i9j0",
+                  "id": "gat_01j7w8a1b2c3d4e5f6g7h8i9j0",
                   "name": "new_checkout",
                   "attr": "email",
                   "entries": [
@@ -1124,7 +1124,7 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Stable opaque gate id (`gate_…`) or the gate's `name`.",
+            "description": "Stable opaque gate id (`gat_…`) or the gate's `name`.",
             "schema": {
               "$ref": "#/components/schemas/ResourceId"
             }
@@ -1177,7 +1177,7 @@
                   "$ref": "#/components/schemas/GateWhitelist"
                 },
                 "example": {
-                  "id": "gate_01j7w8a1b2c3d4e5f6g7h8i9j0",
+                  "id": "gat_01j7w8a1b2c3d4e5f6g7h8i9j0",
                   "name": "new_checkout",
                   "attr": "email",
                   "entries": [
@@ -1236,7 +1236,7 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Stable opaque gate id (`gate_…`) or the gate's `name`.",
+            "description": "Stable opaque gate id (`gat_…`) or the gate's `name`.",
             "schema": {
               "$ref": "#/components/schemas/ResourceId"
             }
@@ -1281,7 +1281,7 @@
                   "$ref": "#/components/schemas/GateWhitelist"
                 },
                 "example": {
-                  "id": "gate_01j7w8a1b2c3d4e5f6g7h8i9j0",
+                  "id": "gat_01j7w8a1b2c3d4e5f6g7h8i9j0",
                   "name": "new_checkout",
                   "attr": "email",
                   "entries": [
@@ -1342,7 +1342,7 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Stable opaque gate id (`gate_…`) or the gate's `name`.",
+            "description": "Stable opaque gate id (`gat_…`) or the gate's `name`.",
             "schema": {
               "$ref": "#/components/schemas/ResourceId"
             }
@@ -1377,7 +1377,7 @@
                   "$ref": "#/components/schemas/GateWhitelist"
                 },
                 "example": {
-                  "id": "gate_01j7w8a1b2c3d4e5f6g7h8i9j0",
+                  "id": "gat_01j7w8a1b2c3d4e5f6g7h8i9j0",
                   "name": "new_checkout",
                   "attr": "email",
                   "entries": [
@@ -1843,7 +1843,7 @@
       "patch": {
         "operationId": "updateExperiment",
         "summary": "Update an experiment",
-        "description": "Partial update. `allocation_pct`, `groups`, `salt`, `universe`, `params` are **immutable while running** — returns `409` if you try. Stop the experiment first.\n\nEditing `groups` while in `draft` is fine; weights must still sum to 10000.\n\n**Use cases**\n\n- **Update metadata** — `description`, `tag`, `targeting_gate` editable any time.\n- **Ramp before launch** — set `allocation_pct` while still in `draft`.\n- **Tighten significance** — `significance_threshold` (Pro+).\n- **Rewire groups** — replace `groups` wholesale while in `draft`; immutable once running.",
+        "description": "Partial update. `allocation_pct`, `groups`, `salt`, `universe`, `params` are **immutable while running** — returns `409` if you try. Stop the experiment first.\n\nEditing `groups` while in `draft` is fine; weights must sum to `10000 − reserved_headroom`.\n\n**Use cases**\n\n- **Update metadata** — `description`, `tag`, `targeting_gate` editable any time.\n- **Ramp before launch** — set `allocation_pct` while still in `draft`.\n- **Tighten significance** — `significance_threshold` (Pro+).\n- **Rewire groups** — replace `groups` wholesale while in `draft`; immutable once running.",
         "tags": [
           "Experiments"
         ],
@@ -1878,7 +1878,7 @@
                 },
                 "changeWeights": {
                   "summary": "Change group weights",
-                  "description": "Replace the groups array — weights must still sum to 10000.",
+                  "description": "Replace the groups array — weights must sum to `10000 − reserved_headroom`.",
                   "value": {
                     "groups": [
                       {
@@ -8567,7 +8567,7 @@
       "post": {
         "operationId": "ackOpsItem",
         "summary": "Ack an item (start a run)",
-        "description": "Acknowledge a queue item — a person or an AI agent declaring \"I'm on this\nnow\". Opens a run: stamps who picked the item up and when, assigns them as\nowner, and moves the item into the matching working status\n(`investigating_by_ai` for an AI ack, `in_progress` for a human one). The\ndashboard renders the open run as a live working indicator (which agent +\ntime since the run started).\n\n**AI ack.** Pass `agent` with your own agent type (`claude`, `cursor`,\n`copilot`, `jules`; `gemini` aliases `jules`) and, when you have one, the\nrun's `sessionId` so the dashboard can deep-link to the session. If the\nproject has no connected trigger connector of that type the call fails\nwith `AGENT_NOT_CONNECTED` — list the available agents with `ops agents\nlist` and use one of those (or connect the agent under Settings →\nTriggers).\n\n**Launching.** When the named agent has a connected trigger and you pass\nno `sessionId`, the ack also fires that trigger — a new provider run\nstarts working the item. Pass `launch: false` to only claim the item and\nrecord the run (you are doing the work yourself), without starting one.\nA launch on an item linked to others (see `group` on `ops get`) is only\nallowed on the group's master — any other member answers `409`\n`INVALID_TRANSITION`, naming the master to ack instead.\n\n**Completion.** The run closes automatically on the loop's final actions —\nlinking the fixing PR (`link-pr`), an ops-notify escalation, or a\ncompletion status change (`ready_for_qa`/`resolved`) — and the dashboard\nthen shows the run result (final action, PR, duration, session link).\n\n**One session per item.** An AI ack on an item whose open run belongs to\nanother live agent session answers `409` `ALREADY_EXISTS`, naming that\nrun — skip the item, the other session is working it. Your own run is\nadopted, not refused: re-ack with its `runId` (a fired run's prompt names\nit; a previous ack returned it) or the same `sessionId`. A run a trigger\nfire claimed is adopted by the FIRST session to ack it. A run silent past\nthe stuck-run threshold (6h), or `takeover: true`, is superseded instead.\nA human ack never replaces an open agent run.\n\n**Use case:** Call this first when picking an item up, so the team sees\nwho/what is working on it in real time.",
+        "description": "Acknowledge a queue item — a person or an AI agent declaring \"I'm on this\nnow\". Opens a run: stamps who picked the item up and when, assigns them as\nowner, and moves the item into the matching working status\n(`investigating_by_ai` for an AI ack, `in_progress` for a human one). The\ndashboard renders the open run as a live working indicator (which agent +\ntime since the run started).\n\n**AI ack.** Pass `agent` with your own agent type (`claude`, `cursor`,\n`copilot`, `jules`; `gemini` is also accepted and is normalized to `jules` on receipt) and, when you have one, the\nrun's `sessionId` so the dashboard can deep-link to the session. If the\nproject has no connected trigger connector of that type the call fails\nwith `AGENT_NOT_CONNECTED` — list the available agents with `ops agents\nlist` and use one of those (or connect the agent under Settings →\nTriggers).\n\n**Launching.** When the named agent has a connected trigger and you pass\nno `sessionId`, the ack also fires that trigger — a new provider run\nstarts working the item. Pass `launch: false` to only claim the item and\nrecord the run (you are doing the work yourself), without starting one.\nA launch on an item linked to others (see `group` on `ops get`) is only\nallowed on the group's master — any other member answers `409`\n`INVALID_TRANSITION`, naming the master to ack instead.\n\n**Completion.** The run closes automatically on the loop's final actions —\nlinking the fixing PR (`link-pr`), an ops-notify escalation, or a\ncompletion status change (`ready_for_qa`/`resolved`) — and the dashboard\nthen shows the run result (final action, PR, duration, session link).\n\n**One session per item.** An AI ack on an item whose open run belongs to\nanother live agent session answers `409` `ALREADY_EXISTS`, naming that\nrun — skip the item, the other session is working it. Your own run is\nadopted, not refused: re-ack with its `runId` (a fired run's prompt names\nit; a previous ack returned it) or the same `sessionId`. A run a trigger\nfire claimed is adopted by the FIRST session to ack it. A run silent past\nthe stuck-run threshold (6h), or `takeover: true`, is superseded instead.\nA human ack never replaces an open agent run.\n\n**Use case:** Call this first when picking an item up, so the team sees\nwho/what is working on it in real time.",
         "tags": [
           "Ops"
         ],
@@ -25025,7 +25025,7 @@
               "gemini",
               "jarvis"
             ],
-            "description": "The AI agent type acking on the item's behalf — pass your own type when you are a coding agent (Claude Code passes `claude`, Cursor `cursor`, Copilot `copilot`, Jules/Gemini `jules`). Omit entirely for a human ack by the authenticated caller."
+            "description": "The AI agent type acking on the item's behalf — pass your own type when you are a coding agent (Claude Code passes `claude`, Cursor `cursor`, Copilot `copilot`, Jules `jules`, Gemini `gemini` → normalized to `jules`). Omit entirely for a human ack by the authenticated caller."
           },
           "sessionId": {
             "type": "string",
@@ -25049,7 +25049,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Body for `POST /api/admin/ops/{handle}/ack`. With `agent` set this is an AI ack — the named agent type must have a connected trigger connector in the project, or the call fails with `AGENT_NOT_CONNECTED` and instructions to query the available agents (`ops agents list`). `gemini` is accepted as an alias for `jules`. Without `agent` it is a HUMAN ack by the authenticated caller."
+        "description": "Body for `POST /api/admin/ops/{handle}/ack`. With `agent` set this is an AI ack — the named agent type must have a connected trigger connector in the project, or the call fails with `AGENT_NOT_CONNECTED` and instructions to query the available agents (`ops agents list`). `gemini` is accepted as an input value and is normalized to `jules`. Without `agent` it is a HUMAN ack by the authenticated caller."
       },
       "AckOpsItemResponse": {
         "type": "object",

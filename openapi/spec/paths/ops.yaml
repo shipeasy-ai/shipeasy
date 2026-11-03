@@ -899,7 +899,7 @@
       time since the run started).
 
       **AI ack.** Pass `agent` with your own agent type (`claude`, `cursor`,
-      `copilot`, `jules`; `gemini` aliases `jules`) and, when you have one, the
+      `copilot`, `jules`; `gemini` is also accepted and is normalized to `jules` on receipt) and, when you have one, the
       run's `sessionId` so the dashboard can deep-link to the session. If the
       project has no connected trigger connector of that type the call fails
       with `AGENT_NOT_CONNECTED` — list the available agents with `ops agents

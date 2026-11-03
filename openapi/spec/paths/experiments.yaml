@@ -290,7 +290,7 @@
     description: |-
       Partial update. `allocation_pct`, `groups`, `salt`, `universe`, `params` are **immutable while running** — returns `409` if you try. Stop the experiment first.
 
-      Editing `groups` while in `draft` is fine; weights must still sum to 10000.
+      Editing `groups` while in `draft` is fine; weights must sum to `10000 − reserved_headroom`.
 
       **Use cases**
 
@@ -322,7 +322,7 @@
                 allocation_pct: 5000
             changeWeights:
               summary: Change group weights
-              description: Replace the groups array — weights must still sum to 10000.
+              description: Replace the groups array — weights must sum to `10000 − reserved_headroom`.
               value:
                 groups:
                   - name: control
