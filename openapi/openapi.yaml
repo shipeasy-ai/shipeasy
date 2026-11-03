@@ -7918,7 +7918,7 @@ paths:
         - UNAUTHORIZED
         - FORBIDDEN
         - NOT_FOUND
-        - CONFLICT
+        - INVALID_TRANSITION
         - VALIDATION
       x-cli:
         name: approve
@@ -7979,7 +7979,7 @@ paths:
         - UNAUTHORIZED
         - FORBIDDEN
         - NOT_FOUND
-        - CONFLICT
+        - INVALID_TRANSITION
         - VALIDATION
       x-cli:
         name: review
@@ -8044,7 +8044,7 @@ paths:
         - UNAUTHORIZED
         - FORBIDDEN
         - NOT_FOUND
-        - CONFLICT
+        - INVALID_TRANSITION
         - VALIDATION
       x-cli:
         name: merge

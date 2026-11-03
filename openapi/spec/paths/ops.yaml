@@ -2660,7 +2660,7 @@
       - UNAUTHORIZED
       - FORBIDDEN
       - NOT_FOUND
-      - CONFLICT
+      - INVALID_TRANSITION
       - VALIDATION
     x-cli:
       name: approve
@@ -2721,7 +2721,7 @@
       - UNAUTHORIZED
       - FORBIDDEN
       - NOT_FOUND
-      - CONFLICT
+      - INVALID_TRANSITION
       - VALIDATION
     x-cli:
       name: review
@@ -2786,7 +2786,7 @@
       - UNAUTHORIZED
       - FORBIDDEN
       - NOT_FOUND
-      - CONFLICT
+      - INVALID_TRANSITION
       - VALIDATION
     x-cli:
       name: merge

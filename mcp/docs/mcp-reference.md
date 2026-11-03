@@ -3189,7 +3189,7 @@ _Errors_ — beyond the [common errors](#errors):
 
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
-- `CONFLICT` —
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
 - `VALIDATION` — The request body failed structural (schema) validation.
 
 #### `ops_trails_get`
@@ -3247,7 +3247,7 @@ _Errors_ — beyond the [common errors](#errors):
 
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
-- `CONFLICT` —
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
 - `VALIDATION` — The request body failed structural (schema) validation.
 
 #### `ops_trails_review`
@@ -3274,7 +3274,7 @@ _Errors_ — beyond the [common errors](#errors):
 
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
-- `CONFLICT` —
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
 - `VALIDATION` — The request body failed structural (schema) validation.
 
 #### `ops_trails_submit_eval`

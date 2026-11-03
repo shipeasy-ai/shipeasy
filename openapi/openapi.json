@@ -10594,7 +10594,7 @@
           "UNAUTHORIZED",
           "FORBIDDEN",
           "NOT_FOUND",
-          "CONFLICT",
+          "INVALID_TRANSITION",
           "VALIDATION"
         ],
         "x-cli": {
@@ -10677,7 +10677,7 @@
           "UNAUTHORIZED",
           "FORBIDDEN",
           "NOT_FOUND",
-          "CONFLICT",
+          "INVALID_TRANSITION",
           "VALIDATION"
         ],
         "x-cli": {
@@ -10761,7 +10761,7 @@
           "UNAUTHORIZED",
           "FORBIDDEN",
           "NOT_FOUND",
-          "CONFLICT",
+          "INVALID_TRANSITION",
           "VALIDATION"
         ],
         "x-cli": {
