@@ -967,7 +967,7 @@ paths:
         - name: id
           in: path
           required: true
-          description: Stable opaque gate id (`gate_…`) or the gate's `name`.
+          description: Stable opaque gate id (`gat_…`) or the gate's `name`.
           schema:
             $ref: '#/components/schemas/ResourceId'
       responses:
@@ -978,7 +978,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/GateWhitelist'
               example:
-                id: gate_01j7w8a1b2c3d4e5f6g7h8i9j0
+                id: gat_01j7w8a1b2c3d4e5f6g7h8i9j0
                 name: new_checkout
                 attr: email
                 entries:
@@ -1025,7 +1025,7 @@ paths:
         - name: id
           in: path
           required: true
-          description: Stable opaque gate id (`gate_…`) or the gate's `name`.
+          description: Stable opaque gate id (`gat_…`) or the gate's `name`.
           schema:
             $ref: '#/components/schemas/ResourceId'
       requestBody:
@@ -1061,7 +1061,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/GateWhitelist'
               example:
-                id: gate_01j7w8a1b2c3d4e5f6g7h8i9j0
+                id: gat_01j7w8a1b2c3d4e5f6g7h8i9j0
                 name: new_checkout
                 attr: email
                 entries:
@@ -1105,7 +1105,7 @@ paths:
         - name: id
           in: path
           required: true
-          description: Stable opaque gate id (`gate_…`) or the gate's `name`.
+          description: Stable opaque gate id (`gat_…`) or the gate's `name`.
           schema:
             $ref: '#/components/schemas/ResourceId'
       requestBody:
@@ -1135,7 +1135,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/GateWhitelist'
               example:
-                id: gate_01j7w8a1b2c3d4e5f6g7h8i9j0
+                id: gat_01j7w8a1b2c3d4e5f6g7h8i9j0
                 name: new_checkout
                 attr: email
                 entries:
@@ -1181,7 +1181,7 @@ paths:
         - name: id
           in: path
           required: true
-          description: Stable opaque gate id (`gate_…`) or the gate's `name`.
+          description: Stable opaque gate id (`gat_…`) or the gate's `name`.
           schema:
             $ref: '#/components/schemas/ResourceId'
       requestBody:
@@ -1204,7 +1204,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/GateWhitelist'
               example:
-                id: gate_01j7w8a1b2c3d4e5f6g7h8i9j0
+                id: gat_01j7w8a1b2c3d4e5f6g7h8i9j0
                 name: new_checkout
                 attr: email
                 entries:
@@ -1530,7 +1530,7 @@ paths:
       description: |-
         Partial update. `allocation_pct`, `groups`, `salt`, `universe`, `params` are **immutable while running** — returns `409` if you try. Stop the experiment first.
 
-        Editing `groups` while in `draft` is fine; weights must still sum to 10000.
+        Editing `groups` while in `draft` is fine; weights must sum to `10000 − reserved_headroom`.
 
         **Use cases**
 
@@ -1562,7 +1562,7 @@ paths:
                   allocation_pct: 5000
               changeWeights:
                 summary: Change group weights
-                description: Replace the groups array — weights must still sum to 10000.
+                description: Replace the groups array — weights must sum to `10000 − reserved_headroom`.
                 value:
                   groups:
                     - name: control
@@ -6331,7 +6331,7 @@ paths:
         time since the run started).
 
         **AI ack.** Pass `agent` with your own agent type (`claude`, `cursor`,
-        `copilot`, `jules`; `gemini` aliases `jules`) and, when you have one, the
+        `copilot`, `jules`; `gemini` is also accepted and is normalized to `jules` on receipt) and, when you have one, the
         run's `sessionId` so the dashboard can deep-link to the session. If the
         project has no connected trigger connector of that type the call fails
         with `AGENT_NOT_CONNECTED` — list the available agents with `ops agents
@@ -17945,7 +17945,7 @@ components:
             - jules
             - gemini
             - jarvis
-          description: The AI agent type acking on the item's behalf — pass your own type when you are a coding agent (Claude Code passes `claude`, Cursor `cursor`, Copilot `copilot`, Jules/Gemini `jules`). Omit entirely for a human ack by the authenticated caller.
+          description: The AI agent type acking on the item's behalf — pass your own type when you are a coding agent (Claude Code passes `claude`, Cursor `cursor`, Copilot `copilot`, Jules `jules`, Gemini `gemini` → normalized to `jules`). Omit entirely for a human ack by the authenticated caller.
         sessionId:
           type: string
           maxLength: 300
@@ -17963,7 +17963,7 @@ components:
           default: false
           description: Replace another session's LIVE run on the item instead of being refused with `409` `ALREADY_EXISTS`. Only when you were asked to replace that session — two sessions on one item each open their own PR.
       additionalProperties: false
-      description: Body for `POST /api/admin/ops/{handle}/ack`. With `agent` set this is an AI ack — the named agent type must have a connected trigger connector in the project, or the call fails with `AGENT_NOT_CONNECTED` and instructions to query the available agents (`ops agents list`). `gemini` is accepted as an alias for `jules`. Without `agent` it is a HUMAN ack by the authenticated caller.
+      description: Body for `POST /api/admin/ops/{handle}/ack`. With `agent` set this is an AI ack — the named agent type must have a connected trigger connector in the project, or the call fails with `AGENT_NOT_CONNECTED` and instructions to query the available agents (`ops agents list`). `gemini` is accepted as an input value and is normalized to `jules`. Without `agent` it is a HUMAN ack by the authenticated caller.
     AckOpsItemResponse:
       type: object
       properties:

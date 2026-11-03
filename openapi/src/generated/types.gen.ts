@@ -4901,11 +4901,11 @@ export type OpsItemGroupResponse = {
 };
 
 /**
- * Body for `POST /api/admin/ops/{handle}/ack`. With `agent` set this is an AI ack — the named agent type must have a connected trigger connector in the project, or the call fails with `AGENT_NOT_CONNECTED` and instructions to query the available agents (`ops agents list`). `gemini` is accepted as an alias for `jules`. Without `agent` it is a HUMAN ack by the authenticated caller.
+ * Body for `POST /api/admin/ops/{handle}/ack`. With `agent` set this is an AI ack — the named agent type must have a connected trigger connector in the project, or the call fails with `AGENT_NOT_CONNECTED` and instructions to query the available agents (`ops agents list`). `gemini` is accepted as an input value and is normalized to `jules`. Without `agent` it is a HUMAN ack by the authenticated caller.
  */
 export type AckOpsItemRequest = {
     /**
-     * The AI agent type acking on the item's behalf — pass your own type when you are a coding agent (Claude Code passes `claude`, Cursor `cursor`, Copilot `copilot`, Jules/Gemini `jules`). Omit entirely for a human ack by the authenticated caller.
+     * The AI agent type acking on the item's behalf — pass your own type when you are a coding agent (Claude Code passes `claude`, Cursor `cursor`, Copilot `copilot`, Jules `jules`, Gemini `gemini` → normalized to `jules`). Omit entirely for a human ack by the authenticated caller.
      */
     agent?: 'claude' | 'cursor' | 'copilot' | 'jules' | 'gemini' | 'jarvis';
     /**
@@ -8799,7 +8799,7 @@ export type RemoveFromGateWhitelistData = {
     };
     path: {
         /**
-         * Stable opaque gate id (`gate_…`) or the gate's `name`.
+         * Stable opaque gate id (`gat_…`) or the gate's `name`.
          */
         id: ResourceId;
     };
@@ -8855,7 +8855,7 @@ export type GetGateWhitelistData = {
     };
     path: {
         /**
-         * Stable opaque gate id (`gate_…`) or the gate's `name`.
+         * Stable opaque gate id (`gat_…`) or the gate's `name`.
          */
         id: ResourceId;
     };
@@ -8911,7 +8911,7 @@ export type AddToGateWhitelistData = {
     };
     path: {
         /**
-         * Stable opaque gate id (`gate_…`) or the gate's `name`.
+         * Stable opaque gate id (`gat_…`) or the gate's `name`.
          */
         id: ResourceId;
     };
@@ -8967,7 +8967,7 @@ export type SetGateWhitelistData = {
     };
     path: {
         /**
-         * Stable opaque gate id (`gate_…`) or the gate's `name`.
+         * Stable opaque gate id (`gat_…`) or the gate's `name`.
          */
         id: ResourceId;
     };
