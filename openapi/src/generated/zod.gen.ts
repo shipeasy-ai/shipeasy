@@ -4317,7 +4317,9 @@ export const zSearchHit = z.object({
         'config',
         'killswitch',
         'metric',
-        'ops'
+        'ops',
+        'error',
+        'change'
     ]),
     id: z.string(),
     name: z.string(),
