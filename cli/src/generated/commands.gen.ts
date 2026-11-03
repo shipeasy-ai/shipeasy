@@ -213,10 +213,11 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   g_ops.command("link-pr")
     .description("Link a fixing PR")
     .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id.")
-    .option("--pr-number <value>", "PR number to record on the item. `null` unlinks the PR.")
+    .option("--pr-number <value>", "PR number to ADD to the item's linked PRs (re-linking one already linked is a no-op). `null` unlinks EVERY PR on the item.")
     .option("--pr-url <value>", "Explicit PR URL. Required for error/alert tickets (no GitHub issue to derive the URL from).")
+    .option("--unlink <value>", "Remove just this PR (`prNumber`, or `prUrl` when given) from the item instead of adding it.")
     .action(async (handle, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.linkPrToOpsItem({ client, path: { handle: handle }, body: clean({ prNumber: num(opts.prNumber), prUrl: str(opts.prUrl) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.linkPrToOpsItem({ client, path: { handle: handle }, body: clean({ prNumber: num(opts.prNumber), prUrl: str(opts.prUrl), unlink: bool(opts.unlink) }) }) });
     });
   g_ops.command("links")
     .description("Link related items")
@@ -243,8 +244,10 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--agent <value>", "The AI agent type acking on the item's behalf — pass your own type when you are a coding agent (Claude Code passes `claude`, Cursor `cursor`, Copilot `copilot`, Jules/Gemini `jules`). Omit entirely for a human ack by the authenticated caller.")
     .option("--session-id <value>", "The agent-run session id (e.g. Claude's `session_01…`), so the dashboard can deep-link to the exact run page. Omit when the harness has no session id.")
     .option("--launch <value>", "Whether an AI ack may FIRE the agent's connected trigger. Default `true`: an ack naming a connected agent, with no `sessionId`, starts a new provider run of that agent. Pass `false` to only record the ack — claim the item and open the run record — without starting anything, e.g. when you ARE that agent working the item yourself and have no session id to pass. Ignored on a human ack.")
+    .option("--run-id <value>", "The run you were handed — the investigation id a fired run's prompt names, or the `runId` an earlier ack returned. Proves the open run is yours, so the ack adopts it instead of answering `409` `ALREADY_EXISTS`.")
+    .option("--takeover <value>", "Replace another session's LIVE run on the item instead of being refused with `409` `ALREADY_EXISTS`. Only when you were asked to replace that session — two sessions on one item each open their own PR.")
     .action(async (handle, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.ackOpsItem({ client, path: { handle: handle }, body: clean({ agent: str(opts.agent), sessionId: str(opts.sessionId), launch: bool(opts.launch) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.ackOpsItem({ client, path: { handle: handle }, body: clean({ agent: str(opts.agent), sessionId: str(opts.sessionId), launch: bool(opts.launch), runId: str(opts.runId), takeover: bool(opts.takeover) }) }) });
     });
   g_ops.command("notify")
     .description("Raise an attention notification")

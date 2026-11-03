@@ -3735,7 +3735,7 @@ export type GithubPrLink = {
 };
 
 /**
- * GitHub connector trace — the issue it opened and, once linked, the pull request.
+ * GitHub connector trace — the issue it opened and, once linked, the pull requests.
  */
 export type GithubConnectorData = {
     /**
@@ -3764,7 +3764,14 @@ export type GithubConnectorData = {
         createdAt?: string;
         [key: string]: unknown;
     };
+    /**
+     * The item's PRIMARY linked pull request, derived from `prs`: the newest still-open one, else the newest merged one, else the newest closed one. Kept for readers that show one PR; `prs` is the full list.
+     */
     pr?: GithubPrLink;
+    /**
+     * Every pull request linked to the item, oldest link first — an item can legitimately take several PRs (a fix split across repos, a follow-up). Absent on items linked before multi-PR support; `pr` then is the only one.
+     */
+    prs?: Array<GithubPrLink>;
     [key: string]: unknown;
 };
 
@@ -4782,13 +4789,17 @@ export type UpdateOpsItemResponse = {
  */
 export type LinkPrToOpsItemRequest = {
     /**
-     * PR number to record on the item. `null` unlinks the PR.
+     * PR number to ADD to the item's linked PRs (re-linking one already linked is a no-op). `null` unlinks EVERY PR on the item.
      */
     prNumber: number | null;
     /**
      * Explicit PR URL. Required for error/alert tickets (no GitHub issue to derive the URL from).
      */
     prUrl?: string;
+    /**
+     * Remove just this PR (`prNumber`, or `prUrl` when given) from the item instead of adding it.
+     */
+    unlink?: boolean;
 };
 
 /**
@@ -4800,9 +4811,13 @@ export type LinkPrToOpsItemResponse = {
      */
     id: string;
     /**
-     * The PR link now recorded on the item (`connectorData.github.pr`), or `null` after an unlink (`prNumber: null`).
+     * The item's primary PR link after the write (`connectorData.github.pr`), or `null` when no PR is linked any more.
      */
     pr: GithubPrLink | null;
+    /**
+     * Every PR now linked to the item (`connectorData.github.prs`), oldest first.
+     */
+    prs: Array<GithubPrLink>;
 };
 
 /**
@@ -4901,6 +4916,14 @@ export type AckOpsItemRequest = {
      * Whether an AI ack may FIRE the agent's connected trigger. Default `true`: an ack naming a connected agent, with no `sessionId`, starts a new provider run of that agent. Pass `false` to only record the ack — claim the item and open the run record — without starting anything, e.g. when you ARE that agent working the item yourself and have no session id to pass. Ignored on a human ack.
      */
     launch?: boolean;
+    /**
+     * The run you were handed — the investigation id a fired run's prompt names, or the `runId` an earlier ack returned. Proves the open run is yours, so the ack adopts it instead of answering `409` `ALREADY_EXISTS`.
+     */
+    runId?: string;
+    /**
+     * Replace another session's LIVE run on the item instead of being refused with `409` `ALREADY_EXISTS`. Only when you were asked to replace that session — two sessions on one item each open their own PR.
+     */
+    takeover?: boolean;
 };
 
 /**

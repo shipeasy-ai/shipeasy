@@ -8255,7 +8255,7 @@
       "post": {
         "operationId": "linkPrToOpsItem",
         "summary": "Link a fixing PR",
-        "description": "Record the pull request that fixes a queue item (and clears the link with `prNumber: null`).\n\n**Use case:** Tie the fixing PR to the item so closing the PR can flip it to ready_for_qa.",
+        "description": "Record a pull request that fixes a queue item. An item can carry several\nPRs: each call ADDS one (re-linking a linked PR is a no-op), `unlink: true`\nremoves one, and `prNumber: null` clears them all. `connectorData.github.prs`\nlists them; `github.pr` is the primary one (newest open, else newest merged).\n\n**Use case:** Tie the fixing PR to the item so closing the PR can flip it to ready_for_qa.",
         "tags": [
           "Ops"
         ],
@@ -8567,7 +8567,7 @@
       "post": {
         "operationId": "ackOpsItem",
         "summary": "Ack an item (start a run)",
-        "description": "Acknowledge a queue item — a person or an AI agent declaring \"I'm on this\nnow\". Opens a run: stamps who picked the item up and when, assigns them as\nowner, and moves the item into the matching working status\n(`investigating_by_ai` for an AI ack, `in_progress` for a human one). The\ndashboard renders the open run as a live working indicator (which agent +\ntime since the run started).\n\n**AI ack.** Pass `agent` with your own agent type (`claude`, `cursor`,\n`copilot`, `jules`; `gemini` aliases `jules`) and, when you have one, the\nrun's `sessionId` so the dashboard can deep-link to the session. If the\nproject has no connected trigger connector of that type the call fails\nwith `AGENT_NOT_CONNECTED` — list the available agents with `ops agents\nlist` and use one of those (or connect the agent under Settings →\nTriggers).\n\n**Launching.** When the named agent has a connected trigger and you pass\nno `sessionId`, the ack also fires that trigger — a new provider run\nstarts working the item. Pass `launch: false` to only claim the item and\nrecord the run (you are doing the work yourself), without starting one.\nA launch on an item linked to others (see `group` on `ops get`) is only\nallowed on the group's master — any other member answers `409`\n`INVALID_TRANSITION`, naming the master to ack instead.\n\n**Completion.** The run closes automatically on the loop's final actions —\nlinking the fixing PR (`link-pr`), an ops-notify escalation, or a\ncompletion status change (`ready_for_qa`/`resolved`) — and the dashboard\nthen shows the run result (final action, PR, duration, session link).\nA repeat ack supersedes the previous open run.\n\n**Use case:** Call this first when picking an item up, so the team sees\nwho/what is working on it in real time.",
+        "description": "Acknowledge a queue item — a person or an AI agent declaring \"I'm on this\nnow\". Opens a run: stamps who picked the item up and when, assigns them as\nowner, and moves the item into the matching working status\n(`investigating_by_ai` for an AI ack, `in_progress` for a human one). The\ndashboard renders the open run as a live working indicator (which agent +\ntime since the run started).\n\n**AI ack.** Pass `agent` with your own agent type (`claude`, `cursor`,\n`copilot`, `jules`; `gemini` aliases `jules`) and, when you have one, the\nrun's `sessionId` so the dashboard can deep-link to the session. If the\nproject has no connected trigger connector of that type the call fails\nwith `AGENT_NOT_CONNECTED` — list the available agents with `ops agents\nlist` and use one of those (or connect the agent under Settings →\nTriggers).\n\n**Launching.** When the named agent has a connected trigger and you pass\nno `sessionId`, the ack also fires that trigger — a new provider run\nstarts working the item. Pass `launch: false` to only claim the item and\nrecord the run (you are doing the work yourself), without starting one.\nA launch on an item linked to others (see `group` on `ops get`) is only\nallowed on the group's master — any other member answers `409`\n`INVALID_TRANSITION`, naming the master to ack instead.\n\n**Completion.** The run closes automatically on the loop's final actions —\nlinking the fixing PR (`link-pr`), an ops-notify escalation, or a\ncompletion status change (`ready_for_qa`/`resolved`) — and the dashboard\nthen shows the run result (final action, PR, duration, session link).\n\n**One session per item.** An AI ack on an item whose open run belongs to\nanother live agent session answers `409` `ALREADY_EXISTS`, naming that\nrun — skip the item, the other session is working it. Your own run is\nadopted, not refused: re-ack with its `runId` (a fired run's prompt names\nit; a previous ack returned it) or the same `sessionId`. A run a trigger\nfire claimed is adopted by the FIRST session to ack it. A run silent past\nthe stuck-run threshold (6h), or `takeover: true`, is superseded instead.\nA human ack never replaces an open agent run.\n\n**Use case:** Call this first when picking an item up, so the team sees\nwho/what is working on it in real time.",
         "tags": [
           "Ops"
         ],
@@ -8644,6 +8644,7 @@
           "UNAUTHORIZED",
           "FORBIDDEN",
           "NOT_FOUND",
+          "ALREADY_EXISTS",
           "AGENT_NOT_CONNECTED",
           "INVALID_TRANSITION",
           "VALIDATION"
@@ -22731,11 +22732,19 @@
             "description": "The GitHub issue this item opened."
           },
           "pr": {
-            "$ref": "#/components/schemas/GithubPrLink"
+            "$ref": "#/components/schemas/GithubPrLink",
+            "description": "The item's PRIMARY linked pull request, derived from `prs`: the newest still-open one, else the newest merged one, else the newest closed one. Kept for readers that show one PR; `prs` is the full list."
+          },
+          "prs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GithubPrLink"
+            },
+            "description": "Every pull request linked to the item, oldest link first — an item can legitimately take several PRs (a fix split across repos, a follow-up). Absent on items linked before multi-PR support; `pr` then is the only one."
           }
         },
         "additionalProperties": {},
-        "description": "GitHub connector trace — the issue it opened and, once linked, the pull request."
+        "description": "GitHub connector trace — the issue it opened and, once linked, the pull requests."
       },
       "SlackConnectorData": {
         "type": "object",
@@ -24804,12 +24813,17 @@
                 "type": "null"
               }
             ],
-            "description": "PR number to record on the item. `null` unlinks the PR."
+            "description": "PR number to ADD to the item's linked PRs (re-linking one already linked is a no-op). `null` unlinks EVERY PR on the item."
           },
           "prUrl": {
             "description": "Explicit PR URL. Required for error/alert tickets (no GitHub issue to derive the URL from).",
             "type": "string",
             "format": "uri"
+          },
+          "unlink": {
+            "type": "boolean",
+            "default": false,
+            "description": "Remove just this PR (`prNumber`, or `prUrl` when given) from the item instead of adding it."
           }
         },
         "required": [
@@ -24834,12 +24848,20 @@
                 "type": "null"
               }
             ],
-            "description": "The PR link now recorded on the item (`connectorData.github.pr`), or `null` after an unlink (`prNumber: null`)."
+            "description": "The item's primary PR link after the write (`connectorData.github.pr`), or `null` when no PR is linked any more."
+          },
+          "prs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GithubPrLink"
+            },
+            "description": "Every PR now linked to the item (`connectorData.github.prs`), oldest first."
           }
         },
         "required": [
           "id",
-          "pr"
+          "pr",
+          "prs"
         ],
         "additionalProperties": false,
         "description": "Response for `POST /api/admin/ops/{handle}/link-pr` — the item id and the resulting PR link."
@@ -25014,6 +25036,16 @@
             "type": "boolean",
             "default": true,
             "description": "Whether an AI ack may FIRE the agent's connected trigger. Default `true`: an ack naming a connected agent, with no `sessionId`, starts a new provider run of that agent. Pass `false` to only record the ack — claim the item and open the run record — without starting anything, e.g. when you ARE that agent working the item yourself and have no session id to pass. Ignored on a human ack."
+          },
+          "runId": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "The run you were handed — the investigation id a fired run's prompt names, or the `runId` an earlier ack returned. Proves the open run is yours, so the ack adopts it instead of answering `409` `ALREADY_EXISTS`."
+          },
+          "takeover": {
+            "type": "boolean",
+            "default": false,
+            "description": "Replace another session's LIVE run on the item instead of being refused with `409` `ALREADY_EXISTS`. Only when you were asked to replace that session — two sessions on one item each open their own PR."
           }
         },
         "additionalProperties": false,

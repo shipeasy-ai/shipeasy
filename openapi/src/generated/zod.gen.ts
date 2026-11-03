@@ -2019,7 +2019,7 @@ export const zGithubPrLink = z.object({
 });
 
 /**
- * GitHub connector trace — the issue it opened and, once linked, the pull request.
+ * GitHub connector trace — the issue it opened and, once linked, the pull requests.
  */
 export const zGithubConnectorData = z.object({
     issue: z.object({
@@ -2029,7 +2029,8 @@ export const zGithubConnectorData = z.object({
         repo: z.string(),
         createdAt: z.string().optional()
     }).optional(),
-    pr: zGithubPrLink.optional()
+    pr: zGithubPrLink.optional(),
+    prs: z.array(zGithubPrLink).optional()
 });
 
 /**
@@ -2498,7 +2499,8 @@ export const zUpdateOpsItemResponse = z.object({
  */
 export const zLinkPrToOpsItemRequest = z.object({
     prNumber: z.int().gt(0).lte(9007199254740991).nullable(),
-    prUrl: z.url().optional()
+    prUrl: z.url().optional(),
+    unlink: z.boolean().optional().default(false)
 });
 
 /**
@@ -2506,7 +2508,8 @@ export const zLinkPrToOpsItemRequest = z.object({
  */
 export const zLinkPrToOpsItemResponse = z.object({
     id: z.string(),
-    pr: zGithubPrLink.nullable()
+    pr: zGithubPrLink.nullable(),
+    prs: z.array(zGithubPrLink)
 });
 
 /**
@@ -2566,7 +2569,9 @@ export const zAckOpsItemRequest = z.object({
         'jarvis'
     ]).optional(),
     sessionId: z.string().max(300).optional(),
-    launch: z.boolean().optional().default(true)
+    launch: z.boolean().optional().default(true),
+    runId: z.string().max(100).optional(),
+    takeover: z.boolean().optional().default(false)
 });
 
 /**

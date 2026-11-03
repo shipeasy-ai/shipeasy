@@ -2014,7 +2014,15 @@ allowed on the group's master — any other member answers `409`
 linking the fixing PR (`link-pr`), an ops-notify escalation, or a
 completion status change (`ready_for_qa`/`resolved`) — and the dashboard
 then shows the run result (final action, PR, duration, session link).
-A repeat ack supersedes the previous open run.
+
+**One session per item.** An AI ack on an item whose open run belongs to
+another live agent session answers `409` `ALREADY_EXISTS`, naming that
+run — skip the item, the other session is working it. Your own run is
+adopted, not refused: re-ack with its `runId` (a fired run's prompt names
+it; a previous ack returned it) or the same `sessionId`. A run a trigger
+fire claimed is adopted by the FIRST session to ack it. A run silent past
+the stuck-run threshold (6h), or `takeover: true`, is superseded instead.
+A human ack never replaces an open agent run.
 
 **Use case:** Call this first when picking an item up, so the team sees
 who/what is working on it in real time.
@@ -2027,11 +2035,14 @@ _Parameters_
 | `agent` | optional | `"claude" \| "cursor" \| "copilot" \| "jules" \| "gemini" \| "jarvis"` | The AI agent type acking on the item's behalf — pass your own type when you are a coding agent (Claude Code passes `claude`, Cursor `cursor`, Copilot `copilot`, Jules/Gemini `jules`). Omit entirely for a human ack by the authenticated caller. |
 | `sessionId` | optional | `string` | The agent-run session id (e.g. Claude's `session_01…`), so the dashboard can deep-link to the exact run page. Omit when the harness has no session id. _(length 0–300)_ |
 | `launch` | optional | `boolean` | Whether an AI ack may FIRE the agent's connected trigger. Default `true`: an ack naming a connected agent, with no `sessionId`, starts a new provider run of that agent. Pass `false` to only record the ack — claim the item and open the run record — without starting anything, e.g. when you ARE that agent working the item yourself and have no session id to pass. Ignored on a human ack. _(default `true`)_ |
+| `runId` | optional | `string` | The run you were handed — the investigation id a fired run's prompt names, or the `runId` an earlier ack returned. Proves the open run is yours, so the ack adopts it instead of answering `409` `ALREADY_EXISTS`. _(length 0–100)_ |
+| `takeover` | optional | `boolean` | Replace another session's LIVE run on the item instead of being refused with `409` `ALREADY_EXISTS`. Only when you were asked to replace that session — two sessions on one item each open their own PR. _(default `false`)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `ALREADY_EXISTS` — A resource with this name already exists in the project.
 - `AGENT_NOT_CONNECTED` — The named AI agent type has no connected trigger connector in this project — list the available agents (`ops agents list` / `GET /api/admin/agent-profiles`) and use one of those, or connect the agent under Settings → Triggers.
 - `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
 - `VALIDATION` — The request body failed structural (schema) validation.
@@ -2263,7 +2274,10 @@ _Errors_ — beyond the [common errors](#errors):
 
 **Link a fixing PR**
 
-Record the pull request that fixes a queue item (and clears the link with `prNumber: null`).
+Record a pull request that fixes a queue item. An item can carry several
+PRs: each call ADDS one (re-linking a linked PR is a no-op), `unlink: true`
+removes one, and `prNumber: null` clears them all. `connectorData.github.prs`
+lists them; `github.pr` is the primary one (newest open, else newest merged).
 
 **Use case:** Tie the fixing PR to the item so closing the PR can flip it to ready_for_qa.
 
@@ -2272,8 +2286,9 @@ _Parameters_
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
 | `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
-| `prNumber` | required | `any` | PR number to record on the item. `null` unlinks the PR. |
+| `prNumber` | required | `any` | PR number to ADD to the item's linked PRs (re-linking one already linked is a no-op). `null` unlinks EVERY PR on the item. |
 | `prUrl` | optional | `string` | Explicit PR URL. Required for error/alert tickets (no GitHub issue to derive the URL from). _(format: uri)_ |
+| `unlink` | optional | `boolean` | Remove just this PR (`prNumber`, or `prUrl` when given) from the item instead of adding it. _(default `false`)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 

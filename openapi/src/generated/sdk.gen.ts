@@ -1371,7 +1371,10 @@ export const updateOpsItem = <ThrowOnError extends boolean = false>(options: Opt
 /**
  * Link a fixing PR
  *
- * Record the pull request that fixes a queue item (and clears the link with `prNumber: null`).
+ * Record a pull request that fixes a queue item. An item can carry several
+ * PRs: each call ADDS one (re-linking a linked PR is a no-op), `unlink: true`
+ * removes one, and `prNumber: null` clears them all. `connectorData.github.prs`
+ * lists them; `github.pr` is the primary one (newest open, else newest merged).
  *
  * **Use case:** Tie the fixing PR to the item so closing the PR can flip it to ready_for_qa.
  */
@@ -1460,7 +1463,15 @@ export const updateOpsGroup = <ThrowOnError extends boolean = false>(options: Op
  * linking the fixing PR (`link-pr`), an ops-notify escalation, or a
  * completion status change (`ready_for_qa`/`resolved`) — and the dashboard
  * then shows the run result (final action, PR, duration, session link).
- * A repeat ack supersedes the previous open run.
+ *
+ * **One session per item.** An AI ack on an item whose open run belongs to
+ * another live agent session answers `409` `ALREADY_EXISTS`, naming that
+ * run — skip the item, the other session is working it. Your own run is
+ * adopted, not refused: re-ack with its `runId` (a fired run's prompt names
+ * it; a previous ack returned it) or the same `sessionId`. A run a trigger
+ * fire claimed is adopted by the FIRST session to ack it. A run silent past
+ * the stuck-run threshold (6h), or `takeover: true`, is superseded instead.
+ * A human ack never replaces an open agent run.
  *
  * **Use case:** Call this first when picking an item up, so the team sees
  * who/what is working on it in real time.

@@ -1290,8 +1290,9 @@ shipeasy ops link-pr [options] <handle>
 
 | Option | | Description |
 | --- | --- | --- |
-| `--pr-number <value>` | optional | PR number to record on the item. `null` unlinks the PR. |
+| `--pr-number <value>` | optional | PR number to ADD to the item's linked PRs (re-linking one already linked is a no-op). `null` unlinks EVERY PR on the item. |
 | `--pr-url <value>` | optional | Explicit PR URL. Required for error/alert tickets (no GitHub issue to derive the URL from). |
+| `--unlink <value>` | optional | Remove just this PR (`prNumber`, or `prUrl` when given) from the item instead of adding it. |
 
 ### `shipeasy ops links`
 
@@ -1347,6 +1348,8 @@ shipeasy ops ack [options] <handle>
 | `--agent <value>` | optional | The AI agent type acking on the item's behalf — pass your own type when you are a coding agent (Claude Code passes `claude`, Cursor `cursor`, Copilot `copilot`, Jules/Gemini `jules`). Omit entirely for a human ack by the authenticated caller. |
 | `--session-id <value>` | optional | The agent-run session id (e.g. Claude's `session_01…`), so the dashboard can deep-link to the exact run page. Omit when the harness has no session id. |
 | `--launch <value>` | optional | Whether an AI ack may FIRE the agent's connected trigger. Default `true`: an ack naming a connected agent, with no `sessionId`, starts a new provider run of that agent. Pass `false` to only record the ack — claim the item and open the run record — without starting anything, e.g. when you ARE that agent working the item yourself and have no session id to pass. Ignored on a human ack. |
+| `--run-id <value>` | optional | The run you were handed — the investigation id a fired run's prompt names, or the `runId` an earlier ack returned. Proves the open run is yours, so the ack adopts it instead of answering `409` `ALREADY_EXISTS`. |
+| `--takeover <value>` | optional | Replace another session's LIVE run on the item instead of being refused with `409` `ALREADY_EXISTS`. Only when you were asked to replace that session — two sessions on one item each open their own PR. |
 
 ### `shipeasy ops notify`
 
