@@ -210,7 +210,7 @@ async function probeGates() {
   console.log(`::group::Rollout distribution (cohort=${COHORT})`);
   for (const g of pure) {
     const p = g.rolloutPct / 10000;
-    const pass = responses.reduce((n, r) => n + (r.flags?.[g.name] === true ? 1 : 0), 0);
+    const pass = responses.reduce((n, r) => n + (r.flags?.[edgeKey(g)] === true ? 1 : 0), 0);
     const rate = pass / responses.length;
 
     // Deterministic edges; otherwise a ~4σ binomial band (floored at 1pt). The
@@ -308,7 +308,7 @@ async function probeReferenceGates() {
     let admits = 0;
     let violations = 0;
     for (const r of responses) {
-      if (r.flags?.[gate.name] !== true) continue;
+      if (r.flags?.[edgeKey(gate)] !== true) continue;
       admits++;
       if (ref.op === "gate_pass") {
         if (r.flags?.[ref.value] !== true) violations++;
@@ -382,17 +382,17 @@ async function probeAutoFieldGates() {
     // FAIL direction holds regardless of rollout: a non-matching attr can never
     // satisfy the rule, so the gate must be false.
     const noRes = await evaluate({ user_id: uid, [attr]: noMatch });
-    const failOk = noRes.flags?.[g.name] !== true;
+    const failOk = noRes.flags?.[edgeKey(g)] !== true;
     // PASS direction only at 100% rollout (bucketing could otherwise deny a
     // match); skip regex since we don't synthesize a string for arbitrary patterns.
     let passOk = true;
     let passNote = "pass-dir skipped";
     if (match != null && g.rolloutPct === 10000) {
       const yesRes = await evaluate({ user_id: uid, [attr]: match });
-      passOk = yesRes.flags?.[g.name] === true;
-      passNote = `match→${yesRes.flags?.[g.name] === true}`;
+      passOk = yesRes.flags?.[edgeKey(g)] === true;
+      passNote = `match→${yesRes.flags?.[edgeKey(g)] === true}`;
     }
-    const line = `gate ${g.name} (${attr} ${op} "${value}"): non-match→${noRes.flags?.[g.name] === true ? "PASS!(bad)" : "deny"}, ${passNote}`;
+    const line = `gate ${g.name} (${attr} ${op} "${value}"): non-match→${noRes.flags?.[edgeKey(g)] === true ? "PASS!(bad)" : "deny"}, ${passNote}`;
     if (failOk && passOk) ok(line);
     else {
       annotate(`auto-field drift — ${line}`);
@@ -473,7 +473,7 @@ async function probeTemplateGates() {
   const nonFlags = await evalFor(NONMEMBER);
   for (const g of tmpl) {
     // Non-member must always be denied (targeting rule fails).
-    if (nonFlags[g.name] === true) {
+    if (nonFlags[edgeKey(g)] === true) {
       annotate(`template gate ${g.name}: non-member (${NONMEMBER}) ADMITTED — targeting leak`);
       failed++;
     } else {
@@ -481,7 +481,7 @@ async function probeTemplateGates() {
     }
     // Member: pass expected only when the gate is fully rolled out.
     if (g.rolloutPct === 10000) {
-      if (memberFlags[g.name] === true) {
+      if (memberFlags[edgeKey(g)] === true) {
         ok(`template gate ${g.name}: member (${MEMBER}) admitted`);
       } else {
         annotate(
@@ -491,7 +491,7 @@ async function probeTemplateGates() {
       }
     } else {
       console.log(
-        `  ${g.name}: member=${memberFlags[g.name]} (rollout ${g.rolloutPct / 100}%, not hard-asserted)`,
+        `  ${g.name}: member=${memberFlags[edgeKey(g)]} (rollout ${g.rolloutPct / 100}%, not hard-asserted)`,
       );
     }
   }
@@ -623,11 +623,11 @@ async function probeTargeting() {
   for (const { g, syn } of targets) {
     const mf = (await evaluate({ anonymous_id: "pt-m", ...syn.match })).flags ?? {};
     const nf = (await evaluate({ anonymous_id: "pt-n", ...syn.nomatch })).flags ?? {};
-    if (mf[g.name] === true && nf[g.name] !== true) {
+    if (mf[edgeKey(g)] === true && nf[edgeKey(g)] !== true) {
       ok(`gate ${g.name}: match admitted, non-match denied`);
     } else {
       annotate(
-        `gate ${g.name}: match=${mf[g.name]} (want true), non-match=${nf[g.name]} (want falsy) — synth ${JSON.stringify(syn)}`,
+        `gate ${g.name}: match=${mf[edgeKey(g)]} (want true), non-match=${nf[edgeKey(g)]} (want falsy) — synth ${JSON.stringify(syn)}`,
       );
       failed++;
     }
@@ -669,7 +669,7 @@ async function probeFallthrough() {
       continue;
     }
     // (a) condition match → always admitted (short-circuits before the rollout).
-    const matchPass = (await evaluate({ anonymous_id: "ft-m", ...first.match })).flags?.[g.name] === true;
+    const matchPass = (await evaluate({ anonymous_id: "ft-m", ...first.match })).flags?.[edgeKey(g)] === true;
     // (b) condition fail → fall through to the rollout. Violate EVERY condition,
     // vary the bucketing identity, and measure the pass rate ≈ rolloutPct.
     const failCtx = {};
@@ -680,7 +680,7 @@ async function probeFallthrough() {
     const N = 200;
     let pass = 0;
     for (let i = 0; i < N; i++) {
-      if ((await evaluate({ anonymous_id: `ft-f:${i}`, ...failCtx })).flags?.[g.name] === true) pass++;
+      if ((await evaluate({ anonymous_id: `ft-f:${i}`, ...failCtx })).flags?.[edgeKey(g)] === true) pass++;
     }
     const rate = pass / N;
     const want = (roll.rolloutPct ?? 0) / 10000;
@@ -732,7 +732,7 @@ async function probeRuleGatedRollout() {
     // Non-matchers: the rule fails before the rollout bucket → always denied.
     let denyOk = true;
     for (let i = 0; i < 20; i++) {
-      if ((await evaluate({ anonymous_id: `rg-n:${i}`, ...syn.nomatch })).flags?.[g.name] === true) {
+      if ((await evaluate({ anonymous_id: `rg-n:${i}`, ...syn.nomatch })).flags?.[edgeKey(g)] === true) {
         denyOk = false;
         break;
       }
@@ -741,7 +741,7 @@ async function probeRuleGatedRollout() {
     const N = 200;
     let pass = 0;
     for (let i = 0; i < N; i++) {
-      if ((await evaluate({ anonymous_id: `rg-m:${i}`, ...syn.match })).flags?.[g.name] === true) pass++;
+      if ((await evaluate({ anonymous_id: `rg-m:${i}`, ...syn.match })).flags?.[edgeKey(g)] === true) pass++;
     }
     const rate = pass / N;
     const want = g.rolloutPct / 10000;
@@ -912,11 +912,11 @@ async function probeEnrichment() {
   const flags = (await res.json()).flags ?? {};
   console.log("::group::Attribute enrichment (empty body — derived from request)");
   if (browserGate) {
-    if (flags[browserGate.name] === true) ok(`enrichment: browser from UA → ${browserGate.name} admitted`);
+    if (flags[edgeKey(browserGate)] === true) ok(`enrichment: browser from UA → ${browserGate.name} admitted`);
     else { annotate(`enrichment: ${browserGate.name} denied — browser not auto-derived (worker deployed?)`); failed++; }
   }
   if (countryGate) {
-    if (flags[countryGate.name] === true) ok(`enrichment: country from IP geo → ${countryGate.name} admitted`);
+    if (flags[edgeKey(countryGate)] === true) ok(`enrichment: country from IP geo → ${countryGate.name} admitted`);
     else { annotate(`enrichment: ${countryGate.name} denied — country not auto-derived (worker deployed?)`); failed++; }
   }
   console.log("::endgroup::");
@@ -1405,7 +1405,7 @@ async function probeServerBlobs() {
   console.log("::group::Server-SDK blobs (/sdk/flags + /sdk/experiments)");
   let gmiss = 0;
   for (const g of gates) {
-    const bg = blobGates[g.name];
+    const bg = blobGates[edgeKey(g)];
     if (!bg || bg.rolloutPct !== g.rolloutPct || !!bg.enabled !== !!g.enabled) {
       gmiss++;
       console.log(
@@ -1671,7 +1671,7 @@ async function probeGradualRamps() {
         continue;
       }
       baseCtx = syn.match;
-      const leak = (await evaluate({ anonymous_id: "rmp-n", ...syn.nomatch })).flags?.[g.name] === true;
+      const leak = (await evaluate({ anonymous_id: "rmp-n", ...syn.nomatch })).flags?.[edgeKey(g)] === true;
       if (leak) {
         annotate(`ramp gate ${g.name}: non-matching caller ADMITTED — rule leak before the ramp bucket`);
         failed++;
@@ -1680,7 +1680,7 @@ async function probeGradualRamps() {
     const N = 300;
     let pass = 0;
     for (let i = 0; i < N; i++) {
-      if ((await evaluate({ anonymous_id: `rmp:${g.name}:${i}`, ...baseCtx })).flags?.[g.name] === true) pass++;
+      if ((await evaluate({ anonymous_id: `rmp:${g.name}:${i}`, ...baseCtx })).flags?.[edgeKey(g)] === true) pass++;
     }
     const rate = pass / N;
     let pass_ok;
@@ -1761,8 +1761,8 @@ async function probeManagedPresets() {
       ok(`managed gate ${g.name}: label "${e.fromTemplate}" preserved (rule not synthesizable, eval skipped)`);
       continue;
     }
-    const mf = (await evaluate({ anonymous_id: "mp-m", ...ctx.match })).flags?.[g.name] === true;
-    const nf = (await evaluate({ anonymous_id: "mp-n", ...ctx.nomatch })).flags?.[g.name] === true;
+    const mf = (await evaluate({ anonymous_id: "mp-m", ...ctx.match })).flags?.[edgeKey(g)] === true;
+    const nf = (await evaluate({ anonymous_id: "mp-n", ...ctx.nomatch })).flags?.[edgeKey(g)] === true;
     if (mf && !nf) {
       ok(`managed gate ${g.name} ("${e.fromTemplate}"): preset audience admitted, others denied`);
     } else {
@@ -1810,7 +1810,7 @@ async function probeConditionRollout() {
     }
     let denyOk = true;
     for (let i = 0; i < 20; i++) {
-      if ((await evaluate({ anonymous_id: `cr-n:${i}`, ...syn.nomatch })).flags?.[g.name] === true) {
+      if ((await evaluate({ anonymous_id: `cr-n:${i}`, ...syn.nomatch })).flags?.[edgeKey(g)] === true) {
         denyOk = false;
         break;
       }
@@ -1819,7 +1819,7 @@ async function probeConditionRollout() {
     const want = e.rolloutPct / 10000;
     let pass = 0;
     for (let i = 0; i < N; i++) {
-      if ((await evaluate({ anonymous_id: `cr-m:${i}`, ...syn.match })).flags?.[g.name] === true) pass++;
+      if ((await evaluate({ anonymous_id: `cr-m:${i}`, ...syn.match })).flags?.[edgeKey(g)] === true) pass++;
     }
     const rate = pass / N;
     const band = Math.max(0.07, 4 * Math.sqrt((want * (1 - want)) / N));
