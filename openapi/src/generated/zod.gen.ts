@@ -3084,6 +3084,39 @@ export const zListOpsActivityResponse = z.object({
 });
 
 /**
+ * What a project-memory entry records. `shipped` — an item that reached `ready_for_qa`/`resolved`: what was asked, what the run found, the files it touched, the PR. `declined` — an item closed `wont_fix`: the request and why it was turned down. `decision` — an answered structured question: what the team picked. `qa` — a QA note or an answered QA question: what "fixed" turned out to mean, or what QA found failing.
+ */
+export const zOpsMemoryKind = z.enum([
+    'shipped',
+    'declined',
+    'decision',
+    'qa'
+]);
+
+/**
+ * One fact the project learned from a shipped (or declined) ticket.
+ */
+export const zOpsMemoryEntry = z.object({
+    id: z.string(),
+    kind: zOpsMemoryKind,
+    title: z.string(),
+    body: z.string(),
+    paths: z.array(z.string()),
+    prUrl: z.string().nullable(),
+    item: zOpsItemRef,
+    occurredAt: z.string(),
+    score: z.number()
+});
+
+/**
+ * Response for `GET /api/admin/ops/memory`.
+ */
+export const zListOpsMemoryResponse = z.object({
+    entries: z.array(zOpsMemoryEntry),
+    terms: z.array(z.string())
+});
+
+/**
  * A ticket type a tag rule can also fire on. Error and alert tickets carry no tags, so a rule that should catch them matches on type.
  */
 export const zOpsRoutingRuleType = z.enum([
@@ -5834,6 +5867,23 @@ export const zListOpsActivityQuery = z.object({
  * List queue activity
  */
 export const zListOpsActivityResponse2 = zListOpsActivityResponse;
+
+export const zListOpsMemoryHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zListOpsMemoryQuery = z.object({
+    q: z.string().min(1).max(500).optional(),
+    paths: z.string().min(1).max(2000).optional(),
+    item: z.string().min(1).max(128).optional(),
+    kind: zOpsMemoryKind.optional(),
+    limit: z.coerce.number().int().gte(1).lte(50).optional()
+});
+
+/**
+ * Search project memory
+ */
+export const zListOpsMemoryResponse2 = zListOpsMemoryResponse;
 
 export const zListOpsRoutingRulesHeaders = z.object({
     'X-Project-Id': z.string().optional()

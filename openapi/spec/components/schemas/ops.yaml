@@ -3471,3 +3471,79 @@ CreateOpsRoutingRuleRequest:
       type: boolean
       description: Let a matching public-intake ticket skip `pending_approval`. Defaults to `false`.
   additionalProperties: false
+OpsMemoryKind:
+  type: string
+  enum:
+    - shipped
+    - declined
+    - decision
+    - qa
+  description: >-
+    What a project-memory entry records. `shipped` — an item that reached
+    `ready_for_qa`/`resolved`: what was asked, what the run found, the files it
+    touched, the PR. `declined` — an item closed `wont_fix`: the request and
+    why it was turned down. `decision` — an answered structured question: what
+    the team picked. `qa` — a QA note or an answered QA question: what "fixed"
+    turned out to mean, or what QA found failing.
+OpsMemoryEntry:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Memory entry id.
+    kind:
+      $ref: "#/OpsMemoryKind"
+    title:
+      type: string
+      description: One-line headline of the fact.
+    body:
+      type: string
+      description: Compact markdown — the fact itself, capped so a read stays token-light. `ops get` on the item has the full record.
+    paths:
+      type: array
+      items:
+        type: string
+      description: Repo-relative files the item's runs inspected or changed.
+    prUrl:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The pull request that shipped it, when one was linked.
+    item:
+      $ref: "#/OpsItemRef"
+    occurredAt:
+      type: string
+      description: ISO-8601 time the fact happened (shipped, answered, noted).
+    score:
+      type: number
+      description: Relevance to the query (higher is closer). `0` when the read had no query — entries are then newest first.
+  required:
+    - id
+    - kind
+    - title
+    - body
+    - paths
+    - prUrl
+    - item
+    - occurredAt
+    - score
+  additionalProperties: false
+  description: One fact the project learned from a shipped (or declined) ticket.
+ListOpsMemoryResponse:
+  type: object
+  properties:
+    entries:
+      type: array
+      items:
+        $ref: "#/OpsMemoryEntry"
+      description: Matching entries, most relevant first.
+    terms:
+      type: array
+      items:
+        type: string
+      description: The search terms the query was reduced to (stop-words and short words dropped). Empty when no `q` or `item` was given.
+  required:
+    - entries
+    - terms
+  additionalProperties: false
+  description: Response for `GET /api/admin/ops/memory`.

@@ -5802,6 +5802,61 @@ export type ListOpsActivityResponse = {
 };
 
 /**
+ * What a project-memory entry records. `shipped` — an item that reached `ready_for_qa`/`resolved`: what was asked, what the run found, the files it touched, the PR. `declined` — an item closed `wont_fix`: the request and why it was turned down. `decision` — an answered structured question: what the team picked. `qa` — a QA note or an answered QA question: what "fixed" turned out to mean, or what QA found failing.
+ */
+export type OpsMemoryKind = 'shipped' | 'declined' | 'decision' | 'qa';
+
+/**
+ * One fact the project learned from a shipped (or declined) ticket.
+ */
+export type OpsMemoryEntry = {
+    /**
+     * Memory entry id.
+     */
+    id: string;
+    kind: OpsMemoryKind;
+    /**
+     * One-line headline of the fact.
+     */
+    title: string;
+    /**
+     * Compact markdown — the fact itself, capped so a read stays token-light. `ops get` on the item has the full record.
+     */
+    body: string;
+    /**
+     * Repo-relative files the item's runs inspected or changed.
+     */
+    paths: Array<string>;
+    /**
+     * The pull request that shipped it, when one was linked.
+     */
+    prUrl: string | null;
+    item: OpsItemRef;
+    /**
+     * ISO-8601 time the fact happened (shipped, answered, noted).
+     */
+    occurredAt: string;
+    /**
+     * Relevance to the query (higher is closer). `0` when the read had no query — entries are then newest first.
+     */
+    score: number;
+};
+
+/**
+ * Response for `GET /api/admin/ops/memory`.
+ */
+export type ListOpsMemoryResponse = {
+    /**
+     * Matching entries, most relevant first.
+     */
+    entries: Array<OpsMemoryEntry>;
+    /**
+     * The search terms the query was reduced to (stop-words and short words dropped). Empty when no `q` or `item` was given.
+     */
+    terms: Array<string>;
+};
+
+/**
  * A ticket type a tag rule can also fire on. Error and alert tickets carry no tags, so a rule that should catch them matches on type.
  */
 export type OpsRoutingRuleType = 'error' | 'alert' | 'bug' | 'feature_request';
@@ -13997,6 +14052,74 @@ export type ListOpsActivityResponses = {
 };
 
 export type ListOpsActivityResponse2 = ListOpsActivityResponses[keyof ListOpsActivityResponses];
+
+export type ListOpsMemoryData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Free-text query, e.g. `checkout retry`.
+         */
+        q?: string;
+        /**
+         * Comma-separated repo-relative files or directories, e.g. `apps/web/src/checkout/,packages/billing/src/retry.ts`.
+         */
+        paths?: string;
+        /**
+         * A queue item — its per-project number (e.g. `7`) or full id. Its title and description become the query; its own entries are excluded.
+         */
+        item?: string;
+        /**
+         * Only entries of this kind.
+         */
+        kind?: OpsMemoryKind;
+        /**
+         * Maximum entries to return (1-50). Defaults to 10.
+         */
+        limit?: number;
+    };
+    url: '/api/admin/ops/memory';
+};
+
+export type ListOpsMemoryErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type ListOpsMemoryError = ListOpsMemoryErrors[keyof ListOpsMemoryErrors];
+
+export type ListOpsMemoryResponses = {
+    /**
+     * Search project memory
+     */
+    200: ListOpsMemoryResponse;
+};
+
+export type ListOpsMemoryResponse2 = ListOpsMemoryResponses[keyof ListOpsMemoryResponses];
 
 export type ListOpsRoutingRulesData = {
     body?: never;

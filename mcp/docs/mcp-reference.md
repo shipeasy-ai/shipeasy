@@ -2965,6 +2965,50 @@ _Errors_ — beyond the [common errors](#errors):
 
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 
+### Memory
+
+Project memory — what the project learned from every ticket it shipped or
+declined: decisions from answered questions, QA findings, the files each
+feature lives in, and the PR that shipped it. Derived from the tickets'
+own records and rebuilt when they change. Search it before you start a
+ticket so you build on what was decided instead of rediscovering it.
+
+#### `ops_memory_search`
+
+**Search project memory**
+
+What the project already learned from the tickets it shipped — the
+decisions the team made in answered questions, what QA found, which files
+a feature lives in, the PR that shipped it, and the requests that were
+turned down. Every entry is derived from the item's own records
+(investigations, questions, QA notes, linked PRs) and is rebuilt whenever
+those change, so it never disagrees with the ticket.
+
+Search with `q` (free text), `paths` (comma-separated files or
+directories — entries that touched them rank first) or `item` (a queue
+item — its title and description become the query, and its own entries
+are left out). With none of them, the newest entries come back. Bodies are
+capped; read the full ticket with `ops get <item>`.
+
+**Use case:** A coding agent picks up a ticket and, before reading the
+repo, asks what was already decided and built around it:
+`ops memory search --item 42`.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `q` | optional | `string` | Free-text query, e.g. `checkout retry`. _(length 1–500)_ |
+| `paths` | optional | `string` | Comma-separated repo-relative files or directories, e.g. `apps/web/src/checkout/,packages/billing/src/retry.ts`. _(length 1–2000)_ |
+| `item` | optional | `string` | A queue item — its per-project number (e.g. `7`) or full id. Its title and description become the query; its own entries are excluded. _(length 1–128)_ |
+| `kind` | optional | `"shipped" \| "declined" \| "decision" \| "qa"` | What a project-memory entry records. `shipped` — an item that reached `ready_for_qa`/`resolved`: what was asked, what the run found, the files it touched, the PR. `declined` — an item closed `wont_fix`: the request and why it was turned down. `decision` — an answered structured question: what the team picked. `qa` — a QA note or an answered QA question: what "fixed" turned out to mean, or what QA found failing. |
+| `limit` | optional | `integer` | Maximum entries to return (1-50). Defaults to 10. _(1–50)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
 ### Investigations
 
 Investigation records on a queue item — the structured, read-only write-ups

@@ -211,6 +211,28 @@ report (`Decisions:` line, [§1c](#1c-report-and-continue)) and, in `--pr`
 mode, in the PR body, so the reviewer can check the diff against what the team
 chose.
 
+### 1a-1. Read the project memory — what earlier tickets already settled
+
+Before you read code or design anything, ask what the project already learned
+around this item: `shipeasy ops memory search --item <handle>` (MCP
+`ops_memory_search` with `item`). Once you know which files you will touch,
+search by them too: `--paths <file>,<dir>`. A fired run's prompt may already
+carry a few memory headlines; the search returns the full entries.
+
+- **`decision`** entries are answers the team gave on *earlier* tickets. Treat
+  them like this item's own answered questions: build to them, and don't
+  re-ask a question an entry already answers. If this item genuinely needs a
+  different call, ask a structured question that names the earlier decision.
+- **`qa`** entries are what QA caught before — check your fix against them.
+- **`declined`** entries are requests the team turned down. If this item asks
+  for the same thing, ask before building it.
+- **`shipped`** entries name the files and PR where a related feature lives —
+  start reading there.
+
+Memory is built from the run record you fill in, so record your `sources`
+(the files you read or changed) on it: that is what makes this ticket
+findable by the next run.
+
 ### 1b. Work the item per its type runbook
 
 Each type has its own runbook — the `runbook` column in the queue table
