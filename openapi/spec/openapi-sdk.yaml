@@ -19,8 +19,11 @@
 # inside each SDK submodule. A monorepo pre-commit hook blocks any commit that
 # changes this contract while a vendored copy is stale.
 #
+# `GET /api/admin/ops` is listed by its `get` operation alone: that path item also
+# carries `POST` (the generic create), which the SDK must not expose.
+#
 # DELIBERATELY ABSENT, so nobody re-adds them by accident: everything else.
-# Listing, generic CRUD, key minting, projects, connectors, i18n, errors,
+# Generic CRUD, key minting, projects, connectors, i18n, errors,
 # alerts, metrics, events, experiments, universes, templates, attributes, and
 # the AI-agent working seam (ack / link-pr / investigations) all stay reachable
 # through the CLI and MCP, which read `openapi.yaml`.
@@ -31,8 +34,9 @@ info:
   description: |-
     The slice of the Shipeasy admin API that the published server SDKs expose as their optional `AdminClient`. Authenticate with an admin SDK key (`Authorization: Bearer sdk_admin_…`) and scope every request to a project via the `X-Project-Id` header.
 
-    Three capabilities, nothing else:
+    Four capabilities, nothing else:
 
+    - **List the ops queue** — read the project's tickets, filtered by type, status, priority, owner, reporter (`reporter`) and close time (`closedSince`).
     - **File a public ticket** — a bug or a feature request onto the project's ops queue.
     - **Toggle a kill switch** — flip the switch itself, or one of its named sub-switches, on one environment.
     - **Manage a flag's whitelist** — read, replace, add to, or remove from the allowlist that admits specific identities ahead of every targeting rule.
@@ -59,6 +63,9 @@ tags:
   - name: Ops
     description: The public ticket queue — filing a bug or a feature request, which also fires the project's GitHub/Slack connectors.
 paths:
+  /api/admin/ops:
+    get:
+      $ref: ./paths/ops.yaml#/~1api~1admin~1ops/get
   /ops/bug:
     $ref: ./paths/ops.yaml#/~1ops~1bug
   /ops/feature-request:

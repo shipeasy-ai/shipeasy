@@ -67,12 +67,13 @@ describe("server-SDK surface", () => {
         .map(([method, op]) => ({ path, method, op })),
     );
 
-  it("exposes exactly the three-capability keep-set", () => {
+  it("exposes exactly the four-capability keep-set", () => {
     expect(sdkOperations().map(({ op }) => op.operationId).sort()).toEqual([
       "addToGateWhitelist",
       "createPublicBug",
       "createPublicFeatureRequest",
       "getGateWhitelist",
+      "listOpsItems",
       "removeFromGateWhitelist",
       "setGateWhitelist",
       "toggleKillswitch",
@@ -91,9 +92,10 @@ describe("server-SDK surface", () => {
 
   it("carries only the schemas those operations reach", () => {
     // The bundler prunes by reachability; a jump here means an operation
-    // started pulling in a large shared schema and the clients just grew.
+    // started pulling in a large shared schema and the clients just grew. 40 =
+    // the original 30 + the ops list response (item, run, owner, context …).
     const count = Object.keys(sdkSpec.components.schemas).length;
-    expect(count).toBeLessThanOrEqual(30);
+    expect(count).toBeLessThanOrEqual(40);
   });
 });
 
