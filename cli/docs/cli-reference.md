@@ -1142,7 +1142,7 @@ shipeasy ops list [options]
 | `--offset <value>` | optional | Number of items to skip before the page starts. Defaults to 0. The order is stable, so `offset += limit` walks the queue page by page. |
 | `--owner <value>` | optional | Narrow to items owned by one person OR one agent. Matches a person by `users.id`, email, or display name, and an agent by connector id, display name, or kebab-case handle — e.g. `owner=Claude` or `owner=alice@acme.dev`. Case-insensitive exact match. |
 | `--reporter <value>` | optional | Narrow to items filed by one reporter — an email, matched case-insensitive and exact against `reporterEmail`. Items with no reporter never match. While set, `status=all` also returns `pending_approval` items: public intake files every ticket as `pending_approval`, and a reporter must see the ticket they just filed. |
-| `--closed-since <value>` | optional | ISO-8601 timestamp. Items still being worked are always returned; `resolved` and `wont_fix` items only when they closed at or after this time (see `closedAt`). Applies to `status=all` and `unresolved` only — an exact `status` filter is left as asked. |
+| `--closed-since <value>` | optional | ISO-8601 timestamp. Items still being worked are always returned; `resolved` and `wont_fix` items only when they closed at or after this time (see `closedAt`). Combines with `status` like any other filter. |
 | `--data <value>` | optional | Request body as a JSON object. |
 
 ### `shipeasy ops create`

@@ -12425,7 +12425,7 @@ export type ListOpsItemsData = {
          */
         reporter?: string;
         /**
-         * ISO-8601 timestamp. Items still being worked are always returned; `resolved` and `wont_fix` items only when they closed at or after this time (see `closedAt`). Applies to `status=all` and `unresolved` only — an exact `status` filter is left as asked.
+         * ISO-8601 timestamp. Items still being worked are always returned; `resolved` and `wont_fix` items only when they closed at or after this time (see `closedAt`). Combines with `status` like any other filter.
          */
         closedSince?: string;
     };
