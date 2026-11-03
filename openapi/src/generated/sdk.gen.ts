@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AckOpsItemData, AckOpsItemErrors, AckOpsItemResponses, AddToGateWhitelistData, AddToGateWhitelistErrors, AddToGateWhitelistResponses, AnswerOpsQaQuestionData, AnswerOpsQaQuestionErrors, AnswerOpsQaQuestionResponses, AnswerOpsQuestionData, AnswerOpsQuestionErrors, AnswerOpsQuestionResponses, ApproveEventData, ApproveEventErrors, ApproveEventResponses, AskOpsQaQuestionData, AskOpsQaQuestionErrors, AskOpsQaQuestionResponses, AskOpsQuestionsData, AskOpsQuestionsErrors, AskOpsQuestionsResponses, CancelOpsQuestionData, CancelOpsQuestionErrors, CancelOpsQuestionResponses, CreateAlertRuleData, CreateAlertRuleErrors, CreateAlertRuleResponses, CreateAttributeData, CreateAttributeErrors, CreateAttributeResponses, CreateConfigData, CreateConfigErrors, CreateConfigResponses, CreateConnectorData, CreateConnectorErrors, CreateConnectorResponses, CreateEventData, CreateEventErrors, CreateEventResponses, CreateExperimentData, CreateExperimentErrors, CreateExperimentReadoutData, CreateExperimentReadoutErrors, CreateExperimentReadoutResponses, CreateExperimentResponses, CreateGateData, CreateGateErrors, CreateGateResponses, CreateGateTemplateData, CreateGateTemplateErrors, CreateGateTemplateResponses, CreateI18nDraftData, CreateI18nDraftErrors, CreateI18nDraftResponses, CreateI18nProfileData, CreateI18nProfileErrors, CreateI18nProfileResponses, CreateKeyData, CreateKeyErrors, CreateKeyResponses, CreateKillswitchData, CreateKillswitchErrors, CreateKillswitchResponses, CreateMetricData, CreateMetricErrors, CreateMetricResponses, CreateOpsAttachmentData, CreateOpsAttachmentErrors, CreateOpsAttachmentResponses, CreateOpsCommentData, CreateOpsCommentErrors, CreateOpsCommentMediaData, CreateOpsCommentMediaErrors, CreateOpsCommentMediaResponses, CreateOpsCommentResponses, CreateOpsInvestigationData, CreateOpsInvestigationErrors, CreateOpsInvestigationResponses, CreateOpsItemData, CreateOpsItemErrors, CreateOpsItemResponses, CreateOpsQaNoteData, CreateOpsQaNoteErrors, CreateOpsQaNoteResponses, CreateOpsRoutingRuleData, CreateOpsRoutingRuleErrors, CreateOpsRoutingRuleResponses, CreatePublicBugData, CreatePublicBugErrors, CreatePublicBugResponses, CreatePublicFeatureRequestData, CreatePublicFeatureRequestErrors, CreatePublicFeatureRequestResponses, CreateTriggerConnectorData, CreateTriggerConnectorErrors, CreateTriggerConnectorResponses, CreateUniverseData, CreateUniverseErrors, CreateUniverseResponses, DeleteAlertRuleData, DeleteAlertRuleErrors, DeleteAlertRuleResponses, DeleteAttributeData, DeleteAttributeErrors, DeleteAttributeResponses, DeleteConfigData, DeleteConfigErrors, DeleteConfigResponses, DeleteConnectorData, DeleteConnectorErrors, DeleteConnectorResponses, DeleteEventData, DeleteEventErrors, DeleteEventResponses, DeleteExperimentData, DeleteExperimentErrors, DeleteExperimentResponses, DeleteGateData, DeleteGateErrors, DeleteGateResponses, DeleteGateTemplateData, DeleteGateTemplateErrors, DeleteGateTemplateResponses, DeleteI18nDraftData, DeleteI18nDraftErrors, DeleteI18nDraftResponses, DeleteI18nKeyData, DeleteI18nKeyErrors, DeleteI18nKeyResponses, DeleteI18nProfileData, DeleteI18nProfileErrors, DeleteI18nProfileResponses, DeleteKillswitchData, DeleteKillswitchErrors, DeleteKillswitchResponses, DeleteMetricData, DeleteMetricErrors, DeleteMetricResponses, DeleteOpsItemData, DeleteOpsItemErrors, DeleteOpsItemResponses, DeleteUniverseData, DeleteUniverseErrors, DeleteUniverseResponses, DisableGateData, DisableGateErrors, DisableGateResponses, DiscardConfigDraftData, DiscardConfigDraftErrors, DiscardConfigDraftResponses, EnableGateData, EnableGateErrors, EnableGateResponses, FileErrorTicketData, FileErrorTicketErrors, FileErrorTicketResponses, FireConnectorData, FireConnectorErrors, FireConnectorResponses, GetAttributeData, GetAttributeErrors, GetAttributeResponses, GetConfigData, GetConfigErrors, GetConfigResponses, GetConnectorData, GetConnectorErrors, GetConnectorResponses, GetCurrentProjectData, GetCurrentProjectErrors, GetCurrentProjectResponses, GetEntityTagsData, GetEntityTagsErrors, GetEntityTagsResponses, GetErrorData, GetErrorErrors, GetErrorResponses, GetErrorSeriesData, GetErrorSeriesErrors, GetErrorSeriesResponses, GetEventData, GetEventErrors, GetEventResponses, GetExperimentData, GetExperimentErrors, GetExperimentReadoutData, GetExperimentReadoutErrors, GetExperimentReadoutResponses, GetExperimentResponses, GetExperimentResultsData, GetExperimentResultsErrors, GetExperimentResultsResponses, GetExperimentTimeseriesData, GetExperimentTimeseriesErrors, GetExperimentTimeseriesResponses, GetGateData, GetGateErrors, GetGateResponses, GetGateTemplateData, GetGateTemplateErrors, GetGateTemplateResponses, GetGateWhitelistData, GetGateWhitelistErrors, GetGateWhitelistResponses, GetKillswitchData, GetKillswitchErrors, GetKillswitchResponses, GetMetricData, GetMetricErrors, GetMetricResponses, GetMetricSeriesData, GetMetricSeriesErrors, GetMetricSeriesResponses, GetOpsItemData, GetOpsItemErrors, GetOpsItemResponses, GetProjectData, GetProjectErrors, GetProjectResponses, LinkPrToOpsItemData, LinkPrToOpsItemErrors, LinkPrToOpsItemResponses, ListAlertRulesData, ListAlertRulesErrors, ListAlertRulesResponses, ListAlertsData, ListAlertsErrors, ListAlertsResponses, ListAttributesData, ListAttributesErrors, ListAttributesResponses, ListConfigActivityData, ListConfigActivityErrors, ListConfigActivityResponses, ListConfigsData, ListConfigsErrors, ListConfigsResponses, ListConfigVersionsData, ListConfigVersionsErrors, ListConfigVersionsResponses, ListConnectorsData, ListConnectorsErrors, ListConnectorsResponses, ListErrorsData, ListErrorsErrors, ListErrorsResponses, ListEventsData, ListEventsErrors, ListEventsResponses, ListExperimentsData, ListExperimentsErrors, ListExperimentsResponses, ListGateActivityData, ListGateActivityErrors, ListGateActivityResponses, ListGatesData, ListGatesErrors, ListGatesResponses, ListGateTemplatesData, ListGateTemplatesErrors, ListGateTemplatesResponses, ListI18nDraftKeysData, ListI18nDraftKeysErrors, ListI18nDraftKeysResponses, ListI18nDraftsData, ListI18nDraftsErrors, ListI18nDraftsResponses, ListI18nKeysData, ListI18nKeysErrors, ListI18nKeysResponses, ListI18nProfilesData, ListI18nProfilesErrors, ListI18nProfilesResponses, ListKeysData, ListKeysErrors, ListKeysResponses, ListKillswitchesData, ListKillswitchesErrors, ListKillswitchesResponses, ListMetricExperimentsData, ListMetricExperimentsErrors, ListMetricExperimentsResponses, ListMetricsData, ListMetricsErrors, ListMetricsResponses, ListOpsActivityData, ListOpsActivityErrors, ListOpsActivityResponses, ListOpsAgentsData, ListOpsAgentsErrors, ListOpsAgentsResponses, ListOpsCommentsData, ListOpsCommentsErrors, ListOpsCommentsResponses, ListOpsInvestigationsData, ListOpsInvestigationsErrors, ListOpsInvestigationsResponses, ListOpsItemsData, ListOpsItemsErrors, ListOpsItemsResponses, ListOpsMemoryData, ListOpsMemoryErrors, ListOpsMemoryResponses, ListOpsQaNotesData, ListOpsQaNotesErrors, ListOpsQaNotesResponses, ListOpsQaQuestionsData, ListOpsQaQuestionsErrors, ListOpsQaQuestionsResponses, ListOpsQuestionsData, ListOpsQuestionsErrors, ListOpsQuestionsResponses, ListOpsRoutingRulesData, ListOpsRoutingRulesErrors, ListOpsRoutingRulesResponses, ListSlackChannelsData, ListSlackChannelsErrors, ListSlackChannelsResponses, ListTagsData, ListTagsErrors, ListTagsResponses, ListUniversesData, ListUniversesErrors, ListUniversesResponses, NotifyOpsData, NotifyOpsErrors, NotifyOpsResponses, PublishConfigDraftData, PublishConfigDraftErrors, PublishConfigDraftResponses, PublishI18nProfileData, PublishI18nProfileErrors, PublishI18nProfileResponses, PushI18nKeysData, PushI18nKeysErrors, PushI18nKeysResponses, ReanalyzeExperimentData, ReanalyzeExperimentErrors, ReanalyzeExperimentResponses, RemoveFromGateWhitelistData, RemoveFromGateWhitelistErrors, RemoveFromGateWhitelistResponses, ResolveErrorData, ResolveErrorErrors, ResolveErrorResponses, RevokeKeyData, RevokeKeyErrors, RevokeKeyResponses, SaveConfigDraftData, SaveConfigDraftErrors, SaveConfigDraftResponses, SearchResourcesData, SearchResourcesErrors, SearchResourcesResponses, SetEntityTagsData, SetEntityTagsErrors, SetEntityTagsResponses, SetExperimentMetricsData, SetExperimentMetricsErrors, SetExperimentMetricsResponses, SetExperimentStatusData, SetExperimentStatusErrors, SetExperimentStatusResponses, SetGateWhitelistData, SetGateWhitelistErrors, SetGateWhitelistResponses, SetI18nLabelData, SetI18nLabelErrors, SetI18nLabelResponses, SetKillswitchSwitchData, SetKillswitchSwitchErrors, SetKillswitchSwitchResponses, SetKillswitchValueData, SetKillswitchValueErrors, SetKillswitchValueResponses, TestConnectorData, TestConnectorErrors, TestConnectorResponses, ToggleKillswitchData, ToggleKillswitchErrors, ToggleKillswitchResponses, UnarchiveMetricData, UnarchiveMetricErrors, UnarchiveMetricResponses, UnsetKillswitchSwitchData, UnsetKillswitchSwitchErrors, UnsetKillswitchSwitchResponses, UpdateAlertData, UpdateAlertErrors, UpdateAlertResponses, UpdateAlertRuleData, UpdateAlertRuleErrors, UpdateAlertRuleResponses, UpdateAttributeData, UpdateAttributeErrors, UpdateAttributeResponses, UpdateConfigData, UpdateConfigErrors, UpdateConfigResponses, UpdateConfigSchemaData, UpdateConfigSchemaErrors, UpdateConfigSchemaResponses, UpdateConnectorData, UpdateConnectorErrors, UpdateConnectorResponses, UpdateEntityTagsData, UpdateEntityTagsErrors, UpdateEntityTagsResponses, UpdateErrorStatusData, UpdateErrorStatusErrors, UpdateErrorStatusResponses, UpdateEventData, UpdateEventErrors, UpdateEventResponses, UpdateExperimentData, UpdateExperimentErrors, UpdateExperimentResponses, UpdateGateData, UpdateGateErrors, UpdateGateResponses, UpdateGateTemplateData, UpdateGateTemplateErrors, UpdateGateTemplateResponses, UpdateI18nDraftData, UpdateI18nDraftErrors, UpdateI18nDraftResponses, UpdateI18nKeyData, UpdateI18nKeyErrors, UpdateI18nKeyResponses, UpdateKeyData, UpdateKeyErrors, UpdateKeyResponses, UpdateKillswitchData, UpdateKillswitchErrors, UpdateKillswitchResponses, UpdateMetricData, UpdateMetricErrors, UpdateMetricResponses, UpdateOpsGroupData, UpdateOpsGroupErrors, UpdateOpsGroupResponses, UpdateOpsInvestigationData, UpdateOpsInvestigationErrors, UpdateOpsInvestigationResponses, UpdateOpsItemData, UpdateOpsItemErrors, UpdateOpsItemResponses, UpdateOpsLinksData, UpdateOpsLinksErrors, UpdateOpsLinksResponses, UpdateProjectData, UpdateProjectErrors, UpdateProjectResponses, UpdateTriggerConnectorData, UpdateTriggerConnectorErrors, UpdateTriggerConnectorResponses, UpdateUniverseData, UpdateUniverseErrors, UpdateUniverseResponses, UpsertI18nDraftKeyData, UpsertI18nDraftKeyErrors, UpsertI18nDraftKeyResponses, UpsertI18nKeysData, UpsertI18nKeysErrors, UpsertI18nKeysResponses, UpsertProjectData, UpsertProjectErrors, UpsertProjectResponses } from './types.gen';
+import type { AckOpsItemData, AckOpsItemErrors, AckOpsItemResponses, AddToGateWhitelistData, AddToGateWhitelistErrors, AddToGateWhitelistResponses, AnswerOpsQaQuestionData, AnswerOpsQaQuestionErrors, AnswerOpsQaQuestionResponses, AnswerOpsQuestionData, AnswerOpsQuestionErrors, AnswerOpsQuestionResponses, ApproveEventData, ApproveEventErrors, ApproveEventResponses, ApproveOpsTrailData, ApproveOpsTrailErrors, ApproveOpsTrailResponses, ArchiveTrailAgentData, ArchiveTrailAgentErrors, ArchiveTrailAgentResponses, AskOpsQaQuestionData, AskOpsQaQuestionErrors, AskOpsQaQuestionResponses, AskOpsQuestionsData, AskOpsQuestionsErrors, AskOpsQuestionsResponses, CancelOpsQuestionData, CancelOpsQuestionErrors, CancelOpsQuestionResponses, CreateAlertRuleData, CreateAlertRuleErrors, CreateAlertRuleResponses, CreateAttributeData, CreateAttributeErrors, CreateAttributeResponses, CreateConfigData, CreateConfigErrors, CreateConfigResponses, CreateConnectorData, CreateConnectorErrors, CreateConnectorResponses, CreateEventData, CreateEventErrors, CreateEventResponses, CreateExperimentData, CreateExperimentErrors, CreateExperimentReadoutData, CreateExperimentReadoutErrors, CreateExperimentReadoutResponses, CreateExperimentResponses, CreateGateData, CreateGateErrors, CreateGateResponses, CreateGateTemplateData, CreateGateTemplateErrors, CreateGateTemplateResponses, CreateI18nDraftData, CreateI18nDraftErrors, CreateI18nDraftResponses, CreateI18nProfileData, CreateI18nProfileErrors, CreateI18nProfileResponses, CreateKeyData, CreateKeyErrors, CreateKeyResponses, CreateKillswitchData, CreateKillswitchErrors, CreateKillswitchResponses, CreateMetricData, CreateMetricErrors, CreateMetricResponses, CreateOpsAttachmentData, CreateOpsAttachmentErrors, CreateOpsAttachmentResponses, CreateOpsCommentData, CreateOpsCommentErrors, CreateOpsCommentMediaData, CreateOpsCommentMediaErrors, CreateOpsCommentMediaResponses, CreateOpsCommentResponses, CreateOpsInvestigationData, CreateOpsInvestigationErrors, CreateOpsInvestigationResponses, CreateOpsItemData, CreateOpsItemErrors, CreateOpsItemResponses, CreateOpsQaNoteData, CreateOpsQaNoteErrors, CreateOpsQaNoteResponses, CreateOpsRoutingRuleData, CreateOpsRoutingRuleErrors, CreateOpsRoutingRuleResponses, CreatePublicBugData, CreatePublicBugErrors, CreatePublicBugResponses, CreatePublicFeatureRequestData, CreatePublicFeatureRequestErrors, CreatePublicFeatureRequestResponses, CreateTrailAgentData, CreateTrailAgentErrors, CreateTrailAgentResponses, CreateTriggerConnectorData, CreateTriggerConnectorErrors, CreateTriggerConnectorResponses, CreateUniverseData, CreateUniverseErrors, CreateUniverseResponses, DeleteAlertRuleData, DeleteAlertRuleErrors, DeleteAlertRuleResponses, DeleteAttributeData, DeleteAttributeErrors, DeleteAttributeResponses, DeleteConfigData, DeleteConfigErrors, DeleteConfigResponses, DeleteConnectorData, DeleteConnectorErrors, DeleteConnectorResponses, DeleteEventData, DeleteEventErrors, DeleteEventResponses, DeleteExperimentData, DeleteExperimentErrors, DeleteExperimentResponses, DeleteGateData, DeleteGateErrors, DeleteGateResponses, DeleteGateTemplateData, DeleteGateTemplateErrors, DeleteGateTemplateResponses, DeleteI18nDraftData, DeleteI18nDraftErrors, DeleteI18nDraftResponses, DeleteI18nKeyData, DeleteI18nKeyErrors, DeleteI18nKeyResponses, DeleteI18nProfileData, DeleteI18nProfileErrors, DeleteI18nProfileResponses, DeleteKillswitchData, DeleteKillswitchErrors, DeleteKillswitchResponses, DeleteMetricData, DeleteMetricErrors, DeleteMetricResponses, DeleteOpsItemData, DeleteOpsItemErrors, DeleteOpsItemResponses, DeleteUniverseData, DeleteUniverseErrors, DeleteUniverseResponses, DisableGateData, DisableGateErrors, DisableGateResponses, DiscardConfigDraftData, DiscardConfigDraftErrors, DiscardConfigDraftResponses, EnableGateData, EnableGateErrors, EnableGateResponses, FileErrorTicketData, FileErrorTicketErrors, FileErrorTicketResponses, FireConnectorData, FireConnectorErrors, FireConnectorResponses, GetAttributeData, GetAttributeErrors, GetAttributeResponses, GetConfigData, GetConfigErrors, GetConfigResponses, GetConnectorData, GetConnectorErrors, GetConnectorResponses, GetCurrentProjectData, GetCurrentProjectErrors, GetCurrentProjectResponses, GetEntityTagsData, GetEntityTagsErrors, GetEntityTagsResponses, GetErrorData, GetErrorErrors, GetErrorResponses, GetErrorSeriesData, GetErrorSeriesErrors, GetErrorSeriesResponses, GetEventData, GetEventErrors, GetEventResponses, GetExperimentData, GetExperimentErrors, GetExperimentReadoutData, GetExperimentReadoutErrors, GetExperimentReadoutResponses, GetExperimentResponses, GetExperimentResultsData, GetExperimentResultsErrors, GetExperimentResultsResponses, GetExperimentTimeseriesData, GetExperimentTimeseriesErrors, GetExperimentTimeseriesResponses, GetGateData, GetGateErrors, GetGateResponses, GetGateTemplateData, GetGateTemplateErrors, GetGateTemplateResponses, GetGateWhitelistData, GetGateWhitelistErrors, GetGateWhitelistResponses, GetKillswitchData, GetKillswitchErrors, GetKillswitchResponses, GetMetricData, GetMetricErrors, GetMetricResponses, GetMetricSeriesData, GetMetricSeriesErrors, GetMetricSeriesResponses, GetOpsItemData, GetOpsItemErrors, GetOpsItemResponses, GetOpsTrailData, GetOpsTrailErrors, GetOpsTrailResponses, GetProjectData, GetProjectErrors, GetProjectResponses, GetTrailGatesData, GetTrailGatesErrors, GetTrailGatesResponses, LinkPrToOpsItemData, LinkPrToOpsItemErrors, LinkPrToOpsItemResponses, ListAlertRulesData, ListAlertRulesErrors, ListAlertRulesResponses, ListAlertsData, ListAlertsErrors, ListAlertsResponses, ListAttributesData, ListAttributesErrors, ListAttributesResponses, ListConfigActivityData, ListConfigActivityErrors, ListConfigActivityResponses, ListConfigsData, ListConfigsErrors, ListConfigsResponses, ListConfigVersionsData, ListConfigVersionsErrors, ListConfigVersionsResponses, ListConnectorsData, ListConnectorsErrors, ListConnectorsResponses, ListErrorsData, ListErrorsErrors, ListErrorsResponses, ListEventsData, ListEventsErrors, ListEventsResponses, ListExperimentsData, ListExperimentsErrors, ListExperimentsResponses, ListGateActivityData, ListGateActivityErrors, ListGateActivityResponses, ListGatesData, ListGatesErrors, ListGatesResponses, ListGateTemplatesData, ListGateTemplatesErrors, ListGateTemplatesResponses, ListI18nDraftKeysData, ListI18nDraftKeysErrors, ListI18nDraftKeysResponses, ListI18nDraftsData, ListI18nDraftsErrors, ListI18nDraftsResponses, ListI18nKeysData, ListI18nKeysErrors, ListI18nKeysResponses, ListI18nProfilesData, ListI18nProfilesErrors, ListI18nProfilesResponses, ListKeysData, ListKeysErrors, ListKeysResponses, ListKillswitchesData, ListKillswitchesErrors, ListKillswitchesResponses, ListMetricExperimentsData, ListMetricExperimentsErrors, ListMetricExperimentsResponses, ListMetricsData, ListMetricsErrors, ListMetricsResponses, ListOpsActivityData, ListOpsActivityErrors, ListOpsActivityResponses, ListOpsAgentsData, ListOpsAgentsErrors, ListOpsAgentsResponses, ListOpsCommentsData, ListOpsCommentsErrors, ListOpsCommentsResponses, ListOpsInvestigationsData, ListOpsInvestigationsErrors, ListOpsInvestigationsResponses, ListOpsItemsData, ListOpsItemsErrors, ListOpsItemsResponses, ListOpsMemoryData, ListOpsMemoryErrors, ListOpsMemoryResponses, ListOpsQaNotesData, ListOpsQaNotesErrors, ListOpsQaNotesResponses, ListOpsQaQuestionsData, ListOpsQaQuestionsErrors, ListOpsQaQuestionsResponses, ListOpsQuestionsData, ListOpsQuestionsErrors, ListOpsQuestionsResponses, ListOpsRoutingRulesData, ListOpsRoutingRulesErrors, ListOpsRoutingRulesResponses, ListSlackChannelsData, ListSlackChannelsErrors, ListSlackChannelsResponses, ListTagsData, ListTagsErrors, ListTagsResponses, ListTrailAgentsData, ListTrailAgentsErrors, ListTrailAgentsResponses, ListUniversesData, ListUniversesErrors, ListUniversesResponses, MergeOpsTrailData, MergeOpsTrailErrors, MergeOpsTrailResponses, NotifyOpsData, NotifyOpsErrors, NotifyOpsResponses, PublishConfigDraftData, PublishConfigDraftErrors, PublishConfigDraftResponses, PublishI18nProfileData, PublishI18nProfileErrors, PublishI18nProfileResponses, PushI18nKeysData, PushI18nKeysErrors, PushI18nKeysResponses, ReanalyzeExperimentData, ReanalyzeExperimentErrors, ReanalyzeExperimentResponses, RemoveFromGateWhitelistData, RemoveFromGateWhitelistErrors, RemoveFromGateWhitelistResponses, RequestOpsTrailReviewData, RequestOpsTrailReviewErrors, RequestOpsTrailReviewResponses, ResolveErrorData, ResolveErrorErrors, ResolveErrorResponses, RevokeKeyData, RevokeKeyErrors, RevokeKeyResponses, SaveConfigDraftData, SaveConfigDraftErrors, SaveConfigDraftResponses, SearchResourcesData, SearchResourcesErrors, SearchResourcesResponses, SetEntityTagsData, SetEntityTagsErrors, SetEntityTagsResponses, SetExperimentMetricsData, SetExperimentMetricsErrors, SetExperimentMetricsResponses, SetExperimentStatusData, SetExperimentStatusErrors, SetExperimentStatusResponses, SetGateWhitelistData, SetGateWhitelistErrors, SetGateWhitelistResponses, SetI18nLabelData, SetI18nLabelErrors, SetI18nLabelResponses, SetKillswitchSwitchData, SetKillswitchSwitchErrors, SetKillswitchSwitchResponses, SetKillswitchValueData, SetKillswitchValueErrors, SetKillswitchValueResponses, SubmitOpsTrailEvalData, SubmitOpsTrailEvalErrors, SubmitOpsTrailEvalResponses, TestConnectorData, TestConnectorErrors, TestConnectorResponses, ToggleKillswitchData, ToggleKillswitchErrors, ToggleKillswitchResponses, UnarchiveMetricData, UnarchiveMetricErrors, UnarchiveMetricResponses, UnsetKillswitchSwitchData, UnsetKillswitchSwitchErrors, UnsetKillswitchSwitchResponses, UpdateAlertData, UpdateAlertErrors, UpdateAlertResponses, UpdateAlertRuleData, UpdateAlertRuleErrors, UpdateAlertRuleResponses, UpdateAttributeData, UpdateAttributeErrors, UpdateAttributeResponses, UpdateConfigData, UpdateConfigErrors, UpdateConfigResponses, UpdateConfigSchemaData, UpdateConfigSchemaErrors, UpdateConfigSchemaResponses, UpdateConnectorData, UpdateConnectorErrors, UpdateConnectorResponses, UpdateEntityTagsData, UpdateEntityTagsErrors, UpdateEntityTagsResponses, UpdateErrorStatusData, UpdateErrorStatusErrors, UpdateErrorStatusResponses, UpdateEventData, UpdateEventErrors, UpdateEventResponses, UpdateExperimentData, UpdateExperimentErrors, UpdateExperimentResponses, UpdateGateData, UpdateGateErrors, UpdateGateResponses, UpdateGateTemplateData, UpdateGateTemplateErrors, UpdateGateTemplateResponses, UpdateI18nDraftData, UpdateI18nDraftErrors, UpdateI18nDraftResponses, UpdateI18nKeyData, UpdateI18nKeyErrors, UpdateI18nKeyResponses, UpdateKeyData, UpdateKeyErrors, UpdateKeyResponses, UpdateKillswitchData, UpdateKillswitchErrors, UpdateKillswitchResponses, UpdateMetricData, UpdateMetricErrors, UpdateMetricResponses, UpdateOpsGroupData, UpdateOpsGroupErrors, UpdateOpsGroupResponses, UpdateOpsInvestigationData, UpdateOpsInvestigationErrors, UpdateOpsInvestigationResponses, UpdateOpsItemData, UpdateOpsItemErrors, UpdateOpsItemResponses, UpdateOpsLinksData, UpdateOpsLinksErrors, UpdateOpsLinksResponses, UpdateOpsTrailFindingData, UpdateOpsTrailFindingErrors, UpdateOpsTrailFindingResponses, UpdateProjectData, UpdateProjectErrors, UpdateProjectResponses, UpdateTrailAgentData, UpdateTrailAgentErrors, UpdateTrailAgentResponses, UpdateTrailGatesData, UpdateTrailGatesErrors, UpdateTrailGatesResponses, UpdateTriggerConnectorData, UpdateTriggerConnectorErrors, UpdateTriggerConnectorResponses, UpdateUniverseData, UpdateUniverseErrors, UpdateUniverseResponses, UpsertI18nDraftKeyData, UpsertI18nDraftKeyErrors, UpsertI18nDraftKeyResponses, UpsertI18nKeysData, UpsertI18nKeysErrors, UpsertI18nKeysResponses, UpsertProjectData, UpsertProjectErrors, UpsertProjectResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -1882,6 +1882,231 @@ export const listOpsMemory = <ThrowOnError extends boolean = false>(options?: Op
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/admin/ops/memory',
     ...options
+});
+
+/**
+ * Show an item's trail
+ *
+ * The item followed from intent to merge: its phase, and for every linked pull
+ * request (each a *change*) the latest push, the merge gates and how they read,
+ * CI checks, each review agent's eval on the latest push next to its last five,
+ * every finding (open first, worst first, `stale` when raised on an earlier
+ * push), the approvals, and the pushes.
+ *
+ * Gates are read live from GitHub on every call, so a `state` of `unknown` means
+ * GitHub could not be read and the PR-backed gates read `pending`.
+ *
+ * **Use case:** After pushing a fix, a coding agent reads the trail to see which
+ * findings are still open and whether the scores have turned green.
+ */
+export const getOpsTrail = <ThrowOnError extends boolean = false>(options: Options<GetOpsTrailData, ThrowOnError>): RequestResult<GetOpsTrailResponses, GetOpsTrailErrors, ThrowOnError> => (options.client ?? client).get<GetOpsTrailResponses, GetOpsTrailErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/ops/{handle}/trail',
+    ...options
+});
+
+/**
+ * Submit a review agent's eval
+ *
+ * Record one review agent's result on one push of a change: a `value` (0–100
+ * for a score agent, 1/0 for a boolean one), a short `rationale`, and any
+ * `findings`. The verdict (pass / warn / fail) is computed from the agent's
+ * threshold and polarity. Submitting again for the same push replaces the
+ * earlier result and the open findings it raised.
+ *
+ * The `agentKey` normally names a configured review agent; an unconfigured key
+ * is recorded too, as a non-blocking score.
+ *
+ * **Use case:** A review run fired on a push scores the diff for risk and
+ * submits `{ agentKey: "risk", value: 35, rationale: "...", findings: [...] }`.
+ */
+export const submitOpsTrailEval = <ThrowOnError extends boolean = false>(options: Options<SubmitOpsTrailEvalData, ThrowOnError>): RequestResult<SubmitOpsTrailEvalResponses, SubmitOpsTrailEvalErrors, ThrowOnError> => (options.client ?? client).post<SubmitOpsTrailEvalResponses, SubmitOpsTrailEvalErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/ops/{handle}/trail/evals',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Resolve or dismiss a finding
+ *
+ * Set a finding's status — `resolved` (it was fixed; say how in `reason`),
+ * `dismissed` (it is not a problem; say why), or back to `open`.
+ *
+ * **Use case:** The coding agent fixed a flagged issue, pushed, and resolves the
+ * finding with `reason: "fixed in abc1234"`.
+ */
+export const updateOpsTrailFinding = <ThrowOnError extends boolean = false>(options: Options<UpdateOpsTrailFindingData, ThrowOnError>): RequestResult<UpdateOpsTrailFindingResponses, UpdateOpsTrailFindingErrors, ThrowOnError> => (options.client ?? client).patch<UpdateOpsTrailFindingResponses, UpdateOpsTrailFindingErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/ops/{handle}/trail/findings/{findingId}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Approve a change
+ *
+ * Approve a change at its latest push — what the Human review gate counts.
+ * Approving the same push twice is a no-op. When the project's gates reset
+ * approvals on push, a later push needs a fresh approval.
+ *
+ * Approval is a person's call: the restricted ops key cannot approve.
+ *
+ * **Use case:** A reviewer has read the evals and the diff and signs off.
+ */
+export const approveOpsTrail = <ThrowOnError extends boolean = false>(options: Options<ApproveOpsTrailData, ThrowOnError>): RequestResult<ApproveOpsTrailResponses, ApproveOpsTrailErrors, ThrowOnError> => (options.client ?? client).post<ApproveOpsTrailResponses, ApproveOpsTrailErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/ops/{handle}/trail/approve',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Run the review agents
+ *
+ * Launch the project's review agents on a change's latest push now, instead of
+ * waiting for the next push. Each agent's eval reads `pending` until its run
+ * submits. Agents sharing a coding-agent trigger are reviewed in one run.
+ * Review runs spend your own agent quota, not Shipeasy credits.
+ *
+ * **Use case:** An agent's instructions changed and the latest push should be
+ * re-scored.
+ */
+export const requestOpsTrailReview = <ThrowOnError extends boolean = false>(options: Options<RequestOpsTrailReviewData, ThrowOnError>): RequestResult<RequestOpsTrailReviewResponses, RequestOpsTrailReviewErrors, ThrowOnError> => (options.client ?? client).post<RequestOpsTrailReviewResponses, RequestOpsTrailReviewErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/ops/{handle}/trail/review',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Merge a change
+ *
+ * Merge a change's pull request on GitHub at the head its gates were evaluated
+ * on. Refused with `409` while a blocking gate has not passed, unless `bypass`
+ * is set with a `reason` — the bypass is recorded on the item. GitHub's own
+ * branch rules can still refuse the merge (`502`). Merging one change never
+ * merges the trail's other changes.
+ *
+ * Merging is a person's call: the restricted ops key cannot merge.
+ *
+ * **Use case:** Every gate is green; merge from the trail instead of switching
+ * to GitHub.
+ */
+export const mergeOpsTrail = <ThrowOnError extends boolean = false>(options: Options<MergeOpsTrailData, ThrowOnError>): RequestResult<MergeOpsTrailResponses, MergeOpsTrailErrors, ThrowOnError> => (options.client ?? client).post<MergeOpsTrailResponses, MergeOpsTrailErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/ops/{handle}/trail/merge',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List review agents
+ *
+ * The project's review agents — the evals that score every push to a trail's
+ * changes — and the presets that can be added in one call.
+ *
+ * **Use case:** Find the `agentKey` to submit an eval under.
+ */
+export const listTrailAgents = <ThrowOnError extends boolean = false>(options?: Options<ListTrailAgentsData, ThrowOnError>): RequestResult<ListTrailAgentsResponses, ListTrailAgentsErrors, ThrowOnError> => (options?.client ?? client).get<ListTrailAgentsResponses, ListTrailAgentsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/review-agents',
+    ...options
+});
+
+/**
+ * Add a review agent
+ *
+ * Add a review agent, from a preset (`preset: security`) or custom (`key`,
+ * `name`, `instructions`, and how to read its value). A `push` agent runs on
+ * every push to a linked PR through the project's coding-agent trigger (or the
+ * one named by `connectorId`) and spends that agent's quota.
+ *
+ * **Use case:** Add the security preset and make it blocking.
+ */
+export const createTrailAgent = <ThrowOnError extends boolean = false>(options: Options<CreateTrailAgentData, ThrowOnError>): RequestResult<CreateTrailAgentResponses, CreateTrailAgentErrors, ThrowOnError> => (options.client ?? client).post<CreateTrailAgentResponses, CreateTrailAgentErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/review-agents',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Change a review agent
+ *
+ * Change a review agent's instructions, threshold, polarity, trigger, the
+ * connector that runs it, whether it blocks, or switch it off. Its `key` is
+ * fixed. Earlier evals keep the verdict they were given.
+ */
+export const updateTrailAgent = <ThrowOnError extends boolean = false>(options: Options<UpdateTrailAgentData, ThrowOnError>): RequestResult<UpdateTrailAgentResponses, UpdateTrailAgentErrors, ThrowOnError> => (options.client ?? client).patch<UpdateTrailAgentResponses, UpdateTrailAgentErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/review-agents/{agentId}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Archive a review agent
+ *
+ * Archive a review agent: it stops running and its key is free to reuse. Evals
+ * it already submitted stay on their trails.
+ */
+export const archiveTrailAgent = <ThrowOnError extends boolean = false>(options: Options<ArchiveTrailAgentData, ThrowOnError>): RequestResult<ArchiveTrailAgentResponses, ArchiveTrailAgentErrors, ThrowOnError> => (options.client ?? client).post<ArchiveTrailAgentResponses, ArchiveTrailAgentErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/review-agents/{agentId}/archive',
+    ...options
+});
+
+/**
+ * Show the merge gates
+ *
+ * The project's merge gates for trail changes — branch freshness, human
+ * review, agent findings, blocking evals and CI checks — each with whether it
+ * is evaluated and whether it blocks.
+ */
+export const getTrailGates = <ThrowOnError extends boolean = false>(options?: Options<GetTrailGatesData, ThrowOnError>): RequestResult<GetTrailGatesResponses, GetTrailGatesErrors, ThrowOnError> => (options?.client ?? client).get<GetTrailGatesResponses, GetTrailGatesErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trail-gates',
+    ...options
+});
+
+/**
+ * Set the merge gates
+ *
+ * Replace the project's merge gates. Send the whole object (read it with
+ * `ops trail-gates get` first).
+ *
+ * **Use case:** Require two approvals and block on medium findings.
+ */
+export const updateTrailGates = <ThrowOnError extends boolean = false>(options: Options<UpdateTrailGatesData, ThrowOnError>): RequestResult<UpdateTrailGatesResponses, UpdateTrailGatesErrors, ThrowOnError> => (options.client ?? client).put<UpdateTrailGatesResponses, UpdateTrailGatesErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trail-gates',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
 });
 
 /**

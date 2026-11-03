@@ -2518,6 +2518,102 @@ _Errors_ — beyond the [common errors](#errors):
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 
+### `ops_review_agents_archive`
+
+**Archive a review agent**
+
+Archive a review agent: it stops running and its key is free to reuse. Evals
+it already submitted stay on their trails.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `agentId` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
+### `ops_review_agents_create`
+
+**Add a review agent**
+
+Add a review agent, from a preset (`preset: security`) or custom (`key`,
+`name`, `instructions`, and how to read its value). A `push` agent runs on
+every push to a linked PR through the project's coding-agent trigger (or the
+one named by `connectorId`) and spends that agent's quota.
+
+**Use case:** Add the security preset and make it blocking.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `preset` | optional | `string` | A preset id from `ops review-agents list` (e.g. `code-review`, `security`, `risk`, `confidence`, `slop`). _(length 0–64)_ |
+| `key` | optional | `string` | Slug the agent's evals are submitted under — lowercase letters, digits and dashes. _(pattern `^[a-z0-9][a-z0-9-]{0,47}$`)_ |
+| `name` | optional | `string` | — _(length 1–80)_ |
+| `description` | optional | `string` | — _(length 0–500)_ |
+| `instructions` | optional | `string` | What to review and how to score it. _(length 1–8000)_ |
+| `valueType` | optional | `"score" \| "boolean"` | How a review agent's value reads — a `score` from 0 to 100, or a `boolean` signal submitted as 1 (yes) or 0 (no). |
+| `polarity` | optional | `"higher_is_better" \| "lower_is_better"` | Which direction is good. Confidence is `higher_is_better`; risk is `lower_is_better`. For a `boolean` agent, `lower_is_better` means a 1 (yes, an issue was found) fails. |
+| `threshold` | optional | `integer` | — _(0–100)_ |
+| `blocking` | optional | `boolean` | — |
+| `trigger` | optional | `"push" \| "manual"` | When a review agent runs — on every `push` to a trail's linked pull request, or only when a review is requested (`manual`). |
+| `connectorId` | optional | `string` | The coding-agent trigger that runs it — a connector id from `ops agents list`. Omitted, the project's first connected trigger runs it. _(length 1–128)_ |
+| `enabled` | optional | `boolean` | — |
+| `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `ops_review_agents_list` call. It proves you listed existing ops review agents and confirmed this one doesn't already exist before creating it. Call `ops_review_agents_list` first if you don't have a fresh token. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `ALREADY_EXISTS` — A resource with this name already exists in the project.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+### `ops_review_agents_list`
+
+**List review agents**
+
+The project's review agents — the evals that score every push to a trail's
+changes — and the presets that can be added in one call.
+
+**Use case:** Find the `agentKey` to submit an eval under.
+
+_Parameters_
+
+_No parameters._
+
+### `ops_review_agents_update`
+
+**Change a review agent**
+
+Change a review agent's instructions, threshold, polarity, trigger, the
+connector that runs it, whether it blocks, or switch it off. Its `key` is
+fixed. Earlier evals keep the verdict they were given.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `agentId` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `name` | optional | `string` | — _(length 1–80)_ |
+| `description` | optional | `any` | — |
+| `instructions` | optional | `string` | — _(length 1–8000)_ |
+| `valueType` | optional | `"score" \| "boolean"` | How a review agent's value reads — a `score` from 0 to 100, or a `boolean` signal submitted as 1 (yes) or 0 (no). |
+| `polarity` | optional | `"higher_is_better" \| "lower_is_better"` | Which direction is good. Confidence is `higher_is_better`; risk is `lower_is_better`. For a `boolean` agent, `lower_is_better` means a 1 (yes, an issue was found) fails. |
+| `threshold` | optional | `integer` | — _(0–100)_ |
+| `blocking` | optional | `boolean` | — |
+| `trigger` | optional | `"push" \| "manual"` | When a review agent runs — on every `push` to a trail's linked pull request, or only when a review is requested (`manual`). |
+| `connectorId` | optional | `any` | — |
+| `enabled` | optional | `boolean` | — |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
 ### `ops_routing_rules_create`
 
 **Create a tag automation rule**
@@ -2575,6 +2671,56 @@ _No parameters._
 _Errors_ — beyond the [common errors](#errors):
 
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+
+### `ops_trail_gates_get`
+
+**Show the merge gates**
+
+The project's merge gates for trail changes — branch freshness, human
+review, agent findings, blocking evals and CI checks — each with whether it
+is evaluated and whether it blocks.
+
+_Parameters_
+
+_No parameters._
+
+### `ops_trail_gates_set`
+
+**Set the merge gates**
+
+Replace the project's merge gates. Send the whole object (read it with
+`ops trail-gates get` first).
+
+**Use case:** Require two approvals and block on medium findings.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `upToDate` | required | `object` | — |
+| `upToDate.enabled` | required | `boolean` | Whether the gate is evaluated at all. |
+| `upToDate.blocking` | required | `boolean` | Whether a failing gate blocks the merge (a non-blocking gate only reports). |
+| `humanReview` | required | `object` | — |
+| `humanReview.enabled` | required | `boolean` | — |
+| `humanReview.blocking` | required | `boolean` | — |
+| `humanReview.minApprovals` | required | `integer` | Approvals a change needs. _(1–10)_ |
+| `humanReview.resetOnPush` | required | `boolean` | Whether a new push clears earlier approvals, so the latest code is what gets approved. |
+| `agentReview` | required | `object` | — |
+| `agentReview.enabled` | required | `boolean` | — |
+| `agentReview.blocking` | required | `boolean` | — |
+| `agentReview.severity` | required | `"high" \| "medium" \| "low"` | How much a finding matters. The Agent review gate blocks on open findings at or above its configured severity. |
+| `evals` | required | `object` | — |
+| `evals.enabled` | required | `boolean` | Whether the gate is evaluated at all. |
+| `evals.blocking` | required | `boolean` | Whether a failing gate blocks the merge (a non-blocking gate only reports). |
+| `checks` | required | `object` | — |
+| `checks.enabled` | required | `boolean` | — |
+| `checks.blocking` | required | `boolean` | — |
+| `checks.required` | required | `string[]` | Check names that must pass. Empty means every reported check. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `VALIDATION` — The request body failed structural (schema) validation.
 
 ### `ops_update`
 
@@ -3008,6 +3154,190 @@ _Errors_ — beyond the [common errors](#errors):
 
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
+### Trails
+
+A queue item followed from intent to merge. The item is the trail — its
+title, description, type, priority and owner are the intent — and every
+pull request linked to it is one of its changes. Each push to a change is
+scored by the project's review agents (a value, a rationale and findings
+per agent), and merge gates read branch freshness, approvals, open
+findings, blocking evals and CI checks into one verdict. Loop the coding
+agent on the findings until the scores settle green, then approve and merge.
+
+#### `ops_trails_approve`
+
+**Approve a change**
+
+Approve a change at its latest push — what the Human review gate counts.
+Approving the same push twice is a no-op. When the project's gates reset
+approvals on push, a later push needs a fresh approval.
+
+Approval is a person's call: the restricted ops key cannot approve.
+
+**Use case:** A reviewer has read the evals and the diff and signs off.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `prUrl` | optional | `string` | The change to approve. Omitted, the item's primary PR. _(length 0–500)_ |
+| `body` | optional | `string` | An optional review note. _(length 0–4000)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+#### `ops_trails_get`
+
+**Show an item's trail**
+
+The item followed from intent to merge: its phase, and for every linked pull
+request (each a *change*) the latest push, the merge gates and how they read,
+CI checks, each review agent's eval on the latest push next to its last five,
+every finding (open first, worst first, `stale` when raised on an earlier
+push), the approvals, and the pushes.
+
+Gates are read live from GitHub on every call, so a `state` of `unknown` means
+GitHub could not be read and the PR-backed gates read `pending`.
+
+**Use case:** After pushing a fix, a coding agent reads the trail to see which
+findings are still open and whether the scores have turned green.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
+#### `ops_trails_merge`
+
+**Merge a change**
+
+Merge a change's pull request on GitHub at the head its gates were evaluated
+on. Refused with `409` while a blocking gate has not passed, unless `bypass`
+is set with a `reason` — the bypass is recorded on the item. GitHub's own
+branch rules can still refuse the merge (`502`). Merging one change never
+merges the trail's other changes.
+
+Merging is a person's call: the restricted ops key cannot merge.
+
+**Use case:** Every gate is green; merge from the trail instead of switching
+to GitHub.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `prUrl` | optional | `string` | The change to merge. Omitted, the item's primary PR. _(length 0–500)_ |
+| `method` | optional | `"squash" \| "merge" \| "rebase"` | GitHub merge method. Defaults to `squash`. |
+| `bypass` | optional | `boolean` | Merge although a blocking gate has not passed. Recorded on the item with `reason`. |
+| `reason` | optional | `string` | Why the gates were bypassed. Required with `bypass`. _(length 0–2000)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+#### `ops_trails_review`
+
+**Run the review agents**
+
+Launch the project's review agents on a change's latest push now, instead of
+waiting for the next push. Each agent's eval reads `pending` until its run
+submits. Agents sharing a coding-agent trigger are reviewed in one run.
+Review runs spend your own agent quota, not Shipeasy credits.
+
+**Use case:** An agent's instructions changed and the latest push should be
+re-scored.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `prUrl` | optional | `string` | The change to review. Omitted, the item's primary PR. _(length 0–500)_ |
+| `agentKeys` | optional | `string[]` | Which review agents to run. Omitted, every enabled one. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+#### `ops_trails_submit_eval`
+
+**Submit a review agent's eval**
+
+Record one review agent's result on one push of a change: a `value` (0–100
+for a score agent, 1/0 for a boolean one), a short `rationale`, and any
+`findings`. The verdict (pass / warn / fail) is computed from the agent's
+threshold and polarity. Submitting again for the same push replaces the
+earlier result and the open findings it raised.
+
+The `agentKey` normally names a configured review agent; an unconfigured key
+is recorded too, as a non-blocking score.
+
+**Use case:** A review run fired on a push scores the diff for risk and
+submits `{ agentKey: "risk", value: 35, rationale: "...", findings: [...] }`.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `agentKey` | required | `string` | The review agent's key (from `ops review-agents list`). _(length 1–48)_ |
+| `value` | required | `number` | 0–100 for a score agent; 1 (yes) or 0 (no) for a boolean one. _(0–100)_ |
+| `rationale` | required | `string` | One or two sentences on the evidence behind the value. _(length 1–4000)_ |
+| `findings` | optional | `object[]` | Issues to fix, each with a severity, and a file and line when there is one. |
+| `prUrl` | optional | `string` | The change reviewed. Omitted, the item's primary PR. _(length 0–500)_ |
+| `headSha` | optional | `string` | The commit reviewed. Omitted, the change's latest push. A sha that is not the latest push is recorded against that push, as history. _(length 7–64)_ |
+| `agent` | optional | `"jarvis" \| "claude" \| "cursor" \| "copilot" \| "jules"` | Your agent type, when you are the review agent. |
+| `sessionId` | optional | `string` | Your session id, so the eval can deep-link to the review run. _(length 0–300)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+#### `ops_trails_update_finding`
+
+**Resolve or dismiss a finding**
+
+Set a finding's status — `resolved` (it was fixed; say how in `reason`),
+`dismissed` (it is not a problem; say why), or back to `open`.
+
+**Use case:** The coding agent fixed a flagged issue, pushed, and resolves the
+finding with `reason: "fixed in abc1234"`.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `findingId` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `status` | required | `"open" \| "resolved" \| "dismissed"` | A finding stays `open` until it is `resolved` (fixed) or `dismissed` (not a problem). A finding raised on an earlier push is reported `stale` but stays open until somebody decides. |
+| `reason` | optional | `string` | Why — the fixing commit, or why it is not a problem. _(length 0–2000)_ |
+| `agent` | optional | `"jarvis" \| "claude" \| "cursor" \| "copilot" \| "jules"` | Your agent type, when an agent is resolving the finding. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
 
 ### Investigations
 

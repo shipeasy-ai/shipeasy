@@ -436,11 +436,24 @@ above:
    only server-side trace is the status flip + the linked PR (step 2).
    **Do not create issues yourself.**
 
-5. **Lifecycle → `ready_for_qa`.** In PR mode a human reviews each PR, so
+5. **Close the trail loop.** Linking the PR makes it a change on the item's
+   trail, and the project's review agents (if it has any) score each push.
+   Before you finish the item, read the trail with `ops trails get <handle>` /
+   `ops_trails_get`. For each open finding on the latest push, fix it in the
+   same branch and push, then resolve it with
+   `ops trails update-finding <handle> <findingId> --status resolved --reason "fixed in <sha>"`.
+   Dismiss only a finding you can show is wrong, and give the reason. Re-read
+   until no eval reads `fail` and no high finding is open, or until two pushes
+   in a row change nothing. Agents still `pending` are fine, so don't wait on
+   them. Never approve or merge: those are a person's call, and the ops key is
+   refused anyway. No linked change, or no review agents configured: skip this
+   step.
+
+6. **Lifecycle → `ready_for_qa`.** In PR mode a human reviews each PR, so
    never auto-`resolved` — flip every fixed item (any type) to
    `ready_for_qa`.
 
-6. **Empty queue → no PRs.** If nothing was worked, exit cleanly without a
+7. **Empty queue → no PRs.** If nothing was worked, exit cleanly without a
    branch or PR.
 
 ## 3. Final report

@@ -5857,6 +5857,530 @@ export type ListOpsMemoryResponse = {
 };
 
 /**
+ * Where a trail is, derived from its changes — `planning` (intent only), `building` (an agent is working, no change yet), `reviewing` (a change is open and a blocking gate has not passed), `ready` (every open change passes its gates), `merged` (every change merged), `closed` (the changes were closed unmerged).
+ */
+export type TrailPhase = 'planning' | 'building' | 'reviewing' | 'ready' | 'merged' | 'closed';
+
+/**
+ * A merge gate — `up_to_date` (the branch is current with its base), `human_review` (enough approvals), `agent_review` (no open findings at or above the severity), `evals` (every blocking review agent passes on the latest push), `checks` (CI checks pass).
+ */
+export type TrailGateKey = 'up_to_date' | 'human_review' | 'agent_review' | 'evals' | 'checks';
+
+/**
+ * How a gate reads on a change right now.
+ */
+export type TrailGateStatus = 'pass' | 'pending' | 'fail';
+
+export type TrailGate = {
+    key: TrailGateKey;
+    label: string;
+    status: TrailGateStatus;
+    blocking: boolean;
+    /**
+     * One line on what the gate saw, e.g. `1 of 1 approvals`.
+     */
+    detail: string;
+};
+
+export type TrailCheckRun = {
+    name: string;
+    status: 'success' | 'pending' | 'failure' | 'neutral';
+    url: string | null;
+};
+
+/**
+ * How a review agent's value reads — a `score` from 0 to 100, or a `boolean` signal submitted as 1 (yes) or 0 (no).
+ */
+export type TrailAgentValueType = 'score' | 'boolean';
+
+/**
+ * Which direction is good. Confidence is `higher_is_better`; risk is `lower_is_better`. For a `boolean` agent, `lower_is_better` means a 1 (yes, an issue was found) fails.
+ */
+export type TrailAgentPolarity = 'higher_is_better' | 'lower_is_better';
+
+/**
+ * Where one eval stands — `pending` (its agent was launched and has not submitted), `complete`, or `failed` (the launch did not go through).
+ */
+export type TrailEvalStatus = 'pending' | 'complete' | 'failed';
+
+/**
+ * An eval's value against its agent's threshold — `pass` (green), `warn` (orange: passing, but within 10 points of the threshold), `fail` (red).
+ */
+export type TrailEvalVerdict = 'pass' | 'warn' | 'fail';
+
+/**
+ * One review agent's result on one push.
+ */
+export type TrailEval = {
+    id: string;
+    agentKey: string;
+    /**
+     * The push it scored.
+     */
+    headSha: string;
+    status: TrailEvalStatus;
+    /**
+     * 0–100 for a score, 1/0 for a boolean; `null` until submitted.
+     */
+    value: number | null;
+    verdict: TrailEvalVerdict | null;
+    rationale: string | null;
+    /**
+     * The agent type that submitted it, or the submitting person's email.
+     */
+    reviewer: string | null;
+    /**
+     * Deep link to the review session, when the provider gave one.
+     */
+    sessionUrl: string | null;
+    /**
+     * Why the launch failed (`failed` only).
+     */
+    error: string | null;
+    createdAt: string;
+    completedAt: string | null;
+};
+
+/**
+ * One review agent on one change — its result on the latest push next to its last five earlier ones, so you can see whether the loop has stabilised.
+ */
+export type TrailEvalSeries = {
+    agentKey: string;
+    name: string;
+    valueType: TrailAgentValueType;
+    polarity: TrailAgentPolarity;
+    threshold: number;
+    blocking: boolean;
+    /**
+     * Its eval on the latest push, or `null` when it has not run there.
+     */
+    current: TrailEval | null;
+    /**
+     * Its evals on earlier pushes, newest first (at most 5).
+     */
+    history: Array<TrailEval>;
+};
+
+/**
+ * How much a finding matters. The Agent review gate blocks on open findings at or above its configured severity.
+ */
+export type TrailFindingSeverity = 'high' | 'medium' | 'low';
+
+/**
+ * A finding stays `open` until it is `resolved` (fixed) or `dismissed` (not a problem). A finding raised on an earlier push is reported `stale` but stays open until somebody decides.
+ */
+export type TrailFindingStatus = 'open' | 'resolved' | 'dismissed';
+
+/**
+ * One issue flagged on a change.
+ */
+export type TrailFinding = {
+    id: string;
+    /**
+     * The review agent that raised it.
+     */
+    agentKey: string | null;
+    /**
+     * The push it was raised on.
+     */
+    headSha: string;
+    severity: TrailFindingSeverity;
+    title: string;
+    body: string | null;
+    path: string | null;
+    line: number | null;
+    /**
+     * Suggested replacement for the flagged lines.
+     */
+    suggestion: string | null;
+    status: TrailFindingStatus;
+    /**
+     * True when the change has been pushed to since the finding was raised. Stale findings stay open until resolved or dismissed.
+     */
+    stale: boolean;
+    statusReason: string | null;
+    statusBy: string | null;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type TrailApproval = {
+    id: string;
+    actorEmail: string;
+    body: string | null;
+    /**
+     * The push that was approved.
+     */
+    headSha: string;
+    /**
+     * True when it approved the latest push.
+     */
+    current: boolean;
+    createdAt: string;
+};
+
+export type TrailPush = {
+    id: string;
+    headSha: string;
+    baseSha: string | null;
+    headRef: string | null;
+    baseRef: string | null;
+    /**
+     * GitHub login that pushed.
+     */
+    actor: string | null;
+    /**
+     * How the push was learned about — the GitHub webhook, linking the PR, or reading the PR's head.
+     */
+    source: 'webhook' | 'link' | 'observed';
+    createdAt: string;
+};
+
+/**
+ * One linked pull request on a trail, with everything needed to decide whether it can merge.
+ */
+export type TrailChange = {
+    prUrl: string;
+    prNumber: number;
+    /**
+     * `owner/repo`.
+     */
+    repo: string | null;
+    title: string | null;
+    /**
+     * The PR's state; `unknown` when GitHub could not be read.
+     */
+    state: 'open' | 'draft' | 'merged' | 'closed' | 'unknown';
+    headRef: string | null;
+    baseRef: string | null;
+    /**
+     * The latest push — what evals, findings and approvals are measured against.
+     */
+    headSha: string | null;
+    /**
+     * True when every blocking gate passes and the PR is open.
+     */
+    mergeable: boolean;
+    gates: Array<TrailGate>;
+    checks: Array<TrailCheckRun>;
+    evals: Array<TrailEvalSeries>;
+    /**
+     * Every finding on the change — open ones first, worst first.
+     */
+    findings: Array<TrailFinding>;
+    approvals: Array<TrailApproval>;
+    /**
+     * Pushes, newest first.
+     */
+    pushes: Array<TrailPush>;
+};
+
+export type TrailGateToggle = {
+    /**
+     * Whether the gate is evaluated at all.
+     */
+    enabled: boolean;
+    /**
+     * Whether a failing gate blocks the merge (a non-blocking gate only reports).
+     */
+    blocking: boolean;
+};
+
+/**
+ * A project's merge gates for trail changes. Every project starts on the defaults shown in the example.
+ */
+export type TrailGates = {
+    upToDate: TrailGateToggle;
+    humanReview: {
+        enabled: boolean;
+        blocking: boolean;
+        /**
+         * Approvals a change needs.
+         */
+        minApprovals: number;
+        /**
+         * Whether a new push clears earlier approvals, so the latest code is what gets approved.
+         */
+        resetOnPush: boolean;
+    };
+    agentReview: {
+        enabled: boolean;
+        blocking: boolean;
+        severity: TrailFindingSeverity;
+    };
+    evals: TrailGateToggle;
+    checks: {
+        enabled: boolean;
+        blocking: boolean;
+        /**
+         * Check names that must pass. Empty means every reported check.
+         */
+        required: Array<string>;
+    };
+};
+
+/**
+ * A queue item followed from intent to merge.
+ */
+export type GetOpsTrailResponse = {
+    /**
+     * The item id.
+     */
+    id: string;
+    number: number;
+    title: string;
+    phase: TrailPhase;
+    changes: Array<TrailChange>;
+    gates: TrailGates;
+};
+
+export type NewTrailFinding = {
+    severity: TrailFindingSeverity;
+    title: string;
+    body?: string;
+    path?: string;
+    line?: number;
+    suggestion?: string;
+};
+
+/**
+ * One review agent's result on one push. Re-submitting for the same push replaces the earlier result and its findings.
+ */
+export type SubmitOpsTrailEvalRequest = {
+    /**
+     * The review agent's key (from `ops review-agents list`).
+     */
+    agentKey: string;
+    /**
+     * 0–100 for a score agent; 1 (yes) or 0 (no) for a boolean one.
+     */
+    value: number;
+    /**
+     * One or two sentences on the evidence behind the value.
+     */
+    rationale: string;
+    /**
+     * Issues to fix, each with a severity, and a file and line when there is one.
+     */
+    findings?: Array<NewTrailFinding>;
+    /**
+     * The change reviewed. Omitted, the item's primary PR.
+     */
+    prUrl?: string;
+    /**
+     * The commit reviewed. Omitted, the change's latest push. A sha that is not the latest push is recorded against that push, as history.
+     */
+    headSha?: string;
+    /**
+     * Your agent type, when you are the review agent.
+     */
+    agent?: 'jarvis' | 'claude' | 'cursor' | 'copilot' | 'jules';
+    /**
+     * Your session id, so the eval can deep-link to the review run.
+     */
+    sessionId?: string;
+};
+
+export type SubmitOpsTrailEvalResponse = {
+    eval: TrailEval;
+    findings: Array<TrailFinding>;
+};
+
+export type UpdateOpsTrailFindingRequest = {
+    status: TrailFindingStatus;
+    /**
+     * Why — the fixing commit, or why it is not a problem.
+     */
+    reason?: string;
+    /**
+     * Your agent type, when an agent is resolving the finding.
+     */
+    agent?: 'jarvis' | 'claude' | 'cursor' | 'copilot' | 'jules';
+};
+
+export type ApproveOpsTrailRequest = {
+    /**
+     * The change to approve. Omitted, the item's primary PR.
+     */
+    prUrl?: string;
+    /**
+     * An optional review note.
+     */
+    body?: string;
+};
+
+export type RequestOpsTrailReviewRequest = {
+    /**
+     * The change to review. Omitted, the item's primary PR.
+     */
+    prUrl?: string;
+    /**
+     * Which review agents to run. Omitted, every enabled one.
+     */
+    agentKeys?: Array<string>;
+};
+
+export type RequestOpsTrailReviewResponse = {
+    prUrl: string;
+    headSha: string;
+    launched: Array<{
+        agentKey: string;
+        status: TrailEvalStatus;
+        error: string | null;
+    }>;
+};
+
+export type MergeOpsTrailRequest = {
+    /**
+     * The change to merge. Omitted, the item's primary PR.
+     */
+    prUrl?: string;
+    /**
+     * GitHub merge method. Defaults to `squash`.
+     */
+    method?: 'squash' | 'merge' | 'rebase';
+    /**
+     * Merge although a blocking gate has not passed. Recorded on the item with `reason`.
+     */
+    bypass?: boolean;
+    /**
+     * Why the gates were bypassed. Required with `bypass`.
+     */
+    reason?: string;
+};
+
+export type MergeOpsTrailResponse = {
+    prUrl: string;
+    merged: boolean;
+    /**
+     * The merge commit.
+     */
+    sha: string | null;
+    /**
+     * Blocking gates that were not passing when it merged.
+     */
+    bypassed: Array<TrailGateKey>;
+};
+
+/**
+ * When a review agent runs — on every `push` to a trail's linked pull request, or only when a review is requested (`manual`).
+ */
+export type TrailAgentTrigger = 'push' | 'manual';
+
+/**
+ * A review agent — an eval that scores every push to a trail's changes, run by one of the project's coding-agent triggers.
+ */
+export type TrailAgent = {
+    /**
+     * Agent id.
+     */
+    id: string;
+    /**
+     * The slug its evals are submitted under (`risk`, `security`, …).
+     */
+    key: string;
+    name: string;
+    description: string | null;
+    /**
+     * What the agent reviews and how it scores — the prompt its review run receives.
+     */
+    instructions: string;
+    valueType: TrailAgentValueType;
+    polarity: TrailAgentPolarity;
+    /**
+     * The passing bound — a `higher_is_better` score passes at or above it, a `lower_is_better` one at or below it. Ignored for `boolean` agents.
+     */
+    threshold: number;
+    /**
+     * Whether a failing eval blocks the merge (through the Evals gate).
+     */
+    blocking: boolean;
+    trigger: TrailAgentTrigger;
+    /**
+     * The coding-agent trigger that runs it, or `null` for the project's first connected trigger.
+     */
+    connectorId: string | null;
+    /**
+     * The preset it was added from.
+     */
+    preset: string | null;
+    enabled: boolean;
+    createdAt: string;
+    updatedAt: string;
+};
+
+/**
+ * A ready-made review agent a project can add in one call.
+ */
+export type TrailAgentPreset = {
+    preset: string;
+    key: string;
+    name: string;
+    description: string;
+    valueType: TrailAgentValueType;
+    polarity: TrailAgentPolarity;
+    threshold: number;
+    blocking: boolean;
+};
+
+export type ListTrailAgentsResponse = {
+    /**
+     * The project's review agents (archived ones excluded).
+     */
+    agents: Array<TrailAgent>;
+    /**
+     * Presets that can be added with `create --preset <preset>`.
+     */
+    presets: Array<TrailAgentPreset>;
+};
+
+/**
+ * Add a review agent. Pass `preset` to add a ready-made one (every other field then overrides the preset), or `key`, `name` and `instructions` for a custom agent.
+ */
+export type CreateTrailAgentRequest = {
+    /**
+     * A preset id from `ops review-agents list` (e.g. `code-review`, `security`, `risk`, `confidence`, `slop`).
+     */
+    preset?: string;
+    /**
+     * Slug the agent's evals are submitted under — lowercase letters, digits and dashes.
+     */
+    key?: string;
+    name?: string;
+    description?: string;
+    /**
+     * What to review and how to score it.
+     */
+    instructions?: string;
+    valueType?: TrailAgentValueType;
+    polarity?: TrailAgentPolarity;
+    threshold?: number;
+    blocking?: boolean;
+    trigger?: TrailAgentTrigger;
+    /**
+     * The coding-agent trigger that runs it — a connector id from `ops agents list`. Omitted, the project's first connected trigger runs it.
+     */
+    connectorId?: string;
+    enabled?: boolean;
+};
+
+/**
+ * Change a review agent. Only the fields sent change; its `key` is fixed.
+ */
+export type UpdateTrailAgentRequest = {
+    name?: string;
+    description?: string | null;
+    instructions?: string;
+    valueType?: TrailAgentValueType;
+    polarity?: TrailAgentPolarity;
+    threshold?: number;
+    blocking?: boolean;
+    trigger?: TrailAgentTrigger;
+    connectorId?: string | null;
+    enabled?: boolean;
+};
+
+/**
  * A ticket type a tag rule can also fire on. Error and alert tickets carry no tags, so a rule that should catch them matches on type.
  */
 export type OpsRoutingRuleType = 'error' | 'alert' | 'bug' | 'feature_request';
@@ -14120,6 +14644,593 @@ export type ListOpsMemoryResponses = {
 };
 
 export type ListOpsMemoryResponse2 = ListOpsMemoryResponses[keyof ListOpsMemoryResponses];
+
+export type GetOpsTrailData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Per-project item number (e.g. `7`) or the full ops item id.
+         */
+        handle: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/ops/{handle}/trail';
+};
+
+export type GetOpsTrailErrors = {
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+};
+
+export type GetOpsTrailError = GetOpsTrailErrors[keyof GetOpsTrailErrors];
+
+export type GetOpsTrailResponses = {
+    /**
+     * The item's trail
+     */
+    200: GetOpsTrailResponse;
+};
+
+export type GetOpsTrailResponse2 = GetOpsTrailResponses[keyof GetOpsTrailResponses];
+
+export type SubmitOpsTrailEvalData = {
+    body: SubmitOpsTrailEvalRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Per-project item number (e.g. `7`) or the full ops item id.
+         */
+        handle: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/ops/{handle}/trail/evals';
+};
+
+export type SubmitOpsTrailEvalErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type SubmitOpsTrailEvalError = SubmitOpsTrailEvalErrors[keyof SubmitOpsTrailEvalErrors];
+
+export type SubmitOpsTrailEvalResponses = {
+    /**
+     * The recorded eval and its findings
+     */
+    200: SubmitOpsTrailEvalResponse;
+};
+
+export type SubmitOpsTrailEvalResponse2 = SubmitOpsTrailEvalResponses[keyof SubmitOpsTrailEvalResponses];
+
+export type UpdateOpsTrailFindingData = {
+    body: UpdateOpsTrailFindingRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Per-project item number (e.g. `7`) or the full ops item id.
+         */
+        handle: ResourceId;
+        /**
+         * The finding id.
+         */
+        findingId: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/ops/{handle}/trail/findings/{findingId}';
+};
+
+export type UpdateOpsTrailFindingErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type UpdateOpsTrailFindingError = UpdateOpsTrailFindingErrors[keyof UpdateOpsTrailFindingErrors];
+
+export type UpdateOpsTrailFindingResponses = {
+    /**
+     * The updated finding
+     */
+    200: TrailFinding;
+};
+
+export type UpdateOpsTrailFindingResponse = UpdateOpsTrailFindingResponses[keyof UpdateOpsTrailFindingResponses];
+
+export type ApproveOpsTrailData = {
+    body: ApproveOpsTrailRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Per-project item number (e.g. `7`) or the full ops item id.
+         */
+        handle: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/ops/{handle}/trail/approve';
+};
+
+export type ApproveOpsTrailErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type ApproveOpsTrailError = ApproveOpsTrailErrors[keyof ApproveOpsTrailErrors];
+
+export type ApproveOpsTrailResponses = {
+    /**
+     * The approval
+     */
+    200: TrailApproval;
+};
+
+export type ApproveOpsTrailResponse = ApproveOpsTrailResponses[keyof ApproveOpsTrailResponses];
+
+export type RequestOpsTrailReviewData = {
+    body: RequestOpsTrailReviewRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Per-project item number (e.g. `7`) or the full ops item id.
+         */
+        handle: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/ops/{handle}/trail/review';
+};
+
+export type RequestOpsTrailReviewErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type RequestOpsTrailReviewError = RequestOpsTrailReviewErrors[keyof RequestOpsTrailReviewErrors];
+
+export type RequestOpsTrailReviewResponses = {
+    /**
+     * What was launched
+     */
+    200: RequestOpsTrailReviewResponse;
+};
+
+export type RequestOpsTrailReviewResponse2 = RequestOpsTrailReviewResponses[keyof RequestOpsTrailReviewResponses];
+
+export type MergeOpsTrailData = {
+    body: MergeOpsTrailRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Per-project item number (e.g. `7`) or the full ops item id.
+         */
+        handle: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/ops/{handle}/trail/merge';
+};
+
+export type MergeOpsTrailErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+    /**
+     * The request was well-formed and the resource exists, but a downstream provider
+     * the endpoint delegates to (e.g. a connector's Slack/GitHub/cloud-agent dispatch)
+     * failed. The failure is upstream of this API, not a client error. No stable
+     * `ErrorCode` is assigned to upstream failures, so `code` is omitted.
+     */
+    502: Error;
+};
+
+export type MergeOpsTrailError = MergeOpsTrailErrors[keyof MergeOpsTrailErrors];
+
+export type MergeOpsTrailResponses = {
+    /**
+     * The merge result
+     */
+    200: MergeOpsTrailResponse;
+};
+
+export type MergeOpsTrailResponse2 = MergeOpsTrailResponses[keyof MergeOpsTrailResponses];
+
+export type ListTrailAgentsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/admin/review-agents';
+};
+
+export type ListTrailAgentsErrors = {
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+};
+
+export type ListTrailAgentsError = ListTrailAgentsErrors[keyof ListTrailAgentsErrors];
+
+export type ListTrailAgentsResponses = {
+    /**
+     * Review agents and presets
+     */
+    200: ListTrailAgentsResponse;
+};
+
+export type ListTrailAgentsResponse2 = ListTrailAgentsResponses[keyof ListTrailAgentsResponses];
+
+export type CreateTrailAgentData = {
+    body: CreateTrailAgentRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/admin/review-agents';
+};
+
+export type CreateTrailAgentErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type CreateTrailAgentError = CreateTrailAgentErrors[keyof CreateTrailAgentErrors];
+
+export type CreateTrailAgentResponses = {
+    /**
+     * The new agent
+     */
+    200: TrailAgent;
+};
+
+export type CreateTrailAgentResponse = CreateTrailAgentResponses[keyof CreateTrailAgentResponses];
+
+export type UpdateTrailAgentData = {
+    body: UpdateTrailAgentRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The review agent's id or key.
+         */
+        agentId: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/review-agents/{agentId}';
+};
+
+export type UpdateTrailAgentErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type UpdateTrailAgentError = UpdateTrailAgentErrors[keyof UpdateTrailAgentErrors];
+
+export type UpdateTrailAgentResponses = {
+    /**
+     * The updated agent
+     */
+    200: TrailAgent;
+};
+
+export type UpdateTrailAgentResponse = UpdateTrailAgentResponses[keyof UpdateTrailAgentResponses];
+
+export type ArchiveTrailAgentData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The review agent's id or key.
+         */
+        agentId: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/review-agents/{agentId}/archive';
+};
+
+export type ArchiveTrailAgentErrors = {
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+};
+
+export type ArchiveTrailAgentError = ArchiveTrailAgentErrors[keyof ArchiveTrailAgentErrors];
+
+export type ArchiveTrailAgentResponses = {
+    /**
+     * The archived agent
+     */
+    200: TrailAgent;
+};
+
+export type ArchiveTrailAgentResponse = ArchiveTrailAgentResponses[keyof ArchiveTrailAgentResponses];
+
+export type GetTrailGatesData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/admin/trail-gates';
+};
+
+export type GetTrailGatesErrors = {
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+};
+
+export type GetTrailGatesError = GetTrailGatesErrors[keyof GetTrailGatesErrors];
+
+export type GetTrailGatesResponses = {
+    /**
+     * The merge gates
+     */
+    200: TrailGates;
+};
+
+export type GetTrailGatesResponse = GetTrailGatesResponses[keyof GetTrailGatesResponses];
+
+export type UpdateTrailGatesData = {
+    body: TrailGates;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/admin/trail-gates';
+};
+
+export type UpdateTrailGatesErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type UpdateTrailGatesError = UpdateTrailGatesErrors[keyof UpdateTrailGatesErrors];
+
+export type UpdateTrailGatesResponses = {
+    /**
+     * The merge gates
+     */
+    200: TrailGates;
+};
+
+export type UpdateTrailGatesResponse = UpdateTrailGatesResponses[keyof UpdateTrailGatesResponses];
 
 export type ListOpsRoutingRulesData = {
     body?: never;

@@ -22,7 +22,10 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   const g_ops_qa_notes = defineGroup(g_ops, "qa-notes", { summary: "Typed QA notes on a queue item — the QA follow-up that is not discussion.", help: "Typed QA notes on a queue item — the QA follow-up that is not discussion.\nEach note is one of four kinds: `narrowing` (only part of the bug still\nfails), `clarification` (changes what \"fixed\" means), `verification` (a\n`pass` / `fail` verdict on a fix) or `correction` (withdraws an earlier\nframing). Notes are append-only, carry their author and time, and render in\ntheir own section of the item's detail panel, separate from the comment\nthread. A failing verification offers a \"Reopen item\" action in the\ndashboard; it is always an explicit click, never a side effect of `create`.", aliases: [] });
   const g_ops_qa_questions = defineGroup(g_ops, "qa-questions", { summary: "Questions put to QA on a queue item — for when the person or agent working an item does not know the answer and wants QA's call without a build or a meeting.", help: "Questions put to QA on a queue item — for when the person or agent working\nan item does not know the answer and wants QA's call without a build or a\nmeeting. `ask` records the question; QA (a person, or an agent assigned the\nQA role) finds the backlog with `ops list --qa-questions open`, reads the\nitem (`ops get` carries a `qaQuestions` field), and `answer`s it. Answers\nare plain text and the asker reads them back with `list` or `ops get`.", aliases: [] });
   const g_ops_questions = defineGroup(g_ops, "questions", { summary: "Structured questions an agent asks the team about a queue item — the `AskUserQuestion` shape: a short `header`, the `question`, 2–4 `options` (label + description), and `multiSelect` for checkboxes instead of radios.", help: "Structured questions an agent asks the team about a queue item — the\n`AskUserQuestion` shape: a short `header`, the `question`, 2–4 `options`\n(label + description), and `multiSelect` for checkboxes instead of radios.\nEvery question also accepts a free-text \"Other\" answer. Open questions sit\nat the very top of the item's detail panel and mark the row in the queue.\n\n**Asking.** `ask` posts 1–4 questions at once. Several agents (or several\nruns) may have questions open on the same item at the same time.\n\n**Getting the answer back.** `delivery: resume` (the default for a run\nlaunched through a trigger connector) re-fires that same agent on the\nitem once every question its run asked is answered, continuing the same\nrun record with the answers in the prompt. `delivery: poll` (the default\nfor a live, connector-less session such as Claude Code in a terminal)\nfires nothing — call `list` until the status reads `completed`.", aliases: [] });
+  const g_ops_review_agents = defineGroup(g_ops, "review-agents", { summary: "The evals that score every push to a trail's changes — risk, confidence, security, code review, slop, or your own.", help: "The evals that score every push to a trail's changes — risk, confidence,\nsecurity, code review, slop, or your own. Each is run by one of the\nproject's coding-agent triggers (spending that agent's quota) and reports a\n0–100 score or a yes/no signal with a polarity and a passing threshold. A\nblocking agent's failing eval blocks the merge.", aliases: [] });
   const g_ops_routing_rules = defineGroup(g_ops, "routing-rules", { summary: "Tag automation rules — the project's \"when an item carries tag X, do Y\" settings.", help: "Tag automation rules — the project's \"when an item carries tag X, do Y\"\nsettings. A rule matches newly filed queue items by tag (or ticket type)\nand assigns a person, hands the item to a connected coding agent, sets\nstatus or priority, or subscribes emails. Rules run in order; `create`\nappends one without touching the rest.", aliases: [] });
+  const g_ops_trail_gates = defineGroup(g_ops, "trail-gates", { summary: "The project's merge requirements for trail changes — the branch is up to date, enough human approvals, no open findings at or above a severity, every blocking eval passes, CI checks pass.", help: "The project's merge requirements for trail changes — the branch is up to\ndate, enough human approvals, no open findings at or above a severity,\nevery blocking eval passes, CI checks pass. Each gate is evaluated or off,\nand blocking or report-only.", aliases: [] });
+  const g_ops_trails = defineGroup(g_ops, "trails", { summary: "A queue item followed from intent to merge.", help: "A queue item followed from intent to merge. The item is the trail — its\ntitle, description, type, priority and owner are the intent — and every\npull request linked to it is one of its changes. Each push to a change is\nscored by the project's review agents (a value, a rationale and findings\nper agent), and merge gates read branch freshness, approvals, open\nfindings, blocking evals and CI checks into one verdict. Loop the coding\nagent on the findings until the scores settle green, then approve and merge.", aliases: [] });
   const g_ops_trigger = defineGroup(g_ops, "trigger", { summary: "Recurring coding-agent triggers: the scheduled, unattended runs that burn down the ops queue in `--pr` mode (one PR per fixed item; nothing auto-merges).", help: "Recurring coding-agent triggers: the scheduled, unattended runs that burn\ndown the ops queue in `--pr` mode (one PR per fixed item; nothing\nauto-merges). Shipeasy can fire four providers directly — Claude routines,\nCursor cloud agents, Copilot cloud agents, and Google Jules (the Gemini\npath) — registered here as trigger connectors (idempotent per provider\nkey). Other platforms (Codex, Windsurf, Cline, OpenClaw, OpenCode,\nContinue) schedule on their own surface — typically a GitHub Actions\n`schedule:` cron running the platform's headless CLI with the shared\ntrigger prompt.", aliases: [] });
   const g_release = defineGroup(program, "release", { summary: "Feature delivery — flags, killswitches, dynamic configs, A/B experiments, and the universes they bucket in.", help: "Release: the feature-delivery surface. One roof over the five resources\nthat decide which code path a user gets — feature gates (flags),\nkillswitches, dynamic configs, A/B/n experiments, and the universes that\nbucket them — each exposed as its own subcommand group.\n\n**Groups.**\n- `flags` — boolean feature gates: AND-combined targeting rules + a percentage rollout (basis points), evaluated on the SDK hot path.\n- `killswitch` (`ks`) — per-env boolean overrides for incident response; no rules, no rollout, versioned per environment.\n- `configs` — JSON-Schema-validated structured values with a draft → publish workflow, delivered per environment.\n- `experiments` — randomised A/B/n assignment plus the analysis pipeline (t-test, sequential testing, SRM detection); `universes` hold the shared bucketing space and holdouts the experiments draw from.\n\n**Delivery model.** Every write rebuilds the project's KV blob and purges\nthe CDN — SDKs poll at the plan interval and never touch the database on\nthe hot path. The destructive verb is `archive` (soft-delete), never\n`delete`.\n\nRun `shipeasy release <group> --help` for the full contract of each group.", aliases: [] });
   const g_release_configs = defineGroup(g_release, "configs", { summary: "Dynamic configs: JSON-Schema-validated structured values delivered to SDKs and editable per environment with a draft/publish workflow.", help: "Dynamic configs: JSON-Schema-validated structured values delivered to SDKs and editable per environment with a draft/publish workflow.\n\n**Identity.** Each config is keyed by `name` in `folder.name` form (e.g. `pricing.tiers`). Immutable after create.\n\n**Schema-first.** Every config carries a JSON Schema (draft 2020-12, top-level `type: 'object'`). Every published value is validated against it.\n\n**Drafts → publish.** Per-env edits go through `PUT /{id}/drafts` (stages a value) then `POST /{id}/publish` (promotes to a new version). The flat `PATCH /{id}` republishes on **every** env in one shot — bypassing drafts.\n\n**Versioning.** Each publish bumps the per-env `version` monotonically. SDKs deliver the latest published version for each env.", aliases: [] });
@@ -689,6 +692,52 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .action(async (handle, questionId, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.cancelOpsQuestion({ client, path: { handle: handle, questionId: questionId }, body: json(opts.data) as never }) });
     });
+  g_ops_review_agents.command("list")
+    .description("List review agents")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.listTrailAgents({ client, body: json(opts.data) as never }) });
+    });
+  g_ops_review_agents.command("create")
+    .description("Add a review agent")
+    .option("--preset <value>", "A preset id from `ops review-agents list` (e.g. `code-review`, `security`, `risk`, `confidence`, `slop`).")
+    .option("--key <value>", "Slug the agent's evals are submitted under — lowercase letters, digits and dashes.")
+    .option("--name <value>", "")
+    .option("--description <value>", "")
+    .option("--instructions <value>", "What to review and how to score it.")
+    .option("--value-type <value>", "How a review agent's value reads — a `score` from 0 to 100, or a `boolean` signal submitted as 1 (yes) or 0 (no).")
+    .option("--polarity <value>", "Which direction is good. Confidence is `higher_is_better`; risk is `lower_is_better`. For a `boolean` agent, `lower_is_better` means a 1 (yes, an issue was found) fails.")
+    .option("--threshold <value>", "")
+    .option("--blocking <value>", "")
+    .option("--trigger <value>", "When a review agent runs — on every `push` to a trail's linked pull request, or only when a review is requested (`manual`).")
+    .option("--connector-id <value>", "The coding-agent trigger that runs it — a connector id from `ops agents list`. Omitted, the project's first connected trigger runs it.")
+    .option("--enabled <value>", "")
+    .action(async (opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.createTrailAgent({ client, body: clean({ preset: str(opts.preset), key: str(opts.key), name: str(opts.name), description: str(opts.description), instructions: str(opts.instructions), valueType: str(opts.valueType), polarity: str(opts.polarity), threshold: num(opts.threshold), blocking: bool(opts.blocking), trigger: str(opts.trigger), connectorId: str(opts.connectorId), enabled: bool(opts.enabled) }) }) });
+    });
+  g_ops_review_agents.command("update")
+    .description("Change a review agent")
+    .argument("<agentId>", "The review agent's id or key.")
+    .option("--name <value>", "")
+    .option("--description <value>", "")
+    .option("--instructions <value>", "")
+    .option("--value-type <value>", "How a review agent's value reads — a `score` from 0 to 100, or a `boolean` signal submitted as 1 (yes) or 0 (no).")
+    .option("--polarity <value>", "Which direction is good. Confidence is `higher_is_better`; risk is `lower_is_better`. For a `boolean` agent, `lower_is_better` means a 1 (yes, an issue was found) fails.")
+    .option("--threshold <value>", "")
+    .option("--blocking <value>", "")
+    .option("--trigger <value>", "When a review agent runs — on every `push` to a trail's linked pull request, or only when a review is requested (`manual`).")
+    .option("--connector-id <value>", "")
+    .option("--enabled <value>", "")
+    .action(async (agentId, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.updateTrailAgent({ client, path: { agentId: agentId }, body: clean({ name: str(opts.name), description: strOrNull(opts.description), instructions: str(opts.instructions), valueType: str(opts.valueType), polarity: str(opts.polarity), threshold: num(opts.threshold), blocking: bool(opts.blocking), trigger: str(opts.trigger), connectorId: strOrNull(opts.connectorId), enabled: bool(opts.enabled) }) }) });
+    });
+  g_ops_review_agents.command("archive")
+    .description("Archive a review agent")
+    .argument("<agentId>", "The review agent's id or key.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (agentId, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.archiveTrailAgent({ client, path: { agentId: agentId }, body: json(opts.data) as never }) });
+    });
   g_ops_routing_rules.command("list")
     .description("List tag automation rules")
     .option("--data <value>", "Request body as a JSON object.")
@@ -709,6 +758,79 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--skip-approval <value>", "Let a matching public-intake ticket skip `pending_approval`. Defaults to `false`.")
     .action(async (opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.createOpsRoutingRule({ client, body: clean({ tags: list(opts.tags), types: list(opts.types), enabled: bool(opts.enabled), user: str(opts.user), connector: str(opts.connector), agentPrompt: str(opts.agentPrompt), status: str(opts.status), priority: str(opts.priority), subscribers: list(opts.subscribers), skipApproval: bool(opts.skipApproval) }) }) });
+    });
+  g_ops_trail_gates.command("get")
+    .description("Show the merge gates")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.getTrailGates({ client, body: json(opts.data) as never }) });
+    });
+  g_ops_trail_gates.command("set")
+    .description("Set the merge gates")
+    .option("--up-to-date <value>", "")
+    .option("--human-review <value>", "")
+    .option("--agent-review <value>", "")
+    .option("--evals <value>", "")
+    .option("--checks <value>", "")
+    .action(async (opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.updateTrailGates({ client, body: clean({ upToDate: json(opts.upToDate), humanReview: json(opts.humanReview), agentReview: json(opts.agentReview), evals: json(opts.evals), checks: json(opts.checks) }) }) });
+    });
+  g_ops_trails.command("get")
+    .description("Show an item's trail")
+    .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.getOpsTrail({ client, path: { handle: handle }, body: json(opts.data) as never }) });
+    });
+  g_ops_trails.command("submit-eval")
+    .description("Submit a review agent's eval")
+    .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id.")
+    .option("--agent-key <value>", "The review agent's key (from `ops review-agents list`).")
+    .option("--value <value>", "0–100 for a score agent; 1 (yes) or 0 (no) for a boolean one.")
+    .option("--rationale <value>", "One or two sentences on the evidence behind the value.")
+    .option("--findings <value>", "Issues to fix, each with a severity, and a file and line when there is one.")
+    .option("--pr-url <value>", "The change reviewed. Omitted, the item's primary PR.")
+    .option("--head-sha <value>", "The commit reviewed. Omitted, the change's latest push. A sha that is not the latest push is recorded against that push, as history.")
+    .option("--agent <value>", "Your agent type, when you are the review agent.")
+    .option("--session-id <value>", "Your session id, so the eval can deep-link to the review run.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.submitOpsTrailEval({ client, path: { handle: handle }, body: clean({ agentKey: str(opts.agentKey), value: num(opts.value), rationale: str(opts.rationale), findings: json(opts.findings), prUrl: str(opts.prUrl), headSha: str(opts.headSha), agent: str(opts.agent), sessionId: str(opts.sessionId) }) }) });
+    });
+  g_ops_trails.command("update-finding")
+    .description("Resolve or dismiss a finding")
+    .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id.")
+    .argument("<findingId>", "The finding id.")
+    .option("--status <value>", "A finding stays `open` until it is `resolved` (fixed) or `dismissed` (not a problem). A finding raised on an earlier push is reported `stale` but stays open until somebody decides.")
+    .option("--reason <value>", "Why — the fixing commit, or why it is not a problem.")
+    .option("--agent <value>", "Your agent type, when an agent is resolving the finding.")
+    .action(async (handle, findingId, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.updateOpsTrailFinding({ client, path: { handle: handle, findingId: findingId }, body: clean({ status: str(opts.status), reason: str(opts.reason), agent: str(opts.agent) }) }) });
+    });
+  g_ops_trails.command("approve")
+    .description("Approve a change")
+    .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id.")
+    .option("--pr-url <value>", "The change to approve. Omitted, the item's primary PR.")
+    .option("--body <value>", "An optional review note.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.approveOpsTrail({ client, path: { handle: handle }, body: clean({ prUrl: str(opts.prUrl), body: str(opts.body) }) }) });
+    });
+  g_ops_trails.command("review")
+    .description("Run the review agents")
+    .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id.")
+    .option("--pr-url <value>", "The change to review. Omitted, the item's primary PR.")
+    .option("--agent-keys <value>", "Which review agents to run. Omitted, every enabled one.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.requestOpsTrailReview({ client, path: { handle: handle }, body: clean({ prUrl: str(opts.prUrl), agentKeys: list(opts.agentKeys) }) }) });
+    });
+  g_ops_trails.command("merge")
+    .description("Merge a change")
+    .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id.")
+    .option("--pr-url <value>", "The change to merge. Omitted, the item's primary PR.")
+    .option("--method <value>", "GitHub merge method. Defaults to `squash`.")
+    .option("--bypass <value>", "Merge although a blocking gate has not passed. Recorded on the item with `reason`.")
+    .option("--reason <value>", "Why the gates were bypassed. Required with `bypass`.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.mergeOpsTrail({ client, path: { handle: handle }, body: clean({ prUrl: str(opts.prUrl), method: str(opts.method), bypass: bool(opts.bypass), reason: str(opts.reason) }) }) });
     });
   const g_ops_trigger_create = defineGroup(g_ops_trigger, "create", { summary: "Create a recurring coding-agent trigger", help: "A trigger is an unattended, scheduled agent run: on a cron cadence it runs the\nshipeasy-ops-work loop in --pr mode against your project — one atomic diff and\nONE pull request per fixed item, nothing auto-merges.\n\nWhatever the provider, the scheduled run executes this trigger prompt (headless\nCLIs take it as the prompt; cloud agents as the task body):\n\n  You are an unattended Shipeasy maintenance run. Authenticate every `shipeasy`\n  call with these env vars (the CLI reads them directly — do NOT run\n  `shipeasy login`, never echo the token). Put them at the top of EVERY shell\n  invocation that calls `shipeasy`; each command runs in a fresh shell:\n\n  export SHIPEASY_CLI_TOKEN=\"<OPS_KEY>\"\n  export SHIPEASY_PROJECT_ID=\"<PROJECT_ID>\"\n\n  Ensure the repo is bound: test -f .shipeasy || printf '{\"project_id\":\"<PROJECT_ID>\"}\\n' > .shipeasy\n  (never commit .shipeasy).\n\n  Refresh to the latest plugin + CLI, then run the ops work loop in --pr mode:\n    <PLUGIN-INSTALL-FOR-THIS-HOST>       # plugin install for claude/copilot, or `npx -y skills add …`\n    npm install -g @shipeasy/cli@latest\n  Then follow the installed shipeasy-ops-work (--pr) workflow verbatim: burn down\n  the queue, one atomic diff per item, open ONE PR per item from a safe branch\n  prefix, flip each to ready_for_qa, add \"Closes #<issue>\" where an item has a\n  connected GitHub issue. If the queue is empty, exit cleanly. Never merge.\n\n<OPS_KEY> is a restricted `ops` key — mint with\n`npx -y @shipeasy/cli@latest keys create --type ops`. It reads the queue, flips\nstatus, links the PR it opens, and creates resources only; it can never edit or\ndelete existing resources, and auto-extends its 7-day expiry on each run.\n<PROJECT_ID> comes from the bound .shipeasy. Never print either value.\n\nSafety: auto-approve flags (--approval-mode=yolo, --dangerously-skip-permissions,\n…) remove the human gate — run only in an isolated env. Unattended loops spend\ntokens/credits on a cadence: start weekly/daily and watch the first runs." });
   g_ops_trigger_create.argument("[provider]", "One of the subcommands below.");

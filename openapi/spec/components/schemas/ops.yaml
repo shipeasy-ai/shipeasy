@@ -3547,3 +3547,939 @@ ListOpsMemoryResponse:
     - terms
   additionalProperties: false
   description: Response for `GET /api/admin/ops/memory`.
+TrailAgentValueType:
+  type: string
+  enum:
+    - score
+    - boolean
+  description: "How a review agent's value reads — a `score` from 0 to 100, or a `boolean` signal submitted as 1 (yes) or 0 (no)."
+TrailAgentPolarity:
+  type: string
+  enum:
+    - higher_is_better
+    - lower_is_better
+  description: "Which direction is good. Confidence is `higher_is_better`; risk is `lower_is_better`. For a `boolean` agent, `lower_is_better` means a 1 (yes, an issue was found) fails."
+TrailAgentTrigger:
+  type: string
+  enum:
+    - push
+    - manual
+  description: "When a review agent runs — on every `push` to a trail's linked pull request, or only when a review is requested (`manual`)."
+TrailEvalStatus:
+  type: string
+  enum:
+    - pending
+    - complete
+    - failed
+  description: "Where one eval stands — `pending` (its agent was launched and has not submitted), `complete`, or `failed` (the launch did not go through)."
+TrailEvalVerdict:
+  type: string
+  enum:
+    - pass
+    - warn
+    - fail
+  description: "An eval's value against its agent's threshold — `pass` (green), `warn` (orange: passing, but within 10 points of the threshold), `fail` (red)."
+TrailFindingSeverity:
+  type: string
+  enum:
+    - high
+    - medium
+    - low
+  description: How much a finding matters. The Agent review gate blocks on open findings at or above its configured severity.
+TrailFindingStatus:
+  type: string
+  enum:
+    - open
+    - resolved
+    - dismissed
+  description: "A finding stays `open` until it is `resolved` (fixed) or `dismissed` (not a problem). A finding raised on an earlier push is reported `stale` but stays open until somebody decides."
+TrailPhase:
+  type: string
+  enum:
+    - planning
+    - building
+    - reviewing
+    - ready
+    - merged
+    - closed
+  description: "Where a trail is, derived from its changes — `planning` (intent only), `building` (an agent is working, no change yet), `reviewing` (a change is open and a blocking gate has not passed), `ready` (every open change passes its gates), `merged` (every change merged), `closed` (the changes were closed unmerged)."
+TrailGateKey:
+  type: string
+  enum:
+    - up_to_date
+    - human_review
+    - agent_review
+    - evals
+    - checks
+  description: "A merge gate — `up_to_date` (the branch is current with its base), `human_review` (enough approvals), `agent_review` (no open findings at or above the severity), `evals` (every blocking review agent passes on the latest push), `checks` (CI checks pass)."
+TrailGateStatus:
+  type: string
+  enum:
+    - pass
+    - pending
+    - fail
+  description: How a gate reads on a change right now.
+TrailGateToggle:
+  type: object
+  properties:
+    enabled:
+      type: boolean
+      description: Whether the gate is evaluated at all.
+    blocking:
+      type: boolean
+      description: Whether a failing gate blocks the merge (a non-blocking gate only reports).
+  required:
+    - enabled
+    - blocking
+  additionalProperties: false
+TrailGates:
+  type: object
+  description: A project's merge gates for trail changes. Every project starts on the defaults shown in the example.
+  properties:
+    upToDate:
+      $ref: "#/TrailGateToggle"
+    humanReview:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        blocking:
+          type: boolean
+        minApprovals:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: Approvals a change needs.
+        resetOnPush:
+          type: boolean
+          description: Whether a new push clears earlier approvals, so the latest code is what gets approved.
+      required:
+        - enabled
+        - blocking
+        - minApprovals
+        - resetOnPush
+      additionalProperties: false
+    agentReview:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        blocking:
+          type: boolean
+        severity:
+          $ref: "#/TrailFindingSeverity"
+      required:
+        - enabled
+        - blocking
+        - severity
+      additionalProperties: false
+    evals:
+      $ref: "#/TrailGateToggle"
+    checks:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        blocking:
+          type: boolean
+        required:
+          type: array
+          items:
+            type: string
+            minLength: 1
+            maxLength: 200
+          maxItems: 50
+          description: Check names that must pass. Empty means every reported check.
+      required:
+        - enabled
+        - blocking
+        - required
+      additionalProperties: false
+  required:
+    - upToDate
+    - humanReview
+    - agentReview
+    - evals
+    - checks
+  additionalProperties: false
+TrailAgent:
+  type: object
+  description: A review agent — an eval that scores every push to a trail's changes, run by one of the project's coding-agent triggers.
+  properties:
+    id:
+      type: string
+      description: Agent id.
+    key:
+      type: string
+      description: The slug its evals are submitted under (`risk`, `security`, …).
+    name:
+      type: string
+    description:
+      anyOf:
+        - type: string
+        - type: "null"
+    instructions:
+      type: string
+      description: What the agent reviews and how it scores — the prompt its review run receives.
+    valueType:
+      $ref: "#/TrailAgentValueType"
+    polarity:
+      $ref: "#/TrailAgentPolarity"
+    threshold:
+      type: integer
+      description: The passing bound — a `higher_is_better` score passes at or above it, a `lower_is_better` one at or below it. Ignored for `boolean` agents.
+    blocking:
+      type: boolean
+      description: Whether a failing eval blocks the merge (through the Evals gate).
+    trigger:
+      $ref: "#/TrailAgentTrigger"
+    connectorId:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The coding-agent trigger that runs it, or `null` for the project's first connected trigger.
+    preset:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The preset it was added from.
+    enabled:
+      type: boolean
+    createdAt:
+      type: string
+    updatedAt:
+      type: string
+  required:
+    - id
+    - key
+    - name
+    - description
+    - instructions
+    - valueType
+    - polarity
+    - threshold
+    - blocking
+    - trigger
+    - connectorId
+    - preset
+    - enabled
+    - createdAt
+    - updatedAt
+TrailAgentPreset:
+  type: object
+  description: A ready-made review agent a project can add in one call.
+  properties:
+    preset:
+      type: string
+    key:
+      type: string
+    name:
+      type: string
+    description:
+      type: string
+    valueType:
+      $ref: "#/TrailAgentValueType"
+    polarity:
+      $ref: "#/TrailAgentPolarity"
+    threshold:
+      type: integer
+    blocking:
+      type: boolean
+  required:
+    - preset
+    - key
+    - name
+    - description
+    - valueType
+    - polarity
+    - threshold
+    - blocking
+ListTrailAgentsResponse:
+  type: object
+  properties:
+    agents:
+      type: array
+      items:
+        $ref: "#/TrailAgent"
+      description: The project's review agents (archived ones excluded).
+    presets:
+      type: array
+      items:
+        $ref: "#/TrailAgentPreset"
+      description: Presets that can be added with `create --preset <preset>`.
+  required:
+    - agents
+    - presets
+CreateTrailAgentRequest:
+  type: object
+  description: "Add a review agent. Pass `preset` to add a ready-made one (every other field then overrides the preset), or `key`, `name` and `instructions` for a custom agent."
+  properties:
+    preset:
+      type: string
+      maxLength: 64
+      description: A preset id from `ops review-agents list` (e.g. `code-review`, `security`, `risk`, `confidence`, `slop`).
+    key:
+      type: string
+      pattern: "^[a-z0-9][a-z0-9-]{0,47}$"
+      description: Slug the agent's evals are submitted under — lowercase letters, digits and dashes.
+    name:
+      type: string
+      minLength: 1
+      maxLength: 80
+    description:
+      type: string
+      maxLength: 500
+    instructions:
+      type: string
+      minLength: 1
+      maxLength: 8000
+      description: What to review and how to score it.
+    valueType:
+      $ref: "#/TrailAgentValueType"
+    polarity:
+      $ref: "#/TrailAgentPolarity"
+    threshold:
+      type: integer
+      minimum: 0
+      maximum: 100
+    blocking:
+      type: boolean
+    trigger:
+      $ref: "#/TrailAgentTrigger"
+    connectorId:
+      type: string
+      minLength: 1
+      maxLength: 128
+      description: The coding-agent trigger that runs it — a connector id from `ops agents list`. Omitted, the project's first connected trigger runs it.
+    enabled:
+      type: boolean
+  additionalProperties: false
+UpdateTrailAgentRequest:
+  type: object
+  description: Change a review agent. Only the fields sent change; its `key` is fixed.
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 80
+    description:
+      anyOf:
+        - type: string
+          maxLength: 500
+        - type: "null"
+    instructions:
+      type: string
+      minLength: 1
+      maxLength: 8000
+    valueType:
+      $ref: "#/TrailAgentValueType"
+    polarity:
+      $ref: "#/TrailAgentPolarity"
+    threshold:
+      type: integer
+      minimum: 0
+      maximum: 100
+    blocking:
+      type: boolean
+    trigger:
+      $ref: "#/TrailAgentTrigger"
+    connectorId:
+      anyOf:
+        - type: string
+          minLength: 1
+          maxLength: 128
+        - type: "null"
+    enabled:
+      type: boolean
+  additionalProperties: false
+TrailEval:
+  type: object
+  description: One review agent's result on one push.
+  properties:
+    id:
+      type: string
+    agentKey:
+      type: string
+    headSha:
+      type: string
+      description: The push it scored.
+    status:
+      $ref: "#/TrailEvalStatus"
+    value:
+      anyOf:
+        - type: number
+        - type: "null"
+      description: 0–100 for a score, 1/0 for a boolean; `null` until submitted.
+    verdict:
+      anyOf:
+        - $ref: "#/TrailEvalVerdict"
+        - type: "null"
+    rationale:
+      anyOf:
+        - type: string
+        - type: "null"
+    reviewer:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The agent type that submitted it, or the submitting person's email.
+    sessionUrl:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Deep link to the review session, when the provider gave one.
+    error:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Why the launch failed (`failed` only).
+    createdAt:
+      type: string
+    completedAt:
+      anyOf:
+        - type: string
+        - type: "null"
+  required:
+    - id
+    - agentKey
+    - headSha
+    - status
+    - value
+    - verdict
+    - rationale
+    - reviewer
+    - sessionUrl
+    - error
+    - createdAt
+    - completedAt
+TrailEvalSeries:
+  type: object
+  description: One review agent on one change — its result on the latest push next to its last five earlier ones, so you can see whether the loop has stabilised.
+  properties:
+    agentKey:
+      type: string
+    name:
+      type: string
+    valueType:
+      $ref: "#/TrailAgentValueType"
+    polarity:
+      $ref: "#/TrailAgentPolarity"
+    threshold:
+      type: integer
+    blocking:
+      type: boolean
+    current:
+      anyOf:
+        - $ref: "#/TrailEval"
+        - type: "null"
+      description: Its eval on the latest push, or `null` when it has not run there.
+    history:
+      type: array
+      items:
+        $ref: "#/TrailEval"
+      description: Its evals on earlier pushes, newest first (at most 5).
+  required:
+    - agentKey
+    - name
+    - valueType
+    - polarity
+    - threshold
+    - blocking
+    - current
+    - history
+TrailFinding:
+  type: object
+  description: One issue flagged on a change.
+  properties:
+    id:
+      type: string
+    agentKey:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The review agent that raised it.
+    headSha:
+      type: string
+      description: The push it was raised on.
+    severity:
+      $ref: "#/TrailFindingSeverity"
+    title:
+      type: string
+    body:
+      anyOf:
+        - type: string
+        - type: "null"
+    path:
+      anyOf:
+        - type: string
+        - type: "null"
+    line:
+      anyOf:
+        - type: integer
+        - type: "null"
+    suggestion:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Suggested replacement for the flagged lines.
+    status:
+      $ref: "#/TrailFindingStatus"
+    stale:
+      type: boolean
+      description: True when the change has been pushed to since the finding was raised. Stale findings stay open until resolved or dismissed.
+    statusReason:
+      anyOf:
+        - type: string
+        - type: "null"
+    statusBy:
+      anyOf:
+        - type: string
+        - type: "null"
+    createdAt:
+      type: string
+    updatedAt:
+      type: string
+  required:
+    - id
+    - agentKey
+    - headSha
+    - severity
+    - title
+    - body
+    - path
+    - line
+    - suggestion
+    - status
+    - stale
+    - statusReason
+    - statusBy
+    - createdAt
+    - updatedAt
+TrailPush:
+  type: object
+  properties:
+    id:
+      type: string
+    headSha:
+      type: string
+    baseSha:
+      anyOf:
+        - type: string
+        - type: "null"
+    headRef:
+      anyOf:
+        - type: string
+        - type: "null"
+    baseRef:
+      anyOf:
+        - type: string
+        - type: "null"
+    actor:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: GitHub login that pushed.
+    source:
+      type: string
+      enum:
+        - webhook
+        - link
+        - observed
+      description: How the push was learned about — the GitHub webhook, linking the PR, or reading the PR's head.
+    createdAt:
+      type: string
+  required:
+    - id
+    - headSha
+    - baseSha
+    - headRef
+    - baseRef
+    - actor
+    - source
+    - createdAt
+TrailApproval:
+  type: object
+  properties:
+    id:
+      type: string
+    actorEmail:
+      type: string
+    body:
+      anyOf:
+        - type: string
+        - type: "null"
+    headSha:
+      type: string
+      description: The push that was approved.
+    current:
+      type: boolean
+      description: True when it approved the latest push.
+    createdAt:
+      type: string
+  required:
+    - id
+    - actorEmail
+    - body
+    - headSha
+    - current
+    - createdAt
+TrailCheckRun:
+  type: object
+  properties:
+    name:
+      type: string
+    status:
+      type: string
+      enum:
+        - success
+        - pending
+        - failure
+        - neutral
+    url:
+      anyOf:
+        - type: string
+        - type: "null"
+  required:
+    - name
+    - status
+    - url
+TrailGate:
+  type: object
+  properties:
+    key:
+      $ref: "#/TrailGateKey"
+    label:
+      type: string
+    status:
+      $ref: "#/TrailGateStatus"
+    blocking:
+      type: boolean
+    detail:
+      type: string
+      description: One line on what the gate saw, e.g. `1 of 1 approvals`.
+  required:
+    - key
+    - label
+    - status
+    - blocking
+    - detail
+TrailChange:
+  type: object
+  description: One linked pull request on a trail, with everything needed to decide whether it can merge.
+  properties:
+    prUrl:
+      type: string
+    prNumber:
+      type: integer
+    repo:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: "`owner/repo`."
+    title:
+      anyOf:
+        - type: string
+        - type: "null"
+    state:
+      type: string
+      enum:
+        - open
+        - draft
+        - merged
+        - closed
+        - unknown
+      description: The PR's state; `unknown` when GitHub could not be read.
+    headRef:
+      anyOf:
+        - type: string
+        - type: "null"
+    baseRef:
+      anyOf:
+        - type: string
+        - type: "null"
+    headSha:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The latest push — what evals, findings and approvals are measured against.
+    mergeable:
+      type: boolean
+      description: True when every blocking gate passes and the PR is open.
+    gates:
+      type: array
+      items:
+        $ref: "#/TrailGate"
+    checks:
+      type: array
+      items:
+        $ref: "#/TrailCheckRun"
+    evals:
+      type: array
+      items:
+        $ref: "#/TrailEvalSeries"
+    findings:
+      type: array
+      items:
+        $ref: "#/TrailFinding"
+      description: Every finding on the change — open ones first, worst first.
+    approvals:
+      type: array
+      items:
+        $ref: "#/TrailApproval"
+    pushes:
+      type: array
+      items:
+        $ref: "#/TrailPush"
+      description: Pushes, newest first.
+  required:
+    - prUrl
+    - prNumber
+    - repo
+    - title
+    - state
+    - headRef
+    - baseRef
+    - headSha
+    - mergeable
+    - gates
+    - checks
+    - evals
+    - findings
+    - approvals
+    - pushes
+GetOpsTrailResponse:
+  type: object
+  description: A queue item followed from intent to merge.
+  properties:
+    id:
+      type: string
+      description: The item id.
+    number:
+      type: integer
+    title:
+      type: string
+    phase:
+      $ref: "#/TrailPhase"
+    changes:
+      type: array
+      items:
+        $ref: "#/TrailChange"
+    gates:
+      $ref: "#/TrailGates"
+  required:
+    - id
+    - number
+    - title
+    - phase
+    - changes
+    - gates
+NewTrailFinding:
+  type: object
+  properties:
+    severity:
+      $ref: "#/TrailFindingSeverity"
+    title:
+      type: string
+      minLength: 1
+      maxLength: 200
+    body:
+      type: string
+      maxLength: 4000
+    path:
+      type: string
+      maxLength: 500
+    line:
+      type: integer
+      minimum: 1
+    suggestion:
+      type: string
+      maxLength: 4000
+  required:
+    - severity
+    - title
+  additionalProperties: false
+SubmitOpsTrailEvalRequest:
+  type: object
+  description: "One review agent's result on one push. Re-submitting for the same push replaces the earlier result and its findings."
+  properties:
+    agentKey:
+      type: string
+      minLength: 1
+      maxLength: 48
+      description: The review agent's key (from `ops review-agents list`).
+    value:
+      type: number
+      minimum: 0
+      maximum: 100
+      description: 0–100 for a score agent; 1 (yes) or 0 (no) for a boolean one.
+    rationale:
+      type: string
+      minLength: 1
+      maxLength: 4000
+      description: One or two sentences on the evidence behind the value.
+    findings:
+      type: array
+      items:
+        $ref: "#/NewTrailFinding"
+      maxItems: 50
+      description: Issues to fix, each with a severity, and a file and line when there is one.
+    prUrl:
+      type: string
+      maxLength: 500
+      description: The change reviewed. Omitted, the item's primary PR.
+    headSha:
+      type: string
+      minLength: 7
+      maxLength: 64
+      description: The commit reviewed. Omitted, the change's latest push. A sha that is not the latest push is recorded against that push, as history.
+    agent:
+      type: string
+      enum:
+        - jarvis
+        - claude
+        - cursor
+        - copilot
+        - jules
+      description: Your agent type, when you are the review agent.
+    sessionId:
+      type: string
+      maxLength: 300
+      description: Your session id, so the eval can deep-link to the review run.
+  required:
+    - agentKey
+    - value
+    - rationale
+  additionalProperties: false
+SubmitOpsTrailEvalResponse:
+  type: object
+  properties:
+    eval:
+      $ref: "#/TrailEval"
+    findings:
+      type: array
+      items:
+        $ref: "#/TrailFinding"
+  required:
+    - eval
+    - findings
+UpdateOpsTrailFindingRequest:
+  type: object
+  properties:
+    status:
+      $ref: "#/TrailFindingStatus"
+    reason:
+      type: string
+      maxLength: 2000
+      description: Why — the fixing commit, or why it is not a problem.
+    agent:
+      type: string
+      enum:
+        - jarvis
+        - claude
+        - cursor
+        - copilot
+        - jules
+      description: Your agent type, when an agent is resolving the finding.
+  required:
+    - status
+  additionalProperties: false
+ApproveOpsTrailRequest:
+  type: object
+  properties:
+    prUrl:
+      type: string
+      maxLength: 500
+      description: The change to approve. Omitted, the item's primary PR.
+    body:
+      type: string
+      maxLength: 4000
+      description: An optional review note.
+  additionalProperties: false
+RequestOpsTrailReviewRequest:
+  type: object
+  properties:
+    prUrl:
+      type: string
+      maxLength: 500
+      description: The change to review. Omitted, the item's primary PR.
+    agentKeys:
+      type: array
+      items:
+        type: string
+        minLength: 1
+        maxLength: 48
+      maxItems: 20
+      description: Which review agents to run. Omitted, every enabled one.
+  additionalProperties: false
+RequestOpsTrailReviewResponse:
+  type: object
+  properties:
+    prUrl:
+      type: string
+    headSha:
+      type: string
+    launched:
+      type: array
+      items:
+        type: object
+        properties:
+          agentKey:
+            type: string
+          status:
+            $ref: "#/TrailEvalStatus"
+          error:
+            anyOf:
+              - type: string
+              - type: "null"
+        required:
+          - agentKey
+          - status
+          - error
+  required:
+    - prUrl
+    - headSha
+    - launched
+MergeOpsTrailRequest:
+  type: object
+  properties:
+    prUrl:
+      type: string
+      maxLength: 500
+      description: The change to merge. Omitted, the item's primary PR.
+    method:
+      type: string
+      enum:
+        - squash
+        - merge
+        - rebase
+      description: GitHub merge method. Defaults to `squash`.
+    bypass:
+      type: boolean
+      description: Merge although a blocking gate has not passed. Recorded on the item with `reason`.
+    reason:
+      type: string
+      maxLength: 2000
+      description: Why the gates were bypassed. Required with `bypass`.
+  additionalProperties: false
+MergeOpsTrailResponse:
+  type: object
+  properties:
+    prUrl:
+      type: string
+    merged:
+      type: boolean
+    sha:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The merge commit.
+    bypassed:
+      type: array
+      items:
+        $ref: "#/TrailGateKey"
+      description: Blocking gates that were not passing when it merged.
+  required:
+    - prUrl
+    - merged
+    - sha
+    - bypassed

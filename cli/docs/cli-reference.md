@@ -985,6 +985,90 @@ shipeasy ops questions cancel [options] <handle> <questionId>
 | --- | --- | --- |
 | `--data <value>` | optional | Request body as a JSON object. |
 
+### `shipeasy ops review-agents`
+
+The evals that score every push to a trail's changes — risk, confidence, security, code review, slop, or your own.
+
+```bash
+shipeasy ops review-agents [options] [command]
+```
+
+#### `shipeasy ops review-agents list`
+
+List review agents
+
+```bash
+shipeasy ops review-agents list [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+#### `shipeasy ops review-agents create`
+
+Add a review agent
+
+```bash
+shipeasy ops review-agents create [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--preset <value>` | optional | A preset id from `ops review-agents list` (e.g. `code-review`, `security`, `risk`, `confidence`, `slop`). |
+| `--key <value>` | optional | Slug the agent's evals are submitted under — lowercase letters, digits and dashes. |
+| `--name <value>` | optional | — |
+| `--description <value>` | optional | — |
+| `--instructions <value>` | optional | What to review and how to score it. |
+| `--value-type <value>` | optional | How a review agent's value reads — a `score` from 0 to 100, or a `boolean` signal submitted as 1 (yes) or 0 (no). |
+| `--polarity <value>` | optional | Which direction is good. Confidence is `higher_is_better`; risk is `lower_is_better`. For a `boolean` agent, `lower_is_better` means a 1 (yes, an issue was found) fails. |
+| `--threshold <value>` | optional | — |
+| `--blocking <value>` | optional | — |
+| `--trigger <value>` | optional | When a review agent runs — on every `push` to a trail's linked pull request, or only when a review is requested (`manual`). |
+| `--connector-id <value>` | optional | The coding-agent trigger that runs it — a connector id from `ops agents list`. Omitted, the project's first connected trigger runs it. |
+| `--enabled <value>` | optional | — |
+
+#### `shipeasy ops review-agents update`
+
+Change a review agent
+
+```bash
+shipeasy ops review-agents update [options] <agentId>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `agentId` | required | The review agent's id or key. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--name <value>` | optional | — |
+| `--description <value>` | optional | — |
+| `--instructions <value>` | optional | — |
+| `--value-type <value>` | optional | How a review agent's value reads — a `score` from 0 to 100, or a `boolean` signal submitted as 1 (yes) or 0 (no). |
+| `--polarity <value>` | optional | Which direction is good. Confidence is `higher_is_better`; risk is `lower_is_better`. For a `boolean` agent, `lower_is_better` means a 1 (yes, an issue was found) fails. |
+| `--threshold <value>` | optional | — |
+| `--blocking <value>` | optional | — |
+| `--trigger <value>` | optional | When a review agent runs — on every `push` to a trail's linked pull request, or only when a review is requested (`manual`). |
+| `--connector-id <value>` | optional | — |
+| `--enabled <value>` | optional | — |
+
+#### `shipeasy ops review-agents archive`
+
+Archive a review agent
+
+```bash
+shipeasy ops review-agents archive [options] <agentId>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `agentId` | required | The review agent's id or key. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
 ### `shipeasy ops routing-rules`
 
 Tag automation rules — the project's "when an item carries tag X, do Y" settings.
@@ -1025,6 +1109,161 @@ shipeasy ops routing-rules create [options]
 | `--priority <value>` | optional | Triage priority of a queue item. The lowest tier is `nice_to_have` (not `low`) — carried over from the feature-request "importance" scale this priority set replaced. |
 | `--subscribers <value>` | optional | Emails notified about matching items. |
 | `--skip-approval <value>` | optional | Let a matching public-intake ticket skip `pending_approval`. Defaults to `false`. |
+
+### `shipeasy ops trail-gates`
+
+The project's merge requirements for trail changes — the branch is up to date, enough human approvals, no open findings at or above a severity, every blocking eval passes, CI checks pass.
+
+```bash
+shipeasy ops trail-gates [options] [command]
+```
+
+#### `shipeasy ops trail-gates get`
+
+Show the merge gates
+
+```bash
+shipeasy ops trail-gates get [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+#### `shipeasy ops trail-gates set`
+
+Set the merge gates
+
+```bash
+shipeasy ops trail-gates set [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--up-to-date <value>` | optional | — |
+| `--human-review <value>` | optional | — |
+| `--agent-review <value>` | optional | — |
+| `--evals <value>` | optional | — |
+| `--checks <value>` | optional | — |
+
+### `shipeasy ops trails`
+
+A queue item followed from intent to merge.
+
+```bash
+shipeasy ops trails [options] [command]
+```
+
+#### `shipeasy ops trails get`
+
+Show an item's trail
+
+```bash
+shipeasy ops trails get [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+#### `shipeasy ops trails submit-eval`
+
+Submit a review agent's eval
+
+```bash
+shipeasy ops trails submit-eval [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--agent-key <value>` | optional | The review agent's key (from `ops review-agents list`). |
+| `--value <value>` | optional | 0–100 for a score agent; 1 (yes) or 0 (no) for a boolean one. |
+| `--rationale <value>` | optional | One or two sentences on the evidence behind the value. |
+| `--findings <value>` | optional | Issues to fix, each with a severity, and a file and line when there is one. |
+| `--pr-url <value>` | optional | The change reviewed. Omitted, the item's primary PR. |
+| `--head-sha <value>` | optional | The commit reviewed. Omitted, the change's latest push. A sha that is not the latest push is recorded against that push, as history. |
+| `--agent <value>` | optional | Your agent type, when you are the review agent. |
+| `--session-id <value>` | optional | Your session id, so the eval can deep-link to the review run. |
+
+#### `shipeasy ops trails update-finding`
+
+Resolve or dismiss a finding
+
+```bash
+shipeasy ops trails update-finding [options] <handle> <findingId>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
+| `findingId` | required | The finding id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--status <value>` | optional | A finding stays `open` until it is `resolved` (fixed) or `dismissed` (not a problem). A finding raised on an earlier push is reported `stale` but stays open until somebody decides. |
+| `--reason <value>` | optional | Why — the fixing commit, or why it is not a problem. |
+| `--agent <value>` | optional | Your agent type, when an agent is resolving the finding. |
+
+#### `shipeasy ops trails approve`
+
+Approve a change
+
+```bash
+shipeasy ops trails approve [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--pr-url <value>` | optional | The change to approve. Omitted, the item's primary PR. |
+| `--body <value>` | optional | An optional review note. |
+
+#### `shipeasy ops trails review`
+
+Run the review agents
+
+```bash
+shipeasy ops trails review [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--pr-url <value>` | optional | The change to review. Omitted, the item's primary PR. |
+| `--agent-keys <value>` | optional | Which review agents to run. Omitted, every enabled one. |
+
+#### `shipeasy ops trails merge`
+
+Merge a change
+
+```bash
+shipeasy ops trails merge [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--pr-url <value>` | optional | The change to merge. Omitted, the item's primary PR. |
+| `--method <value>` | optional | GitHub merge method. Defaults to `squash`. |
+| `--bypass <value>` | optional | Merge although a blocking gate has not passed. Recorded on the item with `reason`. |
+| `--reason <value>` | optional | Why the gates were bypassed. Required with `bypass`. |
 
 ### `shipeasy ops trigger`
 

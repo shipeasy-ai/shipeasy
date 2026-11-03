@@ -231,6 +231,31 @@ tags:
       feature lives in, and the PR that shipped it. Derived from the tickets'
       own records and rebuilt when they change. Search it before you start a
       ticket so you build on what was decided instead of rediscovering it.
+  - name: Trails
+    parent: Ops
+    description: |-
+      A queue item followed from intent to merge. The item is the trail — its
+      title, description, type, priority and owner are the intent — and every
+      pull request linked to it is one of its changes. Each push to a change is
+      scored by the project's review agents (a value, a rationale and findings
+      per agent), and merge gates read branch freshness, approvals, open
+      findings, blocking evals and CI checks into one verdict. Loop the coding
+      agent on the findings until the scores settle green, then approve and merge.
+  - name: Review agents
+    parent: Ops
+    description: |-
+      The evals that score every push to a trail's changes — risk, confidence,
+      security, code review, slop, or your own. Each is run by one of the
+      project's coding-agent triggers (spending that agent's quota) and reports a
+      0–100 score or a yes/no signal with a polarity and a passing threshold. A
+      blocking agent's failing eval blocks the merge.
+  - name: Trail gates
+    parent: Ops
+    description: |-
+      The project's merge requirements for trail changes — the branch is up to
+      date, enough human approvals, no open findings at or above a severity,
+      every blocking eval passes, CI checks pass. Each gate is evaluated or off,
+      and blocking or report-only.
   - name: Routing rules
     parent: Ops
     description: |-
@@ -479,6 +504,26 @@ paths:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1activity
   /api/admin/ops/memory:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1memory
+  /api/admin/ops/{handle}/trail:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1trail
+  /api/admin/ops/{handle}/trail/evals:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1trail~1evals
+  /api/admin/ops/{handle}/trail/findings/{findingId}:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1trail~1findings~1{findingId}
+  /api/admin/ops/{handle}/trail/approve:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1trail~1approve
+  /api/admin/ops/{handle}/trail/review:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1trail~1review
+  /api/admin/ops/{handle}/trail/merge:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1trail~1merge
+  /api/admin/review-agents:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1review-agents
+  /api/admin/review-agents/{agentId}:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1review-agents~1{agentId}
+  /api/admin/review-agents/{agentId}/archive:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1review-agents~1{agentId}~1archive
+  /api/admin/trail-gates:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1trail-gates
   /api/admin/ops/routing-rules:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1routing-rules
   /api/admin/notifications:
