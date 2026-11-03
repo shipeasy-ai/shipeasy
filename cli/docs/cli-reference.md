@@ -777,6 +777,31 @@ shipeasy ops investigations update [options] <handle> <investigationId>
 | `--completed-at <value>` | optional | ISO-8601 timestamp the work finished. Set it (or flip `kind` off `working`) to mark a run record done. |
 | `--session-id <value>` | optional | The agent-run session id, so the dashboard can deep-link to the run. |
 
+### `shipeasy ops memory`
+
+Project memory — what the project learned from every ticket it shipped or declined: decisions from answered questions, QA findings, the files each feature lives in, and the PR that shipped it.
+
+```bash
+shipeasy ops memory [options] [command]
+```
+
+#### `shipeasy ops memory search`
+
+Search project memory
+
+```bash
+shipeasy ops memory search [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--q <value>` | optional | Free-text query, e.g. `checkout retry`. |
+| `--paths <value>` | optional | Comma-separated repo-relative files or directories, e.g. `apps/web/src/checkout/,packages/billing/src/retry.ts`. |
+| `--item <value>` | optional | A queue item — its per-project number (e.g. `7`) or full id. Its title and description become the query; its own entries are excluded. |
+| `--kind <value>` | optional | Only entries of this kind. |
+| `--limit <value>` | optional | Maximum entries to return (1-50). Defaults to 10. |
+| `--data <value>` | optional | Request body as a JSON object. |
+
 ### `shipeasy ops qa-notes`
 
 Typed QA notes on a queue item — the QA follow-up that is not discussion.

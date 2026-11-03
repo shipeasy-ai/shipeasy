@@ -1904,6 +1904,93 @@
       - FORBIDDEN
     x-cli:
       name: list
+/api/admin/ops/memory:
+  get:
+    operationId: listOpsMemory
+    summary: Search project memory
+    description: |-
+      What the project already learned from the tickets it shipped — the
+      decisions the team made in answered questions, what QA found, which files
+      a feature lives in, the PR that shipped it, and the requests that were
+      turned down. Every entry is derived from the item's own records
+      (investigations, questions, QA notes, linked PRs) and is rebuilt whenever
+      those change, so it never disagrees with the ticket.
+
+      Search with `q` (free text), `paths` (comma-separated files or
+      directories — entries that touched them rank first) or `item` (a queue
+      item — its title and description become the query, and its own entries
+      are left out). With none of them, the newest entries come back. Bodies are
+      capped; read the full ticket with `ops get <item>`.
+
+      **Use case:** A coding agent picks up a ticket and, before reading the
+      repo, asks what was already decided and built around it:
+      `ops memory search --item 42`.
+    tags:
+      - Memory
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: q
+        in: query
+        required: false
+        description: Free-text query, e.g. `checkout retry`.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 500
+      - name: paths
+        in: query
+        required: false
+        description: Comma-separated repo-relative files or directories, e.g. `apps/web/src/checkout/,packages/billing/src/retry.ts`.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 2000
+      - name: item
+        in: query
+        required: false
+        description: A queue item — its per-project number (e.g. `7`) or full id. Its title and description become the query; its own entries are excluded.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      - name: kind
+        in: query
+        required: false
+        description: Only entries of this kind.
+        schema:
+          $ref: ../components/schemas/ops.yaml#/OpsMemoryKind
+      - name: limit
+        in: query
+        required: false
+        description: Maximum entries to return (1-50). Defaults to 10.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+    responses:
+      "200":
+        description: Search project memory
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/ListOpsMemoryResponse
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: search
 /api/admin/ops/{handle}/comments:
   get:
     operationId: listOpsComments

@@ -332,6 +332,12 @@ export const GENERATED_TOOLS: Tool[] = [
     annotations: {"title":"Ops List","readOnlyHint":true},
   },
   {
+    name: "ops_memory_search",
+    description: "Search project memory. What the project already learned from the tickets it shipped — the decisions the team made in answered questions, what QA found, which files a feature lives in, the PR that shipped it, and the requests that were turned down. Every entry is derived from the item's own records (…",
+    inputSchema: {"type":"object","properties":{"q":{"type":"string","minLength":1,"maxLength":500,"description":"Free-text query, e.g. `checkout retry`."},"paths":{"type":"string","minLength":1,"maxLength":2000,"description":"Comma-separated repo-relative files or directories, e.g. `apps/web/src/checkout/,packages/billing/src/retry.ts`."},"item":{"type":"string","minLength":1,"maxLength":128,"description":"A queue item — its per-project number (e.g. `7`) or full id. Its title and description become the query; its own entries are excluded."},"kind":{"type":"string","enum":["shipped","declined","decision","qa"],"description":"What a project-memory entry records. `shipped` — an item that reached `ready_for_qa`/`resolved`: what was asked, what the run found, the files it touched, the PR. `declined` — an item closed `wont_fix`: the request and why it was turned down. `decision` — an answered structured question: what the team picked. `qa` — a QA note or an answered QA question: what \"fixed\" turned out to mean, or what QA found failing."},"limit":{"type":"integer","minimum":1,"maximum":50,"description":"Maximum entries to return (1-50). Defaults to 10."}},"required":[]},
+    annotations: {"title":"Ops Memory Search","readOnlyHint":true},
+  },
+  {
     name: "ops_notify",
     description: "Raise an attention notification. Raise a 'needs your attention' bell notification. Create-only and idempotent on `dedupeKey` — re-raising with the same key updates the one card instead of stacking duplicates. It never reads, marks read, or deletes the feed, so it is safe for restricted ops keys.",
     inputSchema: {"type":"object","properties":{"title":{"type":"string","minLength":1,"maxLength":200,"description":"One-line headline of what's blocked."},"summary":{"type":"string","minLength":1,"maxLength":280,"description":"One sentence: why it can't be fixed in code. Renders markdown."},"steps":{"description":"Ordered steps the human should take to unblock — self-contained (the human reads only this card, not the agent's transcript), 3–6 steps, each naming the exact file, command, env var, or dashboard page. Renders markdown.","type":"array","items":{"type":"string"}},"href":{"description":"Dashboard-relative deep link to the related item. `null` is accepted and treated as \"no link\".","anyOf":[{"type":"string"},{"type":"null"}]},"dedupeKey":{"description":"Stable per-escalation key (e.g. `feedback:7`) so re-runs dedupe to one row.","type":"string"}},"required":["title","summary"]},
@@ -863,6 +869,7 @@ export const GENERATED_MUTATES: Record<string, boolean> = {
   "ops_link_pr": true,
   "ops_links": true,
   "ops_list": false,
+  "ops_memory_search": false,
   "ops_notify": true,
   "ops_qa_notes_create": true,
   "ops_qa_notes_list": false,
@@ -1000,6 +1007,7 @@ export const GENERATED_DISPATCH: Record<string, (client: Client, args: Record<st
   "ops_link_pr": (client, args) => api.linkPrToOpsItem({ client, path: { "handle": args["handle"] as never }, body: clean({ "prNumber": args["prNumber"], "prUrl": args["prUrl"], "unlink": args["unlink"] }) }).then(unwrap) as Promise<unknown>,
   "ops_links": (client, args) => api.updateOpsLinks({ client, path: { "handle": args["handle"] as never }, body: clean({ "addBlockedBy": args["addBlockedBy"], "removeBlockedBy": args["removeBlockedBy"], "addBlocking": args["addBlocking"], "removeBlocking": args["removeBlocking"], "duplicateOf": args["duplicateOf"] }) }).then(unwrap) as Promise<unknown>,
   "ops_list": (client, args) => requireArgs("ops_list", args, [{"name":"limit","hint":"Page size — max items to return (1–500)."}]).then(() => api.listOpsItems({ client, query: clean({ "type": args["type"], "status": args["status"] ?? "unresolved", "priority": args["priority"], "scope": args["scope"], "qaQuestions": args["qaQuestions"], "limit": args["limit"], "offset": args["offset"], "owner": args["owner"], "reporter": args["reporter"], "closedSince": args["closedSince"] }) }).then(unwrap)) as Promise<unknown>,
+  "ops_memory_search": (client, args) => api.listOpsMemory({ client, query: clean({ "q": args["q"], "paths": args["paths"], "item": args["item"], "kind": args["kind"], "limit": args["limit"] }) }).then(unwrap) as Promise<unknown>,
   "ops_notify": (client, args) => api.notifyOps({ client, body: clean({ "title": args["title"], "summary": args["summary"], "steps": args["steps"], "href": args["href"], "dedupeKey": args["dedupeKey"] }) }).then(unwrap) as Promise<unknown>,
   "ops_qa_notes_create": (client, args) => api.createOpsQaNote({ client, path: { "handle": args["handle"] as never }, body: clean({ "kind": args["kind"], "body": args["body"], "verdict": args["verdict"], "agent": args["agent"] }) }).then(unwrap) as Promise<unknown>,
   "ops_qa_notes_list": (client, args) => api.listOpsQaNotes({ client, path: { "handle": args["handle"] as never }, query: clean({ "kind": args["kind"] }) }).then(unwrap) as Promise<unknown>,

@@ -223,6 +223,14 @@ tags:
       unlinked, merged, closed unmerged). Read it per item or across the whole
       project, filtered by kind and time, to learn what changed since a given
       moment instead of diffing status lists.
+  - name: Memory
+    parent: Ops
+    description: |-
+      Project memory — what the project learned from every ticket it shipped or
+      declined: decisions from answered questions, QA findings, the files each
+      feature lives in, and the PR that shipped it. Derived from the tickets'
+      own records and rebuilt when they change. Search it before you start a
+      ticket so you build on what was decided instead of rediscovering it.
   - name: Routing rules
     parent: Ops
     description: |-
@@ -469,6 +477,8 @@ paths:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1comment-media
   /api/admin/ops/activity:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1activity
+  /api/admin/ops/memory:
+    $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1memory
   /api/admin/ops/routing-rules:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1routing-rules
   /api/admin/notifications:
