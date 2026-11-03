@@ -31428,9 +31428,11 @@
               "config",
               "killswitch",
               "metric",
-              "ops"
+              "ops",
+              "error",
+              "change"
             ],
-            "description": "Resource family — drives the result group + icon in the palette. (`member` hits are surfaced first.)"
+            "description": "Resource family — drives the result group + icon in the palette. (`member` hits are surfaced first.) `error` is a tracked error group, `change` an audit-log entry (Settings → Changes)."
           },
           "id": {
             "type": "string",

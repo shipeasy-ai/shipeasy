@@ -8231,9 +8231,9 @@ export type RevokeKeyResponse = {
  */
 export type SearchHit = {
     /**
-     * Resource family — drives the result group + icon in the palette. (`member` hits are surfaced first.)
+     * Resource family — drives the result group + icon in the palette. (`member` hits are surfaced first.) `error` is a tracked error group, `change` an audit-log entry (Settings → Changes).
      */
-    type: 'member' | 'gate' | 'experiment' | 'config' | 'killswitch' | 'metric' | 'ops';
+    type: 'member' | 'gate' | 'experiment' | 'config' | 'killswitch' | 'metric' | 'ops' | 'error' | 'change';
     /**
      * Stable identifier used to deep-link into the row's detail pane. For `member` hits this is the teammate's email; for everything else it is the resource id.
      */
