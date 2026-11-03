@@ -2153,7 +2153,8 @@ export const zListOpsItemsResponse = z.array(z.object({
     run: zOpsRun.nullable(),
     lastRun: zOpsRun.nullable(),
     createdAt: z.string(),
-    updatedAt: z.string()
+    updatedAt: z.string(),
+    closedAt: z.string().nullable()
 }));
 
 /**
@@ -5421,7 +5422,9 @@ export const zListOpsItemsQuery = z.object({
     qaQuestions: z.enum(['all', 'open']).optional().default('all'),
     limit: z.coerce.number().int().gte(1).lte(500).optional().default(200),
     offset: z.coerce.number().int().gte(0).lte(100000).optional().default(0),
-    owner: z.string().optional()
+    owner: z.string().optional(),
+    reporter: z.string().optional(),
+    closedSince: z.iso.datetime().optional()
 });
 
 /**

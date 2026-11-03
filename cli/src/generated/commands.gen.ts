@@ -118,9 +118,11 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--limit <value>", "Page size — max items to return (1–500). A page shorter than `limit` is the last one.")
     .option("--offset <value>", "Number of items to skip before the page starts. Defaults to 0. The order is stable, so `offset += limit` walks the queue page by page.")
     .option("--owner <value>", "Narrow to items owned by one person OR one agent. Matches a person by `users.id`, email, or display name, and an agent by connector id, display name, or kebab-case handle — e.g. `owner=Claude` or `owner=alice@acme.dev`. Case-insensitive exact match.")
+    .option("--reporter <value>", "Narrow to items filed by one reporter — an email, matched case-insensitive and exact against `reporterEmail`. Items with no reporter never match. While set, `status=all` also returns `pending_approval` items: public intake files every ticket as `pending_approval`, and a reporter must see the ticket they just filed.")
+    .option("--closed-since <value>", "ISO-8601 timestamp. Items still being worked are always returned; `resolved` and `wont_fix` items only when they closed at or after this time (see `closedAt`). Applies to `status=all` and `unresolved` only — an exact `status` filter is left as asked.")
     .option("--data <value>", "Request body as a JSON object.")
     .action(async (opts) => {
-      await ctx.run({ mutates: false, invoke: (client) => api.listOpsItems({ client, query: clean({ type: str(opts.type), status: str(opts.status), priority: str(opts.priority), scope: str(opts.scope), qaQuestions: str(opts.qaQuestions), limit: num(opts.limit), offset: num(opts.offset), owner: str(opts.owner) }), body: json(opts.data) as never }) });
+      await ctx.run({ mutates: false, invoke: (client) => api.listOpsItems({ client, query: clean({ type: str(opts.type), status: str(opts.status), priority: str(opts.priority), scope: str(opts.scope), qaQuestions: str(opts.qaQuestions), limit: num(opts.limit), offset: num(opts.offset), owner: str(opts.owner), reporter: str(opts.reporter), closedSince: str(opts.closedSince) }), body: json(opts.data) as never }) });
     });
   g_ops.command("create")
     .description("File a queue item (bug or feature request) — pass --type.")
@@ -241,7 +243,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   g_ops.command("ack")
     .description("Ack an item (start a run)")
     .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id.")
-    .option("--agent <value>", "The AI agent type acking on the item's behalf — pass your own type when you are a coding agent (Claude Code passes `claude`, Cursor `cursor`, Copilot `copilot`, Jules/Gemini `jules`). Omit entirely for a human ack by the authenticated caller.")
+    .option("--agent <value>", "The AI agent type acking on the item's behalf — pass your own type when you are a coding agent (Claude Code passes `claude`, Cursor `cursor`, Copilot `copilot`, Jules `jules`, Gemini `gemini` → normalized to `jules`). Omit entirely for a human ack by the authenticated caller.")
     .option("--session-id <value>", "The agent-run session id (e.g. Claude's `session_01…`), so the dashboard can deep-link to the exact run page. Omit when the harness has no session id.")
     .option("--launch <value>", "Whether an AI ack may FIRE the agent's connected trigger. Default `true`: an ack naming a connected agent, with no `sessionId`, starts a new provider run of that agent. Pass `false` to only record the ack — claim the item and open the run record — without starting anything, e.g. when you ARE that agent working the item yourself and have no session id to pass. Ignored on a human ack.")
     .option("--run-id <value>", "The run you were handed — the investigation id a fired run's prompt names, or the `runId` an earlier ack returned. Proves the open run is yours, so the ack adopts it instead of answering `409` `ALREADY_EXISTS`.")
@@ -1032,14 +1034,14 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     });
   g_release_flags.command("whitelist")
     .description("Read a gate's whitelist")
-    .argument("<id>", "Stable opaque gate id (`gate_…`) or the gate's `name`.")
+    .argument("<id>", "Stable opaque gate id (`gat_…`) or the gate's `name`.")
     .option("--data <value>", "Request body as a JSON object.")
     .action(async (id, opts) => {
       await ctx.run({ mutates: false, invoke: (client) => api.getGateWhitelist({ client, path: { id: id }, body: json(opts.data) as never }) });
     });
   g_release_flags.command("whitelist-add")
     .description("Add entries to a gate's whitelist")
-    .argument("<id>", "Stable opaque gate id (`gate_…`) or the gate's `name`.")
+    .argument("<id>", "Stable opaque gate id (`gat_…`) or the gate's `name`.")
     .option("--attr <value>", "Identity attribute to match on. Only honoured when the gate has no whitelist yet (this call creates it); passing an attribute that disagrees with an existing whitelist is a 409 rather than a silent re-key of the entries already there.")
     .option("--entries <value>", "Identities to admit. Already-listed entries are skipped, so the call is idempotent.")
     .action(async (id, opts) => {
@@ -1047,7 +1049,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     });
   g_release_flags.command("whitelist-set")
     .description("Replace a gate's whitelist")
-    .argument("<id>", "Stable opaque gate id (`gate_…`) or the gate's `name`.")
+    .argument("<id>", "Stable opaque gate id (`gat_…`) or the gate's `name`.")
     .option("--attr <value>", "Identity attribute to match on. Defaults to the whitelist's current attribute, or `email` when the gate has no whitelist yet.")
     .option("--entries <value>", "The complete whitelist after the call. Pass `[]` to remove the whitelist from the gate entirely.")
     .action(async (id, opts) => {
@@ -1055,7 +1057,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     });
   g_release_flags.command("whitelist-remove")
     .description("Remove entries from a gate's whitelist")
-    .argument("<id>", "Stable opaque gate id (`gate_…`) or the gate's `name`.")
+    .argument("<id>", "Stable opaque gate id (`gat_…`) or the gate's `name`.")
     .option("--entries <value>", "Identities to stop admitting. Entries that aren't listed are skipped, so the call is idempotent.")
     .action(async (id, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.removeFromGateWhitelist({ client, path: { id: id }, body: clean({ entries: json(opts.entries) }) }) });

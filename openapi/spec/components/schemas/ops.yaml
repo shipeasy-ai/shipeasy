@@ -117,6 +117,11 @@ ListOpsItemsResponse:
       updatedAt:
         type: string
         description: ISO-8601 last-update timestamp.
+      closedAt:
+        anyOf:
+          - type: string
+          - type: "null"
+        description: ISO-8601 timestamp the item was closed (`resolved` or `wont_fix`), or `null` while it is open.
     required:
       - id
       - number
@@ -130,6 +135,7 @@ ListOpsItemsResponse:
       - lastRun
       - createdAt
       - updatedAt
+      - closedAt
     additionalProperties: {}
     description: One queue item — any type — plus its resolved `owner` and run state.
   description: A page of queue items, newest first.

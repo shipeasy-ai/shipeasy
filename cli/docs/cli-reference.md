@@ -1141,6 +1141,8 @@ shipeasy ops list [options]
 | `--limit <value>` | optional | Page size — max items to return (1–500). A page shorter than `limit` is the last one. |
 | `--offset <value>` | optional | Number of items to skip before the page starts. Defaults to 0. The order is stable, so `offset += limit` walks the queue page by page. |
 | `--owner <value>` | optional | Narrow to items owned by one person OR one agent. Matches a person by `users.id`, email, or display name, and an agent by connector id, display name, or kebab-case handle — e.g. `owner=Claude` or `owner=alice@acme.dev`. Case-insensitive exact match. |
+| `--reporter <value>` | optional | Narrow to items filed by one reporter — an email, matched case-insensitive and exact against `reporterEmail`. Items with no reporter never match. While set, `status=all` also returns `pending_approval` items: public intake files every ticket as `pending_approval`, and a reporter must see the ticket they just filed. |
+| `--closed-since <value>` | optional | ISO-8601 timestamp. Items still being worked are always returned; `resolved` and `wont_fix` items only when they closed at or after this time (see `closedAt`). Applies to `status=all` and `unresolved` only — an exact `status` filter is left as asked. |
 | `--data <value>` | optional | Request body as a JSON object. |
 
 ### `shipeasy ops create`
@@ -1345,7 +1347,7 @@ shipeasy ops ack [options] <handle>
 
 | Option | | Description |
 | --- | --- | --- |
-| `--agent <value>` | optional | The AI agent type acking on the item's behalf — pass your own type when you are a coding agent (Claude Code passes `claude`, Cursor `cursor`, Copilot `copilot`, Jules/Gemini `jules`). Omit entirely for a human ack by the authenticated caller. |
+| `--agent <value>` | optional | The AI agent type acking on the item's behalf — pass your own type when you are a coding agent (Claude Code passes `claude`, Cursor `cursor`, Copilot `copilot`, Jules `jules`, Gemini `gemini` → normalized to `jules`). Omit entirely for a human ack by the authenticated caller. |
 | `--session-id <value>` | optional | The agent-run session id (e.g. Claude's `session_01…`), so the dashboard can deep-link to the exact run page. Omit when the harness has no session id. |
 | `--launch <value>` | optional | Whether an AI ack may FIRE the agent's connected trigger. Default `true`: an ack naming a connected agent, with no `sessionId`, starts a new provider run of that agent. Pass `false` to only record the ack — claim the item and open the run record — without starting anything, e.g. when you ARE that agent working the item yourself and have no session id to pass. Ignored on a human ack. |
 | `--run-id <value>` | optional | The run you were handed — the investigation id a fired run's prompt names, or the `runId` an earlier ack returned. Proves the open run is yours, so the ack adopts it instead of answering `409` `ALREADY_EXISTS`. |
@@ -2344,7 +2346,7 @@ shipeasy release flags whitelist [options] <id>
 
 | Argument | | Description |
 | --- | --- | --- |
-| `id` | required | Stable opaque gate id (`gate_…`) or the gate's `name`. |
+| `id` | required | Stable opaque gate id (`gat_…`) or the gate's `name`. |
 
 | Option | | Description |
 | --- | --- | --- |
@@ -2360,7 +2362,7 @@ shipeasy release flags whitelist-add [options] <id>
 
 | Argument | | Description |
 | --- | --- | --- |
-| `id` | required | Stable opaque gate id (`gate_…`) or the gate's `name`. |
+| `id` | required | Stable opaque gate id (`gat_…`) or the gate's `name`. |
 
 | Option | | Description |
 | --- | --- | --- |
@@ -2377,7 +2379,7 @@ shipeasy release flags whitelist-set [options] <id>
 
 | Argument | | Description |
 | --- | --- | --- |
-| `id` | required | Stable opaque gate id (`gate_…`) or the gate's `name`. |
+| `id` | required | Stable opaque gate id (`gat_…`) or the gate's `name`. |
 
 | Option | | Description |
 | --- | --- | --- |
@@ -2394,7 +2396,7 @@ shipeasy release flags whitelist-remove [options] <id>
 
 | Argument | | Description |
 | --- | --- | --- |
-| `id` | required | Stable opaque gate id (`gate_…`) or the gate's `name`. |
+| `id` | required | Stable opaque gate id (`gat_…`) or the gate's `name`. |
 
 | Option | | Description |
 | --- | --- | --- |
