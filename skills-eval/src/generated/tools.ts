@@ -64,6 +64,7 @@ export const KNOWN_TOOLS: readonly string[] = [
   "ops_link_pr",
   "ops_links",
   "ops_list",
+  "ops_memory_search",
   "ops_notify",
   "ops_qa_notes_create",
   "ops_qa_notes_list",
