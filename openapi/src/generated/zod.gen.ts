@@ -3117,6 +3117,411 @@ export const zListOpsMemoryResponse = z.object({
 });
 
 /**
+ * Where a trail is, derived from its changes — `planning` (intent only), `building` (an agent is working, no change yet), `reviewing` (a change is open and a blocking gate has not passed), `ready` (every open change passes its gates), `merged` (every change merged), `closed` (the changes were closed unmerged).
+ */
+export const zTrailPhase = z.enum([
+    'planning',
+    'building',
+    'reviewing',
+    'ready',
+    'merged',
+    'closed'
+]);
+
+/**
+ * A merge gate — `up_to_date` (the branch is current with its base), `human_review` (enough approvals), `agent_review` (no open findings at or above the severity), `evals` (every blocking review agent passes on the latest push), `checks` (CI checks pass).
+ */
+export const zTrailGateKey = z.enum([
+    'up_to_date',
+    'human_review',
+    'agent_review',
+    'evals',
+    'checks'
+]);
+
+/**
+ * How a gate reads on a change right now.
+ */
+export const zTrailGateStatus = z.enum([
+    'pass',
+    'pending',
+    'fail'
+]);
+
+export const zTrailGate = z.object({
+    key: zTrailGateKey,
+    label: z.string(),
+    status: zTrailGateStatus,
+    blocking: z.boolean(),
+    detail: z.string()
+});
+
+export const zTrailCheckRun = z.object({
+    name: z.string(),
+    status: z.enum([
+        'success',
+        'pending',
+        'failure',
+        'neutral'
+    ]),
+    url: z.string().nullable()
+});
+
+/**
+ * How a review agent's value reads — a `score` from 0 to 100, or a `boolean` signal submitted as 1 (yes) or 0 (no).
+ */
+export const zTrailAgentValueType = z.enum(['score', 'boolean']);
+
+/**
+ * Which direction is good. Confidence is `higher_is_better`; risk is `lower_is_better`. For a `boolean` agent, `lower_is_better` means a 1 (yes, an issue was found) fails.
+ */
+export const zTrailAgentPolarity = z.enum(['higher_is_better', 'lower_is_better']);
+
+/**
+ * Where one eval stands — `pending` (its agent was launched and has not submitted), `complete`, or `failed` (the launch did not go through).
+ */
+export const zTrailEvalStatus = z.enum([
+    'pending',
+    'complete',
+    'failed'
+]);
+
+/**
+ * An eval's value against its agent's threshold — `pass` (green), `warn` (orange: passing, but within 10 points of the threshold), `fail` (red).
+ */
+export const zTrailEvalVerdict = z.enum([
+    'pass',
+    'warn',
+    'fail'
+]);
+
+/**
+ * One review agent's result on one push.
+ */
+export const zTrailEval = z.object({
+    id: z.string(),
+    agentKey: z.string(),
+    headSha: z.string(),
+    status: zTrailEvalStatus,
+    value: z.number().nullable(),
+    verdict: zTrailEvalVerdict.nullable(),
+    rationale: z.string().nullable(),
+    reviewer: z.string().nullable(),
+    sessionUrl: z.string().nullable(),
+    error: z.string().nullable(),
+    createdAt: z.string(),
+    completedAt: z.string().nullable()
+});
+
+/**
+ * One review agent on one change — its result on the latest push next to its last five earlier ones, so you can see whether the loop has stabilised.
+ */
+export const zTrailEvalSeries = z.object({
+    agentKey: z.string(),
+    name: z.string(),
+    valueType: zTrailAgentValueType,
+    polarity: zTrailAgentPolarity,
+    threshold: z.int(),
+    blocking: z.boolean(),
+    current: zTrailEval.nullable(),
+    history: z.array(zTrailEval)
+});
+
+/**
+ * How much a finding matters. The Agent review gate blocks on open findings at or above its configured severity.
+ */
+export const zTrailFindingSeverity = z.enum([
+    'high',
+    'medium',
+    'low'
+]);
+
+/**
+ * A finding stays `open` until it is `resolved` (fixed) or `dismissed` (not a problem). A finding raised on an earlier push is reported `stale` but stays open until somebody decides.
+ */
+export const zTrailFindingStatus = z.enum([
+    'open',
+    'resolved',
+    'dismissed'
+]);
+
+/**
+ * One issue flagged on a change.
+ */
+export const zTrailFinding = z.object({
+    id: z.string(),
+    agentKey: z.string().nullable(),
+    headSha: z.string(),
+    severity: zTrailFindingSeverity,
+    title: z.string(),
+    body: z.string().nullable(),
+    path: z.string().nullable(),
+    line: z.int().nullable(),
+    suggestion: z.string().nullable(),
+    status: zTrailFindingStatus,
+    stale: z.boolean(),
+    statusReason: z.string().nullable(),
+    statusBy: z.string().nullable(),
+    createdAt: z.string(),
+    updatedAt: z.string()
+});
+
+export const zTrailApproval = z.object({
+    id: z.string(),
+    actorEmail: z.string(),
+    body: z.string().nullable(),
+    headSha: z.string(),
+    current: z.boolean(),
+    createdAt: z.string()
+});
+
+export const zTrailPush = z.object({
+    id: z.string(),
+    headSha: z.string(),
+    baseSha: z.string().nullable(),
+    headRef: z.string().nullable(),
+    baseRef: z.string().nullable(),
+    actor: z.string().nullable(),
+    source: z.enum([
+        'webhook',
+        'link',
+        'observed'
+    ]),
+    createdAt: z.string()
+});
+
+/**
+ * One linked pull request on a trail, with everything needed to decide whether it can merge.
+ */
+export const zTrailChange = z.object({
+    prUrl: z.string(),
+    prNumber: z.int(),
+    repo: z.string().nullable(),
+    title: z.string().nullable(),
+    state: z.enum([
+        'open',
+        'draft',
+        'merged',
+        'closed',
+        'unknown'
+    ]),
+    headRef: z.string().nullable(),
+    baseRef: z.string().nullable(),
+    headSha: z.string().nullable(),
+    mergeable: z.boolean(),
+    gates: z.array(zTrailGate),
+    checks: z.array(zTrailCheckRun),
+    evals: z.array(zTrailEvalSeries),
+    findings: z.array(zTrailFinding),
+    approvals: z.array(zTrailApproval),
+    pushes: z.array(zTrailPush)
+});
+
+export const zTrailGateToggle = z.object({
+    enabled: z.boolean(),
+    blocking: z.boolean()
+});
+
+/**
+ * A project's merge gates for trail changes. Every project starts on the defaults shown in the example.
+ */
+export const zTrailGates = z.object({
+    upToDate: zTrailGateToggle,
+    humanReview: z.object({
+        enabled: z.boolean(),
+        blocking: z.boolean(),
+        minApprovals: z.int().gte(1).lte(10),
+        resetOnPush: z.boolean()
+    }),
+    agentReview: z.object({
+        enabled: z.boolean(),
+        blocking: z.boolean(),
+        severity: zTrailFindingSeverity
+    }),
+    evals: zTrailGateToggle,
+    checks: z.object({
+        enabled: z.boolean(),
+        blocking: z.boolean(),
+        required: z.array(z.string().min(1).max(200)).max(50)
+    })
+});
+
+/**
+ * A queue item followed from intent to merge.
+ */
+export const zGetOpsTrailResponse = z.object({
+    id: z.string(),
+    number: z.int(),
+    title: z.string(),
+    phase: zTrailPhase,
+    changes: z.array(zTrailChange),
+    gates: zTrailGates
+});
+
+export const zNewTrailFinding = z.object({
+    severity: zTrailFindingSeverity,
+    title: z.string().min(1).max(200),
+    body: z.string().max(4000).optional(),
+    path: z.string().max(500).optional(),
+    line: z.int().gte(1).optional(),
+    suggestion: z.string().max(4000).optional()
+});
+
+/**
+ * One review agent's result on one push. Re-submitting for the same push replaces the earlier result and its findings.
+ */
+export const zSubmitOpsTrailEvalRequest = z.object({
+    agentKey: z.string().min(1).max(48),
+    value: z.number().gte(0).lte(100),
+    rationale: z.string().min(1).max(4000),
+    findings: z.array(zNewTrailFinding).max(50).optional(),
+    prUrl: z.string().max(500).optional(),
+    headSha: z.string().min(7).max(64).optional(),
+    agent: z.enum([
+        'jarvis',
+        'claude',
+        'cursor',
+        'copilot',
+        'jules'
+    ]).optional(),
+    sessionId: z.string().max(300).optional()
+});
+
+export const zSubmitOpsTrailEvalResponse = z.object({
+    eval: zTrailEval,
+    findings: z.array(zTrailFinding)
+});
+
+export const zUpdateOpsTrailFindingRequest = z.object({
+    status: zTrailFindingStatus,
+    reason: z.string().max(2000).optional(),
+    agent: z.enum([
+        'jarvis',
+        'claude',
+        'cursor',
+        'copilot',
+        'jules'
+    ]).optional()
+});
+
+export const zApproveOpsTrailRequest = z.object({
+    prUrl: z.string().max(500).optional(),
+    body: z.string().max(4000).optional()
+});
+
+export const zRequestOpsTrailReviewRequest = z.object({
+    prUrl: z.string().max(500).optional(),
+    agentKeys: z.array(z.string().min(1).max(48)).max(20).optional()
+});
+
+export const zRequestOpsTrailReviewResponse = z.object({
+    prUrl: z.string(),
+    headSha: z.string(),
+    launched: z.array(z.object({
+        agentKey: z.string(),
+        status: zTrailEvalStatus,
+        error: z.string().nullable()
+    }))
+});
+
+export const zMergeOpsTrailRequest = z.object({
+    prUrl: z.string().max(500).optional(),
+    method: z.enum([
+        'squash',
+        'merge',
+        'rebase'
+    ]).optional(),
+    bypass: z.boolean().optional(),
+    reason: z.string().max(2000).optional()
+});
+
+export const zMergeOpsTrailResponse = z.object({
+    prUrl: z.string(),
+    merged: z.boolean(),
+    sha: z.string().nullable(),
+    bypassed: z.array(zTrailGateKey)
+});
+
+/**
+ * When a review agent runs — on every `push` to a trail's linked pull request, or only when a review is requested (`manual`).
+ */
+export const zTrailAgentTrigger = z.enum(['push', 'manual']);
+
+/**
+ * A review agent — an eval that scores every push to a trail's changes, run by one of the project's coding-agent triggers.
+ */
+export const zTrailAgent = z.object({
+    id: z.string(),
+    key: z.string(),
+    name: z.string(),
+    description: z.string().nullable(),
+    instructions: z.string(),
+    valueType: zTrailAgentValueType,
+    polarity: zTrailAgentPolarity,
+    threshold: z.int(),
+    blocking: z.boolean(),
+    trigger: zTrailAgentTrigger,
+    connectorId: z.string().nullable(),
+    preset: z.string().nullable(),
+    enabled: z.boolean(),
+    createdAt: z.string(),
+    updatedAt: z.string()
+});
+
+/**
+ * A ready-made review agent a project can add in one call.
+ */
+export const zTrailAgentPreset = z.object({
+    preset: z.string(),
+    key: z.string(),
+    name: z.string(),
+    description: z.string(),
+    valueType: zTrailAgentValueType,
+    polarity: zTrailAgentPolarity,
+    threshold: z.int(),
+    blocking: z.boolean()
+});
+
+export const zListTrailAgentsResponse = z.object({
+    agents: z.array(zTrailAgent),
+    presets: z.array(zTrailAgentPreset)
+});
+
+/**
+ * Add a review agent. Pass `preset` to add a ready-made one (every other field then overrides the preset), or `key`, `name` and `instructions` for a custom agent.
+ */
+export const zCreateTrailAgentRequest = z.object({
+    preset: z.string().max(64).optional(),
+    key: z.string().regex(/^[a-z0-9][a-z0-9-]{0,47}$/).optional(),
+    name: z.string().min(1).max(80).optional(),
+    description: z.string().max(500).optional(),
+    instructions: z.string().min(1).max(8000).optional(),
+    valueType: zTrailAgentValueType.optional(),
+    polarity: zTrailAgentPolarity.optional(),
+    threshold: z.int().gte(0).lte(100).optional(),
+    blocking: z.boolean().optional(),
+    trigger: zTrailAgentTrigger.optional(),
+    connectorId: z.string().min(1).max(128).optional(),
+    enabled: z.boolean().optional()
+});
+
+/**
+ * Change a review agent. Only the fields sent change; its `key` is fixed.
+ */
+export const zUpdateTrailAgentRequest = z.object({
+    name: z.string().min(1).max(80).optional(),
+    description: z.string().max(500).nullish(),
+    instructions: z.string().min(1).max(8000).optional(),
+    valueType: zTrailAgentValueType.optional(),
+    polarity: zTrailAgentPolarity.optional(),
+    threshold: z.int().gte(0).lte(100).optional(),
+    blocking: z.boolean().optional(),
+    trigger: zTrailAgentTrigger.optional(),
+    connectorId: z.string().min(1).max(128).nullish(),
+    enabled: z.boolean().optional()
+});
+
+/**
  * A ticket type a tag rule can also fire on. Error and alert tickets carry no tags, so a rule that should catch them matches on type.
  */
 export const zOpsRoutingRuleType = z.enum([
@@ -5884,6 +6289,163 @@ export const zListOpsMemoryQuery = z.object({
  * Search project memory
  */
 export const zListOpsMemoryResponse2 = zListOpsMemoryResponse;
+
+export const zGetOpsTrailHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zGetOpsTrailPath = z.object({
+    handle: zResourceId
+});
+
+/**
+ * The item's trail
+ */
+export const zGetOpsTrailResponse2 = zGetOpsTrailResponse;
+
+export const zSubmitOpsTrailEvalBody = zSubmitOpsTrailEvalRequest;
+
+export const zSubmitOpsTrailEvalHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zSubmitOpsTrailEvalPath = z.object({
+    handle: zResourceId
+});
+
+/**
+ * The recorded eval and its findings
+ */
+export const zSubmitOpsTrailEvalResponse2 = zSubmitOpsTrailEvalResponse;
+
+export const zUpdateOpsTrailFindingBody = zUpdateOpsTrailFindingRequest;
+
+export const zUpdateOpsTrailFindingHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zUpdateOpsTrailFindingPath = z.object({
+    handle: zResourceId,
+    findingId: zResourceId
+});
+
+/**
+ * The updated finding
+ */
+export const zUpdateOpsTrailFindingResponse = zTrailFinding;
+
+export const zApproveOpsTrailBody = zApproveOpsTrailRequest;
+
+export const zApproveOpsTrailHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zApproveOpsTrailPath = z.object({
+    handle: zResourceId
+});
+
+/**
+ * The approval
+ */
+export const zApproveOpsTrailResponse = zTrailApproval;
+
+export const zRequestOpsTrailReviewBody = zRequestOpsTrailReviewRequest;
+
+export const zRequestOpsTrailReviewHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zRequestOpsTrailReviewPath = z.object({
+    handle: zResourceId
+});
+
+/**
+ * What was launched
+ */
+export const zRequestOpsTrailReviewResponse2 = zRequestOpsTrailReviewResponse;
+
+export const zMergeOpsTrailBody = zMergeOpsTrailRequest;
+
+export const zMergeOpsTrailHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zMergeOpsTrailPath = z.object({
+    handle: zResourceId
+});
+
+/**
+ * The merge result
+ */
+export const zMergeOpsTrailResponse2 = zMergeOpsTrailResponse;
+
+export const zListTrailAgentsHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+/**
+ * Review agents and presets
+ */
+export const zListTrailAgentsResponse2 = zListTrailAgentsResponse;
+
+export const zCreateTrailAgentBody = zCreateTrailAgentRequest;
+
+export const zCreateTrailAgentHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+/**
+ * The new agent
+ */
+export const zCreateTrailAgentResponse = zTrailAgent;
+
+export const zUpdateTrailAgentBody = zUpdateTrailAgentRequest;
+
+export const zUpdateTrailAgentHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zUpdateTrailAgentPath = z.object({
+    agentId: zResourceId
+});
+
+/**
+ * The updated agent
+ */
+export const zUpdateTrailAgentResponse = zTrailAgent;
+
+export const zArchiveTrailAgentHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zArchiveTrailAgentPath = z.object({
+    agentId: zResourceId
+});
+
+/**
+ * The archived agent
+ */
+export const zArchiveTrailAgentResponse = zTrailAgent;
+
+export const zGetTrailGatesHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+/**
+ * The merge gates
+ */
+export const zGetTrailGatesResponse = zTrailGates;
+
+export const zUpdateTrailGatesBody = zTrailGates;
+
+export const zUpdateTrailGatesHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+/**
+ * The merge gates
+ */
+export const zUpdateTrailGatesResponse = zTrailGates;
 
 export const zListOpsRoutingRulesHeaders = z.object({
     'X-Project-Id': z.string().optional()

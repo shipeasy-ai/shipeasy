@@ -2428,3 +2428,627 @@
       - FORBIDDEN
     x-cli:
       name: create
+/api/admin/ops/{handle}/trail:
+  get:
+    operationId: getOpsTrail
+    summary: Show an item's trail
+    description: |-
+      The item followed from intent to merge: its phase, and for every linked pull
+      request (each a *change*) the latest push, the merge gates and how they read,
+      CI checks, each review agent's eval on the latest push next to its last five,
+      every finding (open first, worst first, `stale` when raised on an earlier
+      push), the approvals, and the pushes.
+
+      Gates are read live from GitHub on every call, so a `state` of `unknown` means
+      GitHub could not be read and the PR-backed gates read `pending`.
+
+      **Use case:** After pushing a fix, a coding agent reads the trail to see which
+      findings are still open and whether the scores have turned green.
+    tags:
+      - Trails
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: handle
+        in: path
+        required: true
+        description: Per-project item number (e.g. `7`) or the full ops item id.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    responses:
+      "200":
+        description: The item's trail
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/GetOpsTrailResponse
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+    x-error-codes:
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: get
+      positional:
+        - handle
+/api/admin/ops/{handle}/trail/evals:
+  post:
+    operationId: submitOpsTrailEval
+    summary: Submit a review agent's eval
+    description: |-
+      Record one review agent's result on one push of a change: a `value` (0–100
+      for a score agent, 1/0 for a boolean one), a short `rationale`, and any
+      `findings`. The verdict (pass / warn / fail) is computed from the agent's
+      threshold and polarity. Submitting again for the same push replaces the
+      earlier result and the open findings it raised.
+
+      The `agentKey` normally names a configured review agent; an unconfigured key
+      is recorded too, as a non-blocking score.
+
+      **Use case:** A review run fired on a push scores the diff for risk and
+      submits `{ agentKey: "risk", value: 35, rationale: "...", findings: [...] }`.
+    tags:
+      - Trails
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: handle
+        in: path
+        required: true
+        description: Per-project item number (e.g. `7`) or the full ops item id.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/SubmitOpsTrailEvalRequest
+          example:
+            agentKey: risk
+            value: 35
+            rationale: Touches the token refresh path; covered by the existing auth tests
+            findings:
+              - severity: medium
+                title: Refresh failure is swallowed
+                path: src/auth/refresh.ts
+                line: 42
+    responses:
+      "200":
+        description: The recorded eval and its findings
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/SubmitOpsTrailEvalResponse
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: submit-eval
+      positional:
+        - handle
+/api/admin/ops/{handle}/trail/findings/{findingId}:
+  patch:
+    operationId: updateOpsTrailFinding
+    summary: Resolve or dismiss a finding
+    description: |-
+      Set a finding's status — `resolved` (it was fixed; say how in `reason`),
+      `dismissed` (it is not a problem; say why), or back to `open`.
+
+      **Use case:** The coding agent fixed a flagged issue, pushed, and resolves the
+      finding with `reason: "fixed in abc1234"`.
+    tags:
+      - Trails
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: handle
+        in: path
+        required: true
+        description: Per-project item number (e.g. `7`) or the full ops item id.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+      - name: findingId
+        in: path
+        required: true
+        description: The finding id.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/UpdateOpsTrailFindingRequest
+          example:
+            status: resolved
+            reason: fixed in abc1234
+    responses:
+      "200":
+        description: The updated finding
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/TrailFinding
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: update-finding
+      positional:
+        - handle
+        - findingId
+/api/admin/ops/{handle}/trail/approve:
+  post:
+    operationId: approveOpsTrail
+    summary: Approve a change
+    description: |-
+      Approve a change at its latest push — what the Human review gate counts.
+      Approving the same push twice is a no-op. When the project's gates reset
+      approvals on push, a later push needs a fresh approval.
+
+      Approval is a person's call: the restricted ops key cannot approve.
+
+      **Use case:** A reviewer has read the evals and the diff and signs off.
+    tags:
+      - Trails
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: handle
+        in: path
+        required: true
+        description: Per-project item number (e.g. `7`) or the full ops item id.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/ApproveOpsTrailRequest
+          example:
+            body: Read the diff and the security eval, looks good
+    responses:
+      "200":
+        description: The approval
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/TrailApproval
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - CONFLICT
+      - VALIDATION
+    x-cli:
+      name: approve
+      positional:
+        - handle
+/api/admin/ops/{handle}/trail/review:
+  post:
+    operationId: requestOpsTrailReview
+    summary: Run the review agents
+    description: |-
+      Launch the project's review agents on a change's latest push now, instead of
+      waiting for the next push. Each agent's eval reads `pending` until its run
+      submits. Agents sharing a coding-agent trigger are reviewed in one run.
+      Review runs spend your own agent quota, not Shipeasy credits.
+
+      **Use case:** An agent's instructions changed and the latest push should be
+      re-scored.
+    tags:
+      - Trails
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: handle
+        in: path
+        required: true
+        description: Per-project item number (e.g. `7`) or the full ops item id.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/RequestOpsTrailReviewRequest
+          example:
+            agentKeys:
+              - risk
+    responses:
+      "200":
+        description: What was launched
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/RequestOpsTrailReviewResponse
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - CONFLICT
+      - VALIDATION
+    x-cli:
+      name: review
+      positional:
+        - handle
+/api/admin/ops/{handle}/trail/merge:
+  post:
+    operationId: mergeOpsTrail
+    summary: Merge a change
+    description: |-
+      Merge a change's pull request on GitHub at the head its gates were evaluated
+      on. Refused with `409` while a blocking gate has not passed, unless `bypass`
+      is set with a `reason` — the bypass is recorded on the item. GitHub's own
+      branch rules can still refuse the merge (`502`). Merging one change never
+      merges the trail's other changes.
+
+      Merging is a person's call: the restricted ops key cannot merge.
+
+      **Use case:** Every gate is green; merge from the trail instead of switching
+      to GitHub.
+    tags:
+      - Trails
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: handle
+        in: path
+        required: true
+        description: Per-project item number (e.g. `7`) or the full ops item id.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/MergeOpsTrailRequest
+          example:
+            method: squash
+    responses:
+      "200":
+        description: The merge result
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/MergeOpsTrailResponse
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+      "502":
+        $ref: ../components/responses.yaml#/BadGateway
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - CONFLICT
+      - VALIDATION
+    x-cli:
+      name: merge
+      positional:
+        - handle
+/api/admin/review-agents:
+  get:
+    operationId: listTrailAgents
+    summary: List review agents
+    description: |-
+      The project's review agents — the evals that score every push to a trail's
+      changes — and the presets that can be added in one call.
+
+      **Use case:** Find the `agentKey` to submit an eval under.
+    tags:
+      - Review agents
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+    responses:
+      "200":
+        description: Review agents and presets
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/ListTrailAgentsResponse
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+    x-error-codes:
+      - UNAUTHORIZED
+      - FORBIDDEN
+    x-cli:
+      name: list
+  post:
+    operationId: createTrailAgent
+    summary: Add a review agent
+    description: |-
+      Add a review agent, from a preset (`preset: security`) or custom (`key`,
+      `name`, `instructions`, and how to read its value). A `push` agent runs on
+      every push to a linked PR through the project's coding-agent trigger (or the
+      one named by `connectorId`) and spends that agent's quota.
+
+      **Use case:** Add the security preset and make it blocking.
+    tags:
+      - Review agents
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/CreateTrailAgentRequest
+          example:
+            preset: security
+            blocking: true
+    responses:
+      "200":
+        description: The new agent
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/TrailAgent
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - ALREADY_EXISTS
+      - VALIDATION
+    x-cli:
+      name: create
+/api/admin/review-agents/{agentId}:
+  patch:
+    operationId: updateTrailAgent
+    summary: Change a review agent
+    description: |-
+      Change a review agent's instructions, threshold, polarity, trigger, the
+      connector that runs it, whether it blocks, or switch it off. Its `key` is
+      fixed. Earlier evals keep the verdict they were given.
+    tags:
+      - Review agents
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: agentId
+        in: path
+        required: true
+        description: The review agent's id or key.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/UpdateTrailAgentRequest
+          example:
+            threshold: 80
+            blocking: true
+    responses:
+      "200":
+        description: The updated agent
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/TrailAgent
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: update
+      positional:
+        - agentId
+/api/admin/review-agents/{agentId}/archive:
+  post:
+    operationId: archiveTrailAgent
+    summary: Archive a review agent
+    description: |-
+      Archive a review agent: it stops running and its key is free to reuse. Evals
+      it already submitted stay on their trails.
+    tags:
+      - Review agents
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: agentId
+        in: path
+        required: true
+        description: The review agent's id or key.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    responses:
+      "200":
+        description: The archived agent
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/TrailAgent
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+    x-error-codes:
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: archive
+      positional:
+        - agentId
+/api/admin/trail-gates:
+  get:
+    operationId: getTrailGates
+    summary: Show the merge gates
+    description: |-
+      The project's merge gates for trail changes — branch freshness, human
+      review, agent findings, blocking evals and CI checks — each with whether it
+      is evaluated and whether it blocks.
+    tags:
+      - Trail gates
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+    responses:
+      "200":
+        description: The merge gates
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/TrailGates
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+    x-error-codes:
+      - UNAUTHORIZED
+      - FORBIDDEN
+    x-cli:
+      name: get
+  put:
+    operationId: updateTrailGates
+    summary: Set the merge gates
+    description: |-
+      Replace the project's merge gates. Send the whole object (read it with
+      `ops trail-gates get` first).
+
+      **Use case:** Require two approvals and block on medium findings.
+    tags:
+      - Trail gates
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/TrailGates
+          example:
+            upToDate:
+              enabled: true
+              blocking: false
+            humanReview:
+              enabled: true
+              blocking: true
+              minApprovals: 1
+              resetOnPush: true
+            agentReview:
+              enabled: true
+              blocking: true
+              severity: high
+            evals:
+              enabled: true
+              blocking: true
+            checks:
+              enabled: true
+              blocking: true
+              required: []
+    responses:
+      "200":
+        description: The merge gates
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/TrailGates
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - VALIDATION
+    x-cli:
+      name: set
