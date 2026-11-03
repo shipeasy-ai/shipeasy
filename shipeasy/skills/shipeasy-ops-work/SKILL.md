@@ -56,6 +56,14 @@ Parse `$ARGUMENTS` up-front:
 - `--dry-run` — print the queue and exit 0. No status flips, no edits, no
   attachment downloads, no commits.
 
+**Named items are the whole queue.** When `$ARGUMENTS` names items — an
+`Issue [title](issue:#N:uuid), …` line (every fired run starts with one) or
+bare `#N` handles — the queue is EXACTLY those items: `ops get` each one, skip
+the `ops list` pull below, and never move on to anything else when they are
+done. Other runs own the rest of the queue; a fired run that sweeps it races
+every other run on the project to a second and third PR for the same item.
+Only a run with no named items pulls the queue.
+
 Check the working tree: it must be clean (`git status --porcelain`) **or** the
 user explicitly asked to work on top of WIP — otherwise stop and ask; mixing
 per-item diffs with pre-existing WIP makes the commits unreviewable.
@@ -133,6 +141,13 @@ ack there is no run, so even a finished, PR'd item reads as untouched.
   starts on the same item. `launch: false` records the ack and opens the run
   without firing anything. Omit it only when you mean to hand the item off to
   the connected agent.
+- **`409 ALREADY_EXISTS` means another session owns the item — skip it.**
+  Do not work it, do not open a PR for it, do not retry the ack; record it as
+  skipped in the report and move on. Only one session works an item at a time.
+  If the run the error names is YOUR run (the prompt that started you named an
+  investigation id for this item, or an earlier ack returned it), re-ack with
+  `--run-id <id>` (MCP `runId`) — that adopts your run. Never pass
+  `--takeover` unless the user asked you to replace the other session.
 - The ack moves the item into its working status for you
   (`investigating_by_ai` for an agent, `in_progress` for a human) — so you do
   **not** also issue a separate `--status in_progress` write.
