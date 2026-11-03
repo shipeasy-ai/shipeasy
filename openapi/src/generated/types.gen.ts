@@ -4023,6 +4023,10 @@ export type ListOpsItemsResponse = Array<{
      * ISO-8601 last-update timestamp.
      */
     updatedAt: string;
+    /**
+     * ISO-8601 timestamp the item was closed (`resolved` or `wont_fix`), or `null` while it is open.
+     */
+    closedAt: string | null;
     [key: string]: unknown;
 }>;
 
@@ -12416,6 +12420,14 @@ export type ListOpsItemsData = {
          * Narrow to items owned by one person OR one agent. Matches a person by `users.id`, email, or display name, and an agent by connector id, display name, or kebab-case handle — e.g. `owner=Claude` or `owner=alice@acme.dev`. Case-insensitive exact match.
          */
         owner?: string;
+        /**
+         * Narrow to items filed by one reporter — an email, matched case-insensitive and exact against `reporterEmail`. Items with no reporter never match. While set, `status=all` also returns `pending_approval` items: public intake files every ticket as `pending_approval`, and a reporter must see the ticket they just filed.
+         */
+        reporter?: string;
+        /**
+         * ISO-8601 timestamp. Items still being worked are always returned; `resolved` and `wont_fix` items only when they closed at or after this time (see `closedAt`). Combines with `status` like any other filter.
+         */
+        closedSince?: string;
     };
     url: '/api/admin/ops';
 };
