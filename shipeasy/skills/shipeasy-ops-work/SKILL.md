@@ -456,13 +456,37 @@ above:
    neither is an MCP tool. Item on no trail: skip this step.
 
    **Trail runs.** A run started on a trail itself (a person pressed Start agent,
-   or the server fired a fix) has no item: its prompt names the trail. Run every
-   `shipeasy` CLI call with `SHIPEASY_TRAIL=<T-n>` in the environment. The CLI then
-   sends `X-Shipeasy-Trail`, and the server links each flag, config, kill switch,
-   experiment, metric, event, alert rule and i18n key the call creates or changes
-   to the trail as one of its resources. (The `shipeasy-mcp` stdio server reads the
-   same variable from the environment it was launched with; the hosted MCP worker
-   cannot see your environment, so use the CLI for those writes.)
+   or the server fired a fix) has no item: its prompt names the trail. There are
+   three kinds, and the prompt says which:
+
+   - **Plan** (read-only). The project asks for a plan before anyone builds. Read the
+     trail and the code, then ask the person how the trail ships and anything else
+     that is genuinely open, in one call:
+     `ops questions ask <T-n> --run-id <run id from the prompt>` (the `ops_questions_ask`
+     MCP tool, `handle: "<T-n>"`). The release question has the header
+     `Release approach` and these options, your recommendation FIRST with
+     `Recommended: <one line: risk, blast radius, reversibility>` at the start of its
+     description: `Straight to main`, `Behind a flag`, `Flag and kill switch`,
+     `Flag and experiment` (a free-text answer, e.g. kill switch only, is always
+     offered). Then stop: the answers come back as a new session on the same run.
+     With them, submit the plan:
+     `trails submit-plan <T-n> --plan "<markdown>" --release '{"strategy": …, "reason": …, "resources": […]}'`
+     (the `trails_submit_plan` MCP tool). The strategy and resources are the person's
+     answer, never yours. Create nothing: no branch, pull request, flag, kill switch
+     or experiment. A person edits and approves the plan; the build is a separate run.
+   - **Build.** Follow the approved plan in the prompt. Create exactly the release
+     resources it lists (none when it ships straight to main) and link them with the
+     environment variable below. Do not add a flag, kill switch or experiment the plan
+     does not list. With no approved plan (the project does not require one), create
+     none.
+   - **Fix.** See the findings above.
+
+   Run every `shipeasy` CLI call with `SHIPEASY_TRAIL=<T-n>` in the environment. The
+   CLI then sends `X-Shipeasy-Trail`, and the server links each flag, config, kill
+   switch, experiment, metric, event, alert rule and i18n key the call creates or
+   changes to the trail as one of its resources. (The `shipeasy-mcp` stdio server
+   reads the same variable from the environment it was launched with; the hosted MCP
+   worker cannot see your environment, so use the CLI for those writes.)
 
    **Post-merge attribution.** When the ticket you are investigating is an error or
    an alert, the prompt may carry a "Recently merged trails" block. Attribute a

@@ -1233,7 +1233,7 @@
       - name: handle
         in: path
         required: true
-        description: Per-project item number (e.g. `7`) or the full ops item id.
+        description: Per-project item number (e.g. `7`) or the full ops item id, or a trail handle (e.g. `T-12`) for a question on a trail.
         schema:
           $ref: ../components/schemas/common.yaml#/ResourceId
       - name: status
@@ -1290,6 +1290,11 @@
       poll `GET .../questions` instead. Omitted, it is `resume` when `runId`
       names a run launched through a trigger connector, else `poll`.
 
+      **On a trail.** Pass the trail handle (`T-12`) as `handle` and the plan
+      run's id as `runId`: a plan run asks how the trail should ship this way,
+      and a `resume` answer re-fires the same plan run with the answers in its
+      prompt. The questions render in the trail page's Plan section.
+
       **Use case:** Blocked on a product decision (which behaviour to keep,
       which of two fixes to ship) — ask instead of guessing, then wait for the
       answer.
@@ -1300,7 +1305,7 @@
       - name: handle
         in: path
         required: true
-        description: Per-project item number (e.g. `7`) or the full ops item id.
+        description: Per-project item number (e.g. `7`) or the full ops item id, or a trail handle (e.g. `T-12`) for a question on a trail.
         schema:
           $ref: ../components/schemas/common.yaml#/ResourceId
     requestBody:
@@ -1370,7 +1375,7 @@
       - name: handle
         in: path
         required: true
-        description: Per-project item number (e.g. `7`) or the full ops item id.
+        description: Per-project item number (e.g. `7`) or the full ops item id, or a trail handle (e.g. `T-12`) for a question on a trail.
         schema:
           $ref: ../components/schemas/common.yaml#/ResourceId
       - name: questionId
@@ -1445,7 +1450,7 @@
       - name: handle
         in: path
         required: true
-        description: Per-project item number (e.g. `7`) or the full ops item id.
+        description: Per-project item number (e.g. `7`) or the full ops item id, or a trail handle (e.g. `T-12`) for a question on a trail.
         schema:
           $ref: ../components/schemas/common.yaml#/ResourceId
       - name: questionId

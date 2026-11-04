@@ -5338,9 +5338,13 @@ export type OpsQuestion = {
      */
     id: string;
     /**
-     * The queue item the question hangs off.
+     * The queue item the question hangs off, or `null` for a question asked on a trail.
      */
-    feedbackId: string;
+    feedbackId: string | null;
+    /**
+     * The trail the question hangs off (a plan run asks how the trail should ship), or `null` for a question on a queue item.
+     */
+    trailId: string | null;
     /**
      * Short chip label for the question.
      */
@@ -5913,9 +5917,9 @@ export type TrailType = 'feature' | 'bug' | 'task';
 export type TrailStatus = 'open' | 'closed';
 
 /**
- * A merge gate — `up_to_date` (the branch is current with its base), `human_review` (enough approvals), `agent_review` (no open findings at or above the severity, and no push agent still reviewing), `evals` (every blocking review agent passes on the latest push), `checks` (CI checks pass), `discovered` (no item discovered on the trail is open at or above the configured priority), and the release gates `ships_dark` (every flag the trail ships behind is off in prod), `rollback` (a feature has a rollback kill switch), `measured` (a feature has an experiment or metric), `guarded` (every measured resource has a guard alert rule) and `copy` (every copy key exists in every published locale).
+ * A merge gate — `plan` (every release resource the approved plan lists exists on the trail), `up_to_date` (the branch is current with its base), `human_review` (enough approvals), `agent_review` (no open findings at or above the severity, and no push agent still reviewing), `evals` (every blocking review agent passes on the latest push), `checks` (CI checks pass), `discovered` (no item discovered on the trail is open at or above the configured priority), and the release gates `ships_dark` (every flag the trail ships behind is off in prod), `rollback` (a feature has a rollback kill switch), `measured` (a feature has an experiment or metric), `guarded` (every measured resource has a guard alert rule) and `copy` (every copy key exists in every published locale).
  */
-export type TrailGateKey = 'up_to_date' | 'human_review' | 'agent_review' | 'evals' | 'checks' | 'discovered' | 'ships_dark' | 'rollback' | 'measured' | 'guarded' | 'copy';
+export type TrailGateKey = 'up_to_date' | 'human_review' | 'agent_review' | 'evals' | 'checks' | 'discovered' | 'ships_dark' | 'rollback' | 'measured' | 'guarded' | 'copy' | 'plan';
 
 /**
  * How a gate reads on a change right now.
@@ -6263,9 +6267,9 @@ export type TrailResource = {
 };
 
 /**
- * What a trail run was fired to do — `build` (work the trail from its intent) or `fix` (act on failing evals and findings).
+ * What a trail run was fired to do — `plan` (read-only: ask the person how the trail should ship and anything else that is open, then submit a plan), `build` (carry the approved plan to pull requests) or `fix` (act on failing evals and findings).
  */
-export type TrailRunKind = 'build' | 'fix';
+export type TrailRunKind = 'build' | 'fix' | 'plan';
 
 /**
  * A trail run's lifecycle.
@@ -6483,6 +6487,23 @@ export type TrailGates = {
         blocking: boolean;
     };
     /**
+     * Gate. Passes when every release resource the trail's approved plan lists exists on the trail (a flag, kill switch or experiment the person chose while the plan was made). Reads `pending` while a drafted plan waits for approval, and is left out when the trail has no plan. On by default; it blocks the merge only while `requirePlan` is on.
+     */
+    plan?: {
+        /**
+         * Whether the gate is evaluated at all.
+         */
+        enabled: boolean;
+        /**
+         * Whether a failing gate blocks the merge. Ignored while `requirePlan` is off, when the gate only reports.
+         */
+        blocking: boolean;
+    };
+    /**
+     * Whether starting an agent on a trail with no approved plan fires a read-only plan run first. The plan run asks the person how the trail should ship and anything else that is open, and the build run follows the plan they approve. Off, starting an agent builds directly and creates no flag, kill switch or experiment on its own.
+     */
+    requirePlan?: boolean;
+    /**
      * How many times the server re-fires the coding agent with a fix prompt after a change's evals or findings fail. After the cap the trail reads `reviewing`, needs a person. `0` turns the loop off.
      */
     fixRounds?: number;
@@ -6496,6 +6517,83 @@ export type TrailGates = {
     repos?: {
         [key: string]: TrailRepoOverride;
     };
+};
+
+/**
+ * Where a trail's plan stands — `none` (no plan yet), `drafted` (an agent submitted it, or a person edited it, and it waits for approval) or `approved` (a person signed it off; the build run follows it).
+ */
+export type TrailPlanStatus = 'none' | 'drafted' | 'approved';
+
+/**
+ * How the trail ships, as the person chose it while the plan was made — `straight_to_main` (no flag), `flag`, `flag_experiment` (a flag measured by an experiment), `kill_switch` (a kill switch only), `flag_kill_switch`, or `other` (a free-text answer that fits none of those).
+ */
+export type TrailReleaseStrategy = 'straight_to_main' | 'flag' | 'flag_experiment' | 'kill_switch' | 'flag_kill_switch' | 'other';
+
+/**
+ * The release resources a plan may list — a feature flag (`gate`), a kill switch or an experiment.
+ */
+export type TrailPlanResourceKind = 'gate' | 'killswitch' | 'experiment';
+
+/**
+ * One release resource the build run creates and links to the trail.
+ */
+export type TrailPlanResource = {
+    kind: TrailPlanResourceKind;
+    /**
+     * The key or name the build run creates it under, e.g. `checkout.v2`.
+     */
+    key: string;
+    role?: TrailResourceRole;
+};
+
+/**
+ * How the trail ships. The person answers this while the plan is made; the build run creates exactly the resources listed (none for `straight_to_main`), and the Plan gate checks they exist.
+ */
+export type TrailPlanRelease = {
+    strategy: TrailReleaseStrategy;
+    /**
+     * One line on why this approach — risk, blast radius, reversibility.
+     */
+    reason: string;
+    /**
+     * The flags, kill switches and experiments to create. Empty for `straight_to_main`; the strategy fixes which kinds must be present (a flag for `flag`, a flag and an experiment for `flag_experiment`, and so on).
+     */
+    resources: Array<TrailPlanResource>;
+};
+
+/**
+ * A trail's plan — what the build run follows. Made by a read-only plan run that asks the person how to ship, then approved by a person.
+ */
+export type TrailPlan = {
+    status: TrailPlanStatus;
+    /**
+     * The plan in markdown, or `null` before one exists.
+     */
+    plan: string | null;
+    /**
+     * How the trail ships and the resources to create, or `null` before a plan exists.
+     */
+    release: TrailPlanRelease | null;
+    /**
+     * Email of the person who approved it, or `null`.
+     */
+    approvedBy: string | null;
+    /**
+     * ISO-8601 time it was approved, or `null`.
+     */
+    approvedAt: string | null;
+    /**
+     * Whether the project requires an approved plan before an agent builds (`trail-gates` `requirePlan`).
+     */
+    requirePlan: boolean;
+    /**
+     * The run `trails start` fires now — `plan` while the project requires a plan and none is approved, else `build`.
+     */
+    nextRun: 'plan' | 'build';
+    /**
+     * Questions the plan run asked that still wait for an answer. Read them with `ops questions list <handle>`.
+     */
+    openQuestions: number;
 };
 
 /**
@@ -6615,6 +6713,7 @@ export type TrailDetail = {
      */
     suspects: Array<TrailSuspect>;
     gates: TrailGates;
+    plan: TrailPlan;
 };
 
 export type NewTrailFinding = {
@@ -7105,9 +7204,71 @@ export type StartTrailRunRequest = {
      */
     connectorId?: string;
     /**
+     * Which run to fire. Omitted, the server picks — `plan` while the project requires a plan (`trail-gates` `requirePlan`) and the trail has no approved one, else `build`. Asking for `build` before the plan is approved is refused with `409`, and so is asking for `plan` once one is approved: edit the plan to change it.
+     */
+    kind?: 'plan' | 'build';
+    /**
      * Extra instructions appended to the trail prompt.
      */
     prompt?: string;
+};
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/plan` — a plan run submits what it worked out, after the person answered how the trail should ship.
+ */
+export type SubmitTrailPlanRequest = {
+    /**
+     * The plan in markdown — the approach, the files and repos it touches, the order of the work, how each acceptance criterion is met, and the risks.
+     */
+    plan: string;
+    release: TrailPlanRelease;
+};
+
+/**
+ * The plan as recorded.
+ */
+export type TrailPlanResult = {
+    plan: TrailPlan;
+};
+
+/**
+ * Body for `PATCH /api/admin/trails/{handle}/plan` — a person edits the plan. Pass at least one field. Any edit puts the plan back to `drafted`, so it needs approving again.
+ */
+export type UpdateTrailPlanRequest = {
+    /**
+     * The plan in markdown.
+     */
+    plan?: string;
+    release?: TrailPlanRelease;
+};
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/plan/approve`.
+ */
+export type ApproveTrailPlanRequest = {
+    /**
+     * Also fire the build run once the plan is approved. Without it, approving only records the sign-off. When no coding agent is connected the request is refused with `409` before anything is approved.
+     */
+    startBuild?: boolean;
+    /**
+     * Which coding agent builds, with `startBuild`. Omitted, the project's coding-agent trigger.
+     */
+    agent?: 'claude' | 'cursor' | 'copilot' | 'jules';
+    /**
+     * A specific trigger connector to build with, with `startBuild`. Overrides `agent`.
+     */
+    connectorId?: string;
+};
+
+/**
+ * The approved plan, and the build run when `startBuild` was set.
+ */
+export type ApproveTrailPlanResult = {
+    plan: TrailPlan;
+    /**
+     * The build run that was started, or `null` when `startBuild` was not set.
+     */
+    run: TrailRun | null;
 };
 
 /**
@@ -14592,7 +14753,7 @@ export type ListOpsQuestionsData = {
     };
     path: {
         /**
-         * Per-project item number (e.g. `7`) or the full ops item id.
+         * Per-project item number (e.g. `7`) or the full ops item id, or a trail handle (e.g. `T-12`) for a question on a trail.
          */
         handle: ResourceId;
     };
@@ -14649,7 +14810,7 @@ export type AskOpsQuestionsData = {
     };
     path: {
         /**
-         * Per-project item number (e.g. `7`) or the full ops item id.
+         * Per-project item number (e.g. `7`) or the full ops item id, or a trail handle (e.g. `T-12`) for a question on a trail.
          */
         handle: ResourceId;
     };
@@ -14701,7 +14862,7 @@ export type AnswerOpsQuestionData = {
     };
     path: {
         /**
-         * Per-project item number (e.g. `7`) or the full ops item id.
+         * Per-project item number (e.g. `7`) or the full ops item id, or a trail handle (e.g. `T-12`) for a question on a trail.
          */
         handle: ResourceId;
         /**
@@ -14761,7 +14922,7 @@ export type CancelOpsQuestionData = {
     };
     path: {
         /**
-         * Per-project item number (e.g. `7`) or the full ops item id.
+         * Per-project item number (e.g. `7`) or the full ops item id, or a trail handle (e.g. `T-12`) for a question on a trail.
          */
         handle: ResourceId;
         /**
@@ -16567,6 +16728,174 @@ export type StartTrailRunResponses = {
 };
 
 export type StartTrailRunResponse = StartTrailRunResponses[keyof StartTrailRunResponses];
+
+export type UpdateTrailPlanData = {
+    body: UpdateTrailPlanRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/plan';
+};
+
+export type UpdateTrailPlanErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type UpdateTrailPlanError = UpdateTrailPlanErrors[keyof UpdateTrailPlanErrors];
+
+export type UpdateTrailPlanResponses = {
+    /**
+     * The plan as recorded
+     */
+    200: TrailPlanResult;
+};
+
+export type UpdateTrailPlanResponse = UpdateTrailPlanResponses[keyof UpdateTrailPlanResponses];
+
+export type SubmitTrailPlanData = {
+    body: SubmitTrailPlanRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/plan';
+};
+
+export type SubmitTrailPlanErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type SubmitTrailPlanError = SubmitTrailPlanErrors[keyof SubmitTrailPlanErrors];
+
+export type SubmitTrailPlanResponses = {
+    /**
+     * The plan as recorded
+     */
+    200: TrailPlanResult;
+};
+
+export type SubmitTrailPlanResponse = SubmitTrailPlanResponses[keyof SubmitTrailPlanResponses];
+
+export type ApproveTrailPlanData = {
+    body?: ApproveTrailPlanRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/plan/approve';
+};
+
+export type ApproveTrailPlanErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type ApproveTrailPlanError = ApproveTrailPlanErrors[keyof ApproveTrailPlanErrors];
+
+export type ApproveTrailPlanResponses = {
+    /**
+     * The approved plan, and the build run when one was started
+     */
+    200: ApproveTrailPlanResult;
+};
+
+export type ApproveTrailPlanResponse = ApproveTrailPlanResponses[keyof ApproveTrailPlanResponses];
 
 export type RequestTrailReviewData = {
     body: RequestOpsTrailReviewRequest;

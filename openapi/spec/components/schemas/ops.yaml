@@ -2946,8 +2946,15 @@ OpsQuestion:
       type: string
       description: Question id.
     feedbackId:
-      type: string
-      description: The queue item the question hangs off.
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The queue item the question hangs off, or `null` for a question asked on a trail.
+    trailId:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The trail the question hangs off (a plan run asks how the trail should ship), or `null` for a question on a queue item.
     header:
       type: string
       description: Short chip label for the question.
@@ -3035,6 +3042,7 @@ OpsQuestion:
   required:
     - id
     - feedbackId
+    - trailId
     - header
     - question
     - options
@@ -3640,7 +3648,8 @@ TrailGateKey:
     - measured
     - guarded
     - copy
-  description: "A merge gate — `up_to_date` (the branch is current with its base), `human_review` (enough approvals), `agent_review` (no open findings at or above the severity, and no push agent still reviewing), `evals` (every blocking review agent passes on the latest push), `checks` (CI checks pass), `discovered` (no item discovered on the trail is open at or above the configured priority), and the release gates `ships_dark` (every flag the trail ships behind is off in prod), `rollback` (a feature has a rollback kill switch), `measured` (a feature has an experiment or metric), `guarded` (every measured resource has a guard alert rule) and `copy` (every copy key exists in every published locale)."
+    - plan
+  description: "A merge gate — `plan` (every release resource the approved plan lists exists on the trail), `up_to_date` (the branch is current with its base), `human_review` (enough approvals), `agent_review` (no open findings at or above the severity, and no push agent still reviewing), `evals` (every blocking review agent passes on the latest push), `checks` (CI checks pass), `discovered` (no item discovered on the trail is open at or above the configured priority), and the release gates `ships_dark` (every flag the trail ships behind is off in prod), `rollback` (a feature has a rollback kill switch), `measured` (a feature has an experiment or metric), `guarded` (every measured resource has a guard alert rule) and `copy` (every copy key exists in every published locale)."
 TrailGateStatus:
   type: string
   enum:
@@ -3840,6 +3849,29 @@ TrailGates:
       default:
         enabled: false
         blocking: false
+    plan:
+      type: object
+      description: Gate. Passes when every release resource the trail's approved plan lists exists on the trail (a flag, kill switch or experiment the person chose while the plan was made). Reads `pending` while a drafted plan waits for approval, and is left out when the trail has no plan. On by default; it blocks the merge only while `requirePlan` is on.
+      properties:
+        enabled:
+          type: boolean
+          default: true
+          description: Whether the gate is evaluated at all.
+        blocking:
+          type: boolean
+          default: true
+          description: Whether a failing gate blocks the merge. Ignored while `requirePlan` is off, when the gate only reports.
+      required:
+        - enabled
+        - blocking
+      additionalProperties: false
+      default:
+        enabled: true
+        blocking: true
+    requirePlan:
+      type: boolean
+      default: true
+      description: Whether starting an agent on a trail with no approved plan fires a read-only plan run first. The plan run asks the person how the trail should ship and anything else that is open, and the build run follows the plan they approve. Off, starting an agent builds directly and creates no flag, kill switch or experiment on its own.
     fixRounds:
       type: integer
       minimum: 0
@@ -4739,7 +4771,8 @@ TrailRunKind:
   enum:
     - build
     - fix
-  description: What a trail run was fired to do — `build` (work the trail from its intent) or `fix` (act on failing evals and findings).
+    - plan
+  description: "What a trail run was fired to do — `plan` (read-only: ask the person how the trail should ship and anything else that is open, then submit a plan), `build` (carry the approved plan to pull requests) or `fix` (act on failing evals and findings)."
 TrailRunState:
   type: string
   enum:
@@ -5148,6 +5181,189 @@ TrailSuspect:
     - attributedBy
     - createdAt
   additionalProperties: false
+TrailPlanStatus:
+  type: string
+  enum:
+    - none
+    - drafted
+    - approved
+  description: Where a trail's plan stands — `none` (no plan yet), `drafted` (an agent submitted it, or a person edited it, and it waits for approval) or `approved` (a person signed it off; the build run follows it).
+TrailReleaseStrategy:
+  type: string
+  enum:
+    - straight_to_main
+    - flag
+    - flag_experiment
+    - kill_switch
+    - flag_kill_switch
+    - other
+  description: "How the trail ships, as the person chose it while the plan was made — `straight_to_main` (no flag), `flag`, `flag_experiment` (a flag measured by an experiment), `kill_switch` (a kill switch only), `flag_kill_switch`, or `other` (a free-text answer that fits none of those)."
+TrailPlanResourceKind:
+  type: string
+  enum:
+    - gate
+    - killswitch
+    - experiment
+  description: The release resources a plan may list — a feature flag (`gate`), a kill switch or an experiment.
+TrailPlanResource:
+  type: object
+  description: One release resource the build run creates and links to the trail.
+  properties:
+    kind:
+      $ref: "#/TrailPlanResourceKind"
+    key:
+      type: string
+      minLength: 1
+      maxLength: 200
+      description: The key or name the build run creates it under, e.g. `checkout.v2`.
+    role:
+      $ref: "#/TrailResourceRole"
+  required:
+    - kind
+    - key
+  additionalProperties: false
+TrailPlanRelease:
+  type: object
+  description: How the trail ships. The person answers this while the plan is made; the build run creates exactly the resources listed (none for `straight_to_main`), and the Plan gate checks they exist.
+  properties:
+    strategy:
+      $ref: "#/TrailReleaseStrategy"
+    reason:
+      type: string
+      maxLength: 2000
+      description: One line on why this approach — risk, blast radius, reversibility.
+    resources:
+      type: array
+      maxItems: 20
+      items:
+        $ref: "#/TrailPlanResource"
+      description: The flags, kill switches and experiments to create. Empty for `straight_to_main`; the strategy fixes which kinds must be present (a flag for `flag`, a flag and an experiment for `flag_experiment`, and so on).
+  required:
+    - strategy
+    - reason
+    - resources
+  additionalProperties: false
+TrailPlan:
+  type: object
+  description: A trail's plan — what the build run follows. Made by a read-only plan run that asks the person how to ship, then approved by a person.
+  properties:
+    status:
+      $ref: "#/TrailPlanStatus"
+    plan:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The plan in markdown, or `null` before one exists.
+    release:
+      anyOf:
+        - $ref: "#/TrailPlanRelease"
+        - type: "null"
+      description: How the trail ships and the resources to create, or `null` before a plan exists.
+    approvedBy:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Email of the person who approved it, or `null`.
+    approvedAt:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: ISO-8601 time it was approved, or `null`.
+    requirePlan:
+      type: boolean
+      description: Whether the project requires an approved plan before an agent builds (`trail-gates` `requirePlan`).
+    nextRun:
+      type: string
+      enum:
+        - plan
+        - build
+      description: The run `trails start` fires now — `plan` while the project requires a plan and none is approved, else `build`.
+    openQuestions:
+      type: integer
+      minimum: 0
+      description: Questions the plan run asked that still wait for an answer. Read them with `ops questions list <handle>`.
+  required:
+    - status
+    - plan
+    - release
+    - approvedBy
+    - approvedAt
+    - requirePlan
+    - nextRun
+    - openQuestions
+  additionalProperties: false
+SubmitTrailPlanRequest:
+  type: object
+  description: Body for `POST /api/admin/trails/{handle}/plan` — a plan run submits what it worked out, after the person answered how the trail should ship.
+  properties:
+    plan:
+      type: string
+      minLength: 1
+      maxLength: 20000
+      description: The plan in markdown — the approach, the files and repos it touches, the order of the work, how each acceptance criterion is met, and the risks.
+    release:
+      $ref: "#/TrailPlanRelease"
+  required:
+    - plan
+    - release
+  additionalProperties: false
+UpdateTrailPlanRequest:
+  type: object
+  description: Body for `PATCH /api/admin/trails/{handle}/plan` — a person edits the plan. Pass at least one field. Any edit puts the plan back to `drafted`, so it needs approving again.
+  properties:
+    plan:
+      type: string
+      minLength: 1
+      maxLength: 20000
+      description: The plan in markdown.
+    release:
+      $ref: "#/TrailPlanRelease"
+  minProperties: 1
+  additionalProperties: false
+ApproveTrailPlanRequest:
+  type: object
+  description: Body for `POST /api/admin/trails/{handle}/plan/approve`.
+  properties:
+    startBuild:
+      type: boolean
+      default: false
+      description: Also fire the build run once the plan is approved. Without it, approving only records the sign-off. When no coding agent is connected the request is refused with `409` before anything is approved.
+    agent:
+      type: string
+      enum:
+        - claude
+        - cursor
+        - copilot
+        - jules
+      description: Which coding agent builds, with `startBuild`. Omitted, the project's coding-agent trigger.
+    connectorId:
+      type: string
+      description: A specific trigger connector to build with, with `startBuild`. Overrides `agent`.
+  additionalProperties: false
+ApproveTrailPlanResult:
+  type: object
+  description: The approved plan, and the build run when `startBuild` was set.
+  properties:
+    plan:
+      $ref: "#/TrailPlan"
+    run:
+      anyOf:
+        - $ref: "#/TrailRun"
+        - type: "null"
+      description: The build run that was started, or `null` when `startBuild` was not set.
+  required:
+    - plan
+    - run
+  additionalProperties: false
+TrailPlanResult:
+  type: object
+  description: The plan as recorded.
+  properties:
+    plan:
+      $ref: "#/TrailPlan"
+  required:
+    - plan
+  additionalProperties: false
 TrailDetail:
   type: object
   description: "A trail followed from intent to release: the trail itself plus its changes, discovered items, resources, runs, suspected regressions and the project's gates. Phase and counts are recomputed live on this read."
@@ -5275,6 +5491,8 @@ TrailDetail:
       description: Pending low-confidence post-merge attributions awaiting a person.
     gates:
       $ref: "#/TrailGates"
+    plan:
+      $ref: "#/TrailPlan"
   required:
     - id
     - number
@@ -5308,6 +5526,7 @@ TrailDetail:
     - runs
     - suspects
     - gates
+    - plan
   additionalProperties: false
 ListTrailsResponse:
   type: object
@@ -5462,6 +5681,12 @@ StartTrailRunRequest:
     connectorId:
       type: string
       description: A specific trigger connector to fire. Overrides `agent`.
+    kind:
+      type: string
+      enum:
+        - plan
+        - build
+      description: "Which run to fire. Omitted, the server picks — `plan` while the project requires a plan (`trail-gates` `requirePlan`) and the trail has no approved one, else `build`. Asking for `build` before the plan is approved is refused with `409`, and so is asking for `plan` once one is approved: edit the plan to change it."
     prompt:
       type: string
       description: Extra instructions appended to the trail prompt.

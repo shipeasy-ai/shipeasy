@@ -2795,7 +2795,8 @@ export const zOpsQuestionDelivery = z.enum(['resume', 'poll']);
  */
 export const zOpsQuestion = z.object({
     id: z.string(),
-    feedbackId: z.string(),
+    feedbackId: z.string().nullable(),
+    trailId: z.string().nullable(),
     header: z.string(),
     question: z.string(),
     options: z.array(z.object({
@@ -3172,7 +3173,7 @@ export const zTrailType = z.enum([
 export const zTrailStatus = z.enum(['open', 'closed']);
 
 /**
- * A merge gate — `up_to_date` (the branch is current with its base), `human_review` (enough approvals), `agent_review` (no open findings at or above the severity, and no push agent still reviewing), `evals` (every blocking review agent passes on the latest push), `checks` (CI checks pass), `discovered` (no item discovered on the trail is open at or above the configured priority), and the release gates `ships_dark` (every flag the trail ships behind is off in prod), `rollback` (a feature has a rollback kill switch), `measured` (a feature has an experiment or metric), `guarded` (every measured resource has a guard alert rule) and `copy` (every copy key exists in every published locale).
+ * A merge gate — `plan` (every release resource the approved plan lists exists on the trail), `up_to_date` (the branch is current with its base), `human_review` (enough approvals), `agent_review` (no open findings at or above the severity, and no push agent still reviewing), `evals` (every blocking review agent passes on the latest push), `checks` (CI checks pass), `discovered` (no item discovered on the trail is open at or above the configured priority), and the release gates `ships_dark` (every flag the trail ships behind is off in prod), `rollback` (a feature has a rollback kill switch), `measured` (a feature has an experiment or metric), `guarded` (every measured resource has a guard alert rule) and `copy` (every copy key exists in every published locale).
  */
 export const zTrailGateKey = z.enum([
     'up_to_date',
@@ -3185,7 +3186,8 @@ export const zTrailGateKey = z.enum([
     'rollback',
     'measured',
     'guarded',
-    'copy'
+    'copy',
+    'plan'
 ]);
 
 /**
@@ -3456,9 +3458,13 @@ export const zTrailResource = z.object({
 });
 
 /**
- * What a trail run was fired to do — `build` (work the trail from its intent) or `fix` (act on failing evals and findings).
+ * What a trail run was fired to do — `plan` (read-only: ask the person how the trail should ship and anything else that is open, then submit a plan), `build` (carry the approved plan to pull requests) or `fix` (act on failing evals and findings).
  */
-export const zTrailRunKind = z.enum(['build', 'fix']);
+export const zTrailRunKind = z.enum([
+    'build',
+    'fix',
+    'plan'
+]);
 
 /**
  * A trail run's lifecycle.
@@ -3581,9 +3587,76 @@ export const zTrailGates = z.object({
         enabled: z.boolean().default(false),
         blocking: z.boolean().default(false)
     }).optional().default({ enabled: false, blocking: false }),
+    plan: z.object({
+        enabled: z.boolean().default(true),
+        blocking: z.boolean().default(true)
+    }).optional().default({ enabled: true, blocking: true }),
+    requirePlan: z.boolean().optional().default(true),
     fixRounds: z.int().gte(0).lte(10).optional().default(3),
     attributionWindowHours: z.int().gte(1).lte(720).optional().default(72),
     repos: z.record(z.string(), zTrailRepoOverride).optional()
+});
+
+/**
+ * Where a trail's plan stands — `none` (no plan yet), `drafted` (an agent submitted it, or a person edited it, and it waits for approval) or `approved` (a person signed it off; the build run follows it).
+ */
+export const zTrailPlanStatus = z.enum([
+    'none',
+    'drafted',
+    'approved'
+]);
+
+/**
+ * How the trail ships, as the person chose it while the plan was made — `straight_to_main` (no flag), `flag`, `flag_experiment` (a flag measured by an experiment), `kill_switch` (a kill switch only), `flag_kill_switch`, or `other` (a free-text answer that fits none of those).
+ */
+export const zTrailReleaseStrategy = z.enum([
+    'straight_to_main',
+    'flag',
+    'flag_experiment',
+    'kill_switch',
+    'flag_kill_switch',
+    'other'
+]);
+
+/**
+ * The release resources a plan may list — a feature flag (`gate`), a kill switch or an experiment.
+ */
+export const zTrailPlanResourceKind = z.enum([
+    'gate',
+    'killswitch',
+    'experiment'
+]);
+
+/**
+ * One release resource the build run creates and links to the trail.
+ */
+export const zTrailPlanResource = z.object({
+    kind: zTrailPlanResourceKind,
+    key: z.string().min(1).max(200),
+    role: zTrailResourceRole.optional()
+});
+
+/**
+ * How the trail ships. The person answers this while the plan is made; the build run creates exactly the resources listed (none for `straight_to_main`), and the Plan gate checks they exist.
+ */
+export const zTrailPlanRelease = z.object({
+    strategy: zTrailReleaseStrategy,
+    reason: z.string().max(2000),
+    resources: z.array(zTrailPlanResource).max(20)
+});
+
+/**
+ * A trail's plan — what the build run follows. Made by a read-only plan run that asks the person how to ship, then approved by a person.
+ */
+export const zTrailPlan = z.object({
+    status: zTrailPlanStatus,
+    plan: z.string().nullable(),
+    release: zTrailPlanRelease.nullable(),
+    approvedBy: z.string().nullable(),
+    approvedAt: z.string().nullable(),
+    requirePlan: z.boolean(),
+    nextRun: z.enum(['plan', 'build']),
+    openQuestions: z.int().gte(0)
 });
 
 /**
@@ -3621,7 +3694,8 @@ export const zTrailDetail = z.object({
     resources: z.array(zTrailResource),
     runs: z.array(zTrailRun),
     suspects: z.array(zTrailSuspect),
-    gates: zTrailGates
+    gates: zTrailGates,
+    plan: zTrailPlan
 });
 
 export const zNewTrailFinding = z.object({
@@ -3899,7 +3973,53 @@ export const zStartTrailRunRequest = z.object({
         'jules'
     ]).optional(),
     connectorId: z.string().optional(),
+    kind: z.enum(['plan', 'build']).optional(),
     prompt: z.string().max(8000).optional()
+});
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/plan` — a plan run submits what it worked out, after the person answered how the trail should ship.
+ */
+export const zSubmitTrailPlanRequest = z.object({
+    plan: z.string().min(1).max(20000),
+    release: zTrailPlanRelease
+});
+
+/**
+ * The plan as recorded.
+ */
+export const zTrailPlanResult = z.object({
+    plan: zTrailPlan
+});
+
+/**
+ * Body for `PATCH /api/admin/trails/{handle}/plan` — a person edits the plan. Pass at least one field. Any edit puts the plan back to `drafted`, so it needs approving again.
+ */
+export const zUpdateTrailPlanRequest = z.object({
+    plan: z.string().min(1).max(20000).optional(),
+    release: zTrailPlanRelease.optional()
+});
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/plan/approve`.
+ */
+export const zApproveTrailPlanRequest = z.object({
+    startBuild: z.boolean().optional().default(false),
+    agent: z.enum([
+        'claude',
+        'cursor',
+        'copilot',
+        'jules'
+    ]).optional(),
+    connectorId: z.string().optional()
+});
+
+/**
+ * The approved plan, and the build run when `startBuild` was set.
+ */
+export const zApproveTrailPlanResult = z.object({
+    plan: zTrailPlan,
+    run: zTrailRun.nullable()
 });
 
 /**
@@ -7040,6 +7160,51 @@ export const zStartTrailRunPath = z.object({
  * The run that was started
  */
 export const zStartTrailRunResponse = zTrailRun;
+
+export const zUpdateTrailPlanBody = zUpdateTrailPlanRequest;
+
+export const zUpdateTrailPlanHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zUpdateTrailPlanPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/)
+});
+
+/**
+ * The plan as recorded
+ */
+export const zUpdateTrailPlanResponse = zTrailPlanResult;
+
+export const zSubmitTrailPlanBody = zSubmitTrailPlanRequest;
+
+export const zSubmitTrailPlanHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zSubmitTrailPlanPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/)
+});
+
+/**
+ * The plan as recorded
+ */
+export const zSubmitTrailPlanResponse = zTrailPlanResult;
+
+export const zApproveTrailPlanBody = zApproveTrailPlanRequest;
+
+export const zApproveTrailPlanHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zApproveTrailPlanPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/)
+});
+
+/**
+ * The approved plan, and the build run when one was started
+ */
+export const zApproveTrailPlanResponse = zApproveTrailPlanResult;
 
 export const zRequestTrailReviewBody = zRequestOpsTrailReviewRequest;
 

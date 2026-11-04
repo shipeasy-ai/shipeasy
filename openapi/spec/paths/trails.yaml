@@ -526,9 +526,9 @@
     operationId: startTrailRun
     summary: Start an agent on a trail
     description: |-
-      Fire the project's coding-agent trigger with a *trail* prompt: the intent, the acceptance criteria, the linked resources and the open discovered items. The agent opens pull requests and links them with `trails link-pr`. The run is tracked as a `build` run; `fix` runs are fired by the server when a change's evals or findings fail. Runs spend your own agent quota, not Shipeasy credits.
+      Fire the project's coding-agent trigger on the trail. While the project requires a plan (`trail-gates` `requirePlan`, on by default) and the trail has no approved one, this fires a read-only **plan** run: it reads the trail, asks the person how it should ship (straight to main, behind a flag, flag and experiment, kill switch, flag and kill switch) and anything else that is open through `ops questions ask`, then submits a plan with `trails submit-plan`. Once a person approves the plan (`trails approve-plan`), starting an agent fires the **build** run: the trail prompt with the approved plan, which opens pull requests, creates exactly the release resources the plan lists, and links them. `fix` runs are fired by the server when a change's evals or findings fail. Pass `kind` to ask for one explicitly. Runs spend your own agent quota, not Shipeasy credits.
 
-      **Use case:** A trail is created from a feature request; start an agent on it.
+      **Use case:** A trail is created from a feature request; start an agent on it to plan it, approve the plan, then start it again to build.
     tags:
       - Trails
     parameters:
@@ -573,6 +573,179 @@
       name: start
       positional:
         - handle
+/api/admin/trails/{handle}/plan:
+  post:
+    operationId: submitTrailPlan
+    summary: Submit a trail's plan
+    description: |-
+      A plan run submits what it worked out: the plan in markdown and the `release` block (how the trail ships, why, and the exact flags, kill switches and experiments the build run will create, none for `straight_to_main`). Submit it only after the person has answered the release question you asked with `ops questions ask`. The plan is recorded as `drafted` and waits for a person to approve it. Submitting again replaces a drafted plan; an approved plan is refused with `409` (a person edits it to reopen it). The open plan run on the trail is closed.
+
+      Safe for the restricted ops key.
+
+      **Use case:** The person picked "behind a flag"; the plan run submits the plan listing the flag `checkout.v2`.
+    tags:
+      - Trails
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - $ref: ../components/parameters.yaml#/TrailHandle
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/SubmitTrailPlanRequest
+          example:
+            plan: "## Approach\nAdd the retry queue behind `checkout.v2` and read it in the checkout handler"
+            release:
+              strategy: flag
+              reason: The checkout path is high traffic and the change is easy to switch off
+              resources:
+                - kind: gate
+                  key: checkout.v2
+                  role: ships_behind
+    responses:
+      "200":
+        description: The plan as recorded
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/TrailPlanResult
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - INVALID_TRANSITION
+      - VALIDATION
+    x-cli:
+      name: submit-plan
+      positional:
+        - handle
+  patch:
+    operationId: updateTrailPlan
+    summary: Edit a trail's plan
+    description: |-
+      A person edits the plan text or the release block (strategy, reason, the resources to create). Pass at least one field. Any edit puts the plan back to `drafted`, so it needs approving again; a trail with no plan yet gets one this way. Not available to the restricted ops key.
+
+      **Use case:** The plan names a flag the team already has under another key; fix the key before approving.
+    tags:
+      - Trails
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - $ref: ../components/parameters.yaml#/TrailHandle
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/UpdateTrailPlanRequest
+          example:
+            release:
+              strategy: flag_kill_switch
+              reason: Customer-facing and hard to undo once emails go out
+              resources:
+                - kind: gate
+                  key: checkout.v2
+                - kind: killswitch
+                  key: checkout.v2.kill
+    responses:
+      "200":
+        description: The plan as recorded
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/TrailPlanResult
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - INVALID_TRANSITION
+      - VALIDATION
+    x-cli:
+      name: update-plan
+      positional:
+        - handle
+/api/admin/trails/{handle}/plan/approve:
+  post:
+    operationId: approveTrailPlan
+    summary: Approve a trail's plan
+    description: |-
+      Sign off the drafted plan. The build run follows it: it creates exactly the release resources the plan lists and links them to the trail, and the Plan gate checks they exist. With `startBuild` the build run is fired in the same call.
+
+      Approval is a person's call. Only a dashboard session or a device-auth CLI session can approve — ops keys, project admin keys and OAuth MCP calls are refused with `403`. This operation is not exposed as an MCP tool.
+
+      **Use case:** The plan lists the flag and the kill switch the person asked for; approve it and start the build.
+    tags:
+      - Trails
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - $ref: ../components/parameters.yaml#/TrailHandle
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/ApproveTrailPlanRequest
+          example:
+            startBuild: true
+    responses:
+      "200":
+        description: The approved plan, and the build run when one was started
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/ApproveTrailPlanResult
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - AGENT_NOT_CONNECTED
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - INVALID_TRANSITION
+      - VALIDATION
+    x-cli:
+      name: approve-plan
+      positional:
+        - handle
+    x-mcp:
+      hidden: true
 /api/admin/trails/{handle}/review:
   post:
     operationId: requestTrailReview

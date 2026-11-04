@@ -2739,6 +2739,10 @@ _Parameters_
 | `copy` | optional | `object` | Release gate. Passes when every copy i18n key exists in every published locale of its profile. Off by default. _(default `{"enabled":false,"blocking":false}`)_ |
 | `copy.enabled` | required | `boolean` | Whether the gate is evaluated at all. _(default `false`)_ |
 | `copy.blocking` | required | `boolean` | Whether a failing gate blocks the merge (a non-blocking gate only reports). _(default `false`)_ |
+| `plan` | optional | `object` | Gate. Passes when every release resource the trail's approved plan lists exists on the trail (a flag, kill switch or experiment the person chose while the plan was made). Reads `pending` while a drafted plan waits for approval, and is left out when the trail has no plan. On by default; it blocks the merge only while `requirePlan` is on. _(default `{"enabled":true,"blocking":true}`)_ |
+| `plan.enabled` | required | `boolean` | Whether the gate is evaluated at all. _(default `true`)_ |
+| `plan.blocking` | required | `boolean` | Whether a failing gate blocks the merge. Ignored while `requirePlan` is off, when the gate only reports. _(default `true`)_ |
+| `requirePlan` | optional | `boolean` | Whether starting an agent on a trail with no approved plan fires a read-only plan run first. The plan run asks the person how the trail should ship and anything else that is open, and the build run follows the plan they approve. Off, starting an agent builds directly and creates no flag, kill switch or experiment on its own. _(default `true`)_ |
 | `fixRounds` | optional | `integer` | How many times the server re-fires the coding agent with a fix prompt after a change's evals or findings fail. After the cap the trail reads `reviewing`, needs a person. `0` turns the loop off. _(default `3`; 0–10)_ |
 | `attributionWindowHours` | optional | `integer` | How long after a trail merged an error or alert ticket may be attributed to it. Trails merged inside the window are offered to the investigating agent as candidates. _(default `72`; 1–720)_ |
 | `repos` | optional | `object` | Per-repo overrides keyed by `owner/repo`. An override replaces the project's `checks.required` for changes in that repo; every other gate stays project-wide. |
@@ -3368,6 +3372,11 @@ with the answers in the prompt — stop after asking. `poll` fires nothing;
 poll `GET .../questions` instead. Omitted, it is `resume` when `runId`
 names a run launched through a trigger connector, else `poll`.
 
+**On a trail.** Pass the trail handle (`T-12`) as `handle` and the plan
+run's id as `runId`: a plan run asks how the trail should ship this way,
+and a `resume` answer re-fires the same plan run with the answers in its
+prompt. The questions render in the trail page's Plan section.
+
 **Use case:** Blocked on a product decision (which behaviour to keep,
 which of two fixes to ship) — ask instead of guessing, then wait for the
 answer.
@@ -3847,9 +3856,9 @@ _Errors_ — beyond the [common errors](#errors):
 
 **Start an agent on a trail**
 
-Fire the project's coding-agent trigger with a *trail* prompt: the intent, the acceptance criteria, the linked resources and the open discovered items. The agent opens pull requests and links them with `trails link-pr`. The run is tracked as a `build` run; `fix` runs are fired by the server when a change's evals or findings fail. Runs spend your own agent quota, not Shipeasy credits.
+Fire the project's coding-agent trigger on the trail. While the project requires a plan (`trail-gates` `requirePlan`, on by default) and the trail has no approved one, this fires a read-only **plan** run: it reads the trail, asks the person how it should ship (straight to main, behind a flag, flag and experiment, kill switch, flag and kill switch) and anything else that is open through `ops questions ask`, then submits a plan with `trails submit-plan`. Once a person approves the plan (`trails approve-plan`), starting an agent fires the **build** run: the trail prompt with the approved plan, which opens pull requests, creates exactly the release resources the plan lists, and links them. `fix` runs are fired by the server when a change's evals or findings fail. Pass `kind` to ask for one explicitly. Runs spend your own agent quota, not Shipeasy credits.
 
-**Use case:** A trail is created from a feature request; start an agent on it.
+**Use case:** A trail is created from a feature request; start an agent on it to plan it, approve the plan, then start it again to build.
 
 _Parameters_
 
@@ -3858,6 +3867,7 @@ _Parameters_
 | `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
 | `agent` | optional | `"claude" \| "cursor" \| "copilot" \| "jules"` | Which coding agent to fire — `claude`, `cursor`, `copilot` or `jules`. Omitted, the project's coding-agent trigger. |
 | `connectorId` | optional | `string` | A specific trigger connector to fire. Overrides `agent`. |
+| `kind` | optional | `"plan" \| "build"` | Which run to fire. Omitted, the server picks — `plan` while the project requires a plan (`trail-gates` `requirePlan`) and the trail has no approved one, else `build`. Asking for `build` before the plan is approved is refused with `409`, and so is asking for `plan` once one is approved: edit the plan to change it. |
 | `prompt` | optional | `string` | Extra instructions appended to the trail prompt. _(length 0–8000)_ |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -3901,6 +3911,34 @@ _Errors_ — beyond the [common errors](#errors):
 
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+### `trails_submit_plan`
+
+**Submit a trail's plan**
+
+A plan run submits what it worked out: the plan in markdown and the `release` block (how the trail ships, why, and the exact flags, kill switches and experiments the build run will create, none for `straight_to_main`). Submit it only after the person has answered the release question you asked with `ops questions ask`. The plan is recorded as `drafted` and waits for a person to approve it. Submitting again replaces a drafted plan; an approved plan is refused with `409` (a person edits it to reopen it). The open plan run on the trail is closed.
+
+Safe for the restricted ops key.
+
+**Use case:** The person picked "behind a flag"; the plan run submits the plan listing the flag `checkout.v2`.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `plan` | required | `string` | The plan in markdown — the approach, the files and repos it touches, the order of the work, how each acceptance criterion is met, and the risks. _(length 1–20000)_ |
+| `release` | required | `object` | How the trail ships. The person answers this while the plan is made; the build run creates exactly the resources listed (none for `straight_to_main`), and the Plan gate checks they exist. |
+| `release.strategy` | required | `"straight_to_main" \| "flag" \| "flag_experiment" \| "kill_switch" \| "flag_kill_switch" \| "other"` | How the trail ships, as the person chose it while the plan was made — `straight_to_main` (no flag), `flag`, `flag_experiment` (a flag measured by an experiment), `kill_switch` (a kill switch only), `flag_kill_switch`, or `other` (a free-text answer that fits none of those). |
+| `release.reason` | required | `string` | One line on why this approach — risk, blast radius, reversibility. _(length 0–2000)_ |
+| `release.resources` | required | `object[]` | The flags, kill switches and experiments to create. Empty for `straight_to_main`; the strategy fixes which kinds must be present (a flag for `flag`, a flag and an experiment for `flag_experiment`, and so on). |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
 - `VALIDATION` — The request body failed structural (schema) validation.
 
 ### `trails_unlink_pr`
@@ -3973,6 +4011,32 @@ _Errors_ — beyond the [common errors](#errors):
 
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+### `trails_update_plan`
+
+**Edit a trail's plan**
+
+A person edits the plan text or the release block (strategy, reason, the resources to create). Pass at least one field. Any edit puts the plan back to `drafted`, so it needs approving again; a trail with no plan yet gets one this way. Not available to the restricted ops key.
+
+**Use case:** The plan names a flag the team already has under another key; fix the key before approving.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `plan` | optional | `string` | The plan in markdown. _(length 1–20000)_ |
+| `release` | optional | `object` | How the trail ships. The person answers this while the plan is made; the build run creates exactly the resources listed (none for `straight_to_main`), and the Plan gate checks they exist. |
+| `release.strategy` | required | `"straight_to_main" \| "flag" \| "flag_experiment" \| "kill_switch" \| "flag_kill_switch" \| "other"` | How the trail ships, as the person chose it while the plan was made — `straight_to_main` (no flag), `flag`, `flag_experiment` (a flag measured by an experiment), `kill_switch` (a kill switch only), `flag_kill_switch`, or `other` (a free-text answer that fits none of those). |
+| `release.reason` | required | `string` | One line on why this approach — risk, blast radius, reversibility. _(length 0–2000)_ |
+| `release.resources` | required | `object[]` | The flags, kill switches and experiments to create. Empty for `straight_to_main`; the strategy fixes which kinds must be present (a flag for `flag`, a flag and an experiment for `flag_experiment`, and so on). |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
 - `VALIDATION` — The request body failed structural (schema) validation.
 
 ### Resources

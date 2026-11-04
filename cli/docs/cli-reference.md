@@ -924,7 +924,7 @@ shipeasy ops questions list [options] <handle>
 
 | Argument | | Description |
 | --- | --- | --- |
-| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id, or a trail handle (e.g. `T-12`) for a question on a trail. |
 
 | Option | | Description |
 | --- | --- | --- |
@@ -941,7 +941,7 @@ shipeasy ops questions ask [options] <handle>
 
 | Argument | | Description |
 | --- | --- | --- |
-| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id, or a trail handle (e.g. `T-12`) for a question on a trail. |
 
 | Option | | Description |
 | --- | --- | --- |
@@ -960,7 +960,7 @@ shipeasy ops questions answer [options] <handle> <questionId>
 
 | Argument | | Description |
 | --- | --- | --- |
-| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id, or a trail handle (e.g. `T-12`) for a question on a trail. |
 | `questionId` | required | The question id (from `ask` or `list`). |
 
 | Option | | Description |
@@ -978,7 +978,7 @@ shipeasy ops questions cancel [options] <handle> <questionId>
 
 | Argument | | Description |
 | --- | --- | --- |
-| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id, or a trail handle (e.g. `T-12`) for a question on a trail. |
 | `questionId` | required | The question id (from `ask` or `list`). |
 
 | Option | | Description |
@@ -1151,6 +1151,8 @@ shipeasy ops trail-gates set [options]
 | `--measured <value>` | optional | Release gate. For a `feature` trail, passes when a measuring experiment or metric exists. Off by default. |
 | `--guarded <value>` | optional | Release gate. Passes when every measured resource has at least one guarding alert rule. Off by default. |
 | `--copy <value>` | optional | Release gate. Passes when every copy i18n key exists in every published locale of its profile. Off by default. |
+| `--plan <value>` | optional | Gate. Passes when every release resource the trail's approved plan lists exists on the trail (a flag, kill switch or experiment the person chose while the plan was made). Reads `pending` while a drafted plan waits for approval, and is left out when the trail has no plan. On by default; it blocks the merge only while `requirePlan` is on. |
+| `--require-plan <value>` | optional | Whether starting an agent on a trail with no approved plan fires a read-only plan run first. The plan run asks the person how the trail should ship and anything else that is open, and the build run follows the plan they approve. Off, starting an agent builds directly and creates no flag, kill switch or experiment on its own. |
 | `--fix-rounds <value>` | optional | How many times the server re-fires the coding agent with a fix prompt after a change's evals or findings fail. After the cap the trail reads `reviewing`, needs a person. `0` turns the loop off. |
 | `--attribution-window-hours <value>` | optional | How long after a trail merged an error or alert ticket may be attributed to it. Trails merged inside the window are offered to the investigating agent as candidates. |
 | `--repos <value>` | optional | Per-repo overrides keyed by `owner/repo`. An override replaces the project's `checks.required` for changes in that repo; every other gate stays project-wide. |
@@ -1954,7 +1956,60 @@ shipeasy trails start [options] <handle>
 | --- | --- | --- |
 | `--agent <value>` | optional | Which coding agent to fire — `claude`, `cursor`, `copilot` or `jules`. Omitted, the project's coding-agent trigger. |
 | `--connector-id <value>` | optional | A specific trigger connector to fire. Overrides `agent`. |
+| `--kind <value>` | optional | Which run to fire. Omitted, the server picks — `plan` while the project requires a plan (`trail-gates` `requirePlan`) and the trail has no approved one, else `build`. Asking for `build` before the plan is approved is refused with `409`, and so is asking for `plan` once one is approved: edit the plan to change it. |
 | `--prompt <value>` | optional | Extra instructions appended to the trail prompt. |
+
+### `shipeasy trails submit-plan`
+
+Submit a trail's plan
+
+```bash
+shipeasy trails submit-plan [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--plan <value>` | optional | The plan in markdown — the approach, the files and repos it touches, the order of the work, how each acceptance criterion is met, and the risks. |
+| `--release <value>` | optional | How the trail ships. The person answers this while the plan is made; the build run creates exactly the resources listed (none for `straight_to_main`), and the Plan gate checks they exist. |
+
+### `shipeasy trails update-plan`
+
+Edit a trail's plan
+
+```bash
+shipeasy trails update-plan [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--plan <value>` | optional | The plan in markdown. |
+| `--release <value>` | optional | How the trail ships. The person answers this while the plan is made; the build run creates exactly the resources listed (none for `straight_to_main`), and the Plan gate checks they exist. |
+
+### `shipeasy trails approve-plan`
+
+Approve a trail's plan
+
+```bash
+shipeasy trails approve-plan [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--start-build <value>` | optional | Also fire the build run once the plan is approved. Without it, approving only records the sign-off. When no coding agent is connected the request is refused with `409` before anything is approved. |
+| `--agent <value>` | optional | Which coding agent builds, with `startBuild`. Omitted, the project's coding-agent trigger. |
+| `--connector-id <value>` | optional | A specific trigger connector to build with, with `startBuild`. Overrides `agent`. |
 
 ### `shipeasy trails review`
 

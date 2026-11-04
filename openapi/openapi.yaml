@@ -6729,7 +6729,7 @@ paths:
         - name: handle
           in: path
           required: true
-          description: Per-project item number (e.g. `7`) or the full ops item id.
+          description: Per-project item number (e.g. `7`) or the full ops item id, or a trail handle (e.g. `T-12`) for a question on a trail.
           schema:
             $ref: '#/components/schemas/ResourceId'
         - name: status
@@ -6786,6 +6786,11 @@ paths:
         poll `GET .../questions` instead. Omitted, it is `resume` when `runId`
         names a run launched through a trigger connector, else `poll`.
 
+        **On a trail.** Pass the trail handle (`T-12`) as `handle` and the plan
+        run's id as `runId`: a plan run asks how the trail should ship this way,
+        and a `resume` answer re-fires the same plan run with the answers in its
+        prompt. The questions render in the trail page's Plan section.
+
         **Use case:** Blocked on a product decision (which behaviour to keep,
         which of two fixes to ship) — ask instead of guessing, then wait for the
         answer.
@@ -6796,7 +6801,7 @@ paths:
         - name: handle
           in: path
           required: true
-          description: Per-project item number (e.g. `7`) or the full ops item id.
+          description: Per-project item number (e.g. `7`) or the full ops item id, or a trail handle (e.g. `T-12`) for a question on a trail.
           schema:
             $ref: '#/components/schemas/ResourceId'
       requestBody:
@@ -6866,7 +6871,7 @@ paths:
         - name: handle
           in: path
           required: true
-          description: Per-project item number (e.g. `7`) or the full ops item id.
+          description: Per-project item number (e.g. `7`) or the full ops item id, or a trail handle (e.g. `T-12`) for a question on a trail.
           schema:
             $ref: '#/components/schemas/ResourceId'
         - name: questionId
@@ -6941,7 +6946,7 @@ paths:
         - name: handle
           in: path
           required: true
-          description: Per-project item number (e.g. `7`) or the full ops item id.
+          description: Per-project item number (e.g. `7`) or the full ops item id, or a trail handle (e.g. `T-12`) for a question on a trail.
           schema:
             $ref: '#/components/schemas/ResourceId'
         - name: questionId
@@ -8893,9 +8898,9 @@ paths:
       operationId: startTrailRun
       summary: Start an agent on a trail
       description: |-
-        Fire the project's coding-agent trigger with a *trail* prompt: the intent, the acceptance criteria, the linked resources and the open discovered items. The agent opens pull requests and links them with `trails link-pr`. The run is tracked as a `build` run; `fix` runs are fired by the server when a change's evals or findings fail. Runs spend your own agent quota, not Shipeasy credits.
+        Fire the project's coding-agent trigger on the trail. While the project requires a plan (`trail-gates` `requirePlan`, on by default) and the trail has no approved one, this fires a read-only **plan** run: it reads the trail, asks the person how it should ship (straight to main, behind a flag, flag and experiment, kill switch, flag and kill switch) and anything else that is open through `ops questions ask`, then submits a plan with `trails submit-plan`. Once a person approves the plan (`trails approve-plan`), starting an agent fires the **build** run: the trail prompt with the approved plan, which opens pull requests, creates exactly the release resources the plan lists, and links them. `fix` runs are fired by the server when a change's evals or findings fail. Pass `kind` to ask for one explicitly. Runs spend your own agent quota, not Shipeasy credits.
 
-        **Use case:** A trail is created from a feature request; start an agent on it.
+        **Use case:** A trail is created from a feature request; start an agent on it to plan it, approve the plan, then start it again to build.
       tags:
         - Trails
       parameters:
@@ -8940,6 +8945,181 @@ paths:
         name: start
         positional:
           - handle
+  /api/admin/trails/{handle}/plan:
+    post:
+      operationId: submitTrailPlan
+      summary: Submit a trail's plan
+      description: |-
+        A plan run submits what it worked out: the plan in markdown and the `release` block (how the trail ships, why, and the exact flags, kill switches and experiments the build run will create, none for `straight_to_main`). Submit it only after the person has answered the release question you asked with `ops questions ask`. The plan is recorded as `drafted` and waits for a person to approve it. Submitting again replaces a drafted plan; an approved plan is refused with `409` (a person edits it to reopen it). The open plan run on the trail is closed.
+
+        Safe for the restricted ops key.
+
+        **Use case:** The person picked "behind a flag"; the plan run submits the plan listing the flag `checkout.v2`.
+      tags:
+        - Trails
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/TrailHandle'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitTrailPlanRequest'
+            example:
+              plan: |-
+                ## Approach
+                Add the retry queue behind `checkout.v2` and read it in the checkout handler
+              release:
+                strategy: flag
+                reason: The checkout path is high traffic and the change is easy to switch off
+                resources:
+                  - kind: gate
+                    key: checkout.v2
+                    role: ships_behind
+      responses:
+        '200':
+          description: The plan as recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrailPlanResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+        - INVALID_TRANSITION
+        - VALIDATION
+      x-cli:
+        name: submit-plan
+        positional:
+          - handle
+    patch:
+      operationId: updateTrailPlan
+      summary: Edit a trail's plan
+      description: |-
+        A person edits the plan text or the release block (strategy, reason, the resources to create). Pass at least one field. Any edit puts the plan back to `drafted`, so it needs approving again; a trail with no plan yet gets one this way. Not available to the restricted ops key.
+
+        **Use case:** The plan names a flag the team already has under another key; fix the key before approving.
+      tags:
+        - Trails
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/TrailHandle'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTrailPlanRequest'
+            example:
+              release:
+                strategy: flag_kill_switch
+                reason: Customer-facing and hard to undo once emails go out
+                resources:
+                  - kind: gate
+                    key: checkout.v2
+                  - kind: killswitch
+                    key: checkout.v2.kill
+      responses:
+        '200':
+          description: The plan as recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrailPlanResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+        - INVALID_TRANSITION
+        - VALIDATION
+      x-cli:
+        name: update-plan
+        positional:
+          - handle
+  /api/admin/trails/{handle}/plan/approve:
+    post:
+      operationId: approveTrailPlan
+      summary: Approve a trail's plan
+      description: |-
+        Sign off the drafted plan. The build run follows it: it creates exactly the release resources the plan lists and links them to the trail, and the Plan gate checks they exist. With `startBuild` the build run is fired in the same call.
+
+        Approval is a person's call. Only a dashboard session or a device-auth CLI session can approve — ops keys, project admin keys and OAuth MCP calls are refused with `403`. This operation is not exposed as an MCP tool.
+
+        **Use case:** The plan lists the flag and the kill switch the person asked for; approve it and start the build.
+      tags:
+        - Trails
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/TrailHandle'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApproveTrailPlanRequest'
+            example:
+              startBuild: true
+      responses:
+        '200':
+          description: The approved plan, and the build run when one was started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApproveTrailPlanResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - AGENT_NOT_CONNECTED
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+        - INVALID_TRANSITION
+        - VALIDATION
+      x-cli:
+        name: approve-plan
+        positional:
+          - handle
+      x-mcp:
+        hidden: true
   /api/admin/trails/{handle}/review:
     post:
       operationId: requestTrailReview
@@ -20617,8 +20797,15 @@ components:
           type: string
           description: Question id.
         feedbackId:
-          type: string
-          description: The queue item the question hangs off.
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: The queue item the question hangs off, or `null` for a question asked on a trail.
+        trailId:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: The trail the question hangs off (a plan run asks how the trail should ship), or `null` for a question on a queue item.
         header:
           type: string
           description: Short chip label for the question.
@@ -20706,6 +20893,7 @@ components:
       required:
         - id
         - feedbackId
+        - trailId
         - header
         - question
         - options
@@ -21399,7 +21587,8 @@ components:
         - measured
         - guarded
         - copy
-      description: A merge gate — `up_to_date` (the branch is current with its base), `human_review` (enough approvals), `agent_review` (no open findings at or above the severity, and no push agent still reviewing), `evals` (every blocking review agent passes on the latest push), `checks` (CI checks pass), `discovered` (no item discovered on the trail is open at or above the configured priority), and the release gates `ships_dark` (every flag the trail ships behind is off in prod), `rollback` (a feature has a rollback kill switch), `measured` (a feature has an experiment or metric), `guarded` (every measured resource has a guard alert rule) and `copy` (every copy key exists in every published locale).
+        - plan
+      description: A merge gate — `plan` (every release resource the approved plan lists exists on the trail), `up_to_date` (the branch is current with its base), `human_review` (enough approvals), `agent_review` (no open findings at or above the severity, and no push agent still reviewing), `evals` (every blocking review agent passes on the latest push), `checks` (CI checks pass), `discovered` (no item discovered on the trail is open at or above the configured priority), and the release gates `ships_dark` (every flag the trail ships behind is off in prod), `rollback` (a feature has a rollback kill switch), `measured` (a feature has an experiment or metric), `guarded` (every measured resource has a guard alert rule) and `copy` (every copy key exists in every published locale).
     TrailGateStatus:
       type: string
       enum:
@@ -21993,7 +22182,8 @@ components:
       enum:
         - build
         - fix
-      description: What a trail run was fired to do — `build` (work the trail from its intent) or `fix` (act on failing evals and findings).
+        - plan
+      description: 'What a trail run was fired to do — `plan` (read-only: ask the person how the trail should ship and anything else that is open, then submit a plan), `build` (carry the approved plan to pull requests) or `fix` (act on failing evals and findings).'
     TrailRunState:
       type: string
       enum:
@@ -22323,6 +22513,29 @@ components:
           default:
             enabled: false
             blocking: false
+        plan:
+          type: object
+          description: Gate. Passes when every release resource the trail's approved plan lists exists on the trail (a flag, kill switch or experiment the person chose while the plan was made). Reads `pending` while a drafted plan waits for approval, and is left out when the trail has no plan. On by default; it blocks the merge only while `requirePlan` is on.
+          properties:
+            enabled:
+              type: boolean
+              default: true
+              description: Whether the gate is evaluated at all.
+            blocking:
+              type: boolean
+              default: true
+              description: Whether a failing gate blocks the merge. Ignored while `requirePlan` is off, when the gate only reports.
+          required:
+            - enabled
+            - blocking
+          additionalProperties: false
+          default:
+            enabled: true
+            blocking: true
+        requirePlan:
+          type: boolean
+          default: true
+          description: Whether starting an agent on a trail with no approved plan fires a read-only plan run first. The plan run asks the person how the trail should ship and anything else that is open, and the build run follows the plan they approve. Off, starting an agent builds directly and creates no flag, kill switch or experiment on its own.
         fixRounds:
           type: integer
           minimum: 0
@@ -22347,6 +22560,117 @@ components:
         - agentReview
         - evals
         - checks
+      additionalProperties: false
+    TrailPlanStatus:
+      type: string
+      enum:
+        - none
+        - drafted
+        - approved
+      description: Where a trail's plan stands — `none` (no plan yet), `drafted` (an agent submitted it, or a person edited it, and it waits for approval) or `approved` (a person signed it off; the build run follows it).
+    TrailReleaseStrategy:
+      type: string
+      enum:
+        - straight_to_main
+        - flag
+        - flag_experiment
+        - kill_switch
+        - flag_kill_switch
+        - other
+      description: How the trail ships, as the person chose it while the plan was made — `straight_to_main` (no flag), `flag`, `flag_experiment` (a flag measured by an experiment), `kill_switch` (a kill switch only), `flag_kill_switch`, or `other` (a free-text answer that fits none of those).
+    TrailPlanResourceKind:
+      type: string
+      enum:
+        - gate
+        - killswitch
+        - experiment
+      description: The release resources a plan may list — a feature flag (`gate`), a kill switch or an experiment.
+    TrailPlanResource:
+      type: object
+      description: One release resource the build run creates and links to the trail.
+      properties:
+        kind:
+          $ref: '#/components/schemas/TrailPlanResourceKind'
+        key:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: The key or name the build run creates it under, e.g. `checkout.v2`.
+        role:
+          $ref: '#/components/schemas/TrailResourceRole'
+      required:
+        - kind
+        - key
+      additionalProperties: false
+    TrailPlanRelease:
+      type: object
+      description: How the trail ships. The person answers this while the plan is made; the build run creates exactly the resources listed (none for `straight_to_main`), and the Plan gate checks they exist.
+      properties:
+        strategy:
+          $ref: '#/components/schemas/TrailReleaseStrategy'
+        reason:
+          type: string
+          maxLength: 2000
+          description: One line on why this approach — risk, blast radius, reversibility.
+        resources:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/TrailPlanResource'
+          description: The flags, kill switches and experiments to create. Empty for `straight_to_main`; the strategy fixes which kinds must be present (a flag for `flag`, a flag and an experiment for `flag_experiment`, and so on).
+      required:
+        - strategy
+        - reason
+        - resources
+      additionalProperties: false
+    TrailPlan:
+      type: object
+      description: A trail's plan — what the build run follows. Made by a read-only plan run that asks the person how to ship, then approved by a person.
+      properties:
+        status:
+          $ref: '#/components/schemas/TrailPlanStatus'
+        plan:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: The plan in markdown, or `null` before one exists.
+        release:
+          anyOf:
+            - $ref: '#/components/schemas/TrailPlanRelease'
+            - type: 'null'
+          description: How the trail ships and the resources to create, or `null` before a plan exists.
+        approvedBy:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: Email of the person who approved it, or `null`.
+        approvedAt:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: ISO-8601 time it was approved, or `null`.
+        requirePlan:
+          type: boolean
+          description: Whether the project requires an approved plan before an agent builds (`trail-gates` `requirePlan`).
+        nextRun:
+          type: string
+          enum:
+            - plan
+            - build
+          description: The run `trails start` fires now — `plan` while the project requires a plan and none is approved, else `build`.
+        openQuestions:
+          type: integer
+          minimum: 0
+          description: Questions the plan run asked that still wait for an answer. Read them with `ops questions list <handle>`.
+      required:
+        - status
+        - plan
+        - release
+        - approvedBy
+        - approvedAt
+        - requirePlan
+        - nextRun
+        - openQuestions
       additionalProperties: false
     TrailDetail:
       type: object
@@ -22475,6 +22799,8 @@ components:
           description: Pending low-confidence post-merge attributions awaiting a person.
         gates:
           $ref: '#/components/schemas/TrailGates'
+        plan:
+          $ref: '#/components/schemas/TrailPlan'
       required:
         - id
         - number
@@ -22508,6 +22834,7 @@ components:
         - runs
         - suspects
         - gates
+        - plan
       additionalProperties: false
     NewTrailFinding:
       type: object
@@ -23230,10 +23557,88 @@ components:
         connectorId:
           type: string
           description: A specific trigger connector to fire. Overrides `agent`.
+        kind:
+          type: string
+          enum:
+            - plan
+            - build
+          description: 'Which run to fire. Omitted, the server picks — `plan` while the project requires a plan (`trail-gates` `requirePlan`) and the trail has no approved one, else `build`. Asking for `build` before the plan is approved is refused with `409`, and so is asking for `plan` once one is approved: edit the plan to change it.'
         prompt:
           type: string
           description: Extra instructions appended to the trail prompt.
           maxLength: 8000
+      additionalProperties: false
+    SubmitTrailPlanRequest:
+      type: object
+      description: Body for `POST /api/admin/trails/{handle}/plan` — a plan run submits what it worked out, after the person answered how the trail should ship.
+      properties:
+        plan:
+          type: string
+          minLength: 1
+          maxLength: 20000
+          description: The plan in markdown — the approach, the files and repos it touches, the order of the work, how each acceptance criterion is met, and the risks.
+        release:
+          $ref: '#/components/schemas/TrailPlanRelease'
+      required:
+        - plan
+        - release
+      additionalProperties: false
+    TrailPlanResult:
+      type: object
+      description: The plan as recorded.
+      properties:
+        plan:
+          $ref: '#/components/schemas/TrailPlan'
+      required:
+        - plan
+      additionalProperties: false
+    UpdateTrailPlanRequest:
+      type: object
+      description: Body for `PATCH /api/admin/trails/{handle}/plan` — a person edits the plan. Pass at least one field. Any edit puts the plan back to `drafted`, so it needs approving again.
+      properties:
+        plan:
+          type: string
+          minLength: 1
+          maxLength: 20000
+          description: The plan in markdown.
+        release:
+          $ref: '#/components/schemas/TrailPlanRelease'
+      minProperties: 1
+      additionalProperties: false
+    ApproveTrailPlanRequest:
+      type: object
+      description: Body for `POST /api/admin/trails/{handle}/plan/approve`.
+      properties:
+        startBuild:
+          type: boolean
+          default: false
+          description: Also fire the build run once the plan is approved. Without it, approving only records the sign-off. When no coding agent is connected the request is refused with `409` before anything is approved.
+        agent:
+          type: string
+          enum:
+            - claude
+            - cursor
+            - copilot
+            - jules
+          description: Which coding agent builds, with `startBuild`. Omitted, the project's coding-agent trigger.
+        connectorId:
+          type: string
+          description: A specific trigger connector to build with, with `startBuild`. Overrides `agent`.
+      additionalProperties: false
+    ApproveTrailPlanResult:
+      type: object
+      description: The approved plan, and the build run when `startBuild` was set.
+      properties:
+        plan:
+          $ref: '#/components/schemas/TrailPlan'
+        run:
+          anyOf:
+            - $ref: '#/components/schemas/TrailRun'
+            - type: 'null'
+          description: The build run that was started, or `null` when `startBuild` was not set.
+      required:
+        - plan
+        - run
       additionalProperties: false
     PromoteTrailFindingRequest:
       type: object

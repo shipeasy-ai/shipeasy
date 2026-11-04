@@ -168,8 +168,10 @@ export const KNOWN_TOOLS: readonly string[] = [
   "trails_review",
   "trails_start",
   "trails_submit_eval",
+  "trails_submit_plan",
   "trails_unlink_pr",
   "trails_update",
   "trails_update_finding",
+  "trails_update_plan",
   "whoami",
 ];

@@ -187,6 +187,22 @@ describe("trails tool surface", () => {
     expect(names.filter((n) => n.startsWith("ops_trails_"))).toEqual([]);
   });
 
+  it("lets an agent submit and a person edit a plan over MCP, but never approve it", async () => {
+    const { TOOLS } = await import("../tools/schema.js");
+    const names = TOOLS.map((t) => t.name);
+    expect(names).toContain("trails_submit_plan");
+    expect(names).toContain("trails_update_plan");
+    // Approving a plan is a person's call, like approving a change: the CLI keeps
+    // `trails approve-plan`, the tool is hidden.
+    expect(names).not.toContain("trails_approve_plan");
+    // The plan run asks its release question through the existing questions tool.
+    expect(names).toContain("ops_questions_ask");
+    const submit = TOOLS.find((t) => t.name === "trails_submit_plan")!;
+    expect(submit.inputSchema.required).toEqual(
+      expect.arrayContaining(["handle", "plan", "release"]),
+    );
+  });
+
   it("makes the list page size a required input", async () => {
     const { TOOLS } = await import("../tools/schema.js");
     const tool = TOOLS.find((t) => t.name === "trails_list")!;
@@ -241,11 +257,17 @@ describe("generated dispatch", () => {
     await GENERATED_DISPATCH.ops_list(handle!.client, { limit: 10 });
     await GENERATED_DISPATCH.ops_list(handle!.client, { limit: 10, status: "all" });
     await GENERATED_DISPATCH.ops_list(handle!.client, { limit: 10, status: "resolved" });
-    expect(calls.map((c) => new URL(c.url).searchParams.get("status"))).toEqual(["unresolved", "all", "resolved"]);
+    expect(calls.map((c) => new URL(c.url).searchParams.get("status"))).toEqual([
+      "unresolved",
+      "all",
+      "resolved",
+    ]);
 
     const { TOOLS } = await import("../tools/schema.js");
     const tool = TOOLS.find((t) => t.name === "ops_list")!;
-    expect((tool.inputSchema.properties!.status as { default?: string }).default).toBe("unresolved");
+    expect((tool.inputSchema.properties!.status as { default?: string }).default).toBe(
+      "unresolved",
+    );
     expect(tool.description).toContain("DEFAULTS TO `unresolved`");
   });
 
@@ -422,7 +444,12 @@ describe("generated i18n tools", () => {
       expect(names).toContain(n);
     }
     // The old hand-written names are gone (clean-break rename).
-    for (const gone of ["i18n_create_profile", "i18n_create_key", "i18n_set", "i18n_publish_profile"]) {
+    for (const gone of [
+      "i18n_create_profile",
+      "i18n_create_key",
+      "i18n_set",
+      "i18n_publish_profile",
+    ]) {
       expect(names).not.toContain(gone);
     }
   });
@@ -433,10 +460,12 @@ describe("generated i18n tools", () => {
     const { GENERATED_DISPATCH } = await import("../tools/registry.js");
     const { getGeneratedClient } = await import("../tools/_gen-runtime.js");
     const handle = await getGeneratedClient();
-    await GENERATED_DISPATCH.i18n_keys_set(handle!.client, { key: "home.cta", value: "Get started" });
+    await GENERATED_DISPATCH.i18n_keys_set(handle!.client, {
+      key: "home.cta",
+      value: "Get started",
+    });
     const post = calls.find((c) => c.url.includes("/api/admin/i18n/set") && c.method === "POST");
     expect((post!.body as { key: string }).key).toBe("home.cta");
     vi.unstubAllGlobals();
   });
 });
-

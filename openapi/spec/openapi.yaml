@@ -575,6 +575,10 @@ paths:
     $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1changes
   /api/admin/trails/{handle}/runs:
     $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1runs
+  /api/admin/trails/{handle}/plan:
+    $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1plan
+  /api/admin/trails/{handle}/plan/approve:
+    $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1plan~1approve
   /api/admin/trails/{handle}/review:
     $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1review
   /api/admin/trails/{handle}/evals:
