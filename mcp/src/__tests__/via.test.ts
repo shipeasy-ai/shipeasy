@@ -27,4 +27,12 @@ describe("viaHeaders", () => {
     setMcpClientName("  ");
     expect(viaHeaders({})).toEqual({ "X-Shipeasy-Via": "mcp" });
   });
+
+  it("carries the trail the agent works under", () => {
+    expect(viaHeaders({ SHIPEASY_TRAIL: "T-12" })).toEqual({
+      "X-Shipeasy-Via": "mcp",
+      "X-Shipeasy-Trail": "T-12",
+    });
+    expect(viaHeaders({ SHIPEASY_TRAIL: "oops" })).toEqual({ "X-Shipeasy-Via": "mcp" });
+  });
 });

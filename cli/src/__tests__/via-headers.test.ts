@@ -22,4 +22,14 @@ describe("viaHeaders", () => {
       "X-Shipeasy-Via": "cli",
     });
   });
+
+  it("carries the trail an agent is working under, and drops anything that is not one", () => {
+    expect(viaHeaders({ SHIPEASY_TRAIL: "T-12" })).toEqual({
+      "X-Shipeasy-Via": "cli",
+      "X-Shipeasy-Trail": "T-12",
+    });
+    expect(viaHeaders({ SHIPEASY_TRAIL: "t-7" })["X-Shipeasy-Trail"]).toBe("T-7");
+    expect(viaHeaders({ SHIPEASY_TRAIL: "not a trail" })).toEqual({ "X-Shipeasy-Via": "cli" });
+    expect(viaHeaders({ SHIPEASY_TRAIL: "" })).toEqual({ "X-Shipeasy-Via": "cli" });
+  });
 });

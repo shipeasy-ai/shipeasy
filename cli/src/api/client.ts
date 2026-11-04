@@ -15,7 +15,19 @@ export function viaHeaders(env: NodeJS.ProcessEnv = process.env): Record<string,
   return {
     "X-Shipeasy-Via": "cli",
     ...(label ? { "X-Shipeasy-Agent": label } : {}),
+    ...trailHeader(env),
   };
+}
+
+/**
+ * The trail an agent is working under (`SHIPEASY_TRAIL=T-12`, set by a trail or fix
+ * run). Sent as `X-Shipeasy-Trail` on every call so the server links each flag,
+ * kill switch, experiment, … the call creates or changes to that trail (design
+ * §6.1). Anything that is not a trail handle is dropped rather than sent.
+ */
+export function trailHeader(env: NodeJS.ProcessEnv = process.env): Record<string, string> {
+  const handle = env.SHIPEASY_TRAIL?.trim();
+  return handle && /^T-\d{1,9}$/i.test(handle) ? { "X-Shipeasy-Trail": handle.toUpperCase() } : {};
 }
 
 /**

@@ -436,23 +436,41 @@ above:
    only server-side trace is the status flip + the linked PR (step 2).
    **Do not create issues yourself.**
 
-5. **Close the trail loop.** A trail exists only when someone created one, so
-   this applies only when the item is on a trail (`trail.handle` on `ops get`,
-   e.g. `T-12`). Linking the PR makes it a change of that trail, and the
-   project's review agents (if it has any) score each push. Before you finish
-   the item, read the trail with `trails get <T-n>` / `trails_get`. For each
-   open finding on the latest push, fix it in the same branch and push, then
-   resolve it with
+5. **The trail loop is the server's, not yours.** A trail exists only when someone
+   created one, so this applies only when the item is on a trail (`trail.handle`
+   on `ops get`, e.g. `T-12`). Linking the PR makes it a change of that trail, and
+   the project's review agents (if it has any) score each push. You do NOT wait for
+   them, poll them or re-read the trail in a loop: when a review leaves the change
+   failing, the server re-fires a coding agent with a _fix_ prompt naming the
+   findings (at most `fixRounds` times per change, once per push), and past the cap
+   the trail waits for a person. When you ARE that fix run, the prompt says so:
+   fix each in-scope finding in the same branch, push once, and resolve it with
    `trails update-finding <T-n> <findingId> --status resolved --reason "fixed in <sha>"`.
-   A finding that is real but outside the item's intent is not fixed in passing:
-   move it to the queue with
+   A finding that is real but outside the intent is not fixed in passing: move it
+   to the queue with
    `trails promote-finding <T-n> <findingId> --reason "<why it is out of scope>"`.
-   Dismiss only a finding you can show is wrong, and give the reason. Re-read
-   until no eval reads `fail` and no high finding is open, or until two pushes
-   in a row change nothing. Agents still `pending` are fine, so don't wait on
-   them. Never approve or merge: those are a person's call, the ops key is
-   refused, and neither is an MCP tool. Item on no trail, no linked change, or
-   no review agents configured: skip this step.
+   Dismiss only a finding you can show is wrong, and give the reason.
+   Anything else you trip over while working a trail is filed on it, not fixed in
+   place: `ops bug --trail <T-n> …` (the ops key may file only with `trail`).
+   Never approve or merge: those are a person's call, the ops key is refused, and
+   neither is an MCP tool. Item on no trail: skip this step.
+
+   **Trail runs.** A run started on a trail itself (a person pressed Start agent,
+   or the server fired a fix) has no item: its prompt names the trail. Run every
+   `shipeasy` CLI call with `SHIPEASY_TRAIL=<T-n>` in the environment. The CLI then
+   sends `X-Shipeasy-Trail`, and the server links each flag, config, kill switch,
+   experiment, metric, event, alert rule and i18n key the call creates or changes
+   to the trail as one of its resources. (The `shipeasy-mcp` stdio server reads the
+   same variable from the environment it was launched with; the hosted MCP worker
+   cannot see your environment, so use the CLI for those writes.)
+
+   **Post-merge attribution.** When the ticket you are investigating is an error or
+   an alert, the prompt may carry a "Recently merged trails" block. Attribute a
+   trail only on concrete evidence, with
+   `trails attribute <T-n> <item> --confidence high|medium|low --evidence "…"`
+   (`low` records a suspect for a person). If a confirmed attribution lands on a
+   trail with `ships_behind` or `rollback` resources, ask a person whether to roll
+   back as a structured question; never flip the flag or kill switch yourself.
 
 6. **Lifecycle → `ready_for_qa`.** In PR mode a human reviews each PR, so
    never auto-`resolved` — flip every fixed item (any type) to
