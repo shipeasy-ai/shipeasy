@@ -2744,6 +2744,7 @@ _Parameters_
 | `plan.blocking` | required | `boolean` | Whether a failing gate blocks the merge. Ignored while `requirePlan` is off, when the gate only reports. _(default `true`)_ |
 | `requirePlan` | optional | `boolean` | Whether starting an agent on a trail with no approved plan fires a read-only plan run first. The plan run asks the person how the trail should ship and anything else that is open, and the build run follows the plan they approve. Off, starting an agent builds directly and creates no flag, kill switch or experiment on its own. _(default `true`)_ |
 | `fixRounds` | optional | `integer` | How many times the server re-fires the coding agent with a fix prompt after a change's evals or findings fail. After the cap the trail reads `reviewing`, needs a person. `0` turns the loop off. _(default `3`; 0–10)_ |
+| `maxParallelRuns` | optional | `integer` | How many item runs a trail's build keeps working at once. A build launches an item run for each open item of the current milestone, up to this many; the rest wait for a slot. _(default `3`; 1–10)_ |
 | `attributionWindowHours` | optional | `integer` | How long after a trail merged an error or alert ticket may be attributed to it. Trails merged inside the window are offered to the investigating agent as candidates. _(default `72`; 1–720)_ |
 | `rollout` | optional | `object` | How the flag a trail ships behind is ramped after merge — the release controller's plan (see the design doc, the release controller). Part of the plan's release block; the project's defaults live in `trail-gates` `rollout`. The controller runs on the alerts cron, so a hold shorter than the cron interval rounds up to the next tick. |
 | `rollout.steps` | required | `number[]` | Percent steps, each above the one before, the last 100. |
@@ -3668,6 +3669,8 @@ _Errors_ — beyond the [common errors](#errors):
 
 Creates a trail in `planning`. A trail is created on purpose — nothing makes one implicitly. Create one from scratch with a `title` and a `body` (the outcome and the acceptance criteria), or press **Ship this** on a queue item with `originItem`: the item's description seeds the body and the item becomes the trail's first item, with source `origin`. An item is on at most one trail.
 
+A trail may carry a `goal` (the metric it is meant to move, with a baseline and a target), a `startDate` and a `targetDate`, and a `health` set by hand (omitted, it is derived).
+
 Fire the project's coding agent on the new trail with `trails start`, or link pull requests an agent already opened with `trails link-pr`.
 
 **Autopilot.** `autopilot: { enabled: true, limits }` turns on autopilot at creation: the plan's questions are answered with the agent's recommendation, the plan is approved, and the change merges when every blocking gate is green, all inside the limits. It needs the `autopilot` capability and a person's identity (a dashboard session or a signed-in CLI); an ops key, an admin key or MCP asking for it is refused with `403`. Everything else is safe for the restricted ops key.
@@ -3686,6 +3689,10 @@ _Parameters_
 | `ownerConnectorId` | optional | `any` | The agent connector to own the trail, or `null`. |
 | `repos` | optional | `string[]` | Repos (`owner/repo`) the trail may open changes in. _(default `[]`)_ |
 | `originItem` | optional | `string` | Ship this: a queue item (number or id) to create the trail from. Its description seeds `body` when that is omitted, and it becomes the trail's first item with source `origin`. _(length 1–64)_ |
+| `startDate` | optional | `any` | The calendar day work starts (`YYYY-MM-DD`), or `null`. |
+| `targetDate` | optional | `any` | The calendar day the trail is meant to ship by (`YYYY-MM-DD`), or `null`. |
+| `health` | optional | `any` | A health a person sets, or `null` (the default) to have it derived. |
+| `goal` | optional | `any` | The metric the trail is meant to move, or `null` for none. |
 | `intake` | optional | `object` | What the creation dialog already decided — each field is a plan question answered in advance. The plan run asks only what is left out. Omitted entirely, the plan asks everything ("let the plan ask me"). |
 | `intake.requirePlan` | optional | `boolean` | Plan before building, for this trail. Omitted, the project's setting. |
 | `intake.strategy` | optional | `"straight_to_main" \| "flag" \| "flag_experiment" \| "kill_switch" \| "flag_kill_switch" \| "other"` | How the trail ships, as the person chose it while the plan was made — `straight_to_main` (no flag), `flag`, `flag_experiment` (a flag measured by an experiment), `kill_switch` (a kill switch only), `flag_kill_switch`, or `other` (a free-text answer that fits none of those). |
@@ -3776,11 +3783,11 @@ _Errors_ — beyond the [common errors](#errors):
 
 **List trails**
 
-Returns the project's trails, newest activity first. A trail is the unit of shipping: an intent, the changes (pull requests) worked under it, the items discovered on it and the product resources it ships. The phase and counts on each row are a snapshot; read one trail with `trails get` for the live state.
+Returns the project's trails, newest activity first. A trail is the unit of shipping: an outcome that takes several items, pull requests and release tools, with a lead, start and target dates, a health and a progress (items done over items on the trail). The phase, health and counts on each row are a snapshot; read one trail with `trails get` for the live state.
 
 **Dashboard table read.** `view=table` is the contract every dashboard list table shares: the endpoint applies `f`, `sort` and `cursor` in SQL and answers `{ data, next_cursor, section_counts?, grouped? }`. Filters and sorts are never applied in the browser, so a condition the server cannot evaluate is a `400`.
-- `f` — a JSON array of `{ "f": field, "o": operator, "v": value }` conditions, all ANDed. Fields are the snapshot columns: `phase`, `status`, `type`, `priority`, `owner`, `changesOpen`, `changesMergeable`, `findingsOpenHigh`, `itemsOpen`, `releasedPct`, `updatedAt`.
-- `sort` — a column id, `-` prefixed for descending: `number`, `title`, `phase`, `priority`, `owner`, `changes`, `findings`, `items`, `released`, `updated`, `created`. Defaults to `-updated`.
+- `f` — a JSON array of `{ "f": field, "o": operator, "v": value }` conditions, all ANDed. Fields are the snapshot columns: `phase`, `status`, `type`, `priority`, `owner`, `health`, `targetDate`, `changesOpen`, `changesMergeable`, `findingsOpenHigh`, `itemsOpen`, `itemsTotal`, `itemsDone`, `releasedPct`, `updatedAt`.
+- `sort` — a column id, `-` prefixed for descending: `number`, `title`, `phase`, `priority`, `owner`, `health`, `progress` (items done over items on the trail), `target` (the target date), `changes`, `findings`, `items`, `released`, `updated`, `created`. Defaults to `-updated`.
 - `cursor` — the previous page's `next_cursor`; `limit` is the page size (1–200, default 50).
 
 **Scopes** (`scope`) are the dashboard's tabs: `mine` (trails you own), `reviewing`, `ready`, `releasing`, `shipped`, `closed`, or `all` (the default).
@@ -3797,6 +3804,7 @@ _Parameters_
 | `scope` | optional | `"all" \| "mine" \| "reviewing" \| "ready" \| "releasing" \| "shipped" \| "closed"` | A dashboard tab: `mine` (owned by the caller), `reviewing`, `ready`, `releasing`, `shipped`, `closed`, or `all` (the default, no narrowing). _(default `"all"`)_ |
 | `phase` | optional | `"planning" \| "building" \| "reviewing" \| "ready" \| "releasing" \| "shipped" \| "closed"` | Where a trail is, derived from its changes and its release resources — `planning` (no change and no open run), `building` (no change yet, a run is working), `reviewing` (a change is open and not every open change can merge), `ready` (every open change can merge), `releasing` (merged, and a flag, experiment or other release resource has not settled), `shipped` (merged and every release resource settled), `closed` (closed with nothing merged). The detail read recomputes it live; the list reads a snapshot. |
 | `type` | optional | `"feature" \| "bug" \| "task"` | What a trail is shipping. A `feature` trail is held to the rollback and measured release gates. |
+| `health` | optional | `"on_track" \| "at_risk" \| "off_track"` | A trail's effective health — the one a person set, or else the derived one. Derived, first match wins: `off_track` when the target date has passed and the trail has not shipped, or a rollout is `fixing` after a pull-back; `at_risk` when the target is at most 7 days away and progress is under 75 %, or a high finding or a high or critical item on the trail is open; otherwise `on_track`. A list row carries the snapshot; the detail read recomputes it. |
 | `owner` | optional | `string` | Narrow to trails owned by one person OR one agent — a `users.id`, email or display name, or a connector id, display name or handle. Case-insensitive exact match. |
 | `q` | optional | `string` | Case-insensitive substring filter across the trail's title and body. _(length 0–100)_ |
 | `mergedSince` | optional | `string` | ISO-8601 timestamp. Narrow to trails with a change merged at or after it. _(format: date-time)_ |
@@ -3838,7 +3846,7 @@ _Errors_ — beyond the [common errors](#errors):
 
 **Pause a trail's rollout**
 
-Pause the release controller on a trail: it stops stepping the flag and watching the guards until the rollout is resumed. The flag stays wherever it is. Any manual change to the flag pauses the controller the same way, so a person and the controller never fight over it. Safe to call at any time; pausing a rollout that is not running answers `409`.
+Pause the release controller on a trail: it stops stepping the flag and watching the guards until the rollout is resumed. The flag stays wherever it is. A trail that ships behind several flags has a rollout per flag; pass `resource` (the flag's trail-resource id or its key) to pause one, or omit it to pause every flag. Any manual change to the flag pauses the controller the same way, so a person and the controller never fight over it. Safe to call at any time; pausing a rollout that is not running answers `409`.
 
 Safe for the restricted ops key.
 
@@ -3850,6 +3858,7 @@ _Parameters_
 | --- | --- | --- | --- |
 | `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
 | `reason` | optional | `string` | Why — shown on the release timeline. _(length 0–500)_ |
+| `resource` | optional | `string` | The flag to pause — its trail-resource id (`TrailResource.id`) or its key. Omitted, every flag on the trail is paused. _(length 1–256)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -3857,6 +3866,26 @@ _Errors_ — beyond the [common errors](#errors):
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 - `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
 - `VALIDATION` — The request body failed structural (schema) validation.
+
+### `trails_plan_revisions`
+
+**List a trail's plan revisions**
+
+Every approved revision of the trail's plan, newest first: the plan as it was approved, who approved it and when, and what changed since the revision before. A plan is revised by a `replan` run, which re-reads the goal metric, the items' outcomes and project memory and drafts the next revision; each approval adds one. The current plan, drafted or approved, is on `trails get`.
+
+Safe for the restricted ops key.
+
+**Use case:** Before replanning, a coding agent reads how the plan changed so far so the next revision does not undo a decision already made.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 
 ### `trails_promote_finding`
 
@@ -3951,7 +3980,13 @@ _Errors_ — beyond the [common errors](#errors):
 
 **Start an agent on a trail**
 
-Fire the project's coding-agent trigger on the trail. While the project requires a plan (`trail-gates` `requirePlan`, on by default) and the trail has no approved one, this fires a read-only **plan** run: it reads the trail, asks the person how it should ship (straight to main, behind a flag, flag and experiment, kill switch, flag and kill switch) and anything else that is open through `ops questions ask`, then submits a plan with `trails submit-plan`. Once a person approves the plan (`trails approve-plan`), starting an agent fires the **build** run: the trail prompt with the approved plan, which opens pull requests, creates exactly the release resources the plan lists, and links them. `fix` runs are fired by the server when a change's evals or findings fail. Pass `kind` to ask for one explicitly. Runs spend your own agent quota, not Shipeasy credits.
+Fire the project's coding-agent trigger on the trail. While the project requires a plan (`trail-gates` `requirePlan`, on by default) and the trail has no approved one, this fires a read-only **plan** run: it reads the trail, asks the person how it should ship (straight to main, behind a flag, flag and experiment, kill switch, flag and kill switch) and anything else that is open through `ops questions ask`, then submits a plan with `trails submit-plan`. Once a person approves the plan (`trails approve-plan`), starting an agent **builds** it.
+
+**Build.** When the approved plan filed items, `build` launches an item run for every open item of the first milestone that still has open items and no run working it (items without a milestone count as the first), at most `trail-gates` `maxParallelRuns` (default 3) at once, and no trail-level build run: `run` is `null` and `itemRuns` says what happened to each item. Each item run opens its own pull request, which becomes a change of the trail. Otherwise one trail-level build run carries the plan to pull requests, creates exactly the resources the plan lists and links them, as before, and `itemRuns` is empty.
+
+**Replan.** Once a plan is approved, `kind: replan` fires a read-only run that re-reads the goal metric, the items' outcomes and project memory and submits the plan's next revision, which waits as `drafted` for approval.
+
+`fix` runs are fired by the server when a change's evals or findings fail. Pass `kind` to ask for one explicitly. Runs spend your own agent quota, not Shipeasy credits.
 
 **Use case:** A trail is created from a feature request; start an agent on it to plan it, approve the plan, then start it again to build.
 
@@ -3962,7 +3997,7 @@ _Parameters_
 | `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
 | `agent` | optional | `"claude" \| "cursor" \| "copilot" \| "jules"` | Which coding agent to fire — `claude`, `cursor`, `copilot` or `jules`. Omitted, the project's coding-agent trigger. |
 | `connectorId` | optional | `string` | A specific trigger connector to fire. Overrides `agent`. |
-| `kind` | optional | `"plan" \| "build"` | Which run to fire. Omitted, the server picks — `plan` while the project requires a plan (`trail-gates` `requirePlan`) and the trail has no approved one, else `build`. Asking for `build` before the plan is approved is refused with `409`, and so is asking for `plan` once one is approved: edit the plan to change it. |
+| `kind` | optional | `"plan" \| "build" \| "replan"` | Which run to fire. Omitted, the server picks — `plan` while the project requires a plan (`trail-gates` `requirePlan`) and the trail has no approved one, else `build`. Asking for `build` before the plan is approved is refused with `409`, and so is asking for `plan` once one is approved: edit the plan, or fire `replan`. `replan` is allowed only once a plan is approved: a read-only run that re-reads the goal metric, the items' outcomes and project memory and submits the next revision, which waits as `drafted` for approval. |
 | `prompt` | optional | `string` | Extra instructions appended to the trail prompt. _(length 0–8000)_ |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -4012,7 +4047,7 @@ _Errors_ — beyond the [common errors](#errors):
 
 **Submit a trail's plan**
 
-A plan run submits what it worked out: the plan in markdown and the `release` block (how the trail ships, why, and the exact flags, kill switches and experiments the build run will create, none for `straight_to_main`). Submit it only after the person has answered the release question you asked with `ops questions ask`. The plan is recorded as `drafted` and waits for a person to approve it. Submitting again replaces a drafted plan; an approved plan is refused with `409` (a person edits it to reopen it). The open plan run on the trail is closed.
+A plan run submits what it worked out: the plan in markdown, the `release` block (how the trail ships, why, and the exact flags, kill switches, experiments and tracking — events, metrics, alert rules — the build will create; no release tool for `straight_to_main`), the `breakdown` (the milestones and the items, each with its work kind and assignee) and the `sources` it rests on (what it read in project memory and earlier tickets, and what each settled). Submit it only after the person has answered the release question you asked with `ops questions ask`. The plan is recorded as `drafted` and waits for a person to approve it; nothing in the breakdown is filed until then. Submitting again replaces a drafted plan; an approved plan is refused with `409` (a person edits it to reopen it), except from a `replan` run, whose submission drafts the next revision with a `summary` of what changed. The open plan or replan run on the trail is closed.
 
 Safe for the restricted ops key.
 
@@ -4027,7 +4062,7 @@ _Parameters_
 | `release` | required | `object` | How the trail ships. The person answers this while the plan is made; the build run creates exactly the resources listed (none for `straight_to_main`), and the Plan gate checks they exist. |
 | `release.strategy` | required | `"straight_to_main" \| "flag" \| "flag_experiment" \| "kill_switch" \| "flag_kill_switch" \| "other"` | How the trail ships, as the person chose it while the plan was made — `straight_to_main` (no flag), `flag`, `flag_experiment` (a flag measured by an experiment), `kill_switch` (a kill switch only), `flag_kill_switch`, or `other` (a free-text answer that fits none of those). |
 | `release.reason` | required | `string` | One line on why this approach — risk, blast radius, reversibility. _(length 0–2000)_ |
-| `release.resources` | required | `object[]` | The flags, kill switches and experiments to create. Empty for `straight_to_main`; the strategy fixes which kinds must be present (a flag for `flag`, a flag and an experiment for `flag_experiment`, and so on). |
+| `release.resources` | required | `object[]` | The flags, kill switches, experiments and tracking (events, metrics, alert rules) to create. No release tool for `straight_to_main`; the strategy fixes which release kinds must be present (a flag for `flag`, a flag and an experiment for `flag_experiment`, and so on). A trail may ship behind several flags; each `ships_behind` flag gets its own rollout, its resource's `rollout` or else this block's. |
 | `release.rollout` | optional | `object` | How the flag a trail ships behind is ramped after merge — the release controller's plan (see the design doc, the release controller). Part of the plan's release block; the project's defaults live in `trail-gates` `rollout`. The controller runs on the alerts cron, so a hold shorter than the cron interval rounds up to the next tick. |
 | `release.rollout.steps` | required | `number[]` | Percent steps, each above the one before, the last 100. |
 | `release.rollout.holdMinutes` | required | `integer` | Minutes a step must stay healthy before the next one. _(0–10080)_ |
@@ -4041,6 +4076,11 @@ _Parameters_
 | `release.rollout.policies.breachTimeoutMinutes` | required | `integer` | With `ask_then_pull_back`, minutes the owner has before the controller pulls back. _(1–1440)_ |
 | `release.rollout.policies.advance` | required | `"auto" \| "ask"` | Whether a healthy step advances by itself (`auto`) or waits for the owner to say so (`ask`). |
 | `release.rollout.policies.afterFix` | required | `"resume" \| "ask" \| "restart"` | What happens when the fix merges — `resume` from the last healthy step, `ask` the owner first, or `restart` from the first step. |
+| `breakdown` | optional | `object` | The milestones and items a plan breaks the trail into. Nothing is filed while the plan is a draft; approving creates the milestones and files the items. `workKind` defaults to `code`. |
+| `breakdown.milestones` | required | `object[]` | The milestones, in order. |
+| `breakdown.items` | required | `object[]` | The items, each in at most one milestone. |
+| `sources` | optional | `object[]` | What the plan rests on in project memory (`ops memory search`) and earlier tickets and trails, each with what it settled. |
+| `summary` | optional | `string` | For a replan, what changed since the last approved revision. Recorded on the revision. _(length 0–500)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -4072,7 +4112,9 @@ _Errors_ — beyond the [common errors](#errors):
 
 **Change a trail**
 
-Change a trail's title, intent, type, priority, owner, repo scope or autopilot. Pass at least one field; the rest are left as they are. Changing the type changes which release gates apply.
+Change a trail's title, intent, type, priority, owner (the lead), repo scope, start and target dates, health, goal or autopilot. Pass at least one field; the rest are left as they are. Changing the type changes which release gates apply.
+
+**Health.** `health` sets it by hand and it holds until changed; `health: null` goes back to the derived value (off track past the target date or while a rollout is fixing, at risk near the target with progress under 75 % or with a high finding or item open, otherwise on track).
 
 **Autopilot.** `autopilot: { enabled, limits }` turns autopilot on or off and sets its limits. Turning it on needs the `autopilot` capability and a person's identity, and makes the caller the accountable approver (`403` otherwise). Turning it off is open to the trail's owner, the person who authorized it and admins.
 
@@ -4090,6 +4132,10 @@ _Parameters_
 | `ownerId` | optional | `any` | The `users.id` of the person owner; `null` unassigns. |
 | `ownerConnectorId` | optional | `any` | The agent connector owner; `null` unassigns. |
 | `repos` | optional | `string[]` | Replaces the trail's repo scope. |
+| `startDate` | optional | `any` | The calendar day work starts (`YYYY-MM-DD`); `null` clears it. |
+| `targetDate` | optional | `any` | The calendar day the trail is meant to ship by (`YYYY-MM-DD`); `null` clears it. |
+| `health` | optional | `any` | Set the health by hand; `null` goes back to the derived health. |
+| `goal` | optional | `any` | Replaces the trail's goal; `null` clears it. |
 | `autopilot` | optional | `object` | Turn a trail's autopilot on or off, and set the limits it acts inside. Turning it ON needs the `autopilot` capability (admins have it) and a person's identity — a dashboard session or a signed-in CLI, never an ops key, an admin key or MCP — and makes that person the accountable approver. Turning it off is open to the trail's owner, whoever authorized it, and admins. |
 | `autopilot.enabled` | required | `boolean` | Whether autopilot is on. |
 | `autopilot.limits` | optional | `object` | Limits to set; each one omitted keeps the trail's current value (the project's default for a new trail). |
@@ -4136,7 +4182,7 @@ _Errors_ — beyond the [common errors](#errors):
 
 **Edit a trail's plan**
 
-A person edits the plan text or the release block (strategy, reason, the resources to create). Pass at least one field. Any edit puts the plan back to `drafted`, so it needs approving again; a trail with no plan yet gets one this way. Not available to the restricted ops key.
+A person edits the plan text, the release block (strategy, reason, the resources to create) or the breakdown (milestones and items). Pass at least one field. Any edit puts the plan back to `drafted`, so it needs approving again; a trail with no plan yet gets one this way. Not available to the restricted ops key.
 
 **Use case:** The plan names a flag the team already has under another key; fix the key before approving.
 
@@ -4149,7 +4195,7 @@ _Parameters_
 | `release` | optional | `object` | How the trail ships. The person answers this while the plan is made; the build run creates exactly the resources listed (none for `straight_to_main`), and the Plan gate checks they exist. |
 | `release.strategy` | required | `"straight_to_main" \| "flag" \| "flag_experiment" \| "kill_switch" \| "flag_kill_switch" \| "other"` | How the trail ships, as the person chose it while the plan was made — `straight_to_main` (no flag), `flag`, `flag_experiment` (a flag measured by an experiment), `kill_switch` (a kill switch only), `flag_kill_switch`, or `other` (a free-text answer that fits none of those). |
 | `release.reason` | required | `string` | One line on why this approach — risk, blast radius, reversibility. _(length 0–2000)_ |
-| `release.resources` | required | `object[]` | The flags, kill switches and experiments to create. Empty for `straight_to_main`; the strategy fixes which kinds must be present (a flag for `flag`, a flag and an experiment for `flag_experiment`, and so on). |
+| `release.resources` | required | `object[]` | The flags, kill switches, experiments and tracking (events, metrics, alert rules) to create. No release tool for `straight_to_main`; the strategy fixes which release kinds must be present (a flag for `flag`, a flag and an experiment for `flag_experiment`, and so on). A trail may ship behind several flags; each `ships_behind` flag gets its own rollout, its resource's `rollout` or else this block's. |
 | `release.rollout` | optional | `object` | How the flag a trail ships behind is ramped after merge — the release controller's plan (see the design doc, the release controller). Part of the plan's release block; the project's defaults live in `trail-gates` `rollout`. The controller runs on the alerts cron, so a hold shorter than the cron interval rounds up to the next tick. |
 | `release.rollout.steps` | required | `number[]` | Percent steps, each above the one before, the last 100. |
 | `release.rollout.holdMinutes` | required | `integer` | Minutes a step must stay healthy before the next one. _(0–10080)_ |
@@ -4163,6 +4209,9 @@ _Parameters_
 | `release.rollout.policies.breachTimeoutMinutes` | required | `integer` | With `ask_then_pull_back`, minutes the owner has before the controller pulls back. _(1–1440)_ |
 | `release.rollout.policies.advance` | required | `"auto" \| "ask"` | Whether a healthy step advances by itself (`auto`) or waits for the owner to say so (`ask`). |
 | `release.rollout.policies.afterFix` | required | `"resume" \| "ask" \| "restart"` | What happens when the fix merges — `resume` from the last healthy step, `ask` the owner first, or `restart` from the first step. |
+| `breakdown` | optional | `object` | The milestones and items a plan breaks the trail into. Nothing is filed while the plan is a draft; approving creates the milestones and files the items. `workKind` defaults to `code`. |
+| `breakdown.milestones` | required | `object[]` | The milestones, in order. |
+| `breakdown.items` | required | `object[]` | The items, each in at most one milestone. |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -4245,16 +4294,17 @@ _Errors_ — beyond the [common errors](#errors):
 
 ### Items
 
-Queue items on a trail. An item surfaces on a trail in one of seven ways
+Queue items on a trail. An item surfaces on a trail in one of eight ways
 (`origin`, `finding`, `agent`, `person`, `post_merge`, `cleanup`,
-`attached`) and belongs to at most one. File a new one on a trail with
-`ops bug --trail`; attach an existing one here.
+`attached`, `plan`) and belongs to at most one, and to at most one of
+its milestones. File a new one on a trail with `ops bug --trail`; attach
+an existing one or move it between milestones here.
 
 #### `trails_items_add`
 
 **Put an existing item on a trail**
 
-Attach an existing queue item to the trail, recorded with source `attached`. An item is on at most one trail; one already on another trail is refused with `409`. To file a *new* item on a trail, use `ops bug --trail` or `ops feature --trail`.
+Attach an existing queue item to the trail, recorded with source `attached`, optionally into a milestone (`milestoneId`). An item is on at most one trail; one already on another trail is refused with `409`. To file a *new* item on a trail, use `ops bug --trail` or `ops feature --trail`.
 
 Safe for the restricted ops key.
 
@@ -4266,6 +4316,7 @@ _Parameters_
 | --- | --- | --- | --- |
 | `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
 | `item` | required | `string` | The queue item to put on the trail (number or id). An item is on at most one trail. _(length 1–64)_ |
+| `milestoneId` | optional | `string` | The milestone to put the item in (`TrailMilestone.id`). Omitted, the item is in no milestone. _(length 1–64)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -4273,6 +4324,30 @@ _Errors_ — beyond the [common errors](#errors):
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 - `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
 - `REFERENCED_NOT_FOUND` — A referenced entity (universe, metric, gate, event) does not exist.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+#### `trails_items_move`
+
+**Move an item to a milestone**
+
+Move an item on the trail into a milestone, or out of every milestone with `milestoneId: null`. The item stays on the trail and keeps its discovery record; only the milestone it counts toward changes. An item that is not on the trail is `404`, and so is a milestone of another trail.
+
+Safe for the restricted ops key.
+
+**Use case:** A bug filed on the trail turns out to block the first milestone; move it there so the build works it with the rest of that milestone.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `itemHandle` | required | `string` | A queue item's per-project number (e.g. `12`, `#12` also accepted) or its full id. _(length 1–64)_ |
+| `milestoneId` | required | `any` | The milestone to move the item into (`TrailMilestone.id`), or `null` to take it out of every milestone. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 - `VALIDATION` — The request body failed structural (schema) validation.
 
 #### `trails_items_remove`
@@ -4292,6 +4367,89 @@ _Errors_ — beyond the [common errors](#errors):
 
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 - `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
+
+### Milestones
+
+Ordered, named stages inside a trail, each with an optional target date.
+An item is in at most one milestone; progress is counted per milestone
+and for the trail, and the build works the trail milestone by milestone.
+Approving a plan creates the milestones its breakdown lists. Removing a
+milestone leaves its items on the trail, in no milestone.
+
+#### `trails_milestones_add`
+
+**Add a milestone to a trail**
+
+Add a named stage to the trail, with an optional description and target date. Milestones are ordered: omit `position` to add it last, or pass one to insert it there and move the rest down. Progress is counted per milestone, and the build works the trail milestone by milestone — it launches item runs for the first milestone that still has open items. Approving a plan creates the milestones its breakdown lists; use this for any added later.
+
+Safe for the restricted ops key.
+
+**Use case:** The trail's first release went out and a second stage came up in review; add a "Dead-letter view" milestone with its own target date.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `name` | required | `string` | The milestone's name. _(length 1–120; pattern `^\S(.*\S)?$`)_ |
+| `description` | optional | `any` | What the milestone delivers, or `null`. |
+| `targetDate` | optional | `any` | The calendar day it is meant to be done by (`YYYY-MM-DD`), or `null`. |
+| `position` | optional | `integer` | Where to put it in the trail's order, from `0`; the milestones at and after it move down one. Omitted, it goes last. _(≥ 0)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+#### `trails_milestones_remove`
+
+**Remove a milestone from a trail**
+
+Remove a milestone. Its items stay on the trail, in no milestone; the milestones after it move up one. Nothing else on the trail changes.
+
+Safe for the restricted ops key.
+
+**Use case:** Two milestones turned out to be one; remove the empty one after moving its items.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `milestoneId` | required | `string` | The milestone's id (`TrailMilestone.id`). _(length 1–64; pattern `^[0-9a-fA-F-]{32,36}$`)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
+#### `trails_milestones_update`
+
+**Change a milestone**
+
+Rename a milestone, change its description or target date, or move it in the trail's order with `position` (the others shift to make room). Pass at least one field; the rest are left as they are.
+
+Safe for the restricted ops key.
+
+**Use case:** The second stage slipped a week; move its target date so the trail's health reads it correctly.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `milestoneId` | required | `string` | The milestone's id (`TrailMilestone.id`). _(length 1–64; pattern `^[0-9a-fA-F-]{32,36}$`)_ |
+| `name` | optional | `string` | The milestone's name. _(length 1–120; pattern `^\S(.*\S)?$`)_ |
+| `description` | optional | `any` | What the milestone delivers; `null` clears it. |
+| `targetDate` | optional | `any` | The calendar day it is meant to be done by (`YYYY-MM-DD`); `null` clears it. |
+| `position` | optional | `integer` | Move it to this place in the trail's order, from `0`; the others shift to make room. _(≥ 0)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
 
 ## Projects
 

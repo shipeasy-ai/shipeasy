@@ -1154,6 +1154,7 @@ shipeasy ops trail-gates set [options]
 | `--plan <value>` | optional | Gate. Passes when every release resource the trail's approved plan lists exists on the trail (a flag, kill switch or experiment the person chose while the plan was made). Reads `pending` while a drafted plan waits for approval, and is left out when the trail has no plan. On by default; it blocks the merge only while `requirePlan` is on. |
 | `--require-plan <value>` | optional | Whether starting an agent on a trail with no approved plan fires a read-only plan run first. The plan run asks the person how the trail should ship and anything else that is open, and the build run follows the plan they approve. Off, starting an agent builds directly and creates no flag, kill switch or experiment on its own. |
 | `--fix-rounds <value>` | optional | How many times the server re-fires the coding agent with a fix prompt after a change's evals or findings fail. After the cap the trail reads `reviewing`, needs a person. `0` turns the loop off. |
+| `--max-parallel-runs <value>` | optional | How many item runs a trail's build keeps working at once. A build launches an item run for each open item of the current milestone, up to this many; the rest wait for a slot. |
 | `--attribution-window-hours <value>` | optional | How long after a trail merged an error or alert ticket may be attributed to it. Trails merged inside the window are offered to the investigating agent as candidates. |
 | `--rollout <value>` | optional | How the flag a trail ships behind is ramped after merge — the release controller's plan (see the design doc, the release controller). Part of the plan's release block; the project's defaults live in `trail-gates` `rollout`. The controller runs on the alerts cron, so a hold shorter than the cron interval rounds up to the next tick. |
 | `--autopilot <value>` | optional | What autopilot may do and spend on one trail. Crossing any one pauses it at a safe point and hands the trail to its owner. The project's defaults live in `trail-gates` `autopilot`. |
@@ -1715,6 +1716,24 @@ shipeasy trails items add [options] <handle>
 | Option | | Description |
 | --- | --- | --- |
 | `--item <value>` | optional | The queue item to put on the trail (number or id). An item is on at most one trail. |
+| `--milestone-id <value>` | optional | The milestone to put the item in (`TrailMilestone.id`). Omitted, the item is in no milestone. |
+
+#### `shipeasy trails items move`
+
+Move an item to a milestone
+
+```bash
+shipeasy trails items move [options] <handle> <itemHandle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+| `itemHandle` | required | The queue item's per-project number (e.g. `42`) or its full id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--milestone-id <value>` | optional | The milestone to move the item into (`TrailMilestone.id`), or `null` to take it out of every milestone. |
 
 #### `shipeasy trails items remove`
 
@@ -1728,6 +1747,70 @@ shipeasy trails items remove [options] <handle> <itemHandle>
 | --- | --- | --- |
 | `handle` | required | The trail's handle (`T-12`) or its id. |
 | `itemHandle` | required | The queue item's per-project number (e.g. `42`) or its full id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+### `shipeasy trails milestones`
+
+Ordered, named stages inside a trail, each with an optional target date.
+
+```bash
+shipeasy trails milestones [options] [command]
+```
+
+#### `shipeasy trails milestones add`
+
+Add a milestone to a trail
+
+```bash
+shipeasy trails milestones add [options] <handle> <name>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+| `name` | required | The milestone's name. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--description <value>` | optional | What the milestone delivers, or `null`. |
+| `--target-date <value>` | optional | The calendar day it is meant to be done by (`YYYY-MM-DD`), or `null`. |
+| `--position <value>` | optional | Where to put it in the trail's order, from `0`; the milestones at and after it move down one. Omitted, it goes last. |
+
+#### `shipeasy trails milestones update`
+
+Change a milestone
+
+```bash
+shipeasy trails milestones update [options] <handle> <milestoneId>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+| `milestoneId` | required | The milestone's id (`TrailMilestone.id`). |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--name <value>` | optional | The milestone's name. |
+| `--description <value>` | optional | What the milestone delivers; `null` clears it. |
+| `--target-date <value>` | optional | The calendar day it is meant to be done by (`YYYY-MM-DD`); `null` clears it. |
+| `--position <value>` | optional | Move it to this place in the trail's order, from `0`; the others shift to make room. |
+
+#### `shipeasy trails milestones remove`
+
+Remove a milestone from a trail
+
+```bash
+shipeasy trails milestones remove [options] <handle> <milestoneId>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+| `milestoneId` | required | The milestone's id (`TrailMilestone.id`). |
 
 | Option | | Description |
 | --- | --- | --- |
@@ -1806,6 +1889,7 @@ shipeasy trails list [options]
 | `--scope <value>` | optional | A dashboard tab: `mine` (owned by the caller), `reviewing`, `ready`, `releasing`, `shipped`, `closed`, or `all` (the default, no narrowing). |
 | `--phase <value>` | optional | Narrow to one phase. |
 | `--type <value>` | optional | Narrow to one trail type. |
+| `--health <value>` | optional | Narrow to one health (the snapshot's effective health, set or derived). |
 | `--owner <value>` | optional | Narrow to trails owned by one person OR one agent — a `users.id`, email or display name, or a connector id, display name or handle. Case-insensitive exact match. |
 | `--q <value>` | optional | Case-insensitive substring filter across the trail's title and body. |
 | `--merged-since <value>` | optional | ISO-8601 timestamp. Narrow to trails with a change merged at or after it. |
@@ -1837,6 +1921,10 @@ shipeasy trails create [options] <title>
 | `--owner-connector-id <value>` | optional | The agent connector to own the trail, or `null`. |
 | `--repos <value>` | optional | Repos (`owner/repo`) the trail may open changes in. |
 | `--origin-item <value>` | optional | Ship this: a queue item (number or id) to create the trail from. Its description seeds `body` when that is omitted, and it becomes the trail's first item with source `origin`. |
+| `--start-date <value>` | optional | The calendar day work starts (`YYYY-MM-DD`), or `null`. |
+| `--target-date <value>` | optional | The calendar day the trail is meant to ship by (`YYYY-MM-DD`), or `null`. |
+| `--health <value>` | optional | A health a person sets, or `null` (the default) to have it derived. |
+| `--goal <value>` | optional | The metric the trail is meant to move, or `null` for none. |
 | `--intake <value>` | optional | What the creation dialog already decided — each field is a plan question answered in advance. The plan run asks only what is left out. Omitted entirely, the plan asks everything ("let the plan ask me"). |
 | `--autopilot <value>` | optional | Turn a trail's autopilot on or off, and set the limits it acts inside. Turning it ON needs the `autopilot` capability (admins have it) and a person's identity — a dashboard session or a signed-in CLI, never an ops key, an admin key or MCP — and makes that person the accountable approver. Turning it off is open to the trail's owner, whoever authorized it, and admins. |
 
@@ -1878,6 +1966,10 @@ shipeasy trails update [options] <handle>
 | `--owner-id <value>` | optional | The `users.id` of the person owner; `null` unassigns. |
 | `--owner-connector-id <value>` | optional | The agent connector owner; `null` unassigns. |
 | `--repos <value>` | optional | Replaces the trail's repo scope. |
+| `--start-date <value>` | optional | The calendar day work starts (`YYYY-MM-DD`); `null` clears it. |
+| `--target-date <value>` | optional | The calendar day the trail is meant to ship by (`YYYY-MM-DD`); `null` clears it. |
+| `--health <value>` | optional | Set the health by hand; `null` goes back to the derived health. |
+| `--goal <value>` | optional | Replaces the trail's goal; `null` clears it. |
 | `--autopilot <value>` | optional | Turn a trail's autopilot on or off, and set the limits it acts inside. Turning it ON needs the `autopilot` capability (admins have it) and a person's identity — a dashboard session or a signed-in CLI, never an ops key, an admin key or MCP — and makes that person the accountable approver. Turning it off is open to the trail's owner, whoever authorized it, and admins. |
 
 ### `shipeasy trails close`
@@ -1962,7 +2054,7 @@ shipeasy trails start [options] <handle>
 | --- | --- | --- |
 | `--agent <value>` | optional | Which coding agent to fire — `claude`, `cursor`, `copilot` or `jules`. Omitted, the project's coding-agent trigger. |
 | `--connector-id <value>` | optional | A specific trigger connector to fire. Overrides `agent`. |
-| `--kind <value>` | optional | Which run to fire. Omitted, the server picks — `plan` while the project requires a plan (`trail-gates` `requirePlan`) and the trail has no approved one, else `build`. Asking for `build` before the plan is approved is refused with `409`, and so is asking for `plan` once one is approved: edit the plan to change it. |
+| `--kind <value>` | optional | Which run to fire. Omitted, the server picks — `plan` while the project requires a plan (`trail-gates` `requirePlan`) and the trail has no approved one, else `build`. Asking for `build` before the plan is approved is refused with `409`, and so is asking for `plan` once one is approved: edit the plan, or fire `replan`. `replan` is allowed only once a plan is approved: a read-only run that re-reads the goal metric, the items' outcomes and project memory and submits the next revision, which waits as `drafted` for approval. |
 | `--prompt <value>` | optional | Extra instructions appended to the trail prompt. |
 
 ### `shipeasy trails submit-plan`
@@ -1981,6 +2073,9 @@ shipeasy trails submit-plan [options] <handle>
 | --- | --- | --- |
 | `--plan <value>` | optional | The plan in markdown — the approach, the files and repos it touches, the order of the work, how each acceptance criterion is met, and the risks. |
 | `--release <value>` | optional | How the trail ships. The person answers this while the plan is made; the build run creates exactly the resources listed (none for `straight_to_main`), and the Plan gate checks they exist. |
+| `--breakdown <value>` | optional | The milestones and items a plan breaks the trail into. Nothing is filed while the plan is a draft; approving creates the milestones and files the items. `workKind` defaults to `code`. |
+| `--sources <value>` | optional | What the plan rests on in project memory (`ops memory search`) and earlier tickets and trails, each with what it settled. |
+| `--summary <value>` | optional | For a replan, what changed since the last approved revision. Recorded on the revision. |
 
 ### `shipeasy trails update-plan`
 
@@ -1998,6 +2093,7 @@ shipeasy trails update-plan [options] <handle>
 | --- | --- | --- |
 | `--plan <value>` | optional | The plan in markdown. |
 | `--release <value>` | optional | How the trail ships. The person answers this while the plan is made; the build run creates exactly the resources listed (none for `straight_to_main`), and the Plan gate checks they exist. |
+| `--breakdown <value>` | optional | The milestones and items a plan breaks the trail into. Nothing is filed while the plan is a draft; approving creates the milestones and files the items. `workKind` defaults to `code`. |
 
 ### `shipeasy trails approve-plan`
 
@@ -2017,6 +2113,22 @@ shipeasy trails approve-plan [options] <handle>
 | `--agent <value>` | optional | Which coding agent builds, with `startBuild`. Omitted, the project's coding-agent trigger. |
 | `--connector-id <value>` | optional | A specific trigger connector to build with, with `startBuild`. Overrides `agent`. |
 
+### `shipeasy trails plan-revisions`
+
+List a trail's plan revisions
+
+```bash
+shipeasy trails plan-revisions [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
 ### `shipeasy trails pause-rollout`
 
 Pause a trail's rollout
@@ -2032,6 +2144,7 @@ shipeasy trails pause-rollout [options] <handle>
 | Option | | Description |
 | --- | --- | --- |
 | `--reason <value>` | optional | Why — shown on the release timeline. |
+| `--resource <value>` | optional | The flag to pause — its trail-resource id (`TrailResource.id`) or its key. Omitted, every flag on the trail is paused. |
 
 ### `shipeasy trails resume-rollout`
 
@@ -2048,6 +2161,7 @@ shipeasy trails resume-rollout [options] <handle>
 | Option | | Description |
 | --- | --- | --- |
 | `--reason <value>` | optional | Why — shown on the release timeline. |
+| `--resource <value>` | optional | The flag to resume — its trail-resource id (`TrailResource.id`) or its key. Omitted, every paused flag on the trail is resumed. |
 
 ### `shipeasy trails pause-autopilot`
 

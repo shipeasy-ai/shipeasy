@@ -3878,6 +3878,12 @@ TrailGates:
       maximum: 10
       default: 3
       description: How many times the server re-fires the coding agent with a fix prompt after a change's evals or findings fail. After the cap the trail reads `reviewing`, needs a person. `0` turns the loop off.
+    maxParallelRuns:
+      type: integer
+      minimum: 1
+      maximum: 10
+      default: 3
+      description: How many item runs a trail's build keeps working at once. A build launches an item run for each open item of the current milestone, up to this many; the rest wait for a slot.
     attributionWindowHours:
       type: integer
       minimum: 1
@@ -4753,7 +4759,8 @@ TrailDiscoveredSource:
     - post_merge
     - cleanup
     - attached
-  description: How an item came to be on a trail — `origin` (the item Ship this was pressed on), `finding` (a review finding promoted out of scope), `agent` (the coding agent filed it instead of fixing it in place), `person` (a reviewer filed it from the trail), `post_merge` (an error, alert or bug attributed to the trail after it merged), `cleanup` (follow-up the release created, e.g. remove a flag from code), `attached` (an existing item moved onto the trail).
+    - plan
+  description: How an item came to be on a trail — `origin` (the item the trail was created from), `finding` (a review finding promoted out of scope), `agent` (the coding agent filed it instead of fixing it in place), `person` (a reviewer filed it from the trail), `post_merge` (an error, alert or bug attributed to the trail after it merged), `cleanup` (follow-up the release created, e.g. remove a flag from code), `attached` (an existing item moved onto the trail), `plan` (filed from the breakdown of the approved plan).
 TrailResourceKind:
   type: string
   enum:
@@ -4789,7 +4796,8 @@ TrailRunKind:
     - build
     - fix
     - plan
-  description: "What a trail run was fired to do — `plan` (read-only: ask the person how the trail should ship and anything else that is open, then submit a plan), `build` (carry the approved plan to pull requests) or `fix` (act on failing evals and findings)."
+    - replan
+  description: "What a trail run was fired to do — `plan` (read-only: ask the person how the trail should ship and anything else that is open, then submit a plan), `build` (carry the approved plan to pull requests), `fix` (act on failing evals and findings) or `replan` (read-only, once a plan is approved: re-read the goal metric, the items' outcomes and project memory, and submit the plan's next revision)."
 TrailRunState:
   type: string
   enum:
@@ -4813,6 +4821,173 @@ TrailSuspectStatus:
     - confirmed
     - rejected
   description: Where a suspected regression stands. Only `pending` suspects are listed on the trail.
+TrailHealth:
+  type: string
+  enum:
+    - on_track
+    - at_risk
+    - off_track
+  description: "A trail's effective health — the one a person set, or else the derived one. Derived, first match wins: `off_track` when the target date has passed and the trail has not shipped, or a rollout is `fixing` after a pull-back; `at_risk` when the target is at most 7 days away and progress is under 75 %, or a high finding or a high or critical item on the trail is open; otherwise `on_track`. A list row carries the snapshot; the detail read recomputes it."
+TrailHealthSource:
+  type: string
+  enum:
+    - person
+    - derived
+  description: Where a trail's `health` comes from — `person` (someone set it, and it holds until they clear it) or `derived` (computed from the target date, progress, rollouts, findings and items).
+TrailWorkKind:
+  type: string
+  enum:
+    - code
+    - tracking
+    - marketing
+    - research
+    - ops
+  description: What kind of work an item on a trail is — `code` (a change to the product), `tracking` (events, metrics and alert rules to measure it), `marketing`, `research` or `ops`. Code and tracking items go to coding agents; marketing and research items are typically delegated to an assistant such as Muse or Grok, which picks them up over MCP (`ops list --owner muse`).
+TrailGoal:
+  type: object
+  description: The metric a trail is meant to move, and how far. Progress toward the target is charted on the trail page.
+  properties:
+    metric:
+      anyOf:
+        - type: object
+          description: The metric.
+          properties:
+            id:
+              type: string
+              description: The metric's id.
+            key:
+              type: string
+              description: The metric's key, kept for display after it is archived.
+          required:
+            - id
+            - key
+          additionalProperties: false
+        - type: "null"
+      description: The metric the goal is measured on, or `null` for a goal stated in words only.
+    direction:
+      type: string
+      enum:
+        - increase
+        - decrease
+      description: Which way the metric should move.
+    baseline:
+      anyOf:
+        - type: number
+        - type: "null"
+      description: The metric's value when the trail started, or `null` when not recorded.
+    target:
+      anyOf:
+        - type: number
+        - type: "null"
+      description: The value the trail aims for, or `null` for "move it in `direction`".
+    unit:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The unit the values are in, e.g. `%` or `ms`, or `null`.
+  required:
+    - metric
+    - direction
+    - baseline
+    - target
+    - unit
+  additionalProperties: false
+TrailGoalSpec:
+  type: object
+  description: A trail's goal as sent on create or update. `metric` names the metric by id or key.
+  properties:
+    metric:
+      anyOf:
+        - type: string
+          minLength: 1
+          maxLength: 256
+        - type: "null"
+      description: The metric's id or key, or `null` for a goal stated in words only.
+    direction:
+      type: string
+      enum:
+        - increase
+        - decrease
+      description: Which way the metric should move.
+    baseline:
+      anyOf:
+        - type: number
+        - type: "null"
+      description: The metric's value when the trail started, or `null`.
+    target:
+      anyOf:
+        - type: number
+        - type: "null"
+      description: The value the trail aims for, or `null`.
+    unit:
+      anyOf:
+        - type: string
+          maxLength: 32
+        - type: "null"
+      description: The unit the values are in, e.g. `%` or `ms`, or `null`.
+  required:
+    - direction
+  additionalProperties: false
+TrailResourceRef:
+  type: object
+  description: A compact reference to one of a trail's resources — here, the flag a rollout drives.
+  properties:
+    id:
+      type: string
+      description: The trail's link to the resource (`TrailResource.id`), not the entity's own id.
+    key:
+      type: string
+      description: The flag's key.
+  required:
+    - id
+    - key
+  additionalProperties: false
+TrailMilestone:
+  type: object
+  description: A named, ordered stage inside a trail. An item is in at most one milestone; progress is counted per milestone and for the trail.
+  properties:
+    id:
+      type: string
+      description: The milestone's id (a uuid).
+    name:
+      type: string
+      description: The milestone's name.
+    description:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: What the milestone delivers, or `null`.
+    targetDate:
+      anyOf:
+        - type: string
+          format: date
+        - type: "null"
+      description: The calendar day the milestone is meant to be done by (`YYYY-MM-DD`), or `null`.
+    position:
+      type: integer
+      minimum: 0
+      description: Where the milestone sits in the trail's order, from `0`.
+    itemsTotal:
+      type: integer
+      minimum: 0
+      description: Items in the milestone.
+    itemsDone:
+      type: integer
+      minimum: 0
+      description: Of those, the items at `resolved`, `wont_fix` or `ready_for_qa`.
+    late:
+      type: boolean
+      description: True when the target date has passed with items still open.
+  required:
+    - id
+    - name
+    - description
+    - targetDate
+    - position
+    - itemsTotal
+    - itemsDone
+    - late
+  additionalProperties: false
 TrailSummary:
   type: object
   description: A compact reference to a trail, as it appears on a queue item.
@@ -4904,6 +5079,35 @@ Trail:
     resourcesCount:
       type: integer
       description: Product resources linked to the trail. Part of the snapshot.
+    startDate:
+      anyOf:
+        - type: string
+          format: date
+        - type: "null"
+      description: The calendar day work on the trail starts (`YYYY-MM-DD`), or `null` when not set.
+    targetDate:
+      anyOf:
+        - type: string
+          format: date
+        - type: "null"
+      description: The calendar day the trail is meant to ship by (`YYYY-MM-DD`), or `null` when not set. A trail past its target that has not shipped is late.
+    health:
+      $ref: "#/TrailHealth"
+    healthSource:
+      $ref: "#/TrailHealthSource"
+    itemsTotal:
+      type: integer
+      minimum: 0
+      description: Items on the trail.
+    itemsDone:
+      type: integer
+      minimum: 0
+      description: Of the items on the trail, those at `resolved`, `wont_fix` or `ready_for_qa`. Progress is `itemsDone` over `itemsTotal`.
+    goal:
+      anyOf:
+        - $ref: "#/TrailGoal"
+        - type: "null"
+      description: The metric the trail is meant to move, or `null` for a trail with no goal.
     releasedPct:
       anyOf:
         - type: number
@@ -4957,6 +5161,13 @@ Trail:
     - findingsOpenHigh
     - itemsOpen
     - resourcesCount
+    - startDate
+    - targetDate
+    - health
+    - healthSource
+    - itemsTotal
+    - itemsDone
+    - goal
     - releasedPct
     - mergedAt
     - shippedAt
@@ -5010,12 +5221,24 @@ TrailItem:
         - $ref: "#/TrailChangeRef"
         - type: "null"
       description: The change the item surfaced on, or `null`.
+    milestoneId:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The milestone the item is in (`TrailMilestone.id`), or `null` when it is in none.
+    workKind:
+      anyOf:
+        - $ref: "#/TrailWorkKind"
+        - type: "null"
+      description: What kind of work the item is, as the plan's breakdown filed it, or `null` for an item that did not come from a plan.
   required:
     - item
     - priority
     - discoveredSource
     - discoveredSha
     - change
+    - milestoneId
+    - workKind
   additionalProperties: false
 TrailResourceState:
   type: object
@@ -5328,8 +5551,13 @@ TrailRolloutPending:
   additionalProperties: false
 TrailRolloutView:
   type: object
-  description: A trail's rollout as it stands — the plan's configuration and the controller's live state.
+  description: One flag's rollout as it stands — the plan's configuration for it and the controller's live state.
   properties:
+    resource:
+      anyOf:
+        - $ref: "#/TrailResourceRef"
+        - type: "null"
+      description: The `ships_behind` flag this rollout drives, or `null` when the trail ships behind no flag.
     state:
       $ref: "#/TrailRolloutState"
     config:
@@ -5361,6 +5589,7 @@ TrailRolloutView:
         - type: "null"
       description: The question the controller is waiting on, or `null`.
   required:
+    - resource
     - state
     - config
     - step
@@ -5399,6 +5628,11 @@ TrailReleaseEvent:
       description: Event id (a uuid).
     kind:
       $ref: "#/TrailReleaseEventKind"
+    resource:
+      anyOf:
+        - $ref: "#/TrailResourceRef"
+        - type: "null"
+      description: The flag the event is about, or `null` for an event about the whole trail (autopilot's own events, or one recorded before a trail could ship behind several flags).
     step:
       type: integer
       description: The step the event is about; `-1` for none.
@@ -5430,6 +5664,7 @@ TrailReleaseEvent:
   required:
     - id
     - kind
+    - resource
     - step
     - fromPct
     - toPct
@@ -5446,6 +5681,11 @@ PauseTrailRolloutRequest:
       type: string
       maxLength: 500
       description: Why — shown on the release timeline.
+    resource:
+      type: string
+      minLength: 1
+      maxLength: 256
+      description: The flag to pause — its trail-resource id (`TrailResource.id`) or its key. Omitted, every flag on the trail is paused.
   additionalProperties: false
 ResumeTrailRolloutRequest:
   type: object
@@ -5455,15 +5695,26 @@ ResumeTrailRolloutRequest:
       type: string
       maxLength: 500
       description: Why — shown on the release timeline.
+    resource:
+      type: string
+      minLength: 1
+      maxLength: 256
+      description: The flag to resume — its trail-resource id (`TrailResource.id`) or its key. Omitted, every paused flag on the trail is resumed.
   additionalProperties: false
 TrailRolloutResult:
   type: object
-  description: The rollout after a pause or a resume.
+  description: The rollouts after a pause or a resume.
   properties:
     rollout:
       $ref: "#/TrailRolloutView"
+    rollouts:
+      type: array
+      items:
+        $ref: "#/TrailRolloutView"
+      description: Every `ships_behind` flag's rollout after the call, in the order the flags were linked. `rollout` is the first of these, kept for older clients.
   required:
     - rollout
+    - rollouts
   additionalProperties: false
 TrailAutopilotState:
   type: string
@@ -5678,10 +5929,13 @@ TrailPlanResourceKind:
     - gate
     - killswitch
     - experiment
-  description: The release resources a plan may list — a feature flag (`gate`), a kill switch or an experiment.
+    - metric
+    - event
+    - alert_rule
+  description: The resources a plan may list for the build to create — the release tools (a feature flag (`gate`), a kill switch, an experiment) and the tracking (an `event` to emit, a `metric` to define, an `alert_rule` to guard with).
 TrailPlanResource:
   type: object
-  description: One release resource the build run creates and links to the trail.
+  description: One resource the build run creates and links to the trail — a release tool or a piece of tracking.
   properties:
     kind:
       $ref: "#/TrailPlanResourceKind"
@@ -5692,6 +5946,8 @@ TrailPlanResource:
       description: The key or name the build run creates it under, e.g. `checkout.v2`.
     role:
       $ref: "#/TrailResourceRole"
+    rollout:
+      $ref: "#/TrailRollout"
   required:
     - kind
     - key
@@ -5711,13 +5967,164 @@ TrailPlanRelease:
       maxItems: 20
       items:
         $ref: "#/TrailPlanResource"
-      description: The flags, kill switches and experiments to create. Empty for `straight_to_main`; the strategy fixes which kinds must be present (a flag for `flag`, a flag and an experiment for `flag_experiment`, and so on).
+      description: The flags, kill switches, experiments and tracking (events, metrics, alert rules) to create. No release tool for `straight_to_main`; the strategy fixes which release kinds must be present (a flag for `flag`, a flag and an experiment for `flag_experiment`, and so on). A trail may ship behind several flags; each `ships_behind` flag gets its own rollout, its resource's `rollout` or else this block's.
     rollout:
       $ref: "#/TrailRollout"
   required:
     - strategy
     - reason
     - resources
+  additionalProperties: false
+TrailPlanMilestone:
+  type: object
+  description: A milestone the plan proposes. Created when the plan is approved.
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 120
+      description: The milestone's name. Breakdown items name it in their `milestone`.
+    targetDate:
+      anyOf:
+        - type: string
+          format: date
+        - type: "null"
+      description: The calendar day the milestone is meant to be done by (`YYYY-MM-DD`), or `null`.
+  required:
+    - name
+  additionalProperties: false
+TrailPlanItem:
+  type: object
+  description: An item the plan proposes. Filed on the trail with source `plan` when the plan is approved.
+  properties:
+    title:
+      type: string
+      minLength: 1
+      maxLength: 200
+      description: The item's title. A replan's approval matches items already on the trail by title and files only the new ones.
+    type:
+      type: string
+      enum:
+        - bug
+        - feature_request
+      description: What to file the item as.
+    priority:
+      anyOf:
+        - $ref: "#/OpsItemPriority"
+        - type: "null"
+      description: The item's triage priority, or `null`.
+    body:
+      type: string
+      maxLength: 8000
+      description: The item's description in markdown — what to do and how to tell it is done.
+    milestone:
+      anyOf:
+        - type: string
+          minLength: 1
+          maxLength: 120
+        - type: "null"
+      description: The name of the breakdown milestone the item belongs to, or `null` for none.
+    assignee:
+      anyOf:
+        - type: string
+          minLength: 1
+          maxLength: 200
+        - type: "null"
+      description: Who works the item — an agent handle (`claude`, `cursor`, `copilot`, `jules`, `muse`, `grok`) or a person's email. `null`, the project's coding agent.
+    workKind:
+      $ref: "#/TrailWorkKind"
+  required:
+    - title
+    - type
+  additionalProperties: false
+TrailPlanBreakdown:
+  type: object
+  description: The milestones and items a plan breaks the trail into. Nothing is filed while the plan is a draft; approving creates the milestones and files the items. `workKind` defaults to `code`.
+  properties:
+    milestones:
+      type: array
+      maxItems: 12
+      items:
+        $ref: "#/TrailPlanMilestone"
+      description: The milestones, in order.
+    items:
+      type: array
+      maxItems: 60
+      items:
+        $ref: "#/TrailPlanItem"
+      description: The items, each in at most one milestone.
+  required:
+    - milestones
+    - items
+  additionalProperties: false
+TrailPlanSource:
+  type: object
+  description: One thing the plan rests on — a memory entry, an earlier item or trail, or a document — and what it settled.
+  properties:
+    kind:
+      type: string
+      enum:
+        - memory
+        - item
+        - trail
+        - doc
+      description: What was read — a project memory entry, a queue item, a trail, or a document.
+    ref:
+      type: string
+      minLength: 1
+      maxLength: 500
+      description: A memory entry id, an item handle like `#123`, a trail handle like `T-4`, or a URL.
+    note:
+      type: string
+      minLength: 1
+      maxLength: 300
+      description: What it settled for the plan.
+  required:
+    - kind
+    - ref
+    - note
+  additionalProperties: false
+TrailPlanRevision:
+  type: object
+  description: One approved revision of a trail's plan.
+  properties:
+    revision:
+      type: integer
+      minimum: 1
+      description: The revision number, from `1`.
+    plan:
+      type: string
+      description: The plan in markdown as it was approved.
+    approvedBy:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Email of the person who approved it, or `null` when autopilot approved it.
+    approvedAt:
+      type: string
+      description: ISO-8601 time it was approved.
+    summary:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: What changed since the previous revision, or `null` for the first.
+  required:
+    - revision
+    - plan
+    - approvedBy
+    - approvedAt
+    - summary
+  additionalProperties: false
+ListTrailPlanRevisionsResponse:
+  type: object
+  description: A trail's approved plan revisions, newest first.
+  properties:
+    data:
+      type: array
+      items:
+        $ref: "#/TrailPlanRevision"
+  required:
+    - data
   additionalProperties: false
 TrailPlan:
   type: object
@@ -5735,6 +6142,21 @@ TrailPlan:
         - $ref: "#/TrailPlanRelease"
         - type: "null"
       description: How the trail ships and the resources to create, or `null` before a plan exists.
+    breakdown:
+      anyOf:
+        - $ref: "#/TrailPlanBreakdown"
+        - type: "null"
+      description: The milestones and items the plan breaks the trail into, or `null` for a plan built by one trail-level build run.
+    sources:
+      type: array
+      maxItems: 30
+      items:
+        $ref: "#/TrailPlanSource"
+      description: What the plan run read in project memory and earlier tickets that the plan rests on. Empty when it cited nothing.
+    revision:
+      type: integer
+      minimum: 0
+      description: How many times the plan has been approved — `0` while it never has, one more per approval. A drafted replan carries the revision it will replace.
     approvedBy:
       anyOf:
         - type: string
@@ -5762,6 +6184,9 @@ TrailPlan:
     - status
     - plan
     - release
+    - breakdown
+    - sources
+    - revision
     - approvedBy
     - approvedAt
     - requirePlan
@@ -5779,6 +6204,18 @@ SubmitTrailPlanRequest:
       description: The plan in markdown — the approach, the files and repos it touches, the order of the work, how each acceptance criterion is met, and the risks.
     release:
       $ref: "#/TrailPlanRelease"
+    breakdown:
+      $ref: "#/TrailPlanBreakdown"
+    sources:
+      type: array
+      maxItems: 30
+      items:
+        $ref: "#/TrailPlanSource"
+      description: What the plan rests on in project memory (`ops memory search`) and earlier tickets and trails, each with what it settled.
+    summary:
+      type: string
+      maxLength: 500
+      description: For a replan, what changed since the last approved revision. Recorded on the revision.
   required:
     - plan
     - release
@@ -5794,6 +6231,8 @@ UpdateTrailPlanRequest:
       description: The plan in markdown.
     release:
       $ref: "#/TrailPlanRelease"
+    breakdown:
+      $ref: "#/TrailPlanBreakdown"
   minProperties: 1
   additionalProperties: false
 ApproveTrailPlanRequest:
@@ -5826,10 +6265,21 @@ ApproveTrailPlanResult:
       anyOf:
         - $ref: "#/TrailRun"
         - type: "null"
-      description: The build run that was started, or `null` when `startBuild` was not set.
+      description: The trail-level build run that was started, or `null` when `startBuild` was not set or the build launched item runs instead.
+    itemRuns:
+      type: array
+      items:
+        $ref: "#/TrailItemRunLaunch"
+      description: With `startBuild` on a plan that filed items, one entry per open item of the milestone the build started on, launched or not. Empty otherwise.
+    itemsFiled:
+      type: integer
+      minimum: 0
+      description: Items the approval filed on the trail from the plan's breakdown, with source `plan`. `0` for a plan without items, and for a replan whose items are all on the trail already.
   required:
     - plan
     - run
+    - itemRuns
+    - itemsFiled
   additionalProperties: false
 TrailPlanResult:
   type: object
@@ -5907,6 +6357,35 @@ TrailDetail:
     resourcesCount:
       type: integer
       description: Product resources linked to the trail. Part of the snapshot.
+    startDate:
+      anyOf:
+        - type: string
+          format: date
+        - type: "null"
+      description: The calendar day work on the trail starts (`YYYY-MM-DD`), or `null` when not set.
+    targetDate:
+      anyOf:
+        - type: string
+          format: date
+        - type: "null"
+      description: The calendar day the trail is meant to ship by (`YYYY-MM-DD`), or `null` when not set. A trail past its target that has not shipped is late.
+    health:
+      $ref: "#/TrailHealth"
+    healthSource:
+      $ref: "#/TrailHealthSource"
+    itemsTotal:
+      type: integer
+      minimum: 0
+      description: Items on the trail.
+    itemsDone:
+      type: integer
+      minimum: 0
+      description: Of the items on the trail, those at `resolved`, `wont_fix` or `ready_for_qa`. Progress is `itemsDone` over `itemsTotal`.
+    goal:
+      anyOf:
+        - $ref: "#/TrailGoal"
+        - type: "null"
+      description: The metric the trail is meant to move, or `null` for a trail with no goal.
     releasedPct:
       anyOf:
         - type: number
@@ -5949,7 +6428,12 @@ TrailDetail:
       type: array
       items:
         $ref: "#/TrailItem"
-      description: Queue items discovered on the trail, with where each surfaced.
+      description: Queue items on the trail, with where each surfaced and the milestone it is in.
+    milestones:
+      type: array
+      items:
+        $ref: "#/TrailMilestone"
+      description: The trail's milestones, ordered by `position`.
     resources:
       type: array
       items:
@@ -5971,6 +6455,11 @@ TrailDetail:
       $ref: "#/TrailPlan"
     rollout:
       $ref: "#/TrailRolloutView"
+    rollouts:
+      type: array
+      items:
+        $ref: "#/TrailRolloutView"
+      description: One rollout per `ships_behind` flag, in the order the flags were linked. `rollout` is the first of these, kept for older clients.
     autopilot:
       $ref: "#/TrailAutopilot"
     releaseEvents:
@@ -5998,6 +6487,13 @@ TrailDetail:
     - findingsOpenHigh
     - itemsOpen
     - resourcesCount
+    - startDate
+    - targetDate
+    - health
+    - healthSource
+    - itemsTotal
+    - itemsDone
+    - goal
     - releasedPct
     - mergedAt
     - shippedAt
@@ -6007,12 +6503,14 @@ TrailDetail:
     - updatedAt
     - changes
     - items
+    - milestones
     - resources
     - runs
     - suspects
     - gates
     - plan
     - rollout
+    - rollouts
     - autopilot
     - releaseEvents
   additionalProperties: false
@@ -6087,6 +6585,28 @@ CreateTrailRequest:
       description: "Ship this: a queue item (number or id) to create the trail from. Its description seeds `body` when that is omitted, and it becomes the trail's first item with source `origin`."
       minLength: 1
       maxLength: 64
+    startDate:
+      anyOf:
+        - type: string
+          format: date
+        - type: "null"
+      description: The calendar day work starts (`YYYY-MM-DD`), or `null`.
+    targetDate:
+      anyOf:
+        - type: string
+          format: date
+        - type: "null"
+      description: The calendar day the trail is meant to ship by (`YYYY-MM-DD`), or `null`.
+    health:
+      anyOf:
+        - $ref: "#/TrailHealth"
+        - type: "null"
+      description: A health a person sets, or `null` (the default) to have it derived.
+    goal:
+      anyOf:
+        - $ref: "#/TrailGoalSpec"
+        - type: "null"
+      description: The metric the trail is meant to move, or `null` for none.
     intake:
       $ref: "#/TrailPlanIntake"
     autopilot:
@@ -6131,6 +6651,28 @@ UpdateTrailRequest:
         maxLength: 200
       description: Replaces the trail's repo scope.
       maxItems: 20
+    startDate:
+      anyOf:
+        - type: string
+          format: date
+        - type: "null"
+      description: The calendar day work starts (`YYYY-MM-DD`); `null` clears it.
+    targetDate:
+      anyOf:
+        - type: string
+          format: date
+        - type: "null"
+      description: The calendar day the trail is meant to ship by (`YYYY-MM-DD`); `null` clears it.
+    health:
+      anyOf:
+        - $ref: "#/TrailHealth"
+        - type: "null"
+      description: Set the health by hand; `null` goes back to the derived health.
+    goal:
+      anyOf:
+        - $ref: "#/TrailGoalSpec"
+        - type: "null"
+      description: Replaces the trail's goal; `null` clears it.
     autopilot:
       $ref: "#/TrailAutopilotSettings"
   additionalProperties: false
@@ -6180,7 +6722,8 @@ StartTrailRunRequest:
       enum:
         - plan
         - build
-      description: "Which run to fire. Omitted, the server picks — `plan` while the project requires a plan (`trail-gates` `requirePlan`) and the trail has no approved one, else `build`. Asking for `build` before the plan is approved is refused with `409`, and so is asking for `plan` once one is approved: edit the plan to change it."
+        - replan
+      description: "Which run to fire. Omitted, the server picks — `plan` while the project requires a plan (`trail-gates` `requirePlan`) and the trail has no approved one, else `build`. Asking for `build` before the plan is approved is refused with `409`, and so is asking for `plan` once one is approved: edit the plan, or fire `replan`. `replan` is allowed only once a plan is approved: a read-only run that re-reads the goal metric, the items' outcomes and project memory and submits the next revision, which waits as `drafted` for approval."
     prompt:
       type: string
       description: Extra instructions appended to the trail prompt.
@@ -6258,6 +6801,11 @@ AddTrailItemRequest:
       description: The queue item to put on the trail (number or id). An item is on at most one trail.
       minLength: 1
       maxLength: 64
+    milestoneId:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: The milestone to put the item in (`TrailMilestone.id`). Omitted, the item is in no milestone.
   required:
     - item
   additionalProperties: false
@@ -6314,4 +6862,112 @@ TrailOkResponse:
       description: Always `true` — the link was removed.
   required:
     - ok
+  additionalProperties: false
+CreateTrailMilestoneRequest:
+  type: object
+  description: Body for `POST /api/admin/trails/{handle}/milestones`.
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 120
+      pattern: ^\S(.*\S)?$
+      description: The milestone's name.
+    description:
+      anyOf:
+        - type: string
+          maxLength: 2000
+        - type: "null"
+      description: What the milestone delivers, or `null`.
+    targetDate:
+      anyOf:
+        - type: string
+          format: date
+        - type: "null"
+      description: The calendar day it is meant to be done by (`YYYY-MM-DD`), or `null`.
+    position:
+      type: integer
+      minimum: 0
+      description: Where to put it in the trail's order, from `0`; the milestones at and after it move down one. Omitted, it goes last.
+  required:
+    - name
+  additionalProperties: false
+UpdateTrailMilestoneRequest:
+  type: object
+  description: Body for `PATCH /api/admin/trails/{handle}/milestones/{milestoneId}`. Pass at least one field; omitted ones are left as they are.
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 120
+      pattern: ^\S(.*\S)?$
+      description: The milestone's name.
+    description:
+      anyOf:
+        - type: string
+          maxLength: 2000
+        - type: "null"
+      description: What the milestone delivers; `null` clears it.
+    targetDate:
+      anyOf:
+        - type: string
+          format: date
+        - type: "null"
+      description: The calendar day it is meant to be done by (`YYYY-MM-DD`); `null` clears it.
+    position:
+      type: integer
+      minimum: 0
+      description: Move it to this place in the trail's order, from `0`; the others shift to make room.
+  minProperties: 1
+  additionalProperties: false
+MoveTrailItemRequest:
+  type: object
+  description: Body for `PATCH /api/admin/trails/{handle}/items/{itemHandle}`.
+  properties:
+    milestoneId:
+      anyOf:
+        - type: string
+          minLength: 1
+          maxLength: 64
+        - type: "null"
+      description: The milestone to move the item into (`TrailMilestone.id`), or `null` to take it out of every milestone.
+  required:
+    - milestoneId
+  additionalProperties: false
+TrailItemRunLaunch:
+  type: object
+  description: What a build did for one item of the milestone it worked on.
+  properties:
+    item:
+      $ref: "#/OpsItemRef"
+    launched:
+      type: boolean
+      description: True when an item run was launched for it.
+    reason:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Why no run was launched (a run already works it, every slot is taken, the launch failed), or `null` when one was.
+  required:
+    - item
+    - launched
+    - reason
+  additionalProperties: false
+StartTrailRunResult:
+  type: object
+  description: What starting an agent on a trail launched — one trail-level run, or item runs for the current milestone.
+  properties:
+    run:
+      anyOf:
+        - $ref: "#/TrailRun"
+        - type: "null"
+      description: The trail-level run that was started (a plan, replan or build run), or `null` when the build launched item runs instead.
+    itemRuns:
+      type: array
+      items:
+        $ref: "#/TrailItemRunLaunch"
+      description: For a build whose approved plan filed items, one entry per open item of the milestone it built, launched or not. Empty for a trail-level run.
+  required:
+    - run
+    - itemRuns
   additionalProperties: false

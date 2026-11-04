@@ -274,10 +274,19 @@ tags:
   - name: Items
     parent: Trails
     description: |-
-      Queue items on a trail. An item surfaces on a trail in one of seven ways
+      Queue items on a trail. An item surfaces on a trail in one of eight ways
       (`origin`, `finding`, `agent`, `person`, `post_merge`, `cleanup`,
-      `attached`) and belongs to at most one. File a new one on a trail with
-      `ops bug --trail`; attach an existing one here.
+      `attached`, `plan`) and belongs to at most one, and to at most one of
+      its milestones. File a new one on a trail with `ops bug --trail`; attach
+      an existing one or move it between milestones here.
+  - name: Milestones
+    parent: Trails
+    description: |-
+      Ordered, named stages inside a trail, each with an optional target date.
+      An item is in at most one milestone; progress is counted per milestone
+      and for the trail, and the build works the trail milestone by milestone.
+      Approving a plan creates the milestones its breakdown lists. Removing a
+      milestone leaves its items on the trail, in no milestone.
   - name: Review agents
     parent: Ops
     description: |-
@@ -579,6 +588,8 @@ paths:
     $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1plan
   /api/admin/trails/{handle}/plan/approve:
     $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1plan~1approve
+  /api/admin/trails/{handle}/plan/revisions:
+    $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1plan~1revisions
   /api/admin/trails/{handle}/rollout/pause:
     $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1rollout~1pause
   /api/admin/trails/{handle}/rollout/resume:
@@ -607,6 +618,10 @@ paths:
     $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1items
   /api/admin/trails/{handle}/items/{itemHandle}:
     $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1items~1{itemHandle}
+  /api/admin/trails/{handle}/milestones:
+    $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1milestones
+  /api/admin/trails/{handle}/milestones/{milestoneId}:
+    $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1milestones~1{milestoneId}
   /api/admin/trails/{handle}/attributions:
     $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1attributions
   /api/admin/trails/{handle}/suspects/{suspectId}/confirm:

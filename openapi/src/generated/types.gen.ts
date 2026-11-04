@@ -4594,9 +4594,9 @@ export type TrailSummary = {
 };
 
 /**
- * How an item came to be on a trail — `origin` (the item Ship this was pressed on), `finding` (a review finding promoted out of scope), `agent` (the coding agent filed it instead of fixing it in place), `person` (a reviewer filed it from the trail), `post_merge` (an error, alert or bug attributed to the trail after it merged), `cleanup` (follow-up the release created, e.g. remove a flag from code), `attached` (an existing item moved onto the trail).
+ * How an item came to be on a trail — `origin` (the item the trail was created from), `finding` (a review finding promoted out of scope), `agent` (the coding agent filed it instead of fixing it in place), `person` (a reviewer filed it from the trail), `post_merge` (an error, alert or bug attributed to the trail after it merged), `cleanup` (follow-up the release created, e.g. remove a flag from code), `attached` (an existing item moved onto the trail), `plan` (filed from the breakdown of the approved plan).
  */
-export type TrailDiscoveredSource = 'origin' | 'finding' | 'agent' | 'person' | 'post_merge' | 'cleanup' | 'attached';
+export type TrailDiscoveredSource = 'origin' | 'finding' | 'agent' | 'person' | 'post_merge' | 'cleanup' | 'attached' | 'plan';
 
 /**
  * One queue item, any of the five types. Shared fields apply to all; `stepsToReproduce`/`actualResult`/`expectedResult` are bug-specific, `description`/`useCase` feature-specific. The auto-collected browser fields (page URL, user-agent, viewport) live under `context.browser` for bug/feature. `context` also carries the hydrated per-type payload for auto-filed `error`/`alert`/`measure_plan` tickets, `attachments` lists any uploaded files, and `related` gives deep links to the underlying resources.
@@ -5917,6 +5917,51 @@ export type TrailType = 'feature' | 'bug' | 'task';
 export type TrailStatus = 'open' | 'closed';
 
 /**
+ * A trail's effective health — the one a person set, or else the derived one. Derived, first match wins: `off_track` when the target date has passed and the trail has not shipped, or a rollout is `fixing` after a pull-back; `at_risk` when the target is at most 7 days away and progress is under 75 %, or a high finding or a high or critical item on the trail is open; otherwise `on_track`. A list row carries the snapshot; the detail read recomputes it.
+ */
+export type TrailHealth = 'on_track' | 'at_risk' | 'off_track';
+
+/**
+ * Where a trail's `health` comes from — `person` (someone set it, and it holds until they clear it) or `derived` (computed from the target date, progress, rollouts, findings and items).
+ */
+export type TrailHealthSource = 'person' | 'derived';
+
+/**
+ * The metric a trail is meant to move, and how far. Progress toward the target is charted on the trail page.
+ */
+export type TrailGoal = {
+    /**
+     * The metric the goal is measured on, or `null` for a goal stated in words only.
+     */
+    metric: {
+        /**
+         * The metric's id.
+         */
+        id: string;
+        /**
+         * The metric's key, kept for display after it is archived.
+         */
+        key: string;
+    } | null;
+    /**
+     * Which way the metric should move.
+     */
+    direction: 'increase' | 'decrease';
+    /**
+     * The metric's value when the trail started, or `null` when not recorded.
+     */
+    baseline: number | null;
+    /**
+     * The value the trail aims for, or `null` for "move it in `direction`".
+     */
+    target: number | null;
+    /**
+     * The unit the values are in, e.g. `%` or `ms`, or `null`.
+     */
+    unit: string | null;
+};
+
+/**
  * A merge gate — `plan` (every release resource the approved plan lists exists on the trail), `up_to_date` (the branch is current with its base), `human_review` (enough approvals), `agent_review` (no open findings at or above the severity, and no push agent still reviewing), `evals` (every blocking review agent passes on the latest push), `checks` (CI checks pass), `discovered` (no item discovered on the trail is open at or above the configured priority), and the release gates `ships_dark` (every flag the trail ships behind is off in prod), `rollback` (a feature has a rollback kill switch), `measured` (a feature has an experiment or metric), `guarded` (every measured resource has a guard alert rule) and `copy` (every copy key exists in every published locale).
  */
 export type TrailGateKey = 'up_to_date' | 'human_review' | 'agent_review' | 'evals' | 'checks' | 'discovered' | 'ships_dark' | 'rollback' | 'measured' | 'guarded' | 'copy' | 'plan';
@@ -6181,6 +6226,11 @@ export type TrailChangeRef = {
 };
 
 /**
+ * What kind of work an item on a trail is — `code` (a change to the product), `tracking` (events, metrics and alert rules to measure it), `marketing`, `research` or `ops`. Code and tracking items go to coding agents; marketing and research items are typically delegated to an assistant such as Muse or Grok, which picks them up over MCP (`ops list --owner muse`).
+ */
+export type TrailWorkKind = 'code' | 'tracking' | 'marketing' | 'research' | 'ops';
+
+/**
  * A queue item on a trail, with where it surfaced.
  */
 export type TrailItem = {
@@ -6198,6 +6248,52 @@ export type TrailItem = {
      * The change the item surfaced on, or `null`.
      */
     change: TrailChangeRef | null;
+    /**
+     * The milestone the item is in (`TrailMilestone.id`), or `null` when it is in none.
+     */
+    milestoneId: string | null;
+    /**
+     * What kind of work the item is, as the plan's breakdown filed it, or `null` for an item that did not come from a plan.
+     */
+    workKind: TrailWorkKind | null;
+};
+
+/**
+ * A named, ordered stage inside a trail. An item is in at most one milestone; progress is counted per milestone and for the trail.
+ */
+export type TrailMilestone = {
+    /**
+     * The milestone's id (a uuid).
+     */
+    id: string;
+    /**
+     * The milestone's name.
+     */
+    name: string;
+    /**
+     * What the milestone delivers, or `null`.
+     */
+    description: string | null;
+    /**
+     * The calendar day the milestone is meant to be done by (`YYYY-MM-DD`), or `null`.
+     */
+    targetDate: string | null;
+    /**
+     * Where the milestone sits in the trail's order, from `0`.
+     */
+    position: number;
+    /**
+     * Items in the milestone.
+     */
+    itemsTotal: number;
+    /**
+     * Of those, the items at `resolved`, `wont_fix` or `ready_for_qa`.
+     */
+    itemsDone: number;
+    /**
+     * True when the target date has passed with items still open.
+     */
+    late: boolean;
 };
 
 /**
@@ -6277,9 +6373,9 @@ export type TrailResource = {
 };
 
 /**
- * What a trail run was fired to do — `plan` (read-only: ask the person how the trail should ship and anything else that is open, then submit a plan), `build` (carry the approved plan to pull requests) or `fix` (act on failing evals and findings).
+ * What a trail run was fired to do — `plan` (read-only: ask the person how the trail should ship and anything else that is open, then submit a plan), `build` (carry the approved plan to pull requests), `fix` (act on failing evals and findings) or `replan` (read-only, once a plan is approved: re-read the goal metric, the items' outcomes and project memory, and submit the plan's next revision).
  */
-export type TrailRunKind = 'build' | 'fix' | 'plan';
+export type TrailRunKind = 'build' | 'fix' | 'plan' | 'replan';
 
 /**
  * A trail run's lifecycle.
@@ -6616,6 +6712,10 @@ export type TrailGates = {
      */
     fixRounds?: number;
     /**
+     * How many item runs a trail's build keeps working at once. A build launches an item run for each open item of the current milestone, up to this many; the rest wait for a slot.
+     */
+    maxParallelRuns?: number;
+    /**
      * How long after a trail merged an error or alert ticket may be attributed to it. Trails merged inside the window are offered to the investigating agent as candidates.
      */
     attributionWindowHours?: number;
@@ -6644,12 +6744,12 @@ export type TrailPlanStatus = 'none' | 'drafted' | 'approved';
 export type TrailReleaseStrategy = 'straight_to_main' | 'flag' | 'flag_experiment' | 'kill_switch' | 'flag_kill_switch' | 'other';
 
 /**
- * The release resources a plan may list — a feature flag (`gate`), a kill switch or an experiment.
+ * The resources a plan may list for the build to create — the release tools (a feature flag (`gate`), a kill switch, an experiment) and the tracking (an `event` to emit, a `metric` to define, an `alert_rule` to guard with).
  */
-export type TrailPlanResourceKind = 'gate' | 'killswitch' | 'experiment';
+export type TrailPlanResourceKind = 'gate' | 'killswitch' | 'experiment' | 'metric' | 'event' | 'alert_rule';
 
 /**
- * One release resource the build run creates and links to the trail.
+ * One resource the build run creates and links to the trail — a release tool or a piece of tracking.
  */
 export type TrailPlanResource = {
     kind: TrailPlanResourceKind;
@@ -6658,6 +6758,7 @@ export type TrailPlanResource = {
      */
     key: string;
     role?: TrailResourceRole;
+    rollout?: TrailRollout;
 };
 
 /**
@@ -6670,10 +6771,87 @@ export type TrailPlanRelease = {
      */
     reason: string;
     /**
-     * The flags, kill switches and experiments to create. Empty for `straight_to_main`; the strategy fixes which kinds must be present (a flag for `flag`, a flag and an experiment for `flag_experiment`, and so on).
+     * The flags, kill switches, experiments and tracking (events, metrics, alert rules) to create. No release tool for `straight_to_main`; the strategy fixes which release kinds must be present (a flag for `flag`, a flag and an experiment for `flag_experiment`, and so on). A trail may ship behind several flags; each `ships_behind` flag gets its own rollout, its resource's `rollout` or else this block's.
      */
     resources: Array<TrailPlanResource>;
     rollout?: TrailRollout;
+};
+
+/**
+ * A milestone the plan proposes. Created when the plan is approved.
+ */
+export type TrailPlanMilestone = {
+    /**
+     * The milestone's name. Breakdown items name it in their `milestone`.
+     */
+    name: string;
+    /**
+     * The calendar day the milestone is meant to be done by (`YYYY-MM-DD`), or `null`.
+     */
+    targetDate?: string | null;
+};
+
+/**
+ * An item the plan proposes. Filed on the trail with source `plan` when the plan is approved.
+ */
+export type TrailPlanItem = {
+    /**
+     * The item's title. A replan's approval matches items already on the trail by title and files only the new ones.
+     */
+    title: string;
+    /**
+     * What to file the item as.
+     */
+    type: 'bug' | 'feature_request';
+    /**
+     * The item's triage priority, or `null`.
+     */
+    priority?: OpsItemPriority | null;
+    /**
+     * The item's description in markdown — what to do and how to tell it is done.
+     */
+    body?: string;
+    /**
+     * The name of the breakdown milestone the item belongs to, or `null` for none.
+     */
+    milestone?: string | null;
+    /**
+     * Who works the item — an agent handle (`claude`, `cursor`, `copilot`, `jules`, `muse`, `grok`) or a person's email. `null`, the project's coding agent.
+     */
+    assignee?: string | null;
+    workKind?: TrailWorkKind;
+};
+
+/**
+ * The milestones and items a plan breaks the trail into. Nothing is filed while the plan is a draft; approving creates the milestones and files the items. `workKind` defaults to `code`.
+ */
+export type TrailPlanBreakdown = {
+    /**
+     * The milestones, in order.
+     */
+    milestones: Array<TrailPlanMilestone>;
+    /**
+     * The items, each in at most one milestone.
+     */
+    items: Array<TrailPlanItem>;
+};
+
+/**
+ * One thing the plan rests on — a memory entry, an earlier item or trail, or a document — and what it settled.
+ */
+export type TrailPlanSource = {
+    /**
+     * What was read — a project memory entry, a queue item, a trail, or a document.
+     */
+    kind: 'memory' | 'item' | 'trail' | 'doc';
+    /**
+     * A memory entry id, an item handle like `#123`, a trail handle like `T-4`, or a URL.
+     */
+    ref: string;
+    /**
+     * What it settled for the plan.
+     */
+    note: string;
 };
 
 /**
@@ -6689,6 +6867,18 @@ export type TrailPlan = {
      * How the trail ships and the resources to create, or `null` before a plan exists.
      */
     release: TrailPlanRelease | null;
+    /**
+     * The milestones and items the plan breaks the trail into, or `null` for a plan built by one trail-level build run.
+     */
+    breakdown: TrailPlanBreakdown | null;
+    /**
+     * What the plan run read in project memory and earlier tickets that the plan rests on. Empty when it cited nothing.
+     */
+    sources: Array<TrailPlanSource>;
+    /**
+     * How many times the plan has been approved — `0` while it never has, one more per approval. A drafted replan carries the revision it will replace.
+     */
+    revision: number;
     /**
      * Email of the person who approved it, or `null`.
      */
@@ -6709,6 +6899,20 @@ export type TrailPlan = {
      * Questions the plan run asked that still wait for an answer. Read them with `ops questions list <handle>`.
      */
     openQuestions: number;
+};
+
+/**
+ * A compact reference to one of a trail's resources — here, the flag a rollout drives.
+ */
+export type TrailResourceRef = {
+    /**
+     * The trail's link to the resource (`TrailResource.id`), not the entity's own id.
+     */
+    id: string;
+    /**
+     * The flag's key.
+     */
+    key: string;
 };
 
 /**
@@ -6735,9 +6939,13 @@ export type TrailRolloutPending = {
 };
 
 /**
- * A trail's rollout as it stands — the plan's configuration and the controller's live state.
+ * One flag's rollout as it stands — the plan's configuration for it and the controller's live state.
  */
 export type TrailRolloutView = {
+    /**
+     * The `ships_behind` flag this rollout drives, or `null` when the trail ships behind no flag.
+     */
+    resource: TrailResourceRef | null;
     state: TrailRolloutState;
     /**
      * The rollout the plan carries, or `null` when the trail ships no flag or has no plan.
@@ -6808,6 +7016,10 @@ export type TrailReleaseEvent = {
      */
     id: string;
     kind: TrailReleaseEventKind;
+    /**
+     * The flag the event is about, or `null` for an event about the whole trail (autopilot's own events, or one recorded before a trail could ship behind several flags).
+     */
+    resource: TrailResourceRef | null;
     /**
      * The step the event is about; `-1` for none.
      */
@@ -6903,6 +7115,28 @@ export type TrailDetail = {
      */
     resourcesCount: number;
     /**
+     * The calendar day work on the trail starts (`YYYY-MM-DD`), or `null` when not set.
+     */
+    startDate: string | null;
+    /**
+     * The calendar day the trail is meant to ship by (`YYYY-MM-DD`), or `null` when not set. A trail past its target that has not shipped is late.
+     */
+    targetDate: string | null;
+    health: TrailHealth;
+    healthSource: TrailHealthSource;
+    /**
+     * Items on the trail.
+     */
+    itemsTotal: number;
+    /**
+     * Of the items on the trail, those at `resolved`, `wont_fix` or `ready_for_qa`. Progress is `itemsDone` over `itemsTotal`.
+     */
+    itemsDone: number;
+    /**
+     * The metric the trail is meant to move, or `null` for a trail with no goal.
+     */
+    goal: TrailGoal | null;
+    /**
      * The lowest prod rollout across the flags the trail ships behind, as a percent, or `null` when it ships behind none.
      */
     releasedPct: number | null;
@@ -6935,9 +7169,13 @@ export type TrailDetail = {
      */
     changes: Array<TrailChange>;
     /**
-     * Queue items discovered on the trail, with where each surfaced.
+     * Queue items on the trail, with where each surfaced and the milestone it is in.
      */
     items: Array<TrailItem>;
+    /**
+     * The trail's milestones, ordered by `position`.
+     */
+    milestones: Array<TrailMilestone>;
     /**
      * Product resources the trail ships or depends on, with their live state.
      */
@@ -6953,6 +7191,10 @@ export type TrailDetail = {
     gates: TrailGates;
     plan: TrailPlan;
     rollout: TrailRolloutView;
+    /**
+     * One rollout per `ships_behind` flag, in the order the flags were linked. `rollout` is the first of these, kept for older clients.
+     */
+    rollouts: Array<TrailRolloutView>;
     autopilot: TrailAutopilot;
     /**
      * The release timeline, newest first (the latest 100).
@@ -7291,6 +7533,28 @@ export type Trail = {
      */
     resourcesCount: number;
     /**
+     * The calendar day work on the trail starts (`YYYY-MM-DD`), or `null` when not set.
+     */
+    startDate: string | null;
+    /**
+     * The calendar day the trail is meant to ship by (`YYYY-MM-DD`), or `null` when not set. A trail past its target that has not shipped is late.
+     */
+    targetDate: string | null;
+    health: TrailHealth;
+    healthSource: TrailHealthSource;
+    /**
+     * Items on the trail.
+     */
+    itemsTotal: number;
+    /**
+     * Of the items on the trail, those at `resolved`, `wont_fix` or `ready_for_qa`. Progress is `itemsDone` over `itemsTotal`.
+     */
+    itemsDone: number;
+    /**
+     * The metric the trail is meant to move, or `null` for a trail with no goal.
+     */
+    goal: TrailGoal | null;
+    /**
      * The lowest prod rollout across the flags the trail ships behind, as a percent, or `null` when it ships behind none.
      */
     releasedPct: number | null;
@@ -7339,6 +7603,32 @@ export type ListTrailsResponse = {
      * Whether the page is section-ordered, so the sections earn their headers. Only on `view=table`.
      */
     grouped?: boolean;
+};
+
+/**
+ * A trail's goal as sent on create or update. `metric` names the metric by id or key.
+ */
+export type TrailGoalSpec = {
+    /**
+     * The metric's id or key, or `null` for a goal stated in words only.
+     */
+    metric?: string | null;
+    /**
+     * Which way the metric should move.
+     */
+    direction: 'increase' | 'decrease';
+    /**
+     * The metric's value when the trail started, or `null`.
+     */
+    baseline?: number | null;
+    /**
+     * The value the trail aims for, or `null`.
+     */
+    target?: number | null;
+    /**
+     * The unit the values are in, e.g. `%` or `ms`, or `null`.
+     */
+    unit?: string | null;
 };
 
 /**
@@ -7411,6 +7701,22 @@ export type CreateTrailRequest = {
      * Ship this: a queue item (number or id) to create the trail from. Its description seeds `body` when that is omitted, and it becomes the trail's first item with source `origin`.
      */
     originItem?: string;
+    /**
+     * The calendar day work starts (`YYYY-MM-DD`), or `null`.
+     */
+    startDate?: string | null;
+    /**
+     * The calendar day the trail is meant to ship by (`YYYY-MM-DD`), or `null`.
+     */
+    targetDate?: string | null;
+    /**
+     * A health a person sets, or `null` (the default) to have it derived.
+     */
+    health?: TrailHealth | null;
+    /**
+     * The metric the trail is meant to move, or `null` for none.
+     */
+    goal?: TrailGoalSpec | null;
     intake?: TrailPlanIntake;
     autopilot?: TrailAutopilotSettings;
 };
@@ -7438,6 +7744,22 @@ export type UpdateTrailRequest = {
      * Replaces the trail's repo scope.
      */
     repos?: Array<string>;
+    /**
+     * The calendar day work starts (`YYYY-MM-DD`); `null` clears it.
+     */
+    startDate?: string | null;
+    /**
+     * The calendar day the trail is meant to ship by (`YYYY-MM-DD`); `null` clears it.
+     */
+    targetDate?: string | null;
+    /**
+     * Set the health by hand; `null` goes back to the derived health.
+     */
+    health?: TrailHealth | null;
+    /**
+     * Replaces the trail's goal; `null` clears it.
+     */
+    goal?: TrailGoalSpec | null;
     autopilot?: TrailAutopilotSettings;
 };
 
@@ -7488,13 +7810,42 @@ export type StartTrailRunRequest = {
      */
     connectorId?: string;
     /**
-     * Which run to fire. Omitted, the server picks — `plan` while the project requires a plan (`trail-gates` `requirePlan`) and the trail has no approved one, else `build`. Asking for `build` before the plan is approved is refused with `409`, and so is asking for `plan` once one is approved: edit the plan to change it.
+     * Which run to fire. Omitted, the server picks — `plan` while the project requires a plan (`trail-gates` `requirePlan`) and the trail has no approved one, else `build`. Asking for `build` before the plan is approved is refused with `409`, and so is asking for `plan` once one is approved: edit the plan, or fire `replan`. `replan` is allowed only once a plan is approved: a read-only run that re-reads the goal metric, the items' outcomes and project memory and submits the next revision, which waits as `drafted` for approval.
      */
-    kind?: 'plan' | 'build';
+    kind?: 'plan' | 'build' | 'replan';
     /**
      * Extra instructions appended to the trail prompt.
      */
     prompt?: string;
+};
+
+/**
+ * What a build did for one item of the milestone it worked on.
+ */
+export type TrailItemRunLaunch = {
+    item: OpsItemRef;
+    /**
+     * True when an item run was launched for it.
+     */
+    launched: boolean;
+    /**
+     * Why no run was launched (a run already works it, every slot is taken, the launch failed), or `null` when one was.
+     */
+    reason: string | null;
+};
+
+/**
+ * What starting an agent on a trail launched — one trail-level run, or item runs for the current milestone.
+ */
+export type StartTrailRunResult = {
+    /**
+     * The trail-level run that was started (a plan, replan or build run), or `null` when the build launched item runs instead.
+     */
+    run: TrailRun | null;
+    /**
+     * For a build whose approved plan filed items, one entry per open item of the milestone it built, launched or not. Empty for a trail-level run.
+     */
+    itemRuns: Array<TrailItemRunLaunch>;
 };
 
 /**
@@ -7506,6 +7857,15 @@ export type SubmitTrailPlanRequest = {
      */
     plan: string;
     release: TrailPlanRelease;
+    breakdown?: TrailPlanBreakdown;
+    /**
+     * What the plan rests on in project memory (`ops memory search`) and earlier tickets and trails, each with what it settled.
+     */
+    sources?: Array<TrailPlanSource>;
+    /**
+     * For a replan, what changed since the last approved revision. Recorded on the revision.
+     */
+    summary?: string;
 };
 
 /**
@@ -7524,6 +7884,7 @@ export type UpdateTrailPlanRequest = {
      */
     plan?: string;
     release?: TrailPlanRelease;
+    breakdown?: TrailPlanBreakdown;
 };
 
 /**
@@ -7550,9 +7911,50 @@ export type ApproveTrailPlanRequest = {
 export type ApproveTrailPlanResult = {
     plan: TrailPlan;
     /**
-     * The build run that was started, or `null` when `startBuild` was not set.
+     * The trail-level build run that was started, or `null` when `startBuild` was not set or the build launched item runs instead.
      */
     run: TrailRun | null;
+    /**
+     * With `startBuild` on a plan that filed items, one entry per open item of the milestone the build started on, launched or not. Empty otherwise.
+     */
+    itemRuns: Array<TrailItemRunLaunch>;
+    /**
+     * Items the approval filed on the trail from the plan's breakdown, with source `plan`. `0` for a plan without items, and for a replan whose items are all on the trail already.
+     */
+    itemsFiled: number;
+};
+
+/**
+ * One approved revision of a trail's plan.
+ */
+export type TrailPlanRevision = {
+    /**
+     * The revision number, from `1`.
+     */
+    revision: number;
+    /**
+     * The plan in markdown as it was approved.
+     */
+    plan: string;
+    /**
+     * Email of the person who approved it, or `null` when autopilot approved it.
+     */
+    approvedBy: string | null;
+    /**
+     * ISO-8601 time it was approved.
+     */
+    approvedAt: string;
+    /**
+     * What changed since the previous revision, or `null` for the first.
+     */
+    summary: string | null;
+};
+
+/**
+ * A trail's approved plan revisions, newest first.
+ */
+export type ListTrailPlanRevisionsResponse = {
+    data: Array<TrailPlanRevision>;
 };
 
 /**
@@ -7563,13 +7965,21 @@ export type PauseTrailRolloutRequest = {
      * Why — shown on the release timeline.
      */
     reason?: string;
+    /**
+     * The flag to pause — its trail-resource id (`TrailResource.id`) or its key. Omitted, every flag on the trail is paused.
+     */
+    resource?: string;
 };
 
 /**
- * The rollout after a pause or a resume.
+ * The rollouts after a pause or a resume.
  */
 export type TrailRolloutResult = {
     rollout: TrailRolloutView;
+    /**
+     * Every `ships_behind` flag's rollout after the call, in the order the flags were linked. `rollout` is the first of these, kept for older clients.
+     */
+    rollouts: Array<TrailRolloutView>;
 };
 
 /**
@@ -7580,6 +7990,10 @@ export type ResumeTrailRolloutRequest = {
      * Why — shown on the release timeline.
      */
     reason?: string;
+    /**
+     * The flag to resume — its trail-resource id (`TrailResource.id`) or its key. Omitted, every paused flag on the trail is resumed.
+     */
+    resource?: string;
 };
 
 /**
@@ -7662,6 +8076,64 @@ export type AddTrailItemRequest = {
      * The queue item to put on the trail (number or id). An item is on at most one trail.
      */
     item: string;
+    /**
+     * The milestone to put the item in (`TrailMilestone.id`). Omitted, the item is in no milestone.
+     */
+    milestoneId?: string;
+};
+
+/**
+ * Body for `PATCH /api/admin/trails/{handle}/items/{itemHandle}`.
+ */
+export type MoveTrailItemRequest = {
+    /**
+     * The milestone to move the item into (`TrailMilestone.id`), or `null` to take it out of every milestone.
+     */
+    milestoneId: string | null;
+};
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/milestones`.
+ */
+export type CreateTrailMilestoneRequest = {
+    /**
+     * The milestone's name.
+     */
+    name: string;
+    /**
+     * What the milestone delivers, or `null`.
+     */
+    description?: string | null;
+    /**
+     * The calendar day it is meant to be done by (`YYYY-MM-DD`), or `null`.
+     */
+    targetDate?: string | null;
+    /**
+     * Where to put it in the trail's order, from `0`; the milestones at and after it move down one. Omitted, it goes last.
+     */
+    position?: number;
+};
+
+/**
+ * Body for `PATCH /api/admin/trails/{handle}/milestones/{milestoneId}`. Pass at least one field; omitted ones are left as they are.
+ */
+export type UpdateTrailMilestoneRequest = {
+    /**
+     * The milestone's name.
+     */
+    name?: string;
+    /**
+     * What the milestone delivers; `null` clears it.
+     */
+    description?: string | null;
+    /**
+     * The calendar day it is meant to be done by (`YYYY-MM-DD`); `null` clears it.
+     */
+    targetDate?: string | null;
+    /**
+     * Move it to this place in the trail's order, from `0`; the others shift to make room.
+     */
+    position?: number;
 };
 
 /**
@@ -10237,6 +10709,11 @@ export type Q = string;
  * The trail's handle (`T-12`) or its id.
  */
 export type TrailHandle = string;
+
+/**
+ * The milestone's id (`TrailMilestone.id`).
+ */
+export type MilestoneId = string;
 
 export type ListGatesData = {
     body?: never;
@@ -16581,6 +17058,10 @@ export type ListTrailsData = {
          */
         type?: TrailType;
         /**
+         * Narrow to one health (the snapshot's effective health, set or derived).
+         */
+        health?: TrailHealth;
+        /**
          * Narrow to trails owned by one person OR one agent — a `users.id`, email or display name, or a connector id, display name or handle. Case-insensitive exact match.
          */
         owner?: string;
@@ -17060,9 +17541,9 @@ export type StartTrailRunError = StartTrailRunErrors[keyof StartTrailRunErrors];
 
 export type StartTrailRunResponses = {
     /**
-     * The run that was started
+     * The trail-level run that was started, or the item runs a build launched
      */
-    200: TrailRun;
+    200: StartTrailRunResult;
 };
 
 export type StartTrailRunResponse = StartTrailRunResponses[keyof StartTrailRunResponses];
@@ -17228,12 +17709,56 @@ export type ApproveTrailPlanError = ApproveTrailPlanErrors[keyof ApproveTrailPla
 
 export type ApproveTrailPlanResponses = {
     /**
-     * The approved plan, and the build run when one was started
+     * The approved plan, and the build run or item runs when `startBuild` started them
      */
     200: ApproveTrailPlanResult;
 };
 
 export type ApproveTrailPlanResponse = ApproveTrailPlanResponses[keyof ApproveTrailPlanResponses];
+
+export type ListTrailPlanRevisionsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/plan/revisions';
+};
+
+export type ListTrailPlanRevisionsErrors = {
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+};
+
+export type ListTrailPlanRevisionsError = ListTrailPlanRevisionsErrors[keyof ListTrailPlanRevisionsErrors];
+
+export type ListTrailPlanRevisionsResponses = {
+    /**
+     * The plan's approved revisions
+     */
+    200: ListTrailPlanRevisionsResponse;
+};
+
+export type ListTrailPlanRevisionsResponse2 = ListTrailPlanRevisionsResponses[keyof ListTrailPlanRevisionsResponses];
 
 export type PauseTrailRolloutData = {
     body?: PauseTrailRolloutRequest;
@@ -18061,6 +18586,222 @@ export type RemoveTrailItemResponses = {
 };
 
 export type RemoveTrailItemResponse = RemoveTrailItemResponses[keyof RemoveTrailItemResponses];
+
+export type MoveTrailItemData = {
+    body: MoveTrailItemRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+        /**
+         * The queue item's per-project number (e.g. `42`) or its full id.
+         */
+        itemHandle: OpsItemHandle;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/items/{itemHandle}';
+};
+
+export type MoveTrailItemErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type MoveTrailItemError = MoveTrailItemErrors[keyof MoveTrailItemErrors];
+
+export type MoveTrailItemResponses = {
+    /**
+     * The item was moved
+     */
+    200: TrailOkResponse;
+};
+
+export type MoveTrailItemResponse = MoveTrailItemResponses[keyof MoveTrailItemResponses];
+
+export type CreateTrailMilestoneData = {
+    body: CreateTrailMilestoneRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/milestones';
+};
+
+export type CreateTrailMilestoneErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type CreateTrailMilestoneError = CreateTrailMilestoneErrors[keyof CreateTrailMilestoneErrors];
+
+export type CreateTrailMilestoneResponses = {
+    /**
+     * The new milestone
+     */
+    200: TrailMilestone;
+};
+
+export type CreateTrailMilestoneResponse = CreateTrailMilestoneResponses[keyof CreateTrailMilestoneResponses];
+
+export type RemoveTrailMilestoneData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+        /**
+         * The milestone's id (`TrailMilestone.id`).
+         */
+        milestoneId: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/milestones/{milestoneId}';
+};
+
+export type RemoveTrailMilestoneErrors = {
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+};
+
+export type RemoveTrailMilestoneError = RemoveTrailMilestoneErrors[keyof RemoveTrailMilestoneErrors];
+
+export type RemoveTrailMilestoneResponses = {
+    /**
+     * The milestone was removed
+     */
+    200: TrailOkResponse;
+};
+
+export type RemoveTrailMilestoneResponse = RemoveTrailMilestoneResponses[keyof RemoveTrailMilestoneResponses];
+
+export type UpdateTrailMilestoneData = {
+    body: UpdateTrailMilestoneRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+        /**
+         * The milestone's id (`TrailMilestone.id`).
+         */
+        milestoneId: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/milestones/{milestoneId}';
+};
+
+export type UpdateTrailMilestoneErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type UpdateTrailMilestoneError = UpdateTrailMilestoneErrors[keyof UpdateTrailMilestoneErrors];
+
+export type UpdateTrailMilestoneResponses = {
+    /**
+     * The updated milestone
+     */
+    200: TrailMilestone;
+};
+
+export type UpdateTrailMilestoneResponse = UpdateTrailMilestoneResponses[keyof UpdateTrailMilestoneResponses];
 
 export type AttributeTrailData = {
     body: AttributeTrailRequest;

@@ -140,7 +140,12 @@
     {
       "name": "Items",
       "parent": "Trails",
-      "description": "Queue items on a trail. An item surfaces on a trail in one of seven ways\n(`origin`, `finding`, `agent`, `person`, `post_merge`, `cleanup`,\n`attached`) and belongs to at most one. File a new one on a trail with\n`ops bug --trail`; attach an existing one here."
+      "description": "Queue items on a trail. An item surfaces on a trail in one of eight ways\n(`origin`, `finding`, `agent`, `person`, `post_merge`, `cleanup`,\n`attached`, `plan`) and belongs to at most one, and to at most one of\nits milestones. File a new one on a trail with `ops bug --trail`; attach\nan existing one or move it between milestones here."
+    },
+    {
+      "name": "Milestones",
+      "parent": "Trails",
+      "description": "Ordered, named stages inside a trail, each with an optional target date.\nAn item is in at most one milestone; progress is counted per milestone\nand for the trail, and the build works the trail milestone by milestone.\nApproving a plan creates the milestones its breakdown lists. Removing a\nmilestone leaves its items on the trail, in no milestone."
     },
     {
       "name": "Review agents",
@@ -11155,7 +11160,7 @@
       "get": {
         "operationId": "listTrails",
         "summary": "List trails",
-        "description": "Returns the project's trails, newest activity first. A trail is the unit of shipping: an intent, the changes (pull requests) worked under it, the items discovered on it and the product resources it ships. The phase and counts on each row are a snapshot; read one trail with `trails get` for the live state.\n\n**Dashboard table read.** `view=table` is the contract every dashboard list table shares: the endpoint applies `f`, `sort` and `cursor` in SQL and answers `{ data, next_cursor, section_counts?, grouped? }`. Filters and sorts are never applied in the browser, so a condition the server cannot evaluate is a `400`.\n- `f` — a JSON array of `{ \"f\": field, \"o\": operator, \"v\": value }` conditions, all ANDed. Fields are the snapshot columns: `phase`, `status`, `type`, `priority`, `owner`, `changesOpen`, `changesMergeable`, `findingsOpenHigh`, `itemsOpen`, `releasedPct`, `updatedAt`.\n- `sort` — a column id, `-` prefixed for descending: `number`, `title`, `phase`, `priority`, `owner`, `changes`, `findings`, `items`, `released`, `updated`, `created`. Defaults to `-updated`.\n- `cursor` — the previous page's `next_cursor`; `limit` is the page size (1–200, default 50).\n\n**Scopes** (`scope`) are the dashboard's tabs: `mine` (trails you own), `reviewing`, `ready`, `releasing`, `shipped`, `closed`, or `all` (the default).\n\n**Attribution.** `mergedSince` and `touches` list the trails that merged inside a window and changed a path or linked a resource — the candidates for an error or alert that started after a release.\n\n**Use case:** Find the trail already shipping a feature before creating another, or list what merged in the last 72 hours to attribute a new alert.",
+        "description": "Returns the project's trails, newest activity first. A trail is the unit of shipping: an outcome that takes several items, pull requests and release tools, with a lead, start and target dates, a health and a progress (items done over items on the trail). The phase, health and counts on each row are a snapshot; read one trail with `trails get` for the live state.\n\n**Dashboard table read.** `view=table` is the contract every dashboard list table shares: the endpoint applies `f`, `sort` and `cursor` in SQL and answers `{ data, next_cursor, section_counts?, grouped? }`. Filters and sorts are never applied in the browser, so a condition the server cannot evaluate is a `400`.\n- `f` — a JSON array of `{ \"f\": field, \"o\": operator, \"v\": value }` conditions, all ANDed. Fields are the snapshot columns: `phase`, `status`, `type`, `priority`, `owner`, `health`, `targetDate`, `changesOpen`, `changesMergeable`, `findingsOpenHigh`, `itemsOpen`, `itemsTotal`, `itemsDone`, `releasedPct`, `updatedAt`.\n- `sort` — a column id, `-` prefixed for descending: `number`, `title`, `phase`, `priority`, `owner`, `health`, `progress` (items done over items on the trail), `target` (the target date), `changes`, `findings`, `items`, `released`, `updated`, `created`. Defaults to `-updated`.\n- `cursor` — the previous page's `next_cursor`; `limit` is the page size (1–200, default 50).\n\n**Scopes** (`scope`) are the dashboard's tabs: `mine` (trails you own), `reviewing`, `ready`, `releasing`, `shipped`, `closed`, or `all` (the default).\n\n**Attribution.** `mergedSince` and `touches` list the trails that merged inside a window and changed a path or linked a resource — the candidates for an error or alert that started after a release.\n\n**Use case:** Find the trail already shipping a feature before creating another, or list what merged in the last 72 hours to attribute a new alert.",
         "tags": [
           "Trails"
         ],
@@ -11210,6 +11215,15 @@
             "description": "Narrow to one trail type.",
             "schema": {
               "$ref": "#/components/schemas/TrailType"
+            }
+          },
+          {
+            "name": "health",
+            "in": "query",
+            "required": false,
+            "description": "Narrow to one health (the snapshot's effective health, set or derived).",
+            "schema": {
+              "$ref": "#/components/schemas/TrailHealth"
             }
           },
           {
@@ -11335,6 +11349,22 @@
                       "findingsOpenHigh": 0,
                       "itemsOpen": 1,
                       "resourcesCount": 3,
+                      "startDate": "2026-11-02",
+                      "targetDate": "2026-11-20",
+                      "health": "on_track",
+                      "healthSource": "derived",
+                      "itemsTotal": 6,
+                      "itemsDone": 2,
+                      "goal": {
+                        "metric": {
+                          "id": "met_01j7w8k2m3n4p5q6r7s8t9v0w1",
+                          "key": "webhook_delivery_success_rate"
+                        },
+                        "direction": "increase",
+                        "baseline": 97.2,
+                        "target": 99.5,
+                        "unit": "%"
+                      },
                       "releasedPct": null,
                       "mergedAt": null,
                       "shippedAt": null,
@@ -11368,13 +11398,13 @@
           "name": "list"
         },
         "x-mcp": {
-          "description": "List the project's trails — the unit of shipping (an intent, its pull requests, the items discovered on it, the product resources it ships). LIST BEFORE YOU CREATE: check no trail already ships this. PAGING: `limit` (1–200) is REQUIRED; pass the previous `next_cursor` as `cursor` for the next page. FILTERS (optional, ANDed, applied in SQL): `scope` = mine | reviewing | ready | releasing | shipped | closed | all (default all); `phase` = planning | building | reviewing | ready | releasing | shipped | closed; `type` = feature | bug | task; `owner` = a person or agent; `q` = substring of title or body. ATTRIBUTION: `mergedSince` (ISO-8601) with `touches` (a file path or a resource key) lists the trails that merged in a window and changed a path or link a resource — the candidates for an error or alert that started after a release."
+          "description": "List the project's trails — the unit of shipping (an outcome with its items, milestones, pull requests and release tools; each row carries its lead, start and target dates, health and progress). LIST BEFORE YOU CREATE: check no trail already ships this. PAGING: `limit` (1–200) is REQUIRED; pass the previous `next_cursor` as `cursor` for the next page. FILTERS (optional, ANDed, applied in SQL): `scope` = mine | reviewing | ready | releasing | shipped | closed | all (default all); `phase` = planning | building | reviewing | ready | releasing | shipped | closed; `type` = feature | bug | task; `health` = on_track | at_risk | off_track; `owner` = a person or agent (the lead); `q` = substring of title or body. SORT (optional): `sort` = number | title | phase | priority | owner | health | progress | target | changes | findings | items | released | updated | created, `-` prefixed for descending (default `-updated`). ATTRIBUTION: `mergedSince` (ISO-8601) with `touches` (a file path or a resource key) lists the trails that merged in a window and changed a path or link a resource — the candidates for an error or alert that started after a release."
         }
       },
       "post": {
         "operationId": "createTrail",
         "summary": "Create a trail",
-        "description": "Creates a trail in `planning`. A trail is created on purpose — nothing makes one implicitly. Create one from scratch with a `title` and a `body` (the outcome and the acceptance criteria), or press **Ship this** on a queue item with `originItem`: the item's description seeds the body and the item becomes the trail's first item, with source `origin`. An item is on at most one trail.\n\nFire the project's coding agent on the new trail with `trails start`, or link pull requests an agent already opened with `trails link-pr`.\n\n**Autopilot.** `autopilot: { enabled: true, limits }` turns on autopilot at creation: the plan's questions are answered with the agent's recommendation, the plan is approved, and the change merges when every blocking gate is green, all inside the limits. It needs the `autopilot` capability and a person's identity (a dashboard session or a signed-in CLI); an ops key, an admin key or MCP asking for it is refused with `403`. Everything else is safe for the restricted ops key.\n\n**Use case:** A coding agent that was asked to ship a multi-part feature opens one trail for it, then links every PR it opens.",
+        "description": "Creates a trail in `planning`. A trail is created on purpose — nothing makes one implicitly. Create one from scratch with a `title` and a `body` (the outcome and the acceptance criteria), or press **Ship this** on a queue item with `originItem`: the item's description seeds the body and the item becomes the trail's first item, with source `origin`. An item is on at most one trail.\n\nA trail may carry a `goal` (the metric it is meant to move, with a baseline and a target), a `startDate` and a `targetDate`, and a `health` set by hand (omitted, it is derived).\n\nFire the project's coding agent on the new trail with `trails start`, or link pull requests an agent already opened with `trails link-pr`.\n\n**Autopilot.** `autopilot: { enabled: true, limits }` turns on autopilot at creation: the plan's questions are answered with the agent's recommendation, the plan is approved, and the change merges when every blocking gate is green, all inside the limits. It needs the `autopilot` capability and a person's identity (a dashboard session or a signed-in CLI); an ops key, an admin key or MCP asking for it is refused with `403`. Everything else is safe for the restricted ops key.\n\n**Use case:** A coding agent that was asked to ship a multi-part feature opens one trail for it, then links every PR it opens.",
         "tags": [
           "Trails"
         ],
@@ -11511,7 +11541,7 @@
       "patch": {
         "operationId": "updateTrail",
         "summary": "Change a trail",
-        "description": "Change a trail's title, intent, type, priority, owner, repo scope or autopilot. Pass at least one field; the rest are left as they are. Changing the type changes which release gates apply.\n\n**Autopilot.** `autopilot: { enabled, limits }` turns autopilot on or off and sets its limits. Turning it on needs the `autopilot` capability and a person's identity, and makes the caller the accountable approver (`403` otherwise). Turning it off is open to the trail's owner, the person who authorized it and admins.\n\n**Use case:** The acceptance criteria changed after a review — update the body so the next agent run builds the right thing.",
+        "description": "Change a trail's title, intent, type, priority, owner (the lead), repo scope, start and target dates, health, goal or autopilot. Pass at least one field; the rest are left as they are. Changing the type changes which release gates apply.\n\n**Health.** `health` sets it by hand and it holds until changed; `health: null` goes back to the derived value (off track past the target date or while a rollout is fixing, at risk near the target with progress under 75 % or with a high finding or item open, otherwise on track).\n\n**Autopilot.** `autopilot: { enabled, limits }` turns autopilot on or off and sets its limits. Turning it on needs the `autopilot` capability and a person's identity, and makes the caller the accountable approver (`403` otherwise). Turning it off is open to the trail's owner, the person who authorized it and admins.\n\n**Use case:** The acceptance criteria changed after a review — update the body so the next agent run builds the right thing.",
         "tags": [
           "Trails"
         ],
@@ -11860,7 +11890,7 @@
       "post": {
         "operationId": "startTrailRun",
         "summary": "Start an agent on a trail",
-        "description": "Fire the project's coding-agent trigger on the trail. While the project requires a plan (`trail-gates` `requirePlan`, on by default) and the trail has no approved one, this fires a read-only **plan** run: it reads the trail, asks the person how it should ship (straight to main, behind a flag, flag and experiment, kill switch, flag and kill switch) and anything else that is open through `ops questions ask`, then submits a plan with `trails submit-plan`. Once a person approves the plan (`trails approve-plan`), starting an agent fires the **build** run: the trail prompt with the approved plan, which opens pull requests, creates exactly the release resources the plan lists, and links them. `fix` runs are fired by the server when a change's evals or findings fail. Pass `kind` to ask for one explicitly. Runs spend your own agent quota, not Shipeasy credits.\n\n**Use case:** A trail is created from a feature request; start an agent on it to plan it, approve the plan, then start it again to build.",
+        "description": "Fire the project's coding-agent trigger on the trail. While the project requires a plan (`trail-gates` `requirePlan`, on by default) and the trail has no approved one, this fires a read-only **plan** run: it reads the trail, asks the person how it should ship (straight to main, behind a flag, flag and experiment, kill switch, flag and kill switch) and anything else that is open through `ops questions ask`, then submits a plan with `trails submit-plan`. Once a person approves the plan (`trails approve-plan`), starting an agent **builds** it.\n\n**Build.** When the approved plan filed items, `build` launches an item run for every open item of the first milestone that still has open items and no run working it (items without a milestone count as the first), at most `trail-gates` `maxParallelRuns` (default 3) at once, and no trail-level build run: `run` is `null` and `itemRuns` says what happened to each item. Each item run opens its own pull request, which becomes a change of the trail. Otherwise one trail-level build run carries the plan to pull requests, creates exactly the resources the plan lists and links them, as before, and `itemRuns` is empty.\n\n**Replan.** Once a plan is approved, `kind: replan` fires a read-only run that re-reads the goal metric, the items' outcomes and project memory and submits the plan's next revision, which waits as `drafted` for approval.\n\n`fix` runs are fired by the server when a change's evals or findings fail. Pass `kind` to ask for one explicitly. Runs spend your own agent quota, not Shipeasy credits.\n\n**Use case:** A trail is created from a feature request; start an agent on it to plan it, approve the plan, then start it again to build.",
         "tags": [
           "Trails"
         ],
@@ -11887,11 +11917,11 @@
         },
         "responses": {
           "200": {
-            "description": "The run that was started",
+            "description": "The trail-level run that was started, or the item runs a build launched",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TrailRun"
+                  "$ref": "#/components/schemas/StartTrailRunResult"
                 }
               }
             }
@@ -11936,7 +11966,7 @@
       "post": {
         "operationId": "submitTrailPlan",
         "summary": "Submit a trail's plan",
-        "description": "A plan run submits what it worked out: the plan in markdown and the `release` block (how the trail ships, why, and the exact flags, kill switches and experiments the build run will create, none for `straight_to_main`). Submit it only after the person has answered the release question you asked with `ops questions ask`. The plan is recorded as `drafted` and waits for a person to approve it. Submitting again replaces a drafted plan; an approved plan is refused with `409` (a person edits it to reopen it). The open plan run on the trail is closed.\n\nSafe for the restricted ops key.\n\n**Use case:** The person picked \"behind a flag\"; the plan run submits the plan listing the flag `checkout.v2`.",
+        "description": "A plan run submits what it worked out: the plan in markdown, the `release` block (how the trail ships, why, and the exact flags, kill switches, experiments and tracking — events, metrics, alert rules — the build will create; no release tool for `straight_to_main`), the `breakdown` (the milestones and the items, each with its work kind and assignee) and the `sources` it rests on (what it read in project memory and earlier tickets, and what each settled). Submit it only after the person has answered the release question you asked with `ops questions ask`. The plan is recorded as `drafted` and waits for a person to approve it; nothing in the breakdown is filed until then. Submitting again replaces a drafted plan; an approved plan is refused with `409` (a person edits it to reopen it), except from a `replan` run, whose submission drafts the next revision with a `summary` of what changed. The open plan or replan run on the trail is closed.\n\nSafe for the restricted ops key.\n\n**Use case:** The person picked \"behind a flag\"; the plan run submits the plan listing the flag `checkout.v2`.",
         "tags": [
           "Trails"
         ],
@@ -12020,7 +12050,7 @@
       "patch": {
         "operationId": "updateTrailPlan",
         "summary": "Edit a trail's plan",
-        "description": "A person edits the plan text or the release block (strategy, reason, the resources to create). Pass at least one field. Any edit puts the plan back to `drafted`, so it needs approving again; a trail with no plan yet gets one this way. Not available to the restricted ops key.\n\n**Use case:** The plan names a flag the team already has under another key; fix the key before approving.",
+        "description": "A person edits the plan text, the release block (strategy, reason, the resources to create) or the breakdown (milestones and items). Pass at least one field. Any edit puts the plan back to `drafted`, so it needs approving again; a trail with no plan yet gets one this way. Not available to the restricted ops key.\n\n**Use case:** The plan names a flag the team already has under another key; fix the key before approving.",
         "tags": [
           "Trails"
         ],
@@ -12108,7 +12138,7 @@
       "post": {
         "operationId": "approveTrailPlan",
         "summary": "Approve a trail's plan",
-        "description": "Sign off the drafted plan. The build run follows it: it creates exactly the release resources the plan lists and links them to the trail, and the Plan gate checks they exist. With `startBuild` the build run is fired in the same call.\n\nApproval is a person's call. Only a dashboard session or a device-auth CLI session can approve — ops keys, project admin keys and OAuth MCP calls are refused with `403`. This operation is not exposed as an MCP tool.\n\n**Use case:** The plan lists the flag and the kill switch the person asked for; approve it and start the build.",
+        "description": "Sign off the drafted plan. Approving creates the breakdown's milestones and files its items on the trail with source `plan`, in one batch (`itemsFiled` counts them); approving a replan files only the breakdown items not already on the trail, matched by title, and records a new revision. The build then works the items milestone by milestone, one item run each. A plan without items keeps the old shape: one trail-level build run builds it. Either way the build creates exactly the resources the plan lists and links them to the trail, and the Plan gate checks they exist. With `startBuild` the build is fired in the same call.\n\nApproval is a person's call. Only a dashboard session or a device-auth CLI session can approve — ops keys, project admin keys and OAuth MCP calls are refused with `403`. This operation is not exposed as an MCP tool.\n\n**Use case:** The plan lists the flag and the kill switch the person asked for; approve it and start the build.",
         "tags": [
           "Trails"
         ],
@@ -12135,7 +12165,7 @@
         },
         "responses": {
           "200": {
-            "description": "The approved plan, and the build run when one was started",
+            "description": "The approved plan, and the build run or item runs when `startBuild` started them",
             "content": {
               "application/json": {
                 "schema": {
@@ -12183,11 +12213,79 @@
         }
       }
     },
+    "/api/admin/trails/{handle}/plan/revisions": {
+      "get": {
+        "operationId": "listTrailPlanRevisions",
+        "summary": "List a trail's plan revisions",
+        "description": "Every approved revision of the trail's plan, newest first: the plan as it was approved, who approved it and when, and what changed since the revision before. A plan is revised by a `replan` run, which re-reads the goal metric, the items' outcomes and project memory and drafts the next revision; each approval adds one. The current plan, drafted or approved, is on `trails get`.\n\nSafe for the restricted ops key.\n\n**Use case:** Before replanning, a coding agent reads how the plan changed so far so the next revision does not undo a decision already made.",
+        "tags": [
+          "Trails"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The plan's approved revisions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListTrailPlanRevisionsResponse"
+                },
+                "example": {
+                  "data": [
+                    {
+                      "revision": 2,
+                      "plan": "## Approach\nKeep the retry queue; add a dead-letter view for the deliveries that still fail",
+                      "approvedBy": "alice@acme.dev",
+                      "approvedAt": "2026-11-10T15:20:00.000Z",
+                      "summary": "Success rate stalled at 98.9 %; the remaining failures are permanent 4xx, so they go to a dead-letter view instead of retrying"
+                    },
+                    {
+                      "revision": 1,
+                      "plan": "## Approach\nAdd the retry queue behind `checkout.v2` and read it in the checkout handler",
+                      "approvedBy": "alice@acme.dev",
+                      "approvedAt": "2026-11-03T09:40:00.000Z",
+                      "summary": null
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-error-codes": [
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND"
+        ],
+        "x-cli": {
+          "name": "plan-revisions",
+          "positional": [
+            "handle"
+          ]
+        }
+      }
+    },
     "/api/admin/trails/{handle}/rollout/pause": {
       "post": {
         "operationId": "pauseTrailRollout",
         "summary": "Pause a trail's rollout",
-        "description": "Pause the release controller on a trail: it stops stepping the flag and watching the guards until the rollout is resumed. The flag stays wherever it is. Any manual change to the flag pauses the controller the same way, so a person and the controller never fight over it. Safe to call at any time; pausing a rollout that is not running answers `409`.\n\nSafe for the restricted ops key.\n\n**Use case:** The checkout flag is at 25% and a deploy is going out; hold the ramp until it is done.",
+        "description": "Pause the release controller on a trail: it stops stepping the flag and watching the guards until the rollout is resumed. The flag stays wherever it is. A trail that ships behind several flags has a rollout per flag; pass `resource` (the flag's trail-resource id or its key) to pause one, or omit it to pause every flag. Any manual change to the flag pauses the controller the same way, so a person and the controller never fight over it. Safe to call at any time; pausing a rollout that is not running answers `409`.\n\nSafe for the restricted ops key.\n\n**Use case:** The checkout flag is at 25% and a deploy is going out; hold the ramp until it is done.",
         "tags": [
           "Trails"
         ],
@@ -12262,7 +12360,7 @@
       "post": {
         "operationId": "resumeTrailRollout",
         "summary": "Resume a trail's rollout",
-        "description": "Hand a paused rollout back to the release controller. It reconciles with the flag wherever a person left it (the highest step at or below the flag's percent, snapping the flag onto that step), restarts the step's hold, and carries on. A rollout that was pulled back and is waiting for its fix resumes as `fixing`. Resuming a rollout that is not paused answers `409`.\n\nResuming is a person's call: it hands the flag back to automation. Only a dashboard session or a device-auth CLI session can resume — ops keys, project admin keys and OAuth MCP calls are refused with `403`. This operation is not exposed as an MCP tool.\n\n**Use case:** After steering the flag by hand, give the ramp back to the controller.",
+        "description": "Hand a paused rollout back to the release controller. Pass `resource` (the flag's trail-resource id or its key) to resume one flag's rollout, or omit it to resume every paused flag on the trail. It reconciles with the flag wherever a person left it (the highest step at or below the flag's percent, snapping the flag onto that step), restarts the step's hold, and carries on. A rollout that was pulled back and is waiting for its fix resumes as `fixing`. Resuming a rollout that is not paused answers `409`.\n\nResuming is a person's call: it hands the flag back to automation. Only a dashboard session or a device-auth CLI session can resume — ops keys, project admin keys and OAuth MCP calls are refused with `403`. This operation is not exposed as an MCP tool.\n\n**Use case:** After steering the flag by hand, give the ramp back to the controller.",
         "tags": [
           "Trails"
         ],
@@ -13178,7 +13276,7 @@
       "post": {
         "operationId": "addTrailItem",
         "summary": "Put an existing item on a trail",
-        "description": "Attach an existing queue item to the trail, recorded with source `attached`. An item is on at most one trail; one already on another trail is refused with `409`. To file a *new* item on a trail, use `ops bug --trail` or `ops feature --trail`.\n\nSafe for the restricted ops key.\n\n**Use case:** A bug already in the queue turns out to be part of the work; attach it so the trail tracks it.",
+        "description": "Attach an existing queue item to the trail, recorded with source `attached`, optionally into a milestone (`milestoneId`). An item is on at most one trail; one already on another trail is refused with `409`. To file a *new* item on a trail, use `ops bug --trail` or `ops feature --trail`.\n\nSafe for the restricted ops key.\n\n**Use case:** A bug already in the queue turns out to be part of the work; attach it so the trail tracks it.",
         "tags": [
           "Items"
         ],
@@ -13313,6 +13411,306 @@
           "positional": [
             "handle",
             "itemHandle"
+          ]
+        }
+      },
+      "patch": {
+        "operationId": "moveTrailItem",
+        "summary": "Move an item to a milestone",
+        "description": "Move an item on the trail into a milestone, or out of every milestone with `milestoneId: null`. The item stays on the trail and keeps its discovery record; only the milestone it counts toward changes. An item that is not on the trail is `404`, and so is a milestone of another trail.\n\nSafe for the restricted ops key.\n\n**Use case:** A bug filed on the trail turns out to block the first milestone; move it there so the build works it with the rest of that milestone.",
+        "tags": [
+          "Items"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          },
+          {
+            "name": "itemHandle",
+            "in": "path",
+            "required": true,
+            "description": "The queue item's per-project number (e.g. `42`) or its full id.",
+            "schema": {
+              "$ref": "#/components/schemas/OpsItemHandle"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveTrailItemRequest"
+              },
+              "example": {
+                "milestoneId": "3b1f0c9e-7d42-4a8e-9f61-2c5d8e4a7b90"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The item was moved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrailOkResponse"
+                },
+                "example": {
+                  "ok": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "move",
+          "positional": [
+            "handle",
+            "itemHandle"
+          ]
+        }
+      }
+    },
+    "/api/admin/trails/{handle}/milestones": {
+      "post": {
+        "operationId": "createTrailMilestone",
+        "summary": "Add a milestone to a trail",
+        "description": "Add a named stage to the trail, with an optional description and target date. Milestones are ordered: omit `position` to add it last, or pass one to insert it there and move the rest down. Progress is counted per milestone, and the build works the trail milestone by milestone — it launches item runs for the first milestone that still has open items. Approving a plan creates the milestones its breakdown lists; use this for any added later.\n\nSafe for the restricted ops key.\n\n**Use case:** The trail's first release went out and a second stage came up in review; add a \"Dead-letter view\" milestone with its own target date.",
+        "tags": [
+          "Milestones"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTrailMilestoneRequest"
+              },
+              "example": {
+                "name": "Dead-letter view",
+                "description": "Deliveries that fail permanently land in a view the customer can replay from",
+                "targetDate": "2026-11-27"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The new milestone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrailMilestone"
+                },
+                "example": {
+                  "id": "3b1f0c9e-7d42-4a8e-9f61-2c5d8e4a7b90",
+                  "name": "Dead-letter view",
+                  "description": "Deliveries that fail permanently land in a view the customer can replay from",
+                  "targetDate": "2026-11-27",
+                  "position": 1,
+                  "itemsTotal": 0,
+                  "itemsDone": 0,
+                  "late": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "INVALID_TRANSITION",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "add",
+          "positional": [
+            "handle",
+            "name"
+          ]
+        }
+      }
+    },
+    "/api/admin/trails/{handle}/milestones/{milestoneId}": {
+      "patch": {
+        "operationId": "updateTrailMilestone",
+        "summary": "Change a milestone",
+        "description": "Rename a milestone, change its description or target date, or move it in the trail's order with `position` (the others shift to make room). Pass at least one field; the rest are left as they are.\n\nSafe for the restricted ops key.\n\n**Use case:** The second stage slipped a week; move its target date so the trail's health reads it correctly.",
+        "tags": [
+          "Milestones"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          },
+          {
+            "$ref": "#/components/parameters/MilestoneId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTrailMilestoneRequest"
+              },
+              "example": {
+                "targetDate": "2026-12-04"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated milestone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrailMilestone"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "update",
+          "positional": [
+            "handle",
+            "milestoneId"
+          ]
+        }
+      },
+      "delete": {
+        "operationId": "removeTrailMilestone",
+        "summary": "Remove a milestone from a trail",
+        "description": "Remove a milestone. Its items stay on the trail, in no milestone; the milestones after it move up one. Nothing else on the trail changes.\n\nSafe for the restricted ops key.\n\n**Use case:** Two milestones turned out to be one; remove the empty one after moving its items.",
+        "tags": [
+          "Milestones"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          },
+          {
+            "$ref": "#/components/parameters/MilestoneId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The milestone was removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrailOkResponse"
+                },
+                "example": {
+                  "ok": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-error-codes": [
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND"
+        ],
+        "x-cli": {
+          "name": "remove",
+          "positional": [
+            "handle",
+            "milestoneId"
           ]
         }
       }
@@ -18375,6 +18773,18 @@
           "minLength": 1,
           "maxLength": 64,
           "pattern": "^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$"
+        }
+      },
+      "MilestoneId": {
+        "name": "milestoneId",
+        "in": "path",
+        "required": true,
+        "description": "The milestone's id (`TrailMilestone.id`).",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[0-9a-fA-F-]{32,36}$"
         }
       }
     },
@@ -27820,9 +28230,10 @@
           "person",
           "post_merge",
           "cleanup",
-          "attached"
+          "attached",
+          "plan"
         ],
-        "description": "How an item came to be on a trail — `origin` (the item Ship this was pressed on), `finding` (a review finding promoted out of scope), `agent` (the coding agent filed it instead of fixing it in place), `person` (a reviewer filed it from the trail), `post_merge` (an error, alert or bug attributed to the trail after it merged), `cleanup` (follow-up the release created, e.g. remove a flag from code), `attached` (an existing item moved onto the trail)."
+        "description": "How an item came to be on a trail — `origin` (the item the trail was created from), `finding` (a review finding promoted out of scope), `agent` (the coding agent filed it instead of fixing it in place), `person` (a reviewer filed it from the trail), `post_merge` (an error, alert or bug attributed to the trail after it merged), `cleanup` (follow-up the release created, e.g. remove a flag from code), `attached` (an existing item moved onto the trail), `plan` (filed from the breakdown of the approved plan)."
       },
       "GetOpsItemResponse": {
         "type": "object",
@@ -30369,6 +30780,105 @@
         ],
         "description": "Whether a trail is still being worked. A trail closes by hand, or on its own once it is `shipped` with no high-priority discovered item open. `phase` carries the detail; `status` is the stored open/closed switch."
       },
+      "TrailHealth": {
+        "type": "string",
+        "enum": [
+          "on_track",
+          "at_risk",
+          "off_track"
+        ],
+        "description": "A trail's effective health — the one a person set, or else the derived one. Derived, first match wins: `off_track` when the target date has passed and the trail has not shipped, or a rollout is `fixing` after a pull-back; `at_risk` when the target is at most 7 days away and progress is under 75 %, or a high finding or a high or critical item on the trail is open; otherwise `on_track`. A list row carries the snapshot; the detail read recomputes it."
+      },
+      "TrailHealthSource": {
+        "type": "string",
+        "enum": [
+          "person",
+          "derived"
+        ],
+        "description": "Where a trail's `health` comes from — `person` (someone set it, and it holds until they clear it) or `derived` (computed from the target date, progress, rollouts, findings and items)."
+      },
+      "TrailGoal": {
+        "type": "object",
+        "description": "The metric a trail is meant to move, and how far. Progress toward the target is charted on the trail page.",
+        "properties": {
+          "metric": {
+            "anyOf": [
+              {
+                "type": "object",
+                "description": "The metric.",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "The metric's id."
+                  },
+                  "key": {
+                    "type": "string",
+                    "description": "The metric's key, kept for display after it is archived."
+                  }
+                },
+                "required": [
+                  "id",
+                  "key"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The metric the goal is measured on, or `null` for a goal stated in words only."
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "increase",
+              "decrease"
+            ],
+            "description": "Which way the metric should move."
+          },
+          "baseline": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The metric's value when the trail started, or `null` when not recorded."
+          },
+          "target": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The value the trail aims for, or `null` for \"move it in `direction`\"."
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The unit the values are in, e.g. `%` or `ms`, or `null`."
+          }
+        },
+        "required": [
+          "metric",
+          "direction",
+          "baseline",
+          "target",
+          "unit"
+        ],
+        "additionalProperties": false
+      },
       "TrailGateKey": {
         "type": "string",
         "enum": [
@@ -31165,6 +31675,17 @@
         ],
         "additionalProperties": false
       },
+      "TrailWorkKind": {
+        "type": "string",
+        "enum": [
+          "code",
+          "tracking",
+          "marketing",
+          "research",
+          "ops"
+        ],
+        "description": "What kind of work an item on a trail is — `code` (a change to the product), `tracking` (events, metrics and alert rules to measure it), `marketing`, `research` or `ops`. Code and tracking items go to coding agents; marketing and research items are typically delegated to an assistant such as Muse or Grok, which picks them up over MCP (`ops list --owner muse`)."
+      },
       "TrailItem": {
         "type": "object",
         "description": "A queue item on a trail, with where it surfaced.",
@@ -31207,6 +31728,28 @@
               }
             ],
             "description": "The change the item surfaced on, or `null`."
+          },
+          "milestoneId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The milestone the item is in (`TrailMilestone.id`), or `null` when it is in none."
+          },
+          "workKind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrailWorkKind"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What kind of work the item is, as the plan's breakdown filed it, or `null` for an item that did not come from a plan."
           }
         },
         "required": [
@@ -31214,7 +31757,76 @@
           "priority",
           "discoveredSource",
           "discoveredSha",
-          "change"
+          "change",
+          "milestoneId",
+          "workKind"
+        ],
+        "additionalProperties": false
+      },
+      "TrailMilestone": {
+        "type": "object",
+        "description": "A named, ordered stage inside a trail. An item is in at most one milestone; progress is counted per milestone and for the trail.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The milestone's id (a uuid)."
+          },
+          "name": {
+            "type": "string",
+            "description": "The milestone's name."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the milestone delivers, or `null`."
+          },
+          "targetDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The calendar day the milestone is meant to be done by (`YYYY-MM-DD`), or `null`."
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Where the milestone sits in the trail's order, from `0`."
+          },
+          "itemsTotal": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Items in the milestone."
+          },
+          "itemsDone": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Of those, the items at `resolved`, `wont_fix` or `ready_for_qa`."
+          },
+          "late": {
+            "type": "boolean",
+            "description": "True when the target date has passed with items still open."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "targetDate",
+          "position",
+          "itemsTotal",
+          "itemsDone",
+          "late"
         ],
         "additionalProperties": false
       },
@@ -31367,9 +31979,10 @@
         "enum": [
           "build",
           "fix",
-          "plan"
+          "plan",
+          "replan"
         ],
-        "description": "What a trail run was fired to do — `plan` (read-only: ask the person how the trail should ship and anything else that is open, then submit a plan), `build` (carry the approved plan to pull requests) or `fix` (act on failing evals and findings)."
+        "description": "What a trail run was fired to do — `plan` (read-only: ask the person how the trail should ship and anything else that is open, then submit a plan), `build` (carry the approved plan to pull requests), `fix` (act on failing evals and findings) or `replan` (read-only, once a plan is approved: re-read the goal metric, the items' outcomes and project memory, and submit the plan's next revision)."
       },
       "TrailRunState": {
         "type": "string",
@@ -32081,6 +32694,13 @@
             "default": 3,
             "description": "How many times the server re-fires the coding agent with a fix prompt after a change's evals or findings fail. After the cap the trail reads `reviewing`, needs a person. `0` turns the loop off."
           },
+          "maxParallelRuns": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 3,
+            "description": "How many item runs a trail's build keeps working at once. A build launches an item run for each open item of the current milestone, up to this many; the rest wait for a slot."
+          },
           "attributionWindowHours": {
             "type": "integer",
             "minimum": 1,
@@ -32143,13 +32763,16 @@
         "enum": [
           "gate",
           "killswitch",
-          "experiment"
+          "experiment",
+          "metric",
+          "event",
+          "alert_rule"
         ],
-        "description": "The release resources a plan may list — a feature flag (`gate`), a kill switch or an experiment."
+        "description": "The resources a plan may list for the build to create — the release tools (a feature flag (`gate`), a kill switch, an experiment) and the tracking (an `event` to emit, a `metric` to define, an `alert_rule` to guard with)."
       },
       "TrailPlanResource": {
         "type": "object",
-        "description": "One release resource the build run creates and links to the trail.",
+        "description": "One resource the build run creates and links to the trail — a release tool or a piece of tracking.",
         "properties": {
           "kind": {
             "$ref": "#/components/schemas/TrailPlanResourceKind"
@@ -32162,6 +32785,9 @@
           },
           "role": {
             "$ref": "#/components/schemas/TrailResourceRole"
+          },
+          "rollout": {
+            "$ref": "#/components/schemas/TrailRollout"
           }
         },
         "required": [
@@ -32188,7 +32814,7 @@
             "items": {
               "$ref": "#/components/schemas/TrailPlanResource"
             },
-            "description": "The flags, kill switches and experiments to create. Empty for `straight_to_main`; the strategy fixes which kinds must be present (a flag for `flag`, a flag and an experiment for `flag_experiment`, and so on)."
+            "description": "The flags, kill switches, experiments and tracking (events, metrics, alert rules) to create. No release tool for `straight_to_main`; the strategy fixes which release kinds must be present (a flag for `flag`, a flag and an experiment for `flag_experiment`, and so on). A trail may ship behind several flags; each `ships_behind` flag gets its own rollout, its resource's `rollout` or else this block's."
           },
           "rollout": {
             "$ref": "#/components/schemas/TrailRollout"
@@ -32198,6 +32824,165 @@
           "strategy",
           "reason",
           "resources"
+        ],
+        "additionalProperties": false
+      },
+      "TrailPlanMilestone": {
+        "type": "object",
+        "description": "A milestone the plan proposes. Created when the plan is approved.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "The milestone's name. Breakdown items name it in their `milestone`."
+          },
+          "targetDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The calendar day the milestone is meant to be done by (`YYYY-MM-DD`), or `null`."
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "TrailPlanItem": {
+        "type": "object",
+        "description": "An item the plan proposes. Filed on the trail with source `plan` when the plan is approved.",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "The item's title. A replan's approval matches items already on the trail by title and files only the new ones."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "bug",
+              "feature_request"
+            ],
+            "description": "What to file the item as."
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpsItemPriority"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The item's triage priority, or `null`."
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 8000,
+            "description": "The item's description in markdown — what to do and how to tell it is done."
+          },
+          "milestone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The name of the breakdown milestone the item belongs to, or `null` for none."
+          },
+          "assignee": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who works the item — an agent handle (`claude`, `cursor`, `copilot`, `jules`, `muse`, `grok`) or a person's email. `null`, the project's coding agent."
+          },
+          "workKind": {
+            "$ref": "#/components/schemas/TrailWorkKind"
+          }
+        },
+        "required": [
+          "title",
+          "type"
+        ],
+        "additionalProperties": false
+      },
+      "TrailPlanBreakdown": {
+        "type": "object",
+        "description": "The milestones and items a plan breaks the trail into. Nothing is filed while the plan is a draft; approving creates the milestones and files the items. `workKind` defaults to `code`.",
+        "properties": {
+          "milestones": {
+            "type": "array",
+            "maxItems": 12,
+            "items": {
+              "$ref": "#/components/schemas/TrailPlanMilestone"
+            },
+            "description": "The milestones, in order."
+          },
+          "items": {
+            "type": "array",
+            "maxItems": 60,
+            "items": {
+              "$ref": "#/components/schemas/TrailPlanItem"
+            },
+            "description": "The items, each in at most one milestone."
+          }
+        },
+        "required": [
+          "milestones",
+          "items"
+        ],
+        "additionalProperties": false
+      },
+      "TrailPlanSource": {
+        "type": "object",
+        "description": "One thing the plan rests on — a memory entry, an earlier item or trail, or a document — and what it settled.",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "memory",
+              "item",
+              "trail",
+              "doc"
+            ],
+            "description": "What was read — a project memory entry, a queue item, a trail, or a document."
+          },
+          "ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "A memory entry id, an item handle like `#123`, a trail handle like `T-4`, or a URL."
+          },
+          "note": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300,
+            "description": "What it settled for the plan."
+          }
+        },
+        "required": [
+          "kind",
+          "ref",
+          "note"
         ],
         "additionalProperties": false
       },
@@ -32229,6 +33014,30 @@
               }
             ],
             "description": "How the trail ships and the resources to create, or `null` before a plan exists."
+          },
+          "breakdown": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrailPlanBreakdown"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The milestones and items the plan breaks the trail into, or `null` for a plan built by one trail-level build run."
+          },
+          "sources": {
+            "type": "array",
+            "maxItems": 30,
+            "items": {
+              "$ref": "#/components/schemas/TrailPlanSource"
+            },
+            "description": "What the plan run read in project memory and earlier tickets that the plan rests on. Empty when it cited nothing."
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "How many times the plan has been approved — `0` while it never has, one more per approval. A drafted replan carries the revision it will replace."
           },
           "approvedBy": {
             "anyOf": [
@@ -32274,11 +33083,33 @@
           "status",
           "plan",
           "release",
+          "breakdown",
+          "sources",
+          "revision",
           "approvedBy",
           "approvedAt",
           "requirePlan",
           "nextRun",
           "openQuestions"
+        ],
+        "additionalProperties": false
+      },
+      "TrailResourceRef": {
+        "type": "object",
+        "description": "A compact reference to one of a trail's resources — here, the flag a rollout drives.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The trail's link to the resource (`TrailResource.id`), not the entity's own id."
+          },
+          "key": {
+            "type": "string",
+            "description": "The flag's key."
+          }
+        },
+        "required": [
+          "id",
+          "key"
         ],
         "additionalProperties": false
       },
@@ -32324,8 +33155,19 @@
       },
       "TrailRolloutView": {
         "type": "object",
-        "description": "A trail's rollout as it stands — the plan's configuration and the controller's live state.",
+        "description": "One flag's rollout as it stands — the plan's configuration for it and the controller's live state.",
         "properties": {
+          "resource": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrailResourceRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The `ships_behind` flag this rollout drives, or `null` when the trail ships behind no flag."
+          },
           "state": {
             "$ref": "#/components/schemas/TrailRolloutState"
           },
@@ -32390,6 +33232,7 @@
           }
         },
         "required": [
+          "resource",
           "state",
           "config",
           "step",
@@ -32501,6 +33344,17 @@
           "kind": {
             "$ref": "#/components/schemas/TrailReleaseEventKind"
           },
+          "resource": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrailResourceRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The flag the event is about, or `null` for an event about the whole trail (autopilot's own events, or one recorded before a trail could ship behind several flags)."
+          },
           "step": {
             "type": "integer",
             "description": "The step the event is about; `-1` for none."
@@ -32560,6 +33414,7 @@
         "required": [
           "id",
           "kind",
+          "resource",
           "step",
           "fromPct",
           "toPct",
@@ -32677,6 +33532,57 @@
             "type": "integer",
             "description": "Product resources linked to the trail. Part of the snapshot."
           },
+          "startDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The calendar day work on the trail starts (`YYYY-MM-DD`), or `null` when not set."
+          },
+          "targetDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The calendar day the trail is meant to ship by (`YYYY-MM-DD`), or `null` when not set. A trail past its target that has not shipped is late."
+          },
+          "health": {
+            "$ref": "#/components/schemas/TrailHealth"
+          },
+          "healthSource": {
+            "$ref": "#/components/schemas/TrailHealthSource"
+          },
+          "itemsTotal": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Items on the trail."
+          },
+          "itemsDone": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Of the items on the trail, those at `resolved`, `wont_fix` or `ready_for_qa`. Progress is `itemsDone` over `itemsTotal`."
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrailGoal"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The metric the trail is meant to move, or `null` for a trail with no goal."
+          },
           "releasedPct": {
             "anyOf": [
               {
@@ -32754,7 +33660,14 @@
             "items": {
               "$ref": "#/components/schemas/TrailItem"
             },
-            "description": "Queue items discovered on the trail, with where each surfaced."
+            "description": "Queue items on the trail, with where each surfaced and the milestone it is in."
+          },
+          "milestones": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrailMilestone"
+            },
+            "description": "The trail's milestones, ordered by `position`."
           },
           "resources": {
             "type": "array",
@@ -32785,6 +33698,13 @@
           },
           "rollout": {
             "$ref": "#/components/schemas/TrailRolloutView"
+          },
+          "rollouts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrailRolloutView"
+            },
+            "description": "One rollout per `ships_behind` flag, in the order the flags were linked. `rollout` is the first of these, kept for older clients."
           },
           "autopilot": {
             "$ref": "#/components/schemas/TrailAutopilot"
@@ -32817,6 +33737,13 @@
           "findingsOpenHigh",
           "itemsOpen",
           "resourcesCount",
+          "startDate",
+          "targetDate",
+          "health",
+          "healthSource",
+          "itemsTotal",
+          "itemsDone",
+          "goal",
           "releasedPct",
           "mergedAt",
           "shippedAt",
@@ -32826,12 +33753,14 @@
           "updatedAt",
           "changes",
           "items",
+          "milestones",
           "resources",
           "runs",
           "suspects",
           "gates",
           "plan",
           "rollout",
+          "rollouts",
           "autopilot",
           "releaseEvents"
         ],
@@ -33551,6 +34480,57 @@
             "type": "integer",
             "description": "Product resources linked to the trail. Part of the snapshot."
           },
+          "startDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The calendar day work on the trail starts (`YYYY-MM-DD`), or `null` when not set."
+          },
+          "targetDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The calendar day the trail is meant to ship by (`YYYY-MM-DD`), or `null` when not set. A trail past its target that has not shipped is late."
+          },
+          "health": {
+            "$ref": "#/components/schemas/TrailHealth"
+          },
+          "healthSource": {
+            "$ref": "#/components/schemas/TrailHealthSource"
+          },
+          "itemsTotal": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Items on the trail."
+          },
+          "itemsDone": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Of the items on the trail, those at `resolved`, `wont_fix` or `ready_for_qa`. Progress is `itemsDone` over `itemsTotal`."
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrailGoal"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The metric the trail is meant to move, or `null` for a trail with no goal."
+          },
           "releasedPct": {
             "anyOf": [
               {
@@ -33637,6 +34617,13 @@
           "findingsOpenHigh",
           "itemsOpen",
           "resourcesCount",
+          "startDate",
+          "targetDate",
+          "health",
+          "healthSource",
+          "itemsTotal",
+          "itemsDone",
+          "goal",
           "releasedPct",
           "mergedAt",
           "shippedAt",
@@ -33683,6 +34670,71 @@
         "required": [
           "data",
           "next_cursor"
+        ],
+        "additionalProperties": false
+      },
+      "TrailGoalSpec": {
+        "type": "object",
+        "description": "A trail's goal as sent on create or update. `metric` names the metric by id or key.",
+        "properties": {
+          "metric": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The metric's id or key, or `null` for a goal stated in words only."
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "increase",
+              "decrease"
+            ],
+            "description": "Which way the metric should move."
+          },
+          "baseline": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The metric's value when the trail started, or `null`."
+          },
+          "target": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The value the trail aims for, or `null`."
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The unit the values are in, e.g. `%` or `ms`, or `null`."
+          }
+        },
+        "required": [
+          "direction"
         ],
         "additionalProperties": false
       },
@@ -33843,6 +34895,52 @@
             "minLength": 1,
             "maxLength": 64
           },
+          "startDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The calendar day work starts (`YYYY-MM-DD`), or `null`."
+          },
+          "targetDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The calendar day the trail is meant to ship by (`YYYY-MM-DD`), or `null`."
+          },
+          "health": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrailHealth"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A health a person sets, or `null` (the default) to have it derived."
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrailGoalSpec"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The metric the trail is meant to move, or `null` for none."
+          },
           "intake": {
             "$ref": "#/components/schemas/TrailPlanIntake"
           },
@@ -33914,6 +35012,52 @@
             },
             "description": "Replaces the trail's repo scope.",
             "maxItems": 20
+          },
+          "startDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The calendar day work starts (`YYYY-MM-DD`); `null` clears it."
+          },
+          "targetDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The calendar day the trail is meant to ship by (`YYYY-MM-DD`); `null` clears it."
+          },
+          "health": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrailHealth"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set the health by hand; `null` goes back to the derived health."
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrailGoalSpec"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Replaces the trail's goal; `null` clears it."
           },
           "autopilot": {
             "$ref": "#/components/schemas/TrailAutopilotSettings"
@@ -33992,9 +35136,10 @@
             "type": "string",
             "enum": [
               "plan",
-              "build"
+              "build",
+              "replan"
             ],
-            "description": "Which run to fire. Omitted, the server picks — `plan` while the project requires a plan (`trail-gates` `requirePlan`) and the trail has no approved one, else `build`. Asking for `build` before the plan is approved is refused with `409`, and so is asking for `plan` once one is approved: edit the plan to change it."
+            "description": "Which run to fire. Omitted, the server picks — `plan` while the project requires a plan (`trail-gates` `requirePlan`) and the trail has no approved one, else `build`. Asking for `build` before the plan is approved is refused with `409`, and so is asking for `plan` once one is approved: edit the plan, or fire `replan`. `replan` is allowed only once a plan is approved: a read-only run that re-reads the goal metric, the items' outcomes and project memory and submits the next revision, which waits as `drafted` for approval."
           },
           "prompt": {
             "type": "string",
@@ -34002,6 +35147,65 @@
             "maxLength": 8000
           }
         },
+        "additionalProperties": false
+      },
+      "TrailItemRunLaunch": {
+        "type": "object",
+        "description": "What a build did for one item of the milestone it worked on.",
+        "properties": {
+          "item": {
+            "$ref": "#/components/schemas/OpsItemRef"
+          },
+          "launched": {
+            "type": "boolean",
+            "description": "True when an item run was launched for it."
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why no run was launched (a run already works it, every slot is taken, the launch failed), or `null` when one was."
+          }
+        },
+        "required": [
+          "item",
+          "launched",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "StartTrailRunResult": {
+        "type": "object",
+        "description": "What starting an agent on a trail launched — one trail-level run, or item runs for the current milestone.",
+        "properties": {
+          "run": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrailRun"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The trail-level run that was started (a plan, replan or build run), or `null` when the build launched item runs instead."
+          },
+          "itemRuns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrailItemRunLaunch"
+            },
+            "description": "For a build whose approved plan filed items, one entry per open item of the milestone it built, launched or not. Empty for a trail-level run."
+          }
+        },
+        "required": [
+          "run",
+          "itemRuns"
+        ],
         "additionalProperties": false
       },
       "SubmitTrailPlanRequest": {
@@ -34016,6 +35220,22 @@
           },
           "release": {
             "$ref": "#/components/schemas/TrailPlanRelease"
+          },
+          "breakdown": {
+            "$ref": "#/components/schemas/TrailPlanBreakdown"
+          },
+          "sources": {
+            "type": "array",
+            "maxItems": 30,
+            "items": {
+              "$ref": "#/components/schemas/TrailPlanSource"
+            },
+            "description": "What the plan rests on in project memory (`ops memory search`) and earlier tickets and trails, each with what it settled."
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "For a replan, what changed since the last approved revision. Recorded on the revision."
           }
         },
         "required": [
@@ -34049,6 +35269,9 @@
           },
           "release": {
             "$ref": "#/components/schemas/TrailPlanRelease"
+          },
+          "breakdown": {
+            "$ref": "#/components/schemas/TrailPlanBreakdown"
           }
         },
         "minProperties": 1,
@@ -34096,12 +35319,91 @@
                 "type": "null"
               }
             ],
-            "description": "The build run that was started, or `null` when `startBuild` was not set."
+            "description": "The trail-level build run that was started, or `null` when `startBuild` was not set or the build launched item runs instead."
+          },
+          "itemRuns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrailItemRunLaunch"
+            },
+            "description": "With `startBuild` on a plan that filed items, one entry per open item of the milestone the build started on, launched or not. Empty otherwise."
+          },
+          "itemsFiled": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Items the approval filed on the trail from the plan's breakdown, with source `plan`. `0` for a plan without items, and for a replan whose items are all on the trail already."
           }
         },
         "required": [
           "plan",
-          "run"
+          "run",
+          "itemRuns",
+          "itemsFiled"
+        ],
+        "additionalProperties": false
+      },
+      "TrailPlanRevision": {
+        "type": "object",
+        "description": "One approved revision of a trail's plan.",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The revision number, from `1`."
+          },
+          "plan": {
+            "type": "string",
+            "description": "The plan in markdown as it was approved."
+          },
+          "approvedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Email of the person who approved it, or `null` when autopilot approved it."
+          },
+          "approvedAt": {
+            "type": "string",
+            "description": "ISO-8601 time it was approved."
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What changed since the previous revision, or `null` for the first."
+          }
+        },
+        "required": [
+          "revision",
+          "plan",
+          "approvedBy",
+          "approvedAt",
+          "summary"
+        ],
+        "additionalProperties": false
+      },
+      "ListTrailPlanRevisionsResponse": {
+        "type": "object",
+        "description": "A trail's approved plan revisions, newest first.",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrailPlanRevision"
+            }
+          }
+        },
+        "required": [
+          "data"
         ],
         "additionalProperties": false
       },
@@ -34113,20 +35415,34 @@
             "type": "string",
             "maxLength": 500,
             "description": "Why — shown on the release timeline."
+          },
+          "resource": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "The flag to pause — its trail-resource id (`TrailResource.id`) or its key. Omitted, every flag on the trail is paused."
           }
         },
         "additionalProperties": false
       },
       "TrailRolloutResult": {
         "type": "object",
-        "description": "The rollout after a pause or a resume.",
+        "description": "The rollouts after a pause or a resume.",
         "properties": {
           "rollout": {
             "$ref": "#/components/schemas/TrailRolloutView"
+          },
+          "rollouts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrailRolloutView"
+            },
+            "description": "Every `ships_behind` flag's rollout after the call, in the order the flags were linked. `rollout` is the first of these, kept for older clients."
           }
         },
         "required": [
-          "rollout"
+          "rollout",
+          "rollouts"
         ],
         "additionalProperties": false
       },
@@ -34138,6 +35454,12 @@
             "type": "string",
             "maxLength": 500,
             "description": "Why — shown on the release timeline."
+          },
+          "resource": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "The flag to resume — its trail-resource id (`TrailResource.id`) or its key. Omitted, every paused flag on the trail is resumed."
           }
         },
         "additionalProperties": false
@@ -34274,11 +35596,130 @@
             "description": "The queue item to put on the trail (number or id). An item is on at most one trail.",
             "minLength": 1,
             "maxLength": 64
+          },
+          "milestoneId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "The milestone to put the item in (`TrailMilestone.id`). Omitted, the item is in no milestone."
           }
         },
         "required": [
           "item"
         ],
+        "additionalProperties": false
+      },
+      "MoveTrailItemRequest": {
+        "type": "object",
+        "description": "Body for `PATCH /api/admin/trails/{handle}/items/{itemHandle}`.",
+        "properties": {
+          "milestoneId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The milestone to move the item into (`TrailMilestone.id`), or `null` to take it out of every milestone."
+          }
+        },
+        "required": [
+          "milestoneId"
+        ],
+        "additionalProperties": false
+      },
+      "CreateTrailMilestoneRequest": {
+        "type": "object",
+        "description": "Body for `POST /api/admin/trails/{handle}/milestones`.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^\\S(.*\\S)?$",
+            "description": "The milestone's name."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the milestone delivers, or `null`."
+          },
+          "targetDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The calendar day it is meant to be done by (`YYYY-MM-DD`), or `null`."
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Where to put it in the trail's order, from `0`; the milestones at and after it move down one. Omitted, it goes last."
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateTrailMilestoneRequest": {
+        "type": "object",
+        "description": "Body for `PATCH /api/admin/trails/{handle}/milestones/{milestoneId}`. Pass at least one field; omitted ones are left as they are.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^\\S(.*\\S)?$",
+            "description": "The milestone's name."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the milestone delivers; `null` clears it."
+          },
+          "targetDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The calendar day it is meant to be done by (`YYYY-MM-DD`); `null` clears it."
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Move it to this place in the trail's order, from `0`; the others shift to make room."
+          }
+        },
+        "minProperties": 1,
         "additionalProperties": false
       },
       "AttributeTrailRequest": {

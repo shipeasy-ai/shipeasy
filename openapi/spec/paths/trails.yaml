@@ -3,11 +3,11 @@
     operationId: listTrails
     summary: List trails
     description: |-
-      Returns the project's trails, newest activity first. A trail is the unit of shipping: an intent, the changes (pull requests) worked under it, the items discovered on it and the product resources it ships. The phase and counts on each row are a snapshot; read one trail with `trails get` for the live state.
+      Returns the project's trails, newest activity first. A trail is the unit of shipping: an outcome that takes several items, pull requests and release tools, with a lead, start and target dates, a health and a progress (items done over items on the trail). The phase, health and counts on each row are a snapshot; read one trail with `trails get` for the live state.
 
       **Dashboard table read.** `view=table` is the contract every dashboard list table shares: the endpoint applies `f`, `sort` and `cursor` in SQL and answers `{ data, next_cursor, section_counts?, grouped? }`. Filters and sorts are never applied in the browser, so a condition the server cannot evaluate is a `400`.
-      - `f` — a JSON array of `{ "f": field, "o": operator, "v": value }` conditions, all ANDed. Fields are the snapshot columns: `phase`, `status`, `type`, `priority`, `owner`, `changesOpen`, `changesMergeable`, `findingsOpenHigh`, `itemsOpen`, `releasedPct`, `updatedAt`.
-      - `sort` — a column id, `-` prefixed for descending: `number`, `title`, `phase`, `priority`, `owner`, `changes`, `findings`, `items`, `released`, `updated`, `created`. Defaults to `-updated`.
+      - `f` — a JSON array of `{ "f": field, "o": operator, "v": value }` conditions, all ANDed. Fields are the snapshot columns: `phase`, `status`, `type`, `priority`, `owner`, `health`, `targetDate`, `changesOpen`, `changesMergeable`, `findingsOpenHigh`, `itemsOpen`, `itemsTotal`, `itemsDone`, `releasedPct`, `updatedAt`.
+      - `sort` — a column id, `-` prefixed for descending: `number`, `title`, `phase`, `priority`, `owner`, `health`, `progress` (items done over items on the trail), `target` (the target date), `changes`, `findings`, `items`, `released`, `updated`, `created`. Defaults to `-updated`.
       - `cursor` — the previous page's `next_cursor`; `limit` is the page size (1–200, default 50).
 
       **Scopes** (`scope`) are the dashboard's tabs: `mine` (trails you own), `reviewing`, `ready`, `releasing`, `shipped`, `closed`, or `all` (the default).
@@ -55,6 +55,12 @@
         description: Narrow to one trail type.
         schema:
           $ref: ../components/schemas/ops.yaml#/TrailType
+      - name: health
+        in: query
+        required: false
+        description: Narrow to one health (the snapshot's effective health, set or derived).
+        schema:
+          $ref: ../components/schemas/ops.yaml#/TrailHealth
       - name: owner
         in: query
         required: false
@@ -147,6 +153,20 @@
                   findingsOpenHigh: 0
                   itemsOpen: 1
                   resourcesCount: 3
+                  startDate: "2026-11-02"
+                  targetDate: "2026-11-20"
+                  health: on_track
+                  healthSource: derived
+                  itemsTotal: 6
+                  itemsDone: 2
+                  goal:
+                    metric:
+                      id: met_01j7w8k2m3n4p5q6r7s8t9v0w1
+                      key: webhook_delivery_success_rate
+                    direction: increase
+                    baseline: 97.2
+                    target: 99.5
+                    unit: "%"
                   releasedPct: null
                   mergedAt: null
                   shippedAt: null
@@ -168,12 +188,14 @@
     x-cli:
       name: list
     x-mcp:
-      description: "List the project's trails — the unit of shipping (an intent, its pull requests, the items discovered on it, the product resources it ships). LIST BEFORE YOU CREATE: check no trail already ships this. PAGING: `limit` (1–200) is REQUIRED; pass the previous `next_cursor` as `cursor` for the next page. FILTERS (optional, ANDed, applied in SQL): `scope` = mine | reviewing | ready | releasing | shipped | closed | all (default all); `phase` = planning | building | reviewing | ready | releasing | shipped | closed; `type` = feature | bug | task; `owner` = a person or agent; `q` = substring of title or body. ATTRIBUTION: `mergedSince` (ISO-8601) with `touches` (a file path or a resource key) lists the trails that merged in a window and changed a path or link a resource — the candidates for an error or alert that started after a release."
+      description: "List the project's trails — the unit of shipping (an outcome with its items, milestones, pull requests and release tools; each row carries its lead, start and target dates, health and progress). LIST BEFORE YOU CREATE: check no trail already ships this. PAGING: `limit` (1–200) is REQUIRED; pass the previous `next_cursor` as `cursor` for the next page. FILTERS (optional, ANDed, applied in SQL): `scope` = mine | reviewing | ready | releasing | shipped | closed | all (default all); `phase` = planning | building | reviewing | ready | releasing | shipped | closed; `type` = feature | bug | task; `health` = on_track | at_risk | off_track; `owner` = a person or agent (the lead); `q` = substring of title or body. SORT (optional): `sort` = number | title | phase | priority | owner | health | progress | target | changes | findings | items | released | updated | created, `-` prefixed for descending (default `-updated`). ATTRIBUTION: `mergedSince` (ISO-8601) with `touches` (a file path or a resource key) lists the trails that merged in a window and changed a path or link a resource — the candidates for an error or alert that started after a release."
   post:
     operationId: createTrail
     summary: Create a trail
     description: |-
       Creates a trail in `planning`. A trail is created on purpose — nothing makes one implicitly. Create one from scratch with a `title` and a `body` (the outcome and the acceptance criteria), or press **Ship this** on a queue item with `originItem`: the item's description seeds the body and the item becomes the trail's first item, with source `origin`. An item is on at most one trail.
+
+      A trail may carry a `goal` (the metric it is meant to move, with a baseline and a target), a `startDate` and a `targetDate`, and a `health` set by hand (omitted, it is derived).
 
       Fire the project's coding agent on the new trail with `trails start`, or link pull requests an agent already opened with `trails link-pr`.
 
@@ -283,7 +305,9 @@
     operationId: updateTrail
     summary: Change a trail
     description: |-
-      Change a trail's title, intent, type, priority, owner, repo scope or autopilot. Pass at least one field; the rest are left as they are. Changing the type changes which release gates apply.
+      Change a trail's title, intent, type, priority, owner (the lead), repo scope, start and target dates, health, goal or autopilot. Pass at least one field; the rest are left as they are. Changing the type changes which release gates apply.
+
+      **Health.** `health` sets it by hand and it holds until changed; `health: null` goes back to the derived value (off track past the target date or while a rollout is fixing, at risk near the target with progress under 75 % or with a high finding or item open, otherwise on track).
 
       **Autopilot.** `autopilot: { enabled, limits }` turns autopilot on or off and sets its limits. Turning it on needs the `autopilot` capability and a person's identity, and makes the caller the accountable approver (`403` otherwise). Turning it off is open to the trail's owner, the person who authorized it and admins.
 
@@ -528,7 +552,13 @@
     operationId: startTrailRun
     summary: Start an agent on a trail
     description: |-
-      Fire the project's coding-agent trigger on the trail. While the project requires a plan (`trail-gates` `requirePlan`, on by default) and the trail has no approved one, this fires a read-only **plan** run: it reads the trail, asks the person how it should ship (straight to main, behind a flag, flag and experiment, kill switch, flag and kill switch) and anything else that is open through `ops questions ask`, then submits a plan with `trails submit-plan`. Once a person approves the plan (`trails approve-plan`), starting an agent fires the **build** run: the trail prompt with the approved plan, which opens pull requests, creates exactly the release resources the plan lists, and links them. `fix` runs are fired by the server when a change's evals or findings fail. Pass `kind` to ask for one explicitly. Runs spend your own agent quota, not Shipeasy credits.
+      Fire the project's coding-agent trigger on the trail. While the project requires a plan (`trail-gates` `requirePlan`, on by default) and the trail has no approved one, this fires a read-only **plan** run: it reads the trail, asks the person how it should ship (straight to main, behind a flag, flag and experiment, kill switch, flag and kill switch) and anything else that is open through `ops questions ask`, then submits a plan with `trails submit-plan`. Once a person approves the plan (`trails approve-plan`), starting an agent **builds** it.
+
+      **Build.** When the approved plan filed items, `build` launches an item run for every open item of the first milestone that still has open items and no run working it (items without a milestone count as the first), at most `trail-gates` `maxParallelRuns` (default 3) at once, and no trail-level build run: `run` is `null` and `itemRuns` says what happened to each item. Each item run opens its own pull request, which becomes a change of the trail. Otherwise one trail-level build run carries the plan to pull requests, creates exactly the resources the plan lists and links them, as before, and `itemRuns` is empty.
+
+      **Replan.** Once a plan is approved, `kind: replan` fires a read-only run that re-reads the goal metric, the items' outcomes and project memory and submits the plan's next revision, which waits as `drafted` for approval.
+
+      `fix` runs are fired by the server when a change's evals or findings fail. Pass `kind` to ask for one explicitly. Runs spend your own agent quota, not Shipeasy credits.
 
       **Use case:** A trail is created from a feature request; start an agent on it to plan it, approve the plan, then start it again to build.
     tags:
@@ -546,11 +576,11 @@
             agent: claude
     responses:
       "200":
-        description: The run that was started
+        description: The trail-level run that was started, or the item runs a build launched
         content:
           application/json:
             schema:
-              $ref: ../components/schemas/ops.yaml#/TrailRun
+              $ref: ../components/schemas/ops.yaml#/StartTrailRunResult
       "400":
         $ref: ../components/responses.yaml#/BadRequest
       "401":
@@ -580,7 +610,7 @@
     operationId: submitTrailPlan
     summary: Submit a trail's plan
     description: |-
-      A plan run submits what it worked out: the plan in markdown and the `release` block (how the trail ships, why, and the exact flags, kill switches and experiments the build run will create, none for `straight_to_main`). Submit it only after the person has answered the release question you asked with `ops questions ask`. The plan is recorded as `drafted` and waits for a person to approve it. Submitting again replaces a drafted plan; an approved plan is refused with `409` (a person edits it to reopen it). The open plan run on the trail is closed.
+      A plan run submits what it worked out: the plan in markdown, the `release` block (how the trail ships, why, and the exact flags, kill switches, experiments and tracking — events, metrics, alert rules — the build will create; no release tool for `straight_to_main`), the `breakdown` (the milestones and the items, each with its work kind and assignee) and the `sources` it rests on (what it read in project memory and earlier tickets, and what each settled). Submit it only after the person has answered the release question you asked with `ops questions ask`. The plan is recorded as `drafted` and waits for a person to approve it; nothing in the breakdown is filed until then. Submitting again replaces a drafted plan; an approved plan is refused with `409` (a person edits it to reopen it), except from a `replan` run, whose submission drafts the next revision with a `summary` of what changed. The open plan or replan run on the trail is closed.
 
       Safe for the restricted ops key.
 
@@ -639,7 +669,7 @@
     operationId: updateTrailPlan
     summary: Edit a trail's plan
     description: |-
-      A person edits the plan text or the release block (strategy, reason, the resources to create). Pass at least one field. Any edit puts the plan back to `drafted`, so it needs approving again; a trail with no plan yet gets one this way. Not available to the restricted ops key.
+      A person edits the plan text, the release block (strategy, reason, the resources to create) or the breakdown (milestones and items). Pass at least one field. Any edit puts the plan back to `drafted`, so it needs approving again; a trail with no plan yet gets one this way. Not available to the restricted ops key.
 
       **Use case:** The plan names a flag the team already has under another key; fix the key before approving.
     tags:
@@ -697,7 +727,7 @@
     operationId: approveTrailPlan
     summary: Approve a trail's plan
     description: |-
-      Sign off the drafted plan. The build run follows it: it creates exactly the release resources the plan lists and links them to the trail, and the Plan gate checks they exist. With `startBuild` the build run is fired in the same call.
+      Sign off the drafted plan. Approving creates the breakdown's milestones and files its items on the trail with source `plan`, in one batch (`itemsFiled` counts them); approving a replan files only the breakdown items not already on the trail, matched by title, and records a new revision. The build then works the items milestone by milestone, one item run each. A plan without items keeps the old shape: one trail-level build run builds it. Either way the build creates exactly the resources the plan lists and links them to the trail, and the Plan gate checks they exist. With `startBuild` the build is fired in the same call.
 
       Approval is a person's call. Only a dashboard session or a device-auth CLI session can approve — ops keys, project admin keys and OAuth MCP calls are refused with `403`. This operation is not exposed as an MCP tool.
 
@@ -717,7 +747,7 @@
             startBuild: true
     responses:
       "200":
-        description: The approved plan, and the build run when one was started
+        description: The approved plan, and the build run or item runs when `startBuild` started them
         content:
           application/json:
             schema:
@@ -748,12 +778,60 @@
         - handle
     x-mcp:
       hidden: true
+/api/admin/trails/{handle}/plan/revisions:
+  get:
+    operationId: listTrailPlanRevisions
+    summary: List a trail's plan revisions
+    description: |-
+      Every approved revision of the trail's plan, newest first: the plan as it was approved, who approved it and when, and what changed since the revision before. A plan is revised by a `replan` run, which re-reads the goal metric, the items' outcomes and project memory and drafts the next revision; each approval adds one. The current plan, drafted or approved, is on `trails get`.
+
+      Safe for the restricted ops key.
+
+      **Use case:** Before replanning, a coding agent reads how the plan changed so far so the next revision does not undo a decision already made.
+    tags:
+      - Trails
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - $ref: ../components/parameters.yaml#/TrailHandle
+    responses:
+      "200":
+        description: The plan's approved revisions
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/ListTrailPlanRevisionsResponse
+            example:
+              data:
+                - revision: 2
+                  plan: "## Approach\nKeep the retry queue; add a dead-letter view for the deliveries that still fail"
+                  approvedBy: alice@acme.dev
+                  approvedAt: 2026-11-10T15:20:00.000Z
+                  summary: Success rate stalled at 98.9 %; the remaining failures are permanent 4xx, so they go to a dead-letter view instead of retrying
+                - revision: 1
+                  plan: "## Approach\nAdd the retry queue behind `checkout.v2` and read it in the checkout handler"
+                  approvedBy: alice@acme.dev
+                  approvedAt: 2026-11-03T09:40:00.000Z
+                  summary: null
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+    x-error-codes:
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: plan-revisions
+      positional:
+        - handle
 /api/admin/trails/{handle}/rollout/pause:
   post:
     operationId: pauseTrailRollout
     summary: Pause a trail's rollout
     description: |-
-      Pause the release controller on a trail: it stops stepping the flag and watching the guards until the rollout is resumed. The flag stays wherever it is. Any manual change to the flag pauses the controller the same way, so a person and the controller never fight over it. Safe to call at any time; pausing a rollout that is not running answers `409`.
+      Pause the release controller on a trail: it stops stepping the flag and watching the guards until the rollout is resumed. The flag stays wherever it is. A trail that ships behind several flags has a rollout per flag; pass `resource` (the flag's trail-resource id or its key) to pause one, or omit it to pause every flag. Any manual change to the flag pauses the controller the same way, so a person and the controller never fight over it. Safe to call at any time; pausing a rollout that is not running answers `409`.
 
       Safe for the restricted ops key.
 
@@ -806,7 +884,7 @@
     operationId: resumeTrailRollout
     summary: Resume a trail's rollout
     description: |-
-      Hand a paused rollout back to the release controller. It reconciles with the flag wherever a person left it (the highest step at or below the flag's percent, snapping the flag onto that step), restarts the step's hold, and carries on. A rollout that was pulled back and is waiting for its fix resumes as `fixing`. Resuming a rollout that is not paused answers `409`.
+      Hand a paused rollout back to the release controller. Pass `resource` (the flag's trail-resource id or its key) to resume one flag's rollout, or omit it to resume every paused flag on the trail. It reconciles with the flag wherever a person left it (the highest step at or below the flag's percent, snapping the flag onto that step), restarts the step's hold, and carries on. A rollout that was pulled back and is waiting for its fix resumes as `fixing`. Resuming a rollout that is not paused answers `409`.
 
       Resuming is a person's call: it hands the flag back to automation. Only a dashboard session or a device-auth CLI session can resume — ops keys, project admin keys and OAuth MCP calls are refused with `403`. This operation is not exposed as an MCP tool.
 
@@ -1451,7 +1529,7 @@
     operationId: addTrailItem
     summary: Put an existing item on a trail
     description: |-
-      Attach an existing queue item to the trail, recorded with source `attached`. An item is on at most one trail; one already on another trail is refused with `409`. To file a *new* item on a trail, use `ops bug --trail` or `ops feature --trail`.
+      Attach an existing queue item to the trail, recorded with source `attached`, optionally into a milestone (`milestoneId`). An item is on at most one trail; one already on another trail is refused with `409`. To file a *new* item on a trail, use `ops bug --trail` or `ops feature --trail`.
 
       Safe for the restricted ops key.
 
@@ -1543,6 +1621,221 @@
       positional:
         - handle
         - itemHandle
+  patch:
+    operationId: moveTrailItem
+    summary: Move an item to a milestone
+    description: |-
+      Move an item on the trail into a milestone, or out of every milestone with `milestoneId: null`. The item stays on the trail and keeps its discovery record; only the milestone it counts toward changes. An item that is not on the trail is `404`, and so is a milestone of another trail.
+
+      Safe for the restricted ops key.
+
+      **Use case:** A bug filed on the trail turns out to block the first milestone; move it there so the build works it with the rest of that milestone.
+    tags:
+      - Items
+    parameters:
+      - *a1
+      - *a2
+      - name: itemHandle
+        in: path
+        required: true
+        description: The queue item's per-project number (e.g. `42`) or its full id.
+        schema:
+          $ref: ../components/schemas/ops.yaml#/OpsItemHandle
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/MoveTrailItemRequest
+          example:
+            milestoneId: 3b1f0c9e-7d42-4a8e-9f61-2c5d8e4a7b90
+    responses:
+      "200":
+        description: The item was moved
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/TrailOkResponse
+            example:
+              ok: true
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: move
+      positional:
+        - handle
+        - itemHandle
+/api/admin/trails/{handle}/milestones:
+  post:
+    operationId: createTrailMilestone
+    summary: Add a milestone to a trail
+    description: |-
+      Add a named stage to the trail, with an optional description and target date. Milestones are ordered: omit `position` to add it last, or pass one to insert it there and move the rest down. Progress is counted per milestone, and the build works the trail milestone by milestone — it launches item runs for the first milestone that still has open items. Approving a plan creates the milestones its breakdown lists; use this for any added later.
+
+      Safe for the restricted ops key.
+
+      **Use case:** The trail's first release went out and a second stage came up in review; add a "Dead-letter view" milestone with its own target date.
+    tags:
+      - Milestones
+    parameters:
+      - *a1
+      - *a2
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/CreateTrailMilestoneRequest
+          example:
+            name: Dead-letter view
+            description: Deliveries that fail permanently land in a view the customer can replay from
+            targetDate: "2026-11-27"
+    responses:
+      "200":
+        description: The new milestone
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/TrailMilestone
+            example:
+              id: 3b1f0c9e-7d42-4a8e-9f61-2c5d8e4a7b90
+              name: Dead-letter view
+              description: Deliveries that fail permanently land in a view the customer can replay from
+              targetDate: "2026-11-27"
+              position: 1
+              itemsTotal: 0
+              itemsDone: 0
+              late: false
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - INVALID_TRANSITION
+      - VALIDATION
+    x-cli:
+      name: add
+      positional:
+        - handle
+        - name
+/api/admin/trails/{handle}/milestones/{milestoneId}:
+  patch:
+    operationId: updateTrailMilestone
+    summary: Change a milestone
+    description: |-
+      Rename a milestone, change its description or target date, or move it in the trail's order with `position` (the others shift to make room). Pass at least one field; the rest are left as they are.
+
+      Safe for the restricted ops key.
+
+      **Use case:** The second stage slipped a week; move its target date so the trail's health reads it correctly.
+    tags:
+      - Milestones
+    parameters:
+      - *a1
+      - *a2
+      - &a4
+        $ref: ../components/parameters.yaml#/MilestoneId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/UpdateTrailMilestoneRequest
+          example:
+            targetDate: "2026-12-04"
+    responses:
+      "200":
+        description: The updated milestone
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/TrailMilestone
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: update
+      positional:
+        - handle
+        - milestoneId
+  delete:
+    operationId: removeTrailMilestone
+    summary: Remove a milestone from a trail
+    description: |-
+      Remove a milestone. Its items stay on the trail, in no milestone; the milestones after it move up one. Nothing else on the trail changes.
+
+      Safe for the restricted ops key.
+
+      **Use case:** Two milestones turned out to be one; remove the empty one after moving its items.
+    tags:
+      - Milestones
+    parameters:
+      - *a1
+      - *a2
+      - *a4
+    responses:
+      "200":
+        description: The milestone was removed
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/TrailOkResponse
+            example:
+              ok: true
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+    x-error-codes:
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: remove
+      positional:
+        - handle
+        - milestoneId
 /api/admin/trails/{handle}/attributions:
   post:
     operationId: attributeTrail
