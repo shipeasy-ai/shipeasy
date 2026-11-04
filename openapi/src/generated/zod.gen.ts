@@ -3718,8 +3718,8 @@ export const zTrailGates = z.object({
         blocking: z.boolean().default(false)
     }).optional().default({ enabled: false, blocking: false }),
     plan: z.object({
-        enabled: z.boolean().default(true),
-        blocking: z.boolean().default(true)
+        enabled: z.boolean(),
+        blocking: z.boolean()
     }).optional().default({ enabled: true, blocking: true }),
     requirePlan: z.boolean().optional().default(true),
     fixRounds: z.int().gte(0).lte(10).optional().default(3),

@@ -3868,11 +3868,9 @@ TrailGates:
       properties:
         enabled:
           type: boolean
-          default: true
           description: Whether the gate is evaluated at all.
         blocking:
           type: boolean
-          default: true
           description: Whether a failing gate blocks the merge. Off, the gate only reports.
       required:
         - enabled
