@@ -3127,17 +3127,18 @@ export const zListOpsActivityResponse = z.object({
 });
 
 /**
- * What a project-memory entry records. `shipped` — an item that reached `ready_for_qa`/`resolved`: what was asked, what the run found, the files it touched, the PR. `declined` — an item closed `wont_fix`: the request and why it was turned down. `decision` — an answered structured question: what the team picked. `qa` — a QA note or an answered QA question: what "fixed" turned out to mean, or what QA found failing.
+ * What a project-memory entry records. `shipped` — an item that reached `ready_for_qa`/`resolved`: what was asked, what the run found, the files it touched, the PR. `declined` — an item closed `wont_fix`: the request and why it was turned down. `decision` — an answered structured question: what the team picked. `qa` — a QA note or an answered QA question: what "fixed" turned out to mean, or what QA found failing. `outcome` — what a trail's plan achieved against its goal metric: what was tried, the reading, met or missed. A trail's own `decision` entries are its answered questions and its approved plan revisions.
  */
 export const zOpsMemoryKind = z.enum([
     'shipped',
     'declined',
     'decision',
-    'qa'
+    'qa',
+    'outcome'
 ]);
 
 /**
- * One fact the project learned from a shipped (or declined) ticket.
+ * One fact the project learned from a shipped (or declined) ticket, or from a trail's decisions and outcome.
  */
 export const zOpsMemoryEntry = z.object({
     id: z.string(),
@@ -3146,7 +3147,8 @@ export const zOpsMemoryEntry = z.object({
     body: z.string(),
     paths: z.array(z.string()),
     prUrl: z.string().nullable(),
-    item: zOpsItemRef,
+    item: zOpsItemRef.nullable(),
+    trail: zTrailSummary.nullable(),
     occurredAt: z.string(),
     score: z.number()
 });
@@ -3718,6 +3720,8 @@ export const zTrailGates = z.object({
     }).optional().default({ enabled: true, blocking: true }),
     requirePlan: z.boolean().optional().default(true),
     fixRounds: z.int().gte(0).lte(10).optional().default(3),
+    goalWindowDays: z.int().gte(1).lte(90).optional().default(7),
+    maxGoalReplans: z.int().gte(0).lte(10).optional().default(3),
     maxParallelRuns: z.int().gte(1).lte(10).optional().default(3),
     attributionWindowHours: z.int().gte(1).lte(720).optional().default(72),
     rollout: zTrailRollout.optional(),
@@ -3809,6 +3813,34 @@ export const zTrailPlanBreakdown = z.object({
 });
 
 /**
+ * Where a marketing action on a trail's plan happens.
+ */
+export const zTrailMarketingChannel = z.enum([
+    'blog',
+    'email',
+    'social',
+    'ads',
+    'landing',
+    'community',
+    'press',
+    'in_app',
+    'other'
+]);
+
+/**
+ * The plan's marketing strategy — tracked, never executed. Every channel is also a breakdown item of the same title with `workKind` `marketing`, so it has an owner, a status and a place on the timeline.
+ */
+export const zTrailPlanMarketing = z.object({
+    summary: z.string().max(2000),
+    channels: z.array(z.object({
+        channel: zTrailMarketingChannel,
+        title: z.string().min(1).max(200),
+        timing: z.string().min(1).max(120),
+        brief: z.string().max(1000).nullish()
+    })).max(12)
+});
+
+/**
  * One thing the plan rests on — a memory entry, an earlier item or trail, or a document — and what it settled.
  */
 export const zTrailPlanSource = z.object({
@@ -3830,6 +3862,7 @@ export const zTrailPlan = z.object({
     plan: z.string().nullable(),
     release: zTrailPlanRelease.nullable(),
     breakdown: zTrailPlanBreakdown.nullable(),
+    marketing: zTrailPlanMarketing.nullable(),
     sources: z.array(zTrailPlanSource).max(30),
     revision: z.int().gte(0),
     approvedBy: z.string().nullable(),
@@ -3907,7 +3940,7 @@ export const zTrailAutopilot = z.object({
 });
 
 /**
- * What happened on the release timeline. The `autopilot_*` kinds are autopilot's own — turned on or off, an answer, an approval or a merge it made (`autopilot_acted`, the reason says which), a pause at a limit, a resume.
+ * What happened on the release timeline. `guard_armed` is an alert rule shipeasy set up (or picked up) to watch a guarded metric before the ramp began, `guard_arm_failed` one it could not set up. `goal_*` is the goal loop — the trail was delivered and its goal metric is being watched, then the reading met or missed the target; `goal_replan_failed` is a re-plan after a miss that did not start (it is retried, then handed to the owner). The `autopilot_*` kinds are autopilot's own — turned on or off, an answer, an approval or a merge it made (`autopilot_acted`, the reason says which), a pause at a limit, a resume.
  */
 export const zTrailReleaseEventKind = z.enum([
     'started',
@@ -3926,7 +3959,13 @@ export const zTrailReleaseEventKind = z.enum([
     'autopilot_off',
     'autopilot_acted',
     'autopilot_paused',
-    'autopilot_resumed'
+    'autopilot_resumed',
+    'goal_watching',
+    'goal_met',
+    'goal_missed',
+    'goal_replan_failed',
+    'guard_armed',
+    'guard_arm_failed'
 ]);
 
 /**
@@ -3943,6 +3982,28 @@ export const zTrailReleaseEvent = z.object({
     evidence: z.record(z.string(), z.unknown()).nullable(),
     actor: z.string(),
     createdAt: z.string()
+});
+
+/**
+ * Where a trail's goal stands — `none` until the trail is delivered, `watching` through the watch window, then `met` or `missed`. A new plan revision puts it back to `none`.
+ */
+export const zTrailGoalState = z.enum([
+    'none',
+    'watching',
+    'met',
+    'missed'
+]);
+
+/**
+ * The goal loop on a trail with a goal metric and a target.
+ */
+export const zTrailGoalStatus = z.object({
+    state: zTrailGoalState,
+    watchFrom: z.string().nullable(),
+    judgeAt: z.string().nullable(),
+    value: z.number().nullable(),
+    replans: z.int().gte(0),
+    maxReplans: z.int().gte(0)
 });
 
 /**
@@ -3993,7 +4054,8 @@ export const zTrailDetail = z.object({
     rollout: zTrailRolloutView,
     rollouts: z.array(zTrailRolloutView),
     autopilot: zTrailAutopilot,
-    releaseEvents: z.array(zTrailReleaseEvent)
+    releaseEvents: z.array(zTrailReleaseEvent),
+    goalStatus: zTrailGoalStatus.nullable()
 });
 
 export const zNewTrailFinding = z.object({
@@ -4357,6 +4419,7 @@ export const zSubmitTrailPlanRequest = z.object({
     plan: z.string().min(1).max(20000),
     release: zTrailPlanRelease,
     breakdown: zTrailPlanBreakdown.optional(),
+    marketing: zTrailPlanMarketing.optional(),
     sources: z.array(zTrailPlanSource).max(30).optional(),
     summary: z.string().max(500).optional()
 });
@@ -4374,7 +4437,8 @@ export const zTrailPlanResult = z.object({
 export const zUpdateTrailPlanRequest = z.object({
     plan: z.string().min(1).max(20000).optional(),
     release: zTrailPlanRelease.optional(),
-    breakdown: zTrailPlanBreakdown.optional()
+    breakdown: zTrailPlanBreakdown.optional(),
+    marketing: zTrailPlanMarketing.optional()
 });
 
 /**
@@ -4417,6 +4481,108 @@ export const zTrailPlanRevision = z.object({
  */
 export const zListTrailPlanRevisionsResponse = z.object({
     data: z.array(zTrailPlanRevision)
+});
+
+/**
+ * What a timeline event is. `release` carries the release timeline's own kind (a rollout step, a breach, a pull-back, autopilot, the goal loop) in `release.kind`.
+ */
+export const zTrailTimelineEventKind = z.enum([
+    'created',
+    'closed',
+    'plan_approved',
+    'question_asked',
+    'question_answered',
+    'run_started',
+    'run_finished',
+    'item_filed',
+    'item_done',
+    'item_reopened',
+    'change_opened',
+    'change_merged',
+    'change_closed',
+    'change_approved',
+    'release',
+    'attributed'
+]);
+
+/**
+ * One option of a decided question — the fork it offered.
+ */
+export const zTrailTimelineOption = z.object({
+    label: z.string(),
+    description: z.string().nullable(),
+    picked: z.boolean()
+});
+
+/**
+ * One thing that happened on a trail. Exactly the reference fields its kind is about are set; the rest are `null`.
+ */
+export const zTrailTimelineEvent = z.object({
+    id: z.string(),
+    at: z.string(),
+    kind: zTrailTimelineEventKind,
+    actor: z.string().nullable(),
+    decision: z.boolean(),
+    detail: z.string().nullable(),
+    item: z.object({
+        id: z.string(),
+        number: z.int(),
+        title: z.string(),
+        status: zOpsItemStatus,
+        workKind: zTrailWorkKind.nullable(),
+        source: zTrailDiscoveredSource.nullable(),
+        milestone: z.string().nullable(),
+        closesMilestone: z.boolean()
+    }).nullable(),
+    change: zTrailChangeRef.nullable(),
+    question: z.object({
+        id: z.string(),
+        header: z.string(),
+        question: z.string(),
+        on: z.enum(['trail', 'item']),
+        options: z.array(zTrailTimelineOption),
+        other: z.string().nullable()
+    }).nullable(),
+    revision: z.object({
+        revision: z.int(),
+        summary: z.string().nullable(),
+        strategy: zTrailReleaseStrategy.nullable(),
+        items: z.int()
+    }).nullable(),
+    run: z.object({
+        id: z.string(),
+        kind: zTrailRunKind,
+        state: zTrailRunState,
+        agent: z.string().nullable(),
+        sessionUrl: z.string().nullable(),
+        error: z.string().nullable()
+    }).nullable(),
+    release: z.object({
+        kind: zTrailReleaseEventKind,
+        resourceKey: z.string().nullable(),
+        resourceKind: zTrailResourceKind.nullable(),
+        resourceId: z.string().nullable(),
+        metric: z.object({
+            id: z.string(),
+            key: z.string(),
+            threshold: z.number().nullable()
+        }).nullable(),
+        alert: z.object({
+            ruleId: z.string(),
+            ruleName: z.string(),
+            ticket: z.object({
+                id: z.string(),
+                number: z.int()
+            }).nullable()
+        }).nullable(),
+        fromPct: z.number().nullable(),
+        toPct: z.number().nullable()
+    }).nullable()
+});
+
+export const zTrailTimelineResponse = z.object({
+    events: z.array(zTrailTimelineEvent),
+    next: z.string().nullable()
 });
 
 /**
@@ -7320,6 +7486,7 @@ export const zListOpsMemoryQuery = z.object({
     q: z.string().min(1).max(500).optional(),
     paths: z.string().min(1).max(2000).optional(),
     item: z.string().min(1).max(128).optional(),
+    trail: z.string().min(1).max(128).optional(),
     kind: zOpsMemoryKind.optional(),
     limit: z.coerce.number().int().gte(1).lte(50).optional()
 });
@@ -7539,7 +7706,7 @@ export const zGetTrailPath = z.object({
 });
 
 export const zGetTrailQuery = z.object({
-    files: z.boolean().optional().default(false)
+    files: z.stringbool().optional().default(false)
 });
 
 /**
@@ -7694,6 +7861,25 @@ export const zListTrailPlanRevisionsPath = z.object({
  * The plan's approved revisions
  */
 export const zListTrailPlanRevisionsResponse2 = zListTrailPlanRevisionsResponse;
+
+export const zGetTrailTimelineHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zGetTrailTimelinePath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/)
+});
+
+export const zGetTrailTimelineQuery = z.object({
+    before: z.string().min(1).max(40).optional(),
+    limit: z.coerce.number().int().gte(1).lte(200).optional(),
+    decisions: z.stringbool().optional()
+});
+
+/**
+ * The trail's timeline
+ */
+export const zGetTrailTimelineResponse = zTrailTimelineResponse;
 
 export const zPauseTrailRolloutBody = zPauseTrailRolloutRequest;
 

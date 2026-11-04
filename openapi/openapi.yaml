@@ -7665,9 +7665,10 @@ paths:
         those change, so it never disagrees with the ticket.
 
         Search with `q` (free text), `paths` (comma-separated files or
-        directories — entries that touched them rank first) or `item` (a queue
+        directories — entries that touched them rank first), `item` (a queue
         item — its title and description become the query, and its own entries
-        are left out). With none of them, the newest entries come back. Bodies are
+        are left out) or `trail` (a trail — its title, intent and goal become the
+        query; its own and its items' entries are left out). With none of them, the newest entries come back. Bodies are
         capped; read the full ticket with `ops get <item>`.
 
         **Use case:** A coding agent picks up a ticket and, before reading the
@@ -7697,6 +7698,14 @@ paths:
           in: query
           required: false
           description: A queue item — its per-project number (e.g. `7`) or full id. Its title and description become the query; its own entries are excluded.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+        - name: trail
+          in: query
+          required: false
+          description: A trail — its handle (e.g. `T-12`) or full id. Its title, intent and goal become the query; its own entries and its items' are excluded.
           schema:
             type: string
             minLength: 1
@@ -9211,6 +9220,96 @@ paths:
         - NOT_FOUND
       x-cli:
         name: plan-revisions
+        positional:
+          - handle
+  /api/admin/trails/{handle}/timeline:
+    get:
+      operationId: getTrailTimeline
+      summary: Read a trail's timeline
+      description: |-
+        Everything that happened on the trail, newest first: created, plans approved, questions asked and answered (on the trail and on its items), runs, items filed and done, pull requests opened, approved and merged, every rollout step, pull-back and autopilot action, the goal watched and met or missed, errors attributed. Each event says whether it was a **decision** — a choice a person (or autopilot on a person's authority) made — and a decided question carries every option it offered and which one was picked.
+
+        Pass `decisions=true` for the decisions only. Page with `before` (the `next` of the previous page).
+
+        Safe for the restricted ops key.
+
+        **Use case:** Before re-planning, an agent reads what was tried and decided on the trail so the next revision does not repeat it.
+      tags:
+        - Trails
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/TrailHandle'
+        - name: before
+          in: query
+          required: false
+          description: ISO-8601 time; only events strictly before it (the `next` of the previous page).
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 40
+        - name: limit
+          in: query
+          required: false
+          description: Most events to return (1-200). Defaults to 50.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+        - name: decisions
+          in: query
+          required: false
+          description: Only the decisions.
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: The trail's timeline
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrailTimelineResponse'
+              example:
+                events:
+                  - id: q:5c1d:answered
+                    at: '2026-11-04T10:20:00.000Z'
+                    kind: question_answered
+                    actor: alice@acme.dev
+                    decision: true
+                    detail: null
+                    item: null
+                    change: null
+                    question:
+                      id: 5c1d
+                      header: Release approach
+                      question: How should T-12 ship?
+                      'on': trail
+                      options:
+                        - label: Behind a flag
+                          description: 'Recommended: touches every checkout'
+                          picked: true
+                        - label: Straight to main
+                          description: No flag. It reaches everyone on merge
+                          picked: false
+                      other: null
+                    revision: null
+                    run: null
+                    release: null
+                next: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+      x-cli:
+        name: timeline
         positional:
           - handle
   /api/admin/trails/{handle}/rollout/pause:
@@ -22031,7 +22130,8 @@ components:
         - declined
         - decision
         - qa
-      description: 'What a project-memory entry records. `shipped` — an item that reached `ready_for_qa`/`resolved`: what was asked, what the run found, the files it touched, the PR. `declined` — an item closed `wont_fix`: the request and why it was turned down. `decision` — an answered structured question: what the team picked. `qa` — a QA note or an answered QA question: what "fixed" turned out to mean, or what QA found failing.'
+        - outcome
+      description: 'What a project-memory entry records. `shipped` — an item that reached `ready_for_qa`/`resolved`: what was asked, what the run found, the files it touched, the PR. `declined` — an item closed `wont_fix`: the request and why it was turned down. `decision` — an answered structured question: what the team picked. `qa` — a QA note or an answered QA question: what "fixed" turned out to mean, or what QA found failing. `outcome` — what a trail''s plan achieved against its goal metric: what was tried, the reading, met or missed. A trail''s own `decision` entries are its answered questions and its approved plan revisions.'
     OpsMemoryEntry:
       type: object
       properties:
@@ -22057,7 +22157,15 @@ components:
             - type: 'null'
           description: The pull request that shipped it, when one was linked.
         item:
-          $ref: '#/components/schemas/OpsItemRef'
+          anyOf:
+            - $ref: '#/components/schemas/OpsItemRef'
+            - type: 'null'
+          description: The queue item the entry came from, or `null` for a trail's own entry.
+        trail:
+          anyOf:
+            - $ref: '#/components/schemas/TrailSummary'
+            - type: 'null'
+          description: The trail the entry came from (its decisions and goal outcomes), or `null` for an item's entry. Exactly one of `item` and `trail` is set.
         occurredAt:
           type: string
           description: ISO-8601 time the fact happened (shipped, answered, noted).
@@ -22072,10 +22180,11 @@ components:
         - paths
         - prUrl
         - item
+        - trail
         - occurredAt
         - score
       additionalProperties: false
-      description: One fact the project learned from a shipped (or declined) ticket.
+      description: One fact the project learned from a shipped (or declined) ticket, or from a trail's decisions and outcome.
     ListOpsMemoryResponse:
       type: object
       properties:
@@ -23377,6 +23486,18 @@ components:
           maximum: 10
           default: 3
           description: How many times the server re-fires the coding agent with a fix prompt after a change's evals or findings fail. After the cap the trail reads `reviewing`, needs a person. `0` turns the loop off.
+        goalWindowDays:
+          type: integer
+          minimum: 1
+          maximum: 90
+          default: 7
+          description: How many days a delivered trail is watched before its goal metric is judged. A trail is delivered when its plan is approved, every code and tracking item is done and every flag it ships behind is fully rolled out (or, with none, something merged).
+        maxGoalReplans:
+          type: integer
+          minimum: 0
+          maximum: 10
+          default: 3
+          description: How many times shipeasy re-plans a trail on its own after its goal was missed. Each re-plan proposes new options that differ from what was tried. Past the cap the trail is off track and the owner decides; `0` never re-plans automatically.
         maxParallelRuns:
           type: integer
           minimum: 1
@@ -23561,6 +23682,60 @@ components:
         - milestones
         - items
       additionalProperties: false
+    TrailMarketingChannel:
+      type: string
+      enum:
+        - blog
+        - email
+        - social
+        - ads
+        - landing
+        - community
+        - press
+        - in_app
+        - other
+      description: Where a marketing action on a trail's plan happens.
+    TrailPlanMarketing:
+      type: object
+      description: The plan's marketing strategy — tracked, never executed. Every channel is also a breakdown item of the same title with `workKind` `marketing`, so it has an owner, a status and a place on the timeline.
+      properties:
+        summary:
+          type: string
+          maxLength: 2000
+          description: Positioning and audience in a paragraph — who it is for and what it says.
+        channels:
+          type: array
+          maxItems: 12
+          items:
+            type: object
+            properties:
+              channel:
+                $ref: '#/components/schemas/TrailMarketingChannel'
+              title:
+                type: string
+                minLength: 1
+                maxLength: 200
+                description: The breakdown item that tracks it (same title).
+              timing:
+                type: string
+                minLength: 1
+                maxLength: 120
+                description: 'When it lands: `before_release`, `at_release`, `at_full_rollout`, `after_goal`, or a milestone''s name.'
+              brief:
+                anyOf:
+                  - type: string
+                    maxLength: 1000
+                  - type: 'null'
+                description: One or two lines on what it is.
+            required:
+              - channel
+              - title
+              - timing
+            additionalProperties: false
+      required:
+        - summary
+        - channels
+      additionalProperties: false
     TrailPlanSource:
       type: object
       description: One thing the plan rests on — a memory entry, an earlier item or trail, or a document — and what it settled.
@@ -23609,6 +23784,11 @@ components:
             - $ref: '#/components/schemas/TrailPlanBreakdown'
             - type: 'null'
           description: The milestones and items the plan breaks the trail into, or `null` for a plan built by one trail-level build run.
+        marketing:
+          anyOf:
+            - $ref: '#/components/schemas/TrailPlanMarketing'
+            - type: 'null'
+          description: The launch's marketing strategy, or `null` when the plan has none. Tracked only.
         sources:
           type: array
           maxItems: 30
@@ -23647,6 +23827,7 @@ components:
         - plan
         - release
         - breakdown
+        - marketing
         - sources
         - revision
         - approvedBy
@@ -23810,7 +23991,13 @@ components:
         - autopilot_acted
         - autopilot_paused
         - autopilot_resumed
-      description: What happened on the release timeline. The `autopilot_*` kinds are autopilot's own — turned on or off, an answer, an approval or a merge it made (`autopilot_acted`, the reason says which), a pause at a limit, a resume.
+        - goal_watching
+        - goal_met
+        - goal_missed
+        - goal_replan_failed
+        - guard_armed
+        - guard_arm_failed
+      description: What happened on the release timeline. `guard_armed` is an alert rule shipeasy set up (or picked up) to watch a guarded metric before the ramp began, `guard_arm_failed` one it could not set up. `goal_*` is the goal loop — the trail was delivered and its goal metric is being watched, then the reading met or missed the target; `goal_replan_failed` is a re-plan after a miss that did not start (it is retried, then handed to the owner). The `autopilot_*` kinds are autopilot's own — turned on or off, an answer, an approval or a merge it made (`autopilot_acted`, the reason says which), a pause at a limit, a resume.
     TrailReleaseEvent:
       type: object
       description: One row of a trail's release timeline — something the controller, autopilot or a person did to its rollout.
@@ -23864,6 +24051,51 @@ components:
         - evidence
         - actor
         - createdAt
+      additionalProperties: false
+    TrailGoalState:
+      type: string
+      enum:
+        - none
+        - watching
+        - met
+        - missed
+      description: Where a trail's goal stands — `none` until the trail is delivered, `watching` through the watch window, then `met` or `missed`. A new plan revision puts it back to `none`.
+    TrailGoalStatus:
+      type: object
+      description: The goal loop on a trail with a goal metric and a target.
+      properties:
+        state:
+          $ref: '#/components/schemas/TrailGoalState'
+        watchFrom:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: ISO-8601 time the watch window started, or `null`.
+        judgeAt:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: ISO-8601 time the goal metric is read, or `null` while not watched.
+        value:
+          anyOf:
+            - type: number
+            - type: 'null'
+          description: The reading the verdict rests on — the goal metric averaged over the window — or `null`.
+        replans:
+          type: integer
+          minimum: 0
+          description: Re-plans shipeasy started on its own after a miss.
+        maxReplans:
+          type: integer
+          minimum: 0
+          description: The cap on those (`trail-gates` `maxGoalReplans`).
+      required:
+        - state
+        - watchFrom
+        - judgeAt
+        - value
+        - replans
+        - maxReplans
       additionalProperties: false
     TrailDetail:
       type: object
@@ -24042,6 +24274,11 @@ components:
           items:
             $ref: '#/components/schemas/TrailReleaseEvent'
           description: The release timeline, newest first (the latest 100).
+        goalStatus:
+          anyOf:
+            - $ref: '#/components/schemas/TrailGoalStatus'
+            - type: 'null'
+          description: The goal loop, or `null` when the trail has no goal metric with a target.
       required:
         - id
         - number
@@ -24088,6 +24325,7 @@ components:
         - rollouts
         - autopilot
         - releaseEvents
+        - goalStatus
       additionalProperties: false
     NewTrailFinding:
       type: object
@@ -25056,6 +25294,8 @@ components:
           $ref: '#/components/schemas/TrailPlanRelease'
         breakdown:
           $ref: '#/components/schemas/TrailPlanBreakdown'
+        marketing:
+          $ref: '#/components/schemas/TrailPlanMarketing'
         sources:
           type: array
           maxItems: 30
@@ -25092,6 +25332,8 @@ components:
           $ref: '#/components/schemas/TrailPlanRelease'
         breakdown:
           $ref: '#/components/schemas/TrailPlanBreakdown'
+        marketing:
+          $ref: '#/components/schemas/TrailPlanMarketing'
       minProperties: 1
       additionalProperties: false
     ApproveTrailPlanRequest:
@@ -25181,6 +25423,324 @@ components:
             $ref: '#/components/schemas/TrailPlanRevision'
       required:
         - data
+      additionalProperties: false
+    TrailTimelineEventKind:
+      type: string
+      enum:
+        - created
+        - closed
+        - plan_approved
+        - question_asked
+        - question_answered
+        - run_started
+        - run_finished
+        - item_filed
+        - item_done
+        - item_reopened
+        - change_opened
+        - change_merged
+        - change_closed
+        - change_approved
+        - release
+        - attributed
+      description: What a timeline event is. `release` carries the release timeline's own kind (a rollout step, a breach, a pull-back, autopilot, the goal loop) in `release.kind`.
+    TrailTimelineOption:
+      type: object
+      description: One option of a decided question — the fork it offered.
+      properties:
+        label:
+          type: string
+        description:
+          anyOf:
+            - type: string
+            - type: 'null'
+        picked:
+          type: boolean
+          description: Whether this is the way the trail went.
+      required:
+        - label
+        - description
+        - picked
+      additionalProperties: false
+    TrailTimelineEvent:
+      type: object
+      description: One thing that happened on a trail. Exactly the reference fields its kind is about are set; the rest are `null`.
+      properties:
+        id:
+          type: string
+          description: Stable id of the event, unique within the trail's timeline.
+        at:
+          type: string
+          description: ISO-8601 time it happened.
+        kind:
+          $ref: '#/components/schemas/TrailTimelineEventKind'
+        actor:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: Who did it — a person's email, `controller`, `autopilot`, or a coding agent's name — or `null` when unknown.
+        decision:
+          type: boolean
+          description: Whether this is a decision a person (or autopilot on a person's authority) made — an answered question, an approved plan revision, a rollout call, an approved change, a decided suspect.
+        detail:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: A short note — a reason, a summary, a run's outcome, a bypass reason — or `null`.
+        item:
+          anyOf:
+            - type: object
+              properties:
+                id:
+                  type: string
+                number:
+                  type: integer
+                title:
+                  type: string
+                status:
+                  $ref: '#/components/schemas/OpsItemStatus'
+                workKind:
+                  anyOf:
+                    - $ref: '#/components/schemas/TrailWorkKind'
+                    - type: 'null'
+                source:
+                  anyOf:
+                    - $ref: '#/components/schemas/TrailDiscoveredSource'
+                    - type: 'null'
+                milestone:
+                  anyOf:
+                    - type: string
+                    - type: 'null'
+                  description: The milestone the item is in, by name.
+                closesMilestone:
+                  type: boolean
+                  description: On `item_done`, whether it was the last open item of its milestone.
+              required:
+                - id
+                - number
+                - title
+                - status
+                - workKind
+                - source
+                - milestone
+                - closesMilestone
+              additionalProperties: false
+            - type: 'null'
+        change:
+          anyOf:
+            - $ref: '#/components/schemas/TrailChangeRef'
+            - type: 'null'
+        question:
+          anyOf:
+            - type: object
+              properties:
+                id:
+                  type: string
+                header:
+                  type: string
+                question:
+                  type: string
+                'on':
+                  type: string
+                  enum:
+                    - trail
+                    - item
+                  description: Asked on the trail itself, or on one of its items (then `item` is set too).
+                options:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/TrailTimelineOption'
+                other:
+                  anyOf:
+                    - type: string
+                    - type: 'null'
+                  description: A free-text answer, when one was given.
+              required:
+                - id
+                - header
+                - question
+                - 'on'
+                - options
+                - other
+              additionalProperties: false
+            - type: 'null'
+        revision:
+          anyOf:
+            - type: object
+              properties:
+                revision:
+                  type: integer
+                summary:
+                  anyOf:
+                    - type: string
+                    - type: 'null'
+                strategy:
+                  anyOf:
+                    - $ref: '#/components/schemas/TrailReleaseStrategy'
+                    - type: 'null'
+                items:
+                  type: integer
+                  description: Items in the revision's breakdown.
+              required:
+                - revision
+                - summary
+                - strategy
+                - items
+              additionalProperties: false
+            - type: 'null'
+        run:
+          anyOf:
+            - type: object
+              properties:
+                id:
+                  type: string
+                kind:
+                  $ref: '#/components/schemas/TrailRunKind'
+                state:
+                  $ref: '#/components/schemas/TrailRunState'
+                agent:
+                  anyOf:
+                    - type: string
+                    - type: 'null'
+                sessionUrl:
+                  anyOf:
+                    - type: string
+                    - type: 'null'
+                  description: The agent's session, where its provider has one to open.
+                error:
+                  anyOf:
+                    - type: string
+                    - type: 'null'
+                  description: Why a failed run failed.
+              required:
+                - id
+                - kind
+                - state
+                - agent
+                - sessionUrl
+                - error
+              additionalProperties: false
+            - type: 'null'
+        release:
+          anyOf:
+            - type: object
+              properties:
+                kind:
+                  $ref: '#/components/schemas/TrailReleaseEventKind'
+                resourceKey:
+                  anyOf:
+                    - type: string
+                    - type: 'null'
+                  description: The flag the event is about, or `null` for the whole trail.
+                resourceKind:
+                  anyOf:
+                    - $ref: '#/components/schemas/TrailResourceKind'
+                    - type: 'null'
+                  description: The kind of entity `resourceKey` names.
+                resourceId:
+                  anyOf:
+                    - type: string
+                    - type: 'null'
+                  description: The entity's id, to open its detail.
+                metric:
+                  anyOf:
+                    - type: object
+                      description: The metric the event reacted to — a guard's metric when a guard tripped, the goal metric when the goal was watched, met or missed — with the level that mattered (the guard's limit, the goal's target).
+                      properties:
+                        id:
+                          type: string
+                        key:
+                          type: string
+                        threshold:
+                          anyOf:
+                            - type: number
+                            - type: 'null'
+                      required:
+                        - id
+                        - key
+                        - threshold
+                      additionalProperties: false
+                    - type: 'null'
+                alert:
+                  anyOf:
+                    - type: object
+                      description: The alert behind the event — the guard rule that fired and the alert ticket it raised when a guard tripped, or the rule that was armed.
+                      properties:
+                        ruleId:
+                          type: string
+                        ruleName:
+                          type: string
+                        ticket:
+                          anyOf:
+                            - type: object
+                              properties:
+                                id:
+                                  type: string
+                                  description: The alert ticket's id (a uuid).
+                                number:
+                                  type: integer
+                                  description: Its number, to open its detail.
+                              required:
+                                - id
+                                - number
+                              additionalProperties: false
+                            - type: 'null'
+                          description: The alert ticket the rule raised; `null` when the rule has not fired.
+                      required:
+                        - ruleId
+                        - ruleName
+                        - ticket
+                      additionalProperties: false
+                    - type: 'null'
+                fromPct:
+                  anyOf:
+                    - type: number
+                    - type: 'null'
+                toPct:
+                  anyOf:
+                    - type: number
+                    - type: 'null'
+              required:
+                - kind
+                - resourceKey
+                - resourceKind
+                - resourceId
+                - metric
+                - alert
+                - fromPct
+                - toPct
+              additionalProperties: false
+            - type: 'null'
+      required:
+        - id
+        - at
+        - kind
+        - actor
+        - decision
+        - detail
+        - item
+        - change
+        - question
+        - revision
+        - run
+        - release
+      additionalProperties: false
+    TrailTimelineResponse:
+      type: object
+      properties:
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrailTimelineEvent'
+          description: Newest first.
+        next:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: Pass as `before` to read the page after this one; `null` at the trailhead.
+      required:
+        - events
+        - next
       additionalProperties: false
     PauseTrailRolloutRequest:
       type: object

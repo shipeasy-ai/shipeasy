@@ -3183,9 +3183,10 @@ turned down. Every entry is derived from the item's own records
 those change, so it never disagrees with the ticket.
 
 Search with `q` (free text), `paths` (comma-separated files or
-directories — entries that touched them rank first) or `item` (a queue
+directories — entries that touched them rank first), `item` (a queue
 item — its title and description become the query, and its own entries
-are left out). With none of them, the newest entries come back. Bodies are
+are left out) or `trail` (a trail — its title, intent and goal become the
+query; its own and its items' entries are left out). With none of them, the newest entries come back. Bodies are
 capped; read the full ticket with `ops get <item>`.
 
 **Use case:** A coding agent picks up a ticket and, before reading the

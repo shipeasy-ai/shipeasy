@@ -826,6 +826,96 @@
       name: plan-revisions
       positional:
         - handle
+/api/admin/trails/{handle}/timeline:
+  get:
+    operationId: getTrailTimeline
+    summary: Read a trail's timeline
+    description: |-
+      Everything that happened on the trail, newest first: created, plans approved, questions asked and answered (on the trail and on its items), runs, items filed and done, pull requests opened, approved and merged, every rollout step, pull-back and autopilot action, the goal watched and met or missed, errors attributed. Each event says whether it was a **decision** — a choice a person (or autopilot on a person's authority) made — and a decided question carries every option it offered and which one was picked.
+
+      Pass `decisions=true` for the decisions only. Page with `before` (the `next` of the previous page).
+
+      Safe for the restricted ops key.
+
+      **Use case:** Before re-planning, an agent reads what was tried and decided on the trail so the next revision does not repeat it.
+    tags:
+      - Trails
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - $ref: ../components/parameters.yaml#/TrailHandle
+      - name: before
+        in: query
+        required: false
+        description: ISO-8601 time; only events strictly before it (the `next` of the previous page).
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 40
+      - name: limit
+        in: query
+        required: false
+        description: Most events to return (1-200). Defaults to 50.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 200
+      - name: decisions
+        in: query
+        required: false
+        description: Only the decisions.
+        schema:
+          type: boolean
+    responses:
+      "200":
+        description: The trail's timeline
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/TrailTimelineResponse
+            example:
+              events:
+                - id: q:5c1d:answered
+                  at: 2026-11-04T10:20:00.000Z
+                  kind: question_answered
+                  actor: alice@acme.dev
+                  decision: true
+                  detail: null
+                  item: null
+                  change: null
+                  question:
+                    id: 5c1d
+                    header: Release approach
+                    question: How should T-12 ship?
+                    "on": trail
+                    options:
+                      - label: Behind a flag
+                        description: "Recommended: touches every checkout"
+                        picked: true
+                      - label: Straight to main
+                        description: No flag. It reaches everyone on merge
+                        picked: false
+                    other: null
+                  revision: null
+                  run: null
+                  release: null
+              next: null
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: timeline
+      positional:
+        - handle
 /api/admin/trails/{handle}/rollout/pause:
   post:
     operationId: pauseTrailRollout

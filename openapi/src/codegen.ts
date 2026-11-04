@@ -69,10 +69,32 @@ export function coerceNumberResolver(ctx: any) {
   return ctx.chain.current;
 }
 
-/** The `zod` plugin wired with {@link coerceNumberResolver}. */
+/** Whether the schema backs an `in: query` / `in: path` parameter (see {@link coerceNumberResolver}). */
+function isStringSourcedParam(ctx: any): boolean {
+  const ref = ctx.path?.["~ref"];
+  return (
+    ref?.[1] === "parameters" ||
+    (ref?.[0] === "paths" && (ref?.[3] === "query" || ref?.[3] === "path"))
+  );
+}
+
+/**
+ * `zod` `$resolvers.boolean` that emits `z.stringbool()` instead of `z.boolean()` for a query or
+ * path parameter: the query string delivers `?files=true` as the STRING `"true"`, which a strict
+ * `z.boolean()` rejects (422), so every boolean query flag was unusable from a real request.
+ * `z.stringbool()` reads `"true"/"false"`, `"1"/"0"`, `"yes"/"no"`, `"on"/"off"`. Body and
+ * response booleans keep the strict `z.boolean()`, for the same reason numbers do.
+ */
+export function coerceBooleanResolver(ctx: any) {
+  if (!isStringSourcedParam(ctx)) return undefined;
+  const z = ctx.plugin.imports.z;
+  return ctx.$(z).attr("stringbool").call();
+}
+
+/** The `zod` plugin wired with {@link coerceNumberResolver} and {@link coerceBooleanResolver}. */
 export const zodCoercePlugin = {
   name: "zod" as const,
-  $resolvers: { number: coerceNumberResolver },
+  $resolvers: { number: coerceNumberResolver, boolean: coerceBooleanResolver },
 };
 
 /** Default spec input: the bundled `openapi.yaml` symlinked in by pnpm. */

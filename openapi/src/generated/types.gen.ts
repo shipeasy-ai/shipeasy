@@ -5852,12 +5852,12 @@ export type ListOpsActivityResponse = {
 };
 
 /**
- * What a project-memory entry records. `shipped` — an item that reached `ready_for_qa`/`resolved`: what was asked, what the run found, the files it touched, the PR. `declined` — an item closed `wont_fix`: the request and why it was turned down. `decision` — an answered structured question: what the team picked. `qa` — a QA note or an answered QA question: what "fixed" turned out to mean, or what QA found failing.
+ * What a project-memory entry records. `shipped` — an item that reached `ready_for_qa`/`resolved`: what was asked, what the run found, the files it touched, the PR. `declined` — an item closed `wont_fix`: the request and why it was turned down. `decision` — an answered structured question: what the team picked. `qa` — a QA note or an answered QA question: what "fixed" turned out to mean, or what QA found failing. `outcome` — what a trail's plan achieved against its goal metric: what was tried, the reading, met or missed. A trail's own `decision` entries are its answered questions and its approved plan revisions.
  */
-export type OpsMemoryKind = 'shipped' | 'declined' | 'decision' | 'qa';
+export type OpsMemoryKind = 'shipped' | 'declined' | 'decision' | 'qa' | 'outcome';
 
 /**
- * One fact the project learned from a shipped (or declined) ticket.
+ * One fact the project learned from a shipped (or declined) ticket, or from a trail's decisions and outcome.
  */
 export type OpsMemoryEntry = {
     /**
@@ -5881,7 +5881,14 @@ export type OpsMemoryEntry = {
      * The pull request that shipped it, when one was linked.
      */
     prUrl: string | null;
-    item: OpsItemRef;
+    /**
+     * The queue item the entry came from, or `null` for a trail's own entry.
+     */
+    item: OpsItemRef | null;
+    /**
+     * The trail the entry came from (its decisions and goal outcomes), or `null` for an item's entry. Exactly one of `item` and `trail` is set.
+     */
+    trail: TrailSummary | null;
     /**
      * ISO-8601 time the fact happened (shipped, answered, noted).
      */
@@ -6712,6 +6719,14 @@ export type TrailGates = {
      */
     fixRounds?: number;
     /**
+     * How many days a delivered trail is watched before its goal metric is judged. A trail is delivered when its plan is approved, every code and tracking item is done and every flag it ships behind is fully rolled out (or, with none, something merged).
+     */
+    goalWindowDays?: number;
+    /**
+     * How many times shipeasy re-plans a trail on its own after its goal was missed. Each re-plan proposes new options that differ from what was tried. Past the cap the trail is off track and the owner decides; `0` never re-plans automatically.
+     */
+    maxGoalReplans?: number;
+    /**
      * How many item runs a trail's build keeps working at once. A build launches an item run for each open item of the current milestone, up to this many; the rest wait for a slot.
      */
     maxParallelRuns?: number;
@@ -6837,6 +6852,36 @@ export type TrailPlanBreakdown = {
 };
 
 /**
+ * Where a marketing action on a trail's plan happens.
+ */
+export type TrailMarketingChannel = 'blog' | 'email' | 'social' | 'ads' | 'landing' | 'community' | 'press' | 'in_app' | 'other';
+
+/**
+ * The plan's marketing strategy — tracked, never executed. Every channel is also a breakdown item of the same title with `workKind` `marketing`, so it has an owner, a status and a place on the timeline.
+ */
+export type TrailPlanMarketing = {
+    /**
+     * Positioning and audience in a paragraph — who it is for and what it says.
+     */
+    summary: string;
+    channels: Array<{
+        channel: TrailMarketingChannel;
+        /**
+         * The breakdown item that tracks it (same title).
+         */
+        title: string;
+        /**
+         * When it lands: `before_release`, `at_release`, `at_full_rollout`, `after_goal`, or a milestone's name.
+         */
+        timing: string;
+        /**
+         * One or two lines on what it is.
+         */
+        brief?: string | null;
+    }>;
+};
+
+/**
  * One thing the plan rests on — a memory entry, an earlier item or trail, or a document — and what it settled.
  */
 export type TrailPlanSource = {
@@ -6871,6 +6916,10 @@ export type TrailPlan = {
      * The milestones and items the plan breaks the trail into, or `null` for a plan built by one trail-level build run.
      */
     breakdown: TrailPlanBreakdown | null;
+    /**
+     * The launch's marketing strategy, or `null` when the plan has none. Tracked only.
+     */
+    marketing: TrailPlanMarketing | null;
     /**
      * What the plan run read in project memory and earlier tickets that the plan rests on. Empty when it cited nothing.
      */
@@ -7003,9 +7052,9 @@ export type TrailAutopilot = {
 };
 
 /**
- * What happened on the release timeline. The `autopilot_*` kinds are autopilot's own — turned on or off, an answer, an approval or a merge it made (`autopilot_acted`, the reason says which), a pause at a limit, a resume.
+ * What happened on the release timeline. `guard_armed` is an alert rule shipeasy set up (or picked up) to watch a guarded metric before the ramp began, `guard_arm_failed` one it could not set up. `goal_*` is the goal loop — the trail was delivered and its goal metric is being watched, then the reading met or missed the target; `goal_replan_failed` is a re-plan after a miss that did not start (it is retried, then handed to the owner). The `autopilot_*` kinds are autopilot's own — turned on or off, an answer, an approval or a merge it made (`autopilot_acted`, the reason says which), a pause at a limit, a resume.
  */
-export type TrailReleaseEventKind = 'started' | 'advanced' | 'breach' | 'pulled_back' | 'asked' | 'answered' | 'investigating' | 'fix_merged' | 'resumed' | 'restarted' | 'paused' | 'completed' | 'autopilot_on' | 'autopilot_off' | 'autopilot_acted' | 'autopilot_paused' | 'autopilot_resumed';
+export type TrailReleaseEventKind = 'started' | 'advanced' | 'breach' | 'pulled_back' | 'asked' | 'answered' | 'investigating' | 'fix_merged' | 'resumed' | 'restarted' | 'paused' | 'completed' | 'autopilot_on' | 'autopilot_off' | 'autopilot_acted' | 'autopilot_paused' | 'autopilot_resumed' | 'goal_watching' | 'goal_met' | 'goal_missed' | 'goal_replan_failed' | 'guard_armed' | 'guard_arm_failed';
 
 /**
  * One row of a trail's release timeline — something the controller, autopilot or a person did to its rollout.
@@ -7044,6 +7093,38 @@ export type TrailReleaseEvent = {
      * ISO-8601 time.
      */
     createdAt: string;
+};
+
+/**
+ * Where a trail's goal stands — `none` until the trail is delivered, `watching` through the watch window, then `met` or `missed`. A new plan revision puts it back to `none`.
+ */
+export type TrailGoalState = 'none' | 'watching' | 'met' | 'missed';
+
+/**
+ * The goal loop on a trail with a goal metric and a target.
+ */
+export type TrailGoalStatus = {
+    state: TrailGoalState;
+    /**
+     * ISO-8601 time the watch window started, or `null`.
+     */
+    watchFrom: string | null;
+    /**
+     * ISO-8601 time the goal metric is read, or `null` while not watched.
+     */
+    judgeAt: string | null;
+    /**
+     * The reading the verdict rests on — the goal metric averaged over the window — or `null`.
+     */
+    value: number | null;
+    /**
+     * Re-plans shipeasy started on its own after a miss.
+     */
+    replans: number;
+    /**
+     * The cap on those (`trail-gates` `maxGoalReplans`).
+     */
+    maxReplans: number;
 };
 
 /**
@@ -7200,6 +7281,10 @@ export type TrailDetail = {
      * The release timeline, newest first (the latest 100).
      */
     releaseEvents: Array<TrailReleaseEvent>;
+    /**
+     * The goal loop, or `null` when the trail has no goal metric with a target.
+     */
+    goalStatus: TrailGoalStatus | null;
 };
 
 export type NewTrailFinding = {
@@ -7858,6 +7943,7 @@ export type SubmitTrailPlanRequest = {
     plan: string;
     release: TrailPlanRelease;
     breakdown?: TrailPlanBreakdown;
+    marketing?: TrailPlanMarketing;
     /**
      * What the plan rests on in project memory (`ops memory search`) and earlier tickets and trails, each with what it settled.
      */
@@ -7885,6 +7971,7 @@ export type UpdateTrailPlanRequest = {
     plan?: string;
     release?: TrailPlanRelease;
     breakdown?: TrailPlanBreakdown;
+    marketing?: TrailPlanMarketing;
 };
 
 /**
@@ -7955,6 +8042,154 @@ export type TrailPlanRevision = {
  */
 export type ListTrailPlanRevisionsResponse = {
     data: Array<TrailPlanRevision>;
+};
+
+/**
+ * What a timeline event is. `release` carries the release timeline's own kind (a rollout step, a breach, a pull-back, autopilot, the goal loop) in `release.kind`.
+ */
+export type TrailTimelineEventKind = 'created' | 'closed' | 'plan_approved' | 'question_asked' | 'question_answered' | 'run_started' | 'run_finished' | 'item_filed' | 'item_done' | 'item_reopened' | 'change_opened' | 'change_merged' | 'change_closed' | 'change_approved' | 'release' | 'attributed';
+
+/**
+ * One option of a decided question — the fork it offered.
+ */
+export type TrailTimelineOption = {
+    label: string;
+    description: string | null;
+    /**
+     * Whether this is the way the trail went.
+     */
+    picked: boolean;
+};
+
+/**
+ * One thing that happened on a trail. Exactly the reference fields its kind is about are set; the rest are `null`.
+ */
+export type TrailTimelineEvent = {
+    /**
+     * Stable id of the event, unique within the trail's timeline.
+     */
+    id: string;
+    /**
+     * ISO-8601 time it happened.
+     */
+    at: string;
+    kind: TrailTimelineEventKind;
+    /**
+     * Who did it — a person's email, `controller`, `autopilot`, or a coding agent's name — or `null` when unknown.
+     */
+    actor: string | null;
+    /**
+     * Whether this is a decision a person (or autopilot on a person's authority) made — an answered question, an approved plan revision, a rollout call, an approved change, a decided suspect.
+     */
+    decision: boolean;
+    /**
+     * A short note — a reason, a summary, a run's outcome, a bypass reason — or `null`.
+     */
+    detail: string | null;
+    item: {
+        id: string;
+        number: number;
+        title: string;
+        status: OpsItemStatus;
+        workKind: TrailWorkKind | null;
+        source: TrailDiscoveredSource | null;
+        /**
+         * The milestone the item is in, by name.
+         */
+        milestone: string | null;
+        /**
+         * On `item_done`, whether it was the last open item of its milestone.
+         */
+        closesMilestone: boolean;
+    } | null;
+    change: TrailChangeRef | null;
+    question: {
+        id: string;
+        header: string;
+        question: string;
+        /**
+         * Asked on the trail itself, or on one of its items (then `item` is set too).
+         */
+        on: 'trail' | 'item';
+        options: Array<TrailTimelineOption>;
+        /**
+         * A free-text answer, when one was given.
+         */
+        other: string | null;
+    } | null;
+    revision: {
+        revision: number;
+        summary: string | null;
+        strategy: TrailReleaseStrategy | null;
+        /**
+         * Items in the revision's breakdown.
+         */
+        items: number;
+    } | null;
+    run: {
+        id: string;
+        kind: TrailRunKind;
+        state: TrailRunState;
+        agent: string | null;
+        /**
+         * The agent's session, where its provider has one to open.
+         */
+        sessionUrl: string | null;
+        /**
+         * Why a failed run failed.
+         */
+        error: string | null;
+    } | null;
+    release: {
+        kind: TrailReleaseEventKind;
+        /**
+         * The flag the event is about, or `null` for the whole trail.
+         */
+        resourceKey: string | null;
+        /**
+         * The kind of entity `resourceKey` names.
+         */
+        resourceKind: TrailResourceKind | null;
+        /**
+         * The entity's id, to open its detail.
+         */
+        resourceId: string | null;
+        metric: {
+            id: string;
+            key: string;
+            threshold: number | null;
+        } | null;
+        alert: {
+            ruleId: string;
+            ruleName: string;
+            /**
+             * The alert ticket the rule raised; `null` when the rule has not fired.
+             */
+            ticket: {
+                /**
+                 * The alert ticket's id (a uuid).
+                 */
+                id: string;
+                /**
+                 * Its number, to open its detail.
+                 */
+                number: number;
+            } | null;
+        } | null;
+        fromPct: number | null;
+        toPct: number | null;
+    } | null;
+};
+
+export type TrailTimelineResponse = {
+    /**
+     * Newest first.
+     */
+    events: Array<TrailTimelineEvent>;
+    /**
+     * Pass as `before` to read the page after this one; `null` at the trailhead.
+     */
+    next: string | null;
 };
 
 /**
@@ -16399,6 +16634,10 @@ export type ListOpsMemoryData = {
          */
         item?: string;
         /**
+         * A trail — its handle (e.g. `T-12`) or full id. Its title, intent and goal become the query; its own entries and its items' are excluded.
+         */
+        trail?: string;
+        /**
          * Only entries of this kind.
          */
         kind?: OpsMemoryKind;
@@ -17759,6 +17998,67 @@ export type ListTrailPlanRevisionsResponses = {
 };
 
 export type ListTrailPlanRevisionsResponse2 = ListTrailPlanRevisionsResponses[keyof ListTrailPlanRevisionsResponses];
+
+export type GetTrailTimelineData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+    };
+    query?: {
+        /**
+         * ISO-8601 time; only events strictly before it (the `next` of the previous page).
+         */
+        before?: string;
+        /**
+         * Most events to return (1-200). Defaults to 50.
+         */
+        limit?: number;
+        /**
+         * Only the decisions.
+         */
+        decisions?: boolean;
+    };
+    url: '/api/admin/trails/{handle}/timeline';
+};
+
+export type GetTrailTimelineErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+};
+
+export type GetTrailTimelineError = GetTrailTimelineErrors[keyof GetTrailTimelineErrors];
+
+export type GetTrailTimelineResponses = {
+    /**
+     * The trail's timeline
+     */
+    200: TrailTimelineResponse;
+};
+
+export type GetTrailTimelineResponse = GetTrailTimelineResponses[keyof GetTrailTimelineResponses];
 
 export type PauseTrailRolloutData = {
     body?: PauseTrailRolloutRequest;
