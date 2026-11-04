@@ -3823,6 +3823,7 @@ _Parameters_
 _Errors_ — beyond the [common errors](#errors):
 
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `VALIDATION` — The request body failed structural (schema) validation.
 
 ### `trails_pause_autopilot`
 

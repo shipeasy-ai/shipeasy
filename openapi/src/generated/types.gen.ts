@@ -17513,6 +17513,10 @@ export type ListTrailsErrors = {
      * The key is valid but not allowed to perform this action.
      */
     403: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
 };
 
 export type ListTrailsError = ListTrailsErrors[keyof ListTrailsErrors];
