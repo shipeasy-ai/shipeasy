@@ -2744,6 +2744,8 @@ _Parameters_
 | `plan.blocking` | required | `boolean` | Whether a failing gate blocks the merge. Ignored while `requirePlan` is off, when the gate only reports. _(default `true`)_ |
 | `requirePlan` | optional | `boolean` | Whether starting an agent on a trail with no approved plan fires a read-only plan run first. The plan run asks the person how the trail should ship and anything else that is open, and the build run follows the plan they approve. Off, starting an agent builds directly and creates no flag, kill switch or experiment on its own. _(default `true`)_ |
 | `fixRounds` | optional | `integer` | How many times the server re-fires the coding agent with a fix prompt after a change's evals or findings fail. After the cap the trail reads `reviewing`, needs a person. `0` turns the loop off. _(default `3`; 0–10)_ |
+| `goalWindowDays` | optional | `integer` | How many days a delivered trail is watched before its goal metric is judged. A trail is delivered when its plan is approved, every code and tracking item is done and every flag it ships behind is fully rolled out (or, with none, something merged). _(default `7`; 1–90)_ |
+| `maxGoalReplans` | optional | `integer` | How many times shipeasy re-plans a trail on its own after its goal was missed. Each re-plan proposes new options that differ from what was tried. Past the cap the trail is off track and the owner decides; `0` never re-plans automatically. _(default `3`; 0–10)_ |
 | `maxParallelRuns` | optional | `integer` | How many item runs a trail's build keeps working at once. A build launches an item run for each open item of the current milestone, up to this many; the rest wait for a slot. _(default `3`; 1–10)_ |
 | `attributionWindowHours` | optional | `integer` | How long after a trail merged an error or alert ticket may be attributed to it. Trails merged inside the window are offered to the investigating agent as candidates. _(default `72`; 1–720)_ |
 | `rollout` | optional | `object` | How the flag a trail ships behind is ramped after merge — the release controller's plan (see the design doc, the release controller). Part of the plan's release block; the project's defaults live in `trail-gates` `rollout`. The controller runs on the alerts cron, so a hold shorter than the cron interval rounds up to the next tick. |
@@ -3200,7 +3202,8 @@ _Parameters_
 | `q` | optional | `string` | Free-text query, e.g. `checkout retry`. _(length 1–500)_ |
 | `paths` | optional | `string` | Comma-separated repo-relative files or directories, e.g. `apps/web/src/checkout/,packages/billing/src/retry.ts`. _(length 1–2000)_ |
 | `item` | optional | `string` | A queue item — its per-project number (e.g. `7`) or full id. Its title and description become the query; its own entries are excluded. _(length 1–128)_ |
-| `kind` | optional | `"shipped" \| "declined" \| "decision" \| "qa"` | What a project-memory entry records. `shipped` — an item that reached `ready_for_qa`/`resolved`: what was asked, what the run found, the files it touched, the PR. `declined` — an item closed `wont_fix`: the request and why it was turned down. `decision` — an answered structured question: what the team picked. `qa` — a QA note or an answered QA question: what "fixed" turned out to mean, or what QA found failing. |
+| `trail` | optional | `string` | A trail — its handle (e.g. `T-12`) or full id. Its title, intent and goal become the query; its own entries and its items' are excluded. _(length 1–128)_ |
+| `kind` | optional | `"shipped" \| "declined" \| "decision" \| "qa" \| "outcome"` | What a project-memory entry records. `shipped` — an item that reached `ready_for_qa`/`resolved`: what was asked, what the run found, the files it touched, the PR. `declined` — an item closed `wont_fix`: the request and why it was turned down. `decision` — an answered structured question: what the team picked. `qa` — a QA note or an answered QA question: what "fixed" turned out to mean, or what QA found failing. `outcome` — what a trail's plan achieved against its goal metric: what was tried, the reading, met or missed. A trail's own `decision` entries are its answered questions and its approved plan revisions. |
 | `limit` | optional | `integer` | Maximum entries to return (1-50). Defaults to 10. _(1–50)_ |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -4080,6 +4083,9 @@ _Parameters_
 | `breakdown` | optional | `object` | The milestones and items a plan breaks the trail into. Nothing is filed while the plan is a draft; approving creates the milestones and files the items. `workKind` defaults to `code`. |
 | `breakdown.milestones` | required | `object[]` | The milestones, in order. |
 | `breakdown.items` | required | `object[]` | The items, each in at most one milestone. |
+| `marketing` | optional | `object` | The plan's marketing strategy — tracked, never executed. Every channel is also a breakdown item of the same title with `workKind` `marketing`, so it has an owner, a status and a place on the timeline. |
+| `marketing.summary` | required | `string` | Positioning and audience in a paragraph — who it is for and what it says. _(length 0–2000)_ |
+| `marketing.channels` | required | `object[]` | — |
 | `sources` | optional | `object[]` | What the plan rests on in project memory (`ops memory search`) and earlier tickets and trails, each with what it settled. |
 | `summary` | optional | `string` | For a replan, what changed since the last approved revision. Recorded on the revision. _(length 0–500)_ |
 
@@ -4089,6 +4095,32 @@ _Errors_ — beyond the [common errors](#errors):
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 - `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
 - `VALIDATION` — The request body failed structural (schema) validation.
+
+### `trails_timeline`
+
+**Read a trail's timeline**
+
+Everything that happened on the trail, newest first: created, plans approved, questions asked and answered (on the trail and on its items), runs, items filed and done, pull requests opened, approved and merged, every rollout step, pull-back and autopilot action, the goal watched and met or missed, errors attributed. Each event says whether it was a **decision** — a choice a person (or autopilot on a person's authority) made — and a decided question carries every option it offered and which one was picked.
+
+Pass `decisions=true` for the decisions only. Page with `before` (the `next` of the previous page).
+
+Safe for the restricted ops key.
+
+**Use case:** Before re-planning, an agent reads what was tried and decided on the trail so the next revision does not repeat it.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `before` | optional | `string` | ISO-8601 time; only events strictly before it (the `next` of the previous page). _(length 1–40)_ |
+| `limit` | optional | `integer` | Most events to return (1-200). Defaults to 50. _(1–200)_ |
+| `decisions` | optional | `boolean` | Only the decisions. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 
 ### `trails_unlink_pr`
 
@@ -4213,6 +4245,9 @@ _Parameters_
 | `breakdown` | optional | `object` | The milestones and items a plan breaks the trail into. Nothing is filed while the plan is a draft; approving creates the milestones and files the items. `workKind` defaults to `code`. |
 | `breakdown.milestones` | required | `object[]` | The milestones, in order. |
 | `breakdown.items` | required | `object[]` | The items, each in at most one milestone. |
+| `marketing` | optional | `object` | The plan's marketing strategy — tracked, never executed. Every channel is also a breakdown item of the same title with `workKind` `marketing`, so it has an owner, a status and a place on the timeline. |
+| `marketing.summary` | required | `string` | Positioning and audience in a paragraph — who it is for and what it says. _(length 0–2000)_ |
+| `marketing.channels` | required | `object[]` | — |
 
 _Errors_ — beyond the [common errors](#errors):
 

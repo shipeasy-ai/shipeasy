@@ -9312,6 +9312,78 @@ paths:
         name: timeline
         positional:
           - handle
+  /api/admin/trails/{handle}/release-facts:
+    get:
+      operationId: getTrailReleaseFacts
+      summary: Read a trail's release facts
+      description: |-
+        What the numbers say about how the trail can ship, before anyone picks an approach: the traffic reaching the surface (distinct units a day over the last 28 days), its tier, whether a 50/50 experiment would reach significance within 28 days at the lift the goal asks for (or 5%), what 28 days could detect, and a rollout sized to the traffic — a team stage, then steps coarse where 1% would be a handful of people, holds long enough for a step to see its minimum exposure.
+
+        The traffic is read from `proxy` when given (`metric:<key>`, `event:<name>` or `flag:<key>`), else the trail's goal metric, else a flag already on the trail. With nothing to read the tier is `none` — pass an event on the surface the trail changes.
+
+        The plan run reads these before it asks how to ship, and `submit-plan` checks the plan against them. Read-only. Safe for the restricted ops key.
+
+        **Use case:** A plan run on "redesign the onboarding checklist" passes `proxy=event:onboarding_viewed`, learns it is 120 users a day and that an experiment would need 90 days, and recommends a flag with guards instead.
+      tags:
+        - Trails
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/TrailHandle'
+        - name: proxy
+          in: query
+          required: false
+          description: What to read the traffic from — `metric:<key>`, `event:<name>` or `flag:<key>`.
+          schema:
+            type: string
+            pattern: ^(metric|event|flag):.+$
+            maxLength: 220
+      responses:
+        '200':
+          description: The trail's release facts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrailReleaseFacts'
+              example:
+                proxy:
+                  kind: event
+                  key: onboarding_viewed
+                tier: low
+                unitsPerDay: 120
+                experiment:
+                  verdict: underpowered
+                  lift: 0.05
+                  samplePerArm: 9800
+                  daysToSignificance: 164
+                  mdeAtMaxDays: 0.12
+                  maxDays: 28
+                rollout:
+                  internal:
+                    holdMinutes: 1440
+                  steps:
+                    - 50
+                    - 100
+                  holdMinutes: 1440
+                  minExposure: 50
+                notes:
+                  - 'Traffic: ~120 units a day (low, from event `onboarding_viewed` over 28 days)'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+      x-cli:
+        name: release-facts
+        positional:
+          - handle
   /api/admin/trails/{handle}/rollout/pause:
     post:
       operationId: pauseTrailRollout
@@ -23160,6 +23232,20 @@ components:
           type: integer
           minimum: 0
           description: Evaluations a step must have served before it counts as healthy, so a quiet hour never passes as a green one. `0` = no floor.
+        internal:
+          anyOf:
+            - type: object
+              properties:
+                holdMinutes:
+                  type: integer
+                  minimum: 0
+                  maximum: 10080
+                  description: Minutes the team stage holds healthy before the first public step.
+              required:
+                - holdMinutes
+              additionalProperties: false
+            - type: 'null'
+          description: The team stage before any public percent — the project's members are allowlisted on the flag (by email) and the step holds like any other. `null` or absent = no team stage.
         guards:
           type: object
           description: What is watched while a step holds. The trail's `guards` alert-rule resources are watched too.
@@ -23577,6 +23663,108 @@ components:
         - kind
         - key
       additionalProperties: false
+    TrailBucketUnit:
+      type: string
+      enum:
+        - user
+        - org
+        - device
+      description: What a flag hashes on — `user`, `org` (a B2B feature never shows half a team the new behaviour) or `device` (logged-out surfaces).
+    TrailPlanFlag:
+      type: object
+      description: One flag's rollout shape.
+      properties:
+        key:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: The `gate` resource's key.
+        bucketBy:
+          $ref: '#/components/schemas/TrailBucketUnit'
+        internalFirst:
+          type: boolean
+          description: Whether the project's members get it before any public percent (the team stage). On by default.
+        internalSkipReason:
+          anyOf:
+            - type: string
+              maxLength: 500
+            - type: 'null'
+          description: Why the team stage is skipped — required when `internalFirst` is false.
+        cleanup:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: The title of the breakdown item (`workKind` `code`) that removes the flag and its dead branch once it is at 100%.
+      required:
+        - key
+        - bucketBy
+        - internalFirst
+        - cleanup
+      additionalProperties: false
+    TrailRiskClass:
+      type: string
+      enum:
+        - load
+        - data
+        - auth
+        - third_party
+        - cost
+        - client_compat
+        - ux
+        - security
+        - other
+      description: The failure class a risk belongs to — the checklist the plan run walks.
+    TrailRiskImpact:
+      type: string
+      enum:
+        - low
+        - medium
+        - high
+      description: How bad it is if it happens.
+    TrailRollback:
+      type: string
+      enum:
+        - flag
+        - killswitch
+        - revert
+        - forward_fix
+        - migration_down
+      description: How the risk is undone once it happens. The plan must carry the tool it names.
+    TrailPlanRisk:
+      type: object
+      description: One thing that could go wrong.
+      properties:
+        risk:
+          type: string
+          minLength: 1
+          maxLength: 300
+          description: What could go wrong, in a line.
+        class:
+          $ref: '#/components/schemas/TrailRiskClass'
+        impact:
+          $ref: '#/components/schemas/TrailRiskImpact'
+        detect:
+          anyOf:
+            - type: string
+              pattern: ^(alert_rule|metric|experiment):.+$
+              maxLength: 220
+            - type: 'null'
+          description: The guard that would catch it, as `kind:key` (`alert_rule:…`, `metric:…`, `experiment:…`), listed in the plan or already existing. Required for a `high` risk.
+        rollback:
+          $ref: '#/components/schemas/TrailRollback'
+        mitigation:
+          anyOf:
+            - type: string
+              maxLength: 500
+            - type: 'null'
+          description: What the plan does to make it less likely, or `null`.
+      required:
+        - risk
+        - class
+        - impact
+        - detect
+        - rollback
+      additionalProperties: false
     TrailPlanRelease:
       type: object
       description: How the trail ships. The person answers this while the plan is made; the build run creates exactly the resources listed (none for `straight_to_main`), and the Plan gate checks they exist.
@@ -23595,6 +23783,18 @@ components:
           description: The flags, kill switches, experiments and tracking (events, metrics, alert rules) to create. No release tool for `straight_to_main`; the strategy fixes which release kinds must be present (a flag for `flag`, a flag and an experiment for `flag_experiment`, and so on). A trail may ship behind several flags; each `ships_behind` flag gets its own rollout, its resource's `rollout` or else this block's.
         rollout:
           $ref: '#/components/schemas/TrailRollout'
+        flags:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/TrailPlanFlag'
+          description: How each `gate` in `resources` is rolled out beyond its ramp — what it buckets on, the team stage, the item that removes it. One entry per gate.
+        risks:
+          type: array
+          maxItems: 30
+          items:
+            $ref: '#/components/schemas/TrailPlanRisk'
+          description: What could go wrong, how it would be seen and how it is undone. Required once the plan ships behind a release tool or has more than two items.
       required:
         - strategy
         - reason
@@ -23658,6 +23858,17 @@ components:
           description: Who works the item — an agent handle (`claude`, `cursor`, `copilot`, `jules`, `muse`, `grok`) or a person's email. `null`, the project's coding agent.
         workKind:
           $ref: '#/components/schemas/TrailWorkKind'
+        creates:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            pattern: ^(event|metric|alert_rule):.+$
+            maxLength: 220
+          description: On a `tracking` item, the tracking resources it creates, as `kind:key`. Every event, metric and alert rule the release lists that does not exist yet must be created by one.
+        shipsDark:
+          type: boolean
+          description: Work that cannot sit behind a flag — a schema migration, an API contract change, a backfill. It lands first, backward compatible.
       required:
         - title
         - type
@@ -23763,6 +23974,138 @@ components:
         - ref
         - note
       additionalProperties: false
+    TrailReleaseFacts:
+      type: object
+      description: What the traffic reaching a trail's surface says about how it can ship — a traffic tier, whether an experiment could reach a result in time, and a ramp sized to it.
+      properties:
+        proxy:
+          anyOf:
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - metric
+                    - event
+                    - flag
+                key:
+                  type: string
+              required:
+                - kind
+                - key
+              additionalProperties: false
+            - type: 'null'
+          description: What the traffic was read from — the goal metric, an event on the surface, or a flag already on it. `null` when there was nothing to read.
+        tier:
+          type: string
+          enum:
+            - none
+            - low
+            - medium
+            - high
+          description: How much traffic reaches the surface — `none` (nothing measured), `low` (under 500 units a day), `medium` (under 20 000), `high`.
+        unitsPerDay:
+          anyOf:
+            - type: number
+            - type: 'null'
+          description: Distinct units the proxy saw over the window, divided by its days — the rate an experiment collects units at.
+        experiment:
+          type: object
+          properties:
+            verdict:
+              type: string
+              enum:
+                - viable
+                - underpowered
+                - no_data
+              description: Whether a 50/50 experiment on all the traffic reaches significance within `maxDays`.
+            lift:
+              type: number
+              description: The relative lift sized for (the goal's target over its baseline, or 5%).
+            samplePerArm:
+              anyOf:
+                - type: integer
+                - type: 'null'
+            daysToSignificance:
+              anyOf:
+                - type: integer
+                - type: 'null'
+            mdeAtMaxDays:
+              anyOf:
+                - type: number
+                - type: 'null'
+              description: The smallest relative lift `maxDays` of traffic could detect.
+            maxDays:
+              type: integer
+          required:
+            - verdict
+            - lift
+            - samplePerArm
+            - daysToSignificance
+            - mdeAtMaxDays
+            - maxDays
+          additionalProperties: false
+        rollout:
+          type: object
+          description: The ramp the traffic supports — a team stage, then steps coarse where 1% is a handful of people.
+          properties:
+            internal:
+              type: object
+              properties:
+                holdMinutes:
+                  type: integer
+              required:
+                - holdMinutes
+              additionalProperties: false
+            steps:
+              type: array
+              items:
+                type: number
+            holdMinutes:
+              type: integer
+            minExposure:
+              type: integer
+          required:
+            - internal
+            - steps
+            - holdMinutes
+            - minExposure
+          additionalProperties: false
+        notes:
+          type: array
+          items:
+            type: string
+          description: One line per conclusion, as the plan run and the approval panel read them.
+      required:
+        - proxy
+        - tier
+        - unitsPerDay
+        - experiment
+        - rollout
+        - notes
+      additionalProperties: false
+    TrailPlanChecks:
+      type: object
+      description: The plan checked against the numbers. Problems reject the submit; warnings are kept here for the person who approves it, who has the final say. On an autopilot trail any warning pauses autopilot.
+      properties:
+        warnings:
+          type: array
+          items:
+            type: string
+          description: What the approver should know — an experiment the traffic cannot power, a first step too thin to prove anything, an operational risk with no kill switch.
+        facts:
+          anyOf:
+            - $ref: '#/components/schemas/TrailReleaseFacts'
+            - type: 'null'
+          description: The release facts the plan was checked against, or `null` when they could not be read.
+        checkedAt:
+          type: string
+          description: ISO-8601 time the plan was checked.
+      required:
+        - warnings
+        - facts
+        - checkedAt
+      additionalProperties: false
     TrailPlan:
       type: object
       description: A trail's plan — what the build run follows. Made by a read-only plan run that asks the person how to ship, then approved by a person.
@@ -23822,6 +24165,11 @@ components:
           type: integer
           minimum: 0
           description: Questions the plan run asked that still wait for an answer. Read them with `ops questions list <handle>`.
+        checks:
+          anyOf:
+            - $ref: '#/components/schemas/TrailPlanChecks'
+            - type: 'null'
+          description: What the server found when the plan was submitted — the release facts it was checked against and the warnings for the approver. `null` for a plan submitted before the checks existed.
       required:
         - status
         - plan
@@ -23835,6 +24183,7 @@ components:
         - requirePlan
         - nextRun
         - openQuestions
+        - checks
       additionalProperties: false
     TrailResourceRef:
       type: object
@@ -23858,7 +24207,8 @@ components:
         - paused
         - fixing
         - completed
-      description: Where a trail's rollout is — `idle` (the controller has not taken it over), `running` (stepping the flag along the plan), `paused` (a person paused it, or it stepped aside or handed off), `fixing` (pulled back; waiting for the fix to merge) or `completed`.
+        - waiting_tracking
+      description: Where a trail's rollout is — `idle` (the controller has not taken it over), `waiting_tracking` (released, but the guard and goal metrics have no data yet, so nothing is ramped), `running` (stepping the flag along the plan), `paused` (a person paused it, or it stepped aside or handed off), `fixing` (pulled back; waiting for the fix to merge) or `completed`.
     TrailRolloutPending:
       type: object
       description: A question the controller asked the owner and is waiting on. Answer it with `ops questions answer`.
@@ -23869,7 +24219,8 @@ components:
             - breach
             - advance
             - resume
-          description: What it asks — what to do about a breach, whether to advance a healthy step, or how to resume after the fix.
+            - tracking
+          description: What it asks — what to do about a breach, whether to advance a healthy step, how to resume after the fix, or whether to start without tracking data.
         questionId:
           type: string
           description: The structured question's id.
@@ -23997,7 +24348,10 @@ components:
         - goal_replan_failed
         - guard_armed
         - guard_arm_failed
-      description: What happened on the release timeline. `guard_armed` is an alert rule shipeasy set up (or picked up) to watch a guarded metric before the ramp began, `guard_arm_failed` one it could not set up. `goal_*` is the goal loop — the trail was delivered and its goal metric is being watched, then the reading met or missed the target; `goal_replan_failed` is a re-plan after a miss that did not start (it is retried, then handed to the owner). The `autopilot_*` kinds are autopilot's own — turned on or off, an answer, an approval or a merge it made (`autopilot_acted`, the reason says which), a pause at a limit, a resume.
+        - waiting_tracking
+        - tracking_live
+        - team_stage
+      description: What happened on the release timeline. `waiting_tracking` is a release held because its guard or goal metrics had no data, `tracking_live` the data arriving (or the owner starting without it), `team_stage` the project's members allowlisted before the first public step. `guard_armed` is an alert rule shipeasy set up (or picked up) to watch a guarded metric before the ramp began, `guard_arm_failed` one it could not set up. `goal_*` is the goal loop — the trail was delivered and its goal metric is being watched, then the reading met or missed the target; `goal_replan_failed` is a re-plan after a miss that did not start (it is retried, then handed to the owner). The `autopilot_*` kinds are autopilot's own — turned on or off, an answer, an approval or a merge it made (`autopilot_acted`, the reason says which), a pause at a limit, a resume.
     TrailReleaseEvent:
       type: object
       description: One row of a trail's release timeline — something the controller, autopilot or a person did to its rollout.

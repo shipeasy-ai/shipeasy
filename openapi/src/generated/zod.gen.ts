@@ -3632,6 +3632,9 @@ export const zTrailRollout = z.object({
     steps: z.array(z.number().gt(0).lte(100)).min(1).max(10),
     holdMinutes: z.int().gte(0).lte(10080),
     minExposure: z.int().gte(0),
+    internal: z.object({
+        holdMinutes: z.int().gte(0).lte(10080)
+    }).nullish(),
     guards: z.object({
         alertRuleIds: z.array(z.string().min(1).max(100)).max(20),
         experimentGuardrails: z.boolean(),
@@ -3774,13 +3777,82 @@ export const zTrailPlanResource = z.object({
 });
 
 /**
+ * What a flag hashes on — `user`, `org` (a B2B feature never shows half a team the new behaviour) or `device` (logged-out surfaces).
+ */
+export const zTrailBucketUnit = z.enum([
+    'user',
+    'org',
+    'device'
+]);
+
+/**
+ * One flag's rollout shape.
+ */
+export const zTrailPlanFlag = z.object({
+    key: z.string().min(1).max(200),
+    bucketBy: zTrailBucketUnit,
+    internalFirst: z.boolean(),
+    internalSkipReason: z.string().max(500).nullish(),
+    cleanup: z.string().min(1).max(200)
+});
+
+/**
+ * The failure class a risk belongs to — the checklist the plan run walks.
+ */
+export const zTrailRiskClass = z.enum([
+    'load',
+    'data',
+    'auth',
+    'third_party',
+    'cost',
+    'client_compat',
+    'ux',
+    'security',
+    'other'
+]);
+
+/**
+ * How bad it is if it happens.
+ */
+export const zTrailRiskImpact = z.enum([
+    'low',
+    'medium',
+    'high'
+]);
+
+/**
+ * How the risk is undone once it happens. The plan must carry the tool it names.
+ */
+export const zTrailRollback = z.enum([
+    'flag',
+    'killswitch',
+    'revert',
+    'forward_fix',
+    'migration_down'
+]);
+
+/**
+ * One thing that could go wrong.
+ */
+export const zTrailPlanRisk = z.object({
+    risk: z.string().min(1).max(300),
+    class: zTrailRiskClass,
+    impact: zTrailRiskImpact,
+    detect: z.string().max(220).regex(/^(alert_rule|metric|experiment):.+$/).nullable(),
+    rollback: zTrailRollback,
+    mitigation: z.string().max(500).nullish()
+});
+
+/**
  * How the trail ships. The person answers this while the plan is made; the build run creates exactly the resources listed (none for `straight_to_main`), and the Plan gate checks they exist.
  */
 export const zTrailPlanRelease = z.object({
     strategy: zTrailReleaseStrategy,
     reason: z.string().max(2000),
     resources: z.array(zTrailPlanResource).max(20),
-    rollout: zTrailRollout.optional()
+    rollout: zTrailRollout.optional(),
+    flags: z.array(zTrailPlanFlag).max(20).optional(),
+    risks: z.array(zTrailPlanRisk).max(30).optional()
 });
 
 /**
@@ -3801,7 +3873,9 @@ export const zTrailPlanItem = z.object({
     body: z.string().max(8000).optional(),
     milestone: z.string().min(1).max(120).nullish(),
     assignee: z.string().min(1).max(200).nullish(),
-    workKind: zTrailWorkKind.optional()
+    workKind: zTrailWorkKind.optional(),
+    creates: z.array(z.string().max(220).regex(/^(event|metric|alert_rule):.+$/)).max(20).optional(),
+    shipsDark: z.boolean().optional()
 });
 
 /**
@@ -3855,6 +3929,57 @@ export const zTrailPlanSource = z.object({
 });
 
 /**
+ * What the traffic reaching a trail's surface says about how it can ship — a traffic tier, whether an experiment could reach a result in time, and a ramp sized to it.
+ */
+export const zTrailReleaseFacts = z.object({
+    proxy: z.object({
+        kind: z.enum([
+            'metric',
+            'event',
+            'flag'
+        ]),
+        key: z.string()
+    }).nullable(),
+    tier: z.enum([
+        'none',
+        'low',
+        'medium',
+        'high'
+    ]),
+    unitsPerDay: z.number().nullable(),
+    experiment: z.object({
+        verdict: z.enum([
+            'viable',
+            'underpowered',
+            'no_data'
+        ]),
+        lift: z.number(),
+        samplePerArm: z.int().nullable(),
+        daysToSignificance: z.int().nullable(),
+        mdeAtMaxDays: z.number().nullable(),
+        maxDays: z.int()
+    }),
+    rollout: z.object({
+        internal: z.object({
+            holdMinutes: z.int()
+        }),
+        steps: z.array(z.number()),
+        holdMinutes: z.int(),
+        minExposure: z.int()
+    }),
+    notes: z.array(z.string())
+});
+
+/**
+ * The plan checked against the numbers. Problems reject the submit; warnings are kept here for the person who approves it, who has the final say. On an autopilot trail any warning pauses autopilot.
+ */
+export const zTrailPlanChecks = z.object({
+    warnings: z.array(z.string()),
+    facts: zTrailReleaseFacts.nullable(),
+    checkedAt: z.string()
+});
+
+/**
  * A trail's plan — what the build run follows. Made by a read-only plan run that asks the person how to ship, then approved by a person.
  */
 export const zTrailPlan = z.object({
@@ -3869,7 +3994,8 @@ export const zTrailPlan = z.object({
     approvedAt: z.string().nullable(),
     requirePlan: z.boolean(),
     nextRun: z.enum(['plan', 'build']),
-    openQuestions: z.int().gte(0)
+    openQuestions: z.int().gte(0),
+    checks: zTrailPlanChecks.nullable()
 });
 
 /**
@@ -3881,14 +4007,15 @@ export const zTrailResourceRef = z.object({
 });
 
 /**
- * Where a trail's rollout is — `idle` (the controller has not taken it over), `running` (stepping the flag along the plan), `paused` (a person paused it, or it stepped aside or handed off), `fixing` (pulled back; waiting for the fix to merge) or `completed`.
+ * Where a trail's rollout is — `idle` (the controller has not taken it over), `waiting_tracking` (released, but the guard and goal metrics have no data yet, so nothing is ramped), `running` (stepping the flag along the plan), `paused` (a person paused it, or it stepped aside or handed off), `fixing` (pulled back; waiting for the fix to merge) or `completed`.
  */
 export const zTrailRolloutState = z.enum([
     'idle',
     'running',
     'paused',
     'fixing',
-    'completed'
+    'completed',
+    'waiting_tracking'
 ]);
 
 /**
@@ -3898,7 +4025,8 @@ export const zTrailRolloutPending = z.object({
     kind: z.enum([
         'breach',
         'advance',
-        'resume'
+        'resume',
+        'tracking'
     ]),
     questionId: z.string(),
     askedAt: z.string()
@@ -3940,7 +4068,7 @@ export const zTrailAutopilot = z.object({
 });
 
 /**
- * What happened on the release timeline. `guard_armed` is an alert rule shipeasy set up (or picked up) to watch a guarded metric before the ramp began, `guard_arm_failed` one it could not set up. `goal_*` is the goal loop — the trail was delivered and its goal metric is being watched, then the reading met or missed the target; `goal_replan_failed` is a re-plan after a miss that did not start (it is retried, then handed to the owner). The `autopilot_*` kinds are autopilot's own — turned on or off, an answer, an approval or a merge it made (`autopilot_acted`, the reason says which), a pause at a limit, a resume.
+ * What happened on the release timeline. `waiting_tracking` is a release held because its guard or goal metrics had no data, `tracking_live` the data arriving (or the owner starting without it), `team_stage` the project's members allowlisted before the first public step. `guard_armed` is an alert rule shipeasy set up (or picked up) to watch a guarded metric before the ramp began, `guard_arm_failed` one it could not set up. `goal_*` is the goal loop — the trail was delivered and its goal metric is being watched, then the reading met or missed the target; `goal_replan_failed` is a re-plan after a miss that did not start (it is retried, then handed to the owner). The `autopilot_*` kinds are autopilot's own — turned on or off, an answer, an approval or a merge it made (`autopilot_acted`, the reason says which), a pause at a limit, a resume.
  */
 export const zTrailReleaseEventKind = z.enum([
     'started',
@@ -3965,7 +4093,10 @@ export const zTrailReleaseEventKind = z.enum([
     'goal_missed',
     'goal_replan_failed',
     'guard_armed',
-    'guard_arm_failed'
+    'guard_arm_failed',
+    'waiting_tracking',
+    'tracking_live',
+    'team_stage'
 ]);
 
 /**
@@ -7880,6 +8011,23 @@ export const zGetTrailTimelineQuery = z.object({
  * The trail's timeline
  */
 export const zGetTrailTimelineResponse = zTrailTimelineResponse;
+
+export const zGetTrailReleaseFactsHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zGetTrailReleaseFactsPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/)
+});
+
+export const zGetTrailReleaseFactsQuery = z.object({
+    proxy: z.string().max(220).regex(/^(metric|event|flag):.+$/).optional()
+});
+
+/**
+ * The trail's release facts
+ */
+export const zGetTrailReleaseFactsResponse = zTrailReleaseFacts;
 
 export const zPauseTrailRolloutBody = zPauseTrailRolloutRequest;
 

@@ -916,6 +916,76 @@
       name: timeline
       positional:
         - handle
+/api/admin/trails/{handle}/release-facts:
+  get:
+    operationId: getTrailReleaseFacts
+    summary: Read a trail's release facts
+    description: |-
+      What the numbers say about how the trail can ship, before anyone picks an approach: the traffic reaching the surface (distinct units a day over the last 28 days), its tier, whether a 50/50 experiment would reach significance within 28 days at the lift the goal asks for (or 5%), what 28 days could detect, and a rollout sized to the traffic — a team stage, then steps coarse where 1% would be a handful of people, holds long enough for a step to see its minimum exposure.
+
+      The traffic is read from `proxy` when given (`metric:<key>`, `event:<name>` or `flag:<key>`), else the trail's goal metric, else a flag already on the trail. With nothing to read the tier is `none` — pass an event on the surface the trail changes.
+
+      The plan run reads these before it asks how to ship, and `submit-plan` checks the plan against them. Read-only. Safe for the restricted ops key.
+
+      **Use case:** A plan run on "redesign the onboarding checklist" passes `proxy=event:onboarding_viewed`, learns it is 120 users a day and that an experiment would need 90 days, and recommends a flag with guards instead.
+    tags:
+      - Trails
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - $ref: ../components/parameters.yaml#/TrailHandle
+      - name: proxy
+        in: query
+        required: false
+        description: What to read the traffic from — `metric:<key>`, `event:<name>` or `flag:<key>`.
+        schema:
+          type: string
+          pattern: "^(metric|event|flag):.+$"
+          maxLength: 220
+    responses:
+      "200":
+        description: The trail's release facts
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/TrailReleaseFacts
+            example:
+              proxy:
+                kind: event
+                key: onboarding_viewed
+              tier: low
+              unitsPerDay: 120
+              experiment:
+                verdict: underpowered
+                lift: 0.05
+                samplePerArm: 9800
+                daysToSignificance: 164
+                mdeAtMaxDays: 0.12
+                maxDays: 28
+              rollout:
+                internal:
+                  holdMinutes: 1440
+                steps: [50, 100]
+                holdMinutes: 1440
+                minExposure: 50
+              notes:
+                - "Traffic: ~120 units a day (low, from event `onboarding_viewed` over 28 days)"
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: release-facts
+      positional:
+        - handle
 /api/admin/trails/{handle}/rollout/pause:
   post:
     operationId: pauseTrailRollout

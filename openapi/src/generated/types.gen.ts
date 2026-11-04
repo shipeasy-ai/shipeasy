@@ -6517,6 +6517,15 @@ export type TrailRollout = {
      */
     minExposure: number;
     /**
+     * The team stage before any public percent — the project's members are allowlisted on the flag (by email) and the step holds like any other. `null` or absent = no team stage.
+     */
+    internal?: {
+        /**
+         * Minutes the team stage holds healthy before the first public step.
+         */
+        holdMinutes: number;
+    } | null;
+    /**
      * What is watched while a step holds. The trail's `guards` alert-rule resources are watched too.
      */
     guards: {
@@ -6777,6 +6786,70 @@ export type TrailPlanResource = {
 };
 
 /**
+ * What a flag hashes on — `user`, `org` (a B2B feature never shows half a team the new behaviour) or `device` (logged-out surfaces).
+ */
+export type TrailBucketUnit = 'user' | 'org' | 'device';
+
+/**
+ * One flag's rollout shape.
+ */
+export type TrailPlanFlag = {
+    /**
+     * The `gate` resource's key.
+     */
+    key: string;
+    bucketBy: TrailBucketUnit;
+    /**
+     * Whether the project's members get it before any public percent (the team stage). On by default.
+     */
+    internalFirst: boolean;
+    /**
+     * Why the team stage is skipped — required when `internalFirst` is false.
+     */
+    internalSkipReason?: string | null;
+    /**
+     * The title of the breakdown item (`workKind` `code`) that removes the flag and its dead branch once it is at 100%.
+     */
+    cleanup: string;
+};
+
+/**
+ * The failure class a risk belongs to — the checklist the plan run walks.
+ */
+export type TrailRiskClass = 'load' | 'data' | 'auth' | 'third_party' | 'cost' | 'client_compat' | 'ux' | 'security' | 'other';
+
+/**
+ * How bad it is if it happens.
+ */
+export type TrailRiskImpact = 'low' | 'medium' | 'high';
+
+/**
+ * How the risk is undone once it happens. The plan must carry the tool it names.
+ */
+export type TrailRollback = 'flag' | 'killswitch' | 'revert' | 'forward_fix' | 'migration_down';
+
+/**
+ * One thing that could go wrong.
+ */
+export type TrailPlanRisk = {
+    /**
+     * What could go wrong, in a line.
+     */
+    risk: string;
+    class: TrailRiskClass;
+    impact: TrailRiskImpact;
+    /**
+     * The guard that would catch it, as `kind:key` (`alert_rule:…`, `metric:…`, `experiment:…`), listed in the plan or already existing. Required for a `high` risk.
+     */
+    detect: string | null;
+    rollback: TrailRollback;
+    /**
+     * What the plan does to make it less likely, or `null`.
+     */
+    mitigation?: string | null;
+};
+
+/**
  * How the trail ships. The person answers this while the plan is made; the build run creates exactly the resources listed (none for `straight_to_main`), and the Plan gate checks they exist.
  */
 export type TrailPlanRelease = {
@@ -6790,6 +6863,14 @@ export type TrailPlanRelease = {
      */
     resources: Array<TrailPlanResource>;
     rollout?: TrailRollout;
+    /**
+     * How each `gate` in `resources` is rolled out beyond its ramp — what it buckets on, the team stage, the item that removes it. One entry per gate.
+     */
+    flags?: Array<TrailPlanFlag>;
+    /**
+     * What could go wrong, how it would be seen and how it is undone. Required once the plan ships behind a release tool or has more than two items.
+     */
+    risks?: Array<TrailPlanRisk>;
 };
 
 /**
@@ -6835,6 +6916,14 @@ export type TrailPlanItem = {
      */
     assignee?: string | null;
     workKind?: TrailWorkKind;
+    /**
+     * On a `tracking` item, the tracking resources it creates, as `kind:key`. Every event, metric and alert rule the release lists that does not exist yet must be created by one.
+     */
+    creates?: Array<string>;
+    /**
+     * Work that cannot sit behind a flag — a schema migration, an API contract change, a backfill. It lands first, backward compatible.
+     */
+    shipsDark?: boolean;
 };
 
 /**
@@ -6900,6 +6989,77 @@ export type TrailPlanSource = {
 };
 
 /**
+ * What the traffic reaching a trail's surface says about how it can ship — a traffic tier, whether an experiment could reach a result in time, and a ramp sized to it.
+ */
+export type TrailReleaseFacts = {
+    /**
+     * What the traffic was read from — the goal metric, an event on the surface, or a flag already on it. `null` when there was nothing to read.
+     */
+    proxy: {
+        kind: 'metric' | 'event' | 'flag';
+        key: string;
+    } | null;
+    /**
+     * How much traffic reaches the surface — `none` (nothing measured), `low` (under 500 units a day), `medium` (under 20 000), `high`.
+     */
+    tier: 'none' | 'low' | 'medium' | 'high';
+    /**
+     * Distinct units the proxy saw over the window, divided by its days — the rate an experiment collects units at.
+     */
+    unitsPerDay: number | null;
+    experiment: {
+        /**
+         * Whether a 50/50 experiment on all the traffic reaches significance within `maxDays`.
+         */
+        verdict: 'viable' | 'underpowered' | 'no_data';
+        /**
+         * The relative lift sized for (the goal's target over its baseline, or 5%).
+         */
+        lift: number;
+        samplePerArm: number | null;
+        daysToSignificance: number | null;
+        /**
+         * The smallest relative lift `maxDays` of traffic could detect.
+         */
+        mdeAtMaxDays: number | null;
+        maxDays: number;
+    };
+    /**
+     * The ramp the traffic supports — a team stage, then steps coarse where 1% is a handful of people.
+     */
+    rollout: {
+        internal: {
+            holdMinutes: number;
+        };
+        steps: Array<number>;
+        holdMinutes: number;
+        minExposure: number;
+    };
+    /**
+     * One line per conclusion, as the plan run and the approval panel read them.
+     */
+    notes: Array<string>;
+};
+
+/**
+ * The plan checked against the numbers. Problems reject the submit; warnings are kept here for the person who approves it, who has the final say. On an autopilot trail any warning pauses autopilot.
+ */
+export type TrailPlanChecks = {
+    /**
+     * What the approver should know — an experiment the traffic cannot power, a first step too thin to prove anything, an operational risk with no kill switch.
+     */
+    warnings: Array<string>;
+    /**
+     * The release facts the plan was checked against, or `null` when they could not be read.
+     */
+    facts: TrailReleaseFacts | null;
+    /**
+     * ISO-8601 time the plan was checked.
+     */
+    checkedAt: string;
+};
+
+/**
  * A trail's plan — what the build run follows. Made by a read-only plan run that asks the person how to ship, then approved by a person.
  */
 export type TrailPlan = {
@@ -6948,6 +7108,10 @@ export type TrailPlan = {
      * Questions the plan run asked that still wait for an answer. Read them with `ops questions list <handle>`.
      */
     openQuestions: number;
+    /**
+     * What the server found when the plan was submitted — the release facts it was checked against and the warnings for the approver. `null` for a plan submitted before the checks existed.
+     */
+    checks: TrailPlanChecks | null;
 };
 
 /**
@@ -6965,18 +7129,18 @@ export type TrailResourceRef = {
 };
 
 /**
- * Where a trail's rollout is — `idle` (the controller has not taken it over), `running` (stepping the flag along the plan), `paused` (a person paused it, or it stepped aside or handed off), `fixing` (pulled back; waiting for the fix to merge) or `completed`.
+ * Where a trail's rollout is — `idle` (the controller has not taken it over), `waiting_tracking` (released, but the guard and goal metrics have no data yet, so nothing is ramped), `running` (stepping the flag along the plan), `paused` (a person paused it, or it stepped aside or handed off), `fixing` (pulled back; waiting for the fix to merge) or `completed`.
  */
-export type TrailRolloutState = 'idle' | 'running' | 'paused' | 'fixing' | 'completed';
+export type TrailRolloutState = 'idle' | 'running' | 'paused' | 'fixing' | 'completed' | 'waiting_tracking';
 
 /**
  * A question the controller asked the owner and is waiting on. Answer it with `ops questions answer`.
  */
 export type TrailRolloutPending = {
     /**
-     * What it asks — what to do about a breach, whether to advance a healthy step, or how to resume after the fix.
+     * What it asks — what to do about a breach, whether to advance a healthy step, how to resume after the fix, or whether to start without tracking data.
      */
-    kind: 'breach' | 'advance' | 'resume';
+    kind: 'breach' | 'advance' | 'resume' | 'tracking';
     /**
      * The structured question's id.
      */
@@ -7052,9 +7216,9 @@ export type TrailAutopilot = {
 };
 
 /**
- * What happened on the release timeline. `guard_armed` is an alert rule shipeasy set up (or picked up) to watch a guarded metric before the ramp began, `guard_arm_failed` one it could not set up. `goal_*` is the goal loop — the trail was delivered and its goal metric is being watched, then the reading met or missed the target; `goal_replan_failed` is a re-plan after a miss that did not start (it is retried, then handed to the owner). The `autopilot_*` kinds are autopilot's own — turned on or off, an answer, an approval or a merge it made (`autopilot_acted`, the reason says which), a pause at a limit, a resume.
+ * What happened on the release timeline. `waiting_tracking` is a release held because its guard or goal metrics had no data, `tracking_live` the data arriving (or the owner starting without it), `team_stage` the project's members allowlisted before the first public step. `guard_armed` is an alert rule shipeasy set up (or picked up) to watch a guarded metric before the ramp began, `guard_arm_failed` one it could not set up. `goal_*` is the goal loop — the trail was delivered and its goal metric is being watched, then the reading met or missed the target; `goal_replan_failed` is a re-plan after a miss that did not start (it is retried, then handed to the owner). The `autopilot_*` kinds are autopilot's own — turned on or off, an answer, an approval or a merge it made (`autopilot_acted`, the reason says which), a pause at a limit, a resume.
  */
-export type TrailReleaseEventKind = 'started' | 'advanced' | 'breach' | 'pulled_back' | 'asked' | 'answered' | 'investigating' | 'fix_merged' | 'resumed' | 'restarted' | 'paused' | 'completed' | 'autopilot_on' | 'autopilot_off' | 'autopilot_acted' | 'autopilot_paused' | 'autopilot_resumed' | 'goal_watching' | 'goal_met' | 'goal_missed' | 'goal_replan_failed' | 'guard_armed' | 'guard_arm_failed';
+export type TrailReleaseEventKind = 'started' | 'advanced' | 'breach' | 'pulled_back' | 'asked' | 'answered' | 'investigating' | 'fix_merged' | 'resumed' | 'restarted' | 'paused' | 'completed' | 'autopilot_on' | 'autopilot_off' | 'autopilot_acted' | 'autopilot_paused' | 'autopilot_resumed' | 'goal_watching' | 'goal_met' | 'goal_missed' | 'goal_replan_failed' | 'guard_armed' | 'guard_arm_failed' | 'waiting_tracking' | 'tracking_live' | 'team_stage';
 
 /**
  * One row of a trail's release timeline — something the controller, autopilot or a person did to its rollout.
@@ -18059,6 +18223,59 @@ export type GetTrailTimelineResponses = {
 };
 
 export type GetTrailTimelineResponse = GetTrailTimelineResponses[keyof GetTrailTimelineResponses];
+
+export type GetTrailReleaseFactsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+    };
+    query?: {
+        /**
+         * What to read the traffic from — `metric:<key>`, `event:<name>` or `flag:<key>`.
+         */
+        proxy?: string;
+    };
+    url: '/api/admin/trails/{handle}/release-facts';
+};
+
+export type GetTrailReleaseFactsErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+};
+
+export type GetTrailReleaseFactsError = GetTrailReleaseFactsErrors[keyof GetTrailReleaseFactsErrors];
+
+export type GetTrailReleaseFactsResponses = {
+    /**
+     * The trail's release facts
+     */
+    200: TrailReleaseFacts;
+};
+
+export type GetTrailReleaseFactsResponse = GetTrailReleaseFactsResponses[keyof GetTrailReleaseFactsResponses];
 
 export type PauseTrailRolloutData = {
     body?: PauseTrailRolloutRequest;

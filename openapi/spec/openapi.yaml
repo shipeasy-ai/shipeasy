@@ -592,6 +592,8 @@ paths:
     $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1plan~1revisions
   /api/admin/trails/{handle}/timeline:
     $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1timeline
+  /api/admin/trails/{handle}/release-facts:
+    $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1release-facts
   /api/admin/trails/{handle}/rollout/pause:
     $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1rollout~1pause
   /api/admin/trails/{handle}/rollout/resume:
