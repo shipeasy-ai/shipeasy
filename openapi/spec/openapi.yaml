@@ -583,6 +583,10 @@ paths:
     $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1rollout~1pause
   /api/admin/trails/{handle}/rollout/resume:
     $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1rollout~1resume
+  /api/admin/trails/{handle}/autopilot/pause:
+    $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1autopilot~1pause
+  /api/admin/trails/{handle}/autopilot/resume:
+    $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1autopilot~1resume
   /api/admin/trails/{handle}/review:
     $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1review
   /api/admin/trails/{handle}/evals:

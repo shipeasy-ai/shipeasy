@@ -215,6 +215,18 @@ describe("trails tool surface", () => {
     expect(pause.inputSchema.required).toEqual(expect.arrayContaining(["handle"]));
   });
 
+  it("lets an agent pause autopilot over MCP, but never resume it", async () => {
+    const { TOOLS } = await import("../tools/schema.js");
+    const names = TOOLS.map((t) => t.name);
+    // Pausing autopilot is always safe: whatever it already did stays, nothing more happens.
+    expect(names).toContain("trails_pause_autopilot");
+    // Resuming hands approval and merge authority back to automation, with the caller as the
+    // accountable approver: a person's call. The CLI keeps `trails resume-autopilot`.
+    expect(names).not.toContain("trails_resume_autopilot");
+    const pause = TOOLS.find((t) => t.name === "trails_pause_autopilot")!;
+    expect(pause.inputSchema.required).toEqual(expect.arrayContaining(["handle"]));
+  });
+
   it("makes the list page size a required input", async () => {
     const { TOOLS } = await import("../tools/schema.js");
     const tool = TOOLS.find((t) => t.name === "trails_list")!;

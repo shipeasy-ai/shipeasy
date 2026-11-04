@@ -3318,12 +3318,19 @@ export const zTrailFinding = z.object({
     updatedAt: z.string()
 });
 
+/**
+ * Who recorded an approval — a person, or autopilot on behalf of the person who authorized it.
+ */
+export const zTrailApprovalActorKind = z.enum(['person', 'autopilot']);
+
 export const zTrailApproval = z.object({
     id: z.string(),
     actorEmail: z.string(),
     body: z.string().nullable(),
     headSha: z.string(),
     current: z.boolean(),
+    actorKind: zTrailApprovalActorKind,
+    authorizedBy: z.string().nullable(),
     createdAt: z.string()
 });
 
@@ -3513,6 +3520,11 @@ export const zTrailSuspectStatus = z.enum([
 ]);
 
 /**
+ * How a suspect reached the trail — the investigating agent attributed it after a merge, or the intake matcher scored it against the trail when it was filed.
+ */
+export const zTrailSuspectSource = z.enum(['post_merge', 'intake']);
+
+/**
  * A low-confidence post-merge attribution: an error, alert or bug that may have been caused by the trail. A person confirms it onto the trail or rejects it.
  */
 export const zTrailSuspect = z.object({
@@ -3522,6 +3534,7 @@ export const zTrailSuspect = z.object({
     evidence: z.string(),
     status: zTrailSuspectStatus,
     attributedBy: z.string().nullable(),
+    source: zTrailSuspectSource,
     createdAt: z.string()
 });
 
@@ -3571,6 +3584,18 @@ export const zTrailRollout = z.object({
         advance: zTrailRolloutAdvance,
         afterFix: zTrailRolloutAfterFix
     })
+});
+
+/**
+ * What autopilot may do and spend on one trail. Crossing any one pauses it at a safe point and hands the trail to its owner. The project's defaults live in `trail-gates` `autopilot`.
+ */
+export const zTrailAutopilotLimits = z.object({
+    maxRisk: z.int().gte(0).lte(100).nullable(),
+    repos: z.array(z.string().min(3).max(200)).max(50),
+    types: z.array(zTrailType).max(3),
+    maxFixRounds: z.int().gte(0).lte(10),
+    maxPullBacks: z.int().gte(0).lte(10),
+    maxRuns: z.int().gte(0).lte(100)
 });
 
 /**
@@ -3638,6 +3663,8 @@ export const zTrailGates = z.object({
     fixRounds: z.int().gte(0).lte(10).optional().default(3),
     attributionWindowHours: z.int().gte(1).lte(720).optional().default(72),
     rollout: zTrailRollout.optional(),
+    autopilot: zTrailAutopilotLimits.optional(),
+    intakeMatching: z.boolean().optional().default(true),
     repos: z.record(z.string(), zTrailRepoOverride).optional()
 });
 
@@ -3742,7 +3769,28 @@ export const zTrailRolloutView = z.object({
 });
 
 /**
- * What happened on the release timeline.
+ * Where a trail's autopilot is — `off` (never turned on, or turned off), `on`, or `paused` (at a limit, or by a person; it keeps its authorizer and limits and acts on nothing).
+ */
+export const zTrailAutopilotState = z.enum([
+    'off',
+    'on',
+    'paused'
+]);
+
+/**
+ * A trail's autopilot as it stands.
+ */
+export const zTrailAutopilot = z.object({
+    state: zTrailAutopilotState,
+    authorizedBy: z.string().nullable(),
+    authorizedAt: z.string().nullable(),
+    pausedReason: z.string().nullable(),
+    limits: zTrailAutopilotLimits,
+    runsUsed: z.int()
+});
+
+/**
+ * What happened on the release timeline. The `autopilot_*` kinds are autopilot's own — turned on or off, an answer, an approval or a merge it made (`autopilot_acted`, the reason says which), a pause at a limit, a resume.
  */
 export const zTrailReleaseEventKind = z.enum([
     'started',
@@ -3756,7 +3804,12 @@ export const zTrailReleaseEventKind = z.enum([
     'resumed',
     'restarted',
     'paused',
-    'completed'
+    'completed',
+    'autopilot_on',
+    'autopilot_off',
+    'autopilot_acted',
+    'autopilot_paused',
+    'autopilot_resumed'
 ]);
 
 /**
@@ -3812,6 +3865,7 @@ export const zTrailDetail = z.object({
     gates: zTrailGates,
     plan: zTrailPlan,
     rollout: zTrailRolloutView,
+    autopilot: zTrailAutopilot,
     releaseEvents: z.array(zTrailReleaseEvent)
 });
 
@@ -4041,6 +4095,21 @@ export const zTrailPlanIntake = z.object({
 });
 
 /**
+ * Turn a trail's autopilot on or off, and set the limits it acts inside. Turning it ON needs the `autopilot` capability (admins have it) and a person's identity — a dashboard session or a signed-in CLI, never an ops key, an admin key or MCP — and makes that person the accountable approver. Turning it off is open to the trail's owner, whoever authorized it, and admins.
+ */
+export const zTrailAutopilotSettings = z.object({
+    enabled: z.boolean(),
+    limits: z.object({
+        maxRisk: z.int().gte(0).lte(100).nullish(),
+        repos: z.array(z.string().min(3).max(200)).max(50).optional(),
+        types: z.array(zTrailType).max(3).optional(),
+        maxFixRounds: z.int().gte(0).lte(10).optional(),
+        maxPullBacks: z.int().gte(0).lte(10).optional(),
+        maxRuns: z.int().gte(0).lte(100).optional()
+    }).optional()
+});
+
+/**
  * Body for `POST /api/admin/trails`. A trail is created on purpose — from scratch, or from an item with `originItem`. Omitted, `type` follows the origin item (a bug is a `bug`, a feature request a `feature`) and is otherwise `task`.
  */
 export const zCreateTrailRequest = z.object({
@@ -4052,7 +4121,8 @@ export const zCreateTrailRequest = z.object({
     ownerConnectorId: z.string().nullish(),
     repos: z.array(z.string().min(3).max(200)).max(20).optional().default([]),
     originItem: z.string().min(1).max(64).optional(),
-    intake: zTrailPlanIntake.optional()
+    intake: zTrailPlanIntake.optional(),
+    autopilot: zTrailAutopilotSettings.optional()
 });
 
 /**
@@ -4065,7 +4135,8 @@ export const zUpdateTrailRequest = z.object({
     priority: zOpsItemPriority.nullish(),
     ownerId: z.string().nullish(),
     ownerConnectorId: z.string().nullish(),
-    repos: z.array(z.string().min(3).max(200)).max(20).optional()
+    repos: z.array(z.string().min(3).max(200)).max(20).optional(),
+    autopilot: zTrailAutopilotSettings.optional()
 });
 
 /**
@@ -4168,6 +4239,27 @@ export const zTrailRolloutResult = z.object({
  * Body for `POST /api/admin/trails/{handle}/rollout/resume`. Resuming reconciles the rollout with the flag, wherever a person left it, and restarts the hold.
  */
 export const zResumeTrailRolloutRequest = z.object({
+    reason: z.string().max(500).optional()
+});
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/autopilot/pause`.
+ */
+export const zPauseTrailAutopilotRequest = z.object({
+    reason: z.string().max(500).optional()
+});
+
+/**
+ * The autopilot after a pause or a resume.
+ */
+export const zTrailAutopilotResult = z.object({
+    autopilot: zTrailAutopilot
+});
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/autopilot/resume`. The caller becomes the trail's accountable approver.
+ */
+export const zResumeTrailAutopilotRequest = z.object({
     reason: z.string().max(500).optional()
 });
 
@@ -7384,6 +7476,36 @@ export const zResumeTrailRolloutPath = z.object({
  * The rollout, resumed
  */
 export const zResumeTrailRolloutResponse = zTrailRolloutResult;
+
+export const zPauseTrailAutopilotBody = zPauseTrailAutopilotRequest;
+
+export const zPauseTrailAutopilotHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zPauseTrailAutopilotPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/)
+});
+
+/**
+ * The autopilot, paused
+ */
+export const zPauseTrailAutopilotResponse = zTrailAutopilotResult;
+
+export const zResumeTrailAutopilotBody = zResumeTrailAutopilotRequest;
+
+export const zResumeTrailAutopilotHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zResumeTrailAutopilotPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/)
+});
+
+/**
+ * The rollout, resumed
+ */
+export const zResumeTrailAutopilotResponse = zTrailAutopilotResult;
 
 export const zRequestTrailReviewBody = zRequestOpsTrailReviewRequest;
 

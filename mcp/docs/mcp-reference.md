@@ -2758,6 +2758,14 @@ _Parameters_
 | `rollout.policies.breachTimeoutMinutes` | required | `integer` | With `ask_then_pull_back`, minutes the owner has before the controller pulls back. _(1–1440)_ |
 | `rollout.policies.advance` | required | `"auto" \| "ask"` | Whether a healthy step advances by itself (`auto`) or waits for the owner to say so (`ask`). |
 | `rollout.policies.afterFix` | required | `"resume" \| "ask" \| "restart"` | What happens when the fix merges — `resume` from the last healthy step, `ask` the owner first, or `restart` from the first step. |
+| `autopilot` | optional | `object` | What autopilot may do and spend on one trail. Crossing any one pauses it at a safe point and hands the trail to its owner. The project's defaults live in `trail-gates` `autopilot`. |
+| `autopilot.maxRisk` | required | `any` | The highest Risk agent score (0-100) autopilot may merge at. `null` = no risk limit. With a limit set, a change the Risk agent has not scored (or no Risk agent at all) is a limit hit, never a pass. |
+| `autopilot.repos` | required | `string[]` | Repos (`owner/repo`) autopilot may act in. Empty = any repo the trail may touch. |
+| `autopilot.types` | required | `"feature" \| "bug" \| "task"[]` | Trail types autopilot may act on. Empty = any. |
+| `autopilot.maxFixRounds` | required | `integer` | Fix rounds per change before autopilot hands the trail over. _(0–10)_ |
+| `autopilot.maxPullBacks` | required | `integer` | Pull-backs of the rollout before autopilot hands the trail over. _(0–10)_ |
+| `autopilot.maxRuns` | required | `integer` | Agent runs autopilot may start in all (build, fix and investigation runs). _(0–100)_ |
+| `intakeMatching` | optional | `boolean` | Whether new and still-open errors, alerts, bugs and feature requests are compared with the project's open trails. A confident match attaches the item to the trail with the evidence; a weak one lands under the trail's possibly related list for its owner to confirm or reject. Matching never creates a trail. _(default `true`)_ |
 | `repos` | optional | `object` | Per-repo overrides keyed by `owner/repo`. An override replaces the project's `checks.required` for changes in that repo; every other gate stays project-wide. |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -3662,7 +3670,7 @@ Creates a trail in `planning`. A trail is created on purpose — nothing makes o
 
 Fire the project's coding agent on the new trail with `trails start`, or link pull requests an agent already opened with `trails link-pr`.
 
-Safe for the restricted ops key.
+**Autopilot.** `autopilot: { enabled: true, limits }` turns on autopilot at creation: the plan's questions are answered with the agent's recommendation, the plan is approved, and the change merges when every blocking gate is green, all inside the limits. It needs the `autopilot` capability and a person's identity (a dashboard session or a signed-in CLI); an ops key, an admin key or MCP asking for it is refused with `403`. Everything else is safe for the restricted ops key.
 
 **Use case:** A coding agent that was asked to ship a multi-part feature opens one trail for it, then links every PR it opens.
 
@@ -3695,6 +3703,15 @@ _Parameters_
 | `intake.rollout.policies.breachTimeoutMinutes` | required | `integer` | With `ask_then_pull_back`, minutes the owner has before the controller pulls back. _(1–1440)_ |
 | `intake.rollout.policies.advance` | required | `"auto" \| "ask"` | Whether a healthy step advances by itself (`auto`) or waits for the owner to say so (`ask`). |
 | `intake.rollout.policies.afterFix` | required | `"resume" \| "ask" \| "restart"` | What happens when the fix merges — `resume` from the last healthy step, `ask` the owner first, or `restart` from the first step. |
+| `autopilot` | optional | `object` | Turn a trail's autopilot on or off, and set the limits it acts inside. Turning it ON needs the `autopilot` capability (admins have it) and a person's identity — a dashboard session or a signed-in CLI, never an ops key, an admin key or MCP — and makes that person the accountable approver. Turning it off is open to the trail's owner, whoever authorized it, and admins. |
+| `autopilot.enabled` | required | `boolean` | Whether autopilot is on. |
+| `autopilot.limits` | optional | `object` | Limits to set; each one omitted keeps the trail's current value (the project's default for a new trail). |
+| `autopilot.limits.maxRisk` | optional | `any` | — |
+| `autopilot.limits.repos` | optional | `string[]` | — |
+| `autopilot.limits.types` | optional | `"feature" \| "bug" \| "task"[]` | — |
+| `autopilot.limits.maxFixRounds` | optional | `integer` | — _(0–10)_ |
+| `autopilot.limits.maxPullBacks` | optional | `integer` | — _(0–10)_ |
+| `autopilot.limits.maxRuns` | optional | `integer` | — _(0–100)_ |
 | `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `trails_list` call. It proves you listed existing trails and confirmed this one doesn't already exist before creating it. Call `trails_list` first if you don't have a fresh token. |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -3792,6 +3809,30 @@ _Parameters_
 _Errors_ — beyond the [common errors](#errors):
 
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+
+### `trails_pause_autopilot`
+
+**Pause a trail's autopilot**
+
+Stop autopilot on a trail: it answers no more plan questions, approves no plan and merges nothing until a person resumes it. Whatever it already merged or ramped stays; the release controller keeps its own breach policy. Safe to call at any time, and for anyone who can write to the trail; pausing an autopilot that is not on answers `409`.
+
+Safe for the restricted ops key.
+
+**Use case:** A deploy freeze starts at 5pm; stop the trail from auto-merging until it is over.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `reason` | optional | `string` | Why — shown on the timeline and to the owner. _(length 0–500)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
+- `VALIDATION` — The request body failed structural (schema) validation.
 
 ### `trails_pause_rollout`
 
@@ -4031,7 +4072,9 @@ _Errors_ — beyond the [common errors](#errors):
 
 **Change a trail**
 
-Change a trail's title, intent, type, priority, owner or repo scope. Pass at least one field; the rest are left as they are. Changing the type changes which release gates apply.
+Change a trail's title, intent, type, priority, owner, repo scope or autopilot. Pass at least one field; the rest are left as they are. Changing the type changes which release gates apply.
+
+**Autopilot.** `autopilot: { enabled, limits }` turns autopilot on or off and sets its limits. Turning it on needs the `autopilot` capability and a person's identity, and makes the caller the accountable approver (`403` otherwise). Turning it off is open to the trail's owner, the person who authorized it and admins.
 
 **Use case:** The acceptance criteria changed after a review — update the body so the next agent run builds the right thing.
 
@@ -4047,6 +4090,15 @@ _Parameters_
 | `ownerId` | optional | `any` | The `users.id` of the person owner; `null` unassigns. |
 | `ownerConnectorId` | optional | `any` | The agent connector owner; `null` unassigns. |
 | `repos` | optional | `string[]` | Replaces the trail's repo scope. |
+| `autopilot` | optional | `object` | Turn a trail's autopilot on or off, and set the limits it acts inside. Turning it ON needs the `autopilot` capability (admins have it) and a person's identity — a dashboard session or a signed-in CLI, never an ops key, an admin key or MCP — and makes that person the accountable approver. Turning it off is open to the trail's owner, whoever authorized it, and admins. |
+| `autopilot.enabled` | required | `boolean` | Whether autopilot is on. |
+| `autopilot.limits` | optional | `object` | Limits to set; each one omitted keeps the trail's current value (the project's default for a new trail). |
+| `autopilot.limits.maxRisk` | optional | `any` | — |
+| `autopilot.limits.repos` | optional | `string[]` | — |
+| `autopilot.limits.types` | optional | `"feature" \| "bug" \| "task"[]` | — |
+| `autopilot.limits.maxFixRounds` | optional | `integer` | — _(0–10)_ |
+| `autopilot.limits.maxPullBacks` | optional | `integer` | — _(0–10)_ |
+| `autopilot.limits.maxRuns` | optional | `integer` | — _(0–100)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 

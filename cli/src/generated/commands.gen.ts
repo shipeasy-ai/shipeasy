@@ -388,8 +388,9 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--repos <value>", "Repos (`owner/repo`) the trail may open changes in.")
     .option("--origin-item <value>", "Ship this: a queue item (number or id) to create the trail from. Its description seeds `body` when that is omitted, and it becomes the trail's first item with source `origin`.")
     .option("--intake <value>", "What the creation dialog already decided — each field is a plan question answered in advance. The plan run asks only what is left out. Omitted entirely, the plan asks everything (\"let the plan ask me\").")
+    .option("--autopilot <value>", "Turn a trail's autopilot on or off, and set the limits it acts inside. Turning it ON needs the `autopilot` capability (admins have it) and a person's identity — a dashboard session or a signed-in CLI, never an ops key, an admin key or MCP — and makes that person the accountable approver. Turning it off is open to the trail's owner, whoever authorized it, and admins.")
     .action(async (title, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createTrail({ client, body: clean({ title: title, body: str(opts.body), type: str(opts.type), priority: strOrNull(opts.priority), ownerId: strOrNull(opts.ownerId), ownerConnectorId: strOrNull(opts.ownerConnectorId), repos: json(opts.repos), originItem: str(opts.originItem), intake: json(opts.intake) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createTrail({ client, body: clean({ title: title, body: str(opts.body), type: str(opts.type), priority: strOrNull(opts.priority), ownerId: strOrNull(opts.ownerId), ownerConnectorId: strOrNull(opts.ownerConnectorId), repos: json(opts.repos), originItem: str(opts.originItem), intake: json(opts.intake), autopilot: json(opts.autopilot) }) }) });
     });
   g_trails.command("get")
     .description("Show a trail")
@@ -409,8 +410,9 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--owner-id <value>", "The `users.id` of the person owner; `null` unassigns.")
     .option("--owner-connector-id <value>", "The agent connector owner; `null` unassigns.")
     .option("--repos <value>", "Replaces the trail's repo scope.")
+    .option("--autopilot <value>", "Turn a trail's autopilot on or off, and set the limits it acts inside. Turning it ON needs the `autopilot` capability (admins have it) and a person's identity — a dashboard session or a signed-in CLI, never an ops key, an admin key or MCP — and makes that person the accountable approver. Turning it off is open to the trail's owner, whoever authorized it, and admins.")
     .action(async (handle, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateTrail({ client, path: { handle: handle }, body: clean({ title: str(opts.title), body: str(opts.body), type: str(opts.type), priority: strOrNull(opts.priority), ownerId: strOrNull(opts.ownerId), ownerConnectorId: strOrNull(opts.ownerConnectorId), repos: json(opts.repos) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.updateTrail({ client, path: { handle: handle }, body: clean({ title: str(opts.title), body: str(opts.body), type: str(opts.type), priority: strOrNull(opts.priority), ownerId: strOrNull(opts.ownerId), ownerConnectorId: strOrNull(opts.ownerConnectorId), repos: json(opts.repos), autopilot: json(opts.autopilot) }) }) });
     });
   g_trails.command("close")
     .description("Close a trail")
@@ -490,6 +492,20 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--reason <value>", "Why — shown on the release timeline.")
     .action(async (handle, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.resumeTrailRollout({ client, path: { handle: handle }, body: clean({ reason: str(opts.reason) }) }) });
+    });
+  g_trails.command("pause-autopilot")
+    .description("Pause a trail's autopilot")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .option("--reason <value>", "Why — shown on the timeline and to the owner.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.pauseTrailAutopilot({ client, path: { handle: handle }, body: clean({ reason: str(opts.reason) }) }) });
+    });
+  g_trails.command("resume-autopilot")
+    .description("Resume a trail's autopilot")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .option("--reason <value>", "Why — shown on the timeline.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.resumeTrailAutopilot({ client, path: { handle: handle }, body: clean({ reason: str(opts.reason) }) }) });
     });
   g_trails.command("review")
     .description("Run the review agents")
@@ -1006,9 +1022,11 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--fix-rounds <value>", "How many times the server re-fires the coding agent with a fix prompt after a change's evals or findings fail. After the cap the trail reads `reviewing`, needs a person. `0` turns the loop off.")
     .option("--attribution-window-hours <value>", "How long after a trail merged an error or alert ticket may be attributed to it. Trails merged inside the window are offered to the investigating agent as candidates.")
     .option("--rollout <value>", "How the flag a trail ships behind is ramped after merge — the release controller's plan (see the design doc, the release controller). Part of the plan's release block; the project's defaults live in `trail-gates` `rollout`. The controller runs on the alerts cron, so a hold shorter than the cron interval rounds up to the next tick.")
+    .option("--autopilot <value>", "What autopilot may do and spend on one trail. Crossing any one pauses it at a safe point and hands the trail to its owner. The project's defaults live in `trail-gates` `autopilot`.")
+    .option("--intake-matching <value>", "Whether new and still-open errors, alerts, bugs and feature requests are compared with the project's open trails. A confident match attaches the item to the trail with the evidence; a weak one lands under the trail's possibly related list for its owner to confirm or reject. Matching never creates a trail.")
     .option("--repos <value>", "Per-repo overrides keyed by `owner/repo`. An override replaces the project's `checks.required` for changes in that repo; every other gate stays project-wide.")
     .action(async (opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateTrailGates({ client, body: clean({ upToDate: json(opts.upToDate), humanReview: json(opts.humanReview), agentReview: json(opts.agentReview), evals: json(opts.evals), checks: json(opts.checks), discovered: json(opts.discovered), shipsDark: json(opts.shipsDark), rollback: json(opts.rollback), measured: json(opts.measured), guarded: json(opts.guarded), copy: json(opts.copy), plan: json(opts.plan), requirePlan: bool(opts.requirePlan), fixRounds: num(opts.fixRounds), attributionWindowHours: num(opts.attributionWindowHours), rollout: json(opts.rollout), repos: json(opts.repos) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.updateTrailGates({ client, body: clean({ upToDate: json(opts.upToDate), humanReview: json(opts.humanReview), agentReview: json(opts.agentReview), evals: json(opts.evals), checks: json(opts.checks), discovered: json(opts.discovered), shipsDark: json(opts.shipsDark), rollback: json(opts.rollback), measured: json(opts.measured), guarded: json(opts.guarded), copy: json(opts.copy), plan: json(opts.plan), requirePlan: bool(opts.requirePlan), fixRounds: num(opts.fixRounds), attributionWindowHours: num(opts.attributionWindowHours), rollout: json(opts.rollout), autopilot: json(opts.autopilot), intakeMatching: bool(opts.intakeMatching), repos: json(opts.repos) }) }) });
     });
   const g_ops_trigger_create = defineGroup(g_ops_trigger, "create", { summary: "Create a recurring coding-agent trigger", help: "A trigger is an unattended, scheduled agent run: on a cron cadence it runs the\nshipeasy-ops-work loop in --pr mode against your project — one atomic diff and\nONE pull request per fixed item, nothing auto-merges.\n\nWhatever the provider, the scheduled run executes this trigger prompt (headless\nCLIs take it as the prompt; cloud agents as the task body):\n\n  You are an unattended Shipeasy maintenance run. Authenticate every `shipeasy`\n  call with these env vars (the CLI reads them directly — do NOT run\n  `shipeasy login`, never echo the token). Put them at the top of EVERY shell\n  invocation that calls `shipeasy`; each command runs in a fresh shell:\n\n  export SHIPEASY_CLI_TOKEN=\"<OPS_KEY>\"\n  export SHIPEASY_PROJECT_ID=\"<PROJECT_ID>\"\n\n  Ensure the repo is bound: test -f .shipeasy || printf '{\"project_id\":\"<PROJECT_ID>\"}\\n' > .shipeasy\n  (never commit .shipeasy).\n\n  Refresh to the latest plugin + CLI, then run the ops work loop in --pr mode:\n    <PLUGIN-INSTALL-FOR-THIS-HOST>       # plugin install for claude/copilot, or `npx -y skills add …`\n    npm install -g @shipeasy/cli@latest\n  Then follow the installed shipeasy-ops-work (--pr) workflow verbatim: burn down\n  the queue, one atomic diff per item, open ONE PR per item from a safe branch\n  prefix, flip each to ready_for_qa, add \"Closes #<issue>\" where an item has a\n  connected GitHub issue. If the queue is empty, exit cleanly. Never merge.\n\n<OPS_KEY> is a restricted `ops` key — mint with\n`npx -y @shipeasy/cli@latest keys create --type ops`. It reads the queue, flips\nstatus, links the PR it opens, and creates resources only; it can never edit or\ndelete existing resources, and auto-extends its 7-day expiry on each run.\n<PROJECT_ID> comes from the bound .shipeasy. Never print either value.\n\nSafety: auto-approve flags (--approval-mode=yolo, --dangerously-skip-permissions,\n…) remove the human gate — run only in an isolated env. Unattended loops spend\ntokens/credits on a cadence: start weekly/daily and watch the first runs." });
   g_ops_trigger_create.argument("[provider]", "One of the subcommands below.");

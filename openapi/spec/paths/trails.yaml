@@ -177,7 +177,7 @@
 
       Fire the project's coding agent on the new trail with `trails start`, or link pull requests an agent already opened with `trails link-pr`.
 
-      Safe for the restricted ops key.
+      **Autopilot.** `autopilot: { enabled: true, limits }` turns on autopilot at creation: the plan's questions are answered with the agent's recommendation, the plan is approved, and the change merges when every blocking gate is green, all inside the limits. It needs the `autopilot` capability and a person's identity (a dashboard session or a signed-in CLI); an ops key, an admin key or MCP asking for it is refused with `403`. Everything else is safe for the restricted ops key.
 
       **Use case:** A coding agent that was asked to ship a multi-part feature opens one trail for it, then links every PR it opens.
     tags:
@@ -283,7 +283,9 @@
     operationId: updateTrail
     summary: Change a trail
     description: |-
-      Change a trail's title, intent, type, priority, owner or repo scope. Pass at least one field; the rest are left as they are. Changing the type changes which release gates apply.
+      Change a trail's title, intent, type, priority, owner, repo scope or autopilot. Pass at least one field; the rest are left as they are. Changing the type changes which release gates apply.
+
+      **Autopilot.** `autopilot: { enabled, limits }` turns autopilot on or off and sets its limits. Turning it on needs the `autopilot` capability and a person's identity, and makes the caller the accountable approver (`403` otherwise). Turning it off is open to the trail's owner, the person who authorized it and admins.
 
       **Use case:** The acceptance criteria changed after a review — update the body so the next agent run builds the right thing.
     tags:
@@ -850,6 +852,114 @@
       - VALIDATION
     x-cli:
       name: resume-rollout
+      positional:
+        - handle
+    x-mcp:
+      hidden: true
+/api/admin/trails/{handle}/autopilot/pause:
+  post:
+    operationId: pauseTrailAutopilot
+    summary: Pause a trail's autopilot
+    description: |-
+      Stop autopilot on a trail: it answers no more plan questions, approves no plan and merges nothing until a person resumes it. Whatever it already merged or ramped stays; the release controller keeps its own breach policy. Safe to call at any time, and for anyone who can write to the trail; pausing an autopilot that is not on answers `409`.
+
+      Safe for the restricted ops key.
+
+      **Use case:** A deploy freeze starts at 5pm; stop the trail from auto-merging until it is over.
+    tags:
+      - Trails
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - $ref: ../components/parameters.yaml#/TrailHandle
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/PauseTrailAutopilotRequest
+          example:
+            reason: Deploy freeze
+    responses:
+      "200":
+        description: The autopilot, paused
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/TrailAutopilotResult
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - INVALID_TRANSITION
+      - VALIDATION
+    x-cli:
+      name: pause-autopilot
+      positional:
+        - handle
+/api/admin/trails/{handle}/autopilot/resume:
+  post:
+    operationId: resumeTrailAutopilot
+    summary: Resume a trail's autopilot
+    description: |-
+      Hand a paused autopilot back to automation. The caller becomes the accountable approver: what autopilot approves and merges from here is recorded as authorized by them, so resuming needs the `autopilot` capability (admins have it). Resuming an autopilot that is not paused answers `409`.
+
+      Resuming is a person's call: only a dashboard session or a device-auth CLI session can resume — ops keys, project admin keys and OAuth MCP calls are refused with `403`. This operation is not exposed as an MCP tool.
+
+      **Use case:** The risk limit was too tight for a small change; raise it and give the trail back to autopilot.
+    tags:
+      - Trails
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - $ref: ../components/parameters.yaml#/TrailHandle
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/ResumeTrailAutopilotRequest
+          example:
+            reason: Freeze is over
+    responses:
+      "200":
+        description: The rollout, resumed
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/TrailAutopilotResult
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - INVALID_TRANSITION
+      - VALIDATION
+    x-cli:
+      name: resume-autopilot
       positional:
         - handle
     x-mcp:

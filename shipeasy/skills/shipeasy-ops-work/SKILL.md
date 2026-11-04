@@ -480,6 +480,14 @@ above:
      carries a `rollout` (the steps, the hold, the guards and three policies); where the
      owner has not set it, ask the three policy questions in the same call with the
      project default first, and send the project defaults for the rest.
+     **Autopilot.** When the prompt says the trail is on autopilot, nobody reads your
+     questions first: your recommendation (the first option, `Recommended:`) is taken as
+     the answer, and the plan you submit is approved automatically while it stays inside the
+     owner's limits. So recommend only what you would defend, and ask only what you cannot
+     recommend an answer to. Autopilot may also merge the change once every gate is green,
+     so a finding you leave open is what holds it. `trails pause-autopilot <T-n> --reason "…"`
+     (the `trails_pause_autopilot` MCP tool) stops it if something is wrong that the gates
+     cannot see; resuming is a person's call and not an MCP tool.
    - **Build.** Follow the approved plan in the prompt. Create exactly the release
      resources it lists (none when it ships straight to main) and link them with the
      environment variable below. Do not add a flag, kill switch or experiment the plan

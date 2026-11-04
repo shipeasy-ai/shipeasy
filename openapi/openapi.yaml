@@ -8550,7 +8550,7 @@ paths:
 
         Fire the project's coding agent on the new trail with `trails start`, or link pull requests an agent already opened with `trails link-pr`.
 
-        Safe for the restricted ops key.
+        **Autopilot.** `autopilot: { enabled: true, limits }` turns on autopilot at creation: the plan's questions are answered with the agent's recommendation, the plan is approved, and the change merges when every blocking gate is green, all inside the limits. It needs the `autopilot` capability and a person's identity (a dashboard session or a signed-in CLI); an ops key, an admin key or MCP asking for it is refused with `403`. Everything else is safe for the restricted ops key.
 
         **Use case:** A coding agent that was asked to ship a multi-part feature opens one trail for it, then links every PR it opens.
       tags:
@@ -8655,7 +8655,9 @@ paths:
       operationId: updateTrail
       summary: Change a trail
       description: |-
-        Change a trail's title, intent, type, priority, owner or repo scope. Pass at least one field; the rest are left as they are. Changing the type changes which release gates apply.
+        Change a trail's title, intent, type, priority, owner, repo scope or autopilot. Pass at least one field; the rest are left as they are. Changing the type changes which release gates apply.
+
+        **Autopilot.** `autopilot: { enabled, limits }` turns autopilot on or off and sets its limits. Turning it on needs the `autopilot` capability and a person's identity, and makes the caller the accountable approver (`403` otherwise). Turning it off is open to the trail's owner, the person who authorized it and admins.
 
         **Use case:** The acceptance criteria changed after a review — update the body so the next agent run builds the right thing.
       tags:
@@ -9224,6 +9226,114 @@ paths:
         - VALIDATION
       x-cli:
         name: resume-rollout
+        positional:
+          - handle
+      x-mcp:
+        hidden: true
+  /api/admin/trails/{handle}/autopilot/pause:
+    post:
+      operationId: pauseTrailAutopilot
+      summary: Pause a trail's autopilot
+      description: |-
+        Stop autopilot on a trail: it answers no more plan questions, approves no plan and merges nothing until a person resumes it. Whatever it already merged or ramped stays; the release controller keeps its own breach policy. Safe to call at any time, and for anyone who can write to the trail; pausing an autopilot that is not on answers `409`.
+
+        Safe for the restricted ops key.
+
+        **Use case:** A deploy freeze starts at 5pm; stop the trail from auto-merging until it is over.
+      tags:
+        - Trails
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/TrailHandle'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PauseTrailAutopilotRequest'
+            example:
+              reason: Deploy freeze
+      responses:
+        '200':
+          description: The autopilot, paused
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrailAutopilotResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+        - INVALID_TRANSITION
+        - VALIDATION
+      x-cli:
+        name: pause-autopilot
+        positional:
+          - handle
+  /api/admin/trails/{handle}/autopilot/resume:
+    post:
+      operationId: resumeTrailAutopilot
+      summary: Resume a trail's autopilot
+      description: |-
+        Hand a paused autopilot back to automation. The caller becomes the accountable approver: what autopilot approves and merges from here is recorded as authorized by them, so resuming needs the `autopilot` capability (admins have it). Resuming an autopilot that is not paused answers `409`.
+
+        Resuming is a person's call: only a dashboard session or a device-auth CLI session can resume — ops keys, project admin keys and OAuth MCP calls are refused with `403`. This operation is not exposed as an MCP tool.
+
+        **Use case:** The risk limit was too tight for a small change; raise it and give the trail back to autopilot.
+      tags:
+        - Trails
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/TrailHandle'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResumeTrailAutopilotRequest'
+            example:
+              reason: Freeze is over
+      responses:
+        '200':
+          description: The rollout, resumed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrailAutopilotResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+        - INVALID_TRANSITION
+        - VALIDATION
+      x-cli:
+        name: resume-autopilot
         positional:
           - handle
       x-mcp:
@@ -21953,6 +22063,12 @@ components:
         - promotedItem
         - createdAt
         - updatedAt
+    TrailApprovalActorKind:
+      type: string
+      enum:
+        - person
+        - autopilot
+      description: Who recorded an approval — a person, or autopilot on behalf of the person who authorized it.
     TrailApproval:
       type: object
       properties:
@@ -21970,6 +22086,13 @@ components:
         current:
           type: boolean
           description: True when it approved the latest push.
+        actorKind:
+          $ref: '#/components/schemas/TrailApprovalActorKind'
+        authorizedBy:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: For an autopilot approval, the person who authorized autopilot (`approved by autopilot, authorized by <email>`); `null` for a person's approval.
         createdAt:
           type: string
       required:
@@ -21978,6 +22101,8 @@ components:
         - body
         - headSha
         - current
+        - actorKind
+        - authorizedBy
         - createdAt
     TrailPush:
       type: object
@@ -22377,6 +22502,12 @@ components:
         - confirmed
         - rejected
       description: Where a suspected regression stands. Only `pending` suspects are listed on the trail.
+    TrailSuspectSource:
+      type: string
+      enum:
+        - post_merge
+        - intake
+      description: How a suspect reached the trail — the investigating agent attributed it after a merge, or the intake matcher scored it against the trail when it was filed.
     TrailSuspect:
       type: object
       description: 'A low-confidence post-merge attribution: an error, alert or bug that may have been caused by the trail. A person confirms it onto the trail or rejects it.'
@@ -22398,6 +22529,8 @@ components:
             - type: string
             - type: 'null'
           description: The agent or person that recorded it, or `null`.
+        source:
+          $ref: '#/components/schemas/TrailSuspectSource'
         createdAt:
           type: string
           description: ISO-8601 time it was recorded.
@@ -22408,6 +22541,7 @@ components:
         - evidence
         - status
         - attributedBy
+        - source
         - createdAt
       additionalProperties: false
     TrailGateToggle:
@@ -22521,6 +22655,54 @@ components:
         - minExposure
         - guards
         - policies
+      additionalProperties: false
+    TrailAutopilotLimits:
+      type: object
+      description: What autopilot may do and spend on one trail. Crossing any one pauses it at a safe point and hands the trail to its owner. The project's defaults live in `trail-gates` `autopilot`.
+      properties:
+        maxRisk:
+          anyOf:
+            - type: integer
+              minimum: 0
+              maximum: 100
+            - type: 'null'
+          description: The highest Risk agent score (0-100) autopilot may merge at. `null` = no risk limit. With a limit set, a change the Risk agent has not scored (or no Risk agent at all) is a limit hit, never a pass.
+        repos:
+          type: array
+          maxItems: 50
+          items:
+            type: string
+            minLength: 3
+            maxLength: 200
+          description: Repos (`owner/repo`) autopilot may act in. Empty = any repo the trail may touch.
+        types:
+          type: array
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/TrailType'
+          description: Trail types autopilot may act on. Empty = any.
+        maxFixRounds:
+          type: integer
+          minimum: 0
+          maximum: 10
+          description: Fix rounds per change before autopilot hands the trail over.
+        maxPullBacks:
+          type: integer
+          minimum: 0
+          maximum: 10
+          description: Pull-backs of the rollout before autopilot hands the trail over.
+        maxRuns:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Agent runs autopilot may start in all (build, fix and investigation runs).
+      required:
+        - maxRisk
+        - repos
+        - types
+        - maxFixRounds
+        - maxPullBacks
+        - maxRuns
       additionalProperties: false
     TrailRepoOverride:
       type: object
@@ -22757,6 +22939,12 @@ components:
           description: How long after a trail merged an error or alert ticket may be attributed to it. Trails merged inside the window are offered to the investigating agent as candidates.
         rollout:
           $ref: '#/components/schemas/TrailRollout'
+        autopilot:
+          $ref: '#/components/schemas/TrailAutopilotLimits'
+        intakeMatching:
+          type: boolean
+          default: true
+          description: Whether new and still-open errors, alerts, bugs and feature requests are compared with the project's open trails. A confident match attaches the item to the trail with the evidence; a weak one lands under the trail's possibly related list for its owner to confirm or reject. Matching never creates a trail.
         repos:
           type: object
           maxProperties: 100
@@ -22957,6 +23145,47 @@ components:
         - pausedReason
         - pending
       additionalProperties: false
+    TrailAutopilotState:
+      type: string
+      enum:
+        - 'off'
+        - 'on'
+        - paused
+      description: Where a trail's autopilot is — `off` (never turned on, or turned off), `on`, or `paused` (at a limit, or by a person; it keeps its authorizer and limits and acts on nothing).
+    TrailAutopilot:
+      type: object
+      description: A trail's autopilot as it stands.
+      properties:
+        state:
+          $ref: '#/components/schemas/TrailAutopilotState'
+        authorizedBy:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: The person who turned it on — the accountable approver of everything it approves and merges. `null` while it has never been on.
+        authorizedAt:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: ISO-8601 time it was turned on.
+        pausedReason:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: Why it is paused (the limit it hit, or who paused it), or `null`.
+        limits:
+          $ref: '#/components/schemas/TrailAutopilotLimits'
+        runsUsed:
+          type: integer
+          description: Agent runs autopilot has started so far, against `limits.maxRuns`.
+      required:
+        - state
+        - authorizedBy
+        - authorizedAt
+        - pausedReason
+        - limits
+        - runsUsed
+      additionalProperties: false
     TrailReleaseEventKind:
       type: string
       enum:
@@ -22972,7 +23201,12 @@ components:
         - restarted
         - paused
         - completed
-      description: What happened on the release timeline.
+        - autopilot_on
+        - autopilot_off
+        - autopilot_acted
+        - autopilot_paused
+        - autopilot_resumed
+      description: What happened on the release timeline. The `autopilot_*` kinds are autopilot's own — turned on or off, an answer, an approval or a merge it made (`autopilot_acted`, the reason says which), a pause at a limit, a resume.
     TrailReleaseEvent:
       type: object
       description: One row of a trail's release timeline — something the controller, autopilot or a person did to its rollout.
@@ -23145,13 +23379,15 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/TrailSuspect'
-          description: Pending low-confidence post-merge attributions awaiting a person.
+          description: Pending suspects awaiting a person (the trail's possibly related list) — low-confidence post-merge attributions, and weak intake matches.
         gates:
           $ref: '#/components/schemas/TrailGates'
         plan:
           $ref: '#/components/schemas/TrailPlan'
         rollout:
           $ref: '#/components/schemas/TrailRolloutView'
+        autopilot:
+          $ref: '#/components/schemas/TrailAutopilot'
         releaseEvents:
           type: array
           items:
@@ -23192,6 +23428,7 @@ components:
         - gates
         - plan
         - rollout
+        - autopilot
         - releaseEvents
       additionalProperties: false
     NewTrailFinding:
@@ -23793,6 +24030,51 @@ components:
         rollout:
           $ref: '#/components/schemas/TrailRollout'
       additionalProperties: false
+    TrailAutopilotSettings:
+      type: object
+      description: Turn a trail's autopilot on or off, and set the limits it acts inside. Turning it ON needs the `autopilot` capability (admins have it) and a person's identity — a dashboard session or a signed-in CLI, never an ops key, an admin key or MCP — and makes that person the accountable approver. Turning it off is open to the trail's owner, whoever authorized it, and admins.
+      properties:
+        enabled:
+          type: boolean
+          description: Whether autopilot is on.
+        limits:
+          type: object
+          description: Limits to set; each one omitted keeps the trail's current value (the project's default for a new trail).
+          properties:
+            maxRisk:
+              anyOf:
+                - type: integer
+                  minimum: 0
+                  maximum: 100
+                - type: 'null'
+            repos:
+              type: array
+              maxItems: 50
+              items:
+                type: string
+                minLength: 3
+                maxLength: 200
+            types:
+              type: array
+              maxItems: 3
+              items:
+                $ref: '#/components/schemas/TrailType'
+            maxFixRounds:
+              type: integer
+              minimum: 0
+              maximum: 10
+            maxPullBacks:
+              type: integer
+              minimum: 0
+              maximum: 10
+            maxRuns:
+              type: integer
+              minimum: 0
+              maximum: 100
+          additionalProperties: false
+      required:
+        - enabled
+      additionalProperties: false
     CreateTrailRequest:
       type: object
       description: Body for `POST /api/admin/trails`. A trail is created on purpose — from scratch, or from an item with `originItem`. Omitted, `type` follows the origin item (a bug is a `bug`, a feature request a `feature`) and is otherwise `task`.
@@ -23841,6 +24123,8 @@ components:
           maxLength: 64
         intake:
           $ref: '#/components/schemas/TrailPlanIntake'
+        autopilot:
+          $ref: '#/components/schemas/TrailAutopilotSettings'
       required:
         - title
       additionalProperties: false
@@ -23881,6 +24165,8 @@ components:
             maxLength: 200
           description: Replaces the trail's repo scope.
           maxItems: 20
+        autopilot:
+          $ref: '#/components/schemas/TrailAutopilotSettings'
       additionalProperties: false
     CloseTrailRequest:
       type: object
@@ -24043,6 +24329,33 @@ components:
           type: string
           maxLength: 500
           description: Why — shown on the release timeline.
+      additionalProperties: false
+    PauseTrailAutopilotRequest:
+      type: object
+      description: Body for `POST /api/admin/trails/{handle}/autopilot/pause`.
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+          description: Why — shown on the timeline and to the owner.
+      additionalProperties: false
+    TrailAutopilotResult:
+      type: object
+      description: The autopilot after a pause or a resume.
+      properties:
+        autopilot:
+          $ref: '#/components/schemas/TrailAutopilot'
+      required:
+        - autopilot
+      additionalProperties: false
+    ResumeTrailAutopilotRequest:
+      type: object
+      description: Body for `POST /api/admin/trails/{handle}/autopilot/resume`. The caller becomes the trail's accountable approver.
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+          description: Why — shown on the timeline.
       additionalProperties: false
     PromoteTrailFindingRequest:
       type: object

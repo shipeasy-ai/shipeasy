@@ -1156,6 +1156,8 @@ shipeasy ops trail-gates set [options]
 | `--fix-rounds <value>` | optional | How many times the server re-fires the coding agent with a fix prompt after a change's evals or findings fail. After the cap the trail reads `reviewing`, needs a person. `0` turns the loop off. |
 | `--attribution-window-hours <value>` | optional | How long after a trail merged an error or alert ticket may be attributed to it. Trails merged inside the window are offered to the investigating agent as candidates. |
 | `--rollout <value>` | optional | How the flag a trail ships behind is ramped after merge — the release controller's plan (see the design doc, the release controller). Part of the plan's release block; the project's defaults live in `trail-gates` `rollout`. The controller runs on the alerts cron, so a hold shorter than the cron interval rounds up to the next tick. |
+| `--autopilot <value>` | optional | What autopilot may do and spend on one trail. Crossing any one pauses it at a safe point and hands the trail to its owner. The project's defaults live in `trail-gates` `autopilot`. |
+| `--intake-matching <value>` | optional | Whether new and still-open errors, alerts, bugs and feature requests are compared with the project's open trails. A confident match attaches the item to the trail with the evidence; a weak one lands under the trail's possibly related list for its owner to confirm or reject. Matching never creates a trail. |
 | `--repos <value>` | optional | Per-repo overrides keyed by `owner/repo`. An override replaces the project's `checks.required` for changes in that repo; every other gate stays project-wide. |
 
 ### `shipeasy ops trigger`
@@ -1836,6 +1838,7 @@ shipeasy trails create [options] <title>
 | `--repos <value>` | optional | Repos (`owner/repo`) the trail may open changes in. |
 | `--origin-item <value>` | optional | Ship this: a queue item (number or id) to create the trail from. Its description seeds `body` when that is omitted, and it becomes the trail's first item with source `origin`. |
 | `--intake <value>` | optional | What the creation dialog already decided — each field is a plan question answered in advance. The plan run asks only what is left out. Omitted entirely, the plan asks everything ("let the plan ask me"). |
+| `--autopilot <value>` | optional | Turn a trail's autopilot on or off, and set the limits it acts inside. Turning it ON needs the `autopilot` capability (admins have it) and a person's identity — a dashboard session or a signed-in CLI, never an ops key, an admin key or MCP — and makes that person the accountable approver. Turning it off is open to the trail's owner, whoever authorized it, and admins. |
 
 ### `shipeasy trails get`
 
@@ -1875,6 +1878,7 @@ shipeasy trails update [options] <handle>
 | `--owner-id <value>` | optional | The `users.id` of the person owner; `null` unassigns. |
 | `--owner-connector-id <value>` | optional | The agent connector owner; `null` unassigns. |
 | `--repos <value>` | optional | Replaces the trail's repo scope. |
+| `--autopilot <value>` | optional | Turn a trail's autopilot on or off, and set the limits it acts inside. Turning it ON needs the `autopilot` capability (admins have it) and a person's identity — a dashboard session or a signed-in CLI, never an ops key, an admin key or MCP — and makes that person the accountable approver. Turning it off is open to the trail's owner, whoever authorized it, and admins. |
 
 ### `shipeasy trails close`
 
@@ -2044,6 +2048,38 @@ shipeasy trails resume-rollout [options] <handle>
 | Option | | Description |
 | --- | --- | --- |
 | `--reason <value>` | optional | Why — shown on the release timeline. |
+
+### `shipeasy trails pause-autopilot`
+
+Pause a trail's autopilot
+
+```bash
+shipeasy trails pause-autopilot [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--reason <value>` | optional | Why — shown on the timeline and to the owner. |
+
+### `shipeasy trails resume-autopilot`
+
+Resume a trail's autopilot
+
+```bash
+shipeasy trails resume-autopilot [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--reason <value>` | optional | Why — shown on the timeline. |
 
 ### `shipeasy trails review`
 

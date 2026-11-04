@@ -3886,6 +3886,12 @@ TrailGates:
       description: How long after a trail merged an error or alert ticket may be attributed to it. Trails merged inside the window are offered to the investigating agent as candidates.
     rollout:
       $ref: "#/TrailRollout"
+    autopilot:
+      $ref: "#/TrailAutopilotLimits"
+    intakeMatching:
+      type: boolean
+      default: true
+      description: Whether new and still-open errors, alerts, bugs and feature requests are compared with the project's open trails. A confident match attaches the item to the trail with the evidence; a weak one lands under the trail's possibly related list for its owner to confirm or reject. Matching never creates a trail.
     repos:
       type: object
       maxProperties: 100
@@ -4336,6 +4342,13 @@ TrailApproval:
     current:
       type: boolean
       description: True when it approved the latest push.
+    actorKind:
+      $ref: "#/TrailApprovalActorKind"
+    authorizedBy:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: For an autopilot approval, the person who authorized autopilot (`approved by autopilot, authorized by <email>`); `null` for a person's approval.
     createdAt:
       type: string
   required:
@@ -4344,6 +4357,8 @@ TrailApproval:
     - body
     - headSha
     - current
+    - actorKind
+    - authorizedBy
     - createdAt
 TrailCheckRun:
   type: object
@@ -5171,6 +5186,8 @@ TrailSuspect:
         - type: string
         - type: "null"
       description: The agent or person that recorded it, or `null`.
+    source:
+      $ref: "#/TrailSuspectSource"
     createdAt:
       type: string
       description: ISO-8601 time it was recorded.
@@ -5181,6 +5198,7 @@ TrailSuspect:
     - evidence
     - status
     - attributedBy
+    - source
     - createdAt
   additionalProperties: false
 TrailRolloutOnBreach:
@@ -5366,7 +5384,12 @@ TrailReleaseEventKind:
     - restarted
     - paused
     - completed
-  description: What happened on the release timeline.
+    - autopilot_on
+    - autopilot_off
+    - autopilot_acted
+    - autopilot_paused
+    - autopilot_resumed
+  description: What happened on the release timeline. The `autopilot_*` kinds are autopilot's own — turned on or off, an answer, an approval or a merge it made (`autopilot_acted`, the reason says which), a pause at a limit, a resume.
 TrailReleaseEvent:
   type: object
   description: One row of a trail's release timeline — something the controller, autopilot or a person did to its rollout.
@@ -5442,6 +5465,179 @@ TrailRolloutResult:
   required:
     - rollout
   additionalProperties: false
+TrailAutopilotState:
+  type: string
+  enum:
+    - "off"
+    - "on"
+    - paused
+  description: Where a trail's autopilot is — `off` (never turned on, or turned off), `on`, or `paused` (at a limit, or by a person; it keeps its authorizer and limits and acts on nothing).
+TrailAutopilotLimits:
+  type: object
+  description: What autopilot may do and spend on one trail. Crossing any one pauses it at a safe point and hands the trail to its owner. The project's defaults live in `trail-gates` `autopilot`.
+  properties:
+    maxRisk:
+      anyOf:
+        - type: integer
+          minimum: 0
+          maximum: 100
+        - type: "null"
+      description: The highest Risk agent score (0-100) autopilot may merge at. `null` = no risk limit. With a limit set, a change the Risk agent has not scored (or no Risk agent at all) is a limit hit, never a pass.
+    repos:
+      type: array
+      maxItems: 50
+      items:
+        type: string
+        minLength: 3
+        maxLength: 200
+      description: Repos (`owner/repo`) autopilot may act in. Empty = any repo the trail may touch.
+    types:
+      type: array
+      maxItems: 3
+      items:
+        $ref: "#/TrailType"
+      description: Trail types autopilot may act on. Empty = any.
+    maxFixRounds:
+      type: integer
+      minimum: 0
+      maximum: 10
+      description: Fix rounds per change before autopilot hands the trail over.
+    maxPullBacks:
+      type: integer
+      minimum: 0
+      maximum: 10
+      description: Pull-backs of the rollout before autopilot hands the trail over.
+    maxRuns:
+      type: integer
+      minimum: 0
+      maximum: 100
+      description: Agent runs autopilot may start in all (build, fix and investigation runs).
+  required:
+    - maxRisk
+    - repos
+    - types
+    - maxFixRounds
+    - maxPullBacks
+    - maxRuns
+  additionalProperties: false
+TrailAutopilotSettings:
+  type: object
+  description: Turn a trail's autopilot on or off, and set the limits it acts inside. Turning it ON needs the `autopilot` capability (admins have it) and a person's identity — a dashboard session or a signed-in CLI, never an ops key, an admin key or MCP — and makes that person the accountable approver. Turning it off is open to the trail's owner, whoever authorized it, and admins.
+  properties:
+    enabled:
+      type: boolean
+      description: Whether autopilot is on.
+    limits:
+      type: object
+      description: Limits to set; each one omitted keeps the trail's current value (the project's default for a new trail).
+      properties:
+        maxRisk:
+          anyOf:
+            - type: integer
+              minimum: 0
+              maximum: 100
+            - type: "null"
+        repos:
+          type: array
+          maxItems: 50
+          items:
+            type: string
+            minLength: 3
+            maxLength: 200
+        types:
+          type: array
+          maxItems: 3
+          items:
+            $ref: "#/TrailType"
+        maxFixRounds:
+          type: integer
+          minimum: 0
+          maximum: 10
+        maxPullBacks:
+          type: integer
+          minimum: 0
+          maximum: 10
+        maxRuns:
+          type: integer
+          minimum: 0
+          maximum: 100
+      additionalProperties: false
+  required:
+    - enabled
+  additionalProperties: false
+TrailAutopilot:
+  type: object
+  description: A trail's autopilot as it stands.
+  properties:
+    state:
+      $ref: "#/TrailAutopilotState"
+    authorizedBy:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The person who turned it on — the accountable approver of everything it approves and merges. `null` while it has never been on.
+    authorizedAt:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: ISO-8601 time it was turned on.
+    pausedReason:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Why it is paused (the limit it hit, or who paused it), or `null`.
+    limits:
+      $ref: "#/TrailAutopilotLimits"
+    runsUsed:
+      type: integer
+      description: Agent runs autopilot has started so far, against `limits.maxRuns`.
+  required:
+    - state
+    - authorizedBy
+    - authorizedAt
+    - pausedReason
+    - limits
+    - runsUsed
+  additionalProperties: false
+PauseTrailAutopilotRequest:
+  type: object
+  description: Body for `POST /api/admin/trails/{handle}/autopilot/pause`.
+  properties:
+    reason:
+      type: string
+      maxLength: 500
+      description: Why — shown on the timeline and to the owner.
+  additionalProperties: false
+ResumeTrailAutopilotRequest:
+  type: object
+  description: Body for `POST /api/admin/trails/{handle}/autopilot/resume`. The caller becomes the trail's accountable approver.
+  properties:
+    reason:
+      type: string
+      maxLength: 500
+      description: Why — shown on the timeline.
+  additionalProperties: false
+TrailAutopilotResult:
+  type: object
+  description: The autopilot after a pause or a resume.
+  properties:
+    autopilot:
+      $ref: "#/TrailAutopilot"
+  required:
+    - autopilot
+  additionalProperties: false
+TrailApprovalActorKind:
+  type: string
+  enum:
+    - person
+    - autopilot
+  description: Who recorded an approval — a person, or autopilot on behalf of the person who authorized it.
+TrailSuspectSource:
+  type: string
+  enum:
+    - post_merge
+    - intake
+  description: How a suspect reached the trail — the investigating agent attributed it after a merge, or the intake matcher scored it against the trail when it was filed.
 TrailPlanIntake:
   type: object
   description: What the creation dialog already decided — each field is a plan question answered in advance. The plan run asks only what is left out. Omitted entirely, the plan asks everything ("let the plan ask me").
@@ -5768,13 +5964,15 @@ TrailDetail:
       type: array
       items:
         $ref: "#/TrailSuspect"
-      description: Pending low-confidence post-merge attributions awaiting a person.
+      description: Pending suspects awaiting a person (the trail's possibly related list) — low-confidence post-merge attributions, and weak intake matches.
     gates:
       $ref: "#/TrailGates"
     plan:
       $ref: "#/TrailPlan"
     rollout:
       $ref: "#/TrailRolloutView"
+    autopilot:
+      $ref: "#/TrailAutopilot"
     releaseEvents:
       type: array
       items:
@@ -5815,6 +6013,7 @@ TrailDetail:
     - gates
     - plan
     - rollout
+    - autopilot
     - releaseEvents
   additionalProperties: false
 ListTrailsResponse:
@@ -5890,6 +6089,8 @@ CreateTrailRequest:
       maxLength: 64
     intake:
       $ref: "#/TrailPlanIntake"
+    autopilot:
+      $ref: "#/TrailAutopilotSettings"
   required:
     - title
   additionalProperties: false
@@ -5930,6 +6131,8 @@ UpdateTrailRequest:
         maxLength: 200
       description: Replaces the trail's repo scope.
       maxItems: 20
+    autopilot:
+      $ref: "#/TrailAutopilotSettings"
   additionalProperties: false
 CloseTrailRequest:
   type: object

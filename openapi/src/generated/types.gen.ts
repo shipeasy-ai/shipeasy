@@ -6063,6 +6063,11 @@ export type TrailFinding = {
     updatedAt: string;
 };
 
+/**
+ * Who recorded an approval — a person, or autopilot on behalf of the person who authorized it.
+ */
+export type TrailApprovalActorKind = 'person' | 'autopilot';
+
 export type TrailApproval = {
     id: string;
     actorEmail: string;
@@ -6075,6 +6080,11 @@ export type TrailApproval = {
      * True when it approved the latest push.
      */
     current: boolean;
+    actorKind: TrailApprovalActorKind;
+    /**
+     * For an autopilot approval, the person who authorized autopilot (`approved by autopilot, authorized by <email>`); `null` for a person's approval.
+     */
+    authorizedBy: string | null;
     createdAt: string;
 };
 
@@ -6331,6 +6341,11 @@ export type TrailAttributionConfidence = 'high' | 'medium' | 'low';
 export type TrailSuspectStatus = 'pending' | 'confirmed' | 'rejected';
 
 /**
+ * How a suspect reached the trail — the investigating agent attributed it after a merge, or the intake matcher scored it against the trail when it was filed.
+ */
+export type TrailSuspectSource = 'post_merge' | 'intake';
+
+/**
  * A low-confidence post-merge attribution: an error, alert or bug that may have been caused by the trail. A person confirms it onto the trail or rejects it.
  */
 export type TrailSuspect = {
@@ -6349,6 +6364,7 @@ export type TrailSuspect = {
      * The agent or person that recorded it, or `null`.
      */
     attributedBy: string | null;
+    source: TrailSuspectSource;
     /**
      * ISO-8601 time it was recorded.
      */
@@ -6426,6 +6442,36 @@ export type TrailRollout = {
         advance: TrailRolloutAdvance;
         afterFix: TrailRolloutAfterFix;
     };
+};
+
+/**
+ * What autopilot may do and spend on one trail. Crossing any one pauses it at a safe point and hands the trail to its owner. The project's defaults live in `trail-gates` `autopilot`.
+ */
+export type TrailAutopilotLimits = {
+    /**
+     * The highest Risk agent score (0-100) autopilot may merge at. `null` = no risk limit. With a limit set, a change the Risk agent has not scored (or no Risk agent at all) is a limit hit, never a pass.
+     */
+    maxRisk: number | null;
+    /**
+     * Repos (`owner/repo`) autopilot may act in. Empty = any repo the trail may touch.
+     */
+    repos: Array<string>;
+    /**
+     * Trail types autopilot may act on. Empty = any.
+     */
+    types: Array<TrailType>;
+    /**
+     * Fix rounds per change before autopilot hands the trail over.
+     */
+    maxFixRounds: number;
+    /**
+     * Pull-backs of the rollout before autopilot hands the trail over.
+     */
+    maxPullBacks: number;
+    /**
+     * Agent runs autopilot may start in all (build, fix and investigation runs).
+     */
+    maxRuns: number;
 };
 
 /**
@@ -6574,6 +6620,11 @@ export type TrailGates = {
      */
     attributionWindowHours?: number;
     rollout?: TrailRollout;
+    autopilot?: TrailAutopilotLimits;
+    /**
+     * Whether new and still-open errors, alerts, bugs and feature requests are compared with the project's open trails. A confident match attaches the item to the trail with the evidence; a weak one lands under the trail's possibly related list for its owner to confirm or reject. Matching never creates a trail.
+     */
+    intakeMatching?: boolean;
     /**
      * Per-repo overrides keyed by `owner/repo`. An override replaces the project's `checks.required` for changes in that repo; every other gate stays project-wide.
      */
@@ -6715,9 +6766,38 @@ export type TrailRolloutView = {
 };
 
 /**
- * What happened on the release timeline.
+ * Where a trail's autopilot is — `off` (never turned on, or turned off), `on`, or `paused` (at a limit, or by a person; it keeps its authorizer and limits and acts on nothing).
  */
-export type TrailReleaseEventKind = 'started' | 'advanced' | 'breach' | 'pulled_back' | 'asked' | 'answered' | 'investigating' | 'fix_merged' | 'resumed' | 'restarted' | 'paused' | 'completed';
+export type TrailAutopilotState = 'off' | 'on' | 'paused';
+
+/**
+ * A trail's autopilot as it stands.
+ */
+export type TrailAutopilot = {
+    state: TrailAutopilotState;
+    /**
+     * The person who turned it on — the accountable approver of everything it approves and merges. `null` while it has never been on.
+     */
+    authorizedBy: string | null;
+    /**
+     * ISO-8601 time it was turned on.
+     */
+    authorizedAt: string | null;
+    /**
+     * Why it is paused (the limit it hit, or who paused it), or `null`.
+     */
+    pausedReason: string | null;
+    limits: TrailAutopilotLimits;
+    /**
+     * Agent runs autopilot has started so far, against `limits.maxRuns`.
+     */
+    runsUsed: number;
+};
+
+/**
+ * What happened on the release timeline. The `autopilot_*` kinds are autopilot's own — turned on or off, an answer, an approval or a merge it made (`autopilot_acted`, the reason says which), a pause at a limit, a resume.
+ */
+export type TrailReleaseEventKind = 'started' | 'advanced' | 'breach' | 'pulled_back' | 'asked' | 'answered' | 'investigating' | 'fix_merged' | 'resumed' | 'restarted' | 'paused' | 'completed' | 'autopilot_on' | 'autopilot_off' | 'autopilot_acted' | 'autopilot_paused' | 'autopilot_resumed';
 
 /**
  * One row of a trail's release timeline — something the controller, autopilot or a person did to its rollout.
@@ -6867,12 +6947,13 @@ export type TrailDetail = {
      */
     runs: Array<TrailRun>;
     /**
-     * Pending low-confidence post-merge attributions awaiting a person.
+     * Pending suspects awaiting a person (the trail's possibly related list) — low-confidence post-merge attributions, and weak intake matches.
      */
     suspects: Array<TrailSuspect>;
     gates: TrailGates;
     plan: TrailPlan;
     rollout: TrailRolloutView;
+    autopilot: TrailAutopilot;
     /**
      * The release timeline, newest first (the latest 100).
      */
@@ -7277,6 +7358,27 @@ export type TrailPlanIntake = {
 };
 
 /**
+ * Turn a trail's autopilot on or off, and set the limits it acts inside. Turning it ON needs the `autopilot` capability (admins have it) and a person's identity — a dashboard session or a signed-in CLI, never an ops key, an admin key or MCP — and makes that person the accountable approver. Turning it off is open to the trail's owner, whoever authorized it, and admins.
+ */
+export type TrailAutopilotSettings = {
+    /**
+     * Whether autopilot is on.
+     */
+    enabled: boolean;
+    /**
+     * Limits to set; each one omitted keeps the trail's current value (the project's default for a new trail).
+     */
+    limits?: {
+        maxRisk?: number | null;
+        repos?: Array<string>;
+        types?: Array<TrailType>;
+        maxFixRounds?: number;
+        maxPullBacks?: number;
+        maxRuns?: number;
+    };
+};
+
+/**
  * Body for `POST /api/admin/trails`. A trail is created on purpose — from scratch, or from an item with `originItem`. Omitted, `type` follows the origin item (a bug is a `bug`, a feature request a `feature`) and is otherwise `task`.
  */
 export type CreateTrailRequest = {
@@ -7310,6 +7412,7 @@ export type CreateTrailRequest = {
      */
     originItem?: string;
     intake?: TrailPlanIntake;
+    autopilot?: TrailAutopilotSettings;
 };
 
 /**
@@ -7335,6 +7438,7 @@ export type UpdateTrailRequest = {
      * Replaces the trail's repo scope.
      */
     repos?: Array<string>;
+    autopilot?: TrailAutopilotSettings;
 };
 
 /**
@@ -7474,6 +7578,33 @@ export type TrailRolloutResult = {
 export type ResumeTrailRolloutRequest = {
     /**
      * Why — shown on the release timeline.
+     */
+    reason?: string;
+};
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/autopilot/pause`.
+ */
+export type PauseTrailAutopilotRequest = {
+    /**
+     * Why — shown on the timeline and to the owner.
+     */
+    reason?: string;
+};
+
+/**
+ * The autopilot after a pause or a resume.
+ */
+export type TrailAutopilotResult = {
+    autopilot: TrailAutopilot;
+};
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/autopilot/resume`. The caller becomes the trail's accountable approver.
+ */
+export type ResumeTrailAutopilotRequest = {
+    /**
+     * Why — shown on the timeline.
      */
     reason?: string;
 };
@@ -17215,6 +17346,118 @@ export type ResumeTrailRolloutResponses = {
 };
 
 export type ResumeTrailRolloutResponse = ResumeTrailRolloutResponses[keyof ResumeTrailRolloutResponses];
+
+export type PauseTrailAutopilotData = {
+    body?: PauseTrailAutopilotRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/autopilot/pause';
+};
+
+export type PauseTrailAutopilotErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type PauseTrailAutopilotError = PauseTrailAutopilotErrors[keyof PauseTrailAutopilotErrors];
+
+export type PauseTrailAutopilotResponses = {
+    /**
+     * The autopilot, paused
+     */
+    200: TrailAutopilotResult;
+};
+
+export type PauseTrailAutopilotResponse = PauseTrailAutopilotResponses[keyof PauseTrailAutopilotResponses];
+
+export type ResumeTrailAutopilotData = {
+    body?: ResumeTrailAutopilotRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/autopilot/resume';
+};
+
+export type ResumeTrailAutopilotErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type ResumeTrailAutopilotError = ResumeTrailAutopilotErrors[keyof ResumeTrailAutopilotErrors];
+
+export type ResumeTrailAutopilotResponses = {
+    /**
+     * The rollout, resumed
+     */
+    200: TrailAutopilotResult;
+};
+
+export type ResumeTrailAutopilotResponse = ResumeTrailAutopilotResponses[keyof ResumeTrailAutopilotResponses];
 
 export type RequestTrailReviewData = {
     body: RequestOpsTrailReviewRequest;
