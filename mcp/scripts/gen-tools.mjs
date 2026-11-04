@@ -8,6 +8,7 @@
 //   • required inputs← spec-required params, plus any query param marked
 //                      `x-mcp.required` (optional over HTTP, mandatory for an
 //                      agent — the dispatch refuses the call without it)
+//   • hidden ops     ← `x-mcp.hidden: true` drops an op from MCP only (the CLI keeps it)
 //   • tool defaults  ← a query param's `x-mcp.default` replaces its HTTP default
 //                      (e.g. `ops_list` lists `open` items unless asked for more)
 //   • inputSchema    ← path params + query params + request-body properties
@@ -154,6 +155,10 @@ for (const [, item] of Object.entries(spec.paths)) {
     // it from the CLI + MCP tool surfaces (e.g. config draft/publish/versions,
     // superseded by per-env publish flags on create/update).
     if (xcli.hidden) continue;
+    // `x-mcp.hidden` drops an op from the MCP surface ONLY — the CLI keeps it.
+    // For decisions that belong to a person at a terminal or in the dashboard,
+    // never to an agent holding an MCP connection (trails approve / merge).
+    if (op["x-mcp"]?.hidden === true) continue;
     const tag = op.tags?.[0];
     // `x-mcp.expose` opts one op of a skipped tag back in (API Keys: only `createKey`).
     if (SKIP_TAGS.has(tag) && op["x-mcp"]?.expose !== true) continue;

@@ -2182,7 +2182,8 @@ export const zCreateBugRequest = z.object({
     userAgent: z.string().max(500).nullish(),
     viewport: z.string().max(40).nullish(),
     context: z.record(z.string(), z.unknown()).nullish(),
-    notify: zNotificationTarget.nullish()
+    notify: zNotificationTarget.nullish(),
+    trail: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/).optional()
 });
 
 /**
@@ -2203,7 +2204,8 @@ export const zCreateFeatureRequestRequest = z.object({
     pageUrl: z.url().nullish(),
     userAgent: z.string().max(500).nullish(),
     context: z.record(z.string(), z.unknown()).nullish(),
-    notify: zNotificationTarget.nullish()
+    notify: zNotificationTarget.nullish(),
+    trail: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/).optional()
 });
 
 /**
@@ -2382,6 +2384,43 @@ export const zOpsLinkedItem = z.object({
 });
 
 /**
+ * Where a trail is, derived from its changes and its release resources — `planning` (no change and no open run), `building` (no change yet, a run is working), `reviewing` (a change is open and not every open change can merge), `ready` (every open change can merge), `releasing` (merged, and a flag, experiment or other release resource has not settled), `shipped` (merged and every release resource settled), `closed` (closed with nothing merged). The detail read recomputes it live; the list reads a snapshot.
+ */
+export const zTrailPhase = z.enum([
+    'planning',
+    'building',
+    'reviewing',
+    'ready',
+    'releasing',
+    'shipped',
+    'closed'
+]);
+
+/**
+ * A compact reference to a trail, as it appears on a queue item.
+ */
+export const zTrailSummary = z.object({
+    id: z.string(),
+    number: z.int(),
+    handle: z.string(),
+    title: z.string(),
+    phase: zTrailPhase
+});
+
+/**
+ * How an item came to be on a trail — `origin` (the item Ship this was pressed on), `finding` (a review finding promoted out of scope), `agent` (the coding agent filed it instead of fixing it in place), `person` (a reviewer filed it from the trail), `post_merge` (an error, alert or bug attributed to the trail after it merged), `cleanup` (follow-up the release created, e.g. remove a flag from code), `attached` (an existing item moved onto the trail).
+ */
+export const zTrailDiscoveredSource = z.enum([
+    'origin',
+    'finding',
+    'agent',
+    'person',
+    'post_merge',
+    'cleanup',
+    'attached'
+]);
+
+/**
  * One queue item, any of the five types. Shared fields apply to all; `stepsToReproduce`/`actualResult`/`expectedResult` are bug-specific, `description`/`useCase` feature-specific. The auto-collected browser fields (page URL, user-agent, viewport) live under `context.browser` for bug/feature. `context` also carries the hydrated per-type payload for auto-filed `error`/`alert`/`measure_plan` tickets, `attachments` lists any uploaded files, and `related` gives deep links to the underlying resources.
  */
 export const zGetOpsItemResponse = z.object({
@@ -2422,6 +2461,8 @@ export const zGetOpsItemResponse = z.object({
     assigneeConnectorId: z.string().nullish(),
     assigneeAgent: z.string().nullish(),
     owner: zOpsItemOwner,
+    trail: zTrailSummary.nullish(),
+    discoveredSource: zTrailDiscoveredSource.nullish(),
     createdAt: z.string(),
     updatedAt: z.string().optional()
 });
@@ -3117,26 +3158,34 @@ export const zListOpsMemoryResponse = z.object({
 });
 
 /**
- * Where a trail is, derived from its changes — `planning` (intent only), `building` (an agent is working, no change yet), `reviewing` (a change is open and a blocking gate has not passed), `ready` (every open change passes its gates), `merged` (every change merged), `closed` (the changes were closed unmerged).
+ * What a trail is shipping. A `feature` trail is held to the rollback and measured release gates.
  */
-export const zTrailPhase = z.enum([
-    'planning',
-    'building',
-    'reviewing',
-    'ready',
-    'merged',
-    'closed'
+export const zTrailType = z.enum([
+    'feature',
+    'bug',
+    'task'
 ]);
 
 /**
- * A merge gate — `up_to_date` (the branch is current with its base), `human_review` (enough approvals), `agent_review` (no open findings at or above the severity), `evals` (every blocking review agent passes on the latest push), `checks` (CI checks pass).
+ * Whether a trail is still being worked. A trail closes by hand, or on its own once it is `shipped` with no high-priority discovered item open. `phase` carries the detail; `status` is the stored open/closed switch.
+ */
+export const zTrailStatus = z.enum(['open', 'closed']);
+
+/**
+ * A merge gate — `up_to_date` (the branch is current with its base), `human_review` (enough approvals), `agent_review` (no open findings at or above the severity, and no push agent still reviewing), `evals` (every blocking review agent passes on the latest push), `checks` (CI checks pass), `discovered` (no item discovered on the trail is open at or above the configured priority), and the release gates `ships_dark` (every flag the trail ships behind is off in prod), `rollback` (a feature has a rollback kill switch), `measured` (a feature has an experiment or metric), `guarded` (every measured resource has a guard alert rule) and `copy` (every copy key exists in every published locale).
  */
 export const zTrailGateKey = z.enum([
     'up_to_date',
     'human_review',
     'agent_review',
     'evals',
-    'checks'
+    'checks',
+    'discovered',
+    'ships_dark',
+    'rollback',
+    'measured',
+    'guarded',
+    'copy'
 ]);
 
 /**
@@ -3262,6 +3311,7 @@ export const zTrailFinding = z.object({
     stale: z.boolean(),
     statusReason: z.string().nullable(),
     statusBy: z.string().nullable(),
+    promotedItem: zOpsItemRef.nullable(),
     createdAt: z.string(),
     updatedAt: z.string()
 });
@@ -3291,9 +3341,14 @@ export const zTrailPush = z.object({
 });
 
 /**
- * One linked pull request on a trail, with everything needed to decide whether it can merge.
+ * One pull request worked under a trail, with everything needed to decide whether it can merge.
  */
 export const zTrailChange = z.object({
+    id: z.string(),
+    item: zOpsItemRef.nullable(),
+    mergedAt: z.string().nullable(),
+    mergeSha: z.string().nullable(),
+    changedFiles: z.array(z.string()).nullable(),
     prUrl: z.string(),
     prNumber: z.int(),
     repo: z.string().nullable(),
@@ -3317,13 +3372,169 @@ export const zTrailChange = z.object({
     pushes: z.array(zTrailPush)
 });
 
+/**
+ * A compact reference to one of a trail's changes.
+ */
+export const zTrailChangeRef = z.object({
+    id: z.string(),
+    prUrl: z.string(),
+    prNumber: z.int(),
+    repo: z.string().nullable()
+});
+
+/**
+ * A queue item on a trail, with where it surfaced.
+ */
+export const zTrailItem = z.object({
+    item: zOpsItemRef,
+    priority: zOpsItemPriority.nullable(),
+    discoveredSource: zTrailDiscoveredSource,
+    discoveredSha: z.string().nullable(),
+    change: zTrailChangeRef.nullable()
+});
+
+/**
+ * The product entities a trail can ship or depend on. `gate` is a feature flag.
+ */
+export const zTrailResourceKind = z.enum([
+    'gate',
+    'config',
+    'killswitch',
+    'experiment',
+    'metric',
+    'alert_rule',
+    'event',
+    'i18n_key'
+]);
+
+/**
+ * What a resource is for on the trail — `ships_behind` (the flag the code ships behind), `rollback` (the kill switch that undoes it), `measures` (the experiment or metric that judges it), `guards` (an alert rule that watches it), `copy` (an i18n key it adds) or `touched` (anything else). The release gates and the release phase read these.
+ */
+export const zTrailResourceRole = z.enum([
+    'ships_behind',
+    'rollback',
+    'measures',
+    'guards',
+    'copy',
+    'touched'
+]);
+
+/**
+ * How a resource got linked — `agent` (a write made in the trail's run context), `detected` (a review run saw the diff use it) or `person`.
+ */
+export const zTrailResourceSource = z.enum([
+    'agent',
+    'detected',
+    'person'
+]);
+
+/**
+ * The resource's live state, read from the product when the trail is read. Only the fields that apply to the kind are set.
+ */
+export const zTrailResourceState = z.object({
+    exists: z.boolean().optional(),
+    archived: z.boolean().optional(),
+    settled: z.boolean().optional(),
+    summary: z.string().nullish(),
+    prodRolloutPct: z.number().gte(0).lte(100).nullish(),
+    status: z.string().nullish(),
+    decision: z.string().nullish()
+});
+
+/**
+ * A flag, config, kill switch, experiment, metric, alert rule, event or i18n key the trail ships or depends on. `state` is present on reads that load live state.
+ */
+export const zTrailResource = z.object({
+    id: z.string(),
+    kind: zTrailResourceKind,
+    resourceId: z.string(),
+    resourceKey: z.string(),
+    role: zTrailResourceRole,
+    source: zTrailResourceSource,
+    state: zTrailResourceState.optional(),
+    createdAt: z.string()
+});
+
+/**
+ * What a trail run was fired to do — `build` (work the trail from its intent) or `fix` (act on failing evals and findings).
+ */
+export const zTrailRunKind = z.enum(['build', 'fix']);
+
+/**
+ * A trail run's lifecycle.
+ */
+export const zTrailRunState = z.enum([
+    'launching',
+    'running',
+    'completed',
+    'failed',
+    'cancelled'
+]);
+
+/**
+ * A coding-agent session working the trail itself.
+ */
+export const zTrailRun = z.object({
+    id: z.string(),
+    kind: zTrailRunKind,
+    state: zTrailRunState,
+    agent: z.string().nullable(),
+    sessionUrl: z.string().nullable(),
+    change: zTrailChangeRef.nullable(),
+    headSha: z.string().nullable(),
+    summary: z.string().nullable(),
+    startedAt: z.string(),
+    completedAt: z.string().nullable(),
+    error: z.string().nullable()
+});
+
+/**
+ * How sure an attribution is. `high` and `medium` attach the item to the trail; `low` records a suspect for a person to confirm or reject.
+ */
+export const zTrailAttributionConfidence = z.enum([
+    'high',
+    'medium',
+    'low'
+]);
+
+/**
+ * Where a suspected regression stands. Only `pending` suspects are listed on the trail.
+ */
+export const zTrailSuspectStatus = z.enum([
+    'pending',
+    'confirmed',
+    'rejected'
+]);
+
+/**
+ * A low-confidence post-merge attribution: an error, alert or bug that may have been caused by the trail. A person confirms it onto the trail or rejects it.
+ */
+export const zTrailSuspect = z.object({
+    id: z.string(),
+    item: zOpsItemRef,
+    confidence: zTrailAttributionConfidence,
+    evidence: z.string(),
+    status: zTrailSuspectStatus,
+    attributedBy: z.string().nullable(),
+    createdAt: z.string()
+});
+
 export const zTrailGateToggle = z.object({
     enabled: z.boolean(),
     blocking: z.boolean()
 });
 
 /**
- * A project's merge gates for trail changes. Every project starts on the defaults shown in the example.
+ * A repo's partial override of the project's trail gates.
+ */
+export const zTrailRepoOverride = z.object({
+    checks: z.object({
+        required: z.array(z.string().min(1).max(200)).max(50)
+    }).optional()
+});
+
+/**
+ * A project's merge and release gates for trails. Every project starts on the defaults shown in the example; the release gates, `discovered` and the per-repo overrides are all off until turned on. Send the whole object — fields you omit take their defaults.
  */
 export const zTrailGates = z.object({
     upToDate: zTrailGateToggle,
@@ -3331,7 +3542,8 @@ export const zTrailGates = z.object({
         enabled: z.boolean(),
         blocking: z.boolean(),
         minApprovals: z.int().gte(1).lte(10),
-        resetOnPush: z.boolean()
+        resetOnPush: z.boolean(),
+        authorCanApprove: z.boolean().optional().default(false)
     }),
     agentReview: z.object({
         enabled: z.boolean(),
@@ -3343,18 +3555,72 @@ export const zTrailGates = z.object({
         enabled: z.boolean(),
         blocking: z.boolean(),
         required: z.array(z.string().min(1).max(200)).max(50)
-    })
+    }),
+    discovered: z.object({
+        enabled: z.boolean().default(false),
+        blocking: z.boolean().default(false),
+        priority: zOpsItemPriority
+    }).optional(),
+    shipsDark: z.object({
+        enabled: z.boolean().default(false),
+        blocking: z.boolean().default(false)
+    }).optional().default({ enabled: false, blocking: false }),
+    rollback: z.object({
+        enabled: z.boolean().default(false),
+        blocking: z.boolean().default(false)
+    }).optional().default({ enabled: false, blocking: false }),
+    measured: z.object({
+        enabled: z.boolean().default(false),
+        blocking: z.boolean().default(false)
+    }).optional().default({ enabled: false, blocking: false }),
+    guarded: z.object({
+        enabled: z.boolean().default(false),
+        blocking: z.boolean().default(false)
+    }).optional().default({ enabled: false, blocking: false }),
+    copy: z.object({
+        enabled: z.boolean().default(false),
+        blocking: z.boolean().default(false)
+    }).optional().default({ enabled: false, blocking: false }),
+    fixRounds: z.int().gte(0).lte(10).optional().default(3),
+    attributionWindowHours: z.int().gte(1).lte(720).optional().default(72),
+    repos: z.record(z.string(), zTrailRepoOverride).optional()
 });
 
 /**
- * A queue item followed from intent to merge.
+ * A trail followed from intent to release: the trail itself plus its changes, discovered items, resources, runs, suspected regressions and the project's gates. Phase and counts are recomputed live on this read.
  */
-export const zGetOpsTrailResponse = z.object({
+export const zTrailDetail = z.object({
     id: z.string(),
     number: z.int(),
+    handle: z.string(),
     title: z.string(),
+    body: z.string(),
+    type: zTrailType,
+    priority: zOpsItemPriority.nullable(),
+    owner: zOpsItemOwner,
+    status: zTrailStatus,
+    closedReason: z.string().nullable(),
     phase: zTrailPhase,
+    phaseReason: z.string().nullable(),
+    origin: zOpsItemRef.nullable(),
+    repos: z.array(z.string()),
+    changesOpen: z.int(),
+    changesMergeable: z.int(),
+    findingsOpenHigh: z.int(),
+    itemsOpen: z.int(),
+    resourcesCount: z.int(),
+    releasedPct: z.number().gte(0).lte(100).nullable(),
+    mergedAt: z.string().nullable(),
+    shippedAt: z.string().nullable(),
+    closedAt: z.string().nullable(),
+    snapshotAt: z.string().nullable(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
     changes: z.array(zTrailChange),
+    items: z.array(zTrailItem),
+    resources: z.array(zTrailResource),
+    runs: z.array(zTrailRun),
+    suspects: z.array(zTrailSuspect),
     gates: zTrailGates
 });
 
@@ -3365,6 +3631,15 @@ export const zNewTrailFinding = z.object({
     path: z.string().max(500).optional(),
     line: z.int().gte(1).optional(),
     suggestion: z.string().max(4000).optional()
+});
+
+/**
+ * A resource to link to a trail. When `role` is omitted it is guessed from the kind: a gate ships behind, a kill switch is the rollback, an experiment measures, an alert rule guards, an i18n key is copy, anything else is touched.
+ */
+export const zNewTrailResource = z.object({
+    kind: zTrailResourceKind,
+    resourceKey: z.string().min(1).max(256),
+    role: zTrailResourceRole.optional()
 });
 
 /**
@@ -3384,7 +3659,8 @@ export const zSubmitOpsTrailEvalRequest = z.object({
         'copilot',
         'jules'
     ]).optional(),
-    sessionId: z.string().max(300).optional()
+    sessionId: z.string().max(300).optional(),
+    resources: z.array(zNewTrailResource).max(50).optional()
 });
 
 export const zSubmitOpsTrailEvalResponse = z.object({
@@ -3519,6 +3795,169 @@ export const zUpdateTrailAgentRequest = z.object({
     trigger: zTrailAgentTrigger.optional(),
     connectorId: z.string().min(1).max(128).nullish(),
     enabled: z.boolean().optional()
+});
+
+/**
+ * A trail — the unit of shipping: an intent, the changes worked under it, the items discovered on it and the product resources it ships. The phase and counts are a snapshot (see `snapshotAt`); the detail read recomputes them live.
+ */
+export const zTrail = z.object({
+    id: z.string(),
+    number: z.int(),
+    handle: z.string(),
+    title: z.string(),
+    body: z.string(),
+    type: zTrailType,
+    priority: zOpsItemPriority.nullable(),
+    owner: zOpsItemOwner,
+    status: zTrailStatus,
+    closedReason: z.string().nullable(),
+    phase: zTrailPhase,
+    phaseReason: z.string().nullable(),
+    origin: zOpsItemRef.nullable(),
+    repos: z.array(z.string()),
+    changesOpen: z.int(),
+    changesMergeable: z.int(),
+    findingsOpenHigh: z.int(),
+    itemsOpen: z.int(),
+    resourcesCount: z.int(),
+    releasedPct: z.number().gte(0).lte(100).nullable(),
+    mergedAt: z.string().nullable(),
+    shippedAt: z.string().nullable(),
+    closedAt: z.string().nullable(),
+    snapshotAt: z.string().nullable(),
+    createdAt: z.string(),
+    updatedAt: z.string()
+});
+
+/**
+ * A page of trails, in the standard `{ data, next_cursor }` envelope.
+ */
+export const zListTrailsResponse = z.object({
+    data: z.array(zTrail),
+    next_cursor: z.string().nullable(),
+    section_counts: z.record(z.string(), z.int()).optional(),
+    grouped: z.boolean().optional()
+});
+
+/**
+ * Body for `POST /api/admin/trails`. A trail is created on purpose — from scratch, or from an item with `originItem`. Omitted, `type` follows the origin item (a bug is a `bug`, a feature request a `feature`) and is otherwise `task`.
+ */
+export const zCreateTrailRequest = z.object({
+    title: z.string().min(1).max(200).regex(/^\S(.*\S)?$/),
+    body: z.string().max(20000).optional().default(''),
+    type: zTrailType.optional(),
+    priority: zOpsItemPriority.nullish(),
+    ownerId: z.string().nullish(),
+    ownerConnectorId: z.string().nullish(),
+    repos: z.array(z.string().min(3).max(200)).max(20).optional().default([]),
+    originItem: z.string().min(1).max(64).optional()
+});
+
+/**
+ * Body for `PATCH /api/admin/trails/{handle}`. Pass at least one field; omitted ones are left as they are.
+ */
+export const zUpdateTrailRequest = z.object({
+    title: z.string().min(1).max(200).regex(/^\S(.*\S)?$/).optional(),
+    body: z.string().max(20000).optional(),
+    type: zTrailType.optional(),
+    priority: zOpsItemPriority.nullish(),
+    ownerId: z.string().nullish(),
+    ownerConnectorId: z.string().nullish(),
+    repos: z.array(z.string().min(3).max(200)).max(20).optional()
+});
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/close`.
+ */
+export const zCloseTrailRequest = z.object({
+    reason: z.string().max(2000).optional()
+});
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/changes`.
+ */
+export const zLinkTrailPrRequest = z.object({
+    prUrl: z.string().min(1).max(500),
+    item: z.string().min(1).max(64).optional()
+});
+
+/**
+ * Response for the trail detach endpoints.
+ */
+export const zTrailOkResponse = z.object({
+    ok: z.literal(true)
+});
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/runs`. Fires the project's coding-agent trigger with a trail prompt: the intent, the acceptance criteria, the linked resources and the open discovered items.
+ */
+export const zStartTrailRunRequest = z.object({
+    agent: z.enum([
+        'claude',
+        'cursor',
+        'copilot',
+        'jules'
+    ]).optional(),
+    connectorId: z.string().optional(),
+    prompt: z.string().max(8000).optional()
+});
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/findings/{findingId}/promote`.
+ */
+export const zPromoteTrailFindingRequest = z.object({
+    type: z.enum(['bug', 'feature_request']).optional(),
+    reason: z.string().min(1).max(2000),
+    title: z.string().min(1).max(200).optional()
+});
+
+/**
+ * The item created from the finding (on the trail, source `finding`) and the finding, now dismissed as `moved to #N`.
+ */
+export const zPromoteTrailFindingResponse = z.object({
+    item: zTrailItem,
+    finding: zTrailFinding
+});
+
+/**
+ * The trail's resources, with their live state.
+ */
+export const zListTrailResourcesResponse = z.object({
+    data: z.array(zTrailResource)
+});
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/resources`. When `role` is omitted it is guessed from the kind. Linking the same entity again changes its role.
+ */
+export const zAddTrailResourceRequest = z.object({
+    kind: zTrailResourceKind,
+    resourceKey: z.string().min(1).max(256),
+    role: zTrailResourceRole.optional()
+});
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/items`. The item is recorded with source `attached`.
+ */
+export const zAddTrailItemRequest = z.object({
+    item: z.string().min(1).max(64)
+});
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/attributions`.
+ */
+export const zAttributeTrailRequest = z.object({
+    item: z.string().min(1).max(64),
+    confidence: zTrailAttributionConfidence,
+    evidence: z.string().min(1).max(4000)
+});
+
+/**
+ * What an attribution did.
+ */
+export const zAttributeTrailResponse = z.object({
+    attached: z.boolean(),
+    item: zTrailItem.nullable(),
+    suspect: zTrailSuspect.nullable()
 });
 
 /**
@@ -4834,6 +5273,11 @@ export const zPaginationCursor = z.string();
  * Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything.
  */
 export const zQ = z.string().max(100);
+
+/**
+ * The trail's handle (`T-12`) or its id.
+ */
+export const zTrailHandle = z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/);
 
 export const zListGatesHeaders = z.object({
     'X-Project-Id': z.string().optional()
@@ -6301,7 +6745,7 @@ export const zGetOpsTrailPath = z.object({
 /**
  * The item's trail
  */
-export const zGetOpsTrailResponse2 = zGetOpsTrailResponse;
+export const zGetOpsTrailResponse = zTrailDetail;
 
 export const zSubmitOpsTrailEvalBody = zSubmitOpsTrailEvalRequest;
 
@@ -6446,6 +6890,362 @@ export const zUpdateTrailGatesHeaders = z.object({
  * The merge gates
  */
 export const zUpdateTrailGatesResponse = zTrailGates;
+
+export const zListTrailsHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zListTrailsQuery = z.object({
+    view: z.enum(['table']).optional(),
+    scope: z.enum([
+        'all',
+        'mine',
+        'reviewing',
+        'ready',
+        'releasing',
+        'shipped',
+        'closed'
+    ]).optional().default('all'),
+    phase: zTrailPhase.optional(),
+    type: zTrailType.optional(),
+    owner: z.string().optional(),
+    q: z.string().max(100).optional(),
+    mergedSince: z.iso.datetime().optional(),
+    touches: z.string().max(500).optional(),
+    f: z.string().max(8000).optional(),
+    sort: z.string().max(32).optional(),
+    cursor: z.string().optional(),
+    limit: z.coerce.number().int().gte(1).lte(200).optional().default(50)
+});
+
+/**
+ * A page of trails
+ */
+export const zListTrailsResponse2 = zListTrailsResponse;
+
+export const zCreateTrailBody = zCreateTrailRequest;
+
+export const zCreateTrailHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+/**
+ * The new trail
+ */
+export const zCreateTrailResponse = zTrail;
+
+export const zGetTrailHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zGetTrailPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/)
+});
+
+export const zGetTrailQuery = z.object({
+    files: z.boolean().optional().default(false)
+});
+
+/**
+ * The trail
+ */
+export const zGetTrailResponse = zTrailDetail;
+
+export const zUpdateTrailBody = zUpdateTrailRequest;
+
+export const zUpdateTrailHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zUpdateTrailPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/)
+});
+
+/**
+ * The updated trail
+ */
+export const zUpdateTrailResponse = zTrail;
+
+export const zCloseTrailBody = zCloseTrailRequest;
+
+export const zCloseTrailHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zCloseTrailPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/)
+});
+
+/**
+ * The closed trail
+ */
+export const zCloseTrailResponse = zTrail;
+
+export const zReopenTrailHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zReopenTrailPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/)
+});
+
+/**
+ * The reopened trail
+ */
+export const zReopenTrailResponse = zTrail;
+
+export const zUnlinkTrailPrHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zUnlinkTrailPrPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/)
+});
+
+export const zUnlinkTrailPrQuery = z.object({
+    prUrl: z.string().min(1).max(500)
+});
+
+/**
+ * The change was unlinked
+ */
+export const zUnlinkTrailPrResponse = zTrailOkResponse;
+
+export const zLinkTrailPrBody = zLinkTrailPrRequest;
+
+export const zLinkTrailPrHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zLinkTrailPrPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/)
+});
+
+/**
+ * The change
+ */
+export const zLinkTrailPrResponse = zTrailChange;
+
+export const zStartTrailRunBody = zStartTrailRunRequest;
+
+export const zStartTrailRunHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zStartTrailRunPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/)
+});
+
+/**
+ * The run that was started
+ */
+export const zStartTrailRunResponse = zTrailRun;
+
+export const zRequestTrailReviewBody = zRequestOpsTrailReviewRequest;
+
+export const zRequestTrailReviewHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zRequestTrailReviewPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/)
+});
+
+/**
+ * What was launched
+ */
+export const zRequestTrailReviewResponse = zRequestOpsTrailReviewResponse;
+
+export const zSubmitTrailEvalBody = zSubmitOpsTrailEvalRequest;
+
+export const zSubmitTrailEvalHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zSubmitTrailEvalPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/)
+});
+
+/**
+ * The recorded eval and its findings
+ */
+export const zSubmitTrailEvalResponse = zSubmitOpsTrailEvalResponse;
+
+export const zUpdateTrailFindingBody = zUpdateOpsTrailFindingRequest;
+
+export const zUpdateTrailFindingHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zUpdateTrailFindingPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/),
+    findingId: zResourceId
+});
+
+/**
+ * The updated finding
+ */
+export const zUpdateTrailFindingResponse = zTrailFinding;
+
+export const zPromoteTrailFindingBody = zPromoteTrailFindingRequest;
+
+export const zPromoteTrailFindingHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zPromoteTrailFindingPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/),
+    findingId: zResourceId
+});
+
+/**
+ * The created item and the updated finding
+ */
+export const zPromoteTrailFindingResponse2 = zPromoteTrailFindingResponse;
+
+export const zApproveTrailBody = zApproveOpsTrailRequest;
+
+export const zApproveTrailHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zApproveTrailPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/)
+});
+
+/**
+ * The approval
+ */
+export const zApproveTrailResponse = zTrailApproval;
+
+export const zMergeTrailBody = zMergeOpsTrailRequest;
+
+export const zMergeTrailHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zMergeTrailPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/)
+});
+
+/**
+ * The merge result
+ */
+export const zMergeTrailResponse = zMergeOpsTrailResponse;
+
+export const zListTrailResourcesHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zListTrailResourcesPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/)
+});
+
+/**
+ * The trail's resources
+ */
+export const zListTrailResourcesResponse2 = zListTrailResourcesResponse;
+
+export const zAddTrailResourceBody = zAddTrailResourceRequest;
+
+export const zAddTrailResourceHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zAddTrailResourcePath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/)
+});
+
+/**
+ * The linked resource
+ */
+export const zAddTrailResourceResponse = zTrailResource;
+
+export const zRemoveTrailResourceHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zRemoveTrailResourcePath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/),
+    id: zResourceId
+});
+
+/**
+ * The resource was unlinked
+ */
+export const zRemoveTrailResourceResponse = zTrailOkResponse;
+
+export const zAddTrailItemBody = zAddTrailItemRequest;
+
+export const zAddTrailItemHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zAddTrailItemPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/)
+});
+
+/**
+ * The item as it now sits on the trail
+ */
+export const zAddTrailItemResponse = zTrailItem;
+
+export const zRemoveTrailItemHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zRemoveTrailItemPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/),
+    itemHandle: zOpsItemHandle
+});
+
+/**
+ * The item was taken off the trail
+ */
+export const zRemoveTrailItemResponse = zTrailOkResponse;
+
+export const zAttributeTrailBody = zAttributeTrailRequest;
+
+export const zAttributeTrailHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zAttributeTrailPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/)
+});
+
+/**
+ * What the attribution did
+ */
+export const zAttributeTrailResponse2 = zAttributeTrailResponse;
+
+export const zConfirmTrailSuspectHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zConfirmTrailSuspectPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/),
+    suspectId: zResourceId
+});
+
+/**
+ * The suspect, with its new status
+ */
+export const zConfirmTrailSuspectResponse = zTrailSuspect;
+
+export const zRejectTrailSuspectHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zRejectTrailSuspectPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/),
+    suspectId: zResourceId
+});
+
+/**
+ * The suspect, with its new status
+ */
+export const zRejectTrailSuspectResponse = zTrailSuspect;
 
 export const zListOpsRoutingRulesHeaders = z.object({
     'X-Project-Id': z.string().optional()

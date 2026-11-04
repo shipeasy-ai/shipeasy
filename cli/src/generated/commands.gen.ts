@@ -10,6 +10,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   const g_ops = defineGroup(program, "ops", { summary: "Operational queue: the unified table of bug reports, feature requests, and auto-filed error/alert tickets, all over `/api/admin/ops`.", help: "Operational queue: the unified table of bug reports, feature requests, and\nauto-filed error/alert tickets, all over `/api/admin/ops`. One `create`\nendpoint files either user type (`type: bug | feature_request`); list, get,\nupdate, and link-pr are unified across every type. Also exposes the\n`notify` escalation bell and the read-only Slack-channels list used to\nresolve alert-rule notification targets.\n\n**Handles.** A queue item is addressed by its per-project `number` (e.g. `7`)\nor its full id — the API resolves either.", aliases: [] });
   const g_projects = defineGroup(program, "projects", { summary: "Projects: the account-level container every other resource is scoped to.", help: "Projects: the account-level container every other resource is scoped to.\n\n**Account-level, not bound-project-level.** Both operations resolve from the caller's credential rather than the `.shipeasy`-bound project — `current` reads the project the auth header maps to, and `upsert` find-or-creates under the session's owner. Neither touches the local `.shipeasy` binding; recording the result there is a consumer side-effect layered on top.\n\n**Idempotent upsert.** A project is keyed by `(owner_email, domain)`. Calling `upsert` again with the same domain returns the existing project with `created: false`, so it is safe to run on every install.", aliases: [] });
   const g_tags = defineGroup(program, "tags", { summary: "Tags: free-form, project-scoped labels any item can carry — queue items (bugs, feature requests, error/alert tickets), flags, configs, killswitches, metrics, tracked errors, alert rules, and experiments all share one tag roster.", help: "Tags: free-form, project-scoped labels any item can carry — queue items\n(bugs, feature requests, error/alert tickets), flags, configs,\nkillswitches, metrics, tracked errors, alert rules, and experiments all\nshare one tag roster.\n\n**Identity.** A tag is its name, unique case-insensitively per project. A\ntag is born the first time it's attached — there is no separate create.\n\n**Addressing.** An item is named by `entityType` + its handle (an ops\nitem's number, a resource's name, or any id). `set` replaces the full tag\nset; `update` adds/removes names incrementally.", aliases: [] });
+  const g_trails = defineGroup(program, "trails", { summary: "Trails: the unit of shipping, from intent through merge to release.", help: "Trails: the unit of shipping, from intent through merge to release. A trail\nis created on purpose — from scratch, or with **Ship this** on a queue item\n— and holds what was asked for (a title and a body with the outcome and the\nacceptance criteria), every pull request worked under it (each a *change*),\nthe queue items discovered while it was worked, reviewed or released, and\nthe flags, kill switches, experiments, metrics, alert rules and i18n keys\nit ships. It replaces the pull request as the thing that is reviewed and\nmerged, and it owns the decision to release.\n\n**Loop.** Start a coding agent on the trail (`start`). It opens pull\nrequests and links them (`link-pr`). Every push to a change is scored by\nthe project's review agents (a value, a rationale and findings per agent);\nmerge gates read branch freshness, approvals, open findings, blocking evals,\nCI checks, discovered items and the release gates into one verdict. When a\nchange fails, the server re-fires the coding agent with the findings, up to\nthe gates' `fixRounds`. Findings that are real but out of scope are promoted\nto queue items (`promote-finding`) rather than fixed in passing.\n\n**Phase.** `planning`, `building`, `reviewing`, `ready`, `releasing`,\n`shipped`, `closed`. After the last open change merges the trail is\n`releasing` until its flags are fully rolled out and its experiments decided.\n\n**Handles.** A trail is addressed by its per-project handle (`T-12`) or its\nid. A queue item belongs to at most one trail.\n\n**Approve and merge are a person's call.** They are accepted only from a\ndashboard session or a device-auth CLI session, and are not exposed as MCP\ntools.\n\nThe v1 item routes (`/api/admin/ops/{handle}/trail/...`) remain as aliases\nthat resolve the item's trail and answer `404` when it has none.", aliases: [] });
   const g_metrics_events = defineGroup(g_metrics, "events", { summary: "Events: the catalog of event names (and their typed properties) that metric queries reference.", help: "Events: the catalog of event names (and their typed properties) that metric queries reference.\n\n**Auto-discovery.** The SDK's `/collect` ingest path records any unknown event name it receives as a `pending` row (`pending: 1`) so you can review it. Metrics defined on a pending event fail until it is approved.\n\n**Approval.** `POST /{id}/approve` promotes a pending event to usable (`pending: 0`), optionally declaring its folder/description/properties in the same call. Registering a brand-new event via `POST` that matches a pending name approves it instead of failing with a conflict.\n\n**Properties.** Each event can declare typed properties (`name`, `type` of `string|number|boolean`, `required`). On update/approve the `properties` array replaces the full set — there is no merge.\n\n**Deletion.** Soft-delete (the user-facing verb is `archive`). Blocked while any metric still references the event — delete those metrics first.", aliases: [] });
   const g_ops_activity = defineGroup(g_ops, "activity", { summary: "The change history of queue items — status, priority, owner and tag moves, edits, comments, acknowledgements, and every pull-request event (linked, unlinked, merged, closed unmerged).", help: "The change history of queue items — status, priority, owner and tag moves,\nedits, comments, acknowledgements, and every pull-request event (linked,\nunlinked, merged, closed unmerged). Read it per item or across the whole\nproject, filtered by kind and time, to learn what changed since a given\nmoment instead of diffing status lists.", aliases: [] });
   const g_ops_agents = defineGroup(g_ops, "agents", { summary: "Connected AI agents — one per authenticated trigger connector (Claude / Cursor / Copilot / Jules).", help: "Connected AI agents — one per authenticated trigger connector (Claude /\nCursor / Copilot / Jules). The read-only roster behind agent assignment\nand the `ops ack` agent types: an AI ack (`ops ack <handle> --agent\n<type>`) requires the type to appear here, so this list is where an\n`AGENT_NOT_CONNECTED` error sends you.", aliases: [] });
@@ -24,14 +25,15 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   const g_ops_questions = defineGroup(g_ops, "questions", { summary: "Structured questions an agent asks the team about a queue item — the `AskUserQuestion` shape: a short `header`, the `question`, 2–4 `options` (label + description), and `multiSelect` for checkboxes instead of radios.", help: "Structured questions an agent asks the team about a queue item — the\n`AskUserQuestion` shape: a short `header`, the `question`, 2–4 `options`\n(label + description), and `multiSelect` for checkboxes instead of radios.\nEvery question also accepts a free-text \"Other\" answer. Open questions sit\nat the very top of the item's detail panel and mark the row in the queue.\n\n**Asking.** `ask` posts 1–4 questions at once. Several agents (or several\nruns) may have questions open on the same item at the same time.\n\n**Getting the answer back.** `delivery: resume` (the default for a run\nlaunched through a trigger connector) re-fires that same agent on the\nitem once every question its run asked is answered, continuing the same\nrun record with the answers in the prompt. `delivery: poll` (the default\nfor a live, connector-less session such as Claude Code in a terminal)\nfires nothing — call `list` until the status reads `completed`.", aliases: [] });
   const g_ops_review_agents = defineGroup(g_ops, "review-agents", { summary: "The evals that score every push to a trail's changes — risk, confidence, security, code review, slop, or your own.", help: "The evals that score every push to a trail's changes — risk, confidence,\nsecurity, code review, slop, or your own. Each is run by one of the\nproject's coding-agent triggers (spending that agent's quota) and reports a\n0–100 score or a yes/no signal with a polarity and a passing threshold. A\nblocking agent's failing eval blocks the merge.", aliases: [] });
   const g_ops_routing_rules = defineGroup(g_ops, "routing-rules", { summary: "Tag automation rules — the project's \"when an item carries tag X, do Y\" settings.", help: "Tag automation rules — the project's \"when an item carries tag X, do Y\"\nsettings. A rule matches newly filed queue items by tag (or ticket type)\nand assigns a person, hands the item to a connected coding agent, sets\nstatus or priority, or subscribes emails. Rules run in order; `create`\nappends one without touching the rest.", aliases: [] });
-  const g_ops_trail_gates = defineGroup(g_ops, "trail-gates", { summary: "The project's merge requirements for trail changes — the branch is up to date, enough human approvals, no open findings at or above a severity, every blocking eval passes, CI checks pass.", help: "The project's merge requirements for trail changes — the branch is up to\ndate, enough human approvals, no open findings at or above a severity,\nevery blocking eval passes, CI checks pass. Each gate is evaluated or off,\nand blocking or report-only.", aliases: [] });
-  const g_ops_trails = defineGroup(g_ops, "trails", { summary: "A queue item followed from intent to merge.", help: "A queue item followed from intent to merge. The item is the trail — its\ntitle, description, type, priority and owner are the intent — and every\npull request linked to it is one of its changes. Each push to a change is\nscored by the project's review agents (a value, a rationale and findings\nper agent), and merge gates read branch freshness, approvals, open\nfindings, blocking evals and CI checks into one verdict. Loop the coding\nagent on the findings until the scores settle green, then approve and merge.", aliases: [] });
+  const g_ops_trail_gates = defineGroup(g_ops, "trail-gates", { summary: "The project's merge and release requirements for trails — the branch is up to date, enough human approvals, no open findings at or above a severity, every blocking eval passes, CI checks pass, no discovered item is open at a priority, and the release gates (ships dark, rollback, measured, guarded, copy).", help: "The project's merge and release requirements for trails — the branch is up\nto date, enough human approvals, no open findings at or above a severity,\nevery blocking eval passes, CI checks pass, no discovered item is open at\na priority, and the release gates (ships dark, rollback, measured, guarded,\ncopy). Each gate is evaluated or off, and blocking or report-only. Also the\nfix-round cap, the attribution window and per-repo check overrides.", aliases: [] });
   const g_ops_trigger = defineGroup(g_ops, "trigger", { summary: "Recurring coding-agent triggers: the scheduled, unattended runs that burn down the ops queue in `--pr` mode (one PR per fixed item; nothing auto-merges).", help: "Recurring coding-agent triggers: the scheduled, unattended runs that burn\ndown the ops queue in `--pr` mode (one PR per fixed item; nothing\nauto-merges). Shipeasy can fire four providers directly — Claude routines,\nCursor cloud agents, Copilot cloud agents, and Google Jules (the Gemini\npath) — registered here as trigger connectors (idempotent per provider\nkey). Other platforms (Codex, Windsurf, Cline, OpenClaw, OpenCode,\nContinue) schedule on their own surface — typically a GitHub Actions\n`schedule:` cron running the platform's headless CLI with the shared\ntrigger prompt.", aliases: [] });
   const g_release = defineGroup(program, "release", { summary: "Feature delivery — flags, killswitches, dynamic configs, A/B experiments, and the universes they bucket in.", help: "Release: the feature-delivery surface. One roof over the five resources\nthat decide which code path a user gets — feature gates (flags),\nkillswitches, dynamic configs, A/B/n experiments, and the universes that\nbucket them — each exposed as its own subcommand group.\n\n**Groups.**\n- `flags` — boolean feature gates: AND-combined targeting rules + a percentage rollout (basis points), evaluated on the SDK hot path.\n- `killswitch` (`ks`) — per-env boolean overrides for incident response; no rules, no rollout, versioned per environment.\n- `configs` — JSON-Schema-validated structured values with a draft → publish workflow, delivered per environment.\n- `experiments` — randomised A/B/n assignment plus the analysis pipeline (t-test, sequential testing, SRM detection); `universes` hold the shared bucketing space and holdouts the experiments draw from.\n\n**Delivery model.** Every write rebuilds the project's KV blob and purges\nthe CDN — SDKs poll at the plan interval and never touch the database on\nthe hot path. The destructive verb is `archive` (soft-delete), never\n`delete`.\n\nRun `shipeasy release <group> --help` for the full contract of each group.", aliases: [] });
   const g_release_configs = defineGroup(g_release, "configs", { summary: "Dynamic configs: JSON-Schema-validated structured values delivered to SDKs and editable per environment with a draft/publish workflow.", help: "Dynamic configs: JSON-Schema-validated structured values delivered to SDKs and editable per environment with a draft/publish workflow.\n\n**Identity.** Each config is keyed by `name` in `folder.name` form (e.g. `pricing.tiers`). Immutable after create.\n\n**Schema-first.** Every config carries a JSON Schema (draft 2020-12, top-level `type: 'object'`). Every published value is validated against it.\n\n**Drafts → publish.** Per-env edits go through `PUT /{id}/drafts` (stages a value) then `POST /{id}/publish` (promotes to a new version). The flat `PATCH /{id}` republishes on **every** env in one shot — bypassing drafts.\n\n**Versioning.** Each publish bumps the per-env `version` monotonically. SDKs deliver the latest published version for each env.", aliases: [] });
   const g_release_experiments = defineGroup(g_release, "experiments", { summary: "A/B/n experiments: randomised group assignment plus the analysis pipeline (t-test, sequential testing, SRM detection) on top of a universe.", help: "A/B/n experiments: randomised group assignment plus the analysis pipeline (t-test, sequential testing, SRM detection) on top of a universe.\n\n**Identity.** Stable `name` (a-z, 0-9, `_`/`-`, max 64 chars). Immutable after create.\n\n**Lifecycle.** `draft → running → stopped → archived`. Transition via `POST /{id}/status`. An archived experiment that never started can be restored with `archived → draft`; restarting an archived experiment directly is not allowed.\n\n**Allocation.** `allocation_pct` (basis points, 0–10000) is the share of the targeted audience enrolled; `groups[].weight` (must sum to 10000) splits the enrolled audience. `targeting_gate` narrows the eligible audience before allocation.\n\n**Immutable while running.** `allocation_pct`, `groups`, `salt`, `universe`, `params` cannot be edited on a running experiment — stop it first.\n\n**Metrics.** Attach via `POST /{id}/metrics`. Each metric has a role: `goal` drives the decision, `guardrail` blocks ship on regression, `secondary` is informational.\n\n**Analysis.** Daily cron writes results to D1. Read via `GET /{id}/results` (latest per metric/group/day) or `GET /{id}/timeseries` (full history). `POST /{id}/reanalyze` requeues the analysis pass.", aliases: [] });
   const g_release_flags = defineGroup(g_release, "flags", { summary: "Feature gates: boolean flags evaluated at runtime against project rules + a percentage rollout.", help: "Feature gates: boolean flags evaluated at runtime against project rules + a percentage rollout.\n\n**Identity.** Each gate is keyed by a stable `name` (a-z, 0-9, `_`/`-`, max 64 chars) which is what SDKs pass to `Shipeasy.checkGate(user, '<name>')`. The `name` is immutable — rename means delete + recreate.\n\n**Evaluation model.** A gate returns `true` when (a) `enabled` is true, and (b) the caller satisfies the gate's rules. There are two evaluation shapes:\n- **Flat** — `rules` (AND-combined predicates) gate the caller, then `rollout_pct` (basis points, 0–10000) hashes them into a bucket. Used for simple `is in X% rollout` gates.\n- **Gatekeeper stack** — an ordered array of `condition` and `rollout` sub-gates, evaluated top-to-bottom; first match wins. Used to express `internal-only ∪ 1% beta ∪ 50% public` in one gate. When `stack` is present it takes precedence over the flat fields.\n\n**Rules.** Each rule is `{ attr, op, value }`. Supported ops: `eq`, `neq`, `in`, `not_in`, `gt`, `gte`, `lt`, `lte`, `contains`, `regex`. Attribute names match the keys on the SDK evaluation context (e.g. `country`, `plan`, `email`).\n\n**Rollout basis points.** `rollout_pct` is in **basis points**, not percent. `0` = 0%, `100` = 1%, `5000` = 50%, `10000` = 100%. This allows sub-1% precision (e.g. `7` = 0.07%).\n\n**Lifecycle.** Create dark (`rollout_pct: 0`) → attach rules → ramp via PATCH → flip kill-switch via `disable`/`enable` → delete once retired. Deletion is blocked while a running experiment references the gate as a targeting gate.", aliases: [] });
   const g_release_killswitch = defineGroup(g_release, "killswitch", { summary: "Killswitches: per-env boolean overrides for kill-style operational toggles.", help: "Killswitches: per-env boolean overrides for kill-style operational toggles. Optimised for incident response — no rules, no rollout, just a flat boolean (plus optional per-key overrides) versioned per environment.\n\n**Identity.** Each killswitch is keyed by `name` in `folder.name` form (e.g. `payments.checkout`). Immutable after create.\n\n**Per-env values.** Every killswitch stores one version stream per env (`dev`, `stage`, `prod`). A `PATCH` with `value`/`switches` applies to **every** env in one shot (publishes a new version per env). To touch a single env, use `PUT /{id}/switch` and friends.\n\n**Switches map.** Optional `switches: { key: bool }` overrides the flat `value` for specific named call sites — useful for region/feature-scoped kills.\n\n**Versioning.** Each publish (create, update, set-switch, unset-switch) bumps the per-env `version` monotonically. SDKs deliver the latest published version.", aliases: ["ks"] });
+  const g_trails_items = defineGroup(g_trails, "items", { summary: "Queue items on a trail.", help: "Queue items on a trail. An item surfaces on a trail in one of seven ways\n(`origin`, `finding`, `agent`, `person`, `post_merge`, `cleanup`,\n`attached`) and belongs to at most one. File a new one on a trail with\n`ops bug --trail`; attach an existing one here.", aliases: [] });
+  const g_trails_resources = defineGroup(g_trails, "resources", { summary: "The flags, configs, kill switches, experiments, metrics, alert rules, events and i18n keys a trail ships or depends on, each with a role (`ships_behind`, `rollback`, `measures`, `guards`, `copy`, `touched`) and its live state.", help: "The flags, configs, kill switches, experiments, metrics, alert rules,\nevents and i18n keys a trail ships or depends on, each with a role\n(`ships_behind`, `rollback`, `measures`, `guards`, `copy`, `touched`) and\nits live state. The release gates and the release phase read these links.", aliases: [] });
   const g_release_experiments_universes = defineGroup(g_release_experiments, "universes", { summary: "Universes: the shared bucketing space all experiments draw from.", help: "Universes: the shared bucketing space all experiments draw from.\n\n**Identity.** Each universe is keyed by a stable `name` (a-z, 0-9, `_`/`-`, max 64 chars). Experiments reference it via `universe: '<name>'`. The name is immutable.\n\n**Unit of randomisation.** `unit_type` selects the attribute hashed into a 0–9999 bucket — default `user_id` for per-user randomisation, `account_id` to keep a whole account in the same group.\n\n**Holdout.** `holdout_range` is an inclusive `[lo, hi]` bucket range (0–9999) reserved for measurement — callers hashed into the holdout are excluded from every experiment in the universe. Pro plan or higher.\n\n**Deletion.** Blocked while any non-archived experiment references the universe — archive those first.", aliases: [] });
   const g_release_flags_attributes = defineGroup(g_release_flags, "attributes", { summary: "Targeting attributes: the auto-inferred schema of user-context keys the platform has observed in evaluation calls.", help: "Targeting attributes: the auto-inferred schema of user-context keys the\nplatform has observed in evaluation calls. Read-only — populated by the\nSDK hot path, surfaced here so you can see which keys (and value types)\nare available when writing gate/experiment targeting rules.", aliases: [] });
   const g_release_flags_templates = defineGroup(g_release_flags, "templates", { summary: "Targeting-rule templates: reusable `{ attr, op, value }` rule definitions (country, email-domain, region presets, …).", help: "Targeting-rule templates: reusable `{ attr, op, value }` rule definitions\n(country, email-domain, region presets, …). Read-only built-ins ship with\nthe platform; each project can also save its own. To target by\ncountry/plan/region, list templates, copy the matching template's `rules`,\nsubstitute the concrete value(s), and pass them to `release flags create`.", aliases: [] });
@@ -147,10 +149,11 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--viewport <value>", "Reporter's viewport (e.g. `1280x720`), or `null`.")
     .option("--context <value>", "Arbitrary capture context, or `null`.")
     .option("--notify <value>", "Where this bug's completion notification lands.")
+    .option("--trail <value>", "File the bug on this trail (`T-12` or the trail's id) instead of the open queue. An agent that hits something outside its intent files it here rather than fixing it in place. The item records `discoveredSource` as `agent` (or `person` when a person files it) and the change and push the filer was on.")
     .option("--description <value>", "What the feature is.")
     .option("--use-case <value>", "Why it's needed / the use case.")
     .action(async (title, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, type: str(opts.type), stepsToReproduce: str(opts.stepsToReproduce), actualResult: str(opts.actualResult), expectedResult: str(opts.expectedResult), priority: strOrNull(opts.priority), status: str(opts.status), assigneeId: strOrNull(opts.assigneeId), delegateConnectorId: str(opts.delegateConnectorId), subscribers: list(opts.subscribers), tags: list(opts.tags), reporterEmail: strOrNull(opts.reporterEmail), pageUrl: strOrNull(opts.pageUrl), userAgent: strOrNull(opts.userAgent), viewport: strOrNull(opts.viewport), context: json(opts.context), notify: str(opts.notify), description: str(opts.description), useCase: str(opts.useCase) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, type: str(opts.type), stepsToReproduce: str(opts.stepsToReproduce), actualResult: str(opts.actualResult), expectedResult: str(opts.expectedResult), priority: strOrNull(opts.priority), status: str(opts.status), assigneeId: strOrNull(opts.assigneeId), delegateConnectorId: str(opts.delegateConnectorId), subscribers: list(opts.subscribers), tags: list(opts.tags), reporterEmail: strOrNull(opts.reporterEmail), pageUrl: strOrNull(opts.pageUrl), userAgent: strOrNull(opts.userAgent), viewport: strOrNull(opts.viewport), context: json(opts.context), notify: str(opts.notify), trail: str(opts.trail), description: str(opts.description), useCase: str(opts.useCase) }) }) });
     });
   g_ops.command("bug")
     .description("File a bug report.")
@@ -170,8 +173,9 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--viewport <value>", "Reporter's viewport (e.g. `1280x720`), or `null`.")
     .option("--context <value>", "Arbitrary capture context, or `null`.")
     .option("--notify <value>", "Where this bug's completion notification lands.")
+    .option("--trail <value>", "File the bug on this trail (`T-12` or the trail's id) instead of the open queue. An agent that hits something outside its intent files it here rather than fixing it in place. The item records `discoveredSource` as `agent` (or `person` when a person files it) and the change and push the filer was on.")
     .action(async (title, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, stepsToReproduce: str(opts.stepsToReproduce), actualResult: str(opts.actualResult), expectedResult: str(opts.expectedResult), priority: strOrNull(opts.priority), status: str(opts.status), assigneeId: strOrNull(opts.assigneeId), delegateConnectorId: str(opts.delegateConnectorId), subscribers: list(opts.subscribers), tags: list(opts.tags), reporterEmail: strOrNull(opts.reporterEmail), pageUrl: strOrNull(opts.pageUrl), userAgent: strOrNull(opts.userAgent), viewport: strOrNull(opts.viewport), context: json(opts.context), notify: str(opts.notify), type: "bug" }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, stepsToReproduce: str(opts.stepsToReproduce), actualResult: str(opts.actualResult), expectedResult: str(opts.expectedResult), priority: strOrNull(opts.priority), status: str(opts.status), assigneeId: strOrNull(opts.assigneeId), delegateConnectorId: str(opts.delegateConnectorId), subscribers: list(opts.subscribers), tags: list(opts.tags), reporterEmail: strOrNull(opts.reporterEmail), pageUrl: strOrNull(opts.pageUrl), userAgent: strOrNull(opts.userAgent), viewport: strOrNull(opts.viewport), context: json(opts.context), notify: str(opts.notify), trail: str(opts.trail), type: "bug" }) }) });
     });
   g_ops.command("feature")
     .description("File a feature request.")
@@ -189,8 +193,9 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--user-agent <value>", "Reporter's user-agent string, or `null`.")
     .option("--context <value>", "Arbitrary capture context, or `null`.")
     .option("--notify <value>", "Where this request's completion notification lands.")
+    .option("--trail <value>", "File the request on this trail (`T-12` or the trail's id) instead of the open queue. The item records `discoveredSource` as `agent` (or `person` when a person files it).")
     .action(async (title, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, description: str(opts.description), useCase: str(opts.useCase), priority: strOrNull(opts.priority), status: str(opts.status), assigneeId: strOrNull(opts.assigneeId), delegateConnectorId: str(opts.delegateConnectorId), subscribers: list(opts.subscribers), tags: list(opts.tags), reporterEmail: strOrNull(opts.reporterEmail), pageUrl: strOrNull(opts.pageUrl), userAgent: strOrNull(opts.userAgent), context: json(opts.context), notify: str(opts.notify), type: "feature_request" }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.createOpsItem({ client, body: clean({ title: title, description: str(opts.description), useCase: str(opts.useCase), priority: strOrNull(opts.priority), status: str(opts.status), assigneeId: strOrNull(opts.assigneeId), delegateConnectorId: str(opts.delegateConnectorId), subscribers: list(opts.subscribers), tags: list(opts.tags), reporterEmail: strOrNull(opts.reporterEmail), pageUrl: strOrNull(opts.pageUrl), userAgent: strOrNull(opts.userAgent), context: json(opts.context), notify: str(opts.notify), trail: str(opts.trail), type: "feature_request" }) }) });
     });
   g_ops.command("get")
     .description("Get one queue item")
@@ -353,6 +358,183 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--remove <value>", "Tag names to detach (case-insensitive). Names the item doesn't carry are a no-op. A name in both lists is removed.")
     .action(async (entityType, entityId, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.updateEntityTags({ client, path: { entityType: entityType, entityId: entityId }, body: clean({ add: list(opts.add), remove: list(opts.remove) }) }) });
+    });
+  g_trails.command("list")
+    .description("List trails")
+    .option("--view <value>", "`table` answers the dashboard table read (`f`, `sort`, `cursor`, `limit`, `section_counts`, `grouped`). Omitted, `f` and `sort` are still honoured and the envelope is `{ data, next_cursor }`.")
+    .option("--scope <value>", "A dashboard tab: `mine` (owned by the caller), `reviewing`, `ready`, `releasing`, `shipped`, `closed`, or `all` (the default, no narrowing).")
+    .option("--phase <value>", "Narrow to one phase.")
+    .option("--type <value>", "Narrow to one trail type.")
+    .option("--owner <value>", "Narrow to trails owned by one person OR one agent — a `users.id`, email or display name, or a connector id, display name or handle. Case-insensitive exact match.")
+    .option("--q <value>", "Case-insensitive substring filter across the trail's title and body.")
+    .option("--merged-since <value>", "ISO-8601 timestamp. Narrow to trails with a change merged at or after it.")
+    .option("--touches <value>", "A file path (or path prefix) a merged change changed, or a resource key the trail links. Narrow to trails that touch it.")
+    .option("--f <value>", "The table's filter conditions: a JSON array of `{ \"f\", \"o\", \"v\" }` objects, ANDed. See the operation description for the fields.")
+    .option("--sort <value>", "A column id, `-` prefixed for descending (`-updated`). An unknown column is a `400`.")
+    .option("--cursor <value>", "Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page.")
+    .option("--limit <value>", "Page size (1–200). A page shorter than `limit` is the last one.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.listTrails({ client, query: clean({ view: str(opts.view), scope: str(opts.scope), phase: str(opts.phase), type: str(opts.type), owner: str(opts.owner), q: str(opts.q), mergedSince: str(opts.mergedSince), touches: str(opts.touches), f: str(opts.f), sort: str(opts.sort), cursor: str(opts.cursor), limit: num(opts.limit) }), body: json(opts.data) as never }) });
+    });
+  g_trails.command("create")
+    .description("Create a trail")
+    .argument("<title>", "One-line statement of the intent.")
+    .option("--body <value>", "The intent in markdown — the outcome and the acceptance criteria.")
+    .option("--type <value>", "What a trail is shipping. A `feature` trail is held to the rollback and measured release gates.")
+    .option("--priority <value>", "Initial triage priority, or `null`.")
+    .option("--owner-id <value>", "The `users.id` of the person to own the trail, or `null`.")
+    .option("--owner-connector-id <value>", "The agent connector to own the trail, or `null`.")
+    .option("--repos <value>", "Repos (`owner/repo`) the trail may open changes in.")
+    .option("--origin-item <value>", "Ship this: a queue item (number or id) to create the trail from. Its description seeds `body` when that is omitted, and it becomes the trail's first item with source `origin`.")
+    .action(async (title, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.createTrail({ client, body: clean({ title: title, body: str(opts.body), type: str(opts.type), priority: strOrNull(opts.priority), ownerId: strOrNull(opts.ownerId), ownerConnectorId: strOrNull(opts.ownerConnectorId), repos: json(opts.repos), originItem: str(opts.originItem) }) }) });
+    });
+  g_trails.command("get")
+    .description("Show a trail")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .option("--files <value>", "Include each merged change's full `changedFiles` list. Omitted, `changedFiles` is `null`.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.getTrail({ client, path: { handle: handle }, query: clean({ files: bool(opts.files) }), body: json(opts.data) as never }) });
+    });
+  g_trails.command("update")
+    .description("Change a trail")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .option("--title <value>", "")
+    .option("--body <value>", "")
+    .option("--type <value>", "What a trail is shipping. A `feature` trail is held to the rollback and measured release gates.")
+    .option("--priority <value>", "Triage priority; `null` clears it.")
+    .option("--owner-id <value>", "The `users.id` of the person owner; `null` unassigns.")
+    .option("--owner-connector-id <value>", "The agent connector owner; `null` unassigns.")
+    .option("--repos <value>", "Replaces the trail's repo scope.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.updateTrail({ client, path: { handle: handle }, body: clean({ title: str(opts.title), body: str(opts.body), type: str(opts.type), priority: strOrNull(opts.priority), ownerId: strOrNull(opts.ownerId), ownerConnectorId: strOrNull(opts.ownerConnectorId), repos: json(opts.repos) }) }) });
+    });
+  g_trails.command("close")
+    .description("Close a trail")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .option("--reason <value>", "Why the trail is being closed, e.g. `abandoned` or `superseded by T-14`.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.closeTrail({ client, path: { handle: handle }, body: clean({ reason: str(opts.reason) }) }) });
+    });
+  g_trails.command("reopen")
+    .description("Reopen a trail")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.reopenTrail({ client, path: { handle: handle }, body: json(opts.data) as never }) });
+    });
+  g_trails.command("link-pr")
+    .description("Link a pull request to a trail")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .argument("<prUrl>", "The pull request's URL.")
+    .option("--item <value>", "The queue item whose run opened the PR (number or id), when there is one. Omitted, the change belongs to the trail itself.")
+    .action(async (handle, prUrl, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.linkTrailPr({ client, path: { handle: handle }, body: clean({ prUrl: prUrl, item: str(opts.item) }) }) });
+    });
+  g_trails.command("unlink-pr")
+    .description("Unlink a pull request from a trail")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .option("--pr-url <value>", "The pull request's URL.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.unlinkTrailPr({ client, path: { handle: handle }, query: clean({ prUrl: str(opts.prUrl) }), body: json(opts.data) as never }) });
+    });
+  g_trails.command("start")
+    .description("Start an agent on a trail")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .option("--agent <value>", "Which coding agent to fire — `claude`, `cursor`, `copilot` or `jules`. Omitted, the project's coding-agent trigger.")
+    .option("--connector-id <value>", "A specific trigger connector to fire. Overrides `agent`.")
+    .option("--prompt <value>", "Extra instructions appended to the trail prompt.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.startTrailRun({ client, path: { handle: handle }, body: clean({ agent: str(opts.agent), connectorId: str(opts.connectorId), prompt: str(opts.prompt) }) }) });
+    });
+  g_trails.command("review")
+    .description("Run the review agents")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .option("--pr-url <value>", "The change to review. Omitted, the trail's primary change.")
+    .option("--agent-keys <value>", "Which review agents to run. Omitted, every enabled one.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.requestTrailReview({ client, path: { handle: handle }, body: clean({ prUrl: str(opts.prUrl), agentKeys: list(opts.agentKeys) }) }) });
+    });
+  g_trails.command("submit-eval")
+    .description("Submit a review agent's eval")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .option("--agent-key <value>", "The review agent's key (from `ops review-agents list`).")
+    .option("--value <value>", "0–100 for a score agent; 1 (yes) or 0 (no) for a boolean one.")
+    .option("--rationale <value>", "One or two sentences on the evidence behind the value.")
+    .option("--findings <value>", "Issues to fix, each with a severity, and a file and line when there is one.")
+    .option("--pr-url <value>", "The change reviewed. Omitted, the trail's primary change.")
+    .option("--head-sha <value>", "The commit reviewed. Omitted, the change's latest push. A sha that is not the latest push is recorded against that push, as history.")
+    .option("--agent <value>", "Your agent type, when you are the review agent.")
+    .option("--session-id <value>", "Your session id, so the eval can deep-link to the review run.")
+    .option("--resources <value>", "Product resources the reviewed diff uses (`getFlag(\"x\")`, `getExperiment(\"y\")`, `t(\"key\")`). They are linked to the trail as detected. A key that does not exist yet becomes a finding.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.submitTrailEval({ client, path: { handle: handle }, body: clean({ agentKey: str(opts.agentKey), value: num(opts.value), rationale: str(opts.rationale), findings: json(opts.findings), prUrl: str(opts.prUrl), headSha: str(opts.headSha), agent: str(opts.agent), sessionId: str(opts.sessionId), resources: json(opts.resources) }) }) });
+    });
+  g_trails.command("update-finding")
+    .description("Resolve or dismiss a finding")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .argument("<findingId>", "The finding id.")
+    .option("--status <value>", "A finding stays `open` until it is `resolved` (fixed) or `dismissed` (not a problem). A finding raised on an earlier push is reported `stale` but stays open until somebody decides.")
+    .option("--reason <value>", "Why — the fixing commit, or why it is not a problem.")
+    .option("--agent <value>", "Your agent type, when an agent is resolving the finding.")
+    .action(async (handle, findingId, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.updateTrailFinding({ client, path: { handle: handle, findingId: findingId }, body: clean({ status: str(opts.status), reason: str(opts.reason), agent: str(opts.agent) }) }) });
+    });
+  g_trails.command("promote-finding")
+    .description("Promote a finding to a queue item")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .argument("<findingId>", "The finding id.")
+    .option("--type <value>", "What to file the finding as. Defaults to `bug`.")
+    .option("--reason <value>", "Why the finding is out of scope for this trail. Recorded on the finding.")
+    .option("--title <value>", "A title for the new item. Defaults to the finding's title.")
+    .action(async (handle, findingId, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.promoteTrailFinding({ client, path: { handle: handle, findingId: findingId }, body: clean({ type: str(opts.type), reason: str(opts.reason), title: str(opts.title) }) }) });
+    });
+  g_trails.command("approve")
+    .description("Approve a change")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .option("--pr-url <value>", "The change to approve. Omitted, the trail's primary change.")
+    .option("--body <value>", "An optional review note.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.approveTrail({ client, path: { handle: handle }, body: clean({ prUrl: str(opts.prUrl), body: str(opts.body) }) }) });
+    });
+  g_trails.command("merge")
+    .description("Merge a change")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .option("--pr-url <value>", "The change to merge. Omitted, the trail's primary change.")
+    .option("--method <value>", "GitHub merge method. Defaults to `squash`.")
+    .option("--bypass <value>", "Merge although a blocking gate has not passed. Needs the bypass capability, and is recorded on the trail with `reason`.")
+    .option("--reason <value>", "Why the gates were bypassed. Required with `bypass`.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.mergeTrail({ client, path: { handle: handle }, body: clean({ prUrl: str(opts.prUrl), method: str(opts.method), bypass: bool(opts.bypass), reason: str(opts.reason) }) }) });
+    });
+  g_trails.command("attribute")
+    .description("Attribute an item to a trail")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .argument("<item>", "The error, alert or bug to attribute (number or id).")
+    .option("--confidence <value>", "How sure an attribution is. `high` and `medium` attach the item to the trail; `low` records a suspect for a person to confirm or reject.")
+    .option("--evidence <value>", "Concrete evidence: a stack frame in a changed file, the failing call touching a resource of the trail, or a guard metric of the trail.")
+    .action(async (handle, item, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.attributeTrail({ client, path: { handle: handle }, body: clean({ item: item, confidence: str(opts.confidence), evidence: str(opts.evidence) }) }) });
+    });
+  g_trails.command("confirm-suspect")
+    .description("Confirm a suspected regression")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .argument("<suspectId>", "The suspect id (from `trails get`).")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (handle, suspectId, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.confirmTrailSuspect({ client, path: { handle: handle, suspectId: suspectId }, body: json(opts.data) as never }) });
+    });
+  g_trails.command("reject-suspect")
+    .description("Reject a suspected regression")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .argument("<suspectId>", "The suspect id (from `trails get`).")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (handle, suspectId, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.rejectTrailSuspect({ client, path: { handle: handle, suspectId: suspectId }, body: json(opts.data) as never }) });
     });
   g_metrics_events.command("list")
     .description("List events")
@@ -772,65 +954,17 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--agent-review <value>", "")
     .option("--evals <value>", "")
     .option("--checks <value>", "")
+    .option("--discovered <value>", "Passes when no item discovered on the trail is open at or above `priority`. Off by default; turn it on to say \"a high bug found while building this blocks shipping it\".")
+    .option("--ships-dark <value>", "Release gate. Passes when every flag the trail ships behind exists and is not at 100% in prod, so new code merges off. Off by default.")
+    .option("--rollback <value>", "Release gate. For a `feature` trail, passes when a rollback kill switch exists. Off by default.")
+    .option("--measured <value>", "Release gate. For a `feature` trail, passes when a measuring experiment or metric exists. Off by default.")
+    .option("--guarded <value>", "Release gate. Passes when every measured resource has at least one guarding alert rule. Off by default.")
+    .option("--copy <value>", "Release gate. Passes when every copy i18n key exists in every published locale of its profile. Off by default.")
+    .option("--fix-rounds <value>", "How many times the server re-fires the coding agent with a fix prompt after a change's evals or findings fail. After the cap the trail reads `reviewing`, needs a person. `0` turns the loop off.")
+    .option("--attribution-window-hours <value>", "How long after a trail merged an error or alert ticket may be attributed to it. Trails merged inside the window are offered to the investigating agent as candidates.")
+    .option("--repos <value>", "Per-repo overrides keyed by `owner/repo`. An override replaces the project's `checks.required` for changes in that repo; every other gate stays project-wide.")
     .action(async (opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateTrailGates({ client, body: clean({ upToDate: json(opts.upToDate), humanReview: json(opts.humanReview), agentReview: json(opts.agentReview), evals: json(opts.evals), checks: json(opts.checks) }) }) });
-    });
-  g_ops_trails.command("get")
-    .description("Show an item's trail")
-    .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id.")
-    .option("--data <value>", "Request body as a JSON object.")
-    .action(async (handle, opts) => {
-      await ctx.run({ mutates: false, invoke: (client) => api.getOpsTrail({ client, path: { handle: handle }, body: json(opts.data) as never }) });
-    });
-  g_ops_trails.command("submit-eval")
-    .description("Submit a review agent's eval")
-    .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id.")
-    .option("--agent-key <value>", "The review agent's key (from `ops review-agents list`).")
-    .option("--value <value>", "0–100 for a score agent; 1 (yes) or 0 (no) for a boolean one.")
-    .option("--rationale <value>", "One or two sentences on the evidence behind the value.")
-    .option("--findings <value>", "Issues to fix, each with a severity, and a file and line when there is one.")
-    .option("--pr-url <value>", "The change reviewed. Omitted, the item's primary PR.")
-    .option("--head-sha <value>", "The commit reviewed. Omitted, the change's latest push. A sha that is not the latest push is recorded against that push, as history.")
-    .option("--agent <value>", "Your agent type, when you are the review agent.")
-    .option("--session-id <value>", "Your session id, so the eval can deep-link to the review run.")
-    .action(async (handle, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.submitOpsTrailEval({ client, path: { handle: handle }, body: clean({ agentKey: str(opts.agentKey), value: num(opts.value), rationale: str(opts.rationale), findings: json(opts.findings), prUrl: str(opts.prUrl), headSha: str(opts.headSha), agent: str(opts.agent), sessionId: str(opts.sessionId) }) }) });
-    });
-  g_ops_trails.command("update-finding")
-    .description("Resolve or dismiss a finding")
-    .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id.")
-    .argument("<findingId>", "The finding id.")
-    .option("--status <value>", "A finding stays `open` until it is `resolved` (fixed) or `dismissed` (not a problem). A finding raised on an earlier push is reported `stale` but stays open until somebody decides.")
-    .option("--reason <value>", "Why — the fixing commit, or why it is not a problem.")
-    .option("--agent <value>", "Your agent type, when an agent is resolving the finding.")
-    .action(async (handle, findingId, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateOpsTrailFinding({ client, path: { handle: handle, findingId: findingId }, body: clean({ status: str(opts.status), reason: str(opts.reason), agent: str(opts.agent) }) }) });
-    });
-  g_ops_trails.command("approve")
-    .description("Approve a change")
-    .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id.")
-    .option("--pr-url <value>", "The change to approve. Omitted, the item's primary PR.")
-    .option("--body <value>", "An optional review note.")
-    .action(async (handle, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.approveOpsTrail({ client, path: { handle: handle }, body: clean({ prUrl: str(opts.prUrl), body: str(opts.body) }) }) });
-    });
-  g_ops_trails.command("review")
-    .description("Run the review agents")
-    .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id.")
-    .option("--pr-url <value>", "The change to review. Omitted, the item's primary PR.")
-    .option("--agent-keys <value>", "Which review agents to run. Omitted, every enabled one.")
-    .action(async (handle, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.requestOpsTrailReview({ client, path: { handle: handle }, body: clean({ prUrl: str(opts.prUrl), agentKeys: list(opts.agentKeys) }) }) });
-    });
-  g_ops_trails.command("merge")
-    .description("Merge a change")
-    .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id.")
-    .option("--pr-url <value>", "The change to merge. Omitted, the item's primary PR.")
-    .option("--method <value>", "GitHub merge method. Defaults to `squash`.")
-    .option("--bypass <value>", "Merge although a blocking gate has not passed. Recorded on the item with `reason`.")
-    .option("--reason <value>", "Why the gates were bypassed. Required with `bypass`.")
-    .action(async (handle, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.mergeOpsTrail({ client, path: { handle: handle }, body: clean({ prUrl: str(opts.prUrl), method: str(opts.method), bypass: bool(opts.bypass), reason: str(opts.reason) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.updateTrailGates({ client, body: clean({ upToDate: json(opts.upToDate), humanReview: json(opts.humanReview), agentReview: json(opts.agentReview), evals: json(opts.evals), checks: json(opts.checks), discovered: json(opts.discovered), shipsDark: json(opts.shipsDark), rollback: json(opts.rollback), measured: json(opts.measured), guarded: json(opts.guarded), copy: json(opts.copy), fixRounds: num(opts.fixRounds), attributionWindowHours: num(opts.attributionWindowHours), repos: json(opts.repos) }) }) });
     });
   const g_ops_trigger_create = defineGroup(g_ops_trigger, "create", { summary: "Create a recurring coding-agent trigger", help: "A trigger is an unattended, scheduled agent run: on a cron cadence it runs the\nshipeasy-ops-work loop in --pr mode against your project — one atomic diff and\nONE pull request per fixed item, nothing auto-merges.\n\nWhatever the provider, the scheduled run executes this trigger prompt (headless\nCLIs take it as the prompt; cloud agents as the task body):\n\n  You are an unattended Shipeasy maintenance run. Authenticate every `shipeasy`\n  call with these env vars (the CLI reads them directly — do NOT run\n  `shipeasy login`, never echo the token). Put them at the top of EVERY shell\n  invocation that calls `shipeasy`; each command runs in a fresh shell:\n\n  export SHIPEASY_CLI_TOKEN=\"<OPS_KEY>\"\n  export SHIPEASY_PROJECT_ID=\"<PROJECT_ID>\"\n\n  Ensure the repo is bound: test -f .shipeasy || printf '{\"project_id\":\"<PROJECT_ID>\"}\\n' > .shipeasy\n  (never commit .shipeasy).\n\n  Refresh to the latest plugin + CLI, then run the ops work loop in --pr mode:\n    <PLUGIN-INSTALL-FOR-THIS-HOST>       # plugin install for claude/copilot, or `npx -y skills add …`\n    npm install -g @shipeasy/cli@latest\n  Then follow the installed shipeasy-ops-work (--pr) workflow verbatim: burn down\n  the queue, one atomic diff per item, open ONE PR per item from a safe branch\n  prefix, flip each to ready_for_qa, add \"Closes #<issue>\" where an item has a\n  connected GitHub issue. If the queue is empty, exit cleanly. Never merge.\n\n<OPS_KEY> is a restricted `ops` key — mint with\n`npx -y @shipeasy/cli@latest keys create --type ops`. It reads the queue, flips\nstatus, links the PR it opens, and creates resources only; it can never edit or\ndelete existing resources, and auto-extends its 7-day expiry on each run.\n<PROJECT_ID> comes from the bound .shipeasy. Never print either value.\n\nSafety: auto-approve flags (--approval-mode=yolo, --dangerously-skip-permissions,\n…) remove the human gate — run only in an isolated env. Unattended loops spend\ntokens/credits on a cadence: start weekly/daily and watch the first runs." });
   g_ops_trigger_create.argument("[provider]", "One of the subcommands below.");
@@ -1272,6 +1406,45 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--env <value>", "Environment to publish on. Defaults to `prod` — the environment an incident response means when it says \"kill it\".")
     .action(async (id, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.toggleKillswitch({ client, path: { id: id }, body: clean({ switchKey: strOrNull(opts.switchKey), value: bool(opts.value), env: str(opts.env) }) }) });
+    });
+  g_trails_items.command("add")
+    .description("Put an existing item on a trail")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .option("--item <value>", "The queue item to put on the trail (number or id). An item is on at most one trail.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.addTrailItem({ client, path: { handle: handle }, body: clean({ item: str(opts.item) }) }) });
+    });
+  g_trails_items.command("remove")
+    .description("Take an item off a trail")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .argument("<itemHandle>", "The queue item's per-project number (e.g. `42`) or its full id.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (handle, itemHandle, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.removeTrailItem({ client, path: { handle: handle, itemHandle: itemHandle }, body: json(opts.data) as never }) });
+    });
+  g_trails_resources.command("list")
+    .description("List a trail's resources")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.listTrailResources({ client, path: { handle: handle }, body: json(opts.data) as never }) });
+    });
+  g_trails_resources.command("add")
+    .description("Link a resource to a trail")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .option("--kind <value>", "The product entities a trail can ship or depend on. `gate` is a feature flag.")
+    .option("--resource-key <value>", "The entity's key (a gate or metric name, an experiment name, an i18n key). It must exist.")
+    .option("--role <value>", "What a resource is for on the trail — `ships_behind` (the flag the code ships behind), `rollback` (the kill switch that undoes it), `measures` (the experiment or metric that judges it), `guards` (an alert rule that watches it), `copy` (an i18n key it adds) or `touched` (anything else). The release gates and the release phase read these.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.addTrailResource({ client, path: { handle: handle }, body: clean({ kind: str(opts.kind), resourceKey: str(opts.resourceKey), role: str(opts.role) }) }) });
+    });
+  g_trails_resources.command("remove")
+    .description("Unlink a resource from a trail")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .argument("<id>", "The trail's link to the resource (`TrailResource.id`), not the entity's own id.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (handle, id, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.removeTrailResource({ client, path: { handle: handle, id: id }, body: json(opts.data) as never }) });
     });
   g_release_experiments_universes.command("list")
     .description("List universes")

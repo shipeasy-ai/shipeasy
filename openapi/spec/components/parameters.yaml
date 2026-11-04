@@ -30,3 +30,13 @@ Q:
   schema:
     type: string
     maxLength: 100
+TrailHandle:
+  name: handle
+  in: path
+  required: true
+  description: The trail's handle (`T-12`) or its id.
+  schema:
+    type: string
+    minLength: 1
+    maxLength: 64
+    pattern: ^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$

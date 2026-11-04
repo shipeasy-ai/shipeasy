@@ -232,15 +232,52 @@ tags:
       own records and rebuilt when they change. Search it before you start a
       ticket so you build on what was decided instead of rediscovering it.
   - name: Trails
-    parent: Ops
     description: |-
-      A queue item followed from intent to merge. The item is the trail — its
-      title, description, type, priority and owner are the intent — and every
-      pull request linked to it is one of its changes. Each push to a change is
-      scored by the project's review agents (a value, a rationale and findings
-      per agent), and merge gates read branch freshness, approvals, open
-      findings, blocking evals and CI checks into one verdict. Loop the coding
-      agent on the findings until the scores settle green, then approve and merge.
+      Trails: the unit of shipping, from intent through merge to release. A trail
+      is created on purpose — from scratch, or with **Ship this** on a queue item
+      — and holds what was asked for (a title and a body with the outcome and the
+      acceptance criteria), every pull request worked under it (each a *change*),
+      the queue items discovered while it was worked, reviewed or released, and
+      the flags, kill switches, experiments, metrics, alert rules and i18n keys
+      it ships. It replaces the pull request as the thing that is reviewed and
+      merged, and it owns the decision to release.
+
+      **Loop.** Start a coding agent on the trail (`start`). It opens pull
+      requests and links them (`link-pr`). Every push to a change is scored by
+      the project's review agents (a value, a rationale and findings per agent);
+      merge gates read branch freshness, approvals, open findings, blocking evals,
+      CI checks, discovered items and the release gates into one verdict. When a
+      change fails, the server re-fires the coding agent with the findings, up to
+      the gates' `fixRounds`. Findings that are real but out of scope are promoted
+      to queue items (`promote-finding`) rather than fixed in passing.
+
+      **Phase.** `planning`, `building`, `reviewing`, `ready`, `releasing`,
+      `shipped`, `closed`. After the last open change merges the trail is
+      `releasing` until its flags are fully rolled out and its experiments decided.
+
+      **Handles.** A trail is addressed by its per-project handle (`T-12`) or its
+      id. A queue item belongs to at most one trail.
+
+      **Approve and merge are a person's call.** They are accepted only from a
+      dashboard session or a device-auth CLI session, and are not exposed as MCP
+      tools.
+
+      The v1 item routes (`/api/admin/ops/{handle}/trail/...`) remain as aliases
+      that resolve the item's trail and answer `404` when it has none.
+  - name: Resources
+    parent: Trails
+    description: |-
+      The flags, configs, kill switches, experiments, metrics, alert rules,
+      events and i18n keys a trail ships or depends on, each with a role
+      (`ships_behind`, `rollback`, `measures`, `guards`, `copy`, `touched`) and
+      its live state. The release gates and the release phase read these links.
+  - name: Items
+    parent: Trails
+    description: |-
+      Queue items on a trail. An item surfaces on a trail in one of seven ways
+      (`origin`, `finding`, `agent`, `person`, `post_merge`, `cleanup`,
+      `attached`) and belongs to at most one. File a new one on a trail with
+      `ops bug --trail`; attach an existing one here.
   - name: Review agents
     parent: Ops
     description: |-
@@ -252,10 +289,12 @@ tags:
   - name: Trail gates
     parent: Ops
     description: |-
-      The project's merge requirements for trail changes — the branch is up to
-      date, enough human approvals, no open findings at or above a severity,
-      every blocking eval passes, CI checks pass. Each gate is evaluated or off,
-      and blocking or report-only.
+      The project's merge and release requirements for trails — the branch is up
+      to date, enough human approvals, no open findings at or above a severity,
+      every blocking eval passes, CI checks pass, no discovered item is open at
+      a priority, and the release gates (ships dark, rollback, measured, guarded,
+      copy). Each gate is evaluated or off, and blocking or report-only. Also the
+      fix-round cap, the attribution window and per-repo check overrides.
   - name: Routing rules
     parent: Ops
     description: |-
@@ -524,6 +563,44 @@ paths:
     $ref: ./paths/ops.yaml#/~1api~1admin~1review-agents~1{agentId}~1archive
   /api/admin/trail-gates:
     $ref: ./paths/ops.yaml#/~1api~1admin~1trail-gates
+  /api/admin/trails:
+    $ref: ./paths/trails.yaml#/~1api~1admin~1trails
+  /api/admin/trails/{handle}:
+    $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}
+  /api/admin/trails/{handle}/close:
+    $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1close
+  /api/admin/trails/{handle}/reopen:
+    $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1reopen
+  /api/admin/trails/{handle}/changes:
+    $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1changes
+  /api/admin/trails/{handle}/runs:
+    $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1runs
+  /api/admin/trails/{handle}/review:
+    $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1review
+  /api/admin/trails/{handle}/evals:
+    $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1evals
+  /api/admin/trails/{handle}/findings/{findingId}:
+    $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1findings~1{findingId}
+  /api/admin/trails/{handle}/findings/{findingId}/promote:
+    $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1findings~1{findingId}~1promote
+  /api/admin/trails/{handle}/approve:
+    $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1approve
+  /api/admin/trails/{handle}/merge:
+    $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1merge
+  /api/admin/trails/{handle}/resources:
+    $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1resources
+  /api/admin/trails/{handle}/resources/{id}:
+    $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1resources~1{id}
+  /api/admin/trails/{handle}/items:
+    $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1items
+  /api/admin/trails/{handle}/items/{itemHandle}:
+    $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1items~1{itemHandle}
+  /api/admin/trails/{handle}/attributions:
+    $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1attributions
+  /api/admin/trails/{handle}/suspects/{suspectId}/confirm:
+    $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1suspects~1{suspectId}~1confirm
+  /api/admin/trails/{handle}/suspects/{suspectId}/reject:
+    $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1suspects~1{suspectId}~1reject
   /api/admin/ops/routing-rules:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1routing-rules
   /api/admin/notifications:

@@ -1112,7 +1112,7 @@ shipeasy ops routing-rules create [options]
 
 ### `shipeasy ops trail-gates`
 
-The project's merge requirements for trail changes — the branch is up to date, enough human approvals, no open findings at or above a severity, every blocking eval passes, CI checks pass.
+The project's merge and release requirements for trails — the branch is up to date, enough human approvals, no open findings at or above a severity, every blocking eval passes, CI checks pass, no discovered item is open at a priority, and the release gates (ships dark, rollback, measured, guarded, copy).
 
 ```bash
 shipeasy ops trail-gates [options] [command]
@@ -1145,125 +1145,15 @@ shipeasy ops trail-gates set [options]
 | `--agent-review <value>` | optional | — |
 | `--evals <value>` | optional | — |
 | `--checks <value>` | optional | — |
-
-### `shipeasy ops trails`
-
-A queue item followed from intent to merge.
-
-```bash
-shipeasy ops trails [options] [command]
-```
-
-#### `shipeasy ops trails get`
-
-Show an item's trail
-
-```bash
-shipeasy ops trails get [options] <handle>
-```
-
-| Argument | | Description |
-| --- | --- | --- |
-| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
-
-| Option | | Description |
-| --- | --- | --- |
-| `--data <value>` | optional | Request body as a JSON object. |
-
-#### `shipeasy ops trails submit-eval`
-
-Submit a review agent's eval
-
-```bash
-shipeasy ops trails submit-eval [options] <handle>
-```
-
-| Argument | | Description |
-| --- | --- | --- |
-| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
-
-| Option | | Description |
-| --- | --- | --- |
-| `--agent-key <value>` | optional | The review agent's key (from `ops review-agents list`). |
-| `--value <value>` | optional | 0–100 for a score agent; 1 (yes) or 0 (no) for a boolean one. |
-| `--rationale <value>` | optional | One or two sentences on the evidence behind the value. |
-| `--findings <value>` | optional | Issues to fix, each with a severity, and a file and line when there is one. |
-| `--pr-url <value>` | optional | The change reviewed. Omitted, the item's primary PR. |
-| `--head-sha <value>` | optional | The commit reviewed. Omitted, the change's latest push. A sha that is not the latest push is recorded against that push, as history. |
-| `--agent <value>` | optional | Your agent type, when you are the review agent. |
-| `--session-id <value>` | optional | Your session id, so the eval can deep-link to the review run. |
-
-#### `shipeasy ops trails update-finding`
-
-Resolve or dismiss a finding
-
-```bash
-shipeasy ops trails update-finding [options] <handle> <findingId>
-```
-
-| Argument | | Description |
-| --- | --- | --- |
-| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
-| `findingId` | required | The finding id. |
-
-| Option | | Description |
-| --- | --- | --- |
-| `--status <value>` | optional | A finding stays `open` until it is `resolved` (fixed) or `dismissed` (not a problem). A finding raised on an earlier push is reported `stale` but stays open until somebody decides. |
-| `--reason <value>` | optional | Why — the fixing commit, or why it is not a problem. |
-| `--agent <value>` | optional | Your agent type, when an agent is resolving the finding. |
-
-#### `shipeasy ops trails approve`
-
-Approve a change
-
-```bash
-shipeasy ops trails approve [options] <handle>
-```
-
-| Argument | | Description |
-| --- | --- | --- |
-| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
-
-| Option | | Description |
-| --- | --- | --- |
-| `--pr-url <value>` | optional | The change to approve. Omitted, the item's primary PR. |
-| `--body <value>` | optional | An optional review note. |
-
-#### `shipeasy ops trails review`
-
-Run the review agents
-
-```bash
-shipeasy ops trails review [options] <handle>
-```
-
-| Argument | | Description |
-| --- | --- | --- |
-| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
-
-| Option | | Description |
-| --- | --- | --- |
-| `--pr-url <value>` | optional | The change to review. Omitted, the item's primary PR. |
-| `--agent-keys <value>` | optional | Which review agents to run. Omitted, every enabled one. |
-
-#### `shipeasy ops trails merge`
-
-Merge a change
-
-```bash
-shipeasy ops trails merge [options] <handle>
-```
-
-| Argument | | Description |
-| --- | --- | --- |
-| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
-
-| Option | | Description |
-| --- | --- | --- |
-| `--pr-url <value>` | optional | The change to merge. Omitted, the item's primary PR. |
-| `--method <value>` | optional | GitHub merge method. Defaults to `squash`. |
-| `--bypass <value>` | optional | Merge although a blocking gate has not passed. Recorded on the item with `reason`. |
-| `--reason <value>` | optional | Why the gates were bypassed. Required with `bypass`. |
+| `--discovered <value>` | optional | Passes when no item discovered on the trail is open at or above `priority`. Off by default; turn it on to say "a high bug found while building this blocks shipping it". |
+| `--ships-dark <value>` | optional | Release gate. Passes when every flag the trail ships behind exists and is not at 100% in prod, so new code merges off. Off by default. |
+| `--rollback <value>` | optional | Release gate. For a `feature` trail, passes when a rollback kill switch exists. Off by default. |
+| `--measured <value>` | optional | Release gate. For a `feature` trail, passes when a measuring experiment or metric exists. Off by default. |
+| `--guarded <value>` | optional | Release gate. Passes when every measured resource has at least one guarding alert rule. Off by default. |
+| `--copy <value>` | optional | Release gate. Passes when every copy i18n key exists in every published locale of its profile. Off by default. |
+| `--fix-rounds <value>` | optional | How many times the server re-fires the coding agent with a fix prompt after a change's evals or findings fail. After the cap the trail reads `reviewing`, needs a person. `0` turns the loop off. |
+| `--attribution-window-hours <value>` | optional | How long after a trail merged an error or alert ticket may be attributed to it. Trails merged inside the window are offered to the investigating agent as candidates. |
+| `--repos <value>` | optional | Per-repo overrides keyed by `owner/repo`. An override replaces the project's `checks.required` for changes in that repo; every other gate stays project-wide. |
 
 ### `shipeasy ops trigger`
 
@@ -1439,6 +1329,7 @@ shipeasy ops create [options] <title>
 | `--viewport <value>` | optional | Reporter's viewport (e.g. `1280x720`), or `null`. |
 | `--context <value>` | optional | Arbitrary capture context, or `null`. |
 | `--notify <value>` | optional | Where this bug's completion notification lands. |
+| `--trail <value>` | optional | File the bug on this trail (`T-12` or the trail's id) instead of the open queue. An agent that hits something outside its intent files it here rather than fixing it in place. The item records `discoveredSource` as `agent` (or `person` when a person files it) and the change and push the filer was on. |
 | `--description <value>` | optional | What the feature is. |
 | `--use-case <value>` | optional | Why it's needed / the use case. |
 
@@ -1471,6 +1362,7 @@ shipeasy ops bug [options] <title>
 | `--viewport <value>` | optional | Reporter's viewport (e.g. `1280x720`), or `null`. |
 | `--context <value>` | optional | Arbitrary capture context, or `null`. |
 | `--notify <value>` | optional | Where this bug's completion notification lands. |
+| `--trail <value>` | optional | File the bug on this trail (`T-12` or the trail's id) instead of the open queue. An agent that hits something outside its intent files it here rather than fixing it in place. The item records `discoveredSource` as `agent` (or `person` when a person files it) and the change and push the filer was on. |
 
 ### `shipeasy ops feature`
 
@@ -1499,6 +1391,7 @@ shipeasy ops feature [options] <title>
 | `--user-agent <value>` | optional | Reporter's user-agent string, or `null`. |
 | `--context <value>` | optional | Arbitrary capture context, or `null`. |
 | `--notify <value>` | optional | Where this request's completion notification lands. |
+| `--trail <value>` | optional | File the request on this trail (`T-12` or the trail's id) instead of the open queue. The item records `discoveredSource` as `agent` (or `person` when a person files it). |
 
 ### `shipeasy ops get`
 
@@ -1785,6 +1678,450 @@ shipeasy tags update [options] <entityType> <entityId>
 | --- | --- | --- |
 | `--add <value>` | optional | Tag names to attach (get-or-created by name, case-insensitive). Already-attached names are a no-op. |
 | `--remove <value>` | optional | Tag names to detach (case-insensitive). Names the item doesn't carry are a no-op. A name in both lists is removed. |
+
+## `shipeasy trails`
+
+Trails: the unit of shipping, from intent through merge to release.
+
+```bash
+shipeasy trails [options] [command]
+```
+
+### `shipeasy trails items`
+
+Queue items on a trail.
+
+```bash
+shipeasy trails items [options] [command]
+```
+
+#### `shipeasy trails items add`
+
+Put an existing item on a trail
+
+```bash
+shipeasy trails items add [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--item <value>` | optional | The queue item to put on the trail (number or id). An item is on at most one trail. |
+
+#### `shipeasy trails items remove`
+
+Take an item off a trail
+
+```bash
+shipeasy trails items remove [options] <handle> <itemHandle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+| `itemHandle` | required | The queue item's per-project number (e.g. `42`) or its full id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+### `shipeasy trails resources`
+
+The flags, configs, kill switches, experiments, metrics, alert rules, events and i18n keys a trail ships or depends on, each with a role (`ships_behind`, `rollback`, `measures`, `guards`, `copy`, `touched`) and its live state.
+
+```bash
+shipeasy trails resources [options] [command]
+```
+
+#### `shipeasy trails resources list`
+
+List a trail's resources
+
+```bash
+shipeasy trails resources list [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+#### `shipeasy trails resources add`
+
+Link a resource to a trail
+
+```bash
+shipeasy trails resources add [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--kind <value>` | optional | The product entities a trail can ship or depend on. `gate` is a feature flag. |
+| `--resource-key <value>` | optional | The entity's key (a gate or metric name, an experiment name, an i18n key). It must exist. |
+| `--role <value>` | optional | What a resource is for on the trail — `ships_behind` (the flag the code ships behind), `rollback` (the kill switch that undoes it), `measures` (the experiment or metric that judges it), `guards` (an alert rule that watches it), `copy` (an i18n key it adds) or `touched` (anything else). The release gates and the release phase read these. |
+
+#### `shipeasy trails resources remove`
+
+Unlink a resource from a trail
+
+```bash
+shipeasy trails resources remove [options] <handle> <id>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+| `id` | required | The trail's link to the resource (`TrailResource.id`), not the entity's own id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+### `shipeasy trails list`
+
+List trails
+
+```bash
+shipeasy trails list [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--view <value>` | optional | `table` answers the dashboard table read (`f`, `sort`, `cursor`, `limit`, `section_counts`, `grouped`). Omitted, `f` and `sort` are still honoured and the envelope is `{ data, next_cursor }`. |
+| `--scope <value>` | optional | A dashboard tab: `mine` (owned by the caller), `reviewing`, `ready`, `releasing`, `shipped`, `closed`, or `all` (the default, no narrowing). |
+| `--phase <value>` | optional | Narrow to one phase. |
+| `--type <value>` | optional | Narrow to one trail type. |
+| `--owner <value>` | optional | Narrow to trails owned by one person OR one agent — a `users.id`, email or display name, or a connector id, display name or handle. Case-insensitive exact match. |
+| `--q <value>` | optional | Case-insensitive substring filter across the trail's title and body. |
+| `--merged-since <value>` | optional | ISO-8601 timestamp. Narrow to trails with a change merged at or after it. |
+| `--touches <value>` | optional | A file path (or path prefix) a merged change changed, or a resource key the trail links. Narrow to trails that touch it. |
+| `--f <value>` | optional | The table's filter conditions: a JSON array of `{ "f", "o", "v" }` objects, ANDed. See the operation description for the fields. |
+| `--sort <value>` | optional | A column id, `-` prefixed for descending (`-updated`). An unknown column is a `400`. |
+| `--cursor <value>` | optional | Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page. |
+| `--limit <value>` | optional | Page size (1–200). A page shorter than `limit` is the last one. |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+### `shipeasy trails create`
+
+Create a trail
+
+```bash
+shipeasy trails create [options] <title>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `title` | required | One-line statement of the intent. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--body <value>` | optional | The intent in markdown — the outcome and the acceptance criteria. |
+| `--type <value>` | optional | What a trail is shipping. A `feature` trail is held to the rollback and measured release gates. |
+| `--priority <value>` | optional | Initial triage priority, or `null`. |
+| `--owner-id <value>` | optional | The `users.id` of the person to own the trail, or `null`. |
+| `--owner-connector-id <value>` | optional | The agent connector to own the trail, or `null`. |
+| `--repos <value>` | optional | Repos (`owner/repo`) the trail may open changes in. |
+| `--origin-item <value>` | optional | Ship this: a queue item (number or id) to create the trail from. Its description seeds `body` when that is omitted, and it becomes the trail's first item with source `origin`. |
+
+### `shipeasy trails get`
+
+Show a trail
+
+```bash
+shipeasy trails get [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--files <value>` | optional | Include each merged change's full `changedFiles` list. Omitted, `changedFiles` is `null`. |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+### `shipeasy trails update`
+
+Change a trail
+
+```bash
+shipeasy trails update [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--title <value>` | optional | — |
+| `--body <value>` | optional | — |
+| `--type <value>` | optional | What a trail is shipping. A `feature` trail is held to the rollback and measured release gates. |
+| `--priority <value>` | optional | Triage priority; `null` clears it. |
+| `--owner-id <value>` | optional | The `users.id` of the person owner; `null` unassigns. |
+| `--owner-connector-id <value>` | optional | The agent connector owner; `null` unassigns. |
+| `--repos <value>` | optional | Replaces the trail's repo scope. |
+
+### `shipeasy trails close`
+
+Close a trail
+
+```bash
+shipeasy trails close [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--reason <value>` | optional | Why the trail is being closed, e.g. `abandoned` or `superseded by T-14`. |
+
+### `shipeasy trails reopen`
+
+Reopen a trail
+
+```bash
+shipeasy trails reopen [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+### `shipeasy trails link-pr`
+
+Link a pull request to a trail
+
+```bash
+shipeasy trails link-pr [options] <handle> <prUrl>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+| `prUrl` | required | The pull request's URL. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--item <value>` | optional | The queue item whose run opened the PR (number or id), when there is one. Omitted, the change belongs to the trail itself. |
+
+### `shipeasy trails unlink-pr`
+
+Unlink a pull request from a trail
+
+```bash
+shipeasy trails unlink-pr [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--pr-url <value>` | optional | The pull request's URL. |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+### `shipeasy trails start`
+
+Start an agent on a trail
+
+```bash
+shipeasy trails start [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--agent <value>` | optional | Which coding agent to fire — `claude`, `cursor`, `copilot` or `jules`. Omitted, the project's coding-agent trigger. |
+| `--connector-id <value>` | optional | A specific trigger connector to fire. Overrides `agent`. |
+| `--prompt <value>` | optional | Extra instructions appended to the trail prompt. |
+
+### `shipeasy trails review`
+
+Run the review agents
+
+```bash
+shipeasy trails review [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--pr-url <value>` | optional | The change to review. Omitted, the trail's primary change. |
+| `--agent-keys <value>` | optional | Which review agents to run. Omitted, every enabled one. |
+
+### `shipeasy trails submit-eval`
+
+Submit a review agent's eval
+
+```bash
+shipeasy trails submit-eval [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--agent-key <value>` | optional | The review agent's key (from `ops review-agents list`). |
+| `--value <value>` | optional | 0–100 for a score agent; 1 (yes) or 0 (no) for a boolean one. |
+| `--rationale <value>` | optional | One or two sentences on the evidence behind the value. |
+| `--findings <value>` | optional | Issues to fix, each with a severity, and a file and line when there is one. |
+| `--pr-url <value>` | optional | The change reviewed. Omitted, the trail's primary change. |
+| `--head-sha <value>` | optional | The commit reviewed. Omitted, the change's latest push. A sha that is not the latest push is recorded against that push, as history. |
+| `--agent <value>` | optional | Your agent type, when you are the review agent. |
+| `--session-id <value>` | optional | Your session id, so the eval can deep-link to the review run. |
+| `--resources <value>` | optional | Product resources the reviewed diff uses (`getFlag("x")`, `getExperiment("y")`, `t("key")`). They are linked to the trail as detected. A key that does not exist yet becomes a finding. |
+
+### `shipeasy trails update-finding`
+
+Resolve or dismiss a finding
+
+```bash
+shipeasy trails update-finding [options] <handle> <findingId>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+| `findingId` | required | The finding id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--status <value>` | optional | A finding stays `open` until it is `resolved` (fixed) or `dismissed` (not a problem). A finding raised on an earlier push is reported `stale` but stays open until somebody decides. |
+| `--reason <value>` | optional | Why — the fixing commit, or why it is not a problem. |
+| `--agent <value>` | optional | Your agent type, when an agent is resolving the finding. |
+
+### `shipeasy trails promote-finding`
+
+Promote a finding to a queue item
+
+```bash
+shipeasy trails promote-finding [options] <handle> <findingId>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+| `findingId` | required | The finding id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--type <value>` | optional | What to file the finding as. Defaults to `bug`. |
+| `--reason <value>` | optional | Why the finding is out of scope for this trail. Recorded on the finding. |
+| `--title <value>` | optional | A title for the new item. Defaults to the finding's title. |
+
+### `shipeasy trails approve`
+
+Approve a change
+
+```bash
+shipeasy trails approve [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--pr-url <value>` | optional | The change to approve. Omitted, the trail's primary change. |
+| `--body <value>` | optional | An optional review note. |
+
+### `shipeasy trails merge`
+
+Merge a change
+
+```bash
+shipeasy trails merge [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--pr-url <value>` | optional | The change to merge. Omitted, the trail's primary change. |
+| `--method <value>` | optional | GitHub merge method. Defaults to `squash`. |
+| `--bypass <value>` | optional | Merge although a blocking gate has not passed. Needs the bypass capability, and is recorded on the trail with `reason`. |
+| `--reason <value>` | optional | Why the gates were bypassed. Required with `bypass`. |
+
+### `shipeasy trails attribute`
+
+Attribute an item to a trail
+
+```bash
+shipeasy trails attribute [options] <handle> <item>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+| `item` | required | The error, alert or bug to attribute (number or id). |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--confidence <value>` | optional | How sure an attribution is. `high` and `medium` attach the item to the trail; `low` records a suspect for a person to confirm or reject. |
+| `--evidence <value>` | optional | Concrete evidence: a stack frame in a changed file, the failing call touching a resource of the trail, or a guard metric of the trail. |
+
+### `shipeasy trails confirm-suspect`
+
+Confirm a suspected regression
+
+```bash
+shipeasy trails confirm-suspect [options] <handle> <suspectId>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+| `suspectId` | required | The suspect id (from `trails get`). |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+### `shipeasy trails reject-suspect`
+
+Reject a suspected regression
+
+```bash
+shipeasy trails reject-suspect [options] <handle> <suspectId>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+| `suspectId` | required | The suspect id (from `trails get`). |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
 
 ## `shipeasy release`
 

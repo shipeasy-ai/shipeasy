@@ -130,8 +130,17 @@
     },
     {
       "name": "Trails",
-      "parent": "Ops",
-      "description": "A queue item followed from intent to merge. The item is the trail — its\ntitle, description, type, priority and owner are the intent — and every\npull request linked to it is one of its changes. Each push to a change is\nscored by the project's review agents (a value, a rationale and findings\nper agent), and merge gates read branch freshness, approvals, open\nfindings, blocking evals and CI checks into one verdict. Loop the coding\nagent on the findings until the scores settle green, then approve and merge."
+      "description": "Trails: the unit of shipping, from intent through merge to release. A trail\nis created on purpose — from scratch, or with **Ship this** on a queue item\n— and holds what was asked for (a title and a body with the outcome and the\nacceptance criteria), every pull request worked under it (each a *change*),\nthe queue items discovered while it was worked, reviewed or released, and\nthe flags, kill switches, experiments, metrics, alert rules and i18n keys\nit ships. It replaces the pull request as the thing that is reviewed and\nmerged, and it owns the decision to release.\n\n**Loop.** Start a coding agent on the trail (`start`). It opens pull\nrequests and links them (`link-pr`). Every push to a change is scored by\nthe project's review agents (a value, a rationale and findings per agent);\nmerge gates read branch freshness, approvals, open findings, blocking evals,\nCI checks, discovered items and the release gates into one verdict. When a\nchange fails, the server re-fires the coding agent with the findings, up to\nthe gates' `fixRounds`. Findings that are real but out of scope are promoted\nto queue items (`promote-finding`) rather than fixed in passing.\n\n**Phase.** `planning`, `building`, `reviewing`, `ready`, `releasing`,\n`shipped`, `closed`. After the last open change merges the trail is\n`releasing` until its flags are fully rolled out and its experiments decided.\n\n**Handles.** A trail is addressed by its per-project handle (`T-12`) or its\nid. A queue item belongs to at most one trail.\n\n**Approve and merge are a person's call.** They are accepted only from a\ndashboard session or a device-auth CLI session, and are not exposed as MCP\ntools.\n\nThe v1 item routes (`/api/admin/ops/{handle}/trail/...`) remain as aliases\nthat resolve the item's trail and answer `404` when it has none."
+    },
+    {
+      "name": "Resources",
+      "parent": "Trails",
+      "description": "The flags, configs, kill switches, experiments, metrics, alert rules,\nevents and i18n keys a trail ships or depends on, each with a role\n(`ships_behind`, `rollback`, `measures`, `guards`, `copy`, `touched`) and\nits live state. The release gates and the release phase read these links."
+    },
+    {
+      "name": "Items",
+      "parent": "Trails",
+      "description": "Queue items on a trail. An item surfaces on a trail in one of seven ways\n(`origin`, `finding`, `agent`, `person`, `post_merge`, `cleanup`,\n`attached`) and belongs to at most one. File a new one on a trail with\n`ops bug --trail`; attach an existing one here."
     },
     {
       "name": "Review agents",
@@ -141,7 +150,7 @@
     {
       "name": "Trail gates",
       "parent": "Ops",
-      "description": "The project's merge requirements for trail changes — the branch is up to\ndate, enough human approvals, no open findings at or above a severity,\nevery blocking eval passes, CI checks pass. Each gate is evaluated or off,\nand blocking or report-only."
+      "description": "The project's merge and release requirements for trails — the branch is up\nto date, enough human approvals, no open findings at or above a severity,\nevery blocking eval passes, CI checks pass, no discovered item is open at\na priority, and the release gates (ships dark, rollback, measured, guarded,\ncopy). Each gate is evaluated or off, and blocking or report-only. Also the\nfix-round cap, the attribution window and per-repo check overrides."
     },
     {
       "name": "Routing rules",
@@ -10297,7 +10306,7 @@
       "get": {
         "operationId": "getOpsTrail",
         "summary": "Show an item's trail",
-        "description": "The item followed from intent to merge: its phase, and for every linked pull\nrequest (each a *change*) the latest push, the merge gates and how they read,\nCI checks, each review agent's eval on the latest push next to its last five,\nevery finding (open first, worst first, `stale` when raised on an earlier\npush), the approvals, and the pushes.\n\nGates are read live from GitHub on every call, so a `state` of `unknown` means\nGitHub could not be read and the PR-backed gates read `pending`.\n\n**Use case:** After pushing a fix, a coding agent reads the trail to see which\nfindings are still open and whether the scores have turned green.",
+        "description": "**Alias.** Kept for the v1 item routes: it resolves the item's trail and behaves exactly like `GET /api/admin/trails/{handle}`, answering `404` when the item is on no trail. Prefer the `/api/admin/trails` routes. Not part of the CLI or MCP surface.\n\nThe item's trail, followed from intent to release: its phase, and for every\npull request (each a *change*) the latest push, the merge gates and how they read,\nCI checks, each review agent's eval on the latest push next to its last five,\nevery finding (open first, worst first, `stale` when raised on an earlier\npush), the approvals, and the pushes.\n\nGates are read live from GitHub on every call, so a `state` of `unknown` means\nGitHub could not be read and the PR-backed gates read `pending`.\n\n**Use case:** After pushing a fix, a coding agent reads the trail to see which\nfindings are still open and whether the scores have turned green.",
         "tags": [
           "Trails"
         ],
@@ -10321,7 +10330,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetOpsTrailResponse"
+                  "$ref": "#/components/schemas/TrailDetail"
                 }
               }
             }
@@ -10342,6 +10351,7 @@
           "NOT_FOUND"
         ],
         "x-cli": {
+          "hidden": true,
           "name": "get",
           "positional": [
             "handle"
@@ -10353,7 +10363,7 @@
       "post": {
         "operationId": "submitOpsTrailEval",
         "summary": "Submit a review agent's eval",
-        "description": "Record one review agent's result on one push of a change: a `value` (0–100\nfor a score agent, 1/0 for a boolean one), a short `rationale`, and any\n`findings`. The verdict (pass / warn / fail) is computed from the agent's\nthreshold and polarity. Submitting again for the same push replaces the\nearlier result and the open findings it raised.\n\nThe `agentKey` normally names a configured review agent; an unconfigured key\nis recorded too, as a non-blocking score.\n\n**Use case:** A review run fired on a push scores the diff for risk and\nsubmits `{ agentKey: \"risk\", value: 35, rationale: \"...\", findings: [...] }`.",
+        "description": "**Alias.** Kept for the v1 item routes: it resolves the item's trail and behaves exactly like `POST /api/admin/trails/{handle}/evals`, answering `404` when the item is on no trail. Prefer the `/api/admin/trails` routes. Not part of the CLI or MCP surface.\n\nRecord one review agent's result on one push of a change: a `value` (0–100\nfor a score agent, 1/0 for a boolean one), a short `rationale`, and any\n`findings`. The verdict (pass / warn / fail) is computed from the agent's\nthreshold and polarity. Submitting again for the same push replaces the\nearlier result and the open findings it raised.\n\nThe `agentKey` normally names a configured review agent; an unconfigured key\nis recorded too, as a non-blocking score.\n\n**Use case:** A review run fired on a push scores the diff for risk and\nsubmits `{ agentKey: \"risk\", value: 35, rationale: \"...\", findings: [...] }`.",
         "tags": [
           "Trails"
         ],
@@ -10429,6 +10439,7 @@
           "VALIDATION"
         ],
         "x-cli": {
+          "hidden": true,
           "name": "submit-eval",
           "positional": [
             "handle"
@@ -10440,7 +10451,7 @@
       "patch": {
         "operationId": "updateOpsTrailFinding",
         "summary": "Resolve or dismiss a finding",
-        "description": "Set a finding's status — `resolved` (it was fixed; say how in `reason`),\n`dismissed` (it is not a problem; say why), or back to `open`.\n\n**Use case:** The coding agent fixed a flagged issue, pushed, and resolves the\nfinding with `reason: \"fixed in abc1234\"`.",
+        "description": "**Alias.** Kept for the v1 item routes: it resolves the item's trail and behaves exactly like `PATCH /api/admin/trails/{handle}/findings/{findingId}`, answering `404` when the item is on no trail. Prefer the `/api/admin/trails` routes. Not part of the CLI or MCP surface.\n\nSet a finding's status — `resolved` (it was fixed; say how in `reason`),\n`dismissed` (it is not a problem; say why), or back to `open`.\n\n**Use case:** The coding agent fixed a flagged issue, pushed, and resolves the\nfinding with `reason: \"fixed in abc1234\"`.",
         "tags": [
           "Trails"
         ],
@@ -10516,6 +10527,7 @@
           "VALIDATION"
         ],
         "x-cli": {
+          "hidden": true,
           "name": "update-finding",
           "positional": [
             "handle",
@@ -10528,7 +10540,7 @@
       "post": {
         "operationId": "approveOpsTrail",
         "summary": "Approve a change",
-        "description": "Approve a change at its latest push — what the Human review gate counts.\nApproving the same push twice is a no-op. When the project's gates reset\napprovals on push, a later push needs a fresh approval.\n\nApproval is a person's call: the restricted ops key cannot approve.\n\n**Use case:** A reviewer has read the evals and the diff and signs off.",
+        "description": "**Alias.** Kept for the v1 item routes: it resolves the item's trail and behaves exactly like `POST /api/admin/trails/{handle}/approve`, answering `404` when the item is on no trail. Prefer the `/api/admin/trails` routes. Not part of the CLI or MCP surface.\n\nApprove a change at its latest push — what the Human review gate counts.\nApproving the same push twice is a no-op. When the project's gates reset\napprovals on push, a later push needs a fresh approval.\n\nApproval is a person's call: only a dashboard or device-auth session can approve.\n\n**Use case:** A reviewer has read the evals and the diff and signs off.",
         "tags": [
           "Trails"
         ],
@@ -10598,6 +10610,7 @@
           "VALIDATION"
         ],
         "x-cli": {
+          "hidden": true,
           "name": "approve",
           "positional": [
             "handle"
@@ -10609,7 +10622,7 @@
       "post": {
         "operationId": "requestOpsTrailReview",
         "summary": "Run the review agents",
-        "description": "Launch the project's review agents on a change's latest push now, instead of\nwaiting for the next push. Each agent's eval reads `pending` until its run\nsubmits. Agents sharing a coding-agent trigger are reviewed in one run.\nReview runs spend your own agent quota, not Shipeasy credits.\n\n**Use case:** An agent's instructions changed and the latest push should be\nre-scored.",
+        "description": "**Alias.** Kept for the v1 item routes: it resolves the item's trail and behaves exactly like `POST /api/admin/trails/{handle}/review`, answering `404` when the item is on no trail. Prefer the `/api/admin/trails` routes. Not part of the CLI or MCP surface.\n\nLaunch the project's review agents on a change's latest push now, instead of\nwaiting for the next push. Each agent's eval reads `pending` until its run\nsubmits. Agents sharing a coding-agent trigger are reviewed in one run.\nReview runs spend your own agent quota, not Shipeasy credits.\n\n**Use case:** An agent's instructions changed and the latest push should be\nre-scored.",
         "tags": [
           "Trails"
         ],
@@ -10681,6 +10694,7 @@
           "VALIDATION"
         ],
         "x-cli": {
+          "hidden": true,
           "name": "review",
           "positional": [
             "handle"
@@ -10692,7 +10706,7 @@
       "post": {
         "operationId": "mergeOpsTrail",
         "summary": "Merge a change",
-        "description": "Merge a change's pull request on GitHub at the head its gates were evaluated\non. Refused with `409` while a blocking gate has not passed, unless `bypass`\nis set with a `reason` — the bypass is recorded on the item. GitHub's own\nbranch rules can still refuse the merge (`502`). Merging one change never\nmerges the trail's other changes.\n\nMerging is a person's call: the restricted ops key cannot merge.\n\n**Use case:** Every gate is green; merge from the trail instead of switching\nto GitHub.",
+        "description": "**Alias.** Kept for the v1 item routes: it resolves the item's trail and behaves exactly like `POST /api/admin/trails/{handle}/merge`, answering `404` when the item is on no trail. Prefer the `/api/admin/trails` routes. Not part of the CLI or MCP surface.\n\nMerge a change's pull request on GitHub at the head its gates were evaluated\non. Refused with `409` while a blocking gate has not passed, unless `bypass`\nis set with a `reason` — the bypass is recorded on the trail. GitHub's own\nbranch rules can still refuse the merge (`502`). Merging one change never\nmerges the trail's other changes.\n\nMerging is a person's call: only a dashboard or device-auth session can merge.\n\n**Use case:** Every gate is green; merge from the trail instead of switching\nto GitHub.",
         "tags": [
           "Trails"
         ],
@@ -10765,6 +10779,7 @@
           "VALIDATION"
         ],
         "x-cli": {
+          "hidden": true,
           "name": "merge",
           "positional": [
             "handle"
@@ -11133,6 +11148,1822 @@
         ],
         "x-cli": {
           "name": "set"
+        }
+      }
+    },
+    "/api/admin/trails": {
+      "get": {
+        "operationId": "listTrails",
+        "summary": "List trails",
+        "description": "Returns the project's trails, newest activity first. A trail is the unit of shipping: an intent, the changes (pull requests) worked under it, the items discovered on it and the product resources it ships. The phase and counts on each row are a snapshot; read one trail with `trails get` for the live state.\n\n**Dashboard table read.** `view=table` is the contract every dashboard list table shares: the endpoint applies `f`, `sort` and `cursor` in SQL and answers `{ data, next_cursor, section_counts?, grouped? }`. Filters and sorts are never applied in the browser, so a condition the server cannot evaluate is a `400`.\n- `f` — a JSON array of `{ \"f\": field, \"o\": operator, \"v\": value }` conditions, all ANDed. Fields are the snapshot columns: `phase`, `status`, `type`, `priority`, `owner`, `changesOpen`, `changesMergeable`, `findingsOpenHigh`, `itemsOpen`, `releasedPct`, `updatedAt`.\n- `sort` — a column id, `-` prefixed for descending: `number`, `title`, `phase`, `priority`, `owner`, `changes`, `findings`, `items`, `released`, `updated`, `created`. Defaults to `-updated`.\n- `cursor` — the previous page's `next_cursor`; `limit` is the page size (1–200, default 50).\n\n**Scopes** (`scope`) are the dashboard's tabs: `mine` (trails you own), `reviewing`, `ready`, `releasing`, `shipped`, `closed`, or `all` (the default).\n\n**Attribution.** `mergedSince` and `touches` list the trails that merged inside a window and changed a path or linked a resource — the candidates for an error or alert that started after a release.\n\n**Use case:** Find the trail already shipping a feature before creating another, or list what merged in the last 72 hours to attribute a new alert.",
+        "tags": [
+          "Trails"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "name": "view",
+            "in": "query",
+            "required": false,
+            "description": "`table` answers the dashboard table read (`f`, `sort`, `cursor`, `limit`, `section_counts`, `grouped`). Omitted, `f` and `sort` are still honoured and the envelope is `{ data, next_cursor }`.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "table"
+              ]
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "description": "A dashboard tab: `mine` (owned by the caller), `reviewing`, `ready`, `releasing`, `shipped`, `closed`, or `all` (the default, no narrowing).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "mine",
+                "reviewing",
+                "ready",
+                "releasing",
+                "shipped",
+                "closed"
+              ],
+              "default": "all"
+            }
+          },
+          {
+            "name": "phase",
+            "in": "query",
+            "required": false,
+            "description": "Narrow to one phase.",
+            "schema": {
+              "$ref": "#/components/schemas/TrailPhase"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "description": "Narrow to one trail type.",
+            "schema": {
+              "$ref": "#/components/schemas/TrailType"
+            }
+          },
+          {
+            "name": "owner",
+            "in": "query",
+            "required": false,
+            "description": "Narrow to trails owned by one person OR one agent — a `users.id`, email or display name, or a connector id, display name or handle. Case-insensitive exact match.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring filter across the trail's title and body.",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "mergedSince",
+            "in": "query",
+            "required": false,
+            "description": "ISO-8601 timestamp. Narrow to trails with a change merged at or after it.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "touches",
+            "in": "query",
+            "required": false,
+            "description": "A file path (or path prefix) a merged change changed, or a resource key the trail links. Narrow to trails that touch it.",
+            "schema": {
+              "type": "string",
+              "maxLength": 500
+            }
+          },
+          {
+            "name": "f",
+            "in": "query",
+            "required": false,
+            "description": "The table's filter conditions: a JSON array of `{ \"f\", \"o\", \"v\" }` objects, ANDed. See the operation description for the fields.",
+            "schema": {
+              "type": "string",
+              "maxLength": 8000
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "A column id, `-` prefixed for descending (`-updated`). An unknown column is a `400`.",
+            "schema": {
+              "type": "string",
+              "maxLength": 32
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size (1–200). A page shorter than `limit` is the last one.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "x-mcp": {
+              "required": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of trails",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListTrailsResponse"
+                },
+                "example": {
+                  "data": [
+                    {
+                      "id": "6f1c7d52-3a6e-4b6f-9c0e-5d9c1e7a2b10",
+                      "number": 12,
+                      "handle": "T-12",
+                      "title": "Retry failed webhook deliveries",
+                      "body": "Failed deliveries retry with backoff and surface in the delivery log",
+                      "type": "feature",
+                      "priority": "high",
+                      "owner": {
+                        "user": {
+                          "id": "usr_01j7w8a1b2c3d4e5f6g7h8i9j0",
+                          "email": "alice@acme.dev",
+                          "name": "Alice"
+                        },
+                        "agent": null
+                      },
+                      "status": "open",
+                      "closedReason": null,
+                      "phase": "reviewing",
+                      "phaseReason": "1 of 2 changes can merge",
+                      "origin": null,
+                      "repos": [
+                        "acme/api"
+                      ],
+                      "changesOpen": 2,
+                      "changesMergeable": 1,
+                      "findingsOpenHigh": 0,
+                      "itemsOpen": 1,
+                      "resourcesCount": 3,
+                      "releasedPct": null,
+                      "mergedAt": null,
+                      "shippedAt": null,
+                      "closedAt": null,
+                      "snapshotAt": "2026-11-03T10:02:44.000Z",
+                      "createdAt": "2026-11-02T09:14:08.000Z",
+                      "updatedAt": "2026-11-03T10:02:44.000Z"
+                    }
+                  ],
+                  "next_cursor": null
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN"
+        ],
+        "x-cli": {
+          "name": "list"
+        },
+        "x-mcp": {
+          "description": "List the project's trails — the unit of shipping (an intent, its pull requests, the items discovered on it, the product resources it ships). LIST BEFORE YOU CREATE: check no trail already ships this. PAGING: `limit` (1–200) is REQUIRED; pass the previous `next_cursor` as `cursor` for the next page. FILTERS (optional, ANDed, applied in SQL): `scope` = mine | reviewing | ready | releasing | shipped | closed | all (default all); `phase` = planning | building | reviewing | ready | releasing | shipped | closed; `type` = feature | bug | task; `owner` = a person or agent; `q` = substring of title or body. ATTRIBUTION: `mergedSince` (ISO-8601) with `touches` (a file path or a resource key) lists the trails that merged in a window and changed a path or link a resource — the candidates for an error or alert that started after a release."
+        }
+      },
+      "post": {
+        "operationId": "createTrail",
+        "summary": "Create a trail",
+        "description": "Creates a trail in `planning`. A trail is created on purpose — nothing makes one implicitly. Create one from scratch with a `title` and a `body` (the outcome and the acceptance criteria), or press **Ship this** on a queue item with `originItem`: the item's description seeds the body and the item becomes the trail's first item, with source `origin`. An item is on at most one trail.\n\nFire the project's coding agent on the new trail with `trails start`, or link pull requests an agent already opened with `trails link-pr`.\n\nSafe for the restricted ops key.\n\n**Use case:** A coding agent that was asked to ship a multi-part feature opens one trail for it, then links every PR it opens.",
+        "tags": [
+          "Trails"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTrailRequest"
+              },
+              "example": {
+                "title": "Retry failed webhook deliveries",
+                "body": "Failed deliveries retry with backoff, and the delivery log shows every attempt.\n\nAcceptance:\n- 5 attempts over 24 hours\n- a failed final attempt files an alert",
+                "type": "feature",
+                "priority": "high",
+                "repos": [
+                  "acme/api"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The new trail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Trail"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "ALREADY_EXISTS",
+          "REFERENCED_NOT_FOUND",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "create",
+          "positional": [
+            "title"
+          ]
+        }
+      }
+    },
+    "/api/admin/trails/{handle}": {
+      "get": {
+        "operationId": "getTrail",
+        "summary": "Show a trail",
+        "description": "A trail followed from intent to release: its phase, every change (each a pull request) with its latest push, merge gates, CI checks, each review agent's eval next to its last five, every finding (open first, worst first, `stale` when raised on an earlier push), approvals and pushes; the items discovered on it; the product resources it ships with their live state; the runs working it; and the suspected regressions awaiting a person.\n\nGates are read live from GitHub on every call, so a `state` of `unknown` means GitHub could not be read and the PR-backed gates read `pending`. Phase and counts are recomputed live. Pass `files` to include each merged change's full changed-file list and the diff link.\n\nSafe for the restricted ops key.\n\n**Use case:** After pushing a fix, a coding agent reads the trail to see which findings are still open and whether the scores have turned green.",
+        "tags": [
+          "Trails"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          },
+          {
+            "name": "files",
+            "in": "query",
+            "required": false,
+            "description": "Include each merged change's full `changedFiles` list. Omitted, `changedFiles` is `null`.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The trail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrailDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND"
+        ],
+        "x-cli": {
+          "name": "get",
+          "positional": [
+            "handle"
+          ]
+        }
+      },
+      "patch": {
+        "operationId": "updateTrail",
+        "summary": "Change a trail",
+        "description": "Change a trail's title, intent, type, priority, owner or repo scope. Pass at least one field; the rest are left as they are. Changing the type changes which release gates apply.\n\n**Use case:** The acceptance criteria changed after a review — update the body so the next agent run builds the right thing.",
+        "tags": [
+          "Trails"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTrailRequest"
+              },
+              "example": {
+                "priority": "critical",
+                "body": "Failed deliveries retry with backoff.\n\nAcceptance:\n- 5 attempts over 24 hours"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated trail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Trail"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "update",
+          "positional": [
+            "handle"
+          ]
+        }
+      }
+    },
+    "/api/admin/trails/{handle}/close": {
+      "post": {
+        "operationId": "closeTrail",
+        "summary": "Close a trail",
+        "description": "Close a trail by hand — abandoned, superseded, or shipped with discovered items still open. A trail also closes on its own once it is `shipped` with no discovered item open at `high` priority or above. Closing never merges or closes pull requests. A trail closed with nothing merged reads `closed`; one that merged keeps its `releasing`/`shipped` phase.\n\nClosing is a person's call: the restricted ops key cannot close a trail.",
+        "tags": [
+          "Trails"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloseTrailRequest"
+              },
+              "example": {
+                "reason": "superseded by T-14"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The closed trail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Trail"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "INVALID_TRANSITION",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "close",
+          "positional": [
+            "handle"
+          ]
+        }
+      }
+    },
+    "/api/admin/trails/{handle}/reopen": {
+      "post": {
+        "operationId": "reopenTrail",
+        "summary": "Reopen a trail",
+        "description": "Reopen a closed trail so its changes can be reviewed and merged again. Its phase is recomputed from its changes and resources.\n\nReopening is a person's call: the restricted ops key cannot reopen a trail.",
+        "tags": [
+          "Trails"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The reopened trail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Trail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "x-error-codes": [
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "INVALID_TRANSITION"
+        ],
+        "x-cli": {
+          "name": "reopen",
+          "positional": [
+            "handle"
+          ]
+        }
+      }
+    },
+    "/api/admin/trails/{handle}/changes": {
+      "post": {
+        "operationId": "linkTrailPr",
+        "summary": "Link a pull request to a trail",
+        "description": "Link a pull request to the trail as one of its *changes*. From then on the GitHub webhook records its pushes, the project's review agents score each push, and the merge gates read it. Linking a pull request the trail already has is a no-op; a pull request that belongs to a different trail is refused with `409`. Pass `item` when an item's run opened the PR, so the change shows under that item.\n\nSafe for the restricted ops key.\n\n**Use case:** A coding agent working a trail opens a PR and links it with `trails link-pr T-12 <url>`.",
+        "tags": [
+          "Trails"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkTrailPrRequest"
+              },
+              "example": {
+                "prUrl": "https://github.com/acme/api/pull/41"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrailChange"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "ALREADY_EXISTS",
+          "INVALID_TRANSITION",
+          "REFERENCED_NOT_FOUND",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "link-pr",
+          "positional": [
+            "handle",
+            "prUrl"
+          ]
+        }
+      },
+      "delete": {
+        "operationId": "unlinkTrailPr",
+        "summary": "Unlink a pull request from a trail",
+        "description": "Detach a pull request from the trail. Its recorded pushes, evals, findings and approvals stay in history but no longer count toward the trail's gates. A merged change cannot be unlinked.",
+        "tags": [
+          "Trails"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          },
+          {
+            "name": "prUrl",
+            "in": "query",
+            "required": true,
+            "description": "The pull request's URL.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The change was unlinked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrailOkResponse"
+                },
+                "example": {
+                  "ok": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "INVALID_TRANSITION"
+        ],
+        "x-cli": {
+          "name": "unlink-pr",
+          "positional": [
+            "handle"
+          ]
+        }
+      }
+    },
+    "/api/admin/trails/{handle}/runs": {
+      "post": {
+        "operationId": "startTrailRun",
+        "summary": "Start an agent on a trail",
+        "description": "Fire the project's coding-agent trigger with a *trail* prompt: the intent, the acceptance criteria, the linked resources and the open discovered items. The agent opens pull requests and links them with `trails link-pr`. The run is tracked as a `build` run; `fix` runs are fired by the server when a change's evals or findings fail. Runs spend your own agent quota, not Shipeasy credits.\n\n**Use case:** A trail is created from a feature request; start an agent on it.",
+        "tags": [
+          "Trails"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartTrailRunRequest"
+              },
+              "example": {
+                "agent": "claude"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The run that was started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrailRun"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "AGENT_NOT_CONNECTED",
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "INVALID_TRANSITION",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "start",
+          "positional": [
+            "handle"
+          ]
+        }
+      }
+    },
+    "/api/admin/trails/{handle}/review": {
+      "post": {
+        "operationId": "requestTrailReview",
+        "summary": "Run the review agents",
+        "description": "Launch the project's review agents on a change's latest push now, instead of waiting for the next push. Each agent's eval reads `pending` until its run submits. Agents sharing a coding-agent trigger are reviewed in one run. Review runs spend your own agent quota, not Shipeasy credits.\n\nSafe for the restricted ops key.\n\n**Use case:** An agent's instructions changed and the latest push should be re-scored.",
+        "tags": [
+          "Trails"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestOpsTrailReviewRequest"
+              },
+              "example": {
+                "agentKeys": [
+                  "risk"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "What was launched",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestOpsTrailReviewResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "INVALID_TRANSITION",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "review",
+          "positional": [
+            "handle"
+          ]
+        }
+      }
+    },
+    "/api/admin/trails/{handle}/evals": {
+      "post": {
+        "operationId": "submitTrailEval",
+        "summary": "Submit a review agent's eval",
+        "description": "Record one review agent's result on one push of a change: a `value` (0–100 for a score agent, 1/0 for a boolean one), a short `rationale`, and any `findings`. The verdict (pass / warn / fail) is computed from the agent's threshold and polarity. Submitting again for the same push replaces the earlier result and the open findings it raised. `prUrl` selects the change; omitted, the trail's primary change.\n\nA review run may also report the product `resources` the diff uses (`getFlag(\"x\")`, `getExperiment(\"y\")`, `t(\"key\")`). They are linked to the trail as detected, and a key that does not exist yet becomes a finding.\n\nThe `agentKey` normally names a configured review agent; an unconfigured key is recorded too, as a non-blocking score.\n\nSafe for the restricted ops key.\n\n**Use case:** A review run fired on a push scores the diff for risk and submits `{ agentKey: \"risk\", value: 35, rationale: \"...\", findings: [...] }`.",
+        "tags": [
+          "Trails"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitOpsTrailEvalRequest"
+              },
+              "example": {
+                "agentKey": "risk",
+                "value": 35,
+                "rationale": "Touches the token refresh path; covered by the existing auth tests",
+                "findings": [
+                  {
+                    "severity": "medium",
+                    "title": "Refresh failure is swallowed",
+                    "path": "src/auth/refresh.ts",
+                    "line": 42
+                  }
+                ],
+                "resources": [
+                  {
+                    "kind": "gate",
+                    "resourceKey": "checkout.v2",
+                    "role": "ships_behind"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The recorded eval and its findings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmitOpsTrailEvalResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "submit-eval",
+          "positional": [
+            "handle"
+          ]
+        }
+      }
+    },
+    "/api/admin/trails/{handle}/findings/{findingId}": {
+      "patch": {
+        "operationId": "updateTrailFinding",
+        "summary": "Resolve or dismiss a finding",
+        "description": "Set a finding's status — `resolved` (it was fixed; say how in `reason`), `dismissed` (it is not a problem; say why), or back to `open`. A finding that is real but out of scope is not dismissed: promote it with `trails promote-finding`.\n\nSafe for the restricted ops key.\n\n**Use case:** The coding agent fixed a flagged issue, pushed, and resolves the finding with `reason: \"fixed in abc1234\"`.",
+        "tags": [
+          "Trails"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          },
+          {
+            "name": "findingId",
+            "in": "path",
+            "required": true,
+            "description": "The finding id.",
+            "schema": {
+              "$ref": "#/components/schemas/ResourceId"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOpsTrailFindingRequest"
+              },
+              "example": {
+                "status": "resolved",
+                "reason": "fixed in abc1234"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated finding",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrailFinding"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "update-finding",
+          "positional": [
+            "handle",
+            "findingId"
+          ]
+        }
+      }
+    },
+    "/api/admin/trails/{handle}/findings/{findingId}/promote": {
+      "post": {
+        "operationId": "promoteTrailFinding",
+        "summary": "Promote a finding to a queue item",
+        "description": "Move a finding that is real but out of scope onto the queue. It creates a bug (or a feature request, with `type`) whose description quotes the finding, its path and line, and its push. The new item lands on the trail with source `finding`, and the finding is dismissed as `moved to #N` so the gates stop counting it. Promotion is the one-way bridge from a finding (per push, in scope, must be dealt with before merge) to an item (lives on its own, can become its own trail).\n\nSafe for the restricted ops key.\n\n**Use case:** A review flags a flaky test unrelated to the change; the coding agent promotes it instead of drive-by fixing it.",
+        "tags": [
+          "Trails"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          },
+          {
+            "name": "findingId",
+            "in": "path",
+            "required": true,
+            "description": "The finding id.",
+            "schema": {
+              "$ref": "#/components/schemas/ResourceId"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromoteTrailFindingRequest"
+              },
+              "example": {
+                "reason": "Pre-existing flake in the webhook suite, unrelated to the retry change",
+                "type": "bug"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The created item and the updated finding",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromoteTrailFindingResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "INVALID_TRANSITION",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "promote-finding",
+          "positional": [
+            "handle",
+            "findingId"
+          ]
+        }
+      }
+    },
+    "/api/admin/trails/{handle}/approve": {
+      "post": {
+        "operationId": "approveTrail",
+        "summary": "Approve a change",
+        "description": "Approve a change at its latest push — what the Human review gate counts. Approving the same push twice is a no-op. When the project's gates reset approvals on push, a later push needs a fresh approval. Unless the gates allow `authorCanApprove`, the trail's owner and whoever started its runs do not count.\n\nApproval is a person's call. Only a dashboard session or a device-auth CLI session can approve — ops keys, project admin keys and OAuth MCP calls are refused with `403`. This operation is not exposed as an MCP tool.\n\n**Use case:** A reviewer has read the evals and the diff and signs off.",
+        "tags": [
+          "Trails"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveOpsTrailRequest"
+              },
+              "example": {
+                "body": "Read the diff and the security eval, looks good"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The approval",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrailApproval"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "INVALID_TRANSITION",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "approve",
+          "positional": [
+            "handle"
+          ]
+        },
+        "x-mcp": {
+          "hidden": true
+        }
+      }
+    },
+    "/api/admin/trails/{handle}/merge": {
+      "post": {
+        "operationId": "mergeTrail",
+        "summary": "Merge a change",
+        "description": "Merge a change's pull request on GitHub at the head its gates were evaluated on. Refused with `409` while a blocking gate has not passed, unless `bypass` is set with a `reason` — bypass needs the bypass capability, and is audited and posted on the trail. GitHub's own branch rules can still refuse the merge (`502`). Merging one change never merges the trail's other changes; when the last open change merges the trail moves to `releasing`.\n\nMerging is a person's call. Only a dashboard session or a device-auth CLI session can merge — ops keys, project admin keys and OAuth MCP calls are refused with `403`. This operation is not exposed as an MCP tool.\n\n**Use case:** Every gate is green; merge from the trail instead of switching to GitHub.",
+        "tags": [
+          "Trails"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MergeOpsTrailRequest"
+              },
+              "example": {
+                "method": "squash"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The merge result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MergeOpsTrailResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "INVALID_TRANSITION",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "merge",
+          "positional": [
+            "handle"
+          ]
+        },
+        "x-mcp": {
+          "hidden": true
+        }
+      }
+    },
+    "/api/admin/trails/{handle}/resources": {
+      "get": {
+        "operationId": "listTrailResources",
+        "summary": "List a trail's resources",
+        "description": "The flags, configs, kill switches, experiments, metrics, alert rules, events and i18n keys the trail ships or depends on, each with its role and its live state (a flag's prod rollout, an experiment's status and decision, a kill switch's position, an alert's firing state, whether it has settled).\n\n**Use case:** Check which flag a trail ships behind, and how far it has rolled out, before stepping it up.",
+        "tags": [
+          "Resources"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The trail's resources",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListTrailResourcesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND"
+        ],
+        "x-cli": {
+          "name": "list",
+          "positional": [
+            "handle"
+          ]
+        }
+      },
+      "post": {
+        "operationId": "addTrailResource",
+        "summary": "Link a resource to a trail",
+        "description": "Link a product entity to the trail with a *role* — what it is for: `ships_behind` (the flag the code ships behind), `rollback` (the kill switch that undoes it), `measures` (the experiment or metric that judges it), `guards` (an alert rule that watches it), `copy` (an i18n key) or `touched`. Omit `role` and it is guessed from the kind. The release gates and the release phase read these links. Linking the same entity again changes its role.\n\nWrites made through the CLI or MCP while `SHIPEASY_TRAIL` is set link themselves; use this for anything else.\n\nSafe for the restricted ops key.\n\n**Use case:** The agent created the flag `checkout.v2` for the trail; it links it as `ships_behind`.",
+        "tags": [
+          "Resources"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddTrailResourceRequest"
+              },
+              "example": {
+                "kind": "gate",
+                "resourceKey": "checkout.v2",
+                "role": "ships_behind"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The linked resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrailResource"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "INVALID_TRANSITION",
+          "REFERENCED_NOT_FOUND",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "add",
+          "positional": [
+            "handle"
+          ]
+        }
+      }
+    },
+    "/api/admin/trails/{handle}/resources/{id}": {
+      "delete": {
+        "operationId": "removeTrailResource",
+        "summary": "Unlink a resource from a trail",
+        "description": "Remove a resource from the trail. The entity itself is untouched; only the trail's link to it goes, and the release gates stop counting it.",
+        "tags": [
+          "Resources"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The trail's link to the resource (`TrailResource.id`), not the entity's own id.",
+            "schema": {
+              "$ref": "#/components/schemas/ResourceId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The resource was unlinked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrailOkResponse"
+                },
+                "example": {
+                  "ok": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-error-codes": [
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND"
+        ],
+        "x-cli": {
+          "name": "remove",
+          "positional": [
+            "handle",
+            "id"
+          ]
+        }
+      }
+    },
+    "/api/admin/trails/{handle}/items": {
+      "post": {
+        "operationId": "addTrailItem",
+        "summary": "Put an existing item on a trail",
+        "description": "Attach an existing queue item to the trail, recorded with source `attached`. An item is on at most one trail; one already on another trail is refused with `409`. To file a *new* item on a trail, use `ops bug --trail` or `ops feature --trail`.\n\nSafe for the restricted ops key.\n\n**Use case:** A bug already in the queue turns out to be part of the work; attach it so the trail tracks it.",
+        "tags": [
+          "Items"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddTrailItemRequest"
+              },
+              "example": {
+                "item": "42"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The item as it now sits on the trail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrailItem"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "INVALID_TRANSITION",
+          "REFERENCED_NOT_FOUND",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "add",
+          "positional": [
+            "handle"
+          ]
+        }
+      }
+    },
+    "/api/admin/trails/{handle}/items/{itemHandle}": {
+      "delete": {
+        "operationId": "removeTrailItem",
+        "summary": "Take an item off a trail",
+        "description": "Detach a queue item from the trail. The item stays in the queue; only its link to the trail and its discovery record go. The trail's origin item cannot be detached.",
+        "tags": [
+          "Items"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          },
+          {
+            "name": "itemHandle",
+            "in": "path",
+            "required": true,
+            "description": "The queue item's per-project number (e.g. `42`) or its full id.",
+            "schema": {
+              "$ref": "#/components/schemas/OpsItemHandle"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The item was taken off the trail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrailOkResponse"
+                },
+                "example": {
+                  "ok": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "x-error-codes": [
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "INVALID_TRANSITION"
+        ],
+        "x-cli": {
+          "name": "remove",
+          "positional": [
+            "handle",
+            "itemHandle"
+          ]
+        }
+      }
+    },
+    "/api/admin/trails/{handle}/attributions": {
+      "post": {
+        "operationId": "attributeTrail",
+        "summary": "Attribute an item to a trail",
+        "description": "Record that an error, alert or bug was caused by the trail after it merged. Errors carry no release or commit SHA, so attribution is a judgement: compare the stack frames and the error's subject against each candidate trail's changed files (`trails get --files`) and resources, and attribute only on concrete evidence — a frame in a changed file, the failing call touching a resource of the trail, or a guard metric of the trail. If nothing fits, leave the item unattributed.\n\n- `confidence: high` or `medium` puts the item on the trail with source `post_merge`, and writes `evidence` as an investigation note on the item and a system comment on the trail.\n- `confidence: low` records a *suspect* instead: the trail lists it under suspected regressions and a person confirms or rejects it.\n\nAttribution never flips a rollback. Propose one to a person as a structured question.\n\nSafe for the restricted ops key.\n\n**Use case:** A new error's stack frame sits in a file T-12 changed two hours ago; the investigating agent attributes it with the frame as evidence.",
+        "tags": [
+          "Trails"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttributeTrailRequest"
+              },
+              "example": {
+                "item": "57",
+                "confidence": "high",
+                "evidence": "The failing frame is src/webhooks/retry.ts:88, changed by T-12 two hours before the first occurrence"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "What the attribution did",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttributeTrailResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "INVALID_TRANSITION",
+          "REFERENCED_NOT_FOUND",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "attribute",
+          "positional": [
+            "handle",
+            "item"
+          ]
+        }
+      }
+    },
+    "/api/admin/trails/{handle}/suspects/{suspectId}/confirm": {
+      "post": {
+        "operationId": "confirmTrailSuspect",
+        "summary": "Confirm a suspected regression",
+        "description": "Confirm a suspect: the item goes onto the trail with source `post_merge` and the suspect's evidence is kept. A person's call — the restricted ops key cannot confirm.",
+        "tags": [
+          "Trails"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          },
+          {
+            "name": "suspectId",
+            "in": "path",
+            "required": true,
+            "description": "The suspect id (from `trails get`).",
+            "schema": {
+              "$ref": "#/components/schemas/ResourceId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The suspect, with its new status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrailSuspect"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "x-error-codes": [
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "INVALID_TRANSITION"
+        ],
+        "x-cli": {
+          "name": "confirm-suspect",
+          "positional": [
+            "handle",
+            "suspectId"
+          ]
+        }
+      }
+    },
+    "/api/admin/trails/{handle}/suspects/{suspectId}/reject": {
+      "post": {
+        "operationId": "rejectTrailSuspect",
+        "summary": "Reject a suspected regression",
+        "description": "Reject a suspect: the item stays where it is, off the trail, and the suspect leaves the trail's suspected regressions. A person's call — the restricted ops key cannot reject.",
+        "tags": [
+          "Trails"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          },
+          {
+            "name": "suspectId",
+            "in": "path",
+            "required": true,
+            "description": "The suspect id (from `trails get`).",
+            "schema": {
+              "$ref": "#/components/schemas/ResourceId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The suspect, with its new status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrailSuspect"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "x-error-codes": [
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "INVALID_TRANSITION"
+        ],
+        "x-cli": {
+          "name": "reject-suspect",
+          "positional": [
+            "handle",
+            "suspectId"
+          ]
         }
       }
     },
@@ -15975,6 +17806,18 @@
         "schema": {
           "type": "string",
           "maxLength": 100
+        }
+      },
+      "TrailHandle": {
+        "name": "handle",
+        "in": "path",
+        "required": true,
+        "description": "The trail's handle (`T-12`) or its id.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$"
         }
       }
     },
@@ -24478,6 +26321,13 @@
               }
             ],
             "description": "Where this bug's completion notification lands."
+          },
+          "trail": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$",
+            "description": "File the bug on this trail (`T-12` or the trail's id) instead of the open queue. An agent that hits something outside its intent files it here rather than fixing it in place. The item records `discoveredSource` as `agent` (or `person` when a person files it) and the change and push the filer was on."
           }
         },
         "required": [
@@ -24626,6 +26476,13 @@
               }
             ],
             "description": "Where this request's completion notification lands."
+          },
+          "trail": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$",
+            "description": "File the request on this trail (`T-12` or the trail's id) instead of the open queue. The item records `discoveredSource` as `agent` (or `person` when a person files it)."
           }
         },
         "required": [
@@ -25352,6 +27209,64 @@
         "additionalProperties": {},
         "description": "One linked item's content, inlined into `ops get` by `include=linked` so a run reads the whole group in one call. Its comments, attachments and runs are on its own `ops get`."
       },
+      "TrailPhase": {
+        "type": "string",
+        "enum": [
+          "planning",
+          "building",
+          "reviewing",
+          "ready",
+          "releasing",
+          "shipped",
+          "closed"
+        ],
+        "description": "Where a trail is, derived from its changes and its release resources — `planning` (no change and no open run), `building` (no change yet, a run is working), `reviewing` (a change is open and not every open change can merge), `ready` (every open change can merge), `releasing` (merged, and a flag, experiment or other release resource has not settled), `shipped` (merged and every release resource settled), `closed` (closed with nothing merged). The detail read recomputes it live; the list reads a snapshot."
+      },
+      "TrailSummary": {
+        "type": "object",
+        "description": "A compact reference to a trail, as it appears on a queue item.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The trail's id."
+          },
+          "number": {
+            "type": "integer",
+            "description": "Per-project trail number (the `12` in `T-12`)."
+          },
+          "handle": {
+            "type": "string",
+            "description": "The trail's handle, `T-<number>`."
+          },
+          "title": {
+            "type": "string"
+          },
+          "phase": {
+            "$ref": "#/components/schemas/TrailPhase"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "handle",
+          "title",
+          "phase"
+        ],
+        "additionalProperties": false
+      },
+      "TrailDiscoveredSource": {
+        "type": "string",
+        "enum": [
+          "origin",
+          "finding",
+          "agent",
+          "person",
+          "post_merge",
+          "cleanup",
+          "attached"
+        ],
+        "description": "How an item came to be on a trail — `origin` (the item Ship this was pressed on), `finding` (a review finding promoted out of scope), `agent` (the coding agent filed it instead of fixing it in place), `person` (a reviewer filed it from the trail), `post_merge` (an error, alert or bug attributed to the trail after it merged), `cleanup` (follow-up the release created, e.g. remove a flag from code), `attached` (an existing item moved onto the trail)."
+      },
       "GetOpsItemResponse": {
         "type": "object",
         "properties": {
@@ -25595,6 +27510,28 @@
           },
           "owner": {
             "$ref": "#/components/schemas/OpsItemOwner"
+          },
+          "trail": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrailSummary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The trail this item belongs to, or `null` when it is on none. An item is on at most one trail."
+          },
+          "discoveredSource": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrailDiscoveredSource"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How the item came to be on its trail (`origin`, `finding`, `agent`, `person`, `post_merge`, `cleanup`, `attached`), or `null` when it is on no trail."
           },
           "createdAt": {
             "type": "string",
@@ -27839,17 +29776,22 @@
         "additionalProperties": false,
         "description": "Response for `GET /api/admin/ops/memory`."
       },
-      "TrailPhase": {
+      "TrailType": {
         "type": "string",
         "enum": [
-          "planning",
-          "building",
-          "reviewing",
-          "ready",
-          "merged",
+          "feature",
+          "bug",
+          "task"
+        ],
+        "description": "What a trail is shipping. A `feature` trail is held to the rollback and measured release gates."
+      },
+      "TrailStatus": {
+        "type": "string",
+        "enum": [
+          "open",
           "closed"
         ],
-        "description": "Where a trail is, derived from its changes — `planning` (intent only), `building` (an agent is working, no change yet), `reviewing` (a change is open and a blocking gate has not passed), `ready` (every open change passes its gates), `merged` (every change merged), `closed` (the changes were closed unmerged)."
+        "description": "Whether a trail is still being worked. A trail closes by hand, or on its own once it is `shipped` with no high-priority discovered item open. `phase` carries the detail; `status` is the stored open/closed switch."
       },
       "TrailGateKey": {
         "type": "string",
@@ -27858,9 +29800,15 @@
           "human_review",
           "agent_review",
           "evals",
-          "checks"
+          "checks",
+          "discovered",
+          "ships_dark",
+          "rollback",
+          "measured",
+          "guarded",
+          "copy"
         ],
-        "description": "A merge gate — `up_to_date` (the branch is current with its base), `human_review` (enough approvals), `agent_review` (no open findings at or above the severity), `evals` (every blocking review agent passes on the latest push), `checks` (CI checks pass)."
+        "description": "A merge gate — `up_to_date` (the branch is current with its base), `human_review` (enough approvals), `agent_review` (no open findings at or above the severity, and no push agent still reviewing), `evals` (every blocking review agent passes on the latest push), `checks` (CI checks pass), `discovered` (no item discovered on the trail is open at or above the configured priority), and the release gates `ships_dark` (every flag the trail ships behind is off in prod), `rollback` (a feature has a rollback kill switch), `measured` (a feature has an experiment or metric), `guarded` (every measured resource has a guard alert rule) and `copy` (every copy key exists in every published locale)."
       },
       "TrailGateStatus": {
         "type": "string",
@@ -28241,6 +30189,17 @@
               }
             ]
           },
+          "promotedItem": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpsItemRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The queue item this finding was promoted into (the finding is then dismissed as `moved to"
+          },
           "createdAt": {
             "type": "string"
           },
@@ -28262,6 +30221,7 @@
           "stale",
           "statusReason",
           "statusBy",
+          "promotedItem",
           "createdAt",
           "updatedAt"
         ]
@@ -28382,8 +30342,59 @@
       },
       "TrailChange": {
         "type": "object",
-        "description": "One linked pull request on a trail, with everything needed to decide whether it can merge.",
+        "description": "One pull request worked under a trail, with everything needed to decide whether it can merge.",
         "properties": {
+          "id": {
+            "type": "string",
+            "description": "The change's id."
+          },
+          "item": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpsItemRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The queue item whose run opened this change, or `null` when a trail run (or a person) did."
+          },
+          "mergedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO-8601 time the pull request merged, or `null` while it has not."
+          },
+          "mergeSha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The merge commit, or `null` while the change has not merged."
+          },
+          "changedFiles": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Paths the change touched, captured at merge for post-merge attribution. `null` unless the change has merged and the read asked for `files`."
+          },
           "prUrl": {
             "type": "string"
           },
@@ -28497,6 +30508,11 @@
           }
         },
         "required": [
+          "id",
+          "item",
+          "mergedAt",
+          "mergeSha",
+          "changedFiles",
           "prUrl",
           "prNumber",
           "repo",
@@ -28513,6 +30529,433 @@
           "approvals",
           "pushes"
         ]
+      },
+      "TrailChangeRef": {
+        "type": "object",
+        "description": "A compact reference to one of a trail's changes.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The change's id."
+          },
+          "prUrl": {
+            "type": "string"
+          },
+          "prNumber": {
+            "type": "integer"
+          },
+          "repo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`owner/repo`."
+          }
+        },
+        "required": [
+          "id",
+          "prUrl",
+          "prNumber",
+          "repo"
+        ],
+        "additionalProperties": false
+      },
+      "TrailItem": {
+        "type": "object",
+        "description": "A queue item on a trail, with where it surfaced.",
+        "properties": {
+          "item": {
+            "$ref": "#/components/schemas/OpsItemRef"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpsItemPriority"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The item's triage priority, or `null`."
+          },
+          "discoveredSource": {
+            "$ref": "#/components/schemas/TrailDiscoveredSource"
+          },
+          "discoveredSha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The push the item surfaced on, or `null` when it did not surface on one."
+          },
+          "change": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrailChangeRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The change the item surfaced on, or `null`."
+          }
+        },
+        "required": [
+          "item",
+          "priority",
+          "discoveredSource",
+          "discoveredSha",
+          "change"
+        ],
+        "additionalProperties": false
+      },
+      "TrailResourceKind": {
+        "type": "string",
+        "enum": [
+          "gate",
+          "config",
+          "killswitch",
+          "experiment",
+          "metric",
+          "alert_rule",
+          "event",
+          "i18n_key"
+        ],
+        "description": "The product entities a trail can ship or depend on. `gate` is a feature flag."
+      },
+      "TrailResourceRole": {
+        "type": "string",
+        "enum": [
+          "ships_behind",
+          "rollback",
+          "measures",
+          "guards",
+          "copy",
+          "touched"
+        ],
+        "description": "What a resource is for on the trail — `ships_behind` (the flag the code ships behind), `rollback` (the kill switch that undoes it), `measures` (the experiment or metric that judges it), `guards` (an alert rule that watches it), `copy` (an i18n key it adds) or `touched` (anything else). The release gates and the release phase read these."
+      },
+      "TrailResourceSource": {
+        "type": "string",
+        "enum": [
+          "agent",
+          "detected",
+          "person"
+        ],
+        "description": "How a resource got linked — `agent` (a write made in the trail's run context), `detected` (a review run saw the diff use it) or `person`."
+      },
+      "TrailResourceState": {
+        "type": "object",
+        "description": "The resource's live state, read from the product when the trail is read. Only the fields that apply to the kind are set.",
+        "properties": {
+          "exists": {
+            "type": "boolean",
+            "description": "False when the entity could not be found (it was archived or never created)."
+          },
+          "archived": {
+            "type": "boolean",
+            "description": "True when the entity is archived."
+          },
+          "settled": {
+            "type": "boolean",
+            "description": "Whether the resource no longer holds the trail in `releasing`. A flag settles at 100% in prod or when archived; a measuring experiment once it is stopped with a decision; every other role at merge."
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "One line, e.g. `prod 25%`, `on`, `running`, `firing`."
+          },
+          "prodRolloutPct": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A flag's prod rollout, as a percent."
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The entity's own status (an experiment's `running` or `stopped`, a kill switch's `on` or `off`, an alert's `firing` or `ok`)."
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "An experiment's decision once it has one."
+          }
+        },
+        "additionalProperties": {}
+      },
+      "TrailResource": {
+        "type": "object",
+        "description": "A flag, config, kill switch, experiment, metric, alert rule, event or i18n key the trail ships or depends on. `state` is present on reads that load live state.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The trail's link to the resource — what `trails resources remove` takes. Not the entity's own id."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TrailResourceKind"
+          },
+          "resourceId": {
+            "type": "string",
+            "description": "The entity's own id."
+          },
+          "resourceKey": {
+            "type": "string",
+            "description": "The entity's key, kept for display after it is archived."
+          },
+          "role": {
+            "$ref": "#/components/schemas/TrailResourceRole"
+          },
+          "source": {
+            "$ref": "#/components/schemas/TrailResourceSource"
+          },
+          "state": {
+            "$ref": "#/components/schemas/TrailResourceState"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO-8601 time it was linked."
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "resourceId",
+          "resourceKey",
+          "role",
+          "source",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "TrailRunKind": {
+        "type": "string",
+        "enum": [
+          "build",
+          "fix"
+        ],
+        "description": "What a trail run was fired to do — `build` (work the trail from its intent) or `fix` (act on failing evals and findings)."
+      },
+      "TrailRunState": {
+        "type": "string",
+        "enum": [
+          "launching",
+          "running",
+          "completed",
+          "failed",
+          "cancelled"
+        ],
+        "description": "A trail run's lifecycle."
+      },
+      "TrailRun": {
+        "type": "object",
+        "description": "A coding-agent session working the trail itself.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The run's id."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TrailRunKind"
+          },
+          "state": {
+            "$ref": "#/components/schemas/TrailRunState"
+          },
+          "agent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The coding agent that ran it (`claude`, `cursor`, `copilot`, `jules`, `jarvis`), or `null`."
+          },
+          "sessionUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Link to the agent's session, or `null` when the provider has none."
+          },
+          "change": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrailChangeRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The change a `fix` run was fired for, or `null`."
+          },
+          "headSha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The push a `fix` run was fired for, or `null`."
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the run reported when it finished, or `null`."
+          },
+          "startedAt": {
+            "type": "string",
+            "description": "ISO-8601 start time."
+          },
+          "completedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO-8601 finish time, or `null` while it runs."
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the launch or the run failed, or `null`."
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "state",
+          "agent",
+          "sessionUrl",
+          "change",
+          "headSha",
+          "summary",
+          "startedAt",
+          "completedAt",
+          "error"
+        ],
+        "additionalProperties": false
+      },
+      "TrailAttributionConfidence": {
+        "type": "string",
+        "enum": [
+          "high",
+          "medium",
+          "low"
+        ],
+        "description": "How sure an attribution is. `high` and `medium` attach the item to the trail; `low` records a suspect for a person to confirm or reject."
+      },
+      "TrailSuspectStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "confirmed",
+          "rejected"
+        ],
+        "description": "Where a suspected regression stands. Only `pending` suspects are listed on the trail."
+      },
+      "TrailSuspect": {
+        "type": "object",
+        "description": "A low-confidence post-merge attribution: an error, alert or bug that may have been caused by the trail. A person confirms it onto the trail or rejects it.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The suspect's id."
+          },
+          "item": {
+            "$ref": "#/components/schemas/OpsItemRef"
+          },
+          "confidence": {
+            "$ref": "#/components/schemas/TrailAttributionConfidence"
+          },
+          "evidence": {
+            "type": "string",
+            "description": "What the attributing agent saw — the frame, the resource or the metric that points at this trail."
+          },
+          "status": {
+            "$ref": "#/components/schemas/TrailSuspectStatus"
+          },
+          "attributedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The agent or person that recorded it, or `null`."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO-8601 time it was recorded."
+          }
+        },
+        "required": [
+          "id",
+          "item",
+          "confidence",
+          "evidence",
+          "status",
+          "attributedBy",
+          "createdAt"
+        ],
+        "additionalProperties": false
       },
       "TrailGateToggle": {
         "type": "object",
@@ -28532,9 +30975,35 @@
         ],
         "additionalProperties": false
       },
+      "TrailRepoOverride": {
+        "type": "object",
+        "description": "A repo's partial override of the project's trail gates.",
+        "properties": {
+          "checks": {
+            "type": "object",
+            "properties": {
+              "required": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "maxItems": 50,
+                "description": "Check names that must pass in this repo. Empty means every reported check."
+              }
+            },
+            "required": [
+              "required"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
       "TrailGates": {
         "type": "object",
-        "description": "A project's merge gates for trail changes. Every project starts on the defaults shown in the example.",
+        "description": "A project's merge and release gates for trails. Every project starts on the defaults shown in the example; the release gates, `discovered` and the per-repo overrides are all off until turned on. Send the whole object — fields you omit take their defaults.",
         "properties": {
           "upToDate": {
             "$ref": "#/components/schemas/TrailGateToggle"
@@ -28557,6 +31026,11 @@
               "resetOnPush": {
                 "type": "boolean",
                 "description": "Whether a new push clears earlier approvals, so the latest code is what gets approved."
+              },
+              "authorCanApprove": {
+                "type": "boolean",
+                "default": false,
+                "description": "Whether the trail's owner, and whoever started its runs, count as approvers. Off by default, so the author of a change is never its own reviewer."
               }
             },
             "required": [
@@ -28616,6 +31090,176 @@
               "required"
             ],
             "additionalProperties": false
+          },
+          "discovered": {
+            "type": "object",
+            "description": "Passes when no item discovered on the trail is open at or above `priority`. Off by default; turn it on to say \"a high bug found while building this blocks shipping it\".",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "default": false
+              },
+              "blocking": {
+                "type": "boolean",
+                "default": false
+              },
+              "priority": {
+                "$ref": "#/components/schemas/OpsItemPriority"
+              }
+            },
+            "required": [
+              "enabled",
+              "blocking",
+              "priority"
+            ],
+            "additionalProperties": false
+          },
+          "shipsDark": {
+            "type": "object",
+            "description": "Release gate. Passes when every flag the trail ships behind exists and is not at 100% in prod, so new code merges off. Off by default.",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "default": false,
+                "description": "Whether the gate is evaluated at all."
+              },
+              "blocking": {
+                "type": "boolean",
+                "default": false,
+                "description": "Whether a failing gate blocks the merge (a non-blocking gate only reports)."
+              }
+            },
+            "required": [
+              "enabled",
+              "blocking"
+            ],
+            "additionalProperties": false,
+            "default": {
+              "enabled": false,
+              "blocking": false
+            }
+          },
+          "rollback": {
+            "type": "object",
+            "description": "Release gate. For a `feature` trail, passes when a rollback kill switch exists. Off by default.",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "default": false,
+                "description": "Whether the gate is evaluated at all."
+              },
+              "blocking": {
+                "type": "boolean",
+                "default": false,
+                "description": "Whether a failing gate blocks the merge (a non-blocking gate only reports)."
+              }
+            },
+            "required": [
+              "enabled",
+              "blocking"
+            ],
+            "additionalProperties": false,
+            "default": {
+              "enabled": false,
+              "blocking": false
+            }
+          },
+          "measured": {
+            "type": "object",
+            "description": "Release gate. For a `feature` trail, passes when a measuring experiment or metric exists. Off by default.",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "default": false,
+                "description": "Whether the gate is evaluated at all."
+              },
+              "blocking": {
+                "type": "boolean",
+                "default": false,
+                "description": "Whether a failing gate blocks the merge (a non-blocking gate only reports)."
+              }
+            },
+            "required": [
+              "enabled",
+              "blocking"
+            ],
+            "additionalProperties": false,
+            "default": {
+              "enabled": false,
+              "blocking": false
+            }
+          },
+          "guarded": {
+            "type": "object",
+            "description": "Release gate. Passes when every measured resource has at least one guarding alert rule. Off by default.",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "default": false,
+                "description": "Whether the gate is evaluated at all."
+              },
+              "blocking": {
+                "type": "boolean",
+                "default": false,
+                "description": "Whether a failing gate blocks the merge (a non-blocking gate only reports)."
+              }
+            },
+            "required": [
+              "enabled",
+              "blocking"
+            ],
+            "additionalProperties": false,
+            "default": {
+              "enabled": false,
+              "blocking": false
+            }
+          },
+          "copy": {
+            "type": "object",
+            "description": "Release gate. Passes when every copy i18n key exists in every published locale of its profile. Off by default.",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "default": false,
+                "description": "Whether the gate is evaluated at all."
+              },
+              "blocking": {
+                "type": "boolean",
+                "default": false,
+                "description": "Whether a failing gate blocks the merge (a non-blocking gate only reports)."
+              }
+            },
+            "required": [
+              "enabled",
+              "blocking"
+            ],
+            "additionalProperties": false,
+            "default": {
+              "enabled": false,
+              "blocking": false
+            }
+          },
+          "fixRounds": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10,
+            "default": 3,
+            "description": "How many times the server re-fires the coding agent with a fix prompt after a change's evals or findings fail. After the cap the trail reads `reviewing`, needs a person. `0` turns the loop off."
+          },
+          "attributionWindowHours": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 720,
+            "default": 72,
+            "description": "How long after a trail merged an error or alert ticket may be attributed to it. Trails merged inside the window are offered to the investigating agent as candidates."
+          },
+          "repos": {
+            "type": "object",
+            "maxProperties": 100,
+            "additionalProperties": {
+              "$ref": "#/components/schemas/TrailRepoOverride"
+            },
+            "description": "Per-repo overrides keyed by `owner/repo`. An override replaces the project's `checks.required` for changes in that repo; every other gate stays project-wide."
           }
         },
         "required": [
@@ -28627,28 +31271,212 @@
         ],
         "additionalProperties": false
       },
-      "GetOpsTrailResponse": {
+      "TrailDetail": {
         "type": "object",
-        "description": "A queue item followed from intent to merge.",
+        "description": "A trail followed from intent to release: the trail itself plus its changes, discovered items, resources, runs, suspected regressions and the project's gates. Phase and counts are recomputed live on this read.",
         "properties": {
           "id": {
             "type": "string",
-            "description": "The item id."
+            "description": "Stable opaque trail id (a uuid)."
           },
           "number": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Per-project trail number (the `12` in `T-12`)."
+          },
+          "handle": {
+            "type": "string",
+            "description": "The trail's handle, `T-<number>`. Every trail endpoint accepts it or the id."
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "description": "One-line statement of the intent."
+          },
+          "body": {
+            "type": "string",
+            "description": "The intent in markdown — the outcome and the acceptance criteria."
+          },
+          "type": {
+            "$ref": "#/components/schemas/TrailType"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpsItemPriority"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Triage priority, or `null` when not set."
+          },
+          "owner": {
+            "$ref": "#/components/schemas/OpsItemOwner"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TrailStatus"
+          },
+          "closedReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the trail was closed, or `null` while it is open."
           },
           "phase": {
             "$ref": "#/components/schemas/TrailPhase"
+          },
+          "phaseReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "One line on why the trail is in this phase, e.g. `2 of 3 changes can merge`, or `null`."
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpsItemRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The queue item Ship this was pressed on, or `null` for a trail created from scratch."
+          },
+          "repos": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Repos (`owner/repo`) the trail may open changes in. Empty means no scope."
+          },
+          "changesOpen": {
+            "type": "integer",
+            "description": "Changes still open. Part of the snapshot."
+          },
+          "changesMergeable": {
+            "type": "integer",
+            "description": "Open changes whose merge gates all pass. Part of the snapshot."
+          },
+          "findingsOpenHigh": {
+            "type": "integer",
+            "description": "Open findings at `high` severity across the trail's changes. Part of the snapshot."
+          },
+          "itemsOpen": {
+            "type": "integer",
+            "description": "Discovered items still open. Part of the snapshot."
+          },
+          "resourcesCount": {
+            "type": "integer",
+            "description": "Product resources linked to the trail. Part of the snapshot."
+          },
+          "releasedPct": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The lowest prod rollout across the flags the trail ships behind, as a percent, or `null` when it ships behind none."
+          },
+          "mergedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO-8601 time the first change merged, or `null`."
+          },
+          "shippedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO-8601 time the trail reached `shipped`, or `null`."
+          },
+          "closedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO-8601 time the trail was closed, or `null`."
+          },
+          "snapshotAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO-8601 time the snapshot columns (`phase`, the counts, `releasedPct`) were last rewritten. The list can lag the detail by one event; the detail read recomputes them live."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO-8601 creation time."
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO-8601 last-update time."
           },
           "changes": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/TrailChange"
-            }
+            },
+            "description": "Every change worked under the trail, with its gates, evals, findings, approvals and pushes. Gates are read live from GitHub, so a `state` of `unknown` means GitHub could not be read and the PR-backed gates read `pending`."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrailItem"
+            },
+            "description": "Queue items discovered on the trail, with where each surfaced."
+          },
+          "resources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrailResource"
+            },
+            "description": "Product resources the trail ships or depends on, with their live state."
+          },
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrailRun"
+            },
+            "description": "Runs working the trail itself, newest first."
+          },
+          "suspects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrailSuspect"
+            },
+            "description": "Pending low-confidence post-merge attributions awaiting a person."
           },
           "gates": {
             "$ref": "#/components/schemas/TrailGates"
@@ -28657,11 +31485,38 @@
         "required": [
           "id",
           "number",
+          "handle",
           "title",
+          "body",
+          "type",
+          "priority",
+          "owner",
+          "status",
+          "closedReason",
           "phase",
+          "phaseReason",
+          "origin",
+          "repos",
+          "changesOpen",
+          "changesMergeable",
+          "findingsOpenHigh",
+          "itemsOpen",
+          "resourcesCount",
+          "releasedPct",
+          "mergedAt",
+          "shippedAt",
+          "closedAt",
+          "snapshotAt",
+          "createdAt",
+          "updatedAt",
           "changes",
+          "items",
+          "resources",
+          "runs",
+          "suspects",
           "gates"
-        ]
+        ],
+        "additionalProperties": false
       },
       "NewTrailFinding": {
         "type": "object",
@@ -28694,6 +31549,29 @@
         "required": [
           "severity",
           "title"
+        ],
+        "additionalProperties": false
+      },
+      "NewTrailResource": {
+        "type": "object",
+        "description": "A resource to link to a trail. When `role` is omitted it is guessed from the kind: a gate ships behind, a kill switch is the rollback, an experiment measures, an alert rule guards, an i18n key is copy, anything else is touched.",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/TrailResourceKind"
+          },
+          "resourceKey": {
+            "type": "string",
+            "description": "The entity's key (a gate or metric name, an experiment name, an i18n key). Resolved to the entity when it exists.",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "role": {
+            "$ref": "#/components/schemas/TrailResourceRole"
+          }
+        },
+        "required": [
+          "kind",
+          "resourceKey"
         ],
         "additionalProperties": false
       },
@@ -28730,7 +31608,7 @@
           "prUrl": {
             "type": "string",
             "maxLength": 500,
-            "description": "The change reviewed. Omitted, the item's primary PR."
+            "description": "The change reviewed. Omitted, the trail's primary change."
           },
           "headSha": {
             "type": "string",
@@ -28753,6 +31631,14 @@
             "type": "string",
             "maxLength": 300,
             "description": "Your session id, so the eval can deep-link to the review run."
+          },
+          "resources": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/NewTrailResource"
+            },
+            "description": "Product resources the reviewed diff uses (`getFlag(\"x\")`, `getExperiment(\"y\")`, `t(\"key\")`). They are linked to the trail as detected. A key that does not exist yet becomes a finding."
           }
         },
         "required": [
@@ -28814,7 +31700,7 @@
           "prUrl": {
             "type": "string",
             "maxLength": 500,
-            "description": "The change to approve. Omitted, the item's primary PR."
+            "description": "The change to approve. Omitted, the trail's primary change."
           },
           "body": {
             "type": "string",
@@ -28830,7 +31716,7 @@
           "prUrl": {
             "type": "string",
             "maxLength": 500,
-            "description": "The change to review. Omitted, the item's primary PR."
+            "description": "The change to review. Omitted, the trail's primary change."
           },
           "agentKeys": {
             "type": "array",
@@ -28896,7 +31782,7 @@
           "prUrl": {
             "type": "string",
             "maxLength": 500,
-            "description": "The change to merge. Omitted, the item's primary PR."
+            "description": "The change to merge. Omitted, the trail's primary change."
           },
           "method": {
             "type": "string",
@@ -28909,7 +31795,7 @@
           },
           "bypass": {
             "type": "boolean",
-            "description": "Merge although a blocking gate has not passed. Recorded on the item with `reason`."
+            "description": "Merge although a blocking gate has not passed. Needs the bypass capability, and is recorded on the trail with `reason`."
           },
           "reason": {
             "type": "string",
@@ -29237,6 +32123,629 @@
             "type": "boolean"
           }
         },
+        "additionalProperties": false
+      },
+      "Trail": {
+        "type": "object",
+        "description": "A trail — the unit of shipping: an intent, the changes worked under it, the items discovered on it and the product resources it ships. The phase and counts are a snapshot (see `snapshotAt`); the detail read recomputes them live.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable opaque trail id (a uuid)."
+          },
+          "number": {
+            "type": "integer",
+            "description": "Per-project trail number (the `12` in `T-12`)."
+          },
+          "handle": {
+            "type": "string",
+            "description": "The trail's handle, `T-<number>`. Every trail endpoint accepts it or the id."
+          },
+          "title": {
+            "type": "string",
+            "description": "One-line statement of the intent."
+          },
+          "body": {
+            "type": "string",
+            "description": "The intent in markdown — the outcome and the acceptance criteria."
+          },
+          "type": {
+            "$ref": "#/components/schemas/TrailType"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpsItemPriority"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Triage priority, or `null` when not set."
+          },
+          "owner": {
+            "$ref": "#/components/schemas/OpsItemOwner"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TrailStatus"
+          },
+          "closedReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the trail was closed, or `null` while it is open."
+          },
+          "phase": {
+            "$ref": "#/components/schemas/TrailPhase"
+          },
+          "phaseReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "One line on why the trail is in this phase, e.g. `2 of 3 changes can merge`, or `null`."
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpsItemRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The queue item Ship this was pressed on, or `null` for a trail created from scratch."
+          },
+          "repos": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Repos (`owner/repo`) the trail may open changes in. Empty means no scope."
+          },
+          "changesOpen": {
+            "type": "integer",
+            "description": "Changes still open. Part of the snapshot."
+          },
+          "changesMergeable": {
+            "type": "integer",
+            "description": "Open changes whose merge gates all pass. Part of the snapshot."
+          },
+          "findingsOpenHigh": {
+            "type": "integer",
+            "description": "Open findings at `high` severity across the trail's changes. Part of the snapshot."
+          },
+          "itemsOpen": {
+            "type": "integer",
+            "description": "Discovered items still open. Part of the snapshot."
+          },
+          "resourcesCount": {
+            "type": "integer",
+            "description": "Product resources linked to the trail. Part of the snapshot."
+          },
+          "releasedPct": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The lowest prod rollout across the flags the trail ships behind, as a percent, or `null` when it ships behind none."
+          },
+          "mergedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO-8601 time the first change merged, or `null`."
+          },
+          "shippedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO-8601 time the trail reached `shipped`, or `null`."
+          },
+          "closedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO-8601 time the trail was closed, or `null`."
+          },
+          "snapshotAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO-8601 time the snapshot columns (`phase`, the counts, `releasedPct`) were last rewritten. The list can lag the detail by one event; the detail read recomputes them live."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO-8601 creation time."
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO-8601 last-update time."
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "handle",
+          "title",
+          "body",
+          "type",
+          "priority",
+          "owner",
+          "status",
+          "closedReason",
+          "phase",
+          "phaseReason",
+          "origin",
+          "repos",
+          "changesOpen",
+          "changesMergeable",
+          "findingsOpenHigh",
+          "itemsOpen",
+          "resourcesCount",
+          "releasedPct",
+          "mergedAt",
+          "shippedAt",
+          "closedAt",
+          "snapshotAt",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "ListTrailsResponse": {
+        "type": "object",
+        "description": "A page of trails, in the standard `{ data, next_cursor }` envelope.",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Trail"
+            }
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page, or `null` on the last."
+          },
+          "section_counts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Rows per section across the whole filtered result, when the sort groups rows (e.g. by phase). Only on `view=table`."
+          },
+          "grouped": {
+            "type": "boolean",
+            "description": "Whether the page is section-ordered, so the sections earn their headers. Only on `view=table`."
+          }
+        },
+        "required": [
+          "data",
+          "next_cursor"
+        ],
+        "additionalProperties": false
+      },
+      "CreateTrailRequest": {
+        "type": "object",
+        "description": "Body for `POST /api/admin/trails`. A trail is created on purpose — from scratch, or from an item with `originItem`. Omitted, `type` follows the origin item (a bug is a `bug`, a feature request a `feature`) and is otherwise `task`.",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "One-line statement of the intent.",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^\\S(.*\\S)?$"
+          },
+          "body": {
+            "type": "string",
+            "description": "The intent in markdown — the outcome and the acceptance criteria.",
+            "maxLength": 20000,
+            "default": ""
+          },
+          "type": {
+            "$ref": "#/components/schemas/TrailType"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpsItemPriority"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Initial triage priority, or `null`."
+          },
+          "ownerId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The `users.id` of the person to own the trail, or `null`."
+          },
+          "ownerConnectorId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The agent connector to own the trail, or `null`."
+          },
+          "repos": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 200
+            },
+            "description": "Repos (`owner/repo`) the trail may open changes in.",
+            "maxItems": 20,
+            "default": []
+          },
+          "originItem": {
+            "type": "string",
+            "description": "Ship this: a queue item (number or id) to create the trail from. Its description seeds `body` when that is omitted, and it becomes the trail's first item with source `origin`.",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateTrailRequest": {
+        "type": "object",
+        "description": "Body for `PATCH /api/admin/trails/{handle}`. Pass at least one field; omitted ones are left as they are.",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^\\S(.*\\S)?$"
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "type": {
+            "$ref": "#/components/schemas/TrailType"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpsItemPriority"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Triage priority; `null` clears it."
+          },
+          "ownerId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The `users.id` of the person owner; `null` unassigns."
+          },
+          "ownerConnectorId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The agent connector owner; `null` unassigns."
+          },
+          "repos": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 200
+            },
+            "description": "Replaces the trail's repo scope.",
+            "maxItems": 20
+          }
+        },
+        "additionalProperties": false
+      },
+      "CloseTrailRequest": {
+        "type": "object",
+        "description": "Body for `POST /api/admin/trails/{handle}/close`.",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "description": "Why the trail is being closed, e.g. `abandoned` or `superseded by T-14`.",
+            "maxLength": 2000
+          }
+        },
+        "additionalProperties": false
+      },
+      "LinkTrailPrRequest": {
+        "type": "object",
+        "description": "Body for `POST /api/admin/trails/{handle}/changes`.",
+        "properties": {
+          "prUrl": {
+            "type": "string",
+            "description": "The pull request's URL.",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "item": {
+            "type": "string",
+            "description": "The queue item whose run opened the PR (number or id), when there is one. Omitted, the change belongs to the trail itself.",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "prUrl"
+        ],
+        "additionalProperties": false
+      },
+      "TrailOkResponse": {
+        "type": "object",
+        "description": "Response for the trail detach endpoints.",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true,
+            "description": "Always `true` — the link was removed."
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": false
+      },
+      "StartTrailRunRequest": {
+        "type": "object",
+        "description": "Body for `POST /api/admin/trails/{handle}/runs`. Fires the project's coding-agent trigger with a trail prompt: the intent, the acceptance criteria, the linked resources and the open discovered items.",
+        "properties": {
+          "agent": {
+            "type": "string",
+            "description": "Which coding agent to fire — `claude`, `cursor`, `copilot` or `jules`. Omitted, the project's coding-agent trigger.",
+            "enum": [
+              "claude",
+              "cursor",
+              "copilot",
+              "jules"
+            ]
+          },
+          "connectorId": {
+            "type": "string",
+            "description": "A specific trigger connector to fire. Overrides `agent`."
+          },
+          "prompt": {
+            "type": "string",
+            "description": "Extra instructions appended to the trail prompt.",
+            "maxLength": 8000
+          }
+        },
+        "additionalProperties": false
+      },
+      "PromoteTrailFindingRequest": {
+        "type": "object",
+        "description": "Body for `POST /api/admin/trails/{handle}/findings/{findingId}/promote`.",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "bug",
+              "feature_request"
+            ],
+            "description": "What to file the finding as. Defaults to `bug`."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why the finding is out of scope for this trail. Recorded on the finding.",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "title": {
+            "type": "string",
+            "description": "A title for the new item. Defaults to the finding's title.",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "PromoteTrailFindingResponse": {
+        "type": "object",
+        "description": "The item created from the finding (on the trail, source `finding`) and the finding, now dismissed as `moved to #N`.",
+        "properties": {
+          "item": {
+            "$ref": "#/components/schemas/TrailItem"
+          },
+          "finding": {
+            "$ref": "#/components/schemas/TrailFinding"
+          }
+        },
+        "required": [
+          "item",
+          "finding"
+        ],
+        "additionalProperties": false
+      },
+      "ListTrailResourcesResponse": {
+        "type": "object",
+        "description": "The trail's resources, with their live state.",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrailResource"
+            }
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "AddTrailResourceRequest": {
+        "type": "object",
+        "description": "Body for `POST /api/admin/trails/{handle}/resources`. When `role` is omitted it is guessed from the kind. Linking the same entity again changes its role.",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/TrailResourceKind"
+          },
+          "resourceKey": {
+            "type": "string",
+            "description": "The entity's key (a gate or metric name, an experiment name, an i18n key). It must exist.",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "role": {
+            "$ref": "#/components/schemas/TrailResourceRole"
+          }
+        },
+        "required": [
+          "kind",
+          "resourceKey"
+        ],
+        "additionalProperties": false
+      },
+      "AddTrailItemRequest": {
+        "type": "object",
+        "description": "Body for `POST /api/admin/trails/{handle}/items`. The item is recorded with source `attached`.",
+        "properties": {
+          "item": {
+            "type": "string",
+            "description": "The queue item to put on the trail (number or id). An item is on at most one trail.",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "item"
+        ],
+        "additionalProperties": false
+      },
+      "AttributeTrailRequest": {
+        "type": "object",
+        "description": "Body for `POST /api/admin/trails/{handle}/attributions`.",
+        "properties": {
+          "item": {
+            "type": "string",
+            "description": "The error, alert or bug to attribute (number or id).",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "confidence": {
+            "$ref": "#/components/schemas/TrailAttributionConfidence"
+          },
+          "evidence": {
+            "type": "string",
+            "description": "Concrete evidence: a stack frame in a changed file, the failing call touching a resource of the trail, or a guard metric of the trail.",
+            "minLength": 1,
+            "maxLength": 4000
+          }
+        },
+        "required": [
+          "item",
+          "confidence",
+          "evidence"
+        ],
+        "additionalProperties": false
+      },
+      "AttributeTrailResponse": {
+        "type": "object",
+        "description": "What an attribution did.",
+        "properties": {
+          "attached": {
+            "type": "boolean",
+            "description": "True when the item was put on the trail (`high` or `medium` confidence). False when only a suspect was recorded."
+          },
+          "item": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrailItem"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The item as it now sits on the trail, or `null` for a suspect."
+          },
+          "suspect": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrailSuspect"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The suspect recorded for a `low` confidence attribution, or `null`."
+          }
+        },
+        "required": [
+          "attached",
+          "item",
+          "suspect"
+        ],
         "additionalProperties": false
       },
       "OpsRoutingRuleType": {

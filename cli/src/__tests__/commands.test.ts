@@ -67,7 +67,8 @@ describe("command tree", () => {
   it("exposes exactly the core + four-module top level (no stray commands)", () => {
     const top = program.commands.map((c) => c.name()).filter((n) => n !== "help");
     // The full top-level surface — core commands plus the four module roots,
-    // and `tags` (cross-module: any item in any module carries tags).
+    // `tags` (cross-module: any item in any module carries tags) and `trails`
+    // (the unit of shipping — it spans ops items, GitHub and the release module).
     // Anything else (promoted into a module or removed) must not appear here.
     expect([...top].sort()).toEqual(
       [
@@ -90,6 +91,7 @@ describe("command tree", () => {
         "i18n",
         "docs",
         "tags",
+        "trails",
       ].sort(),
     );
     // Spot-check the commands that live nested inside a module (not top-level):

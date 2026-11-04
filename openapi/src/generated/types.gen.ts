@@ -4109,6 +4109,10 @@ export type CreateBugRequest = {
      * Where this bug's completion notification lands.
      */
     notify?: NotificationTarget | null;
+    /**
+     * File the bug on this trail (`T-12` or the trail's id) instead of the open queue. An agent that hits something outside its intent files it here rather than fixing it in place. The item records `discoveredSource` as `agent` (or `person` when a person files it) and the change and push the filer was on.
+     */
+    trail?: string;
 };
 
 /**
@@ -4177,6 +4181,10 @@ export type CreateFeatureRequestRequest = {
      * Where this request's completion notification lands.
      */
     notify?: NotificationTarget | null;
+    /**
+     * File the request on this trail (`T-12` or the trail's id) instead of the open queue. The item records `discoveredSource` as `agent` (or `person` when a person files it).
+     */
+    trail?: string;
 };
 
 /**
@@ -4561,6 +4569,36 @@ export type OpsLinkedItem = {
 };
 
 /**
+ * Where a trail is, derived from its changes and its release resources — `planning` (no change and no open run), `building` (no change yet, a run is working), `reviewing` (a change is open and not every open change can merge), `ready` (every open change can merge), `releasing` (merged, and a flag, experiment or other release resource has not settled), `shipped` (merged and every release resource settled), `closed` (closed with nothing merged). The detail read recomputes it live; the list reads a snapshot.
+ */
+export type TrailPhase = 'planning' | 'building' | 'reviewing' | 'ready' | 'releasing' | 'shipped' | 'closed';
+
+/**
+ * A compact reference to a trail, as it appears on a queue item.
+ */
+export type TrailSummary = {
+    /**
+     * The trail's id.
+     */
+    id: string;
+    /**
+     * Per-project trail number (the `12` in `T-12`).
+     */
+    number: number;
+    /**
+     * The trail's handle, `T-<number>`.
+     */
+    handle: string;
+    title: string;
+    phase: TrailPhase;
+};
+
+/**
+ * How an item came to be on a trail — `origin` (the item Ship this was pressed on), `finding` (a review finding promoted out of scope), `agent` (the coding agent filed it instead of fixing it in place), `person` (a reviewer filed it from the trail), `post_merge` (an error, alert or bug attributed to the trail after it merged), `cleanup` (follow-up the release created, e.g. remove a flag from code), `attached` (an existing item moved onto the trail).
+ */
+export type TrailDiscoveredSource = 'origin' | 'finding' | 'agent' | 'person' | 'post_merge' | 'cleanup' | 'attached';
+
+/**
  * One queue item, any of the five types. Shared fields apply to all; `stepsToReproduce`/`actualResult`/`expectedResult` are bug-specific, `description`/`useCase` feature-specific. The auto-collected browser fields (page URL, user-agent, viewport) live under `context.browser` for bug/feature. `context` also carries the hydrated per-type payload for auto-filed `error`/`alert`/`measure_plan` tickets, `attachments` lists any uploaded files, and `related` gives deep links to the underlying resources.
  */
 export type GetOpsItemResponse = {
@@ -4679,6 +4717,14 @@ export type GetOpsItemResponse = {
      */
     assigneeAgent?: string | null;
     owner: OpsItemOwner;
+    /**
+     * The trail this item belongs to, or `null` when it is on none. An item is on at most one trail.
+     */
+    trail?: TrailSummary | null;
+    /**
+     * How the item came to be on its trail (`origin`, `finding`, `agent`, `person`, `post_merge`, `cleanup`, `attached`), or `null` when it is on no trail.
+     */
+    discoveredSource?: TrailDiscoveredSource | null;
     /**
      * ISO-8601 creation timestamp.
      */
@@ -5857,14 +5903,19 @@ export type ListOpsMemoryResponse = {
 };
 
 /**
- * Where a trail is, derived from its changes — `planning` (intent only), `building` (an agent is working, no change yet), `reviewing` (a change is open and a blocking gate has not passed), `ready` (every open change passes its gates), `merged` (every change merged), `closed` (the changes were closed unmerged).
+ * What a trail is shipping. A `feature` trail is held to the rollback and measured release gates.
  */
-export type TrailPhase = 'planning' | 'building' | 'reviewing' | 'ready' | 'merged' | 'closed';
+export type TrailType = 'feature' | 'bug' | 'task';
 
 /**
- * A merge gate — `up_to_date` (the branch is current with its base), `human_review` (enough approvals), `agent_review` (no open findings at or above the severity), `evals` (every blocking review agent passes on the latest push), `checks` (CI checks pass).
+ * Whether a trail is still being worked. A trail closes by hand, or on its own once it is `shipped` with no high-priority discovered item open. `phase` carries the detail; `status` is the stored open/closed switch.
  */
-export type TrailGateKey = 'up_to_date' | 'human_review' | 'agent_review' | 'evals' | 'checks';
+export type TrailStatus = 'open' | 'closed';
+
+/**
+ * A merge gate — `up_to_date` (the branch is current with its base), `human_review` (enough approvals), `agent_review` (no open findings at or above the severity, and no push agent still reviewing), `evals` (every blocking review agent passes on the latest push), `checks` (CI checks pass), `discovered` (no item discovered on the trail is open at or above the configured priority), and the release gates `ships_dark` (every flag the trail ships behind is off in prod), `rollback` (a feature has a rollback kill switch), `measured` (a feature has an experiment or metric), `guarded` (every measured resource has a guard alert rule) and `copy` (every copy key exists in every published locale).
+ */
+export type TrailGateKey = 'up_to_date' | 'human_review' | 'agent_review' | 'evals' | 'checks' | 'discovered' | 'ships_dark' | 'rollback' | 'measured' | 'guarded' | 'copy';
 
 /**
  * How a gate reads on a change right now.
@@ -6000,6 +6051,10 @@ export type TrailFinding = {
     stale: boolean;
     statusReason: string | null;
     statusBy: string | null;
+    /**
+     * The queue item this finding was promoted into (the finding is then dismissed as `moved to
+     */
+    promotedItem: OpsItemRef | null;
     createdAt: string;
     updatedAt: string;
 };
@@ -6037,9 +6092,29 @@ export type TrailPush = {
 };
 
 /**
- * One linked pull request on a trail, with everything needed to decide whether it can merge.
+ * One pull request worked under a trail, with everything needed to decide whether it can merge.
  */
 export type TrailChange = {
+    /**
+     * The change's id.
+     */
+    id: string;
+    /**
+     * The queue item whose run opened this change, or `null` when a trail run (or a person) did.
+     */
+    item: OpsItemRef | null;
+    /**
+     * ISO-8601 time the pull request merged, or `null` while it has not.
+     */
+    mergedAt: string | null;
+    /**
+     * The merge commit, or `null` while the change has not merged.
+     */
+    mergeSha: string | null;
+    /**
+     * Paths the change touched, captured at merge for post-merge attribution. `null` unless the change has merged and the read asked for `files`.
+     */
+    changedFiles: Array<string> | null;
     prUrl: string;
     prNumber: number;
     /**
@@ -6075,6 +6150,207 @@ export type TrailChange = {
     pushes: Array<TrailPush>;
 };
 
+/**
+ * A compact reference to one of a trail's changes.
+ */
+export type TrailChangeRef = {
+    /**
+     * The change's id.
+     */
+    id: string;
+    prUrl: string;
+    prNumber: number;
+    /**
+     * `owner/repo`.
+     */
+    repo: string | null;
+};
+
+/**
+ * A queue item on a trail, with where it surfaced.
+ */
+export type TrailItem = {
+    item: OpsItemRef;
+    /**
+     * The item's triage priority, or `null`.
+     */
+    priority: OpsItemPriority | null;
+    discoveredSource: TrailDiscoveredSource;
+    /**
+     * The push the item surfaced on, or `null` when it did not surface on one.
+     */
+    discoveredSha: string | null;
+    /**
+     * The change the item surfaced on, or `null`.
+     */
+    change: TrailChangeRef | null;
+};
+
+/**
+ * The product entities a trail can ship or depend on. `gate` is a feature flag.
+ */
+export type TrailResourceKind = 'gate' | 'config' | 'killswitch' | 'experiment' | 'metric' | 'alert_rule' | 'event' | 'i18n_key';
+
+/**
+ * What a resource is for on the trail — `ships_behind` (the flag the code ships behind), `rollback` (the kill switch that undoes it), `measures` (the experiment or metric that judges it), `guards` (an alert rule that watches it), `copy` (an i18n key it adds) or `touched` (anything else). The release gates and the release phase read these.
+ */
+export type TrailResourceRole = 'ships_behind' | 'rollback' | 'measures' | 'guards' | 'copy' | 'touched';
+
+/**
+ * How a resource got linked — `agent` (a write made in the trail's run context), `detected` (a review run saw the diff use it) or `person`.
+ */
+export type TrailResourceSource = 'agent' | 'detected' | 'person';
+
+/**
+ * The resource's live state, read from the product when the trail is read. Only the fields that apply to the kind are set.
+ */
+export type TrailResourceState = {
+    /**
+     * False when the entity could not be found (it was archived or never created).
+     */
+    exists?: boolean;
+    /**
+     * True when the entity is archived.
+     */
+    archived?: boolean;
+    /**
+     * Whether the resource no longer holds the trail in `releasing`. A flag settles at 100% in prod or when archived; a measuring experiment once it is stopped with a decision; every other role at merge.
+     */
+    settled?: boolean;
+    /**
+     * One line, e.g. `prod 25%`, `on`, `running`, `firing`.
+     */
+    summary?: string | null;
+    /**
+     * A flag's prod rollout, as a percent.
+     */
+    prodRolloutPct?: number | null;
+    /**
+     * The entity's own status (an experiment's `running` or `stopped`, a kill switch's `on` or `off`, an alert's `firing` or `ok`).
+     */
+    status?: string | null;
+    /**
+     * An experiment's decision once it has one.
+     */
+    decision?: string | null;
+    [key: string]: unknown;
+};
+
+/**
+ * A flag, config, kill switch, experiment, metric, alert rule, event or i18n key the trail ships or depends on. `state` is present on reads that load live state.
+ */
+export type TrailResource = {
+    /**
+     * The trail's link to the resource — what `trails resources remove` takes. Not the entity's own id.
+     */
+    id: string;
+    kind: TrailResourceKind;
+    /**
+     * The entity's own id.
+     */
+    resourceId: string;
+    /**
+     * The entity's key, kept for display after it is archived.
+     */
+    resourceKey: string;
+    role: TrailResourceRole;
+    source: TrailResourceSource;
+    state?: TrailResourceState;
+    /**
+     * ISO-8601 time it was linked.
+     */
+    createdAt: string;
+};
+
+/**
+ * What a trail run was fired to do — `build` (work the trail from its intent) or `fix` (act on failing evals and findings).
+ */
+export type TrailRunKind = 'build' | 'fix';
+
+/**
+ * A trail run's lifecycle.
+ */
+export type TrailRunState = 'launching' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+/**
+ * A coding-agent session working the trail itself.
+ */
+export type TrailRun = {
+    /**
+     * The run's id.
+     */
+    id: string;
+    kind: TrailRunKind;
+    state: TrailRunState;
+    /**
+     * The coding agent that ran it (`claude`, `cursor`, `copilot`, `jules`, `jarvis`), or `null`.
+     */
+    agent: string | null;
+    /**
+     * Link to the agent's session, or `null` when the provider has none.
+     */
+    sessionUrl: string | null;
+    /**
+     * The change a `fix` run was fired for, or `null`.
+     */
+    change: TrailChangeRef | null;
+    /**
+     * The push a `fix` run was fired for, or `null`.
+     */
+    headSha: string | null;
+    /**
+     * What the run reported when it finished, or `null`.
+     */
+    summary: string | null;
+    /**
+     * ISO-8601 start time.
+     */
+    startedAt: string;
+    /**
+     * ISO-8601 finish time, or `null` while it runs.
+     */
+    completedAt: string | null;
+    /**
+     * Why the launch or the run failed, or `null`.
+     */
+    error: string | null;
+};
+
+/**
+ * How sure an attribution is. `high` and `medium` attach the item to the trail; `low` records a suspect for a person to confirm or reject.
+ */
+export type TrailAttributionConfidence = 'high' | 'medium' | 'low';
+
+/**
+ * Where a suspected regression stands. Only `pending` suspects are listed on the trail.
+ */
+export type TrailSuspectStatus = 'pending' | 'confirmed' | 'rejected';
+
+/**
+ * A low-confidence post-merge attribution: an error, alert or bug that may have been caused by the trail. A person confirms it onto the trail or rejects it.
+ */
+export type TrailSuspect = {
+    /**
+     * The suspect's id.
+     */
+    id: string;
+    item: OpsItemRef;
+    confidence: TrailAttributionConfidence;
+    /**
+     * What the attributing agent saw — the frame, the resource or the metric that points at this trail.
+     */
+    evidence: string;
+    status: TrailSuspectStatus;
+    /**
+     * The agent or person that recorded it, or `null`.
+     */
+    attributedBy: string | null;
+    /**
+     * ISO-8601 time it was recorded.
+     */
+    createdAt: string;
+};
+
 export type TrailGateToggle = {
     /**
      * Whether the gate is evaluated at all.
@@ -6087,7 +6363,19 @@ export type TrailGateToggle = {
 };
 
 /**
- * A project's merge gates for trail changes. Every project starts on the defaults shown in the example.
+ * A repo's partial override of the project's trail gates.
+ */
+export type TrailRepoOverride = {
+    checks?: {
+        /**
+         * Check names that must pass in this repo. Empty means every reported check.
+         */
+        required: Array<string>;
+    };
+};
+
+/**
+ * A project's merge and release gates for trails. Every project starts on the defaults shown in the example; the release gates, `discovered` and the per-repo overrides are all off until turned on. Send the whole object — fields you omit take their defaults.
  */
 export type TrailGates = {
     upToDate: TrailGateToggle;
@@ -6102,6 +6390,10 @@ export type TrailGates = {
          * Whether a new push clears earlier approvals, so the latest code is what gets approved.
          */
         resetOnPush: boolean;
+        /**
+         * Whether the trail's owner, and whoever started its runs, count as approvers. Off by default, so the author of a change is never its own reviewer.
+         */
+        authorCanApprove?: boolean;
     };
     agentReview: {
         enabled: boolean;
@@ -6117,20 +6409,211 @@ export type TrailGates = {
          */
         required: Array<string>;
     };
+    /**
+     * Passes when no item discovered on the trail is open at or above `priority`. Off by default; turn it on to say "a high bug found while building this blocks shipping it".
+     */
+    discovered?: {
+        enabled: boolean;
+        blocking: boolean;
+        priority: OpsItemPriority;
+    };
+    /**
+     * Release gate. Passes when every flag the trail ships behind exists and is not at 100% in prod, so new code merges off. Off by default.
+     */
+    shipsDark?: {
+        /**
+         * Whether the gate is evaluated at all.
+         */
+        enabled: boolean;
+        /**
+         * Whether a failing gate blocks the merge (a non-blocking gate only reports).
+         */
+        blocking: boolean;
+    };
+    /**
+     * Release gate. For a `feature` trail, passes when a rollback kill switch exists. Off by default.
+     */
+    rollback?: {
+        /**
+         * Whether the gate is evaluated at all.
+         */
+        enabled: boolean;
+        /**
+         * Whether a failing gate blocks the merge (a non-blocking gate only reports).
+         */
+        blocking: boolean;
+    };
+    /**
+     * Release gate. For a `feature` trail, passes when a measuring experiment or metric exists. Off by default.
+     */
+    measured?: {
+        /**
+         * Whether the gate is evaluated at all.
+         */
+        enabled: boolean;
+        /**
+         * Whether a failing gate blocks the merge (a non-blocking gate only reports).
+         */
+        blocking: boolean;
+    };
+    /**
+     * Release gate. Passes when every measured resource has at least one guarding alert rule. Off by default.
+     */
+    guarded?: {
+        /**
+         * Whether the gate is evaluated at all.
+         */
+        enabled: boolean;
+        /**
+         * Whether a failing gate blocks the merge (a non-blocking gate only reports).
+         */
+        blocking: boolean;
+    };
+    /**
+     * Release gate. Passes when every copy i18n key exists in every published locale of its profile. Off by default.
+     */
+    copy?: {
+        /**
+         * Whether the gate is evaluated at all.
+         */
+        enabled: boolean;
+        /**
+         * Whether a failing gate blocks the merge (a non-blocking gate only reports).
+         */
+        blocking: boolean;
+    };
+    /**
+     * How many times the server re-fires the coding agent with a fix prompt after a change's evals or findings fail. After the cap the trail reads `reviewing`, needs a person. `0` turns the loop off.
+     */
+    fixRounds?: number;
+    /**
+     * How long after a trail merged an error or alert ticket may be attributed to it. Trails merged inside the window are offered to the investigating agent as candidates.
+     */
+    attributionWindowHours?: number;
+    /**
+     * Per-repo overrides keyed by `owner/repo`. An override replaces the project's `checks.required` for changes in that repo; every other gate stays project-wide.
+     */
+    repos?: {
+        [key: string]: TrailRepoOverride;
+    };
 };
 
 /**
- * A queue item followed from intent to merge.
+ * A trail followed from intent to release: the trail itself plus its changes, discovered items, resources, runs, suspected regressions and the project's gates. Phase and counts are recomputed live on this read.
  */
-export type GetOpsTrailResponse = {
+export type TrailDetail = {
     /**
-     * The item id.
+     * Stable opaque trail id (a uuid).
      */
     id: string;
+    /**
+     * Per-project trail number (the `12` in `T-12`).
+     */
     number: number;
+    /**
+     * The trail's handle, `T-<number>`. Every trail endpoint accepts it or the id.
+     */
+    handle: string;
+    /**
+     * One-line statement of the intent.
+     */
     title: string;
+    /**
+     * The intent in markdown — the outcome and the acceptance criteria.
+     */
+    body: string;
+    type: TrailType;
+    /**
+     * Triage priority, or `null` when not set.
+     */
+    priority: OpsItemPriority | null;
+    owner: OpsItemOwner;
+    status: TrailStatus;
+    /**
+     * Why the trail was closed, or `null` while it is open.
+     */
+    closedReason: string | null;
     phase: TrailPhase;
+    /**
+     * One line on why the trail is in this phase, e.g. `2 of 3 changes can merge`, or `null`.
+     */
+    phaseReason: string | null;
+    /**
+     * The queue item Ship this was pressed on, or `null` for a trail created from scratch.
+     */
+    origin: OpsItemRef | null;
+    /**
+     * Repos (`owner/repo`) the trail may open changes in. Empty means no scope.
+     */
+    repos: Array<string>;
+    /**
+     * Changes still open. Part of the snapshot.
+     */
+    changesOpen: number;
+    /**
+     * Open changes whose merge gates all pass. Part of the snapshot.
+     */
+    changesMergeable: number;
+    /**
+     * Open findings at `high` severity across the trail's changes. Part of the snapshot.
+     */
+    findingsOpenHigh: number;
+    /**
+     * Discovered items still open. Part of the snapshot.
+     */
+    itemsOpen: number;
+    /**
+     * Product resources linked to the trail. Part of the snapshot.
+     */
+    resourcesCount: number;
+    /**
+     * The lowest prod rollout across the flags the trail ships behind, as a percent, or `null` when it ships behind none.
+     */
+    releasedPct: number | null;
+    /**
+     * ISO-8601 time the first change merged, or `null`.
+     */
+    mergedAt: string | null;
+    /**
+     * ISO-8601 time the trail reached `shipped`, or `null`.
+     */
+    shippedAt: string | null;
+    /**
+     * ISO-8601 time the trail was closed, or `null`.
+     */
+    closedAt: string | null;
+    /**
+     * ISO-8601 time the snapshot columns (`phase`, the counts, `releasedPct`) were last rewritten. The list can lag the detail by one event; the detail read recomputes them live.
+     */
+    snapshotAt: string | null;
+    /**
+     * ISO-8601 creation time.
+     */
+    createdAt: string;
+    /**
+     * ISO-8601 last-update time.
+     */
+    updatedAt: string;
+    /**
+     * Every change worked under the trail, with its gates, evals, findings, approvals and pushes. Gates are read live from GitHub, so a `state` of `unknown` means GitHub could not be read and the PR-backed gates read `pending`.
+     */
     changes: Array<TrailChange>;
+    /**
+     * Queue items discovered on the trail, with where each surfaced.
+     */
+    items: Array<TrailItem>;
+    /**
+     * Product resources the trail ships or depends on, with their live state.
+     */
+    resources: Array<TrailResource>;
+    /**
+     * Runs working the trail itself, newest first.
+     */
+    runs: Array<TrailRun>;
+    /**
+     * Pending low-confidence post-merge attributions awaiting a person.
+     */
+    suspects: Array<TrailSuspect>;
     gates: TrailGates;
 };
 
@@ -6141,6 +6624,18 @@ export type NewTrailFinding = {
     path?: string;
     line?: number;
     suggestion?: string;
+};
+
+/**
+ * A resource to link to a trail. When `role` is omitted it is guessed from the kind: a gate ships behind, a kill switch is the rollback, an experiment measures, an alert rule guards, an i18n key is copy, anything else is touched.
+ */
+export type NewTrailResource = {
+    kind: TrailResourceKind;
+    /**
+     * The entity's key (a gate or metric name, an experiment name, an i18n key). Resolved to the entity when it exists.
+     */
+    resourceKey: string;
+    role?: TrailResourceRole;
 };
 
 /**
@@ -6164,7 +6659,7 @@ export type SubmitOpsTrailEvalRequest = {
      */
     findings?: Array<NewTrailFinding>;
     /**
-     * The change reviewed. Omitted, the item's primary PR.
+     * The change reviewed. Omitted, the trail's primary change.
      */
     prUrl?: string;
     /**
@@ -6179,6 +6674,10 @@ export type SubmitOpsTrailEvalRequest = {
      * Your session id, so the eval can deep-link to the review run.
      */
     sessionId?: string;
+    /**
+     * Product resources the reviewed diff uses (`getFlag("x")`, `getExperiment("y")`, `t("key")`). They are linked to the trail as detected. A key that does not exist yet becomes a finding.
+     */
+    resources?: Array<NewTrailResource>;
 };
 
 export type SubmitOpsTrailEvalResponse = {
@@ -6200,7 +6699,7 @@ export type UpdateOpsTrailFindingRequest = {
 
 export type ApproveOpsTrailRequest = {
     /**
-     * The change to approve. Omitted, the item's primary PR.
+     * The change to approve. Omitted, the trail's primary change.
      */
     prUrl?: string;
     /**
@@ -6211,7 +6710,7 @@ export type ApproveOpsTrailRequest = {
 
 export type RequestOpsTrailReviewRequest = {
     /**
-     * The change to review. Omitted, the item's primary PR.
+     * The change to review. Omitted, the trail's primary change.
      */
     prUrl?: string;
     /**
@@ -6232,7 +6731,7 @@ export type RequestOpsTrailReviewResponse = {
 
 export type MergeOpsTrailRequest = {
     /**
-     * The change to merge. Omitted, the item's primary PR.
+     * The change to merge. Omitted, the trail's primary change.
      */
     prUrl?: string;
     /**
@@ -6240,7 +6739,7 @@ export type MergeOpsTrailRequest = {
      */
     method?: 'squash' | 'merge' | 'rebase';
     /**
-     * Merge although a blocking gate has not passed. Recorded on the item with `reason`.
+     * Merge although a blocking gate has not passed. Needs the bypass capability, and is recorded on the trail with `reason`.
      */
     bypass?: boolean;
     /**
@@ -6378,6 +6877,325 @@ export type UpdateTrailAgentRequest = {
     trigger?: TrailAgentTrigger;
     connectorId?: string | null;
     enabled?: boolean;
+};
+
+/**
+ * A trail — the unit of shipping: an intent, the changes worked under it, the items discovered on it and the product resources it ships. The phase and counts are a snapshot (see `snapshotAt`); the detail read recomputes them live.
+ */
+export type Trail = {
+    /**
+     * Stable opaque trail id (a uuid).
+     */
+    id: string;
+    /**
+     * Per-project trail number (the `12` in `T-12`).
+     */
+    number: number;
+    /**
+     * The trail's handle, `T-<number>`. Every trail endpoint accepts it or the id.
+     */
+    handle: string;
+    /**
+     * One-line statement of the intent.
+     */
+    title: string;
+    /**
+     * The intent in markdown — the outcome and the acceptance criteria.
+     */
+    body: string;
+    type: TrailType;
+    /**
+     * Triage priority, or `null` when not set.
+     */
+    priority: OpsItemPriority | null;
+    owner: OpsItemOwner;
+    status: TrailStatus;
+    /**
+     * Why the trail was closed, or `null` while it is open.
+     */
+    closedReason: string | null;
+    phase: TrailPhase;
+    /**
+     * One line on why the trail is in this phase, e.g. `2 of 3 changes can merge`, or `null`.
+     */
+    phaseReason: string | null;
+    /**
+     * The queue item Ship this was pressed on, or `null` for a trail created from scratch.
+     */
+    origin: OpsItemRef | null;
+    /**
+     * Repos (`owner/repo`) the trail may open changes in. Empty means no scope.
+     */
+    repos: Array<string>;
+    /**
+     * Changes still open. Part of the snapshot.
+     */
+    changesOpen: number;
+    /**
+     * Open changes whose merge gates all pass. Part of the snapshot.
+     */
+    changesMergeable: number;
+    /**
+     * Open findings at `high` severity across the trail's changes. Part of the snapshot.
+     */
+    findingsOpenHigh: number;
+    /**
+     * Discovered items still open. Part of the snapshot.
+     */
+    itemsOpen: number;
+    /**
+     * Product resources linked to the trail. Part of the snapshot.
+     */
+    resourcesCount: number;
+    /**
+     * The lowest prod rollout across the flags the trail ships behind, as a percent, or `null` when it ships behind none.
+     */
+    releasedPct: number | null;
+    /**
+     * ISO-8601 time the first change merged, or `null`.
+     */
+    mergedAt: string | null;
+    /**
+     * ISO-8601 time the trail reached `shipped`, or `null`.
+     */
+    shippedAt: string | null;
+    /**
+     * ISO-8601 time the trail was closed, or `null`.
+     */
+    closedAt: string | null;
+    /**
+     * ISO-8601 time the snapshot columns (`phase`, the counts, `releasedPct`) were last rewritten. The list can lag the detail by one event; the detail read recomputes them live.
+     */
+    snapshotAt: string | null;
+    /**
+     * ISO-8601 creation time.
+     */
+    createdAt: string;
+    /**
+     * ISO-8601 last-update time.
+     */
+    updatedAt: string;
+};
+
+/**
+ * A page of trails, in the standard `{ data, next_cursor }` envelope.
+ */
+export type ListTrailsResponse = {
+    data: Array<Trail>;
+    /**
+     * Opaque cursor for the next page, or `null` on the last.
+     */
+    next_cursor: string | null;
+    /**
+     * Rows per section across the whole filtered result, when the sort groups rows (e.g. by phase). Only on `view=table`.
+     */
+    section_counts?: {
+        [key: string]: number;
+    };
+    /**
+     * Whether the page is section-ordered, so the sections earn their headers. Only on `view=table`.
+     */
+    grouped?: boolean;
+};
+
+/**
+ * Body for `POST /api/admin/trails`. A trail is created on purpose — from scratch, or from an item with `originItem`. Omitted, `type` follows the origin item (a bug is a `bug`, a feature request a `feature`) and is otherwise `task`.
+ */
+export type CreateTrailRequest = {
+    /**
+     * One-line statement of the intent.
+     */
+    title: string;
+    /**
+     * The intent in markdown — the outcome and the acceptance criteria.
+     */
+    body?: string;
+    type?: TrailType;
+    /**
+     * Initial triage priority, or `null`.
+     */
+    priority?: OpsItemPriority | null;
+    /**
+     * The `users.id` of the person to own the trail, or `null`.
+     */
+    ownerId?: string | null;
+    /**
+     * The agent connector to own the trail, or `null`.
+     */
+    ownerConnectorId?: string | null;
+    /**
+     * Repos (`owner/repo`) the trail may open changes in.
+     */
+    repos?: Array<string>;
+    /**
+     * Ship this: a queue item (number or id) to create the trail from. Its description seeds `body` when that is omitted, and it becomes the trail's first item with source `origin`.
+     */
+    originItem?: string;
+};
+
+/**
+ * Body for `PATCH /api/admin/trails/{handle}`. Pass at least one field; omitted ones are left as they are.
+ */
+export type UpdateTrailRequest = {
+    title?: string;
+    body?: string;
+    type?: TrailType;
+    /**
+     * Triage priority; `null` clears it.
+     */
+    priority?: OpsItemPriority | null;
+    /**
+     * The `users.id` of the person owner; `null` unassigns.
+     */
+    ownerId?: string | null;
+    /**
+     * The agent connector owner; `null` unassigns.
+     */
+    ownerConnectorId?: string | null;
+    /**
+     * Replaces the trail's repo scope.
+     */
+    repos?: Array<string>;
+};
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/close`.
+ */
+export type CloseTrailRequest = {
+    /**
+     * Why the trail is being closed, e.g. `abandoned` or `superseded by T-14`.
+     */
+    reason?: string;
+};
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/changes`.
+ */
+export type LinkTrailPrRequest = {
+    /**
+     * The pull request's URL.
+     */
+    prUrl: string;
+    /**
+     * The queue item whose run opened the PR (number or id), when there is one. Omitted, the change belongs to the trail itself.
+     */
+    item?: string;
+};
+
+/**
+ * Response for the trail detach endpoints.
+ */
+export type TrailOkResponse = {
+    /**
+     * Always `true` — the link was removed.
+     */
+    ok: true;
+};
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/runs`. Fires the project's coding-agent trigger with a trail prompt: the intent, the acceptance criteria, the linked resources and the open discovered items.
+ */
+export type StartTrailRunRequest = {
+    /**
+     * Which coding agent to fire — `claude`, `cursor`, `copilot` or `jules`. Omitted, the project's coding-agent trigger.
+     */
+    agent?: 'claude' | 'cursor' | 'copilot' | 'jules';
+    /**
+     * A specific trigger connector to fire. Overrides `agent`.
+     */
+    connectorId?: string;
+    /**
+     * Extra instructions appended to the trail prompt.
+     */
+    prompt?: string;
+};
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/findings/{findingId}/promote`.
+ */
+export type PromoteTrailFindingRequest = {
+    /**
+     * What to file the finding as. Defaults to `bug`.
+     */
+    type?: 'bug' | 'feature_request';
+    /**
+     * Why the finding is out of scope for this trail. Recorded on the finding.
+     */
+    reason: string;
+    /**
+     * A title for the new item. Defaults to the finding's title.
+     */
+    title?: string;
+};
+
+/**
+ * The item created from the finding (on the trail, source `finding`) and the finding, now dismissed as `moved to #N`.
+ */
+export type PromoteTrailFindingResponse = {
+    item: TrailItem;
+    finding: TrailFinding;
+};
+
+/**
+ * The trail's resources, with their live state.
+ */
+export type ListTrailResourcesResponse = {
+    data: Array<TrailResource>;
+};
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/resources`. When `role` is omitted it is guessed from the kind. Linking the same entity again changes its role.
+ */
+export type AddTrailResourceRequest = {
+    kind: TrailResourceKind;
+    /**
+     * The entity's key (a gate or metric name, an experiment name, an i18n key). It must exist.
+     */
+    resourceKey: string;
+    role?: TrailResourceRole;
+};
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/items`. The item is recorded with source `attached`.
+ */
+export type AddTrailItemRequest = {
+    /**
+     * The queue item to put on the trail (number or id). An item is on at most one trail.
+     */
+    item: string;
+};
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/attributions`.
+ */
+export type AttributeTrailRequest = {
+    /**
+     * The error, alert or bug to attribute (number or id).
+     */
+    item: string;
+    confidence: TrailAttributionConfidence;
+    /**
+     * Concrete evidence: a stack frame in a changed file, the failing call touching a resource of the trail, or a guard metric of the trail.
+     */
+    evidence: string;
+};
+
+/**
+ * What an attribution did.
+ */
+export type AttributeTrailResponse = {
+    /**
+     * True when the item was put on the trail (`high` or `medium` confidence). False when only a suspect was recorded.
+     */
+    attached: boolean;
+    /**
+     * The item as it now sits on the trail, or `null` for a suspect.
+     */
+    item: TrailItem | null;
+    /**
+     * The suspect recorded for a `low` confidence attribution, or `null`.
+     */
+    suspect: TrailSuspect | null;
 };
 
 /**
@@ -8915,6 +9733,11 @@ export type PaginationCursor = string;
  * Case-insensitive substring filter across the resource's human-readable text columns (e.g. `name`, `title`, `description`). OR-matched across those columns; omit to return everything.
  */
 export type Q = string;
+
+/**
+ * The trail's handle (`T-12`) or its id.
+ */
+export type TrailHandle = string;
 
 export type ListGatesData = {
     body?: never;
@@ -14684,10 +15507,10 @@ export type GetOpsTrailResponses = {
     /**
      * The item's trail
      */
-    200: GetOpsTrailResponse;
+    200: TrailDetail;
 };
 
-export type GetOpsTrailResponse2 = GetOpsTrailResponses[keyof GetOpsTrailResponses];
+export type GetOpsTrailResponse = GetOpsTrailResponses[keyof GetOpsTrailResponses];
 
 export type SubmitOpsTrailEvalData = {
     body: SubmitOpsTrailEvalRequest;
@@ -15231,6 +16054,1282 @@ export type UpdateTrailGatesResponses = {
 };
 
 export type UpdateTrailGatesResponse = UpdateTrailGatesResponses[keyof UpdateTrailGatesResponses];
+
+export type ListTrailsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        /**
+         * `table` answers the dashboard table read (`f`, `sort`, `cursor`, `limit`, `section_counts`, `grouped`). Omitted, `f` and `sort` are still honoured and the envelope is `{ data, next_cursor }`.
+         */
+        view?: 'table';
+        /**
+         * A dashboard tab: `mine` (owned by the caller), `reviewing`, `ready`, `releasing`, `shipped`, `closed`, or `all` (the default, no narrowing).
+         */
+        scope?: 'all' | 'mine' | 'reviewing' | 'ready' | 'releasing' | 'shipped' | 'closed';
+        /**
+         * Narrow to one phase.
+         */
+        phase?: TrailPhase;
+        /**
+         * Narrow to one trail type.
+         */
+        type?: TrailType;
+        /**
+         * Narrow to trails owned by one person OR one agent — a `users.id`, email or display name, or a connector id, display name or handle. Case-insensitive exact match.
+         */
+        owner?: string;
+        /**
+         * Case-insensitive substring filter across the trail's title and body.
+         */
+        q?: string;
+        /**
+         * ISO-8601 timestamp. Narrow to trails with a change merged at or after it.
+         */
+        mergedSince?: string;
+        /**
+         * A file path (or path prefix) a merged change changed, or a resource key the trail links. Narrow to trails that touch it.
+         */
+        touches?: string;
+        /**
+         * The table's filter conditions: a JSON array of `{ "f", "o", "v" }` objects, ANDed. See the operation description for the fields.
+         */
+        f?: string;
+        /**
+         * A column id, `-` prefixed for descending (`-updated`). An unknown column is a `400`.
+         */
+        sort?: string;
+        /**
+         * Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page.
+         */
+        cursor?: string;
+        /**
+         * Page size (1–200). A page shorter than `limit` is the last one.
+         */
+        limit?: number;
+    };
+    url: '/api/admin/trails';
+};
+
+export type ListTrailsErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+};
+
+export type ListTrailsError = ListTrailsErrors[keyof ListTrailsErrors];
+
+export type ListTrailsResponses = {
+    /**
+     * A page of trails
+     */
+    200: ListTrailsResponse;
+};
+
+export type ListTrailsResponse2 = ListTrailsResponses[keyof ListTrailsResponses];
+
+export type CreateTrailData = {
+    body: CreateTrailRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/admin/trails';
+};
+
+export type CreateTrailErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type CreateTrailError = CreateTrailErrors[keyof CreateTrailErrors];
+
+export type CreateTrailResponses = {
+    /**
+     * The new trail
+     */
+    200: Trail;
+};
+
+export type CreateTrailResponse = CreateTrailResponses[keyof CreateTrailResponses];
+
+export type GetTrailData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+    };
+    query?: {
+        /**
+         * Include each merged change's full `changedFiles` list. Omitted, `changedFiles` is `null`.
+         */
+        files?: boolean;
+    };
+    url: '/api/admin/trails/{handle}';
+};
+
+export type GetTrailErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+};
+
+export type GetTrailError = GetTrailErrors[keyof GetTrailErrors];
+
+export type GetTrailResponses = {
+    /**
+     * The trail
+     */
+    200: TrailDetail;
+};
+
+export type GetTrailResponse = GetTrailResponses[keyof GetTrailResponses];
+
+export type UpdateTrailData = {
+    body: UpdateTrailRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}';
+};
+
+export type UpdateTrailErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type UpdateTrailError = UpdateTrailErrors[keyof UpdateTrailErrors];
+
+export type UpdateTrailResponses = {
+    /**
+     * The updated trail
+     */
+    200: Trail;
+};
+
+export type UpdateTrailResponse = UpdateTrailResponses[keyof UpdateTrailResponses];
+
+export type CloseTrailData = {
+    body: CloseTrailRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/close';
+};
+
+export type CloseTrailErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type CloseTrailError = CloseTrailErrors[keyof CloseTrailErrors];
+
+export type CloseTrailResponses = {
+    /**
+     * The closed trail
+     */
+    200: Trail;
+};
+
+export type CloseTrailResponse = CloseTrailResponses[keyof CloseTrailResponses];
+
+export type ReopenTrailData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/reopen';
+};
+
+export type ReopenTrailErrors = {
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+};
+
+export type ReopenTrailError = ReopenTrailErrors[keyof ReopenTrailErrors];
+
+export type ReopenTrailResponses = {
+    /**
+     * The reopened trail
+     */
+    200: Trail;
+};
+
+export type ReopenTrailResponse = ReopenTrailResponses[keyof ReopenTrailResponses];
+
+export type UnlinkTrailPrData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+    };
+    query: {
+        /**
+         * The pull request's URL.
+         */
+        prUrl: string;
+    };
+    url: '/api/admin/trails/{handle}/changes';
+};
+
+export type UnlinkTrailPrErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+};
+
+export type UnlinkTrailPrError = UnlinkTrailPrErrors[keyof UnlinkTrailPrErrors];
+
+export type UnlinkTrailPrResponses = {
+    /**
+     * The change was unlinked
+     */
+    200: TrailOkResponse;
+};
+
+export type UnlinkTrailPrResponse = UnlinkTrailPrResponses[keyof UnlinkTrailPrResponses];
+
+export type LinkTrailPrData = {
+    body: LinkTrailPrRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/changes';
+};
+
+export type LinkTrailPrErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type LinkTrailPrError = LinkTrailPrErrors[keyof LinkTrailPrErrors];
+
+export type LinkTrailPrResponses = {
+    /**
+     * The change
+     */
+    200: TrailChange;
+};
+
+export type LinkTrailPrResponse = LinkTrailPrResponses[keyof LinkTrailPrResponses];
+
+export type StartTrailRunData = {
+    body?: StartTrailRunRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/runs';
+};
+
+export type StartTrailRunErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type StartTrailRunError = StartTrailRunErrors[keyof StartTrailRunErrors];
+
+export type StartTrailRunResponses = {
+    /**
+     * The run that was started
+     */
+    200: TrailRun;
+};
+
+export type StartTrailRunResponse = StartTrailRunResponses[keyof StartTrailRunResponses];
+
+export type RequestTrailReviewData = {
+    body: RequestOpsTrailReviewRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/review';
+};
+
+export type RequestTrailReviewErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type RequestTrailReviewError = RequestTrailReviewErrors[keyof RequestTrailReviewErrors];
+
+export type RequestTrailReviewResponses = {
+    /**
+     * What was launched
+     */
+    200: RequestOpsTrailReviewResponse;
+};
+
+export type RequestTrailReviewResponse = RequestTrailReviewResponses[keyof RequestTrailReviewResponses];
+
+export type SubmitTrailEvalData = {
+    body: SubmitOpsTrailEvalRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/evals';
+};
+
+export type SubmitTrailEvalErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type SubmitTrailEvalError = SubmitTrailEvalErrors[keyof SubmitTrailEvalErrors];
+
+export type SubmitTrailEvalResponses = {
+    /**
+     * The recorded eval and its findings
+     */
+    200: SubmitOpsTrailEvalResponse;
+};
+
+export type SubmitTrailEvalResponse = SubmitTrailEvalResponses[keyof SubmitTrailEvalResponses];
+
+export type UpdateTrailFindingData = {
+    body: UpdateOpsTrailFindingRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+        /**
+         * The finding id.
+         */
+        findingId: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/findings/{findingId}';
+};
+
+export type UpdateTrailFindingErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type UpdateTrailFindingError = UpdateTrailFindingErrors[keyof UpdateTrailFindingErrors];
+
+export type UpdateTrailFindingResponses = {
+    /**
+     * The updated finding
+     */
+    200: TrailFinding;
+};
+
+export type UpdateTrailFindingResponse = UpdateTrailFindingResponses[keyof UpdateTrailFindingResponses];
+
+export type PromoteTrailFindingData = {
+    body: PromoteTrailFindingRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+        /**
+         * The finding id.
+         */
+        findingId: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/findings/{findingId}/promote';
+};
+
+export type PromoteTrailFindingErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type PromoteTrailFindingError = PromoteTrailFindingErrors[keyof PromoteTrailFindingErrors];
+
+export type PromoteTrailFindingResponses = {
+    /**
+     * The created item and the updated finding
+     */
+    200: PromoteTrailFindingResponse;
+};
+
+export type PromoteTrailFindingResponse2 = PromoteTrailFindingResponses[keyof PromoteTrailFindingResponses];
+
+export type ApproveTrailData = {
+    body: ApproveOpsTrailRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/approve';
+};
+
+export type ApproveTrailErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type ApproveTrailError = ApproveTrailErrors[keyof ApproveTrailErrors];
+
+export type ApproveTrailResponses = {
+    /**
+     * The approval
+     */
+    200: TrailApproval;
+};
+
+export type ApproveTrailResponse = ApproveTrailResponses[keyof ApproveTrailResponses];
+
+export type MergeTrailData = {
+    body: MergeOpsTrailRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/merge';
+};
+
+export type MergeTrailErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+    /**
+     * The request was well-formed and the resource exists, but a downstream provider
+     * the endpoint delegates to (e.g. a connector's Slack/GitHub/cloud-agent dispatch)
+     * failed. The failure is upstream of this API, not a client error. No stable
+     * `ErrorCode` is assigned to upstream failures, so `code` is omitted.
+     */
+    502: Error;
+};
+
+export type MergeTrailError = MergeTrailErrors[keyof MergeTrailErrors];
+
+export type MergeTrailResponses = {
+    /**
+     * The merge result
+     */
+    200: MergeOpsTrailResponse;
+};
+
+export type MergeTrailResponse = MergeTrailResponses[keyof MergeTrailResponses];
+
+export type ListTrailResourcesData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/resources';
+};
+
+export type ListTrailResourcesErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+};
+
+export type ListTrailResourcesError = ListTrailResourcesErrors[keyof ListTrailResourcesErrors];
+
+export type ListTrailResourcesResponses = {
+    /**
+     * The trail's resources
+     */
+    200: ListTrailResourcesResponse;
+};
+
+export type ListTrailResourcesResponse2 = ListTrailResourcesResponses[keyof ListTrailResourcesResponses];
+
+export type AddTrailResourceData = {
+    body: AddTrailResourceRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/resources';
+};
+
+export type AddTrailResourceErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type AddTrailResourceError = AddTrailResourceErrors[keyof AddTrailResourceErrors];
+
+export type AddTrailResourceResponses = {
+    /**
+     * The linked resource
+     */
+    200: TrailResource;
+};
+
+export type AddTrailResourceResponse = AddTrailResourceResponses[keyof AddTrailResourceResponses];
+
+export type RemoveTrailResourceData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+        /**
+         * The trail's link to the resource (`TrailResource.id`), not the entity's own id.
+         */
+        id: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/resources/{id}';
+};
+
+export type RemoveTrailResourceErrors = {
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+};
+
+export type RemoveTrailResourceError = RemoveTrailResourceErrors[keyof RemoveTrailResourceErrors];
+
+export type RemoveTrailResourceResponses = {
+    /**
+     * The resource was unlinked
+     */
+    200: TrailOkResponse;
+};
+
+export type RemoveTrailResourceResponse = RemoveTrailResourceResponses[keyof RemoveTrailResourceResponses];
+
+export type AddTrailItemData = {
+    body: AddTrailItemRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/items';
+};
+
+export type AddTrailItemErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type AddTrailItemError = AddTrailItemErrors[keyof AddTrailItemErrors];
+
+export type AddTrailItemResponses = {
+    /**
+     * The item as it now sits on the trail
+     */
+    200: TrailItem;
+};
+
+export type AddTrailItemResponse = AddTrailItemResponses[keyof AddTrailItemResponses];
+
+export type RemoveTrailItemData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+        /**
+         * The queue item's per-project number (e.g. `42`) or its full id.
+         */
+        itemHandle: OpsItemHandle;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/items/{itemHandle}';
+};
+
+export type RemoveTrailItemErrors = {
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+};
+
+export type RemoveTrailItemError = RemoveTrailItemErrors[keyof RemoveTrailItemErrors];
+
+export type RemoveTrailItemResponses = {
+    /**
+     * The item was taken off the trail
+     */
+    200: TrailOkResponse;
+};
+
+export type RemoveTrailItemResponse = RemoveTrailItemResponses[keyof RemoveTrailItemResponses];
+
+export type AttributeTrailData = {
+    body: AttributeTrailRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/attributions';
+};
+
+export type AttributeTrailErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type AttributeTrailError = AttributeTrailErrors[keyof AttributeTrailErrors];
+
+export type AttributeTrailResponses = {
+    /**
+     * What the attribution did
+     */
+    200: AttributeTrailResponse;
+};
+
+export type AttributeTrailResponse2 = AttributeTrailResponses[keyof AttributeTrailResponses];
+
+export type ConfirmTrailSuspectData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+        /**
+         * The suspect id (from `trails get`).
+         */
+        suspectId: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/suspects/{suspectId}/confirm';
+};
+
+export type ConfirmTrailSuspectErrors = {
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+};
+
+export type ConfirmTrailSuspectError = ConfirmTrailSuspectErrors[keyof ConfirmTrailSuspectErrors];
+
+export type ConfirmTrailSuspectResponses = {
+    /**
+     * The suspect, with its new status
+     */
+    200: TrailSuspect;
+};
+
+export type ConfirmTrailSuspectResponse = ConfirmTrailSuspectResponses[keyof ConfirmTrailSuspectResponses];
+
+export type RejectTrailSuspectData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+        /**
+         * The suspect id (from `trails get`).
+         */
+        suspectId: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/suspects/{suspectId}/reject';
+};
+
+export type RejectTrailSuspectErrors = {
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+};
+
+export type RejectTrailSuspectError = RejectTrailSuspectErrors[keyof RejectTrailSuspectErrors];
+
+export type RejectTrailSuspectResponses = {
+    /**
+     * The suspect, with its new status
+     */
+    200: TrailSuspect;
+};
+
+export type RejectTrailSuspectResponse = RejectTrailSuspectResponses[keyof RejectTrailSuspectResponses];
 
 export type ListOpsRoutingRulesData = {
     body?: never;

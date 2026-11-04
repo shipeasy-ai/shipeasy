@@ -436,18 +436,23 @@ above:
    only server-side trace is the status flip + the linked PR (step 2).
    **Do not create issues yourself.**
 
-5. **Close the trail loop.** Linking the PR makes it a change on the item's
-   trail, and the project's review agents (if it has any) score each push.
-   Before you finish the item, read the trail with `ops trails get <handle>` /
-   `ops_trails_get`. For each open finding on the latest push, fix it in the
-   same branch and push, then resolve it with
-   `ops trails update-finding <handle> <findingId> --status resolved --reason "fixed in <sha>"`.
+5. **Close the trail loop.** A trail exists only when someone created one, so
+   this applies only when the item is on a trail (`trail.handle` on `ops get`,
+   e.g. `T-12`). Linking the PR makes it a change of that trail, and the
+   project's review agents (if it has any) score each push. Before you finish
+   the item, read the trail with `trails get <T-n>` / `trails_get`. For each
+   open finding on the latest push, fix it in the same branch and push, then
+   resolve it with
+   `trails update-finding <T-n> <findingId> --status resolved --reason "fixed in <sha>"`.
+   A finding that is real but outside the item's intent is not fixed in passing:
+   move it to the queue with
+   `trails promote-finding <T-n> <findingId> --reason "<why it is out of scope>"`.
    Dismiss only a finding you can show is wrong, and give the reason. Re-read
    until no eval reads `fail` and no high finding is open, or until two pushes
    in a row change nothing. Agents still `pending` are fine, so don't wait on
-   them. Never approve or merge: those are a person's call, and the ops key is
-   refused anyway. No linked change, or no review agents configured: skip this
-   step.
+   them. Never approve or merge: those are a person's call, the ops key is
+   refused, and neither is an MCP tool. Item on no trail, no linked change, or
+   no review agents configured: skip this step.
 
 6. **Lifecycle → `ready_for_qa`.** In PR mode a human reviews each PR, so
    never auto-`resolved` — flip every fixed item (any type) to

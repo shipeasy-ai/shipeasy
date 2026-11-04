@@ -162,6 +162,38 @@ describe("generated tool catalog", () => {
 
 // ── generated dispatch (thin pass-through to the hey-api client) ─────────────
 
+describe("trails tool surface", () => {
+  it("projects the trails ops to MCP, but never approve or merge (x-mcp.hidden)", async () => {
+    const { TOOLS } = await import("../tools/schema.js");
+    const names = TOOLS.map((t) => t.name);
+    for (const t of [
+      "trails_list",
+      "trails_create",
+      "trails_get",
+      "trails_link_pr",
+      "trails_submit_eval",
+      "trails_promote_finding",
+      "trails_resources_add",
+      "trails_items_add",
+      "trails_attribute",
+    ]) {
+      expect(names).toContain(t);
+    }
+    // Approving and merging are a person's call: the spec hides them from MCP only
+    // (the CLI keeps `trails approve` / `trails merge` for a person at a terminal).
+    expect(names).not.toContain("trails_approve");
+    expect(names).not.toContain("trails_merge");
+    // the v1 item routes are hidden aliases, not tools
+    expect(names.filter((n) => n.startsWith("ops_trails_"))).toEqual([]);
+  });
+
+  it("makes the list page size a required input", async () => {
+    const { TOOLS } = await import("../tools/schema.js");
+    const tool = TOOLS.find((t) => t.name === "trails_list")!;
+    expect(tool.inputSchema.required).toContain("limit");
+  });
+});
+
 describe("generated dispatch", () => {
   afterEach(() => vi.unstubAllGlobals());
 

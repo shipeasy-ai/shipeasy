@@ -2078,6 +2078,7 @@ _Parameters_
 | `viewport` | optional | `any` | Reporter's viewport (e.g. `1280x720`), or `null`. |
 | `context` | optional | `any` | Arbitrary capture context, or `null`. |
 | `notify` | optional | `any` | Where this bug's completion notification lands. |
+| `trail` | optional | `string` | File the bug on this trail (`T-12` or the trail's id) instead of the open queue. An agent that hits something outside its intent files it here rather than fixing it in place. The item records `discoveredSource` as `agent` (or `person` when a person files it) and the change and push the filer was on. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
 | `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `ops_list` call. It proves you listed existing ops and confirmed this one doesn't already exist before creating it. Call `ops_list` first if you don't have a fresh token. |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -2118,6 +2119,7 @@ _Parameters_
 | `viewport` | optional | `any` | Reporter's viewport (e.g. `1280x720`), or `null`. |
 | `context` | optional | `any` | Arbitrary capture context, or `null`. |
 | `notify` | optional | `any` | Where this bug's completion notification lands. |
+| `trail` | optional | `string` | File the bug on this trail (`T-12` or the trail's id) instead of the open queue. An agent that hits something outside its intent files it here rather than fixing it in place. The item records `discoveredSource` as `agent` (or `person` when a person files it) and the change and push the filer was on. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
 | `description` | optional | `string` | What the feature is. _(default `""`; length 0–8000)_ |
 | `useCase` | optional | `string` | Why it's needed / the use case. _(default `""`; length 0–8000)_ |
 | `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `ops_list` call. It proves you listed existing ops and confirmed this one doesn't already exist before creating it. Call `ops_list` first if you don't have a fresh token. |
@@ -2157,6 +2159,7 @@ _Parameters_
 | `userAgent` | optional | `any` | Reporter's user-agent string, or `null`. |
 | `context` | optional | `any` | Arbitrary capture context, or `null`. |
 | `notify` | optional | `any` | Where this request's completion notification lands. |
+| `trail` | optional | `string` | File the request on this trail (`T-12` or the trail's id) instead of the open queue. The item records `discoveredSource` as `agent` (or `person` when a person files it). _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
 | `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `ops_list` call. It proves you listed existing ops and confirmed this one doesn't already exist before creating it. Call `ops_list` first if you don't have a fresh token. |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -2705,6 +2708,7 @@ _Parameters_
 | `humanReview.blocking` | required | `boolean` | — |
 | `humanReview.minApprovals` | required | `integer` | Approvals a change needs. _(1–10)_ |
 | `humanReview.resetOnPush` | required | `boolean` | Whether a new push clears earlier approvals, so the latest code is what gets approved. |
+| `humanReview.authorCanApprove` | optional | `boolean` | Whether the trail's owner, and whoever started its runs, count as approvers. Off by default, so the author of a change is never its own reviewer. _(default `false`)_ |
 | `agentReview` | required | `object` | — |
 | `agentReview.enabled` | required | `boolean` | — |
 | `agentReview.blocking` | required | `boolean` | — |
@@ -2716,6 +2720,28 @@ _Parameters_
 | `checks.enabled` | required | `boolean` | — |
 | `checks.blocking` | required | `boolean` | — |
 | `checks.required` | required | `string[]` | Check names that must pass. Empty means every reported check. |
+| `discovered` | optional | `object` | Passes when no item discovered on the trail is open at or above `priority`. Off by default; turn it on to say "a high bug found while building this blocks shipping it". |
+| `discovered.enabled` | required | `boolean` | — _(default `false`)_ |
+| `discovered.blocking` | required | `boolean` | — _(default `false`)_ |
+| `discovered.priority` | required | `"nice_to_have" \| "medium" \| "high" \| "critical"` | Triage priority of a queue item. The lowest tier is `nice_to_have` (not `low`) — carried over from the feature-request "importance" scale this priority set replaced. |
+| `shipsDark` | optional | `object` | Release gate. Passes when every flag the trail ships behind exists and is not at 100% in prod, so new code merges off. Off by default. _(default `{"enabled":false,"blocking":false}`)_ |
+| `shipsDark.enabled` | required | `boolean` | Whether the gate is evaluated at all. _(default `false`)_ |
+| `shipsDark.blocking` | required | `boolean` | Whether a failing gate blocks the merge (a non-blocking gate only reports). _(default `false`)_ |
+| `rollback` | optional | `object` | Release gate. For a `feature` trail, passes when a rollback kill switch exists. Off by default. _(default `{"enabled":false,"blocking":false}`)_ |
+| `rollback.enabled` | required | `boolean` | Whether the gate is evaluated at all. _(default `false`)_ |
+| `rollback.blocking` | required | `boolean` | Whether a failing gate blocks the merge (a non-blocking gate only reports). _(default `false`)_ |
+| `measured` | optional | `object` | Release gate. For a `feature` trail, passes when a measuring experiment or metric exists. Off by default. _(default `{"enabled":false,"blocking":false}`)_ |
+| `measured.enabled` | required | `boolean` | Whether the gate is evaluated at all. _(default `false`)_ |
+| `measured.blocking` | required | `boolean` | Whether a failing gate blocks the merge (a non-blocking gate only reports). _(default `false`)_ |
+| `guarded` | optional | `object` | Release gate. Passes when every measured resource has at least one guarding alert rule. Off by default. _(default `{"enabled":false,"blocking":false}`)_ |
+| `guarded.enabled` | required | `boolean` | Whether the gate is evaluated at all. _(default `false`)_ |
+| `guarded.blocking` | required | `boolean` | Whether a failing gate blocks the merge (a non-blocking gate only reports). _(default `false`)_ |
+| `copy` | optional | `object` | Release gate. Passes when every copy i18n key exists in every published locale of its profile. Off by default. _(default `{"enabled":false,"blocking":false}`)_ |
+| `copy.enabled` | required | `boolean` | Whether the gate is evaluated at all. _(default `false`)_ |
+| `copy.blocking` | required | `boolean` | Whether a failing gate blocks the merge (a non-blocking gate only reports). _(default `false`)_ |
+| `fixRounds` | optional | `integer` | How many times the server re-fires the coding agent with a fix prompt after a change's evals or findings fail. After the cap the trail reads `reviewing`, needs a person. `0` turns the loop off. _(default `3`; 0–10)_ |
+| `attributionWindowHours` | optional | `integer` | How long after a trail merged an error or alert ticket may be attributed to it. Trails merged inside the window are offered to the investigating agent as candidates. _(default `72`; 1–720)_ |
+| `repos` | optional | `object` | Per-repo overrides keyed by `owner/repo`. An override replaces the project's `checks.required` for changes in that repo; every other gate stays project-wide. |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -3155,190 +3181,6 @@ _Errors_ — beyond the [common errors](#errors):
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 
-### Trails
-
-A queue item followed from intent to merge. The item is the trail — its
-title, description, type, priority and owner are the intent — and every
-pull request linked to it is one of its changes. Each push to a change is
-scored by the project's review agents (a value, a rationale and findings
-per agent), and merge gates read branch freshness, approvals, open
-findings, blocking evals and CI checks into one verdict. Loop the coding
-agent on the findings until the scores settle green, then approve and merge.
-
-#### `ops_trails_approve`
-
-**Approve a change**
-
-Approve a change at its latest push — what the Human review gate counts.
-Approving the same push twice is a no-op. When the project's gates reset
-approvals on push, a later push needs a fresh approval.
-
-Approval is a person's call: the restricted ops key cannot approve.
-
-**Use case:** A reviewer has read the evals and the diff and signs off.
-
-_Parameters_
-
-| Parameter | | Type | Description |
-| --- | --- | --- | --- |
-| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
-| `prUrl` | optional | `string` | The change to approve. Omitted, the item's primary PR. _(length 0–500)_ |
-| `body` | optional | `string` | An optional review note. _(length 0–4000)_ |
-
-_Errors_ — beyond the [common errors](#errors):
-
-- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
-- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
-- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
-- `VALIDATION` — The request body failed structural (schema) validation.
-
-#### `ops_trails_get`
-
-**Show an item's trail**
-
-The item followed from intent to merge: its phase, and for every linked pull
-request (each a *change*) the latest push, the merge gates and how they read,
-CI checks, each review agent's eval on the latest push next to its last five,
-every finding (open first, worst first, `stale` when raised on an earlier
-push), the approvals, and the pushes.
-
-Gates are read live from GitHub on every call, so a `state` of `unknown` means
-GitHub could not be read and the PR-backed gates read `pending`.
-
-**Use case:** After pushing a fix, a coding agent reads the trail to see which
-findings are still open and whether the scores have turned green.
-
-_Parameters_
-
-| Parameter | | Type | Description |
-| --- | --- | --- | --- |
-| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
-
-_Errors_ — beyond the [common errors](#errors):
-
-- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
-
-#### `ops_trails_merge`
-
-**Merge a change**
-
-Merge a change's pull request on GitHub at the head its gates were evaluated
-on. Refused with `409` while a blocking gate has not passed, unless `bypass`
-is set with a `reason` — the bypass is recorded on the item. GitHub's own
-branch rules can still refuse the merge (`502`). Merging one change never
-merges the trail's other changes.
-
-Merging is a person's call: the restricted ops key cannot merge.
-
-**Use case:** Every gate is green; merge from the trail instead of switching
-to GitHub.
-
-_Parameters_
-
-| Parameter | | Type | Description |
-| --- | --- | --- | --- |
-| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
-| `prUrl` | optional | `string` | The change to merge. Omitted, the item's primary PR. _(length 0–500)_ |
-| `method` | optional | `"squash" \| "merge" \| "rebase"` | GitHub merge method. Defaults to `squash`. |
-| `bypass` | optional | `boolean` | Merge although a blocking gate has not passed. Recorded on the item with `reason`. |
-| `reason` | optional | `string` | Why the gates were bypassed. Required with `bypass`. _(length 0–2000)_ |
-
-_Errors_ — beyond the [common errors](#errors):
-
-- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
-- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
-- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
-- `VALIDATION` — The request body failed structural (schema) validation.
-
-#### `ops_trails_review`
-
-**Run the review agents**
-
-Launch the project's review agents on a change's latest push now, instead of
-waiting for the next push. Each agent's eval reads `pending` until its run
-submits. Agents sharing a coding-agent trigger are reviewed in one run.
-Review runs spend your own agent quota, not Shipeasy credits.
-
-**Use case:** An agent's instructions changed and the latest push should be
-re-scored.
-
-_Parameters_
-
-| Parameter | | Type | Description |
-| --- | --- | --- | --- |
-| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
-| `prUrl` | optional | `string` | The change to review. Omitted, the item's primary PR. _(length 0–500)_ |
-| `agentKeys` | optional | `string[]` | Which review agents to run. Omitted, every enabled one. |
-
-_Errors_ — beyond the [common errors](#errors):
-
-- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
-- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
-- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
-- `VALIDATION` — The request body failed structural (schema) validation.
-
-#### `ops_trails_submit_eval`
-
-**Submit a review agent's eval**
-
-Record one review agent's result on one push of a change: a `value` (0–100
-for a score agent, 1/0 for a boolean one), a short `rationale`, and any
-`findings`. The verdict (pass / warn / fail) is computed from the agent's
-threshold and polarity. Submitting again for the same push replaces the
-earlier result and the open findings it raised.
-
-The `agentKey` normally names a configured review agent; an unconfigured key
-is recorded too, as a non-blocking score.
-
-**Use case:** A review run fired on a push scores the diff for risk and
-submits `{ agentKey: "risk", value: 35, rationale: "...", findings: [...] }`.
-
-_Parameters_
-
-| Parameter | | Type | Description |
-| --- | --- | --- | --- |
-| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
-| `agentKey` | required | `string` | The review agent's key (from `ops review-agents list`). _(length 1–48)_ |
-| `value` | required | `number` | 0–100 for a score agent; 1 (yes) or 0 (no) for a boolean one. _(0–100)_ |
-| `rationale` | required | `string` | One or two sentences on the evidence behind the value. _(length 1–4000)_ |
-| `findings` | optional | `object[]` | Issues to fix, each with a severity, and a file and line when there is one. |
-| `prUrl` | optional | `string` | The change reviewed. Omitted, the item's primary PR. _(length 0–500)_ |
-| `headSha` | optional | `string` | The commit reviewed. Omitted, the change's latest push. A sha that is not the latest push is recorded against that push, as history. _(length 7–64)_ |
-| `agent` | optional | `"jarvis" \| "claude" \| "cursor" \| "copilot" \| "jules"` | Your agent type, when you are the review agent. |
-| `sessionId` | optional | `string` | Your session id, so the eval can deep-link to the review run. _(length 0–300)_ |
-
-_Errors_ — beyond the [common errors](#errors):
-
-- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
-- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
-- `VALIDATION` — The request body failed structural (schema) validation.
-
-#### `ops_trails_update_finding`
-
-**Resolve or dismiss a finding**
-
-Set a finding's status — `resolved` (it was fixed; say how in `reason`),
-`dismissed` (it is not a problem; say why), or back to `open`.
-
-**Use case:** The coding agent fixed a flagged issue, pushed, and resolves the
-finding with `reason: "fixed in abc1234"`.
-
-_Parameters_
-
-| Parameter | | Type | Description |
-| --- | --- | --- | --- |
-| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
-| `findingId` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
-| `status` | required | `"open" \| "resolved" \| "dismissed"` | A finding stays `open` until it is `resolved` (fixed) or `dismissed` (not a problem). A finding raised on an earlier push is reported `stale` but stays open until somebody decides. |
-| `reason` | optional | `string` | Why — the fixing commit, or why it is not a problem. _(length 0–2000)_ |
-| `agent` | optional | `"jarvis" \| "claude" \| "cursor" \| "copilot" \| "jules"` | Your agent type, when an agent is resolving the finding. |
-
-_Errors_ — beyond the [common errors](#errors):
-
-- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
-- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
-- `VALIDATION` — The request body failed structural (schema) validation.
-
 ### Investigations
 
 Investigation records on a queue item — the structured, read-only write-ups
@@ -3683,6 +3525,577 @@ _Parameters_
 | `apiKey` | required | `string` | Jules API key that launches the session (secret). Encrypted into the credentials cipher; never returned. _(length 1–∞)_ |
 | `opsKey` | required | `string` | Restricted Shipeasy ops key, embedded in the prompt (Jules exposes no env channel) (secret). Encrypted; never returned. _(length 1–∞)_ |
 | `enabled` | optional | `boolean` | Whether the trigger is active on create. _(default `true`)_ |
+
+## Trails
+
+Trails: the unit of shipping, from intent through merge to release. A trail
+is created on purpose — from scratch, or with **Ship this** on a queue item
+— and holds what was asked for (a title and a body with the outcome and the
+acceptance criteria), every pull request worked under it (each a *change*),
+the queue items discovered while it was worked, reviewed or released, and
+the flags, kill switches, experiments, metrics, alert rules and i18n keys
+it ships. It replaces the pull request as the thing that is reviewed and
+merged, and it owns the decision to release.
+
+**Loop.** Start a coding agent on the trail (`start`). It opens pull
+requests and links them (`link-pr`). Every push to a change is scored by
+the project's review agents (a value, a rationale and findings per agent);
+merge gates read branch freshness, approvals, open findings, blocking evals,
+CI checks, discovered items and the release gates into one verdict. When a
+change fails, the server re-fires the coding agent with the findings, up to
+the gates' `fixRounds`. Findings that are real but out of scope are promoted
+to queue items (`promote-finding`) rather than fixed in passing.
+
+**Phase.** `planning`, `building`, `reviewing`, `ready`, `releasing`,
+`shipped`, `closed`. After the last open change merges the trail is
+`releasing` until its flags are fully rolled out and its experiments decided.
+
+**Handles.** A trail is addressed by its per-project handle (`T-12`) or its
+id. A queue item belongs to at most one trail.
+
+**Approve and merge are a person's call.** They are accepted only from a
+dashboard session or a device-auth CLI session, and are not exposed as MCP
+tools.
+
+The v1 item routes (`/api/admin/ops/{handle}/trail/...`) remain as aliases
+that resolve the item's trail and answer `404` when it has none.
+
+### `trails_attribute`
+
+**Attribute an item to a trail**
+
+Record that an error, alert or bug was caused by the trail after it merged. Errors carry no release or commit SHA, so attribution is a judgement: compare the stack frames and the error's subject against each candidate trail's changed files (`trails get --files`) and resources, and attribute only on concrete evidence — a frame in a changed file, the failing call touching a resource of the trail, or a guard metric of the trail. If nothing fits, leave the item unattributed.
+
+- `confidence: high` or `medium` puts the item on the trail with source `post_merge`, and writes `evidence` as an investigation note on the item and a system comment on the trail.
+- `confidence: low` records a *suspect* instead: the trail lists it under suspected regressions and a person confirms or rejects it.
+
+Attribution never flips a rollback. Propose one to a person as a structured question.
+
+Safe for the restricted ops key.
+
+**Use case:** A new error's stack frame sits in a file T-12 changed two hours ago; the investigating agent attributes it with the frame as evidence.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `item` | required | `string` | The error, alert or bug to attribute (number or id). _(length 1–64)_ |
+| `confidence` | required | `"high" \| "medium" \| "low"` | How sure an attribution is. `high` and `medium` attach the item to the trail; `low` records a suspect for a person to confirm or reject. |
+| `evidence` | required | `string` | Concrete evidence: a stack frame in a changed file, the failing call touching a resource of the trail, or a guard metric of the trail. _(length 1–4000)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
+- `REFERENCED_NOT_FOUND` — A referenced entity (universe, metric, gate, event) does not exist.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+### `trails_close`
+
+**Close a trail**
+
+Close a trail by hand — abandoned, superseded, or shipped with discovered items still open. A trail also closes on its own once it is `shipped` with no discovered item open at `high` priority or above. Closing never merges or closes pull requests. A trail closed with nothing merged reads `closed`; one that merged keeps its `releasing`/`shipped` phase.
+
+Closing is a person's call: the restricted ops key cannot close a trail.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `reason` | optional | `string` | Why the trail is being closed, e.g. `abandoned` or `superseded by T-14`. _(length 0–2000)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+### `trails_confirm_suspect`
+
+**Confirm a suspected regression**
+
+Confirm a suspect: the item goes onto the trail with source `post_merge` and the suspect's evidence is kept. A person's call — the restricted ops key cannot confirm.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `suspectId` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
+
+### `trails_create`
+
+**Create a trail**
+
+Creates a trail in `planning`. A trail is created on purpose — nothing makes one implicitly. Create one from scratch with a `title` and a `body` (the outcome and the acceptance criteria), or press **Ship this** on a queue item with `originItem`: the item's description seeds the body and the item becomes the trail's first item, with source `origin`. An item is on at most one trail.
+
+Fire the project's coding agent on the new trail with `trails start`, or link pull requests an agent already opened with `trails link-pr`.
+
+Safe for the restricted ops key.
+
+**Use case:** A coding agent that was asked to ship a multi-part feature opens one trail for it, then links every PR it opens.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `title` | required | `string` | One-line statement of the intent. _(length 1–200; pattern `^\S(.*\S)?$`)_ |
+| `body` | optional | `string` | The intent in markdown — the outcome and the acceptance criteria. _(default `""`; length 0–20000)_ |
+| `type` | optional | `"feature" \| "bug" \| "task"` | What a trail is shipping. A `feature` trail is held to the rollback and measured release gates. |
+| `priority` | optional | `any` | Initial triage priority, or `null`. |
+| `ownerId` | optional | `any` | The `users.id` of the person to own the trail, or `null`. |
+| `ownerConnectorId` | optional | `any` | The agent connector to own the trail, or `null`. |
+| `repos` | optional | `string[]` | Repos (`owner/repo`) the trail may open changes in. _(default `[]`)_ |
+| `originItem` | optional | `string` | Ship this: a queue item (number or id) to create the trail from. Its description seeds `body` when that is omitted, and it becomes the trail's first item with source `origin`. _(length 1–64)_ |
+| `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `trails_list` call. It proves you listed existing trails and confirmed this one doesn't already exist before creating it. Call `trails_list` first if you don't have a fresh token. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `ALREADY_EXISTS` — A resource with this name already exists in the project.
+- `REFERENCED_NOT_FOUND` — A referenced entity (universe, metric, gate, event) does not exist.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+### `trails_get`
+
+**Show a trail**
+
+A trail followed from intent to release: its phase, every change (each a pull request) with its latest push, merge gates, CI checks, each review agent's eval next to its last five, every finding (open first, worst first, `stale` when raised on an earlier push), approvals and pushes; the items discovered on it; the product resources it ships with their live state; the runs working it; and the suspected regressions awaiting a person.
+
+Gates are read live from GitHub on every call, so a `state` of `unknown` means GitHub could not be read and the PR-backed gates read `pending`. Phase and counts are recomputed live. Pass `files` to include each merged change's full changed-file list and the diff link.
+
+Safe for the restricted ops key.
+
+**Use case:** After pushing a fix, a coding agent reads the trail to see which findings are still open and whether the scores have turned green.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `files` | optional | `boolean` | Include each merged change's full `changedFiles` list. Omitted, `changedFiles` is `null`. _(default `false`)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
+### `trails_link_pr`
+
+**Link a pull request to a trail**
+
+Link a pull request to the trail as one of its *changes*. From then on the GitHub webhook records its pushes, the project's review agents score each push, and the merge gates read it. Linking a pull request the trail already has is a no-op; a pull request that belongs to a different trail is refused with `409`. Pass `item` when an item's run opened the PR, so the change shows under that item.
+
+Safe for the restricted ops key.
+
+**Use case:** A coding agent working a trail opens a PR and links it with `trails link-pr T-12 <url>`.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `prUrl` | required | `string` | The pull request's URL. _(length 1–500)_ |
+| `item` | optional | `string` | The queue item whose run opened the PR (number or id), when there is one. Omitted, the change belongs to the trail itself. _(length 1–64)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `ALREADY_EXISTS` — A resource with this name already exists in the project.
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
+- `REFERENCED_NOT_FOUND` — A referenced entity (universe, metric, gate, event) does not exist.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+### `trails_list`
+
+**List trails**
+
+Returns the project's trails, newest activity first. A trail is the unit of shipping: an intent, the changes (pull requests) worked under it, the items discovered on it and the product resources it ships. The phase and counts on each row are a snapshot; read one trail with `trails get` for the live state.
+
+**Dashboard table read.** `view=table` is the contract every dashboard list table shares: the endpoint applies `f`, `sort` and `cursor` in SQL and answers `{ data, next_cursor, section_counts?, grouped? }`. Filters and sorts are never applied in the browser, so a condition the server cannot evaluate is a `400`.
+- `f` — a JSON array of `{ "f": field, "o": operator, "v": value }` conditions, all ANDed. Fields are the snapshot columns: `phase`, `status`, `type`, `priority`, `owner`, `changesOpen`, `changesMergeable`, `findingsOpenHigh`, `itemsOpen`, `releasedPct`, `updatedAt`.
+- `sort` — a column id, `-` prefixed for descending: `number`, `title`, `phase`, `priority`, `owner`, `changes`, `findings`, `items`, `released`, `updated`, `created`. Defaults to `-updated`.
+- `cursor` — the previous page's `next_cursor`; `limit` is the page size (1–200, default 50).
+
+**Scopes** (`scope`) are the dashboard's tabs: `mine` (trails you own), `reviewing`, `ready`, `releasing`, `shipped`, `closed`, or `all` (the default).
+
+**Attribution.** `mergedSince` and `touches` list the trails that merged inside a window and changed a path or linked a resource — the candidates for an error or alert that started after a release.
+
+**Use case:** Find the trail already shipping a feature before creating another, or list what merged in the last 72 hours to attribute a new alert.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `view` | optional | `"table"` | `table` answers the dashboard table read (`f`, `sort`, `cursor`, `limit`, `section_counts`, `grouped`). Omitted, `f` and `sort` are still honoured and the envelope is `{ data, next_cursor }`. |
+| `scope` | optional | `"all" \| "mine" \| "reviewing" \| "ready" \| "releasing" \| "shipped" \| "closed"` | A dashboard tab: `mine` (owned by the caller), `reviewing`, `ready`, `releasing`, `shipped`, `closed`, or `all` (the default, no narrowing). _(default `"all"`)_ |
+| `phase` | optional | `"planning" \| "building" \| "reviewing" \| "ready" \| "releasing" \| "shipped" \| "closed"` | Where a trail is, derived from its changes and its release resources — `planning` (no change and no open run), `building` (no change yet, a run is working), `reviewing` (a change is open and not every open change can merge), `ready` (every open change can merge), `releasing` (merged, and a flag, experiment or other release resource has not settled), `shipped` (merged and every release resource settled), `closed` (closed with nothing merged). The detail read recomputes it live; the list reads a snapshot. |
+| `type` | optional | `"feature" \| "bug" \| "task"` | What a trail is shipping. A `feature` trail is held to the rollback and measured release gates. |
+| `owner` | optional | `string` | Narrow to trails owned by one person OR one agent — a `users.id`, email or display name, or a connector id, display name or handle. Case-insensitive exact match. |
+| `q` | optional | `string` | Case-insensitive substring filter across the trail's title and body. _(length 0–100)_ |
+| `mergedSince` | optional | `string` | ISO-8601 timestamp. Narrow to trails with a change merged at or after it. _(format: date-time)_ |
+| `touches` | optional | `string` | A file path (or path prefix) a merged change changed, or a resource key the trail links. Narrow to trails that touch it. _(length 0–500)_ |
+| `f` | optional | `string` | The table's filter conditions: a JSON array of `{ "f", "o", "v" }` objects, ANDed. See the operation description for the fields. _(length 0–8000)_ |
+| `sort` | optional | `string` | A column id, `-` prefixed for descending (`-updated`). An unknown column is a `400`. _(length 0–32)_ |
+| `cursor` | optional | `string` | Opaque cursor returned in the previous page's `next_cursor`. Omit for the first page. |
+| `limit` | required | `integer` | Page size (1–200). A page shorter than `limit` is the last one. _(1–200)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+
+### `trails_promote_finding`
+
+**Promote a finding to a queue item**
+
+Move a finding that is real but out of scope onto the queue. It creates a bug (or a feature request, with `type`) whose description quotes the finding, its path and line, and its push. The new item lands on the trail with source `finding`, and the finding is dismissed as `moved to #N` so the gates stop counting it. Promotion is the one-way bridge from a finding (per push, in scope, must be dealt with before merge) to an item (lives on its own, can become its own trail).
+
+Safe for the restricted ops key.
+
+**Use case:** A review flags a flaky test unrelated to the change; the coding agent promotes it instead of drive-by fixing it.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `findingId` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `type` | optional | `"bug" \| "feature_request"` | What to file the finding as. Defaults to `bug`. |
+| `reason` | required | `string` | Why the finding is out of scope for this trail. Recorded on the finding. _(length 1–2000)_ |
+| `title` | optional | `string` | A title for the new item. Defaults to the finding's title. _(length 1–200)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+### `trails_reject_suspect`
+
+**Reject a suspected regression**
+
+Reject a suspect: the item stays where it is, off the trail, and the suspect leaves the trail's suspected regressions. A person's call — the restricted ops key cannot reject.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `suspectId` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
+
+### `trails_reopen`
+
+**Reopen a trail**
+
+Reopen a closed trail so its changes can be reviewed and merged again. Its phase is recomputed from its changes and resources.
+
+Reopening is a person's call: the restricted ops key cannot reopen a trail.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
+
+### `trails_review`
+
+**Run the review agents**
+
+Launch the project's review agents on a change's latest push now, instead of waiting for the next push. Each agent's eval reads `pending` until its run submits. Agents sharing a coding-agent trigger are reviewed in one run. Review runs spend your own agent quota, not Shipeasy credits.
+
+Safe for the restricted ops key.
+
+**Use case:** An agent's instructions changed and the latest push should be re-scored.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `prUrl` | optional | `string` | The change to review. Omitted, the trail's primary change. _(length 0–500)_ |
+| `agentKeys` | optional | `string[]` | Which review agents to run. Omitted, every enabled one. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+### `trails_start`
+
+**Start an agent on a trail**
+
+Fire the project's coding-agent trigger with a *trail* prompt: the intent, the acceptance criteria, the linked resources and the open discovered items. The agent opens pull requests and links them with `trails link-pr`. The run is tracked as a `build` run; `fix` runs are fired by the server when a change's evals or findings fail. Runs spend your own agent quota, not Shipeasy credits.
+
+**Use case:** A trail is created from a feature request; start an agent on it.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `agent` | optional | `"claude" \| "cursor" \| "copilot" \| "jules"` | Which coding agent to fire — `claude`, `cursor`, `copilot` or `jules`. Omitted, the project's coding-agent trigger. |
+| `connectorId` | optional | `string` | A specific trigger connector to fire. Overrides `agent`. |
+| `prompt` | optional | `string` | Extra instructions appended to the trail prompt. _(length 0–8000)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `AGENT_NOT_CONNECTED` — The named AI agent type has no connected trigger connector in this project — list the available agents (`ops agents list` / `GET /api/admin/agent-profiles`) and use one of those, or connect the agent under Settings → Triggers.
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+### `trails_submit_eval`
+
+**Submit a review agent's eval**
+
+Record one review agent's result on one push of a change: a `value` (0–100 for a score agent, 1/0 for a boolean one), a short `rationale`, and any `findings`. The verdict (pass / warn / fail) is computed from the agent's threshold and polarity. Submitting again for the same push replaces the earlier result and the open findings it raised. `prUrl` selects the change; omitted, the trail's primary change.
+
+A review run may also report the product `resources` the diff uses (`getFlag("x")`, `getExperiment("y")`, `t("key")`). They are linked to the trail as detected, and a key that does not exist yet becomes a finding.
+
+The `agentKey` normally names a configured review agent; an unconfigured key is recorded too, as a non-blocking score.
+
+Safe for the restricted ops key.
+
+**Use case:** A review run fired on a push scores the diff for risk and submits `{ agentKey: "risk", value: 35, rationale: "...", findings: [...] }`.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `agentKey` | required | `string` | The review agent's key (from `ops review-agents list`). _(length 1–48)_ |
+| `value` | required | `number` | 0–100 for a score agent; 1 (yes) or 0 (no) for a boolean one. _(0–100)_ |
+| `rationale` | required | `string` | One or two sentences on the evidence behind the value. _(length 1–4000)_ |
+| `findings` | optional | `object[]` | Issues to fix, each with a severity, and a file and line when there is one. |
+| `prUrl` | optional | `string` | The change reviewed. Omitted, the trail's primary change. _(length 0–500)_ |
+| `headSha` | optional | `string` | The commit reviewed. Omitted, the change's latest push. A sha that is not the latest push is recorded against that push, as history. _(length 7–64)_ |
+| `agent` | optional | `"jarvis" \| "claude" \| "cursor" \| "copilot" \| "jules"` | Your agent type, when you are the review agent. |
+| `sessionId` | optional | `string` | Your session id, so the eval can deep-link to the review run. _(length 0–300)_ |
+| `resources` | optional | `object[]` | Product resources the reviewed diff uses (`getFlag("x")`, `getExperiment("y")`, `t("key")`). They are linked to the trail as detected. A key that does not exist yet becomes a finding. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+### `trails_unlink_pr`
+
+**Unlink a pull request from a trail**
+
+Detach a pull request from the trail. Its recorded pushes, evals, findings and approvals stay in history but no longer count toward the trail's gates. A merged change cannot be unlinked.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `prUrl` | required | `string` | The pull request's URL. _(length 1–500)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
+
+### `trails_update`
+
+**Change a trail**
+
+Change a trail's title, intent, type, priority, owner or repo scope. Pass at least one field; the rest are left as they are. Changing the type changes which release gates apply.
+
+**Use case:** The acceptance criteria changed after a review — update the body so the next agent run builds the right thing.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `title` | optional | `string` | — _(length 1–200; pattern `^\S(.*\S)?$`)_ |
+| `body` | optional | `string` | — _(length 0–20000)_ |
+| `type` | optional | `"feature" \| "bug" \| "task"` | What a trail is shipping. A `feature` trail is held to the rollback and measured release gates. |
+| `priority` | optional | `any` | Triage priority; `null` clears it. |
+| `ownerId` | optional | `any` | The `users.id` of the person owner; `null` unassigns. |
+| `ownerConnectorId` | optional | `any` | The agent connector owner; `null` unassigns. |
+| `repos` | optional | `string[]` | Replaces the trail's repo scope. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+### `trails_update_finding`
+
+**Resolve or dismiss a finding**
+
+Set a finding's status — `resolved` (it was fixed; say how in `reason`), `dismissed` (it is not a problem; say why), or back to `open`. A finding that is real but out of scope is not dismissed: promote it with `trails promote-finding`.
+
+Safe for the restricted ops key.
+
+**Use case:** The coding agent fixed a flagged issue, pushed, and resolves the finding with `reason: "fixed in abc1234"`.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `findingId` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `status` | required | `"open" \| "resolved" \| "dismissed"` | A finding stays `open` until it is `resolved` (fixed) or `dismissed` (not a problem). A finding raised on an earlier push is reported `stale` but stays open until somebody decides. |
+| `reason` | optional | `string` | Why — the fixing commit, or why it is not a problem. _(length 0–2000)_ |
+| `agent` | optional | `"jarvis" \| "claude" \| "cursor" \| "copilot" \| "jules"` | Your agent type, when an agent is resolving the finding. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+### Resources
+
+The flags, configs, kill switches, experiments, metrics, alert rules,
+events and i18n keys a trail ships or depends on, each with a role
+(`ships_behind`, `rollback`, `measures`, `guards`, `copy`, `touched`) and
+its live state. The release gates and the release phase read these links.
+
+#### `trails_resources_add`
+
+**Link a resource to a trail**
+
+Link a product entity to the trail with a *role* — what it is for: `ships_behind` (the flag the code ships behind), `rollback` (the kill switch that undoes it), `measures` (the experiment or metric that judges it), `guards` (an alert rule that watches it), `copy` (an i18n key) or `touched`. Omit `role` and it is guessed from the kind. The release gates and the release phase read these links. Linking the same entity again changes its role.
+
+Writes made through the CLI or MCP while `SHIPEASY_TRAIL` is set link themselves; use this for anything else.
+
+Safe for the restricted ops key.
+
+**Use case:** The agent created the flag `checkout.v2` for the trail; it links it as `ships_behind`.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `kind` | required | `"gate" \| "config" \| "killswitch" \| "experiment" \| "metric" \| "alert_rule" \| "event" \| "i18n_key"` | The product entities a trail can ship or depend on. `gate` is a feature flag. |
+| `resourceKey` | required | `string` | The entity's key (a gate or metric name, an experiment name, an i18n key). It must exist. _(length 1–256)_ |
+| `role` | optional | `"ships_behind" \| "rollback" \| "measures" \| "guards" \| "copy" \| "touched"` | What a resource is for on the trail — `ships_behind` (the flag the code ships behind), `rollback` (the kill switch that undoes it), `measures` (the experiment or metric that judges it), `guards` (an alert rule that watches it), `copy` (an i18n key it adds) or `touched` (anything else). The release gates and the release phase read these. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
+- `REFERENCED_NOT_FOUND` — A referenced entity (universe, metric, gate, event) does not exist.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+#### `trails_resources_list`
+
+**List a trail's resources**
+
+The flags, configs, kill switches, experiments, metrics, alert rules, events and i18n keys the trail ships or depends on, each with its role and its live state (a flag's prod rollout, an experiment's status and decision, a kill switch's position, an alert's firing state, whether it has settled).
+
+**Use case:** Check which flag a trail ships behind, and how far it has rolled out, before stepping it up.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
+#### `trails_resources_remove`
+
+**Unlink a resource from a trail**
+
+Remove a resource from the trail. The entity itself is untouched; only the trail's link to it goes, and the release gates stop counting it.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
+### Items
+
+Queue items on a trail. An item surfaces on a trail in one of seven ways
+(`origin`, `finding`, `agent`, `person`, `post_merge`, `cleanup`,
+`attached`) and belongs to at most one. File a new one on a trail with
+`ops bug --trail`; attach an existing one here.
+
+#### `trails_items_add`
+
+**Put an existing item on a trail**
+
+Attach an existing queue item to the trail, recorded with source `attached`. An item is on at most one trail; one already on another trail is refused with `409`. To file a *new* item on a trail, use `ops bug --trail` or `ops feature --trail`.
+
+Safe for the restricted ops key.
+
+**Use case:** A bug already in the queue turns out to be part of the work; attach it so the trail tracks it.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `item` | required | `string` | The queue item to put on the trail (number or id). An item is on at most one trail. _(length 1–64)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
+- `REFERENCED_NOT_FOUND` — A referenced entity (universe, metric, gate, event) does not exist.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+#### `trails_items_remove`
+
+**Take an item off a trail**
+
+Detach a queue item from the trail. The item stays in the queue; only its link to the trail and its discovery record go. The trail's origin item cannot be detached.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `itemHandle` | required | `string` | A queue item's per-project number (e.g. `12`, `#12` also accepted) or its full id. _(length 1–64)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
 
 ## Projects
 

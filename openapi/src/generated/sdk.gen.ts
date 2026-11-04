@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AckOpsItemData, AckOpsItemErrors, AckOpsItemResponses, AddToGateWhitelistData, AddToGateWhitelistErrors, AddToGateWhitelistResponses, AnswerOpsQaQuestionData, AnswerOpsQaQuestionErrors, AnswerOpsQaQuestionResponses, AnswerOpsQuestionData, AnswerOpsQuestionErrors, AnswerOpsQuestionResponses, ApproveEventData, ApproveEventErrors, ApproveEventResponses, ApproveOpsTrailData, ApproveOpsTrailErrors, ApproveOpsTrailResponses, ArchiveTrailAgentData, ArchiveTrailAgentErrors, ArchiveTrailAgentResponses, AskOpsQaQuestionData, AskOpsQaQuestionErrors, AskOpsQaQuestionResponses, AskOpsQuestionsData, AskOpsQuestionsErrors, AskOpsQuestionsResponses, CancelOpsQuestionData, CancelOpsQuestionErrors, CancelOpsQuestionResponses, CreateAlertRuleData, CreateAlertRuleErrors, CreateAlertRuleResponses, CreateAttributeData, CreateAttributeErrors, CreateAttributeResponses, CreateConfigData, CreateConfigErrors, CreateConfigResponses, CreateConnectorData, CreateConnectorErrors, CreateConnectorResponses, CreateEventData, CreateEventErrors, CreateEventResponses, CreateExperimentData, CreateExperimentErrors, CreateExperimentReadoutData, CreateExperimentReadoutErrors, CreateExperimentReadoutResponses, CreateExperimentResponses, CreateGateData, CreateGateErrors, CreateGateResponses, CreateGateTemplateData, CreateGateTemplateErrors, CreateGateTemplateResponses, CreateI18nDraftData, CreateI18nDraftErrors, CreateI18nDraftResponses, CreateI18nProfileData, CreateI18nProfileErrors, CreateI18nProfileResponses, CreateKeyData, CreateKeyErrors, CreateKeyResponses, CreateKillswitchData, CreateKillswitchErrors, CreateKillswitchResponses, CreateMetricData, CreateMetricErrors, CreateMetricResponses, CreateOpsAttachmentData, CreateOpsAttachmentErrors, CreateOpsAttachmentResponses, CreateOpsCommentData, CreateOpsCommentErrors, CreateOpsCommentMediaData, CreateOpsCommentMediaErrors, CreateOpsCommentMediaResponses, CreateOpsCommentResponses, CreateOpsInvestigationData, CreateOpsInvestigationErrors, CreateOpsInvestigationResponses, CreateOpsItemData, CreateOpsItemErrors, CreateOpsItemResponses, CreateOpsQaNoteData, CreateOpsQaNoteErrors, CreateOpsQaNoteResponses, CreateOpsRoutingRuleData, CreateOpsRoutingRuleErrors, CreateOpsRoutingRuleResponses, CreatePublicBugData, CreatePublicBugErrors, CreatePublicBugResponses, CreatePublicFeatureRequestData, CreatePublicFeatureRequestErrors, CreatePublicFeatureRequestResponses, CreateTrailAgentData, CreateTrailAgentErrors, CreateTrailAgentResponses, CreateTriggerConnectorData, CreateTriggerConnectorErrors, CreateTriggerConnectorResponses, CreateUniverseData, CreateUniverseErrors, CreateUniverseResponses, DeleteAlertRuleData, DeleteAlertRuleErrors, DeleteAlertRuleResponses, DeleteAttributeData, DeleteAttributeErrors, DeleteAttributeResponses, DeleteConfigData, DeleteConfigErrors, DeleteConfigResponses, DeleteConnectorData, DeleteConnectorErrors, DeleteConnectorResponses, DeleteEventData, DeleteEventErrors, DeleteEventResponses, DeleteExperimentData, DeleteExperimentErrors, DeleteExperimentResponses, DeleteGateData, DeleteGateErrors, DeleteGateResponses, DeleteGateTemplateData, DeleteGateTemplateErrors, DeleteGateTemplateResponses, DeleteI18nDraftData, DeleteI18nDraftErrors, DeleteI18nDraftResponses, DeleteI18nKeyData, DeleteI18nKeyErrors, DeleteI18nKeyResponses, DeleteI18nProfileData, DeleteI18nProfileErrors, DeleteI18nProfileResponses, DeleteKillswitchData, DeleteKillswitchErrors, DeleteKillswitchResponses, DeleteMetricData, DeleteMetricErrors, DeleteMetricResponses, DeleteOpsItemData, DeleteOpsItemErrors, DeleteOpsItemResponses, DeleteUniverseData, DeleteUniverseErrors, DeleteUniverseResponses, DisableGateData, DisableGateErrors, DisableGateResponses, DiscardConfigDraftData, DiscardConfigDraftErrors, DiscardConfigDraftResponses, EnableGateData, EnableGateErrors, EnableGateResponses, FileErrorTicketData, FileErrorTicketErrors, FileErrorTicketResponses, FireConnectorData, FireConnectorErrors, FireConnectorResponses, GetAttributeData, GetAttributeErrors, GetAttributeResponses, GetConfigData, GetConfigErrors, GetConfigResponses, GetConnectorData, GetConnectorErrors, GetConnectorResponses, GetCurrentProjectData, GetCurrentProjectErrors, GetCurrentProjectResponses, GetEntityTagsData, GetEntityTagsErrors, GetEntityTagsResponses, GetErrorData, GetErrorErrors, GetErrorResponses, GetErrorSeriesData, GetErrorSeriesErrors, GetErrorSeriesResponses, GetEventData, GetEventErrors, GetEventResponses, GetExperimentData, GetExperimentErrors, GetExperimentReadoutData, GetExperimentReadoutErrors, GetExperimentReadoutResponses, GetExperimentResponses, GetExperimentResultsData, GetExperimentResultsErrors, GetExperimentResultsResponses, GetExperimentTimeseriesData, GetExperimentTimeseriesErrors, GetExperimentTimeseriesResponses, GetGateData, GetGateErrors, GetGateResponses, GetGateTemplateData, GetGateTemplateErrors, GetGateTemplateResponses, GetGateWhitelistData, GetGateWhitelistErrors, GetGateWhitelistResponses, GetKillswitchData, GetKillswitchErrors, GetKillswitchResponses, GetMetricData, GetMetricErrors, GetMetricResponses, GetMetricSeriesData, GetMetricSeriesErrors, GetMetricSeriesResponses, GetOpsItemData, GetOpsItemErrors, GetOpsItemResponses, GetOpsTrailData, GetOpsTrailErrors, GetOpsTrailResponses, GetProjectData, GetProjectErrors, GetProjectResponses, GetTrailGatesData, GetTrailGatesErrors, GetTrailGatesResponses, LinkPrToOpsItemData, LinkPrToOpsItemErrors, LinkPrToOpsItemResponses, ListAlertRulesData, ListAlertRulesErrors, ListAlertRulesResponses, ListAlertsData, ListAlertsErrors, ListAlertsResponses, ListAttributesData, ListAttributesErrors, ListAttributesResponses, ListConfigActivityData, ListConfigActivityErrors, ListConfigActivityResponses, ListConfigsData, ListConfigsErrors, ListConfigsResponses, ListConfigVersionsData, ListConfigVersionsErrors, ListConfigVersionsResponses, ListConnectorsData, ListConnectorsErrors, ListConnectorsResponses, ListErrorsData, ListErrorsErrors, ListErrorsResponses, ListEventsData, ListEventsErrors, ListEventsResponses, ListExperimentsData, ListExperimentsErrors, ListExperimentsResponses, ListGateActivityData, ListGateActivityErrors, ListGateActivityResponses, ListGatesData, ListGatesErrors, ListGatesResponses, ListGateTemplatesData, ListGateTemplatesErrors, ListGateTemplatesResponses, ListI18nDraftKeysData, ListI18nDraftKeysErrors, ListI18nDraftKeysResponses, ListI18nDraftsData, ListI18nDraftsErrors, ListI18nDraftsResponses, ListI18nKeysData, ListI18nKeysErrors, ListI18nKeysResponses, ListI18nProfilesData, ListI18nProfilesErrors, ListI18nProfilesResponses, ListKeysData, ListKeysErrors, ListKeysResponses, ListKillswitchesData, ListKillswitchesErrors, ListKillswitchesResponses, ListMetricExperimentsData, ListMetricExperimentsErrors, ListMetricExperimentsResponses, ListMetricsData, ListMetricsErrors, ListMetricsResponses, ListOpsActivityData, ListOpsActivityErrors, ListOpsActivityResponses, ListOpsAgentsData, ListOpsAgentsErrors, ListOpsAgentsResponses, ListOpsCommentsData, ListOpsCommentsErrors, ListOpsCommentsResponses, ListOpsInvestigationsData, ListOpsInvestigationsErrors, ListOpsInvestigationsResponses, ListOpsItemsData, ListOpsItemsErrors, ListOpsItemsResponses, ListOpsMemoryData, ListOpsMemoryErrors, ListOpsMemoryResponses, ListOpsQaNotesData, ListOpsQaNotesErrors, ListOpsQaNotesResponses, ListOpsQaQuestionsData, ListOpsQaQuestionsErrors, ListOpsQaQuestionsResponses, ListOpsQuestionsData, ListOpsQuestionsErrors, ListOpsQuestionsResponses, ListOpsRoutingRulesData, ListOpsRoutingRulesErrors, ListOpsRoutingRulesResponses, ListSlackChannelsData, ListSlackChannelsErrors, ListSlackChannelsResponses, ListTagsData, ListTagsErrors, ListTagsResponses, ListTrailAgentsData, ListTrailAgentsErrors, ListTrailAgentsResponses, ListUniversesData, ListUniversesErrors, ListUniversesResponses, MergeOpsTrailData, MergeOpsTrailErrors, MergeOpsTrailResponses, NotifyOpsData, NotifyOpsErrors, NotifyOpsResponses, PublishConfigDraftData, PublishConfigDraftErrors, PublishConfigDraftResponses, PublishI18nProfileData, PublishI18nProfileErrors, PublishI18nProfileResponses, PushI18nKeysData, PushI18nKeysErrors, PushI18nKeysResponses, ReanalyzeExperimentData, ReanalyzeExperimentErrors, ReanalyzeExperimentResponses, RemoveFromGateWhitelistData, RemoveFromGateWhitelistErrors, RemoveFromGateWhitelistResponses, RequestOpsTrailReviewData, RequestOpsTrailReviewErrors, RequestOpsTrailReviewResponses, ResolveErrorData, ResolveErrorErrors, ResolveErrorResponses, RevokeKeyData, RevokeKeyErrors, RevokeKeyResponses, SaveConfigDraftData, SaveConfigDraftErrors, SaveConfigDraftResponses, SearchResourcesData, SearchResourcesErrors, SearchResourcesResponses, SetEntityTagsData, SetEntityTagsErrors, SetEntityTagsResponses, SetExperimentMetricsData, SetExperimentMetricsErrors, SetExperimentMetricsResponses, SetExperimentStatusData, SetExperimentStatusErrors, SetExperimentStatusResponses, SetGateWhitelistData, SetGateWhitelistErrors, SetGateWhitelistResponses, SetI18nLabelData, SetI18nLabelErrors, SetI18nLabelResponses, SetKillswitchSwitchData, SetKillswitchSwitchErrors, SetKillswitchSwitchResponses, SetKillswitchValueData, SetKillswitchValueErrors, SetKillswitchValueResponses, SubmitOpsTrailEvalData, SubmitOpsTrailEvalErrors, SubmitOpsTrailEvalResponses, TestConnectorData, TestConnectorErrors, TestConnectorResponses, ToggleKillswitchData, ToggleKillswitchErrors, ToggleKillswitchResponses, UnarchiveMetricData, UnarchiveMetricErrors, UnarchiveMetricResponses, UnsetKillswitchSwitchData, UnsetKillswitchSwitchErrors, UnsetKillswitchSwitchResponses, UpdateAlertData, UpdateAlertErrors, UpdateAlertResponses, UpdateAlertRuleData, UpdateAlertRuleErrors, UpdateAlertRuleResponses, UpdateAttributeData, UpdateAttributeErrors, UpdateAttributeResponses, UpdateConfigData, UpdateConfigErrors, UpdateConfigResponses, UpdateConfigSchemaData, UpdateConfigSchemaErrors, UpdateConfigSchemaResponses, UpdateConnectorData, UpdateConnectorErrors, UpdateConnectorResponses, UpdateEntityTagsData, UpdateEntityTagsErrors, UpdateEntityTagsResponses, UpdateErrorStatusData, UpdateErrorStatusErrors, UpdateErrorStatusResponses, UpdateEventData, UpdateEventErrors, UpdateEventResponses, UpdateExperimentData, UpdateExperimentErrors, UpdateExperimentResponses, UpdateGateData, UpdateGateErrors, UpdateGateResponses, UpdateGateTemplateData, UpdateGateTemplateErrors, UpdateGateTemplateResponses, UpdateI18nDraftData, UpdateI18nDraftErrors, UpdateI18nDraftResponses, UpdateI18nKeyData, UpdateI18nKeyErrors, UpdateI18nKeyResponses, UpdateKeyData, UpdateKeyErrors, UpdateKeyResponses, UpdateKillswitchData, UpdateKillswitchErrors, UpdateKillswitchResponses, UpdateMetricData, UpdateMetricErrors, UpdateMetricResponses, UpdateOpsGroupData, UpdateOpsGroupErrors, UpdateOpsGroupResponses, UpdateOpsInvestigationData, UpdateOpsInvestigationErrors, UpdateOpsInvestigationResponses, UpdateOpsItemData, UpdateOpsItemErrors, UpdateOpsItemResponses, UpdateOpsLinksData, UpdateOpsLinksErrors, UpdateOpsLinksResponses, UpdateOpsTrailFindingData, UpdateOpsTrailFindingErrors, UpdateOpsTrailFindingResponses, UpdateProjectData, UpdateProjectErrors, UpdateProjectResponses, UpdateTrailAgentData, UpdateTrailAgentErrors, UpdateTrailAgentResponses, UpdateTrailGatesData, UpdateTrailGatesErrors, UpdateTrailGatesResponses, UpdateTriggerConnectorData, UpdateTriggerConnectorErrors, UpdateTriggerConnectorResponses, UpdateUniverseData, UpdateUniverseErrors, UpdateUniverseResponses, UpsertI18nDraftKeyData, UpsertI18nDraftKeyErrors, UpsertI18nDraftKeyResponses, UpsertI18nKeysData, UpsertI18nKeysErrors, UpsertI18nKeysResponses, UpsertProjectData, UpsertProjectErrors, UpsertProjectResponses } from './types.gen';
+import type { AckOpsItemData, AckOpsItemErrors, AckOpsItemResponses, AddToGateWhitelistData, AddToGateWhitelistErrors, AddToGateWhitelistResponses, AddTrailItemData, AddTrailItemErrors, AddTrailItemResponses, AddTrailResourceData, AddTrailResourceErrors, AddTrailResourceResponses, AnswerOpsQaQuestionData, AnswerOpsQaQuestionErrors, AnswerOpsQaQuestionResponses, AnswerOpsQuestionData, AnswerOpsQuestionErrors, AnswerOpsQuestionResponses, ApproveEventData, ApproveEventErrors, ApproveEventResponses, ApproveOpsTrailData, ApproveOpsTrailErrors, ApproveOpsTrailResponses, ApproveTrailData, ApproveTrailErrors, ApproveTrailResponses, ArchiveTrailAgentData, ArchiveTrailAgentErrors, ArchiveTrailAgentResponses, AskOpsQaQuestionData, AskOpsQaQuestionErrors, AskOpsQaQuestionResponses, AskOpsQuestionsData, AskOpsQuestionsErrors, AskOpsQuestionsResponses, AttributeTrailData, AttributeTrailErrors, AttributeTrailResponses, CancelOpsQuestionData, CancelOpsQuestionErrors, CancelOpsQuestionResponses, CloseTrailData, CloseTrailErrors, CloseTrailResponses, ConfirmTrailSuspectData, ConfirmTrailSuspectErrors, ConfirmTrailSuspectResponses, CreateAlertRuleData, CreateAlertRuleErrors, CreateAlertRuleResponses, CreateAttributeData, CreateAttributeErrors, CreateAttributeResponses, CreateConfigData, CreateConfigErrors, CreateConfigResponses, CreateConnectorData, CreateConnectorErrors, CreateConnectorResponses, CreateEventData, CreateEventErrors, CreateEventResponses, CreateExperimentData, CreateExperimentErrors, CreateExperimentReadoutData, CreateExperimentReadoutErrors, CreateExperimentReadoutResponses, CreateExperimentResponses, CreateGateData, CreateGateErrors, CreateGateResponses, CreateGateTemplateData, CreateGateTemplateErrors, CreateGateTemplateResponses, CreateI18nDraftData, CreateI18nDraftErrors, CreateI18nDraftResponses, CreateI18nProfileData, CreateI18nProfileErrors, CreateI18nProfileResponses, CreateKeyData, CreateKeyErrors, CreateKeyResponses, CreateKillswitchData, CreateKillswitchErrors, CreateKillswitchResponses, CreateMetricData, CreateMetricErrors, CreateMetricResponses, CreateOpsAttachmentData, CreateOpsAttachmentErrors, CreateOpsAttachmentResponses, CreateOpsCommentData, CreateOpsCommentErrors, CreateOpsCommentMediaData, CreateOpsCommentMediaErrors, CreateOpsCommentMediaResponses, CreateOpsCommentResponses, CreateOpsInvestigationData, CreateOpsInvestigationErrors, CreateOpsInvestigationResponses, CreateOpsItemData, CreateOpsItemErrors, CreateOpsItemResponses, CreateOpsQaNoteData, CreateOpsQaNoteErrors, CreateOpsQaNoteResponses, CreateOpsRoutingRuleData, CreateOpsRoutingRuleErrors, CreateOpsRoutingRuleResponses, CreatePublicBugData, CreatePublicBugErrors, CreatePublicBugResponses, CreatePublicFeatureRequestData, CreatePublicFeatureRequestErrors, CreatePublicFeatureRequestResponses, CreateTrailAgentData, CreateTrailAgentErrors, CreateTrailAgentResponses, CreateTrailData, CreateTrailErrors, CreateTrailResponses, CreateTriggerConnectorData, CreateTriggerConnectorErrors, CreateTriggerConnectorResponses, CreateUniverseData, CreateUniverseErrors, CreateUniverseResponses, DeleteAlertRuleData, DeleteAlertRuleErrors, DeleteAlertRuleResponses, DeleteAttributeData, DeleteAttributeErrors, DeleteAttributeResponses, DeleteConfigData, DeleteConfigErrors, DeleteConfigResponses, DeleteConnectorData, DeleteConnectorErrors, DeleteConnectorResponses, DeleteEventData, DeleteEventErrors, DeleteEventResponses, DeleteExperimentData, DeleteExperimentErrors, DeleteExperimentResponses, DeleteGateData, DeleteGateErrors, DeleteGateResponses, DeleteGateTemplateData, DeleteGateTemplateErrors, DeleteGateTemplateResponses, DeleteI18nDraftData, DeleteI18nDraftErrors, DeleteI18nDraftResponses, DeleteI18nKeyData, DeleteI18nKeyErrors, DeleteI18nKeyResponses, DeleteI18nProfileData, DeleteI18nProfileErrors, DeleteI18nProfileResponses, DeleteKillswitchData, DeleteKillswitchErrors, DeleteKillswitchResponses, DeleteMetricData, DeleteMetricErrors, DeleteMetricResponses, DeleteOpsItemData, DeleteOpsItemErrors, DeleteOpsItemResponses, DeleteUniverseData, DeleteUniverseErrors, DeleteUniverseResponses, DisableGateData, DisableGateErrors, DisableGateResponses, DiscardConfigDraftData, DiscardConfigDraftErrors, DiscardConfigDraftResponses, EnableGateData, EnableGateErrors, EnableGateResponses, FileErrorTicketData, FileErrorTicketErrors, FileErrorTicketResponses, FireConnectorData, FireConnectorErrors, FireConnectorResponses, GetAttributeData, GetAttributeErrors, GetAttributeResponses, GetConfigData, GetConfigErrors, GetConfigResponses, GetConnectorData, GetConnectorErrors, GetConnectorResponses, GetCurrentProjectData, GetCurrentProjectErrors, GetCurrentProjectResponses, GetEntityTagsData, GetEntityTagsErrors, GetEntityTagsResponses, GetErrorData, GetErrorErrors, GetErrorResponses, GetErrorSeriesData, GetErrorSeriesErrors, GetErrorSeriesResponses, GetEventData, GetEventErrors, GetEventResponses, GetExperimentData, GetExperimentErrors, GetExperimentReadoutData, GetExperimentReadoutErrors, GetExperimentReadoutResponses, GetExperimentResponses, GetExperimentResultsData, GetExperimentResultsErrors, GetExperimentResultsResponses, GetExperimentTimeseriesData, GetExperimentTimeseriesErrors, GetExperimentTimeseriesResponses, GetGateData, GetGateErrors, GetGateResponses, GetGateTemplateData, GetGateTemplateErrors, GetGateTemplateResponses, GetGateWhitelistData, GetGateWhitelistErrors, GetGateWhitelistResponses, GetKillswitchData, GetKillswitchErrors, GetKillswitchResponses, GetMetricData, GetMetricErrors, GetMetricResponses, GetMetricSeriesData, GetMetricSeriesErrors, GetMetricSeriesResponses, GetOpsItemData, GetOpsItemErrors, GetOpsItemResponses, GetOpsTrailData, GetOpsTrailErrors, GetOpsTrailResponses, GetProjectData, GetProjectErrors, GetProjectResponses, GetTrailData, GetTrailErrors, GetTrailGatesData, GetTrailGatesErrors, GetTrailGatesResponses, GetTrailResponses, LinkPrToOpsItemData, LinkPrToOpsItemErrors, LinkPrToOpsItemResponses, LinkTrailPrData, LinkTrailPrErrors, LinkTrailPrResponses, ListAlertRulesData, ListAlertRulesErrors, ListAlertRulesResponses, ListAlertsData, ListAlertsErrors, ListAlertsResponses, ListAttributesData, ListAttributesErrors, ListAttributesResponses, ListConfigActivityData, ListConfigActivityErrors, ListConfigActivityResponses, ListConfigsData, ListConfigsErrors, ListConfigsResponses, ListConfigVersionsData, ListConfigVersionsErrors, ListConfigVersionsResponses, ListConnectorsData, ListConnectorsErrors, ListConnectorsResponses, ListErrorsData, ListErrorsErrors, ListErrorsResponses, ListEventsData, ListEventsErrors, ListEventsResponses, ListExperimentsData, ListExperimentsErrors, ListExperimentsResponses, ListGateActivityData, ListGateActivityErrors, ListGateActivityResponses, ListGatesData, ListGatesErrors, ListGatesResponses, ListGateTemplatesData, ListGateTemplatesErrors, ListGateTemplatesResponses, ListI18nDraftKeysData, ListI18nDraftKeysErrors, ListI18nDraftKeysResponses, ListI18nDraftsData, ListI18nDraftsErrors, ListI18nDraftsResponses, ListI18nKeysData, ListI18nKeysErrors, ListI18nKeysResponses, ListI18nProfilesData, ListI18nProfilesErrors, ListI18nProfilesResponses, ListKeysData, ListKeysErrors, ListKeysResponses, ListKillswitchesData, ListKillswitchesErrors, ListKillswitchesResponses, ListMetricExperimentsData, ListMetricExperimentsErrors, ListMetricExperimentsResponses, ListMetricsData, ListMetricsErrors, ListMetricsResponses, ListOpsActivityData, ListOpsActivityErrors, ListOpsActivityResponses, ListOpsAgentsData, ListOpsAgentsErrors, ListOpsAgentsResponses, ListOpsCommentsData, ListOpsCommentsErrors, ListOpsCommentsResponses, ListOpsInvestigationsData, ListOpsInvestigationsErrors, ListOpsInvestigationsResponses, ListOpsItemsData, ListOpsItemsErrors, ListOpsItemsResponses, ListOpsMemoryData, ListOpsMemoryErrors, ListOpsMemoryResponses, ListOpsQaNotesData, ListOpsQaNotesErrors, ListOpsQaNotesResponses, ListOpsQaQuestionsData, ListOpsQaQuestionsErrors, ListOpsQaQuestionsResponses, ListOpsQuestionsData, ListOpsQuestionsErrors, ListOpsQuestionsResponses, ListOpsRoutingRulesData, ListOpsRoutingRulesErrors, ListOpsRoutingRulesResponses, ListSlackChannelsData, ListSlackChannelsErrors, ListSlackChannelsResponses, ListTagsData, ListTagsErrors, ListTagsResponses, ListTrailAgentsData, ListTrailAgentsErrors, ListTrailAgentsResponses, ListTrailResourcesData, ListTrailResourcesErrors, ListTrailResourcesResponses, ListTrailsData, ListTrailsErrors, ListTrailsResponses, ListUniversesData, ListUniversesErrors, ListUniversesResponses, MergeOpsTrailData, MergeOpsTrailErrors, MergeOpsTrailResponses, MergeTrailData, MergeTrailErrors, MergeTrailResponses, NotifyOpsData, NotifyOpsErrors, NotifyOpsResponses, PromoteTrailFindingData, PromoteTrailFindingErrors, PromoteTrailFindingResponses, PublishConfigDraftData, PublishConfigDraftErrors, PublishConfigDraftResponses, PublishI18nProfileData, PublishI18nProfileErrors, PublishI18nProfileResponses, PushI18nKeysData, PushI18nKeysErrors, PushI18nKeysResponses, ReanalyzeExperimentData, ReanalyzeExperimentErrors, ReanalyzeExperimentResponses, RejectTrailSuspectData, RejectTrailSuspectErrors, RejectTrailSuspectResponses, RemoveFromGateWhitelistData, RemoveFromGateWhitelistErrors, RemoveFromGateWhitelistResponses, RemoveTrailItemData, RemoveTrailItemErrors, RemoveTrailItemResponses, RemoveTrailResourceData, RemoveTrailResourceErrors, RemoveTrailResourceResponses, ReopenTrailData, ReopenTrailErrors, ReopenTrailResponses, RequestOpsTrailReviewData, RequestOpsTrailReviewErrors, RequestOpsTrailReviewResponses, RequestTrailReviewData, RequestTrailReviewErrors, RequestTrailReviewResponses, ResolveErrorData, ResolveErrorErrors, ResolveErrorResponses, RevokeKeyData, RevokeKeyErrors, RevokeKeyResponses, SaveConfigDraftData, SaveConfigDraftErrors, SaveConfigDraftResponses, SearchResourcesData, SearchResourcesErrors, SearchResourcesResponses, SetEntityTagsData, SetEntityTagsErrors, SetEntityTagsResponses, SetExperimentMetricsData, SetExperimentMetricsErrors, SetExperimentMetricsResponses, SetExperimentStatusData, SetExperimentStatusErrors, SetExperimentStatusResponses, SetGateWhitelistData, SetGateWhitelistErrors, SetGateWhitelistResponses, SetI18nLabelData, SetI18nLabelErrors, SetI18nLabelResponses, SetKillswitchSwitchData, SetKillswitchSwitchErrors, SetKillswitchSwitchResponses, SetKillswitchValueData, SetKillswitchValueErrors, SetKillswitchValueResponses, StartTrailRunData, StartTrailRunErrors, StartTrailRunResponses, SubmitOpsTrailEvalData, SubmitOpsTrailEvalErrors, SubmitOpsTrailEvalResponses, SubmitTrailEvalData, SubmitTrailEvalErrors, SubmitTrailEvalResponses, TestConnectorData, TestConnectorErrors, TestConnectorResponses, ToggleKillswitchData, ToggleKillswitchErrors, ToggleKillswitchResponses, UnarchiveMetricData, UnarchiveMetricErrors, UnarchiveMetricResponses, UnlinkTrailPrData, UnlinkTrailPrErrors, UnlinkTrailPrResponses, UnsetKillswitchSwitchData, UnsetKillswitchSwitchErrors, UnsetKillswitchSwitchResponses, UpdateAlertData, UpdateAlertErrors, UpdateAlertResponses, UpdateAlertRuleData, UpdateAlertRuleErrors, UpdateAlertRuleResponses, UpdateAttributeData, UpdateAttributeErrors, UpdateAttributeResponses, UpdateConfigData, UpdateConfigErrors, UpdateConfigResponses, UpdateConfigSchemaData, UpdateConfigSchemaErrors, UpdateConfigSchemaResponses, UpdateConnectorData, UpdateConnectorErrors, UpdateConnectorResponses, UpdateEntityTagsData, UpdateEntityTagsErrors, UpdateEntityTagsResponses, UpdateErrorStatusData, UpdateErrorStatusErrors, UpdateErrorStatusResponses, UpdateEventData, UpdateEventErrors, UpdateEventResponses, UpdateExperimentData, UpdateExperimentErrors, UpdateExperimentResponses, UpdateGateData, UpdateGateErrors, UpdateGateResponses, UpdateGateTemplateData, UpdateGateTemplateErrors, UpdateGateTemplateResponses, UpdateI18nDraftData, UpdateI18nDraftErrors, UpdateI18nDraftResponses, UpdateI18nKeyData, UpdateI18nKeyErrors, UpdateI18nKeyResponses, UpdateKeyData, UpdateKeyErrors, UpdateKeyResponses, UpdateKillswitchData, UpdateKillswitchErrors, UpdateKillswitchResponses, UpdateMetricData, UpdateMetricErrors, UpdateMetricResponses, UpdateOpsGroupData, UpdateOpsGroupErrors, UpdateOpsGroupResponses, UpdateOpsInvestigationData, UpdateOpsInvestigationErrors, UpdateOpsInvestigationResponses, UpdateOpsItemData, UpdateOpsItemErrors, UpdateOpsItemResponses, UpdateOpsLinksData, UpdateOpsLinksErrors, UpdateOpsLinksResponses, UpdateOpsTrailFindingData, UpdateOpsTrailFindingErrors, UpdateOpsTrailFindingResponses, UpdateProjectData, UpdateProjectErrors, UpdateProjectResponses, UpdateTrailAgentData, UpdateTrailAgentErrors, UpdateTrailAgentResponses, UpdateTrailData, UpdateTrailErrors, UpdateTrailFindingData, UpdateTrailFindingErrors, UpdateTrailFindingResponses, UpdateTrailGatesData, UpdateTrailGatesErrors, UpdateTrailGatesResponses, UpdateTrailResponses, UpdateTriggerConnectorData, UpdateTriggerConnectorErrors, UpdateTriggerConnectorResponses, UpdateUniverseData, UpdateUniverseErrors, UpdateUniverseResponses, UpsertI18nDraftKeyData, UpsertI18nDraftKeyErrors, UpsertI18nDraftKeyResponses, UpsertI18nKeysData, UpsertI18nKeysErrors, UpsertI18nKeysResponses, UpsertProjectData, UpsertProjectErrors, UpsertProjectResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -1887,8 +1887,10 @@ export const listOpsMemory = <ThrowOnError extends boolean = false>(options?: Op
 /**
  * Show an item's trail
  *
- * The item followed from intent to merge: its phase, and for every linked pull
- * request (each a *change*) the latest push, the merge gates and how they read,
+ * **Alias.** Kept for the v1 item routes: it resolves the item's trail and behaves exactly like `GET /api/admin/trails/{handle}`, answering `404` when the item is on no trail. Prefer the `/api/admin/trails` routes. Not part of the CLI or MCP surface.
+ *
+ * The item's trail, followed from intent to release: its phase, and for every
+ * pull request (each a *change*) the latest push, the merge gates and how they read,
  * CI checks, each review agent's eval on the latest push next to its last five,
  * every finding (open first, worst first, `stale` when raised on an earlier
  * push), the approvals, and the pushes.
@@ -1907,6 +1909,8 @@ export const getOpsTrail = <ThrowOnError extends boolean = false>(options: Optio
 
 /**
  * Submit a review agent's eval
+ *
+ * **Alias.** Kept for the v1 item routes: it resolves the item's trail and behaves exactly like `POST /api/admin/trails/{handle}/evals`, answering `404` when the item is on no trail. Prefer the `/api/admin/trails` routes. Not part of the CLI or MCP surface.
  *
  * Record one review agent's result on one push of a change: a `value` (0–100
  * for a score agent, 1/0 for a boolean one), a short `rationale`, and any
@@ -1933,6 +1937,8 @@ export const submitOpsTrailEval = <ThrowOnError extends boolean = false>(options
 /**
  * Resolve or dismiss a finding
  *
+ * **Alias.** Kept for the v1 item routes: it resolves the item's trail and behaves exactly like `PATCH /api/admin/trails/{handle}/findings/{findingId}`, answering `404` when the item is on no trail. Prefer the `/api/admin/trails` routes. Not part of the CLI or MCP surface.
+ *
  * Set a finding's status — `resolved` (it was fixed; say how in `reason`),
  * `dismissed` (it is not a problem; say why), or back to `open`.
  *
@@ -1952,11 +1958,13 @@ export const updateOpsTrailFinding = <ThrowOnError extends boolean = false>(opti
 /**
  * Approve a change
  *
+ * **Alias.** Kept for the v1 item routes: it resolves the item's trail and behaves exactly like `POST /api/admin/trails/{handle}/approve`, answering `404` when the item is on no trail. Prefer the `/api/admin/trails` routes. Not part of the CLI or MCP surface.
+ *
  * Approve a change at its latest push — what the Human review gate counts.
  * Approving the same push twice is a no-op. When the project's gates reset
  * approvals on push, a later push needs a fresh approval.
  *
- * Approval is a person's call: the restricted ops key cannot approve.
+ * Approval is a person's call: only a dashboard or device-auth session can approve.
  *
  * **Use case:** A reviewer has read the evals and the diff and signs off.
  */
@@ -1972,6 +1980,8 @@ export const approveOpsTrail = <ThrowOnError extends boolean = false>(options: O
 
 /**
  * Run the review agents
+ *
+ * **Alias.** Kept for the v1 item routes: it resolves the item's trail and behaves exactly like `POST /api/admin/trails/{handle}/review`, answering `404` when the item is on no trail. Prefer the `/api/admin/trails` routes. Not part of the CLI or MCP surface.
  *
  * Launch the project's review agents on a change's latest push now, instead of
  * waiting for the next push. Each agent's eval reads `pending` until its run
@@ -1994,13 +2004,15 @@ export const requestOpsTrailReview = <ThrowOnError extends boolean = false>(opti
 /**
  * Merge a change
  *
+ * **Alias.** Kept for the v1 item routes: it resolves the item's trail and behaves exactly like `POST /api/admin/trails/{handle}/merge`, answering `404` when the item is on no trail. Prefer the `/api/admin/trails` routes. Not part of the CLI or MCP surface.
+ *
  * Merge a change's pull request on GitHub at the head its gates were evaluated
  * on. Refused with `409` while a blocking gate has not passed, unless `bypass`
- * is set with a `reason` — the bypass is recorded on the item. GitHub's own
+ * is set with a `reason` — the bypass is recorded on the trail. GitHub's own
  * branch rules can still refuse the merge (`502`). Merging one change never
  * merges the trail's other changes.
  *
- * Merging is a person's call: the restricted ops key cannot merge.
+ * Merging is a person's call: only a dashboard or device-auth session can merge.
  *
  * **Use case:** Every gate is green; merge from the trail instead of switching
  * to GitHub.
@@ -2107,6 +2119,399 @@ export const updateTrailGates = <ThrowOnError extends boolean = false>(options: 
         'Content-Type': 'application/json',
         ...options.headers
     }
+});
+
+/**
+ * List trails
+ *
+ * Returns the project's trails, newest activity first. A trail is the unit of shipping: an intent, the changes (pull requests) worked under it, the items discovered on it and the product resources it ships. The phase and counts on each row are a snapshot; read one trail with `trails get` for the live state.
+ *
+ * **Dashboard table read.** `view=table` is the contract every dashboard list table shares: the endpoint applies `f`, `sort` and `cursor` in SQL and answers `{ data, next_cursor, section_counts?, grouped? }`. Filters and sorts are never applied in the browser, so a condition the server cannot evaluate is a `400`.
+ * - `f` — a JSON array of `{ "f": field, "o": operator, "v": value }` conditions, all ANDed. Fields are the snapshot columns: `phase`, `status`, `type`, `priority`, `owner`, `changesOpen`, `changesMergeable`, `findingsOpenHigh`, `itemsOpen`, `releasedPct`, `updatedAt`.
+ * - `sort` — a column id, `-` prefixed for descending: `number`, `title`, `phase`, `priority`, `owner`, `changes`, `findings`, `items`, `released`, `updated`, `created`. Defaults to `-updated`.
+ * - `cursor` — the previous page's `next_cursor`; `limit` is the page size (1–200, default 50).
+ *
+ * **Scopes** (`scope`) are the dashboard's tabs: `mine` (trails you own), `reviewing`, `ready`, `releasing`, `shipped`, `closed`, or `all` (the default).
+ *
+ * **Attribution.** `mergedSince` and `touches` list the trails that merged inside a window and changed a path or linked a resource — the candidates for an error or alert that started after a release.
+ *
+ * **Use case:** Find the trail already shipping a feature before creating another, or list what merged in the last 72 hours to attribute a new alert.
+ */
+export const listTrails = <ThrowOnError extends boolean = false>(options?: Options<ListTrailsData, ThrowOnError>): RequestResult<ListTrailsResponses, ListTrailsErrors, ThrowOnError> => (options?.client ?? client).get<ListTrailsResponses, ListTrailsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails',
+    ...options
+});
+
+/**
+ * Create a trail
+ *
+ * Creates a trail in `planning`. A trail is created on purpose — nothing makes one implicitly. Create one from scratch with a `title` and a `body` (the outcome and the acceptance criteria), or press **Ship this** on a queue item with `originItem`: the item's description seeds the body and the item becomes the trail's first item, with source `origin`. An item is on at most one trail.
+ *
+ * Fire the project's coding agent on the new trail with `trails start`, or link pull requests an agent already opened with `trails link-pr`.
+ *
+ * Safe for the restricted ops key.
+ *
+ * **Use case:** A coding agent that was asked to ship a multi-part feature opens one trail for it, then links every PR it opens.
+ */
+export const createTrail = <ThrowOnError extends boolean = false>(options: Options<CreateTrailData, ThrowOnError>): RequestResult<CreateTrailResponses, CreateTrailErrors, ThrowOnError> => (options.client ?? client).post<CreateTrailResponses, CreateTrailErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Show a trail
+ *
+ * A trail followed from intent to release: its phase, every change (each a pull request) with its latest push, merge gates, CI checks, each review agent's eval next to its last five, every finding (open first, worst first, `stale` when raised on an earlier push), approvals and pushes; the items discovered on it; the product resources it ships with their live state; the runs working it; and the suspected regressions awaiting a person.
+ *
+ * Gates are read live from GitHub on every call, so a `state` of `unknown` means GitHub could not be read and the PR-backed gates read `pending`. Phase and counts are recomputed live. Pass `files` to include each merged change's full changed-file list and the diff link.
+ *
+ * Safe for the restricted ops key.
+ *
+ * **Use case:** After pushing a fix, a coding agent reads the trail to see which findings are still open and whether the scores have turned green.
+ */
+export const getTrail = <ThrowOnError extends boolean = false>(options: Options<GetTrailData, ThrowOnError>): RequestResult<GetTrailResponses, GetTrailErrors, ThrowOnError> => (options.client ?? client).get<GetTrailResponses, GetTrailErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}',
+    ...options
+});
+
+/**
+ * Change a trail
+ *
+ * Change a trail's title, intent, type, priority, owner or repo scope. Pass at least one field; the rest are left as they are. Changing the type changes which release gates apply.
+ *
+ * **Use case:** The acceptance criteria changed after a review — update the body so the next agent run builds the right thing.
+ */
+export const updateTrail = <ThrowOnError extends boolean = false>(options: Options<UpdateTrailData, ThrowOnError>): RequestResult<UpdateTrailResponses, UpdateTrailErrors, ThrowOnError> => (options.client ?? client).patch<UpdateTrailResponses, UpdateTrailErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Close a trail
+ *
+ * Close a trail by hand — abandoned, superseded, or shipped with discovered items still open. A trail also closes on its own once it is `shipped` with no discovered item open at `high` priority or above. Closing never merges or closes pull requests. A trail closed with nothing merged reads `closed`; one that merged keeps its `releasing`/`shipped` phase.
+ *
+ * Closing is a person's call: the restricted ops key cannot close a trail.
+ */
+export const closeTrail = <ThrowOnError extends boolean = false>(options: Options<CloseTrailData, ThrowOnError>): RequestResult<CloseTrailResponses, CloseTrailErrors, ThrowOnError> => (options.client ?? client).post<CloseTrailResponses, CloseTrailErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}/close',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Reopen a trail
+ *
+ * Reopen a closed trail so its changes can be reviewed and merged again. Its phase is recomputed from its changes and resources.
+ *
+ * Reopening is a person's call: the restricted ops key cannot reopen a trail.
+ */
+export const reopenTrail = <ThrowOnError extends boolean = false>(options: Options<ReopenTrailData, ThrowOnError>): RequestResult<ReopenTrailResponses, ReopenTrailErrors, ThrowOnError> => (options.client ?? client).post<ReopenTrailResponses, ReopenTrailErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}/reopen',
+    ...options
+});
+
+/**
+ * Unlink a pull request from a trail
+ *
+ * Detach a pull request from the trail. Its recorded pushes, evals, findings and approvals stay in history but no longer count toward the trail's gates. A merged change cannot be unlinked.
+ */
+export const unlinkTrailPr = <ThrowOnError extends boolean = false>(options: Options<UnlinkTrailPrData, ThrowOnError>): RequestResult<UnlinkTrailPrResponses, UnlinkTrailPrErrors, ThrowOnError> => (options.client ?? client).delete<UnlinkTrailPrResponses, UnlinkTrailPrErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}/changes',
+    ...options
+});
+
+/**
+ * Link a pull request to a trail
+ *
+ * Link a pull request to the trail as one of its *changes*. From then on the GitHub webhook records its pushes, the project's review agents score each push, and the merge gates read it. Linking a pull request the trail already has is a no-op; a pull request that belongs to a different trail is refused with `409`. Pass `item` when an item's run opened the PR, so the change shows under that item.
+ *
+ * Safe for the restricted ops key.
+ *
+ * **Use case:** A coding agent working a trail opens a PR and links it with `trails link-pr T-12 <url>`.
+ */
+export const linkTrailPr = <ThrowOnError extends boolean = false>(options: Options<LinkTrailPrData, ThrowOnError>): RequestResult<LinkTrailPrResponses, LinkTrailPrErrors, ThrowOnError> => (options.client ?? client).post<LinkTrailPrResponses, LinkTrailPrErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}/changes',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Start an agent on a trail
+ *
+ * Fire the project's coding-agent trigger with a *trail* prompt: the intent, the acceptance criteria, the linked resources and the open discovered items. The agent opens pull requests and links them with `trails link-pr`. The run is tracked as a `build` run; `fix` runs are fired by the server when a change's evals or findings fail. Runs spend your own agent quota, not Shipeasy credits.
+ *
+ * **Use case:** A trail is created from a feature request; start an agent on it.
+ */
+export const startTrailRun = <ThrowOnError extends boolean = false>(options: Options<StartTrailRunData, ThrowOnError>): RequestResult<StartTrailRunResponses, StartTrailRunErrors, ThrowOnError> => (options.client ?? client).post<StartTrailRunResponses, StartTrailRunErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}/runs',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Run the review agents
+ *
+ * Launch the project's review agents on a change's latest push now, instead of waiting for the next push. Each agent's eval reads `pending` until its run submits. Agents sharing a coding-agent trigger are reviewed in one run. Review runs spend your own agent quota, not Shipeasy credits.
+ *
+ * Safe for the restricted ops key.
+ *
+ * **Use case:** An agent's instructions changed and the latest push should be re-scored.
+ */
+export const requestTrailReview = <ThrowOnError extends boolean = false>(options: Options<RequestTrailReviewData, ThrowOnError>): RequestResult<RequestTrailReviewResponses, RequestTrailReviewErrors, ThrowOnError> => (options.client ?? client).post<RequestTrailReviewResponses, RequestTrailReviewErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}/review',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Submit a review agent's eval
+ *
+ * Record one review agent's result on one push of a change: a `value` (0–100 for a score agent, 1/0 for a boolean one), a short `rationale`, and any `findings`. The verdict (pass / warn / fail) is computed from the agent's threshold and polarity. Submitting again for the same push replaces the earlier result and the open findings it raised. `prUrl` selects the change; omitted, the trail's primary change.
+ *
+ * A review run may also report the product `resources` the diff uses (`getFlag("x")`, `getExperiment("y")`, `t("key")`). They are linked to the trail as detected, and a key that does not exist yet becomes a finding.
+ *
+ * The `agentKey` normally names a configured review agent; an unconfigured key is recorded too, as a non-blocking score.
+ *
+ * Safe for the restricted ops key.
+ *
+ * **Use case:** A review run fired on a push scores the diff for risk and submits `{ agentKey: "risk", value: 35, rationale: "...", findings: [...] }`.
+ */
+export const submitTrailEval = <ThrowOnError extends boolean = false>(options: Options<SubmitTrailEvalData, ThrowOnError>): RequestResult<SubmitTrailEvalResponses, SubmitTrailEvalErrors, ThrowOnError> => (options.client ?? client).post<SubmitTrailEvalResponses, SubmitTrailEvalErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}/evals',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Resolve or dismiss a finding
+ *
+ * Set a finding's status — `resolved` (it was fixed; say how in `reason`), `dismissed` (it is not a problem; say why), or back to `open`. A finding that is real but out of scope is not dismissed: promote it with `trails promote-finding`.
+ *
+ * Safe for the restricted ops key.
+ *
+ * **Use case:** The coding agent fixed a flagged issue, pushed, and resolves the finding with `reason: "fixed in abc1234"`.
+ */
+export const updateTrailFinding = <ThrowOnError extends boolean = false>(options: Options<UpdateTrailFindingData, ThrowOnError>): RequestResult<UpdateTrailFindingResponses, UpdateTrailFindingErrors, ThrowOnError> => (options.client ?? client).patch<UpdateTrailFindingResponses, UpdateTrailFindingErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}/findings/{findingId}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Promote a finding to a queue item
+ *
+ * Move a finding that is real but out of scope onto the queue. It creates a bug (or a feature request, with `type`) whose description quotes the finding, its path and line, and its push. The new item lands on the trail with source `finding`, and the finding is dismissed as `moved to #N` so the gates stop counting it. Promotion is the one-way bridge from a finding (per push, in scope, must be dealt with before merge) to an item (lives on its own, can become its own trail).
+ *
+ * Safe for the restricted ops key.
+ *
+ * **Use case:** A review flags a flaky test unrelated to the change; the coding agent promotes it instead of drive-by fixing it.
+ */
+export const promoteTrailFinding = <ThrowOnError extends boolean = false>(options: Options<PromoteTrailFindingData, ThrowOnError>): RequestResult<PromoteTrailFindingResponses, PromoteTrailFindingErrors, ThrowOnError> => (options.client ?? client).post<PromoteTrailFindingResponses, PromoteTrailFindingErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}/findings/{findingId}/promote',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Approve a change
+ *
+ * Approve a change at its latest push — what the Human review gate counts. Approving the same push twice is a no-op. When the project's gates reset approvals on push, a later push needs a fresh approval. Unless the gates allow `authorCanApprove`, the trail's owner and whoever started its runs do not count.
+ *
+ * Approval is a person's call. Only a dashboard session or a device-auth CLI session can approve — ops keys, project admin keys and OAuth MCP calls are refused with `403`. This operation is not exposed as an MCP tool.
+ *
+ * **Use case:** A reviewer has read the evals and the diff and signs off.
+ */
+export const approveTrail = <ThrowOnError extends boolean = false>(options: Options<ApproveTrailData, ThrowOnError>): RequestResult<ApproveTrailResponses, ApproveTrailErrors, ThrowOnError> => (options.client ?? client).post<ApproveTrailResponses, ApproveTrailErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}/approve',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Merge a change
+ *
+ * Merge a change's pull request on GitHub at the head its gates were evaluated on. Refused with `409` while a blocking gate has not passed, unless `bypass` is set with a `reason` — bypass needs the bypass capability, and is audited and posted on the trail. GitHub's own branch rules can still refuse the merge (`502`). Merging one change never merges the trail's other changes; when the last open change merges the trail moves to `releasing`.
+ *
+ * Merging is a person's call. Only a dashboard session or a device-auth CLI session can merge — ops keys, project admin keys and OAuth MCP calls are refused with `403`. This operation is not exposed as an MCP tool.
+ *
+ * **Use case:** Every gate is green; merge from the trail instead of switching to GitHub.
+ */
+export const mergeTrail = <ThrowOnError extends boolean = false>(options: Options<MergeTrailData, ThrowOnError>): RequestResult<MergeTrailResponses, MergeTrailErrors, ThrowOnError> => (options.client ?? client).post<MergeTrailResponses, MergeTrailErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}/merge',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List a trail's resources
+ *
+ * The flags, configs, kill switches, experiments, metrics, alert rules, events and i18n keys the trail ships or depends on, each with its role and its live state (a flag's prod rollout, an experiment's status and decision, a kill switch's position, an alert's firing state, whether it has settled).
+ *
+ * **Use case:** Check which flag a trail ships behind, and how far it has rolled out, before stepping it up.
+ */
+export const listTrailResources = <ThrowOnError extends boolean = false>(options: Options<ListTrailResourcesData, ThrowOnError>): RequestResult<ListTrailResourcesResponses, ListTrailResourcesErrors, ThrowOnError> => (options.client ?? client).get<ListTrailResourcesResponses, ListTrailResourcesErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}/resources',
+    ...options
+});
+
+/**
+ * Link a resource to a trail
+ *
+ * Link a product entity to the trail with a *role* — what it is for: `ships_behind` (the flag the code ships behind), `rollback` (the kill switch that undoes it), `measures` (the experiment or metric that judges it), `guards` (an alert rule that watches it), `copy` (an i18n key) or `touched`. Omit `role` and it is guessed from the kind. The release gates and the release phase read these links. Linking the same entity again changes its role.
+ *
+ * Writes made through the CLI or MCP while `SHIPEASY_TRAIL` is set link themselves; use this for anything else.
+ *
+ * Safe for the restricted ops key.
+ *
+ * **Use case:** The agent created the flag `checkout.v2` for the trail; it links it as `ships_behind`.
+ */
+export const addTrailResource = <ThrowOnError extends boolean = false>(options: Options<AddTrailResourceData, ThrowOnError>): RequestResult<AddTrailResourceResponses, AddTrailResourceErrors, ThrowOnError> => (options.client ?? client).post<AddTrailResourceResponses, AddTrailResourceErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}/resources',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Unlink a resource from a trail
+ *
+ * Remove a resource from the trail. The entity itself is untouched; only the trail's link to it goes, and the release gates stop counting it.
+ */
+export const removeTrailResource = <ThrowOnError extends boolean = false>(options: Options<RemoveTrailResourceData, ThrowOnError>): RequestResult<RemoveTrailResourceResponses, RemoveTrailResourceErrors, ThrowOnError> => (options.client ?? client).delete<RemoveTrailResourceResponses, RemoveTrailResourceErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}/resources/{id}',
+    ...options
+});
+
+/**
+ * Put an existing item on a trail
+ *
+ * Attach an existing queue item to the trail, recorded with source `attached`. An item is on at most one trail; one already on another trail is refused with `409`. To file a *new* item on a trail, use `ops bug --trail` or `ops feature --trail`.
+ *
+ * Safe for the restricted ops key.
+ *
+ * **Use case:** A bug already in the queue turns out to be part of the work; attach it so the trail tracks it.
+ */
+export const addTrailItem = <ThrowOnError extends boolean = false>(options: Options<AddTrailItemData, ThrowOnError>): RequestResult<AddTrailItemResponses, AddTrailItemErrors, ThrowOnError> => (options.client ?? client).post<AddTrailItemResponses, AddTrailItemErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}/items',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Take an item off a trail
+ *
+ * Detach a queue item from the trail. The item stays in the queue; only its link to the trail and its discovery record go. The trail's origin item cannot be detached.
+ */
+export const removeTrailItem = <ThrowOnError extends boolean = false>(options: Options<RemoveTrailItemData, ThrowOnError>): RequestResult<RemoveTrailItemResponses, RemoveTrailItemErrors, ThrowOnError> => (options.client ?? client).delete<RemoveTrailItemResponses, RemoveTrailItemErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}/items/{itemHandle}',
+    ...options
+});
+
+/**
+ * Attribute an item to a trail
+ *
+ * Record that an error, alert or bug was caused by the trail after it merged. Errors carry no release or commit SHA, so attribution is a judgement: compare the stack frames and the error's subject against each candidate trail's changed files (`trails get --files`) and resources, and attribute only on concrete evidence — a frame in a changed file, the failing call touching a resource of the trail, or a guard metric of the trail. If nothing fits, leave the item unattributed.
+ *
+ * - `confidence: high` or `medium` puts the item on the trail with source `post_merge`, and writes `evidence` as an investigation note on the item and a system comment on the trail.
+ * - `confidence: low` records a *suspect* instead: the trail lists it under suspected regressions and a person confirms or rejects it.
+ *
+ * Attribution never flips a rollback. Propose one to a person as a structured question.
+ *
+ * Safe for the restricted ops key.
+ *
+ * **Use case:** A new error's stack frame sits in a file T-12 changed two hours ago; the investigating agent attributes it with the frame as evidence.
+ */
+export const attributeTrail = <ThrowOnError extends boolean = false>(options: Options<AttributeTrailData, ThrowOnError>): RequestResult<AttributeTrailResponses, AttributeTrailErrors, ThrowOnError> => (options.client ?? client).post<AttributeTrailResponses, AttributeTrailErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}/attributions',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Confirm a suspected regression
+ *
+ * Confirm a suspect: the item goes onto the trail with source `post_merge` and the suspect's evidence is kept. A person's call — the restricted ops key cannot confirm.
+ */
+export const confirmTrailSuspect = <ThrowOnError extends boolean = false>(options: Options<ConfirmTrailSuspectData, ThrowOnError>): RequestResult<ConfirmTrailSuspectResponses, ConfirmTrailSuspectErrors, ThrowOnError> => (options.client ?? client).post<ConfirmTrailSuspectResponses, ConfirmTrailSuspectErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}/suspects/{suspectId}/confirm',
+    ...options
+});
+
+/**
+ * Reject a suspected regression
+ *
+ * Reject a suspect: the item stays where it is, off the trail, and the suspect leaves the trail's suspected regressions. A person's call — the restricted ops key cannot reject.
+ */
+export const rejectTrailSuspect = <ThrowOnError extends boolean = false>(options: Options<RejectTrailSuspectData, ThrowOnError>): RequestResult<RejectTrailSuspectResponses, RejectTrailSuspectErrors, ThrowOnError> => (options.client ?? client).post<RejectTrailSuspectResponses, RejectTrailSuspectErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}/suspects/{suspectId}/reject',
+    ...options
 });
 
 /**
