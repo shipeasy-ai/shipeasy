@@ -2752,6 +2752,7 @@ _Parameters_
 | `rollout.steps` | required | `number[]` | Percent steps, each above the one before, the last 100. |
 | `rollout.holdMinutes` | required | `integer` | Minutes a step must stay healthy before the next one. _(0–10080)_ |
 | `rollout.minExposure` | required | `integer` | Evaluations a step must have served before it counts as healthy, so a quiet hour never passes as a green one. `0` = no floor. _(≥ 0)_ |
+| `rollout.internal` | optional | `any` | The team stage before any public percent — the project's members are allowlisted on the flag (by email) and the step holds like any other. `null` or absent = no team stage. |
 | `rollout.guards` | required | `object` | What is watched while a step holds. The trail's `guards` alert-rule resources are watched too. |
 | `rollout.guards.alertRuleIds` | required | `string[]` | Alert rules (ids) whose firing during a step is a breach. |
 | `rollout.guards.experimentGuardrails` | required | `boolean` | Whether a breached guardrail of the trail's measuring experiment is a breach. |
@@ -3705,6 +3706,7 @@ _Parameters_
 | `intake.rollout.steps` | required | `number[]` | Percent steps, each above the one before, the last 100. |
 | `intake.rollout.holdMinutes` | required | `integer` | Minutes a step must stay healthy before the next one. _(0–10080)_ |
 | `intake.rollout.minExposure` | required | `integer` | Evaluations a step must have served before it counts as healthy, so a quiet hour never passes as a green one. `0` = no floor. _(≥ 0)_ |
+| `intake.rollout.internal` | optional | `any` | The team stage before any public percent — the project's members are allowlisted on the flag (by email) and the step holds like any other. `null` or absent = no team stage. |
 | `intake.rollout.guards` | required | `object` | What is watched while a step holds. The trail's `guards` alert-rule resources are watched too. |
 | `intake.rollout.guards.alertRuleIds` | required | `string[]` | Alert rules (ids) whose firing during a step is a breach. |
 | `intake.rollout.guards.experimentGuardrails` | required | `boolean` | Whether a breached guardrail of the trail's measuring experiment is a breach. |
@@ -3936,6 +3938,30 @@ _Errors_ — beyond the [common errors](#errors):
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 - `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
 
+### `trails_release_facts`
+
+**Read a trail's release facts**
+
+What the numbers say about how the trail can ship, before anyone picks an approach: the traffic reaching the surface (distinct units a day over the last 28 days), its tier, whether a 50/50 experiment would reach significance within 28 days at the lift the goal asks for (or 5%), what 28 days could detect, and a rollout sized to the traffic — a team stage, then steps coarse where 1% would be a handful of people, holds long enough for a step to see its minimum exposure.
+
+The traffic is read from `proxy` when given (`metric:<key>`, `event:<name>` or `flag:<key>`), else the trail's goal metric, else a flag already on the trail. With nothing to read the tier is `none` — pass an event on the surface the trail changes.
+
+The plan run reads these before it asks how to ship, and `submit-plan` checks the plan against them. Read-only. Safe for the restricted ops key.
+
+**Use case:** A plan run on "redesign the onboarding checklist" passes `proxy=event:onboarding_viewed`, learns it is 120 users a day and that an experiment would need 90 days, and recommends a flag with guards instead.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `proxy` | optional | `string` | What to read the traffic from — `metric:<key>`, `event:<name>` or `flag:<key>`. _(length 0–220; pattern `^(metric\|event\|flag):.+$`)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
 ### `trails_reopen`
 
 **Reopen a trail**
@@ -4053,9 +4079,11 @@ _Errors_ — beyond the [common errors](#errors):
 
 A plan run submits what it worked out: the plan in markdown, the `release` block (how the trail ships, why, and the exact flags, kill switches, experiments and tracking — events, metrics, alert rules — the build will create; no release tool for `straight_to_main`), the `breakdown` (the milestones and the items, each with its work kind and assignee) and the `sources` it rests on (what it read in project memory and earlier tickets, and what each settled). Submit it only after the person has answered the release question you asked with `ops questions ask`. The plan is recorded as `drafted` and waits for a person to approve it; nothing in the breakdown is filed until then. Submitting again replaces a drafted plan; an approved plan is refused with `409` (a person edits it to reopen it), except from a `replan` run, whose submission drafts the next revision with a `summary` of what changed. The open plan or replan run on the trail is closed.
 
+The plan is checked against the trail's release facts (`trails release-facts`). A plan that is incomplete answers `422` with what is missing: an event, metric or alert rule that does not exist and no `tracking` item `creates`, tracking that lands after the work it measures, a `gate` with no `flags` entry (bucketing unit, team stage, cleanup item), an experiment with no metric it `measures`, risks not listed once the plan ships behind a release tool, or a `high` risk with no guard in `detect` or a `rollback` the plan cannot do. A plan that is complete but argued against by the numbers — an experiment the traffic cannot power in 28 days, a first step too thin to prove anything, an operational risk with no kill switch — is accepted, with the warnings kept in `checks` for the person who approves it. On an autopilot trail any warning pauses autopilot and hands the plan to its owner.
+
 Safe for the restricted ops key.
 
-**Use case:** The person picked "behind a flag"; the plan run submits the plan listing the flag `checkout.v2`.
+**Use case:** The person picked "behind a flag"; the plan run submits the plan listing the flag `checkout.v2`, bucketed by user with a team stage first, and the risk its error-rate alert guards.
 
 _Parameters_
 
@@ -4071,6 +4099,7 @@ _Parameters_
 | `release.rollout.steps` | required | `number[]` | Percent steps, each above the one before, the last 100. |
 | `release.rollout.holdMinutes` | required | `integer` | Minutes a step must stay healthy before the next one. _(0–10080)_ |
 | `release.rollout.minExposure` | required | `integer` | Evaluations a step must have served before it counts as healthy, so a quiet hour never passes as a green one. `0` = no floor. _(≥ 0)_ |
+| `release.rollout.internal` | optional | `any` | The team stage before any public percent — the project's members are allowlisted on the flag (by email) and the step holds like any other. `null` or absent = no team stage. |
 | `release.rollout.guards` | required | `object` | What is watched while a step holds. The trail's `guards` alert-rule resources are watched too. |
 | `release.rollout.guards.alertRuleIds` | required | `string[]` | Alert rules (ids) whose firing during a step is a breach. |
 | `release.rollout.guards.experimentGuardrails` | required | `boolean` | Whether a breached guardrail of the trail's measuring experiment is a breach. |
@@ -4080,6 +4109,8 @@ _Parameters_
 | `release.rollout.policies.breachTimeoutMinutes` | required | `integer` | With `ask_then_pull_back`, minutes the owner has before the controller pulls back. _(1–1440)_ |
 | `release.rollout.policies.advance` | required | `"auto" \| "ask"` | Whether a healthy step advances by itself (`auto`) or waits for the owner to say so (`ask`). |
 | `release.rollout.policies.afterFix` | required | `"resume" \| "ask" \| "restart"` | What happens when the fix merges — `resume` from the last healthy step, `ask` the owner first, or `restart` from the first step. |
+| `release.flags` | optional | `object[]` | How each `gate` in `resources` is rolled out beyond its ramp — what it buckets on, the team stage, the item that removes it. One entry per gate. |
+| `release.risks` | optional | `object[]` | What could go wrong, how it would be seen and how it is undone. Required once the plan ships behind a release tool or has more than two items. |
 | `breakdown` | optional | `object` | The milestones and items a plan breaks the trail into. Nothing is filed while the plan is a draft; approving creates the milestones and files the items. `workKind` defaults to `code`. |
 | `breakdown.milestones` | required | `object[]` | The milestones, in order. |
 | `breakdown.items` | required | `object[]` | The items, each in at most one milestone. |
@@ -4233,6 +4264,7 @@ _Parameters_
 | `release.rollout.steps` | required | `number[]` | Percent steps, each above the one before, the last 100. |
 | `release.rollout.holdMinutes` | required | `integer` | Minutes a step must stay healthy before the next one. _(0–10080)_ |
 | `release.rollout.minExposure` | required | `integer` | Evaluations a step must have served before it counts as healthy, so a quiet hour never passes as a green one. `0` = no floor. _(≥ 0)_ |
+| `release.rollout.internal` | optional | `any` | The team stage before any public percent — the project's members are allowlisted on the flag (by email) and the step holds like any other. `null` or absent = no team stage. |
 | `release.rollout.guards` | required | `object` | What is watched while a step holds. The trail's `guards` alert-rule resources are watched too. |
 | `release.rollout.guards.alertRuleIds` | required | `string[]` | Alert rules (ids) whose firing during a step is a breach. |
 | `release.rollout.guards.experimentGuardrails` | required | `boolean` | Whether a breached guardrail of the trail's measuring experiment is a breach. |
@@ -4242,6 +4274,8 @@ _Parameters_
 | `release.rollout.policies.breachTimeoutMinutes` | required | `integer` | With `ask_then_pull_back`, minutes the owner has before the controller pulls back. _(1–1440)_ |
 | `release.rollout.policies.advance` | required | `"auto" \| "ask"` | Whether a healthy step advances by itself (`auto`) or waits for the owner to say so (`ask`). |
 | `release.rollout.policies.afterFix` | required | `"resume" \| "ask" \| "restart"` | What happens when the fix merges — `resume` from the last healthy step, `ask` the owner first, or `restart` from the first step. |
+| `release.flags` | optional | `object[]` | How each `gate` in `resources` is rolled out beyond its ramp — what it buckets on, the team stage, the item that removes it. One entry per gate. |
+| `release.risks` | optional | `object[]` | What could go wrong, how it would be seen and how it is undone. Required once the plan ships behind a release tool or has more than two items. |
 | `breakdown` | optional | `object` | The milestones and items a plan breaks the trail into. Nothing is filed while the plan is a draft; approving creates the milestones and files the items. `workKind` defaults to `code`. |
 | `breakdown.milestones` | required | `object[]` | The milestones, in order. |
 | `breakdown.items` | required | `object[]` | The items, each in at most one milestone. |
