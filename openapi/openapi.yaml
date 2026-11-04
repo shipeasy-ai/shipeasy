@@ -8572,10 +8572,13 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
       x-error-codes:
         - BAD_REQUEST
         - UNAUTHORIZED
         - FORBIDDEN
+        - VALIDATION
       x-cli:
         name: list
       x-mcp:
