@@ -3531,6 +3531,49 @@ export const zTrailGateToggle = z.object({
 });
 
 /**
+ * What to do when a guard trips during a step — `pull_back` (pull the flag back, investigate and suggest a fix, tell the owner; the default), `ask_first` (ask the owner, only notify), or `ask_then_pull_back` (ask, and pull back after `breachTimeoutMinutes` with no answer).
+ */
+export const zTrailRolloutOnBreach = z.enum([
+    'pull_back',
+    'ask_first',
+    'ask_then_pull_back'
+]);
+
+/**
+ * Whether a healthy step advances by itself (`auto`) or waits for the owner to say so (`ask`).
+ */
+export const zTrailRolloutAdvance = z.enum(['auto', 'ask']);
+
+/**
+ * What happens when the fix merges — `resume` from the last healthy step, `ask` the owner first, or `restart` from the first step.
+ */
+export const zTrailRolloutAfterFix = z.enum([
+    'resume',
+    'ask',
+    'restart'
+]);
+
+/**
+ * How the flag a trail ships behind is ramped after merge — the release controller's plan (see the design doc, the release controller). Part of the plan's release block; the project's defaults live in `trail-gates` `rollout`. The controller runs on the alerts cron, so a hold shorter than the cron interval rounds up to the next tick.
+ */
+export const zTrailRollout = z.object({
+    steps: z.array(z.number().gt(0).lte(100)).min(1).max(10),
+    holdMinutes: z.int().gte(0).lte(10080),
+    minExposure: z.int().gte(0),
+    guards: z.object({
+        alertRuleIds: z.array(z.string().min(1).max(100)).max(20),
+        experimentGuardrails: z.boolean(),
+        attributedErrors: z.boolean()
+    }),
+    policies: z.object({
+        onBreach: zTrailRolloutOnBreach,
+        breachTimeoutMinutes: z.int().gte(1).lte(1440),
+        advance: zTrailRolloutAdvance,
+        afterFix: zTrailRolloutAfterFix
+    })
+});
+
+/**
  * A repo's partial override of the project's trail gates.
  */
 export const zTrailRepoOverride = z.object({
@@ -3594,6 +3637,7 @@ export const zTrailGates = z.object({
     requirePlan: z.boolean().optional().default(true),
     fixRounds: z.int().gte(0).lte(10).optional().default(3),
     attributionWindowHours: z.int().gte(1).lte(720).optional().default(72),
+    rollout: zTrailRollout.optional(),
     repos: z.record(z.string(), zTrailRepoOverride).optional()
 });
 
@@ -3642,7 +3686,8 @@ export const zTrailPlanResource = z.object({
 export const zTrailPlanRelease = z.object({
     strategy: zTrailReleaseStrategy,
     reason: z.string().max(2000),
-    resources: z.array(zTrailPlanResource).max(20)
+    resources: z.array(zTrailPlanResource).max(20),
+    rollout: zTrailRollout.optional()
 });
 
 /**
@@ -3657,6 +3702,76 @@ export const zTrailPlan = z.object({
     requirePlan: z.boolean(),
     nextRun: z.enum(['plan', 'build']),
     openQuestions: z.int().gte(0)
+});
+
+/**
+ * Where a trail's rollout is — `idle` (the controller has not taken it over), `running` (stepping the flag along the plan), `paused` (a person paused it, or it stepped aside or handed off), `fixing` (pulled back; waiting for the fix to merge) or `completed`.
+ */
+export const zTrailRolloutState = z.enum([
+    'idle',
+    'running',
+    'paused',
+    'fixing',
+    'completed'
+]);
+
+/**
+ * A question the controller asked the owner and is waiting on. Answer it with `ops questions answer`.
+ */
+export const zTrailRolloutPending = z.object({
+    kind: z.enum([
+        'breach',
+        'advance',
+        'resume'
+    ]),
+    questionId: z.string(),
+    askedAt: z.string()
+});
+
+/**
+ * A trail's rollout as it stands — the plan's configuration and the controller's live state.
+ */
+export const zTrailRolloutView = z.object({
+    state: zTrailRolloutState,
+    config: zTrailRollout.nullable(),
+    step: z.int(),
+    stepPct: z.number().nullable(),
+    stepStartedAt: z.string().nullable(),
+    pausedReason: z.string().nullable(),
+    pending: zTrailRolloutPending.nullable()
+});
+
+/**
+ * What happened on the release timeline.
+ */
+export const zTrailReleaseEventKind = z.enum([
+    'started',
+    'advanced',
+    'breach',
+    'pulled_back',
+    'asked',
+    'answered',
+    'investigating',
+    'fix_merged',
+    'resumed',
+    'restarted',
+    'paused',
+    'completed'
+]);
+
+/**
+ * One row of a trail's release timeline — something the controller, autopilot or a person did to its rollout.
+ */
+export const zTrailReleaseEvent = z.object({
+    id: z.string(),
+    kind: zTrailReleaseEventKind,
+    step: z.int(),
+    fromPct: z.number().nullable(),
+    toPct: z.number().nullable(),
+    reason: z.string().nullable(),
+    evidence: z.record(z.string(), z.unknown()).nullable(),
+    actor: z.string(),
+    createdAt: z.string()
 });
 
 /**
@@ -3695,7 +3810,9 @@ export const zTrailDetail = z.object({
     runs: z.array(zTrailRun),
     suspects: z.array(zTrailSuspect),
     gates: zTrailGates,
-    plan: zTrailPlan
+    plan: zTrailPlan,
+    rollout: zTrailRolloutView,
+    releaseEvents: z.array(zTrailReleaseEvent)
 });
 
 export const zNewTrailFinding = z.object({
@@ -3914,6 +4031,16 @@ export const zListTrailsResponse = z.object({
 });
 
 /**
+ * What the creation dialog already decided — each field is a plan question answered in advance. The plan run asks only what is left out. Omitted entirely, the plan asks everything ("let the plan ask me").
+ */
+export const zTrailPlanIntake = z.object({
+    requirePlan: z.boolean().optional(),
+    strategy: zTrailReleaseStrategy.optional(),
+    flagKey: z.string().min(1).max(200).optional(),
+    rollout: zTrailRollout.optional()
+});
+
+/**
  * Body for `POST /api/admin/trails`. A trail is created on purpose — from scratch, or from an item with `originItem`. Omitted, `type` follows the origin item (a bug is a `bug`, a feature request a `feature`) and is otherwise `task`.
  */
 export const zCreateTrailRequest = z.object({
@@ -3924,7 +4051,8 @@ export const zCreateTrailRequest = z.object({
     ownerId: z.string().nullish(),
     ownerConnectorId: z.string().nullish(),
     repos: z.array(z.string().min(3).max(200)).max(20).optional().default([]),
-    originItem: z.string().min(1).max(64).optional()
+    originItem: z.string().min(1).max(64).optional(),
+    intake: zTrailPlanIntake.optional()
 });
 
 /**
@@ -4020,6 +4148,27 @@ export const zApproveTrailPlanRequest = z.object({
 export const zApproveTrailPlanResult = z.object({
     plan: zTrailPlan,
     run: zTrailRun.nullable()
+});
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/rollout/pause`.
+ */
+export const zPauseTrailRolloutRequest = z.object({
+    reason: z.string().max(500).optional()
+});
+
+/**
+ * The rollout after a pause or a resume.
+ */
+export const zTrailRolloutResult = z.object({
+    rollout: zTrailRolloutView
+});
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/rollout/resume`. Resuming reconciles the rollout with the flag, wherever a person left it, and restarts the hold.
+ */
+export const zResumeTrailRolloutRequest = z.object({
+    reason: z.string().max(500).optional()
 });
 
 /**
@@ -7205,6 +7354,36 @@ export const zApproveTrailPlanPath = z.object({
  * The approved plan, and the build run when one was started
  */
 export const zApproveTrailPlanResponse = zApproveTrailPlanResult;
+
+export const zPauseTrailRolloutBody = zPauseTrailRolloutRequest;
+
+export const zPauseTrailRolloutHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zPauseTrailRolloutPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/)
+});
+
+/**
+ * The rollout, paused
+ */
+export const zPauseTrailRolloutResponse = zTrailRolloutResult;
+
+export const zResumeTrailRolloutBody = zResumeTrailRolloutRequest;
+
+export const zResumeTrailRolloutHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zResumeTrailRolloutPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/)
+});
+
+/**
+ * The rollout, resumed
+ */
+export const zResumeTrailRolloutResponse = zTrailRolloutResult;
 
 export const zRequestTrailReviewBody = zRequestOpsTrailReviewRequest;
 

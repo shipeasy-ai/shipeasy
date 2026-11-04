@@ -6367,6 +6367,68 @@ export type TrailGateToggle = {
 };
 
 /**
+ * What to do when a guard trips during a step — `pull_back` (pull the flag back, investigate and suggest a fix, tell the owner; the default), `ask_first` (ask the owner, only notify), or `ask_then_pull_back` (ask, and pull back after `breachTimeoutMinutes` with no answer).
+ */
+export type TrailRolloutOnBreach = 'pull_back' | 'ask_first' | 'ask_then_pull_back';
+
+/**
+ * Whether a healthy step advances by itself (`auto`) or waits for the owner to say so (`ask`).
+ */
+export type TrailRolloutAdvance = 'auto' | 'ask';
+
+/**
+ * What happens when the fix merges — `resume` from the last healthy step, `ask` the owner first, or `restart` from the first step.
+ */
+export type TrailRolloutAfterFix = 'resume' | 'ask' | 'restart';
+
+/**
+ * How the flag a trail ships behind is ramped after merge — the release controller's plan (see the design doc, the release controller). Part of the plan's release block; the project's defaults live in `trail-gates` `rollout`. The controller runs on the alerts cron, so a hold shorter than the cron interval rounds up to the next tick.
+ */
+export type TrailRollout = {
+    /**
+     * Percent steps, each above the one before, the last 100.
+     */
+    steps: Array<number>;
+    /**
+     * Minutes a step must stay healthy before the next one.
+     */
+    holdMinutes: number;
+    /**
+     * Evaluations a step must have served before it counts as healthy, so a quiet hour never passes as a green one. `0` = no floor.
+     */
+    minExposure: number;
+    /**
+     * What is watched while a step holds. The trail's `guards` alert-rule resources are watched too.
+     */
+    guards: {
+        /**
+         * Alert rules (ids) whose firing during a step is a breach.
+         */
+        alertRuleIds: Array<string>;
+        /**
+         * Whether a breached guardrail of the trail's measuring experiment is a breach.
+         */
+        experimentGuardrails: boolean;
+        /**
+         * Whether a new error attributed to the trail at high confidence is a breach.
+         */
+        attributedErrors: boolean;
+    };
+    /**
+     * The three decisions the plan asks the owner, each with the project default pre-selected.
+     */
+    policies: {
+        onBreach: TrailRolloutOnBreach;
+        /**
+         * With `ask_then_pull_back`, minutes the owner has before the controller pulls back.
+         */
+        breachTimeoutMinutes: number;
+        advance: TrailRolloutAdvance;
+        afterFix: TrailRolloutAfterFix;
+    };
+};
+
+/**
  * A repo's partial override of the project's trail gates.
  */
 export type TrailRepoOverride = {
@@ -6511,6 +6573,7 @@ export type TrailGates = {
      * How long after a trail merged an error or alert ticket may be attributed to it. Trails merged inside the window are offered to the investigating agent as candidates.
      */
     attributionWindowHours?: number;
+    rollout?: TrailRollout;
     /**
      * Per-repo overrides keyed by `owner/repo`. An override replaces the project's `checks.required` for changes in that repo; every other gate stays project-wide.
      */
@@ -6559,6 +6622,7 @@ export type TrailPlanRelease = {
      * The flags, kill switches and experiments to create. Empty for `straight_to_main`; the strategy fixes which kinds must be present (a flag for `flag`, a flag and an experiment for `flag_experiment`, and so on).
      */
     resources: Array<TrailPlanResource>;
+    rollout?: TrailRollout;
 };
 
 /**
@@ -6594,6 +6658,100 @@ export type TrailPlan = {
      * Questions the plan run asked that still wait for an answer. Read them with `ops questions list <handle>`.
      */
     openQuestions: number;
+};
+
+/**
+ * Where a trail's rollout is — `idle` (the controller has not taken it over), `running` (stepping the flag along the plan), `paused` (a person paused it, or it stepped aside or handed off), `fixing` (pulled back; waiting for the fix to merge) or `completed`.
+ */
+export type TrailRolloutState = 'idle' | 'running' | 'paused' | 'fixing' | 'completed';
+
+/**
+ * A question the controller asked the owner and is waiting on. Answer it with `ops questions answer`.
+ */
+export type TrailRolloutPending = {
+    /**
+     * What it asks — what to do about a breach, whether to advance a healthy step, or how to resume after the fix.
+     */
+    kind: 'breach' | 'advance' | 'resume';
+    /**
+     * The structured question's id.
+     */
+    questionId: string;
+    /**
+     * ISO-8601 time it was asked.
+     */
+    askedAt: string;
+};
+
+/**
+ * A trail's rollout as it stands — the plan's configuration and the controller's live state.
+ */
+export type TrailRolloutView = {
+    state: TrailRolloutState;
+    /**
+     * The rollout the plan carries, or `null` when the trail ships no flag or has no plan.
+     */
+    config: TrailRollout | null;
+    /**
+     * Index into `config.steps` the flag is at; `-1` before the first step.
+     */
+    step: number;
+    /**
+     * The percent the current step puts the flag at, or `null` with no rollout.
+     */
+    stepPct: number | null;
+    /**
+     * ISO-8601 time the current step began.
+     */
+    stepStartedAt: string | null;
+    /**
+     * Why the rollout is paused, or `null`.
+     */
+    pausedReason: string | null;
+    /**
+     * The question the controller is waiting on, or `null`.
+     */
+    pending: TrailRolloutPending | null;
+};
+
+/**
+ * What happened on the release timeline.
+ */
+export type TrailReleaseEventKind = 'started' | 'advanced' | 'breach' | 'pulled_back' | 'asked' | 'answered' | 'investigating' | 'fix_merged' | 'resumed' | 'restarted' | 'paused' | 'completed';
+
+/**
+ * One row of a trail's release timeline — something the controller, autopilot or a person did to its rollout.
+ */
+export type TrailReleaseEvent = {
+    /**
+     * Event id (a uuid).
+     */
+    id: string;
+    kind: TrailReleaseEventKind;
+    /**
+     * The step the event is about; `-1` for none.
+     */
+    step: number;
+    fromPct: number | null;
+    toPct: number | null;
+    /**
+     * One line on why.
+     */
+    reason: string | null;
+    /**
+     * What the decision rested on — the guards that tripped, the question, the run.
+     */
+    evidence: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * `controller`, `autopilot`, or a person's email.
+     */
+    actor: string;
+    /**
+     * ISO-8601 time.
+     */
+    createdAt: string;
 };
 
 /**
@@ -6714,6 +6872,11 @@ export type TrailDetail = {
     suspects: Array<TrailSuspect>;
     gates: TrailGates;
     plan: TrailPlan;
+    rollout: TrailRolloutView;
+    /**
+     * The release timeline, newest first (the latest 100).
+     */
+    releaseEvents: Array<TrailReleaseEvent>;
 };
 
 export type NewTrailFinding = {
@@ -7098,6 +7261,22 @@ export type ListTrailsResponse = {
 };
 
 /**
+ * What the creation dialog already decided — each field is a plan question answered in advance. The plan run asks only what is left out. Omitted entirely, the plan asks everything ("let the plan ask me").
+ */
+export type TrailPlanIntake = {
+    /**
+     * Plan before building, for this trail. Omitted, the project's setting.
+     */
+    requirePlan?: boolean;
+    strategy?: TrailReleaseStrategy;
+    /**
+     * The flag's key, when the person named one.
+     */
+    flagKey?: string;
+    rollout?: TrailRollout;
+};
+
+/**
  * Body for `POST /api/admin/trails`. A trail is created on purpose — from scratch, or from an item with `originItem`. Omitted, `type` follows the origin item (a bug is a `bug`, a feature request a `feature`) and is otherwise `task`.
  */
 export type CreateTrailRequest = {
@@ -7130,6 +7309,7 @@ export type CreateTrailRequest = {
      * Ship this: a queue item (number or id) to create the trail from. Its description seeds `body` when that is omitted, and it becomes the trail's first item with source `origin`.
      */
     originItem?: string;
+    intake?: TrailPlanIntake;
 };
 
 /**
@@ -7269,6 +7449,33 @@ export type ApproveTrailPlanResult = {
      * The build run that was started, or `null` when `startBuild` was not set.
      */
     run: TrailRun | null;
+};
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/rollout/pause`.
+ */
+export type PauseTrailRolloutRequest = {
+    /**
+     * Why — shown on the release timeline.
+     */
+    reason?: string;
+};
+
+/**
+ * The rollout after a pause or a resume.
+ */
+export type TrailRolloutResult = {
+    rollout: TrailRolloutView;
+};
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/rollout/resume`. Resuming reconciles the rollout with the flag, wherever a person left it, and restarts the hold.
+ */
+export type ResumeTrailRolloutRequest = {
+    /**
+     * Why — shown on the release timeline.
+     */
+    reason?: string;
 };
 
 /**
@@ -16896,6 +17103,118 @@ export type ApproveTrailPlanResponses = {
 };
 
 export type ApproveTrailPlanResponse = ApproveTrailPlanResponses[keyof ApproveTrailPlanResponses];
+
+export type PauseTrailRolloutData = {
+    body?: PauseTrailRolloutRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/rollout/pause';
+};
+
+export type PauseTrailRolloutErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type PauseTrailRolloutError = PauseTrailRolloutErrors[keyof PauseTrailRolloutErrors];
+
+export type PauseTrailRolloutResponses = {
+    /**
+     * The rollout, paused
+     */
+    200: TrailRolloutResult;
+};
+
+export type PauseTrailRolloutResponse = PauseTrailRolloutResponses[keyof PauseTrailRolloutResponses];
+
+export type ResumeTrailRolloutData = {
+    body?: ResumeTrailRolloutRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/rollout/resume';
+};
+
+export type ResumeTrailRolloutErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type ResumeTrailRolloutError = ResumeTrailRolloutErrors[keyof ResumeTrailRolloutErrors];
+
+export type ResumeTrailRolloutResponses = {
+    /**
+     * The rollout, resumed
+     */
+    200: TrailRolloutResult;
+};
+
+export type ResumeTrailRolloutResponse = ResumeTrailRolloutResponses[keyof ResumeTrailRolloutResponses];
 
 export type RequestTrailReviewData = {
     body: RequestOpsTrailReviewRequest;

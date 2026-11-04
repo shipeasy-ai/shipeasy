@@ -9120,6 +9120,114 @@ paths:
           - handle
       x-mcp:
         hidden: true
+  /api/admin/trails/{handle}/rollout/pause:
+    post:
+      operationId: pauseTrailRollout
+      summary: Pause a trail's rollout
+      description: |-
+        Pause the release controller on a trail: it stops stepping the flag and watching the guards until the rollout is resumed. The flag stays wherever it is. Any manual change to the flag pauses the controller the same way, so a person and the controller never fight over it. Safe to call at any time; pausing a rollout that is not running answers `409`.
+
+        Safe for the restricted ops key.
+
+        **Use case:** The checkout flag is at 25% and a deploy is going out; hold the ramp until it is done.
+      tags:
+        - Trails
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/TrailHandle'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PauseTrailRolloutRequest'
+            example:
+              reason: Deploy window
+      responses:
+        '200':
+          description: The rollout, paused
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrailRolloutResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+        - INVALID_TRANSITION
+        - VALIDATION
+      x-cli:
+        name: pause-rollout
+        positional:
+          - handle
+  /api/admin/trails/{handle}/rollout/resume:
+    post:
+      operationId: resumeTrailRollout
+      summary: Resume a trail's rollout
+      description: |-
+        Hand a paused rollout back to the release controller. It reconciles with the flag wherever a person left it (the highest step at or below the flag's percent, snapping the flag onto that step), restarts the step's hold, and carries on. A rollout that was pulled back and is waiting for its fix resumes as `fixing`. Resuming a rollout that is not paused answers `409`.
+
+        Resuming is a person's call: it hands the flag back to automation. Only a dashboard session or a device-auth CLI session can resume — ops keys, project admin keys and OAuth MCP calls are refused with `403`. This operation is not exposed as an MCP tool.
+
+        **Use case:** After steering the flag by hand, give the ramp back to the controller.
+      tags:
+        - Trails
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/TrailHandle'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResumeTrailRolloutRequest'
+            example:
+              reason: Deploy is done
+      responses:
+        '200':
+          description: The rollout, resumed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrailRolloutResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+        - INVALID_TRANSITION
+        - VALIDATION
+      x-cli:
+        name: resume-rollout
+        positional:
+          - handle
+      x-mcp:
+        hidden: true
   /api/admin/trails/{handle}/review:
     post:
       operationId: requestTrailReview
@@ -22315,6 +22423,105 @@ components:
         - enabled
         - blocking
       additionalProperties: false
+    TrailRolloutOnBreach:
+      type: string
+      enum:
+        - pull_back
+        - ask_first
+        - ask_then_pull_back
+      description: What to do when a guard trips during a step — `pull_back` (pull the flag back, investigate and suggest a fix, tell the owner; the default), `ask_first` (ask the owner, only notify), or `ask_then_pull_back` (ask, and pull back after `breachTimeoutMinutes` with no answer).
+    TrailRolloutAdvance:
+      type: string
+      enum:
+        - auto
+        - ask
+      description: Whether a healthy step advances by itself (`auto`) or waits for the owner to say so (`ask`).
+    TrailRolloutAfterFix:
+      type: string
+      enum:
+        - resume
+        - ask
+        - restart
+      description: What happens when the fix merges — `resume` from the last healthy step, `ask` the owner first, or `restart` from the first step.
+    TrailRollout:
+      type: object
+      description: How the flag a trail ships behind is ramped after merge — the release controller's plan (see the design doc, the release controller). Part of the plan's release block; the project's defaults live in `trail-gates` `rollout`. The controller runs on the alerts cron, so a hold shorter than the cron interval rounds up to the next tick.
+      properties:
+        steps:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items:
+            type: number
+            exclusiveMinimum: 0
+            maximum: 100
+          description: Percent steps, each above the one before, the last 100.
+          example:
+            - 1
+            - 5
+            - 25
+            - 50
+            - 100
+        holdMinutes:
+          type: integer
+          minimum: 0
+          maximum: 10080
+          description: Minutes a step must stay healthy before the next one.
+        minExposure:
+          type: integer
+          minimum: 0
+          description: Evaluations a step must have served before it counts as healthy, so a quiet hour never passes as a green one. `0` = no floor.
+        guards:
+          type: object
+          description: What is watched while a step holds. The trail's `guards` alert-rule resources are watched too.
+          properties:
+            alertRuleIds:
+              type: array
+              maxItems: 20
+              items:
+                type: string
+                minLength: 1
+                maxLength: 100
+              description: Alert rules (ids) whose firing during a step is a breach.
+            experimentGuardrails:
+              type: boolean
+              description: Whether a breached guardrail of the trail's measuring experiment is a breach.
+            attributedErrors:
+              type: boolean
+              description: Whether a new error attributed to the trail at high confidence is a breach.
+          required:
+            - alertRuleIds
+            - experimentGuardrails
+            - attributedErrors
+          additionalProperties: false
+        policies:
+          type: object
+          description: The three decisions the plan asks the owner, each with the project default pre-selected.
+          properties:
+            onBreach:
+              $ref: '#/components/schemas/TrailRolloutOnBreach'
+            breachTimeoutMinutes:
+              type: integer
+              minimum: 1
+              maximum: 1440
+              description: With `ask_then_pull_back`, minutes the owner has before the controller pulls back.
+            advance:
+              $ref: '#/components/schemas/TrailRolloutAdvance'
+            afterFix:
+              $ref: '#/components/schemas/TrailRolloutAfterFix'
+          required:
+            - onBreach
+            - breachTimeoutMinutes
+            - advance
+            - afterFix
+          additionalProperties: false
+      required:
+        - steps
+        - holdMinutes
+        - minExposure
+        - guards
+        - policies
+      additionalProperties: false
     TrailRepoOverride:
       type: object
       description: A repo's partial override of the project's trail gates.
@@ -22548,6 +22755,8 @@ components:
           maximum: 720
           default: 72
           description: How long after a trail merged an error or alert ticket may be attributed to it. Trails merged inside the window are offered to the investigating agent as candidates.
+        rollout:
+          $ref: '#/components/schemas/TrailRollout'
         repos:
           type: object
           maxProperties: 100
@@ -22618,6 +22827,8 @@ components:
           items:
             $ref: '#/components/schemas/TrailPlanResource'
           description: The flags, kill switches and experiments to create. Empty for `straight_to_main`; the strategy fixes which kinds must be present (a flag for `flag`, a flag and an experiment for `flag_experiment`, and so on).
+        rollout:
+          $ref: '#/components/schemas/TrailRollout'
       required:
         - strategy
         - reason
@@ -22671,6 +22882,144 @@ components:
         - requirePlan
         - nextRun
         - openQuestions
+      additionalProperties: false
+    TrailRolloutState:
+      type: string
+      enum:
+        - idle
+        - running
+        - paused
+        - fixing
+        - completed
+      description: Where a trail's rollout is — `idle` (the controller has not taken it over), `running` (stepping the flag along the plan), `paused` (a person paused it, or it stepped aside or handed off), `fixing` (pulled back; waiting for the fix to merge) or `completed`.
+    TrailRolloutPending:
+      type: object
+      description: A question the controller asked the owner and is waiting on. Answer it with `ops questions answer`.
+      properties:
+        kind:
+          type: string
+          enum:
+            - breach
+            - advance
+            - resume
+          description: What it asks — what to do about a breach, whether to advance a healthy step, or how to resume after the fix.
+        questionId:
+          type: string
+          description: The structured question's id.
+        askedAt:
+          type: string
+          description: ISO-8601 time it was asked.
+      required:
+        - kind
+        - questionId
+        - askedAt
+      additionalProperties: false
+    TrailRolloutView:
+      type: object
+      description: A trail's rollout as it stands — the plan's configuration and the controller's live state.
+      properties:
+        state:
+          $ref: '#/components/schemas/TrailRolloutState'
+        config:
+          anyOf:
+            - $ref: '#/components/schemas/TrailRollout'
+            - type: 'null'
+          description: The rollout the plan carries, or `null` when the trail ships no flag or has no plan.
+        step:
+          type: integer
+          description: Index into `config.steps` the flag is at; `-1` before the first step.
+        stepPct:
+          anyOf:
+            - type: number
+            - type: 'null'
+          description: The percent the current step puts the flag at, or `null` with no rollout.
+        stepStartedAt:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: ISO-8601 time the current step began.
+        pausedReason:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: Why the rollout is paused, or `null`.
+        pending:
+          anyOf:
+            - $ref: '#/components/schemas/TrailRolloutPending'
+            - type: 'null'
+          description: The question the controller is waiting on, or `null`.
+      required:
+        - state
+        - config
+        - step
+        - stepPct
+        - stepStartedAt
+        - pausedReason
+        - pending
+      additionalProperties: false
+    TrailReleaseEventKind:
+      type: string
+      enum:
+        - started
+        - advanced
+        - breach
+        - pulled_back
+        - asked
+        - answered
+        - investigating
+        - fix_merged
+        - resumed
+        - restarted
+        - paused
+        - completed
+      description: What happened on the release timeline.
+    TrailReleaseEvent:
+      type: object
+      description: One row of a trail's release timeline — something the controller, autopilot or a person did to its rollout.
+      properties:
+        id:
+          type: string
+          description: Event id (a uuid).
+        kind:
+          $ref: '#/components/schemas/TrailReleaseEventKind'
+        step:
+          type: integer
+          description: The step the event is about; `-1` for none.
+        fromPct:
+          anyOf:
+            - type: number
+            - type: 'null'
+        toPct:
+          anyOf:
+            - type: number
+            - type: 'null'
+        reason:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: One line on why.
+        evidence:
+          anyOf:
+            - type: object
+              additionalProperties: true
+            - type: 'null'
+          description: What the decision rested on — the guards that tripped, the question, the run.
+        actor:
+          type: string
+          description: '`controller`, `autopilot`, or a person''s email.'
+        createdAt:
+          type: string
+          description: ISO-8601 time.
+      required:
+        - id
+        - kind
+        - step
+        - fromPct
+        - toPct
+        - reason
+        - evidence
+        - actor
+        - createdAt
       additionalProperties: false
     TrailDetail:
       type: object
@@ -22801,6 +23150,13 @@ components:
           $ref: '#/components/schemas/TrailGates'
         plan:
           $ref: '#/components/schemas/TrailPlan'
+        rollout:
+          $ref: '#/components/schemas/TrailRolloutView'
+        releaseEvents:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrailReleaseEvent'
+          description: The release timeline, newest first (the latest 100).
       required:
         - id
         - number
@@ -22835,6 +23191,8 @@ components:
         - suspects
         - gates
         - plan
+        - rollout
+        - releaseEvents
       additionalProperties: false
     NewTrailFinding:
       type: object
@@ -23418,6 +23776,23 @@ components:
         - data
         - next_cursor
       additionalProperties: false
+    TrailPlanIntake:
+      type: object
+      description: What the creation dialog already decided — each field is a plan question answered in advance. The plan run asks only what is left out. Omitted entirely, the plan asks everything ("let the plan ask me").
+      properties:
+        requirePlan:
+          type: boolean
+          description: Plan before building, for this trail. Omitted, the project's setting.
+        strategy:
+          $ref: '#/components/schemas/TrailReleaseStrategy'
+        flagKey:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: The flag's key, when the person named one.
+        rollout:
+          $ref: '#/components/schemas/TrailRollout'
+      additionalProperties: false
     CreateTrailRequest:
       type: object
       description: Body for `POST /api/admin/trails`. A trail is created on purpose — from scratch, or from an item with `originItem`. Omitted, `type` follows the origin item (a bug is a `bug`, a feature request a `feature`) and is otherwise `task`.
@@ -23464,6 +23839,8 @@ components:
           description: 'Ship this: a queue item (number or id) to create the trail from. Its description seeds `body` when that is omitted, and it becomes the trail''s first item with source `origin`.'
           minLength: 1
           maxLength: 64
+        intake:
+          $ref: '#/components/schemas/TrailPlanIntake'
       required:
         - title
       additionalProperties: false
@@ -23639,6 +24016,33 @@ components:
       required:
         - plan
         - run
+      additionalProperties: false
+    PauseTrailRolloutRequest:
+      type: object
+      description: Body for `POST /api/admin/trails/{handle}/rollout/pause`.
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+          description: Why — shown on the release timeline.
+      additionalProperties: false
+    TrailRolloutResult:
+      type: object
+      description: The rollout after a pause or a resume.
+      properties:
+        rollout:
+          $ref: '#/components/schemas/TrailRolloutView'
+      required:
+        - rollout
+      additionalProperties: false
+    ResumeTrailRolloutRequest:
+      type: object
+      description: Body for `POST /api/admin/trails/{handle}/rollout/resume`. Resuming reconciles the rollout with the flag, wherever a person left it, and restarts the hold.
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+          description: Why — shown on the release timeline.
       additionalProperties: false
     PromoteTrailFindingRequest:
       type: object

@@ -1155,6 +1155,7 @@ shipeasy ops trail-gates set [options]
 | `--require-plan <value>` | optional | Whether starting an agent on a trail with no approved plan fires a read-only plan run first. The plan run asks the person how the trail should ship and anything else that is open, and the build run follows the plan they approve. Off, starting an agent builds directly and creates no flag, kill switch or experiment on its own. |
 | `--fix-rounds <value>` | optional | How many times the server re-fires the coding agent with a fix prompt after a change's evals or findings fail. After the cap the trail reads `reviewing`, needs a person. `0` turns the loop off. |
 | `--attribution-window-hours <value>` | optional | How long after a trail merged an error or alert ticket may be attributed to it. Trails merged inside the window are offered to the investigating agent as candidates. |
+| `--rollout <value>` | optional | How the flag a trail ships behind is ramped after merge — the release controller's plan (see the design doc, the release controller). Part of the plan's release block; the project's defaults live in `trail-gates` `rollout`. The controller runs on the alerts cron, so a hold shorter than the cron interval rounds up to the next tick. |
 | `--repos <value>` | optional | Per-repo overrides keyed by `owner/repo`. An override replaces the project's `checks.required` for changes in that repo; every other gate stays project-wide. |
 
 ### `shipeasy ops trigger`
@@ -1834,6 +1835,7 @@ shipeasy trails create [options] <title>
 | `--owner-connector-id <value>` | optional | The agent connector to own the trail, or `null`. |
 | `--repos <value>` | optional | Repos (`owner/repo`) the trail may open changes in. |
 | `--origin-item <value>` | optional | Ship this: a queue item (number or id) to create the trail from. Its description seeds `body` when that is omitted, and it becomes the trail's first item with source `origin`. |
+| `--intake <value>` | optional | What the creation dialog already decided — each field is a plan question answered in advance. The plan run asks only what is left out. Omitted entirely, the plan asks everything ("let the plan ask me"). |
 
 ### `shipeasy trails get`
 
@@ -2010,6 +2012,38 @@ shipeasy trails approve-plan [options] <handle>
 | `--start-build <value>` | optional | Also fire the build run once the plan is approved. Without it, approving only records the sign-off. When no coding agent is connected the request is refused with `409` before anything is approved. |
 | `--agent <value>` | optional | Which coding agent builds, with `startBuild`. Omitted, the project's coding-agent trigger. |
 | `--connector-id <value>` | optional | A specific trigger connector to build with, with `startBuild`. Overrides `agent`. |
+
+### `shipeasy trails pause-rollout`
+
+Pause a trail's rollout
+
+```bash
+shipeasy trails pause-rollout [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--reason <value>` | optional | Why — shown on the release timeline. |
+
+### `shipeasy trails resume-rollout`
+
+Resume a trail's rollout
+
+```bash
+shipeasy trails resume-rollout [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--reason <value>` | optional | Why — shown on the release timeline. |
 
 ### `shipeasy trails review`
 

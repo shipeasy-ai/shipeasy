@@ -2745,6 +2745,19 @@ _Parameters_
 | `requirePlan` | optional | `boolean` | Whether starting an agent on a trail with no approved plan fires a read-only plan run first. The plan run asks the person how the trail should ship and anything else that is open, and the build run follows the plan they approve. Off, starting an agent builds directly and creates no flag, kill switch or experiment on its own. _(default `true`)_ |
 | `fixRounds` | optional | `integer` | How many times the server re-fires the coding agent with a fix prompt after a change's evals or findings fail. After the cap the trail reads `reviewing`, needs a person. `0` turns the loop off. _(default `3`; 0–10)_ |
 | `attributionWindowHours` | optional | `integer` | How long after a trail merged an error or alert ticket may be attributed to it. Trails merged inside the window are offered to the investigating agent as candidates. _(default `72`; 1–720)_ |
+| `rollout` | optional | `object` | How the flag a trail ships behind is ramped after merge — the release controller's plan (see the design doc, the release controller). Part of the plan's release block; the project's defaults live in `trail-gates` `rollout`. The controller runs on the alerts cron, so a hold shorter than the cron interval rounds up to the next tick. |
+| `rollout.steps` | required | `number[]` | Percent steps, each above the one before, the last 100. |
+| `rollout.holdMinutes` | required | `integer` | Minutes a step must stay healthy before the next one. _(0–10080)_ |
+| `rollout.minExposure` | required | `integer` | Evaluations a step must have served before it counts as healthy, so a quiet hour never passes as a green one. `0` = no floor. _(≥ 0)_ |
+| `rollout.guards` | required | `object` | What is watched while a step holds. The trail's `guards` alert-rule resources are watched too. |
+| `rollout.guards.alertRuleIds` | required | `string[]` | Alert rules (ids) whose firing during a step is a breach. |
+| `rollout.guards.experimentGuardrails` | required | `boolean` | Whether a breached guardrail of the trail's measuring experiment is a breach. |
+| `rollout.guards.attributedErrors` | required | `boolean` | Whether a new error attributed to the trail at high confidence is a breach. |
+| `rollout.policies` | required | `object` | The three decisions the plan asks the owner, each with the project default pre-selected. |
+| `rollout.policies.onBreach` | required | `"pull_back" \| "ask_first" \| "ask_then_pull_back"` | What to do when a guard trips during a step — `pull_back` (pull the flag back, investigate and suggest a fix, tell the owner; the default), `ask_first` (ask the owner, only notify), or `ask_then_pull_back` (ask, and pull back after `breachTimeoutMinutes` with no answer). |
+| `rollout.policies.breachTimeoutMinutes` | required | `integer` | With `ask_then_pull_back`, minutes the owner has before the controller pulls back. _(1–1440)_ |
+| `rollout.policies.advance` | required | `"auto" \| "ask"` | Whether a healthy step advances by itself (`auto`) or waits for the owner to say so (`ask`). |
+| `rollout.policies.afterFix` | required | `"resume" \| "ask" \| "restart"` | What happens when the fix merges — `resume` from the last healthy step, `ask` the owner first, or `restart` from the first step. |
 | `repos` | optional | `object` | Per-repo overrides keyed by `owner/repo`. An override replaces the project's `checks.required` for changes in that repo; every other gate stays project-wide. |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -3665,6 +3678,23 @@ _Parameters_
 | `ownerConnectorId` | optional | `any` | The agent connector to own the trail, or `null`. |
 | `repos` | optional | `string[]` | Repos (`owner/repo`) the trail may open changes in. _(default `[]`)_ |
 | `originItem` | optional | `string` | Ship this: a queue item (number or id) to create the trail from. Its description seeds `body` when that is omitted, and it becomes the trail's first item with source `origin`. _(length 1–64)_ |
+| `intake` | optional | `object` | What the creation dialog already decided — each field is a plan question answered in advance. The plan run asks only what is left out. Omitted entirely, the plan asks everything ("let the plan ask me"). |
+| `intake.requirePlan` | optional | `boolean` | Plan before building, for this trail. Omitted, the project's setting. |
+| `intake.strategy` | optional | `"straight_to_main" \| "flag" \| "flag_experiment" \| "kill_switch" \| "flag_kill_switch" \| "other"` | How the trail ships, as the person chose it while the plan was made — `straight_to_main` (no flag), `flag`, `flag_experiment` (a flag measured by an experiment), `kill_switch` (a kill switch only), `flag_kill_switch`, or `other` (a free-text answer that fits none of those). |
+| `intake.flagKey` | optional | `string` | The flag's key, when the person named one. _(length 1–200)_ |
+| `intake.rollout` | optional | `object` | How the flag a trail ships behind is ramped after merge — the release controller's plan (see the design doc, the release controller). Part of the plan's release block; the project's defaults live in `trail-gates` `rollout`. The controller runs on the alerts cron, so a hold shorter than the cron interval rounds up to the next tick. |
+| `intake.rollout.steps` | required | `number[]` | Percent steps, each above the one before, the last 100. |
+| `intake.rollout.holdMinutes` | required | `integer` | Minutes a step must stay healthy before the next one. _(0–10080)_ |
+| `intake.rollout.minExposure` | required | `integer` | Evaluations a step must have served before it counts as healthy, so a quiet hour never passes as a green one. `0` = no floor. _(≥ 0)_ |
+| `intake.rollout.guards` | required | `object` | What is watched while a step holds. The trail's `guards` alert-rule resources are watched too. |
+| `intake.rollout.guards.alertRuleIds` | required | `string[]` | Alert rules (ids) whose firing during a step is a breach. |
+| `intake.rollout.guards.experimentGuardrails` | required | `boolean` | Whether a breached guardrail of the trail's measuring experiment is a breach. |
+| `intake.rollout.guards.attributedErrors` | required | `boolean` | Whether a new error attributed to the trail at high confidence is a breach. |
+| `intake.rollout.policies` | required | `object` | The three decisions the plan asks the owner, each with the project default pre-selected. |
+| `intake.rollout.policies.onBreach` | required | `"pull_back" \| "ask_first" \| "ask_then_pull_back"` | What to do when a guard trips during a step — `pull_back` (pull the flag back, investigate and suggest a fix, tell the owner; the default), `ask_first` (ask the owner, only notify), or `ask_then_pull_back` (ask, and pull back after `breachTimeoutMinutes` with no answer). |
+| `intake.rollout.policies.breachTimeoutMinutes` | required | `integer` | With `ask_then_pull_back`, minutes the owner has before the controller pulls back. _(1–1440)_ |
+| `intake.rollout.policies.advance` | required | `"auto" \| "ask"` | Whether a healthy step advances by itself (`auto`) or waits for the owner to say so (`ask`). |
+| `intake.rollout.policies.afterFix` | required | `"resume" \| "ask" \| "restart"` | What happens when the fix merges — `resume` from the last healthy step, `ask` the owner first, or `restart` from the first step. |
 | `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `trails_list` call. It proves you listed existing trails and confirmed this one doesn't already exist before creating it. Call `trails_list` first if you don't have a fresh token. |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -3762,6 +3792,30 @@ _Parameters_
 _Errors_ — beyond the [common errors](#errors):
 
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+
+### `trails_pause_rollout`
+
+**Pause a trail's rollout**
+
+Pause the release controller on a trail: it stops stepping the flag and watching the guards until the rollout is resumed. The flag stays wherever it is. Any manual change to the flag pauses the controller the same way, so a person and the controller never fight over it. Safe to call at any time; pausing a rollout that is not running answers `409`.
+
+Safe for the restricted ops key.
+
+**Use case:** The checkout flag is at 25% and a deploy is going out; hold the ramp until it is done.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `reason` | optional | `string` | Why — shown on the release timeline. _(length 0–500)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
+- `VALIDATION` — The request body failed structural (schema) validation.
 
 ### `trails_promote_finding`
 
@@ -3933,6 +3987,19 @@ _Parameters_
 | `release.strategy` | required | `"straight_to_main" \| "flag" \| "flag_experiment" \| "kill_switch" \| "flag_kill_switch" \| "other"` | How the trail ships, as the person chose it while the plan was made — `straight_to_main` (no flag), `flag`, `flag_experiment` (a flag measured by an experiment), `kill_switch` (a kill switch only), `flag_kill_switch`, or `other` (a free-text answer that fits none of those). |
 | `release.reason` | required | `string` | One line on why this approach — risk, blast radius, reversibility. _(length 0–2000)_ |
 | `release.resources` | required | `object[]` | The flags, kill switches and experiments to create. Empty for `straight_to_main`; the strategy fixes which kinds must be present (a flag for `flag`, a flag and an experiment for `flag_experiment`, and so on). |
+| `release.rollout` | optional | `object` | How the flag a trail ships behind is ramped after merge — the release controller's plan (see the design doc, the release controller). Part of the plan's release block; the project's defaults live in `trail-gates` `rollout`. The controller runs on the alerts cron, so a hold shorter than the cron interval rounds up to the next tick. |
+| `release.rollout.steps` | required | `number[]` | Percent steps, each above the one before, the last 100. |
+| `release.rollout.holdMinutes` | required | `integer` | Minutes a step must stay healthy before the next one. _(0–10080)_ |
+| `release.rollout.minExposure` | required | `integer` | Evaluations a step must have served before it counts as healthy, so a quiet hour never passes as a green one. `0` = no floor. _(≥ 0)_ |
+| `release.rollout.guards` | required | `object` | What is watched while a step holds. The trail's `guards` alert-rule resources are watched too. |
+| `release.rollout.guards.alertRuleIds` | required | `string[]` | Alert rules (ids) whose firing during a step is a breach. |
+| `release.rollout.guards.experimentGuardrails` | required | `boolean` | Whether a breached guardrail of the trail's measuring experiment is a breach. |
+| `release.rollout.guards.attributedErrors` | required | `boolean` | Whether a new error attributed to the trail at high confidence is a breach. |
+| `release.rollout.policies` | required | `object` | The three decisions the plan asks the owner, each with the project default pre-selected. |
+| `release.rollout.policies.onBreach` | required | `"pull_back" \| "ask_first" \| "ask_then_pull_back"` | What to do when a guard trips during a step — `pull_back` (pull the flag back, investigate and suggest a fix, tell the owner; the default), `ask_first` (ask the owner, only notify), or `ask_then_pull_back` (ask, and pull back after `breachTimeoutMinutes` with no answer). |
+| `release.rollout.policies.breachTimeoutMinutes` | required | `integer` | With `ask_then_pull_back`, minutes the owner has before the controller pulls back. _(1–1440)_ |
+| `release.rollout.policies.advance` | required | `"auto" \| "ask"` | Whether a healthy step advances by itself (`auto`) or waits for the owner to say so (`ask`). |
+| `release.rollout.policies.afterFix` | required | `"resume" \| "ask" \| "restart"` | What happens when the fix merges — `resume` from the last healthy step, `ask` the owner first, or `restart` from the first step. |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -4031,6 +4098,19 @@ _Parameters_
 | `release.strategy` | required | `"straight_to_main" \| "flag" \| "flag_experiment" \| "kill_switch" \| "flag_kill_switch" \| "other"` | How the trail ships, as the person chose it while the plan was made — `straight_to_main` (no flag), `flag`, `flag_experiment` (a flag measured by an experiment), `kill_switch` (a kill switch only), `flag_kill_switch`, or `other` (a free-text answer that fits none of those). |
 | `release.reason` | required | `string` | One line on why this approach — risk, blast radius, reversibility. _(length 0–2000)_ |
 | `release.resources` | required | `object[]` | The flags, kill switches and experiments to create. Empty for `straight_to_main`; the strategy fixes which kinds must be present (a flag for `flag`, a flag and an experiment for `flag_experiment`, and so on). |
+| `release.rollout` | optional | `object` | How the flag a trail ships behind is ramped after merge — the release controller's plan (see the design doc, the release controller). Part of the plan's release block; the project's defaults live in `trail-gates` `rollout`. The controller runs on the alerts cron, so a hold shorter than the cron interval rounds up to the next tick. |
+| `release.rollout.steps` | required | `number[]` | Percent steps, each above the one before, the last 100. |
+| `release.rollout.holdMinutes` | required | `integer` | Minutes a step must stay healthy before the next one. _(0–10080)_ |
+| `release.rollout.minExposure` | required | `integer` | Evaluations a step must have served before it counts as healthy, so a quiet hour never passes as a green one. `0` = no floor. _(≥ 0)_ |
+| `release.rollout.guards` | required | `object` | What is watched while a step holds. The trail's `guards` alert-rule resources are watched too. |
+| `release.rollout.guards.alertRuleIds` | required | `string[]` | Alert rules (ids) whose firing during a step is a breach. |
+| `release.rollout.guards.experimentGuardrails` | required | `boolean` | Whether a breached guardrail of the trail's measuring experiment is a breach. |
+| `release.rollout.guards.attributedErrors` | required | `boolean` | Whether a new error attributed to the trail at high confidence is a breach. |
+| `release.rollout.policies` | required | `object` | The three decisions the plan asks the owner, each with the project default pre-selected. |
+| `release.rollout.policies.onBreach` | required | `"pull_back" \| "ask_first" \| "ask_then_pull_back"` | What to do when a guard trips during a step — `pull_back` (pull the flag back, investigate and suggest a fix, tell the owner; the default), `ask_first` (ask the owner, only notify), or `ask_then_pull_back` (ask, and pull back after `breachTimeoutMinutes` with no answer). |
+| `release.rollout.policies.breachTimeoutMinutes` | required | `integer` | With `ask_then_pull_back`, minutes the owner has before the controller pulls back. _(1–1440)_ |
+| `release.rollout.policies.advance` | required | `"auto" \| "ask"` | Whether a healthy step advances by itself (`auto`) or waits for the owner to say so (`ask`). |
+| `release.rollout.policies.afterFix` | required | `"resume" \| "ask" \| "restart"` | What happens when the fix merges — `resume` from the last healthy step, `ask` the owner first, or `restart` from the first step. |
 
 _Errors_ — beyond the [common errors](#errors):
 

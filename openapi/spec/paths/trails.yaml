@@ -746,6 +746,114 @@
         - handle
     x-mcp:
       hidden: true
+/api/admin/trails/{handle}/rollout/pause:
+  post:
+    operationId: pauseTrailRollout
+    summary: Pause a trail's rollout
+    description: |-
+      Pause the release controller on a trail: it stops stepping the flag and watching the guards until the rollout is resumed. The flag stays wherever it is. Any manual change to the flag pauses the controller the same way, so a person and the controller never fight over it. Safe to call at any time; pausing a rollout that is not running answers `409`.
+
+      Safe for the restricted ops key.
+
+      **Use case:** The checkout flag is at 25% and a deploy is going out; hold the ramp until it is done.
+    tags:
+      - Trails
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - $ref: ../components/parameters.yaml#/TrailHandle
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/PauseTrailRolloutRequest
+          example:
+            reason: Deploy window
+    responses:
+      "200":
+        description: The rollout, paused
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/TrailRolloutResult
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - INVALID_TRANSITION
+      - VALIDATION
+    x-cli:
+      name: pause-rollout
+      positional:
+        - handle
+/api/admin/trails/{handle}/rollout/resume:
+  post:
+    operationId: resumeTrailRollout
+    summary: Resume a trail's rollout
+    description: |-
+      Hand a paused rollout back to the release controller. It reconciles with the flag wherever a person left it (the highest step at or below the flag's percent, snapping the flag onto that step), restarts the step's hold, and carries on. A rollout that was pulled back and is waiting for its fix resumes as `fixing`. Resuming a rollout that is not paused answers `409`.
+
+      Resuming is a person's call: it hands the flag back to automation. Only a dashboard session or a device-auth CLI session can resume — ops keys, project admin keys and OAuth MCP calls are refused with `403`. This operation is not exposed as an MCP tool.
+
+      **Use case:** After steering the flag by hand, give the ramp back to the controller.
+    tags:
+      - Trails
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - $ref: ../components/parameters.yaml#/TrailHandle
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/ResumeTrailRolloutRequest
+          example:
+            reason: Deploy is done
+    responses:
+      "200":
+        description: The rollout, resumed
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/TrailRolloutResult
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - INVALID_TRANSITION
+      - VALIDATION
+    x-cli:
+      name: resume-rollout
+      positional:
+        - handle
+    x-mcp:
+      hidden: true
 /api/admin/trails/{handle}/review:
   post:
     operationId: requestTrailReview

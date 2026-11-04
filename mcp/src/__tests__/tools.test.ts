@@ -203,6 +203,18 @@ describe("trails tool surface", () => {
     );
   });
 
+  it("lets an agent pause a rollout over MCP, but never resume it", async () => {
+    const { TOOLS } = await import("../tools/schema.js");
+    const names = TOOLS.map((t) => t.name);
+    // Pausing the release controller is always safe: the flag stays put.
+    expect(names).toContain("trails_pause_rollout");
+    // Resuming hands the flag back to automation, a person's call: the CLI keeps
+    // `trails resume-rollout`, the tool is hidden.
+    expect(names).not.toContain("trails_resume_rollout");
+    const pause = TOOLS.find((t) => t.name === "trails_pause_rollout")!;
+    expect(pause.inputSchema.required).toEqual(expect.arrayContaining(["handle"]));
+  });
+
   it("makes the list page size a required input", async () => {
     const { TOOLS } = await import("../tools/schema.js");
     const tool = TOOLS.find((t) => t.name === "trails_list")!;

@@ -457,7 +457,7 @@ above:
 
    **Trail runs.** A run started on a trail itself (a person pressed Start agent,
    or the server fired a fix) has no item: its prompt names the trail. There are
-   three kinds, and the prompt says which:
+   four kinds, and the prompt says which:
 
    - **Plan** (read-only). The project asks for a plan before anyone builds. Read the
      trail and the code, then ask the person how the trail ships and anything else
@@ -474,12 +474,28 @@ above:
      (the `trails_submit_plan` MCP tool). The strategy and resources are the person's
      answer, never yours. Create nothing: no branch, pull request, flag, kill switch
      or experiment. A person edits and approves the plan; the build is a separate run.
+     The prompt may list what the owner **already decided** when creating the trail (how
+     it ships, the rollout) and the project's defaults. Those are answered: do not ask
+     them again, and submit them as given. When the release is a flag, the release also
+     carries a `rollout` (the steps, the hold, the guards and three policies); where the
+     owner has not set it, ask the three policy questions in the same call with the
+     project default first, and send the project defaults for the rest.
    - **Build.** Follow the approved plan in the prompt. Create exactly the release
      resources it lists (none when it ships straight to main) and link them with the
      environment variable below. Do not add a flag, kill switch or experiment the plan
      does not list. With no approved plan (the project does not require one), create
-     none.
+     none. When the plan carries a rollout, create the flag disabled at 0% and never
+     ramp it: Shipeasy's release controller does, step by step, after merge.
    - **Fix.** See the findings above.
+   - **Investigate** (post-merge). The release controller pulled a flag back because a
+     guard tripped; the prompt carries the guard, the step and what the trail merged.
+     Find the cause (the fired alert, the errors, the diff), and if the trail caused
+     it, fix it on a new pull request linked with `trails link-pr <T-n> <pr-url>`. It
+     goes through the normal review gates and a person merges it; the rollout resumes
+     by itself after that. Never touch the flag. If the trail did not cause it, say so
+     on the alert's item, and `trails pause-rollout <T-n> --reason "…"` (the
+     `trails_pause_rollout` MCP tool) only if the rollout should not go on. Resuming is
+     a person's call and not an MCP tool.
 
    Run every `shipeasy` CLI call with `SHIPEASY_TRAIL=<T-n>` in the environment. The
    CLI then sends `X-Shipeasy-Trail`, and the server links each flag, config, kill
