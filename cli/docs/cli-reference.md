@@ -798,6 +798,7 @@ shipeasy ops memory search [options]
 | `--q <value>` | optional | Free-text query, e.g. `checkout retry`. |
 | `--paths <value>` | optional | Comma-separated repo-relative files or directories, e.g. `apps/web/src/checkout/,packages/billing/src/retry.ts`. |
 | `--item <value>` | optional | A queue item — its per-project number (e.g. `7`) or full id. Its title and description become the query; its own entries are excluded. |
+| `--trail <value>` | optional | A trail — its handle (e.g. `T-12`) or full id. Its title, intent and goal become the query; its own entries and its items' are excluded. |
 | `--kind <value>` | optional | Only entries of this kind. |
 | `--limit <value>` | optional | Maximum entries to return (1-50). Defaults to 10. |
 | `--data <value>` | optional | Request body as a JSON object. |
@@ -1151,9 +1152,11 @@ shipeasy ops trail-gates set [options]
 | `--measured <value>` | optional | Release gate. For a `feature` trail, passes when a measuring experiment or metric exists. Off by default. |
 | `--guarded <value>` | optional | Release gate. Passes when every measured resource has at least one guarding alert rule. Off by default. |
 | `--copy <value>` | optional | Release gate. Passes when every copy i18n key exists in every published locale of its profile. Off by default. |
-| `--plan <value>` | optional | Gate. Passes when every release resource the trail's approved plan lists exists on the trail (a flag, kill switch or experiment the person chose while the plan was made). Reads `pending` while a drafted plan waits for approval, and is left out when the trail has no plan. On by default; it blocks the merge only while `requirePlan` is on. |
-| `--require-plan <value>` | optional | Whether starting an agent on a trail with no approved plan fires a read-only plan run first. The plan run asks the person how the trail should ship and anything else that is open, and the build run follows the plan they approve. Off, starting an agent builds directly and creates no flag, kill switch or experiment on its own. |
+| `--plan <value>` | optional | Gate. Passes when every release resource the trail's approved plan lists exists on the trail (a flag, kill switch or experiment the person chose while the plan was made). Reads `pending` while a drafted plan waits for approval, and is left out when the trail has no plan yet. On and blocking by default, whoever approved the plan. |
+| `--require-plan <value>` | optional | Whether a person approves a trail's plan before it builds. Every trail is planned first — starting an agent on a trail with no approved plan fires a read-only plan run, and the build follows the approved plan. On, the plan run asks the person how the trail should ship and anything else that is open, and waits for their approval. Off, it asks nothing and takes its own recommendations; a plan the checks raise no warning on approves itself and the build starts, one with a warning waits for a person. |
 | `--fix-rounds <value>` | optional | How many times the server re-fires the coding agent with a fix prompt after a change's evals or findings fail. After the cap the trail reads `reviewing`, needs a person. `0` turns the loop off. |
+| `--goal-window-days <value>` | optional | How many days a delivered trail is watched before its goal metric is judged. A trail is delivered when its plan is approved, every code and tracking item is done and every flag it ships behind is fully rolled out (or, with none, something merged). |
+| `--max-goal-replans <value>` | optional | How many times shipeasy re-plans a trail on its own after its goal was missed. Each re-plan proposes new options that differ from what was tried. Past the cap the trail is off track and the owner decides; `0` never re-plans automatically. |
 | `--max-parallel-runs <value>` | optional | How many item runs a trail's build keeps working at once. A build launches an item run for each open item of the current milestone, up to this many; the rest wait for a slot. |
 | `--attribution-window-hours <value>` | optional | How long after a trail merged an error or alert ticket may be attributed to it. Trails merged inside the window are offered to the investigating agent as candidates. |
 | `--rollout <value>` | optional | How the flag a trail ships behind is ramped after merge — the release controller's plan (see the design doc, the release controller). Part of the plan's release block; the project's defaults live in `trail-gates` `rollout`. The controller runs on the alerts cron, so a hold shorter than the cron interval rounds up to the next tick. |
@@ -2054,7 +2057,7 @@ shipeasy trails start [options] <handle>
 | --- | --- | --- |
 | `--agent <value>` | optional | Which coding agent to fire — `claude`, `cursor`, `copilot` or `jules`. Omitted, the project's coding-agent trigger. |
 | `--connector-id <value>` | optional | A specific trigger connector to fire. Overrides `agent`. |
-| `--kind <value>` | optional | Which run to fire. Omitted, the server picks — `plan` while the project requires a plan (`trail-gates` `requirePlan`) and the trail has no approved one, else `build`. Asking for `build` before the plan is approved is refused with `409`, and so is asking for `plan` once one is approved: edit the plan, or fire `replan`. `replan` is allowed only once a plan is approved: a read-only run that re-reads the goal metric, the items' outcomes and project memory and submits the next revision, which waits as `drafted` for approval. |
+| `--kind <value>` | optional | Which run to fire. Omitted, the server picks — `plan` while the trail has no approved plan, else `build`. Asking for `build` before the plan is approved is refused with `409`, and so is asking for `plan` once one is approved: edit the plan, or fire `replan`. `replan` is allowed only once a plan is approved: a read-only run that re-reads the goal metric, the items' outcomes and project memory and submits the next revision, which waits as `drafted` for approval. |
 | `--prompt <value>` | optional | Extra instructions appended to the trail prompt. |
 
 ### `shipeasy trails submit-plan`
@@ -2074,6 +2077,7 @@ shipeasy trails submit-plan [options] <handle>
 | `--plan <value>` | optional | The plan in markdown — the approach, the files and repos it touches, the order of the work, how each acceptance criterion is met, and the risks. |
 | `--release <value>` | optional | How the trail ships. The person answers this while the plan is made; the build run creates exactly the resources listed (none for `straight_to_main`), and the Plan gate checks they exist. |
 | `--breakdown <value>` | optional | The milestones and items a plan breaks the trail into. Nothing is filed while the plan is a draft; approving creates the milestones and files the items. `workKind` defaults to `code`. |
+| `--marketing <value>` | optional | The plan's marketing strategy — tracked, never executed. Every channel is also a breakdown item of the same title with `workKind` `marketing`, so it has an owner, a status and a place on the timeline. |
 | `--sources <value>` | optional | What the plan rests on in project memory (`ops memory search`) and earlier tickets and trails, each with what it settled. |
 | `--summary <value>` | optional | For a replan, what changed since the last approved revision. Recorded on the revision. |
 
@@ -2094,6 +2098,7 @@ shipeasy trails update-plan [options] <handle>
 | `--plan <value>` | optional | The plan in markdown. |
 | `--release <value>` | optional | How the trail ships. The person answers this while the plan is made; the build run creates exactly the resources listed (none for `straight_to_main`), and the Plan gate checks they exist. |
 | `--breakdown <value>` | optional | The milestones and items a plan breaks the trail into. Nothing is filed while the plan is a draft; approving creates the milestones and files the items. `workKind` defaults to `code`. |
+| `--marketing <value>` | optional | The plan's marketing strategy — tracked, never executed. Every channel is also a breakdown item of the same title with `workKind` `marketing`, so it has an owner, a status and a place on the timeline. |
 
 ### `shipeasy trails approve-plan`
 
@@ -2127,6 +2132,42 @@ shipeasy trails plan-revisions [options] <handle>
 
 | Option | | Description |
 | --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+### `shipeasy trails timeline`
+
+Read a trail's timeline
+
+```bash
+shipeasy trails timeline [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--before <value>` | optional | ISO-8601 time; only events strictly before it (the `next` of the previous page). |
+| `--limit <value>` | optional | Most events to return (1-200). Defaults to 50. |
+| `--decisions <value>` | optional | Only the decisions. |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+### `shipeasy trails release-facts`
+
+Read a trail's release facts
+
+```bash
+shipeasy trails release-facts [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--proxy <value>` | optional | What to read the traffic from — `metric:<key>`, `event:<name>` or `flag:<key>`. |
 | `--data <value>` | optional | Request body as a JSON object. |
 
 ### `shipeasy trails pause-rollout`

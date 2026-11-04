@@ -6707,7 +6707,7 @@ export type TrailGates = {
         blocking: boolean;
     };
     /**
-     * Gate. Passes when every release resource the trail's approved plan lists exists on the trail (a flag, kill switch or experiment the person chose while the plan was made). Reads `pending` while a drafted plan waits for approval, and is left out when the trail has no plan. On by default; it blocks the merge only while `requirePlan` is on.
+     * Gate. Passes when every release resource the trail's approved plan lists exists on the trail (a flag, kill switch or experiment the person chose while the plan was made). Reads `pending` while a drafted plan waits for approval, and is left out when the trail has no plan yet. On and blocking by default, whoever approved the plan.
      */
     plan?: {
         /**
@@ -6715,12 +6715,12 @@ export type TrailGates = {
          */
         enabled: boolean;
         /**
-         * Whether a failing gate blocks the merge. Ignored while `requirePlan` is off, when the gate only reports.
+         * Whether a failing gate blocks the merge. Off, the gate only reports.
          */
         blocking: boolean;
     };
     /**
-     * Whether starting an agent on a trail with no approved plan fires a read-only plan run first. The plan run asks the person how the trail should ship and anything else that is open, and the build run follows the plan they approve. Off, starting an agent builds directly and creates no flag, kill switch or experiment on its own.
+     * Whether a person approves a trail's plan before it builds. Every trail is planned first — starting an agent on a trail with no approved plan fires a read-only plan run, and the build follows the approved plan. On, the plan run asks the person how the trail should ship and anything else that is open, and waits for their approval. Off, it asks nothing and takes its own recommendations; a plan the checks raise no warning on approves itself and the build starts, one with a warning waits for a person.
      */
     requirePlan?: boolean;
     /**
@@ -7097,7 +7097,7 @@ export type TrailPlan = {
      */
     approvedAt: string | null;
     /**
-     * Whether the project requires an approved plan before an agent builds (`trail-gates` `requirePlan`).
+     * Whether a person approves this trail's plan before it builds — the trail's own choice, else the project's (`trail-gates` `requirePlan`). Off, a plan with no warnings approves itself.
      */
     requirePlan: boolean;
     /**
@@ -7885,7 +7885,7 @@ export type TrailGoalSpec = {
  */
 export type TrailPlanIntake = {
     /**
-     * Plan before building, for this trail. Omitted, the project's setting.
+     * A person approves the plan before it builds, for this trail. Omitted, the project's setting (`trail-gates` `requirePlan`).
      */
     requirePlan?: boolean;
     strategy?: TrailReleaseStrategy;
@@ -8059,7 +8059,7 @@ export type StartTrailRunRequest = {
      */
     connectorId?: string;
     /**
-     * Which run to fire. Omitted, the server picks — `plan` while the project requires a plan (`trail-gates` `requirePlan`) and the trail has no approved one, else `build`. Asking for `build` before the plan is approved is refused with `409`, and so is asking for `plan` once one is approved: edit the plan, or fire `replan`. `replan` is allowed only once a plan is approved: a read-only run that re-reads the goal metric, the items' outcomes and project memory and submits the next revision, which waits as `drafted` for approval.
+     * Which run to fire. Omitted, the server picks — `plan` while the trail has no approved plan, else `build`. Asking for `build` before the plan is approved is refused with `409`, and so is asking for `plan` once one is approved: edit the plan, or fire `replan`. `replan` is allowed only once a plan is approved: a read-only run that re-reads the goal metric, the items' outcomes and project memory and submits the next revision, which waits as `drafted` for approval.
      */
     kind?: 'plan' | 'build' | 'replan';
     /**

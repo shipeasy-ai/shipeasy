@@ -459,7 +459,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .argument("<handle>", "The trail's handle (`T-12`) or its id.")
     .option("--agent <value>", "Which coding agent to fire — `claude`, `cursor`, `copilot` or `jules`. Omitted, the project's coding-agent trigger.")
     .option("--connector-id <value>", "A specific trigger connector to fire. Overrides `agent`.")
-    .option("--kind <value>", "Which run to fire. Omitted, the server picks — `plan` while the project requires a plan (`trail-gates` `requirePlan`) and the trail has no approved one, else `build`. Asking for `build` before the plan is approved is refused with `409`, and so is asking for `plan` once one is approved: edit the plan, or fire `replan`. `replan` is allowed only once a plan is approved: a read-only run that re-reads the goal metric, the items' outcomes and project memory and submits the next revision, which waits as `drafted` for approval.")
+    .option("--kind <value>", "Which run to fire. Omitted, the server picks — `plan` while the trail has no approved plan, else `build`. Asking for `build` before the plan is approved is refused with `409`, and so is asking for `plan` once one is approved: edit the plan, or fire `replan`. `replan` is allowed only once a plan is approved: a read-only run that re-reads the goal metric, the items' outcomes and project memory and submits the next revision, which waits as `drafted` for approval.")
     .option("--prompt <value>", "Extra instructions appended to the trail prompt.")
     .action(async (handle, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.startTrailRun({ client, path: { handle: handle }, body: clean({ agent: str(opts.agent), connectorId: str(opts.connectorId), kind: str(opts.kind), prompt: str(opts.prompt) }) }) });
@@ -470,10 +470,11 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--plan <value>", "The plan in markdown — the approach, the files and repos it touches, the order of the work, how each acceptance criterion is met, and the risks.")
     .option("--release <value>", "How the trail ships. The person answers this while the plan is made; the build run creates exactly the resources listed (none for `straight_to_main`), and the Plan gate checks they exist.")
     .option("--breakdown <value>", "The milestones and items a plan breaks the trail into. Nothing is filed while the plan is a draft; approving creates the milestones and files the items. `workKind` defaults to `code`.")
+    .option("--marketing <value>", "The plan's marketing strategy — tracked, never executed. Every channel is also a breakdown item of the same title with `workKind` `marketing`, so it has an owner, a status and a place on the timeline.")
     .option("--sources <value>", "What the plan rests on in project memory (`ops memory search`) and earlier tickets and trails, each with what it settled.")
     .option("--summary <value>", "For a replan, what changed since the last approved revision. Recorded on the revision.")
     .action(async (handle, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.submitTrailPlan({ client, path: { handle: handle }, body: clean({ plan: str(opts.plan), release: json(opts.release), breakdown: json(opts.breakdown), sources: json(opts.sources), summary: str(opts.summary) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.submitTrailPlan({ client, path: { handle: handle }, body: clean({ plan: str(opts.plan), release: json(opts.release), breakdown: json(opts.breakdown), marketing: json(opts.marketing), sources: json(opts.sources), summary: str(opts.summary) }) }) });
     });
   g_trails.command("update-plan")
     .description("Edit a trail's plan")
@@ -481,8 +482,9 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--plan <value>", "The plan in markdown.")
     .option("--release <value>", "How the trail ships. The person answers this while the plan is made; the build run creates exactly the resources listed (none for `straight_to_main`), and the Plan gate checks they exist.")
     .option("--breakdown <value>", "The milestones and items a plan breaks the trail into. Nothing is filed while the plan is a draft; approving creates the milestones and files the items. `workKind` defaults to `code`.")
+    .option("--marketing <value>", "The plan's marketing strategy — tracked, never executed. Every channel is also a breakdown item of the same title with `workKind` `marketing`, so it has an owner, a status and a place on the timeline.")
     .action(async (handle, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateTrailPlan({ client, path: { handle: handle }, body: clean({ plan: str(opts.plan), release: json(opts.release), breakdown: json(opts.breakdown) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.updateTrailPlan({ client, path: { handle: handle }, body: clean({ plan: str(opts.plan), release: json(opts.release), breakdown: json(opts.breakdown), marketing: json(opts.marketing) }) }) });
     });
   g_trails.command("approve-plan")
     .description("Approve a trail's plan")
@@ -499,6 +501,24 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--data <value>", "Request body as a JSON object.")
     .action(async (handle, opts) => {
       await ctx.run({ mutates: false, invoke: (client) => api.listTrailPlanRevisions({ client, path: { handle: handle }, body: json(opts.data) as never }) });
+    });
+  g_trails.command("timeline")
+    .description("Read a trail's timeline")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .option("--before <value>", "ISO-8601 time; only events strictly before it (the `next` of the previous page).")
+    .option("--limit <value>", "Most events to return (1-200). Defaults to 50.")
+    .option("--decisions <value>", "Only the decisions.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.getTrailTimeline({ client, path: { handle: handle }, query: clean({ before: str(opts.before), limit: num(opts.limit), decisions: bool(opts.decisions) }), body: json(opts.data) as never }) });
+    });
+  g_trails.command("release-facts")
+    .description("Read a trail's release facts")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .option("--proxy <value>", "What to read the traffic from — `metric:<key>`, `event:<name>` or `flag:<key>`.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.getTrailReleaseFacts({ client, path: { handle: handle }, query: clean({ proxy: str(opts.proxy) }), body: json(opts.data) as never }) });
     });
   g_trails.command("pause-rollout")
     .description("Pause a trail's rollout")
@@ -870,11 +890,12 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--q <value>", "Free-text query, e.g. `checkout retry`.")
     .option("--paths <value>", "Comma-separated repo-relative files or directories, e.g. `apps/web/src/checkout/,packages/billing/src/retry.ts`.")
     .option("--item <value>", "A queue item — its per-project number (e.g. `7`) or full id. Its title and description become the query; its own entries are excluded.")
+    .option("--trail <value>", "A trail — its handle (e.g. `T-12`) or full id. Its title, intent and goal become the query; its own entries and its items' are excluded.")
     .option("--kind <value>", "Only entries of this kind.")
     .option("--limit <value>", "Maximum entries to return (1-50). Defaults to 10.")
     .option("--data <value>", "Request body as a JSON object.")
     .action(async (opts) => {
-      await ctx.run({ mutates: false, invoke: (client) => api.listOpsMemory({ client, query: clean({ q: str(opts.q), paths: str(opts.paths), item: str(opts.item), kind: str(opts.kind), limit: num(opts.limit) }), body: json(opts.data) as never }) });
+      await ctx.run({ mutates: false, invoke: (client) => api.listOpsMemory({ client, query: clean({ q: str(opts.q), paths: str(opts.paths), item: str(opts.item), trail: str(opts.trail), kind: str(opts.kind), limit: num(opts.limit) }), body: json(opts.data) as never }) });
     });
   g_ops_qa_notes.command("list")
     .description("List an item's QA notes")
@@ -1040,9 +1061,11 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--measured <value>", "Release gate. For a `feature` trail, passes when a measuring experiment or metric exists. Off by default.")
     .option("--guarded <value>", "Release gate. Passes when every measured resource has at least one guarding alert rule. Off by default.")
     .option("--copy <value>", "Release gate. Passes when every copy i18n key exists in every published locale of its profile. Off by default.")
-    .option("--plan <value>", "Gate. Passes when every release resource the trail's approved plan lists exists on the trail (a flag, kill switch or experiment the person chose while the plan was made). Reads `pending` while a drafted plan waits for approval, and is left out when the trail has no plan. On by default; it blocks the merge only while `requirePlan` is on.")
-    .option("--require-plan <value>", "Whether starting an agent on a trail with no approved plan fires a read-only plan run first. The plan run asks the person how the trail should ship and anything else that is open, and the build run follows the plan they approve. Off, starting an agent builds directly and creates no flag, kill switch or experiment on its own.")
+    .option("--plan <value>", "Gate. Passes when every release resource the trail's approved plan lists exists on the trail (a flag, kill switch or experiment the person chose while the plan was made). Reads `pending` while a drafted plan waits for approval, and is left out when the trail has no plan yet. On and blocking by default, whoever approved the plan.")
+    .option("--require-plan <value>", "Whether a person approves a trail's plan before it builds. Every trail is planned first — starting an agent on a trail with no approved plan fires a read-only plan run, and the build follows the approved plan. On, the plan run asks the person how the trail should ship and anything else that is open, and waits for their approval. Off, it asks nothing and takes its own recommendations; a plan the checks raise no warning on approves itself and the build starts, one with a warning waits for a person.")
     .option("--fix-rounds <value>", "How many times the server re-fires the coding agent with a fix prompt after a change's evals or findings fail. After the cap the trail reads `reviewing`, needs a person. `0` turns the loop off.")
+    .option("--goal-window-days <value>", "How many days a delivered trail is watched before its goal metric is judged. A trail is delivered when its plan is approved, every code and tracking item is done and every flag it ships behind is fully rolled out (or, with none, something merged).")
+    .option("--max-goal-replans <value>", "How many times shipeasy re-plans a trail on its own after its goal was missed. Each re-plan proposes new options that differ from what was tried. Past the cap the trail is off track and the owner decides; `0` never re-plans automatically.")
     .option("--max-parallel-runs <value>", "How many item runs a trail's build keeps working at once. A build launches an item run for each open item of the current milestone, up to this many; the rest wait for a slot.")
     .option("--attribution-window-hours <value>", "How long after a trail merged an error or alert ticket may be attributed to it. Trails merged inside the window are offered to the investigating agent as candidates.")
     .option("--rollout <value>", "How the flag a trail ships behind is ramped after merge — the release controller's plan (see the design doc, the release controller). Part of the plan's release block; the project's defaults live in `trail-gates` `rollout`. The controller runs on the alerts cron, so a hold shorter than the cron interval rounds up to the next tick.")
@@ -1050,7 +1073,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--intake-matching <value>", "Whether new and still-open errors, alerts, bugs and feature requests are compared with the project's open trails. A confident match attaches the item to the trail with the evidence; a weak one lands under the trail's possibly related list for its owner to confirm or reject. Matching never creates a trail.")
     .option("--repos <value>", "Per-repo overrides keyed by `owner/repo`. An override replaces the project's `checks.required` for changes in that repo; every other gate stays project-wide.")
     .action(async (opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.updateTrailGates({ client, body: clean({ upToDate: json(opts.upToDate), humanReview: json(opts.humanReview), agentReview: json(opts.agentReview), evals: json(opts.evals), checks: json(opts.checks), discovered: json(opts.discovered), shipsDark: json(opts.shipsDark), rollback: json(opts.rollback), measured: json(opts.measured), guarded: json(opts.guarded), copy: json(opts.copy), plan: json(opts.plan), requirePlan: bool(opts.requirePlan), fixRounds: num(opts.fixRounds), maxParallelRuns: num(opts.maxParallelRuns), attributionWindowHours: num(opts.attributionWindowHours), rollout: json(opts.rollout), autopilot: json(opts.autopilot), intakeMatching: bool(opts.intakeMatching), repos: json(opts.repos) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.updateTrailGates({ client, body: clean({ upToDate: json(opts.upToDate), humanReview: json(opts.humanReview), agentReview: json(opts.agentReview), evals: json(opts.evals), checks: json(opts.checks), discovered: json(opts.discovered), shipsDark: json(opts.shipsDark), rollback: json(opts.rollback), measured: json(opts.measured), guarded: json(opts.guarded), copy: json(opts.copy), plan: json(opts.plan), requirePlan: bool(opts.requirePlan), fixRounds: num(opts.fixRounds), goalWindowDays: num(opts.goalWindowDays), maxGoalReplans: num(opts.maxGoalReplans), maxParallelRuns: num(opts.maxParallelRuns), attributionWindowHours: num(opts.attributionWindowHours), rollout: json(opts.rollout), autopilot: json(opts.autopilot), intakeMatching: bool(opts.intakeMatching), repos: json(opts.repos) }) }) });
     });
   const g_ops_trigger_create = defineGroup(g_ops_trigger, "create", { summary: "Create a recurring coding-agent trigger", help: "A trigger is an unattended, scheduled agent run: on a cron cadence it runs the\nshipeasy-ops-work loop in --pr mode against your project — one atomic diff and\nONE pull request per fixed item, nothing auto-merges.\n\nWhatever the provider, the scheduled run executes this trigger prompt (headless\nCLIs take it as the prompt; cloud agents as the task body):\n\n  You are an unattended Shipeasy maintenance run. Authenticate every `shipeasy`\n  call with these env vars (the CLI reads them directly — do NOT run\n  `shipeasy login`, never echo the token). Put them at the top of EVERY shell\n  invocation that calls `shipeasy`; each command runs in a fresh shell:\n\n  export SHIPEASY_CLI_TOKEN=\"<OPS_KEY>\"\n  export SHIPEASY_PROJECT_ID=\"<PROJECT_ID>\"\n\n  Ensure the repo is bound: test -f .shipeasy || printf '{\"project_id\":\"<PROJECT_ID>\"}\\n' > .shipeasy\n  (never commit .shipeasy).\n\n  Refresh to the latest plugin + CLI, then run the ops work loop in --pr mode:\n    <PLUGIN-INSTALL-FOR-THIS-HOST>       # plugin install for claude/copilot, or `npx -y skills add …`\n    npm install -g @shipeasy/cli@latest\n  Then follow the installed shipeasy-ops-work (--pr) workflow verbatim: burn down\n  the queue, one atomic diff per item, open ONE PR per item from a safe branch\n  prefix, flip each to ready_for_qa, add \"Closes #<issue>\" where an item has a\n  connected GitHub issue. If the queue is empty, exit cleanly. Never merge.\n\n<OPS_KEY> is a restricted `ops` key — mint with\n`npx -y @shipeasy/cli@latest keys create --type ops`. It reads the queue, flips\nstatus, links the PR it opens, and creates resources only; it can never edit or\ndelete existing resources, and auto-extends its 7-day expiry on each run.\n<PROJECT_ID> comes from the bound .shipeasy. Never print either value.\n\nSafety: auto-approve flags (--approval-mode=yolo, --dangerously-skip-permissions,\n…) remove the human gate — run only in an isolated env. Unattended loops spend\ntokens/credits on a cadence: start weekly/daily and watch the first runs." });
   g_ops_trigger_create.argument("[provider]", "One of the subcommands below.");

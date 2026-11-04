@@ -11901,7 +11901,7 @@
       "post": {
         "operationId": "startTrailRun",
         "summary": "Start an agent on a trail",
-        "description": "Fire the project's coding-agent trigger on the trail. While the project requires a plan (`trail-gates` `requirePlan`, on by default) and the trail has no approved one, this fires a read-only **plan** run: it reads the trail, asks the person how it should ship (straight to main, behind a flag, flag and experiment, kill switch, flag and kill switch) and anything else that is open through `ops questions ask`, then submits a plan with `trails submit-plan`. Once a person approves the plan (`trails approve-plan`), starting an agent **builds** it.\n\n**Build.** When the approved plan filed items, `build` launches an item run for every open item of the first milestone that still has open items and no run working it (items without a milestone count as the first), at most `trail-gates` `maxParallelRuns` (default 3) at once, and no trail-level build run: `run` is `null` and `itemRuns` says what happened to each item. Each item run opens its own pull request, which becomes a change of the trail. Otherwise one trail-level build run carries the plan to pull requests, creates exactly the resources the plan lists and links them, as before, and `itemRuns` is empty.\n\n**Replan.** Once a plan is approved, `kind: replan` fires a read-only run that re-reads the goal metric, the items' outcomes and project memory and submits the plan's next revision, which waits as `drafted` for approval.\n\n`fix` runs are fired by the server when a change's evals or findings fail. Pass `kind` to ask for one explicitly. Runs spend your own agent quota, not Shipeasy credits.\n\n**Use case:** A trail is created from a feature request; start an agent on it to plan it, approve the plan, then start it again to build.",
+        "description": "Fire the project's coding-agent trigger on the trail. While the trail has no approved plan, this fires a read-only **plan** run: it reads the trail, asks the person how it should ship (straight to main, behind a flag, flag and experiment, kill switch, flag and kill switch) and anything else that is open through `ops questions ask`, then submits a plan with `trails submit-plan`. Once the plan is approved (`trails approve-plan`), starting an agent **builds** it. Where the project turned plan approval off (`trail-gates` `requirePlan`), the plan run asks nothing and a plan with no warnings approves itself and starts the build.\n\n**Build.** When the approved plan filed items, `build` launches an item run for every open item of the first milestone that still has open items and no run working it (items without a milestone count as the first), at most `trail-gates` `maxParallelRuns` (default 3) at once, and no trail-level build run: `run` is `null` and `itemRuns` says what happened to each item. Each item run opens its own pull request, which becomes a change of the trail. Otherwise one trail-level build run carries the plan to pull requests, creates exactly the resources the plan lists and links them, as before, and `itemRuns` is empty.\n\n**Replan.** Once a plan is approved, `kind: replan` fires a read-only run that re-reads the goal metric, the items' outcomes and project memory and submits the plan's next revision, which waits as `drafted` for approval.\n\n`fix` runs are fired by the server when a change's evals or findings fail. Pass `kind` to ask for one explicitly. Runs spend your own agent quota, not Shipeasy credits.\n\n**Use case:** A trail is created from a feature request; start an agent on it to plan it, approve the plan, then start it again to build.",
         "tags": [
           "Trails"
         ],
@@ -32949,7 +32949,7 @@
           },
           "plan": {
             "type": "object",
-            "description": "Gate. Passes when every release resource the trail's approved plan lists exists on the trail (a flag, kill switch or experiment the person chose while the plan was made). Reads `pending` while a drafted plan waits for approval, and is left out when the trail has no plan. On by default; it blocks the merge only while `requirePlan` is on.",
+            "description": "Gate. Passes when every release resource the trail's approved plan lists exists on the trail (a flag, kill switch or experiment the person chose while the plan was made). Reads `pending` while a drafted plan waits for approval, and is left out when the trail has no plan yet. On and blocking by default, whoever approved the plan.",
             "properties": {
               "enabled": {
                 "type": "boolean",
@@ -32959,7 +32959,7 @@
               "blocking": {
                 "type": "boolean",
                 "default": true,
-                "description": "Whether a failing gate blocks the merge. Ignored while `requirePlan` is off, when the gate only reports."
+                "description": "Whether a failing gate blocks the merge. Off, the gate only reports."
               }
             },
             "required": [
@@ -32975,7 +32975,7 @@
           "requirePlan": {
             "type": "boolean",
             "default": true,
-            "description": "Whether starting an agent on a trail with no approved plan fires a read-only plan run first. The plan run asks the person how the trail should ship and anything else that is open, and the build run follows the plan they approve. Off, starting an agent builds directly and creates no flag, kill switch or experiment on its own."
+            "description": "Whether a person approves a trail's plan before it builds. Every trail is planned first — starting an agent on a trail with no approved plan fires a read-only plan run, and the build follows the approved plan. On, the plan run asks the person how the trail should ship and anything else that is open, and waits for their approval. Off, it asks nothing and takes its own recommendations; a plan the checks raise no warning on approves itself and the build starts, one with a warning waits for a person."
           },
           "fixRounds": {
             "type": "integer",
@@ -33827,7 +33827,7 @@
           },
           "requirePlan": {
             "type": "boolean",
-            "description": "Whether the project requires an approved plan before an agent builds (`trail-gates` `requirePlan`)."
+            "description": "Whether a person approves this trail's plan before it builds — the trail's own choice, else the project's (`trail-gates` `requirePlan`). Off, a plan with no warnings approves itself."
           },
           "nextRun": {
             "type": "string",
@@ -35615,7 +35615,7 @@
         "properties": {
           "requirePlan": {
             "type": "boolean",
-            "description": "Plan before building, for this trail. Omitted, the project's setting."
+            "description": "A person approves the plan before it builds, for this trail. Omitted, the project's setting (`trail-gates` `requirePlan`)."
           },
           "strategy": {
             "$ref": "#/components/schemas/TrailReleaseStrategy"
@@ -36010,7 +36010,7 @@
               "build",
               "replan"
             ],
-            "description": "Which run to fire. Omitted, the server picks — `plan` while the project requires a plan (`trail-gates` `requirePlan`) and the trail has no approved one, else `build`. Asking for `build` before the plan is approved is refused with `409`, and so is asking for `plan` once one is approved: edit the plan, or fire `replan`. `replan` is allowed only once a plan is approved: a read-only run that re-reads the goal metric, the items' outcomes and project memory and submits the next revision, which waits as `drafted` for approval."
+            "description": "Which run to fire. Omitted, the server picks — `plan` while the trail has no approved plan, else `build`. Asking for `build` before the plan is approved is refused with `409`, and so is asking for `plan` once one is approved: edit the plan, or fire `replan`. `replan` is allowed only once a plan is approved: a read-only run that re-reads the goal metric, the items' outcomes and project memory and submits the next revision, which waits as `drafted` for approval."
           },
           "prompt": {
             "type": "string",
