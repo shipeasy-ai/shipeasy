@@ -159,6 +159,7 @@ export const KNOWN_TOOLS: readonly string[] = [
   "trails_items_remove",
   "trails_link_pr",
   "trails_list",
+  "trails_pause_autopilot",
   "trails_pause_rollout",
   "trails_promote_finding",
   "trails_reject_suspect",
