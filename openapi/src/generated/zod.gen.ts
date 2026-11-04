@@ -3693,29 +3693,29 @@ export const zTrailGates = z.object({
         required: z.array(z.string().min(1).max(200)).max(50)
     }),
     discovered: z.object({
-        enabled: z.boolean().default(false),
-        blocking: z.boolean().default(false),
+        enabled: z.boolean(),
+        blocking: z.boolean(),
         priority: zOpsItemPriority
     }).optional(),
     shipsDark: z.object({
-        enabled: z.boolean().default(false),
-        blocking: z.boolean().default(false)
+        enabled: z.boolean(),
+        blocking: z.boolean()
     }).optional().default({ enabled: false, blocking: false }),
     rollback: z.object({
-        enabled: z.boolean().default(false),
-        blocking: z.boolean().default(false)
+        enabled: z.boolean(),
+        blocking: z.boolean()
     }).optional().default({ enabled: false, blocking: false }),
     measured: z.object({
-        enabled: z.boolean().default(false),
-        blocking: z.boolean().default(false)
+        enabled: z.boolean(),
+        blocking: z.boolean()
     }).optional().default({ enabled: false, blocking: false }),
     guarded: z.object({
-        enabled: z.boolean().default(false),
-        blocking: z.boolean().default(false)
+        enabled: z.boolean(),
+        blocking: z.boolean()
     }).optional().default({ enabled: false, blocking: false }),
     copy: z.object({
-        enabled: z.boolean().default(false),
-        blocking: z.boolean().default(false)
+        enabled: z.boolean(),
+        blocking: z.boolean()
     }).optional().default({ enabled: false, blocking: false }),
     plan: z.object({
         enabled: z.boolean(),

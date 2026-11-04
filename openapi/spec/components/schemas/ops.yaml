@@ -3756,10 +3756,8 @@ TrailGates:
       properties:
         enabled:
           type: boolean
-          default: false
         blocking:
           type: boolean
-          default: false
         priority:
           $ref: "#/OpsItemPriority"
       required:
@@ -3773,11 +3771,9 @@ TrailGates:
       properties:
         enabled:
           type: boolean
-          default: false
           description: Whether the gate is evaluated at all.
         blocking:
           type: boolean
-          default: false
           description: Whether a failing gate blocks the merge (a non-blocking gate only reports).
       required:
         - enabled
@@ -3792,11 +3788,9 @@ TrailGates:
       properties:
         enabled:
           type: boolean
-          default: false
           description: Whether the gate is evaluated at all.
         blocking:
           type: boolean
-          default: false
           description: Whether a failing gate blocks the merge (a non-blocking gate only reports).
       required:
         - enabled
@@ -3811,11 +3805,9 @@ TrailGates:
       properties:
         enabled:
           type: boolean
-          default: false
           description: Whether the gate is evaluated at all.
         blocking:
           type: boolean
-          default: false
           description: Whether a failing gate blocks the merge (a non-blocking gate only reports).
       required:
         - enabled
@@ -3830,11 +3822,9 @@ TrailGates:
       properties:
         enabled:
           type: boolean
-          default: false
           description: Whether the gate is evaluated at all.
         blocking:
           type: boolean
-          default: false
           description: Whether a failing gate blocks the merge (a non-blocking gate only reports).
       required:
         - enabled
@@ -3849,11 +3839,9 @@ TrailGates:
       properties:
         enabled:
           type: boolean
-          default: false
           description: Whether the gate is evaluated at all.
         blocking:
           type: boolean
-          default: false
           description: Whether a failing gate blocks the merge (a non-blocking gate only reports).
       required:
         - enabled

@@ -2721,24 +2721,24 @@ _Parameters_
 | `checks.blocking` | required | `boolean` | — |
 | `checks.required` | required | `string[]` | Check names that must pass. Empty means every reported check. |
 | `discovered` | optional | `object` | Passes when no item discovered on the trail is open at or above `priority`. Off by default; turn it on to say "a high bug found while building this blocks shipping it". |
-| `discovered.enabled` | required | `boolean` | — _(default `false`)_ |
-| `discovered.blocking` | required | `boolean` | — _(default `false`)_ |
+| `discovered.enabled` | required | `boolean` | — |
+| `discovered.blocking` | required | `boolean` | — |
 | `discovered.priority` | required | `"nice_to_have" \| "medium" \| "high" \| "critical"` | Triage priority of a queue item. The lowest tier is `nice_to_have` (not `low`) — carried over from the feature-request "importance" scale this priority set replaced. |
 | `shipsDark` | optional | `object` | Release gate. Passes when every flag the trail ships behind exists and is not at 100% in prod, so new code merges off. Off by default. _(default `{"enabled":false,"blocking":false}`)_ |
-| `shipsDark.enabled` | required | `boolean` | Whether the gate is evaluated at all. _(default `false`)_ |
-| `shipsDark.blocking` | required | `boolean` | Whether a failing gate blocks the merge (a non-blocking gate only reports). _(default `false`)_ |
+| `shipsDark.enabled` | required | `boolean` | Whether the gate is evaluated at all. |
+| `shipsDark.blocking` | required | `boolean` | Whether a failing gate blocks the merge (a non-blocking gate only reports). |
 | `rollback` | optional | `object` | Release gate. For a `feature` trail, passes when a rollback kill switch exists. Off by default. _(default `{"enabled":false,"blocking":false}`)_ |
-| `rollback.enabled` | required | `boolean` | Whether the gate is evaluated at all. _(default `false`)_ |
-| `rollback.blocking` | required | `boolean` | Whether a failing gate blocks the merge (a non-blocking gate only reports). _(default `false`)_ |
+| `rollback.enabled` | required | `boolean` | Whether the gate is evaluated at all. |
+| `rollback.blocking` | required | `boolean` | Whether a failing gate blocks the merge (a non-blocking gate only reports). |
 | `measured` | optional | `object` | Release gate. For a `feature` trail, passes when a measuring experiment or metric exists. Off by default. _(default `{"enabled":false,"blocking":false}`)_ |
-| `measured.enabled` | required | `boolean` | Whether the gate is evaluated at all. _(default `false`)_ |
-| `measured.blocking` | required | `boolean` | Whether a failing gate blocks the merge (a non-blocking gate only reports). _(default `false`)_ |
+| `measured.enabled` | required | `boolean` | Whether the gate is evaluated at all. |
+| `measured.blocking` | required | `boolean` | Whether a failing gate blocks the merge (a non-blocking gate only reports). |
 | `guarded` | optional | `object` | Release gate. Passes when every measured resource has at least one guarding alert rule. Off by default. _(default `{"enabled":false,"blocking":false}`)_ |
-| `guarded.enabled` | required | `boolean` | Whether the gate is evaluated at all. _(default `false`)_ |
-| `guarded.blocking` | required | `boolean` | Whether a failing gate blocks the merge (a non-blocking gate only reports). _(default `false`)_ |
+| `guarded.enabled` | required | `boolean` | Whether the gate is evaluated at all. |
+| `guarded.blocking` | required | `boolean` | Whether a failing gate blocks the merge (a non-blocking gate only reports). |
 | `copy` | optional | `object` | Release gate. Passes when every copy i18n key exists in every published locale of its profile. Off by default. _(default `{"enabled":false,"blocking":false}`)_ |
-| `copy.enabled` | required | `boolean` | Whether the gate is evaluated at all. _(default `false`)_ |
-| `copy.blocking` | required | `boolean` | Whether a failing gate blocks the merge (a non-blocking gate only reports). _(default `false`)_ |
+| `copy.enabled` | required | `boolean` | Whether the gate is evaluated at all. |
+| `copy.blocking` | required | `boolean` | Whether a failing gate blocks the merge (a non-blocking gate only reports). |
 | `plan` | optional | `object` | Gate. Passes when every release resource the trail's approved plan lists exists on the trail (a flag, kill switch or experiment the person chose while the plan was made). Reads `pending` while a drafted plan waits for approval, and is left out when the trail has no plan yet. On and blocking by default, whoever approved the plan. _(default `{"enabled":true,"blocking":true}`)_ |
 | `plan.enabled` | required | `boolean` | Whether the gate is evaluated at all. |
 | `plan.blocking` | required | `boolean` | Whether a failing gate blocks the merge. Off, the gate only reports. |

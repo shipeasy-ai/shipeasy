@@ -32808,12 +32808,10 @@
             "description": "Passes when no item discovered on the trail is open at or above `priority`. Off by default; turn it on to say \"a high bug found while building this blocks shipping it\".",
             "properties": {
               "enabled": {
-                "type": "boolean",
-                "default": false
+                "type": "boolean"
               },
               "blocking": {
-                "type": "boolean",
-                "default": false
+                "type": "boolean"
               },
               "priority": {
                 "$ref": "#/components/schemas/OpsItemPriority"
@@ -32832,12 +32830,10 @@
             "properties": {
               "enabled": {
                 "type": "boolean",
-                "default": false,
                 "description": "Whether the gate is evaluated at all."
               },
               "blocking": {
                 "type": "boolean",
-                "default": false,
                 "description": "Whether a failing gate blocks the merge (a non-blocking gate only reports)."
               }
             },
@@ -32857,12 +32853,10 @@
             "properties": {
               "enabled": {
                 "type": "boolean",
-                "default": false,
                 "description": "Whether the gate is evaluated at all."
               },
               "blocking": {
                 "type": "boolean",
-                "default": false,
                 "description": "Whether a failing gate blocks the merge (a non-blocking gate only reports)."
               }
             },
@@ -32882,12 +32876,10 @@
             "properties": {
               "enabled": {
                 "type": "boolean",
-                "default": false,
                 "description": "Whether the gate is evaluated at all."
               },
               "blocking": {
                 "type": "boolean",
-                "default": false,
                 "description": "Whether a failing gate blocks the merge (a non-blocking gate only reports)."
               }
             },
@@ -32907,12 +32899,10 @@
             "properties": {
               "enabled": {
                 "type": "boolean",
-                "default": false,
                 "description": "Whether the gate is evaluated at all."
               },
               "blocking": {
                 "type": "boolean",
-                "default": false,
                 "description": "Whether a failing gate blocks the merge (a non-blocking gate only reports)."
               }
             },
@@ -32932,12 +32922,10 @@
             "properties": {
               "enabled": {
                 "type": "boolean",
-                "default": false,
                 "description": "Whether the gate is evaluated at all."
               },
               "blocking": {
                 "type": "boolean",
-                "default": false,
                 "description": "Whether a failing gate blocks the merge (a non-blocking gate only reports)."
               }
             },
