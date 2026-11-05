@@ -26,6 +26,8 @@ export const FEATURE_SKILLS: Record<string, string[]> = {
   ops: [
     "shipeasy-ops",
     "shipeasy-ops-work",
+    // the project brain (ops_brain_*): ops-work reads it before a fix and teaches it after
+    "shipeasy-brain",
     "shipeasy-see",
     "shipeasy-alerts",
     "shipeasy-metrics",
