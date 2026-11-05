@@ -2067,6 +2067,22 @@ shipeasy trails marketing preview [options] <handle> <assetId>
 | --- | --- | --- |
 | `--data <value>` | optional | Request body as a JSON object. |
 
+#### `shipeasy trails marketing results`
+
+Read each delivered asset's results
+
+```bash
+shipeasy trails marketing results [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
 ### `shipeasy trails marketing-lists`
 
 Uploaded contact lists a trail's marketing email can go to.

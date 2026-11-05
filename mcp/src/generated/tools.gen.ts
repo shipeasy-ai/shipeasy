@@ -998,6 +998,12 @@ export const GENERATED_TOOLS: Tool[] = [
     annotations: {"title":"Trails Marketing Request Changes","readOnlyHint":false,"destructiveHint":false,"idempotentHint":false},
   },
   {
+    name: "trails_marketing_results",
+    description: "Read each delivered asset's results. The result of every delivered marketing asset on the trail: its delivery evidence (sent / suppressed / failed counts, or the post or campaign URL), the signups attributed to it (the trail's `trail_marketing_attributed_signups` metric filtered by `utm_content=<asset id>`, since…",
+    inputSchema: {"type":"object","properties":{"handle":{"type":"string","minLength":1,"maxLength":64,"pattern":"^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$","description":"The trail's handle (`T-12`) or its id."}},"required":["handle"]},
+    annotations: {"title":"Trails Marketing Results","readOnlyHint":true},
+  },
+  {
     name: "trails_marketing_submit",
     description: "Submit a marketing asset for review. Move a draft to `in_review`, where a person approves it or asks for changes.",
     inputSchema: {"type":"object","properties":{"handle":{"type":"string","minLength":1,"maxLength":64,"pattern":"^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$","description":"The trail's handle (`T-12`) or its id."},"assetId":{"type":"string","minLength":1,"maxLength":64,"pattern":"^[0-9a-fA-F-]{32,36}$","description":"The marketing asset's id (`TrailMarketingAsset.id`)."}},"required":["handle","assetId"]},
@@ -1316,6 +1322,7 @@ export const GENERATED_MUTATES: Record<string, boolean> = {
   "trails_marketing_lists_list": false,
   "trails_marketing_preview": true,
   "trails_marketing_request_changes": true,
+  "trails_marketing_results": false,
   "trails_marketing_submit": true,
   "trails_marketing_update": true,
   "trails_milestones_add": true,
@@ -1510,6 +1517,7 @@ export const GENERATED_DISPATCH: Record<string, (client: Client, args: Record<st
   "trails_marketing_lists_list": (client, args) => api.listMarketingLists({ client }).then(unwrap) as Promise<unknown>,
   "trails_marketing_preview": (client, args) => api.previewTrailMarketingAsset({ client, path: { "handle": args["handle"] as never, "assetId": args["assetId"] as never } }).then(unwrap) as Promise<unknown>,
   "trails_marketing_request_changes": (client, args) => api.requestTrailMarketingChanges({ client, path: { "handle": args["handle"] as never, "assetId": args["assetId"] as never }, body: clean({ "reason": args["reason"] }) }).then(unwrap) as Promise<unknown>,
+  "trails_marketing_results": (client, args) => api.listTrailMarketingResults({ client, path: { "handle": args["handle"] as never } }).then(unwrap) as Promise<unknown>,
   "trails_marketing_submit": (client, args) => api.submitTrailMarketingAsset({ client, path: { "handle": args["handle"] as never, "assetId": args["assetId"] as never } }).then(unwrap) as Promise<unknown>,
   "trails_marketing_update": (client, args) => api.updateTrailMarketingAsset({ client, path: { "handle": args["handle"] as never, "assetId": args["assetId"] as never }, body: clean({ "timing": args["timing"], "content": args["content"], "audience": args["audience"] }) }).then(unwrap) as Promise<unknown>,
   "trails_milestones_add": (client, args) => api.createTrailMilestone({ client, path: { "handle": args["handle"] as never }, body: clean({ "name": args["name"], "description": args["description"], "targetDate": args["targetDate"], "position": args["position"] }) }).then(unwrap) as Promise<unknown>,

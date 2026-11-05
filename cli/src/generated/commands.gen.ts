@@ -1693,6 +1693,13 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .action(async (handle, assetId, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.previewTrailMarketingAsset({ client, path: { handle: handle, assetId: assetId }, body: json(opts.data) as never }) });
     });
+  g_trails_marketing.command("results")
+    .description("Read each delivered asset's results")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.listTrailMarketingResults({ client, path: { handle: handle }, body: json(opts.data) as never }) });
+    });
   g_trails_marketing_lists.command("list")
     .description("List contact lists")
     .option("--data <value>", "Request body as a JSON object.")

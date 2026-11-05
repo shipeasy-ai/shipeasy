@@ -5291,6 +5291,49 @@ export const zTrailMarketingPreview = z.object({
 });
 
 /**
+ * How the trail's goal metric moved after an asset went out — its average over the window after delivery against the same-length window before it.
+ */
+export const zTrailMarketingGoalMovement = z.object({
+    metricId: z.string(),
+    metricName: z.string(),
+    windowDays: z.int().gte(1),
+    before: z.number().nullable(),
+    after: z.number().nullable(),
+    change: z.number().nullable(),
+    complete: z.boolean()
+});
+
+/**
+ * One delivered asset's result.
+ */
+export const zTrailMarketingResult = z.object({
+    assetId: z.string(),
+    kind: zTrailMarketingAssetKind,
+    channel: zTrailMarketingAssetChannel,
+    state: zTrailMarketingAssetState,
+    subject: z.string().nullable(),
+    deliveredAt: z.iso.datetime(),
+    sentCount: z.int().gte(0),
+    suppressedCount: z.int().gte(0),
+    failedCount: z.int().gte(0),
+    postUrl: z.string().nullable(),
+    campaignUrl: z.string().nullable(),
+    signups: z.int().gte(0).nullable(),
+    goal: zTrailMarketingGoalMovement.nullable()
+});
+
+/**
+ * Each delivered asset's results, oldest delivery first.
+ */
+export const zListTrailMarketingResultsResponse = z.object({
+    data: z.array(zTrailMarketingResult),
+    signupsMetric: z.object({
+        id: z.string(),
+        name: z.string()
+    }).nullable()
+});
+
+/**
  * An uploaded or pasted contact list. Selectable as an email audience only while it carries a consent attestation and is not archived.
  */
 export const zMarketingList = z.object({
@@ -9083,6 +9126,19 @@ export const zPreviewTrailMarketingAssetPath = z.object({
  * The preview
  */
 export const zPreviewTrailMarketingAssetResponse = zTrailMarketingPreview;
+
+export const zListTrailMarketingResultsHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zListTrailMarketingResultsPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/)
+});
+
+/**
+ * Each delivered asset's results, oldest delivery first
+ */
+export const zListTrailMarketingResultsResponse2 = zListTrailMarketingResultsResponse;
 
 export const zListMarketingListsHeaders = z.object({
     'X-Project-Id': z.string().optional()

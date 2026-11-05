@@ -683,6 +683,8 @@ paths:
     $ref: ./paths/trail-marketing.yaml#/~1api~1admin~1trails~1{handle}~1marketing~1{assetId}~1delivered
   /api/admin/trails/{handle}/marketing/{assetId}/preview:
     $ref: ./paths/trail-marketing.yaml#/~1api~1admin~1trails~1{handle}~1marketing~1{assetId}~1preview
+  /api/admin/trails/{handle}/marketing-results:
+    $ref: ./paths/trail-marketing.yaml#/~1api~1admin~1trails~1{handle}~1marketing-results
   /api/admin/marketing-lists:
     $ref: ./paths/trail-marketing.yaml#/~1api~1admin~1marketing-lists
   /api/admin/marketing-lists/{listId}/archive:

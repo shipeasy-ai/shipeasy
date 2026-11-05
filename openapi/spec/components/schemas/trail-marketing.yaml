@@ -257,6 +257,143 @@ ListTrailMarketingAssetsResponse:
   required:
     - data
   additionalProperties: false
+TrailMarketingGoalMovement:
+  type: object
+  description: How the trail's goal metric moved after an asset went out — its average over the window after delivery against the same-length window before it.
+  properties:
+    metricId:
+      type: string
+      description: The goal metric's id.
+    metricName:
+      type: string
+      description: The goal metric's name.
+    windowDays:
+      type: integer
+      minimum: 1
+      description: Days on each side of the delivery.
+    before:
+      anyOf:
+        - type: number
+        - type: "null"
+      description: The goal metric's average over the window before delivery, or `null` with no data.
+    after:
+      anyOf:
+        - type: number
+        - type: "null"
+      description: The goal metric's average since delivery (up to `windowDays`), or `null` with no data.
+    change:
+      anyOf:
+        - type: number
+        - type: "null"
+      description: "`after - before`, or `null` when either side has no data."
+    complete:
+      type: boolean
+      description: Whether the whole window after delivery has passed. `false` means `after` is still filling in.
+  required:
+    - metricId
+    - metricName
+    - windowDays
+    - before
+    - after
+    - change
+    - complete
+  additionalProperties: false
+TrailMarketingResult:
+  type: object
+  description: One delivered asset's result.
+  properties:
+    assetId:
+      type: string
+      description: The asset's id — also the `utm_content` its links carry.
+    kind:
+      $ref: "#/TrailMarketingAssetKind"
+    channel:
+      $ref: "#/TrailMarketingAssetChannel"
+    state:
+      $ref: "#/TrailMarketingAssetState"
+    subject:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: A short label for the asset — the email subject, the ad headline, or the start of the post.
+    deliveredAt:
+      type: string
+      format: date-time
+      description: When delivery started (email) or was recorded (hand-off).
+    sentCount:
+      type: integer
+      minimum: 0
+      description: Email recipients the message went to.
+    suppressedCount:
+      type: integer
+      minimum: 0
+      description: Email recipients skipped because they are on the suppression list.
+    failedCount:
+      type: integer
+      minimum: 0
+      description: Email recipients the send failed for.
+    postUrl:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The live post's URL.
+    campaignUrl:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The ad campaign's URL.
+    signups:
+      anyOf:
+        - type: integer
+          minimum: 0
+        - type: "null"
+      description: Signups attributed to the asset since delivery (`utm_content=<asset id>`), or `null` when the trail does not measure them or the read failed.
+    goal:
+      anyOf:
+        - $ref: "#/TrailMarketingGoalMovement"
+        - type: "null"
+      description: The goal metric's movement after delivery, or `null` when the trail has no goal metric.
+  required:
+    - assetId
+    - kind
+    - channel
+    - state
+    - subject
+    - deliveredAt
+    - sentCount
+    - suppressedCount
+    - failedCount
+    - postUrl
+    - campaignUrl
+    - signups
+    - goal
+  additionalProperties: false
+ListTrailMarketingResultsResponse:
+  type: object
+  description: Each delivered asset's results, oldest delivery first.
+  properties:
+    data:
+      type: array
+      items:
+        $ref: "#/TrailMarketingResult"
+    signupsMetric:
+      anyOf:
+        - type: object
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+          required:
+            - id
+            - name
+          additionalProperties: false
+        - type: "null"
+      description: The metric the signups are read from, or `null` when the project has no `trail_marketing_attributed_signups` metric.
+  required:
+    - data
+    - signupsMetric
+  additionalProperties: false
 CreateTrailMarketingAssetRequest:
   type: object
   description: Body for `POST /api/admin/trails/{handle}/marketing`. Creates a draft.
