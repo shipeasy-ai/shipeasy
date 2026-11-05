@@ -4120,6 +4120,7 @@ _Parameters_
 | `marketing.channels` | required | `object[]` | — |
 | `sources` | optional | `object[]` | What the plan rests on in project memory (`ops memory search`) and earlier tickets and trails, each with what it settled. |
 | `summary` | optional | `string` | For a replan, what changed since the last approved revision. Recorded on the revision. _(length 0–500)_ |
+| `goal` | optional | `any` | The metric the plan says will judge the trail, with its baseline and target — sent when the intent is an outcome and the trail has no goal yet. It becomes the trail's goal only while the trail has none (a goal a person set is never replaced), and its metric must already exist; leave `metric` out when a tracking item creates it. |
 
 _Errors_ — beyond the [common errors](#errors):
 
