@@ -3561,6 +3561,20 @@ export const zTrailRun = z.object({
 });
 
 /**
+ * A coding-agent session working one item of the trail (a build through items, an auto-launch or a delegate), as opposed to a run on the trail itself.
+ */
+export const zTrailItemRun = z.object({
+    id: z.string(),
+    item: zOpsItemRef,
+    state: zTrailRunState,
+    agent: z.string().nullable(),
+    sessionUrl: z.string().nullable(),
+    summary: z.string().nullable(),
+    startedAt: z.string(),
+    completedAt: z.string().nullable()
+});
+
+/**
  * How sure an attribution is. `high` and `medium` attach the item to the trail; `low` records a suspect for a person to confirm or reject.
  */
 export const zTrailAttributionConfidence = z.enum([
@@ -4188,6 +4202,7 @@ export const zTrailDetail = z.object({
     milestones: z.array(zTrailMilestone),
     resources: z.array(zTrailResource),
     runs: z.array(zTrailRun),
+    itemRuns: z.array(zTrailItemRun),
     suspects: z.array(zTrailSuspect),
     gates: zTrailGates,
     plan: zTrailPlan,

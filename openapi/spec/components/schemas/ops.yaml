@@ -6669,6 +6669,50 @@ TrailPlanResult:
   required:
     - plan
   additionalProperties: false
+TrailItemRun:
+  type: object
+  description: A coding-agent session working one item of the trail (a build through items, an auto-launch or a delegate), as opposed to a run on the trail itself.
+  properties:
+    id:
+      type: string
+      description: The run's id.
+    item:
+      $ref: "#/OpsItemRef"
+    state:
+      $ref: "#/TrailRunState"
+    agent:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The coding agent that runs it (`claude`, `cursor`, `copilot`, `jules`, `jarvis`), or `null`.
+    sessionUrl:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Link to the agent's session, or `null` when the provider has none or it has not started yet.
+    summary:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: What the run reported when it finished, or `null`.
+    startedAt:
+      type: string
+      description: ISO-8601 start time.
+    completedAt:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: ISO-8601 finish time, or `null` while it runs.
+  required:
+    - id
+    - item
+    - state
+    - agent
+    - sessionUrl
+    - summary
+    - startedAt
+    - completedAt
+  additionalProperties: false
 TrailDetail:
   type: object
   description: "A trail followed from intent to release: the trail itself plus its changes, discovered items, resources, runs, suspected regressions and the project's gates. Phase and counts are recomputed live on this read."
@@ -6823,6 +6867,11 @@ TrailDetail:
       items:
         $ref: "#/TrailRun"
       description: Runs working the trail itself, newest first.
+    itemRuns:
+      type: array
+      items:
+        $ref: "#/TrailItemRun"
+      description: Runs working the trail's items — open ones and those finished in the last 14 days, newest first. Read per request, never from the cached snapshot.
     suspects:
       type: array
       items:
@@ -6890,6 +6939,7 @@ TrailDetail:
     - milestones
     - resources
     - runs
+    - itemRuns
     - suspects
     - gates
     - plan

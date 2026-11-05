@@ -23132,6 +23132,50 @@ components:
         - completedAt
         - error
       additionalProperties: false
+    TrailItemRun:
+      type: object
+      description: A coding-agent session working one item of the trail (a build through items, an auto-launch or a delegate), as opposed to a run on the trail itself.
+      properties:
+        id:
+          type: string
+          description: The run's id.
+        item:
+          $ref: '#/components/schemas/OpsItemRef'
+        state:
+          $ref: '#/components/schemas/TrailRunState'
+        agent:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: The coding agent that runs it (`claude`, `cursor`, `copilot`, `jules`, `jarvis`), or `null`.
+        sessionUrl:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: Link to the agent's session, or `null` when the provider has none or it has not started yet.
+        summary:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: What the run reported when it finished, or `null`.
+        startedAt:
+          type: string
+          description: ISO-8601 start time.
+        completedAt:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: ISO-8601 finish time, or `null` while it runs.
+      required:
+        - id
+        - item
+        - state
+        - agent
+        - sessionUrl
+        - summary
+        - startedAt
+        - completedAt
+      additionalProperties: false
     TrailAttributionConfidence:
       type: string
       enum:
@@ -24624,6 +24668,11 @@ components:
           items:
             $ref: '#/components/schemas/TrailRun'
           description: Runs working the trail itself, newest first.
+        itemRuns:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrailItemRun'
+          description: Runs working the trail's items — open ones and those finished in the last 14 days, newest first. Read per request, never from the cached snapshot.
         suspects:
           type: array
           items:
@@ -24691,6 +24740,7 @@ components:
         - milestones
         - resources
         - runs
+        - itemRuns
         - suspects
         - gates
         - plan

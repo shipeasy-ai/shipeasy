@@ -6434,6 +6434,38 @@ export type TrailRun = {
 };
 
 /**
+ * A coding-agent session working one item of the trail (a build through items, an auto-launch or a delegate), as opposed to a run on the trail itself.
+ */
+export type TrailItemRun = {
+    /**
+     * The run's id.
+     */
+    id: string;
+    item: OpsItemRef;
+    state: TrailRunState;
+    /**
+     * The coding agent that runs it (`claude`, `cursor`, `copilot`, `jules`, `jarvis`), or `null`.
+     */
+    agent: string | null;
+    /**
+     * Link to the agent's session, or `null` when the provider has none or it has not started yet.
+     */
+    sessionUrl: string | null;
+    /**
+     * What the run reported when it finished, or `null`.
+     */
+    summary: string | null;
+    /**
+     * ISO-8601 start time.
+     */
+    startedAt: string;
+    /**
+     * ISO-8601 finish time, or `null` while it runs.
+     */
+    completedAt: string | null;
+};
+
+/**
  * How sure an attribution is. `high` and `medium` attach the item to the trail; `low` records a suspect for a person to confirm or reject.
  */
 export type TrailAttributionConfidence = 'high' | 'medium' | 'low';
@@ -7444,6 +7476,10 @@ export type TrailDetail = {
      * Runs working the trail itself, newest first.
      */
     runs: Array<TrailRun>;
+    /**
+     * Runs working the trail's items — open ones and those finished in the last 14 days, newest first. Read per request, never from the cached snapshot.
+     */
+    itemRuns: Array<TrailItemRun>;
     /**
      * Pending suspects awaiting a person (the trail's possibly related list) — low-confidence post-merge attributions, and weak intake matches.
      */
