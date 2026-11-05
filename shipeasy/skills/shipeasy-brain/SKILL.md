@@ -37,6 +37,8 @@ work on.
      verify comes back in `dropped`.
    - The text uses the markup: `# Title`, `type:: convention | pitfall |
      decision | concept | fact`, `summary:: <one line an agent can act on>`,
+     `tags:: <the project's own tags>` (`tags_list` shows them; any other tag is
+     dropped, never created),
      `key:: value` facts, typed links (`depends_on:: [[Billing service]]`,
      `part_of:: [[Checkout]]`, `supersedes:: [[Old decision]]`), and inline
      `[[Other note]]`, `@gate:<key>`, `@metric:<key>`, `#<item>` and backticked

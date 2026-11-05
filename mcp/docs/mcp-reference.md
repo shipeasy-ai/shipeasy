@@ -3314,7 +3314,9 @@ links (`depends_on:: [[Billing]]`), `[[Other note]]`, `@gate:<key>`, `#42`,
 backticked repo paths. Ground each note with `evidence` — a repo path and
 a snippet copied verbatim from it; verified evidence makes the note
 outrank anything said about that code, and it is re-checked when the file
-changes. Lessons, not logs: one subject per note.
+changes. Tag a note with the project's own tags: `tags:: checkout, ios`
+(see `tags list`). Only tags the project already has are kept; any other
+comes back in `dropped`. Lessons, not logs: one subject per note.
 
 **Use case:** Seeding: read README / CLAUDE.md / design docs, then send
 `{notes: [{text: "# Retries are capped\ntype:: convention\n…", extract: false, source: "seed:claude", evidence: [{path: "src/retry.ts", snippet: "export const MAX_RETRIES = 3;"}]}]}`.

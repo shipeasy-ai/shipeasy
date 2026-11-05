@@ -501,7 +501,7 @@ IngestBrainNote:
       type: string
       minLength: 1
       maxLength: 20000
-      description: "Markdown. Optional markup: `type:: pitfall`, `summary:: one line`, `key:: value` facts, typed links (`depends_on:: [[Billing]]`), `[[Other note]]`, `@gate:key`, `#42`, backticked repo paths."
+      description: "Markdown. Optional markup: `type:: pitfall`, `summary:: one line`, `tags:: a, b` (the project's own tags), `key:: value` facts, typed links (`depends_on:: [[Billing]]`), `[[Other note]]`, `@gate:key`, `#42`, backticked repo paths."
     title:
       type: string
       maxLength: 200
@@ -572,6 +572,11 @@ IngestBrainResponse:
             type: number
           settled:
             type: number
+          tags:
+            type: array
+            items:
+              type: string
+            description: The note's project tags after the write. Only tags the project already has are kept; a proposed tag it lacks is listed in `dropped`.
         required:
           - slug
           - id
@@ -579,6 +584,7 @@ IngestBrainResponse:
           - changes
           - links
           - settled
+          - tags
         additionalProperties: false
     extracted:
       type: boolean
@@ -587,7 +593,7 @@ IngestBrainResponse:
       type: array
       items:
         type: string
-      description: What the quality gates refused — unverifiable evidence, invented links.
+      description: What the quality gates refused — unverifiable evidence, invented links, tags the project does not have.
     pending:
       type: string
       description: Why extraction did not run, when it did not (`out_of_credits`, `no_model`, `disabled`).

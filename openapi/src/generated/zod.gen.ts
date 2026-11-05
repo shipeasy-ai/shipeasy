@@ -3413,7 +3413,8 @@ export const zIngestBrainResponse = z.object({
         ]),
         changes: z.array(z.string()),
         links: z.number(),
-        settled: z.number()
+        settled: z.number(),
+        tags: z.array(z.string())
     })),
     extracted: z.boolean(),
     dropped: z.array(z.string()),

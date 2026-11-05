@@ -6219,7 +6219,7 @@ export type BrainEvidence = {
 
 export type IngestBrainNote = {
     /**
-     * Markdown. Optional markup: `type:: pitfall`, `summary:: one line`, `key:: value` facts, typed links (`depends_on:: [[Billing]]`), `[[Other note]]`, `@gate:key`, `#42`, backticked repo paths.
+     * Markdown. Optional markup: `type:: pitfall`, `summary:: one line`, `tags:: a, b` (the project's own tags), `key:: value` facts, typed links (`depends_on:: [[Billing]]`), `[[Other note]]`, `@gate:key`, `#42`, backticked repo paths.
      */
     text: string;
     title?: string;
@@ -6264,13 +6264,17 @@ export type IngestBrainResponse = {
         changes: Array<string>;
         links: number;
         settled: number;
+        /**
+         * The note's project tags after the write. Only tags the project already has are kept; a proposed tag it lacks is listed in `dropped`.
+         */
+        tags: Array<string>;
     }>;
     /**
      * Whether shipeasy's model extracted the text (false when `extract` was false, or no model/credits).
      */
     extracted: boolean;
     /**
-     * What the quality gates refused — unverifiable evidence, invented links.
+     * What the quality gates refused — unverifiable evidence, invented links, tags the project does not have.
      */
     dropped: Array<string>;
     /**

@@ -10725,7 +10725,7 @@
       "post": {
         "operationId": "ingestBrain",
         "summary": "Teach the brain",
-        "description": "Send knowledge in — one to twenty notes. Each is reconciled into the note\nits title lands on rather than added beside it: the later claim wins\nwithin the same source strength, a weaker source never overwrites a\nstronger one (a person > verified code > a merged PR > a ticket > text\nsent in), every rewrite keeps a revision, and the same text twice changes\nnothing.\n\nBy default shipeasy's model extracts and verifies the text (billed to the\nproject's Jarvis credits). When you already wrote each note in its final\nform — seeding from the repo — pass `extract: false` and use the markup:\n`type:: convention`, `summary:: one line`, `key:: value` facts, typed\nlinks (`depends_on:: [[Billing]]`), `[[Other note]]`, `@gate:<key>`, `#42`,\nbackticked repo paths. Ground each note with `evidence` — a repo path and\na snippet copied verbatim from it; verified evidence makes the note\noutrank anything said about that code, and it is re-checked when the file\nchanges. Lessons, not logs: one subject per note.\n\n**Use case:** Seeding: read README / CLAUDE.md / design docs, then send\n`{notes: [{text: \"# Retries are capped\\ntype:: convention\\n…\", extract: false, source: \"seed:claude\", evidence: [{path: \"src/retry.ts\", snippet: \"export const MAX_RETRIES = 3;\"}]}]}`.",
+        "description": "Send knowledge in — one to twenty notes. Each is reconciled into the note\nits title lands on rather than added beside it: the later claim wins\nwithin the same source strength, a weaker source never overwrites a\nstronger one (a person > verified code > a merged PR > a ticket > text\nsent in), every rewrite keeps a revision, and the same text twice changes\nnothing.\n\nBy default shipeasy's model extracts and verifies the text (billed to the\nproject's Jarvis credits). When you already wrote each note in its final\nform — seeding from the repo — pass `extract: false` and use the markup:\n`type:: convention`, `summary:: one line`, `key:: value` facts, typed\nlinks (`depends_on:: [[Billing]]`), `[[Other note]]`, `@gate:<key>`, `#42`,\nbackticked repo paths. Ground each note with `evidence` — a repo path and\na snippet copied verbatim from it; verified evidence makes the note\noutrank anything said about that code, and it is re-checked when the file\nchanges. Tag a note with the project's own tags: `tags:: checkout, ios`\n(see `tags list`). Only tags the project already has are kept; any other\ncomes back in `dropped`. Lessons, not logs: one subject per note.\n\n**Use case:** Seeding: read README / CLAUDE.md / design docs, then send\n`{notes: [{text: \"# Retries are capped\\ntype:: convention\\n…\", extract: false, source: \"seed:claude\", evidence: [{path: \"src/retry.ts\", snippet: \"export const MAX_RETRIES = 3;\"}]}]}`.",
         "tags": [
           "Brain"
         ],
@@ -33199,7 +33199,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 20000,
-            "description": "Markdown. Optional markup: `type:: pitfall`, `summary:: one line`, `key:: value` facts, typed links (`depends_on:: [[Billing]]`), `[[Other note]]`, `@gate:key`, `#42`, backticked repo paths."
+            "description": "Markdown. Optional markup: `type:: pitfall`, `summary:: one line`, `tags:: a, b` (the project's own tags), `key:: value` facts, typed links (`depends_on:: [[Billing]]`), `[[Other note]]`, `@gate:key`, `#42`, backticked repo paths."
           },
           "title": {
             "type": "string",
@@ -33295,6 +33295,13 @@
                 },
                 "settled": {
                   "type": "number"
+                },
+                "tags": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "The note's project tags after the write. Only tags the project already has are kept; a proposed tag it lacks is listed in `dropped`."
                 }
               },
               "required": [
@@ -33303,7 +33310,8 @@
                 "action",
                 "changes",
                 "links",
-                "settled"
+                "settled",
+                "tags"
               ],
               "additionalProperties": false
             }
@@ -33317,7 +33325,7 @@
             "items": {
               "type": "string"
             },
-            "description": "What the quality gates refused — unverifiable evidence, invented links."
+            "description": "What the quality gates refused — unverifiable evidence, invented links, tags the project does not have."
           },
           "pending": {
             "type": "string",

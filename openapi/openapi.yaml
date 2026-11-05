@@ -8093,7 +8093,9 @@ paths:
         backticked repo paths. Ground each note with `evidence` — a repo path and
         a snippet copied verbatim from it; verified evidence makes the note
         outrank anything said about that code, and it is re-checked when the file
-        changes. Lessons, not logs: one subject per note.
+        changes. Tag a note with the project's own tags: `tags:: checkout, ios`
+        (see `tags list`). Only tags the project already has are kept; any other
+        comes back in `dropped`. Lessons, not logs: one subject per note.
 
         **Use case:** Seeding: read README / CLAUDE.md / design docs, then send
         `{notes: [{text: "# Retries are capped\ntype:: convention\n…", extract: false, source: "seed:claude", evidence: [{path: "src/retry.ts", snippet: "export const MAX_RETRIES = 3;"}]}]}`.
@@ -23919,7 +23921,7 @@ components:
           type: string
           minLength: 1
           maxLength: 20000
-          description: 'Markdown. Optional markup: `type:: pitfall`, `summary:: one line`, `key:: value` facts, typed links (`depends_on:: [[Billing]]`), `[[Other note]]`, `@gate:key`, `#42`, backticked repo paths.'
+          description: 'Markdown. Optional markup: `type:: pitfall`, `summary:: one line`, `tags:: a, b` (the project''s own tags), `key:: value` facts, typed links (`depends_on:: [[Billing]]`), `[[Other note]]`, `@gate:key`, `#42`, backticked repo paths.'
         title:
           type: string
           maxLength: 200
@@ -23990,6 +23992,11 @@ components:
                 type: number
               settled:
                 type: number
+              tags:
+                type: array
+                items:
+                  type: string
+                description: The note's project tags after the write. Only tags the project already has are kept; a proposed tag it lacks is listed in `dropped`.
             required:
               - slug
               - id
@@ -23997,6 +24004,7 @@ components:
               - changes
               - links
               - settled
+              - tags
             additionalProperties: false
         extracted:
           type: boolean
@@ -24005,7 +24013,7 @@ components:
           type: array
           items:
             type: string
-          description: What the quality gates refused — unverifiable evidence, invented links.
+          description: What the quality gates refused — unverifiable evidence, invented links, tags the project does not have.
         pending:
           type: string
           description: Why extraction did not run, when it did not (`out_of_credits`, `no_model`, `disabled`).
