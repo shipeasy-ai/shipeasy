@@ -3980,6 +3980,14 @@ export const zTrailPlanChecks = z.object({
 });
 
 /**
+ * Whether a coding agent can run this trail now — read live on every trail and plan read, never stored. Absent on a read that did not compute it.
+ */
+export const zTrailPlanAgent = z.object({
+    ready: z.boolean(),
+    canConnect: z.boolean()
+});
+
+/**
  * A trail's plan — what the build run follows. Made by a read-only plan run that asks the person how to ship, then approved by a person.
  */
 export const zTrailPlan = z.object({
@@ -3995,7 +4003,8 @@ export const zTrailPlan = z.object({
     requirePlan: z.boolean(),
     nextRun: z.enum(['plan', 'build']),
     openQuestions: z.int().gte(0),
-    checks: zTrailPlanChecks.nullable()
+    checks: zTrailPlanChecks.nullable(),
+    agent: zTrailPlanAgent.optional()
 });
 
 /**

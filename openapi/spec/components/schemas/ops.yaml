@@ -6405,6 +6405,8 @@ TrailPlan:
         - $ref: "#/TrailPlanChecks"
         - type: "null"
       description: What the server found when the plan was submitted — the release facts it was checked against and the warnings for the approver. `null` for a plan submitted before the checks existed.
+    agent:
+      $ref: "#/TrailPlanAgent"
   required:
     - status
     - plan
@@ -6419,6 +6421,20 @@ TrailPlan:
     - nextRun
     - openQuestions
     - checks
+  additionalProperties: false
+TrailPlanAgent:
+  type: object
+  description: Whether a coding agent can run this trail now — read live on every trail and plan read, never stored. Absent on a read that did not compute it.
+  properties:
+    ready:
+      type: boolean
+      description: True when the project has at least one coding-agent trigger with credentials, so `trails start` has an agent to fire.
+    canConnect:
+      type: boolean
+      description: Whether the caller may connect one — the `configure_automation` permission the connector settings need. Always true for a credential that is not a project member (an API or ops key).
+  required:
+    - ready
+    - canConnect
   additionalProperties: false
 TrailPlanChecks:
   type: object

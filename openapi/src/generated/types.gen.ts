@@ -7060,6 +7060,20 @@ export type TrailPlanChecks = {
 };
 
 /**
+ * Whether a coding agent can run this trail now — read live on every trail and plan read, never stored. Absent on a read that did not compute it.
+ */
+export type TrailPlanAgent = {
+    /**
+     * True when the project has at least one coding-agent trigger with credentials, so `trails start` has an agent to fire.
+     */
+    ready: boolean;
+    /**
+     * Whether the caller may connect one — the `configure_automation` permission the connector settings need. Always true for a credential that is not a project member (an API or ops key).
+     */
+    canConnect: boolean;
+};
+
+/**
  * A trail's plan — what the build run follows. Made by a read-only plan run that asks the person how to ship, then approved by a person.
  */
 export type TrailPlan = {
@@ -7112,6 +7126,7 @@ export type TrailPlan = {
      * What the server found when the plan was submitted — the release facts it was checked against and the warnings for the approver. `null` for a plan submitted before the checks existed.
      */
     checks: TrailPlanChecks | null;
+    agent?: TrailPlanAgent;
 };
 
 /**
