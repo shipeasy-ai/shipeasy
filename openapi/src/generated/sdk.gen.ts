@@ -3048,7 +3048,7 @@ export const deliverTrailMarketingAsset = <ThrowOnError extends boolean = false>
 /**
  * Mark a marketing asset delivered
  *
- * Record that a handed-off post or ad went out, with its URL: `postUrl` for a post, `campaignUrl` for an ad. Emails are marked delivered by the send itself.
+ * Record that a handed-off post or ad went out, with its URL: `postUrl` for a post, `campaignUrl` plus the `budget` actually set for an ad. Only an asset that is `delivering` — ready to post, its timing has arrived — can be marked. Emails are marked delivered by the send itself.
  *
  * Recording a hand-off is a person's call — only a dashboard session or a device-auth CLI session can do it.
  *

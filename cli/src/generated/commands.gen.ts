@@ -1681,8 +1681,9 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .argument("<assetId>", "The marketing asset's id (`TrailMarketingAsset.id`).")
     .option("--post-url <value>", "The live post's URL.")
     .option("--campaign-url <value>", "The ad campaign's URL.")
+    .option("--budget <value>", "The budget actually set on the launched campaign, as the platform shows it (e.g. `$500 total` or `$40/day`). Required for an ad.")
     .action(async (handle, assetId, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.markTrailMarketingDelivered({ client, path: { handle: handle, assetId: assetId }, body: clean({ postUrl: str(opts.postUrl), campaignUrl: str(opts.campaignUrl) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.markTrailMarketingDelivered({ client, path: { handle: handle, assetId: assetId }, body: clean({ postUrl: str(opts.postUrl), campaignUrl: str(opts.campaignUrl), budget: str(opts.budget) }) }) });
     });
   g_trails_marketing.command("preview")
     .description("Preview a marketing asset")

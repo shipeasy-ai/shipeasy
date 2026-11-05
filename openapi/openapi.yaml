@@ -11251,7 +11251,7 @@ paths:
       operationId: markTrailMarketingDelivered
       summary: Mark a marketing asset delivered
       description: |-
-        Record that a handed-off post or ad went out, with its URL: `postUrl` for a post, `campaignUrl` for an ad. Emails are marked delivered by the send itself.
+        Record that a handed-off post or ad went out, with its URL: `postUrl` for a post, `campaignUrl` plus the `budget` actually set for an ad. Only an asset that is `delivering` — ready to post, its timing has arrived — can be marked. Emails are marked delivered by the send itself.
 
         Recording a hand-off is a person's call — only a dashboard session or a device-auth CLI session can do it.
 
@@ -28326,6 +28326,11 @@ components:
             - type: string
             - type: 'null'
           description: The ad campaign's URL, recorded when a person marks an ad launched.
+        launchedBudget:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: The budget a person actually set on the ad campaign, recorded with *Mark as launched*. It can differ from the planned `content.budget`.
         deliverable:
           type: object
           description: Whether the timing gate would let the asset go out now.
@@ -28365,6 +28370,7 @@ components:
         - failedCount
         - postUrl
         - campaignUrl
+        - launchedBudget
         - deliverable
         - createdAt
         - updatedAt
@@ -28438,7 +28444,7 @@ components:
       additionalProperties: false
     MarkTrailMarketingDeliveredRequest:
       type: object
-      description: Body for `POST /api/admin/trails/{handle}/marketing/{assetId}/delivered`. A post needs its `postUrl`, an ad its `campaignUrl`.
+      description: Body for `POST /api/admin/trails/{handle}/marketing/{assetId}/delivered`. A post needs its `postUrl`, an ad its `campaignUrl` and the `budget` actually set.
       properties:
         postUrl:
           type: string
@@ -28450,6 +28456,11 @@ components:
           format: uri
           maxLength: 2000
           description: The ad campaign's URL.
+        budget:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: The budget actually set on the launched campaign, as the platform shows it (e.g. `$500 total` or `$40/day`). Required for an ad.
       additionalProperties: false
     TrailMarketingPreview:
       type: object

@@ -5213,6 +5213,7 @@ export const zTrailMarketingAsset = z.object({
     failedCount: z.int().gte(0),
     postUrl: z.string().nullable(),
     campaignUrl: z.string().nullable(),
+    launchedBudget: z.string().nullable(),
     deliverable: z.object({
         ok: z.boolean(),
         reason: z.string().nullable()
@@ -5256,11 +5257,12 @@ export const zRequestTrailMarketingChangesRequest = z.object({
 });
 
 /**
- * Body for `POST /api/admin/trails/{handle}/marketing/{assetId}/delivered`. A post needs its `postUrl`, an ad its `campaignUrl`.
+ * Body for `POST /api/admin/trails/{handle}/marketing/{assetId}/delivered`. A post needs its `postUrl`, an ad its `campaignUrl` and the `budget` actually set.
  */
 export const zMarkTrailMarketingDeliveredRequest = z.object({
     postUrl: z.url().max(2000).optional(),
-    campaignUrl: z.url().max(2000).optional()
+    campaignUrl: z.url().max(2000).optional(),
+    budget: z.string().min(1).max(100).optional()
 });
 
 /**
