@@ -226,6 +226,7 @@ exports[`command tree > matches the registered command surface (snapshot) 1`] = 
   "trails marketing mark-delivered",
   "trails marketing preview",
   "trails marketing request-changes",
+  "trails marketing results",
   "trails marketing submit",
   "trails marketing update",
   "trails marketing-lists",
