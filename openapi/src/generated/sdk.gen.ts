@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AckOpsItemData, AckOpsItemErrors, AckOpsItemResponses, AddToGateWhitelistData, AddToGateWhitelistErrors, AddToGateWhitelistResponses, AddTrailItemData, AddTrailItemErrors, AddTrailItemResponses, AddTrailResourceData, AddTrailResourceErrors, AddTrailResourceResponses, AnswerOpsQaQuestionData, AnswerOpsQaQuestionErrors, AnswerOpsQaQuestionResponses, AnswerOpsQuestionData, AnswerOpsQuestionErrors, AnswerOpsQuestionResponses, ApproveEventData, ApproveEventErrors, ApproveEventResponses, ApproveOpsTrailData, ApproveOpsTrailErrors, ApproveOpsTrailResponses, ApproveTrailData, ApproveTrailErrors, ApproveTrailPlanData, ApproveTrailPlanErrors, ApproveTrailPlanResponses, ApproveTrailResponses, ArchiveTrailAgentData, ArchiveTrailAgentErrors, ArchiveTrailAgentResponses, AskOpsQaQuestionData, AskOpsQaQuestionErrors, AskOpsQaQuestionResponses, AskOpsQuestionsData, AskOpsQuestionsErrors, AskOpsQuestionsResponses, AttributeTrailData, AttributeTrailErrors, AttributeTrailResponses, CancelOpsQuestionData, CancelOpsQuestionErrors, CancelOpsQuestionResponses, CloseTrailData, CloseTrailErrors, CloseTrailResponses, ConfirmTrailSuspectData, ConfirmTrailSuspectErrors, ConfirmTrailSuspectResponses, CreateAlertRuleData, CreateAlertRuleErrors, CreateAlertRuleResponses, CreateAttributeData, CreateAttributeErrors, CreateAttributeResponses, CreateConfigData, CreateConfigErrors, CreateConfigResponses, CreateConnectorData, CreateConnectorErrors, CreateConnectorResponses, CreateEventData, CreateEventErrors, CreateEventResponses, CreateExperimentData, CreateExperimentErrors, CreateExperimentReadoutData, CreateExperimentReadoutErrors, CreateExperimentReadoutResponses, CreateExperimentResponses, CreateGateData, CreateGateErrors, CreateGateResponses, CreateGateTemplateData, CreateGateTemplateErrors, CreateGateTemplateResponses, CreateI18nDraftData, CreateI18nDraftErrors, CreateI18nDraftResponses, CreateI18nProfileData, CreateI18nProfileErrors, CreateI18nProfileResponses, CreateKeyData, CreateKeyErrors, CreateKeyResponses, CreateKillswitchData, CreateKillswitchErrors, CreateKillswitchResponses, CreateMetricData, CreateMetricErrors, CreateMetricResponses, CreateOpsAttachmentData, CreateOpsAttachmentErrors, CreateOpsAttachmentResponses, CreateOpsCommentData, CreateOpsCommentErrors, CreateOpsCommentMediaData, CreateOpsCommentMediaErrors, CreateOpsCommentMediaResponses, CreateOpsCommentResponses, CreateOpsInvestigationData, CreateOpsInvestigationErrors, CreateOpsInvestigationResponses, CreateOpsItemData, CreateOpsItemErrors, CreateOpsItemResponses, CreateOpsQaNoteData, CreateOpsQaNoteErrors, CreateOpsQaNoteResponses, CreateOpsRoutingRuleData, CreateOpsRoutingRuleErrors, CreateOpsRoutingRuleResponses, CreatePublicBugData, CreatePublicBugErrors, CreatePublicBugResponses, CreatePublicFeatureRequestData, CreatePublicFeatureRequestErrors, CreatePublicFeatureRequestResponses, CreateTrailAgentData, CreateTrailAgentErrors, CreateTrailAgentResponses, CreateTrailData, CreateTrailErrors, CreateTrailMilestoneData, CreateTrailMilestoneErrors, CreateTrailMilestoneResponses, CreateTrailResponses, CreateTriggerConnectorData, CreateTriggerConnectorErrors, CreateTriggerConnectorResponses, CreateUniverseData, CreateUniverseErrors, CreateUniverseResponses, DeleteAlertRuleData, DeleteAlertRuleErrors, DeleteAlertRuleResponses, DeleteAttributeData, DeleteAttributeErrors, DeleteAttributeResponses, DeleteConfigData, DeleteConfigErrors, DeleteConfigResponses, DeleteConnectorData, DeleteConnectorErrors, DeleteConnectorResponses, DeleteEventData, DeleteEventErrors, DeleteEventResponses, DeleteExperimentData, DeleteExperimentErrors, DeleteExperimentResponses, DeleteGateData, DeleteGateErrors, DeleteGateResponses, DeleteGateTemplateData, DeleteGateTemplateErrors, DeleteGateTemplateResponses, DeleteI18nDraftData, DeleteI18nDraftErrors, DeleteI18nDraftResponses, DeleteI18nKeyData, DeleteI18nKeyErrors, DeleteI18nKeyResponses, DeleteI18nProfileData, DeleteI18nProfileErrors, DeleteI18nProfileResponses, DeleteKillswitchData, DeleteKillswitchErrors, DeleteKillswitchResponses, DeleteMetricData, DeleteMetricErrors, DeleteMetricResponses, DeleteOpsItemData, DeleteOpsItemErrors, DeleteOpsItemResponses, DeleteUniverseData, DeleteUniverseErrors, DeleteUniverseResponses, DisableGateData, DisableGateErrors, DisableGateResponses, DiscardConfigDraftData, DiscardConfigDraftErrors, DiscardConfigDraftResponses, EnableGateData, EnableGateErrors, EnableGateResponses, FileErrorTicketData, FileErrorTicketErrors, FileErrorTicketResponses, FireConnectorData, FireConnectorErrors, FireConnectorResponses, GetAttributeData, GetAttributeErrors, GetAttributeResponses, GetConfigData, GetConfigErrors, GetConfigResponses, GetConnectorData, GetConnectorErrors, GetConnectorResponses, GetCurrentProjectData, GetCurrentProjectErrors, GetCurrentProjectResponses, GetEntityTagsData, GetEntityTagsErrors, GetEntityTagsResponses, GetErrorData, GetErrorErrors, GetErrorResponses, GetErrorSeriesData, GetErrorSeriesErrors, GetErrorSeriesResponses, GetEventData, GetEventErrors, GetEventResponses, GetExperimentData, GetExperimentErrors, GetExperimentReadoutData, GetExperimentReadoutErrors, GetExperimentReadoutResponses, GetExperimentResponses, GetExperimentResultsData, GetExperimentResultsErrors, GetExperimentResultsResponses, GetExperimentTimeseriesData, GetExperimentTimeseriesErrors, GetExperimentTimeseriesResponses, GetGateData, GetGateErrors, GetGateResponses, GetGateTemplateData, GetGateTemplateErrors, GetGateTemplateResponses, GetGateWhitelistData, GetGateWhitelistErrors, GetGateWhitelistResponses, GetKillswitchData, GetKillswitchErrors, GetKillswitchResponses, GetMetricData, GetMetricErrors, GetMetricResponses, GetMetricSeriesData, GetMetricSeriesErrors, GetMetricSeriesResponses, GetOpsItemData, GetOpsItemErrors, GetOpsItemResponses, GetOpsTrailData, GetOpsTrailErrors, GetOpsTrailResponses, GetProjectData, GetProjectErrors, GetProjectResponses, GetTrailData, GetTrailErrors, GetTrailGatesData, GetTrailGatesErrors, GetTrailGatesResponses, GetTrailReleaseFactsData, GetTrailReleaseFactsErrors, GetTrailReleaseFactsResponses, GetTrailResponses, GetTrailTimelineData, GetTrailTimelineErrors, GetTrailTimelineResponses, LinkPrToOpsItemData, LinkPrToOpsItemErrors, LinkPrToOpsItemResponses, LinkTrailPrData, LinkTrailPrErrors, LinkTrailPrResponses, ListAlertRulesData, ListAlertRulesErrors, ListAlertRulesResponses, ListAlertsData, ListAlertsErrors, ListAlertsResponses, ListAttributesData, ListAttributesErrors, ListAttributesResponses, ListConfigActivityData, ListConfigActivityErrors, ListConfigActivityResponses, ListConfigsData, ListConfigsErrors, ListConfigsResponses, ListConfigVersionsData, ListConfigVersionsErrors, ListConfigVersionsResponses, ListConnectorsData, ListConnectorsErrors, ListConnectorsResponses, ListErrorsData, ListErrorsErrors, ListErrorsResponses, ListEventsData, ListEventsErrors, ListEventsResponses, ListExperimentsData, ListExperimentsErrors, ListExperimentsResponses, ListGateActivityData, ListGateActivityErrors, ListGateActivityResponses, ListGatesData, ListGatesErrors, ListGatesResponses, ListGateTemplatesData, ListGateTemplatesErrors, ListGateTemplatesResponses, ListI18nDraftKeysData, ListI18nDraftKeysErrors, ListI18nDraftKeysResponses, ListI18nDraftsData, ListI18nDraftsErrors, ListI18nDraftsResponses, ListI18nKeysData, ListI18nKeysErrors, ListI18nKeysResponses, ListI18nProfilesData, ListI18nProfilesErrors, ListI18nProfilesResponses, ListKeysData, ListKeysErrors, ListKeysResponses, ListKillswitchesData, ListKillswitchesErrors, ListKillswitchesResponses, ListMetricExperimentsData, ListMetricExperimentsErrors, ListMetricExperimentsResponses, ListMetricsData, ListMetricsErrors, ListMetricsResponses, ListOpsActivityData, ListOpsActivityErrors, ListOpsActivityResponses, ListOpsAgentsData, ListOpsAgentsErrors, ListOpsAgentsResponses, ListOpsCommentsData, ListOpsCommentsErrors, ListOpsCommentsResponses, ListOpsInvestigationsData, ListOpsInvestigationsErrors, ListOpsInvestigationsResponses, ListOpsItemsData, ListOpsItemsErrors, ListOpsItemsResponses, ListOpsMemoryData, ListOpsMemoryErrors, ListOpsMemoryResponses, ListOpsQaNotesData, ListOpsQaNotesErrors, ListOpsQaNotesResponses, ListOpsQaQuestionsData, ListOpsQaQuestionsErrors, ListOpsQaQuestionsResponses, ListOpsQuestionsData, ListOpsQuestionsErrors, ListOpsQuestionsResponses, ListOpsRoutingRulesData, ListOpsRoutingRulesErrors, ListOpsRoutingRulesResponses, ListSlackChannelsData, ListSlackChannelsErrors, ListSlackChannelsResponses, ListTagsData, ListTagsErrors, ListTagsResponses, ListTrailAgentsData, ListTrailAgentsErrors, ListTrailAgentsResponses, ListTrailPlanRevisionsData, ListTrailPlanRevisionsErrors, ListTrailPlanRevisionsResponses, ListTrailResourcesData, ListTrailResourcesErrors, ListTrailResourcesResponses, ListTrailsData, ListTrailsErrors, ListTrailsResponses, ListUniversesData, ListUniversesErrors, ListUniversesResponses, MergeOpsTrailData, MergeOpsTrailErrors, MergeOpsTrailResponses, MergeTrailData, MergeTrailErrors, MergeTrailResponses, MoveTrailItemData, MoveTrailItemErrors, MoveTrailItemResponses, NotifyOpsData, NotifyOpsErrors, NotifyOpsResponses, PauseTrailAutopilotData, PauseTrailAutopilotErrors, PauseTrailAutopilotResponses, PauseTrailRolloutData, PauseTrailRolloutErrors, PauseTrailRolloutResponses, PromoteTrailFindingData, PromoteTrailFindingErrors, PromoteTrailFindingResponses, PublishConfigDraftData, PublishConfigDraftErrors, PublishConfigDraftResponses, PublishI18nProfileData, PublishI18nProfileErrors, PublishI18nProfileResponses, PushI18nKeysData, PushI18nKeysErrors, PushI18nKeysResponses, ReanalyzeExperimentData, ReanalyzeExperimentErrors, ReanalyzeExperimentResponses, RejectTrailSuspectData, RejectTrailSuspectErrors, RejectTrailSuspectResponses, RemoveFromGateWhitelistData, RemoveFromGateWhitelistErrors, RemoveFromGateWhitelistResponses, RemoveTrailItemData, RemoveTrailItemErrors, RemoveTrailItemResponses, RemoveTrailMilestoneData, RemoveTrailMilestoneErrors, RemoveTrailMilestoneResponses, RemoveTrailResourceData, RemoveTrailResourceErrors, RemoveTrailResourceResponses, ReopenTrailData, ReopenTrailErrors, ReopenTrailResponses, RequestOpsTrailReviewData, RequestOpsTrailReviewErrors, RequestOpsTrailReviewResponses, RequestTrailReviewData, RequestTrailReviewErrors, RequestTrailReviewResponses, ResolveErrorData, ResolveErrorErrors, ResolveErrorResponses, ResumeTrailAutopilotData, ResumeTrailAutopilotErrors, ResumeTrailAutopilotResponses, ResumeTrailRolloutData, ResumeTrailRolloutErrors, ResumeTrailRolloutResponses, RevokeKeyData, RevokeKeyErrors, RevokeKeyResponses, SaveConfigDraftData, SaveConfigDraftErrors, SaveConfigDraftResponses, SearchResourcesData, SearchResourcesErrors, SearchResourcesResponses, SetEntityTagsData, SetEntityTagsErrors, SetEntityTagsResponses, SetExperimentMetricsData, SetExperimentMetricsErrors, SetExperimentMetricsResponses, SetExperimentStatusData, SetExperimentStatusErrors, SetExperimentStatusResponses, SetGateWhitelistData, SetGateWhitelistErrors, SetGateWhitelistResponses, SetI18nLabelData, SetI18nLabelErrors, SetI18nLabelResponses, SetKillswitchSwitchData, SetKillswitchSwitchErrors, SetKillswitchSwitchResponses, SetKillswitchValueData, SetKillswitchValueErrors, SetKillswitchValueResponses, StartTrailRunData, StartTrailRunErrors, StartTrailRunResponses, SubmitOpsTrailEvalData, SubmitOpsTrailEvalErrors, SubmitOpsTrailEvalResponses, SubmitTrailEvalData, SubmitTrailEvalErrors, SubmitTrailEvalResponses, SubmitTrailPlanData, SubmitTrailPlanErrors, SubmitTrailPlanResponses, TestConnectorData, TestConnectorErrors, TestConnectorResponses, ToggleKillswitchData, ToggleKillswitchErrors, ToggleKillswitchResponses, UnarchiveMetricData, UnarchiveMetricErrors, UnarchiveMetricResponses, UnlinkTrailPrData, UnlinkTrailPrErrors, UnlinkTrailPrResponses, UnsetKillswitchSwitchData, UnsetKillswitchSwitchErrors, UnsetKillswitchSwitchResponses, UpdateAlertData, UpdateAlertErrors, UpdateAlertResponses, UpdateAlertRuleData, UpdateAlertRuleErrors, UpdateAlertRuleResponses, UpdateAttributeData, UpdateAttributeErrors, UpdateAttributeResponses, UpdateConfigData, UpdateConfigErrors, UpdateConfigResponses, UpdateConfigSchemaData, UpdateConfigSchemaErrors, UpdateConfigSchemaResponses, UpdateConnectorData, UpdateConnectorErrors, UpdateConnectorResponses, UpdateEntityTagsData, UpdateEntityTagsErrors, UpdateEntityTagsResponses, UpdateErrorStatusData, UpdateErrorStatusErrors, UpdateErrorStatusResponses, UpdateEventData, UpdateEventErrors, UpdateEventResponses, UpdateExperimentData, UpdateExperimentErrors, UpdateExperimentResponses, UpdateGateData, UpdateGateErrors, UpdateGateResponses, UpdateGateTemplateData, UpdateGateTemplateErrors, UpdateGateTemplateResponses, UpdateI18nDraftData, UpdateI18nDraftErrors, UpdateI18nDraftResponses, UpdateI18nKeyData, UpdateI18nKeyErrors, UpdateI18nKeyResponses, UpdateKeyData, UpdateKeyErrors, UpdateKeyResponses, UpdateKillswitchData, UpdateKillswitchErrors, UpdateKillswitchResponses, UpdateMetricData, UpdateMetricErrors, UpdateMetricResponses, UpdateOpsGroupData, UpdateOpsGroupErrors, UpdateOpsGroupResponses, UpdateOpsInvestigationData, UpdateOpsInvestigationErrors, UpdateOpsInvestigationResponses, UpdateOpsItemData, UpdateOpsItemErrors, UpdateOpsItemResponses, UpdateOpsLinksData, UpdateOpsLinksErrors, UpdateOpsLinksResponses, UpdateOpsTrailFindingData, UpdateOpsTrailFindingErrors, UpdateOpsTrailFindingResponses, UpdateProjectData, UpdateProjectErrors, UpdateProjectResponses, UpdateTrailAgentData, UpdateTrailAgentErrors, UpdateTrailAgentResponses, UpdateTrailData, UpdateTrailErrors, UpdateTrailFindingData, UpdateTrailFindingErrors, UpdateTrailFindingResponses, UpdateTrailGatesData, UpdateTrailGatesErrors, UpdateTrailGatesResponses, UpdateTrailMilestoneData, UpdateTrailMilestoneErrors, UpdateTrailMilestoneResponses, UpdateTrailPlanData, UpdateTrailPlanErrors, UpdateTrailPlanResponses, UpdateTrailResponses, UpdateTriggerConnectorData, UpdateTriggerConnectorErrors, UpdateTriggerConnectorResponses, UpdateUniverseData, UpdateUniverseErrors, UpdateUniverseResponses, UpsertI18nDraftKeyData, UpsertI18nDraftKeyErrors, UpsertI18nDraftKeyResponses, UpsertI18nKeysData, UpsertI18nKeysErrors, UpsertI18nKeysResponses, UpsertProjectData, UpsertProjectErrors, UpsertProjectResponses } from './types.gen';
+import type { AckOpsItemData, AckOpsItemErrors, AckOpsItemResponses, AddToGateWhitelistData, AddToGateWhitelistErrors, AddToGateWhitelistResponses, AddTrailItemData, AddTrailItemErrors, AddTrailItemResponses, AddTrailResourceData, AddTrailResourceErrors, AddTrailResourceResponses, AnswerOpsQaQuestionData, AnswerOpsQaQuestionErrors, AnswerOpsQaQuestionResponses, AnswerOpsQuestionData, AnswerOpsQuestionErrors, AnswerOpsQuestionResponses, ApproveEventData, ApproveEventErrors, ApproveEventResponses, ApproveOpsTrailData, ApproveOpsTrailErrors, ApproveOpsTrailResponses, ApproveTrailData, ApproveTrailErrors, ApproveTrailMarketingAssetData, ApproveTrailMarketingAssetErrors, ApproveTrailMarketingAssetResponses, ApproveTrailPlanData, ApproveTrailPlanErrors, ApproveTrailPlanResponses, ApproveTrailResponses, ArchiveMarketingListData, ArchiveMarketingListErrors, ArchiveMarketingListResponses, ArchiveTrailAgentData, ArchiveTrailAgentErrors, ArchiveTrailAgentResponses, AskOpsQaQuestionData, AskOpsQaQuestionErrors, AskOpsQaQuestionResponses, AskOpsQuestionsData, AskOpsQuestionsErrors, AskOpsQuestionsResponses, AttributeTrailData, AttributeTrailErrors, AttributeTrailResponses, CancelOpsQuestionData, CancelOpsQuestionErrors, CancelOpsQuestionResponses, CancelTrailMarketingAssetData, CancelTrailMarketingAssetErrors, CancelTrailMarketingAssetResponses, CloseTrailData, CloseTrailErrors, CloseTrailResponses, ConfirmTrailSuspectData, ConfirmTrailSuspectErrors, ConfirmTrailSuspectResponses, CreateAlertRuleData, CreateAlertRuleErrors, CreateAlertRuleResponses, CreateAttributeData, CreateAttributeErrors, CreateAttributeResponses, CreateConfigData, CreateConfigErrors, CreateConfigResponses, CreateConnectorData, CreateConnectorErrors, CreateConnectorResponses, CreateEventData, CreateEventErrors, CreateEventResponses, CreateExperimentData, CreateExperimentErrors, CreateExperimentReadoutData, CreateExperimentReadoutErrors, CreateExperimentReadoutResponses, CreateExperimentResponses, CreateGateData, CreateGateErrors, CreateGateResponses, CreateGateTemplateData, CreateGateTemplateErrors, CreateGateTemplateResponses, CreateI18nDraftData, CreateI18nDraftErrors, CreateI18nDraftResponses, CreateI18nProfileData, CreateI18nProfileErrors, CreateI18nProfileResponses, CreateKeyData, CreateKeyErrors, CreateKeyResponses, CreateKillswitchData, CreateKillswitchErrors, CreateKillswitchResponses, CreateMarketingListData, CreateMarketingListErrors, CreateMarketingListResponses, CreateMetricData, CreateMetricErrors, CreateMetricResponses, CreateOpsAttachmentData, CreateOpsAttachmentErrors, CreateOpsAttachmentResponses, CreateOpsCommentData, CreateOpsCommentErrors, CreateOpsCommentMediaData, CreateOpsCommentMediaErrors, CreateOpsCommentMediaResponses, CreateOpsCommentResponses, CreateOpsInvestigationData, CreateOpsInvestigationErrors, CreateOpsInvestigationResponses, CreateOpsItemData, CreateOpsItemErrors, CreateOpsItemResponses, CreateOpsQaNoteData, CreateOpsQaNoteErrors, CreateOpsQaNoteResponses, CreateOpsRoutingRuleData, CreateOpsRoutingRuleErrors, CreateOpsRoutingRuleResponses, CreatePublicBugData, CreatePublicBugErrors, CreatePublicBugResponses, CreatePublicFeatureRequestData, CreatePublicFeatureRequestErrors, CreatePublicFeatureRequestResponses, CreateTrailAgentData, CreateTrailAgentErrors, CreateTrailAgentResponses, CreateTrailData, CreateTrailErrors, CreateTrailMarketingAssetData, CreateTrailMarketingAssetErrors, CreateTrailMarketingAssetResponses, CreateTrailMilestoneData, CreateTrailMilestoneErrors, CreateTrailMilestoneResponses, CreateTrailResponses, CreateTriggerConnectorData, CreateTriggerConnectorErrors, CreateTriggerConnectorResponses, CreateUniverseData, CreateUniverseErrors, CreateUniverseResponses, DeleteAlertRuleData, DeleteAlertRuleErrors, DeleteAlertRuleResponses, DeleteAttributeData, DeleteAttributeErrors, DeleteAttributeResponses, DeleteConfigData, DeleteConfigErrors, DeleteConfigResponses, DeleteConnectorData, DeleteConnectorErrors, DeleteConnectorResponses, DeleteEventData, DeleteEventErrors, DeleteEventResponses, DeleteExperimentData, DeleteExperimentErrors, DeleteExperimentResponses, DeleteGateData, DeleteGateErrors, DeleteGateResponses, DeleteGateTemplateData, DeleteGateTemplateErrors, DeleteGateTemplateResponses, DeleteI18nDraftData, DeleteI18nDraftErrors, DeleteI18nDraftResponses, DeleteI18nKeyData, DeleteI18nKeyErrors, DeleteI18nKeyResponses, DeleteI18nProfileData, DeleteI18nProfileErrors, DeleteI18nProfileResponses, DeleteKillswitchData, DeleteKillswitchErrors, DeleteKillswitchResponses, DeleteMetricData, DeleteMetricErrors, DeleteMetricResponses, DeleteOpsItemData, DeleteOpsItemErrors, DeleteOpsItemResponses, DeleteUniverseData, DeleteUniverseErrors, DeleteUniverseResponses, DeliverTrailMarketingAssetData, DeliverTrailMarketingAssetErrors, DeliverTrailMarketingAssetResponses, DisableGateData, DisableGateErrors, DisableGateResponses, DiscardConfigDraftData, DiscardConfigDraftErrors, DiscardConfigDraftResponses, EnableGateData, EnableGateErrors, EnableGateResponses, FileErrorTicketData, FileErrorTicketErrors, FileErrorTicketResponses, FireConnectorData, FireConnectorErrors, FireConnectorResponses, GetAttributeData, GetAttributeErrors, GetAttributeResponses, GetConfigData, GetConfigErrors, GetConfigResponses, GetConnectorData, GetConnectorErrors, GetConnectorResponses, GetCurrentProjectData, GetCurrentProjectErrors, GetCurrentProjectResponses, GetEntityTagsData, GetEntityTagsErrors, GetEntityTagsResponses, GetErrorData, GetErrorErrors, GetErrorResponses, GetErrorSeriesData, GetErrorSeriesErrors, GetErrorSeriesResponses, GetEventData, GetEventErrors, GetEventResponses, GetExperimentData, GetExperimentErrors, GetExperimentReadoutData, GetExperimentReadoutErrors, GetExperimentReadoutResponses, GetExperimentResponses, GetExperimentResultsData, GetExperimentResultsErrors, GetExperimentResultsResponses, GetExperimentTimeseriesData, GetExperimentTimeseriesErrors, GetExperimentTimeseriesResponses, GetGateData, GetGateErrors, GetGateResponses, GetGateTemplateData, GetGateTemplateErrors, GetGateTemplateResponses, GetGateWhitelistData, GetGateWhitelistErrors, GetGateWhitelistResponses, GetKillswitchData, GetKillswitchErrors, GetKillswitchResponses, GetMetricData, GetMetricErrors, GetMetricResponses, GetMetricSeriesData, GetMetricSeriesErrors, GetMetricSeriesResponses, GetOpsItemData, GetOpsItemErrors, GetOpsItemResponses, GetOpsTrailData, GetOpsTrailErrors, GetOpsTrailResponses, GetProjectData, GetProjectErrors, GetProjectResponses, GetTrailData, GetTrailErrors, GetTrailGatesData, GetTrailGatesErrors, GetTrailGatesResponses, GetTrailMarketingAssetData, GetTrailMarketingAssetErrors, GetTrailMarketingAssetResponses, GetTrailReleaseFactsData, GetTrailReleaseFactsErrors, GetTrailReleaseFactsResponses, GetTrailResponses, GetTrailTimelineData, GetTrailTimelineErrors, GetTrailTimelineResponses, LinkPrToOpsItemData, LinkPrToOpsItemErrors, LinkPrToOpsItemResponses, LinkTrailPrData, LinkTrailPrErrors, LinkTrailPrResponses, ListAlertRulesData, ListAlertRulesErrors, ListAlertRulesResponses, ListAlertsData, ListAlertsErrors, ListAlertsResponses, ListAttributesData, ListAttributesErrors, ListAttributesResponses, ListConfigActivityData, ListConfigActivityErrors, ListConfigActivityResponses, ListConfigsData, ListConfigsErrors, ListConfigsResponses, ListConfigVersionsData, ListConfigVersionsErrors, ListConfigVersionsResponses, ListConnectorsData, ListConnectorsErrors, ListConnectorsResponses, ListErrorsData, ListErrorsErrors, ListErrorsResponses, ListEventsData, ListEventsErrors, ListEventsResponses, ListExperimentsData, ListExperimentsErrors, ListExperimentsResponses, ListGateActivityData, ListGateActivityErrors, ListGateActivityResponses, ListGatesData, ListGatesErrors, ListGatesResponses, ListGateTemplatesData, ListGateTemplatesErrors, ListGateTemplatesResponses, ListI18nDraftKeysData, ListI18nDraftKeysErrors, ListI18nDraftKeysResponses, ListI18nDraftsData, ListI18nDraftsErrors, ListI18nDraftsResponses, ListI18nKeysData, ListI18nKeysErrors, ListI18nKeysResponses, ListI18nProfilesData, ListI18nProfilesErrors, ListI18nProfilesResponses, ListKeysData, ListKeysErrors, ListKeysResponses, ListKillswitchesData, ListKillswitchesErrors, ListKillswitchesResponses, ListMarketingListsData, ListMarketingListsErrors, ListMarketingListsResponses, ListMetricExperimentsData, ListMetricExperimentsErrors, ListMetricExperimentsResponses, ListMetricsData, ListMetricsErrors, ListMetricsResponses, ListOpsActivityData, ListOpsActivityErrors, ListOpsActivityResponses, ListOpsAgentsData, ListOpsAgentsErrors, ListOpsAgentsResponses, ListOpsCommentsData, ListOpsCommentsErrors, ListOpsCommentsResponses, ListOpsInvestigationsData, ListOpsInvestigationsErrors, ListOpsInvestigationsResponses, ListOpsItemsData, ListOpsItemsErrors, ListOpsItemsResponses, ListOpsMemoryData, ListOpsMemoryErrors, ListOpsMemoryResponses, ListOpsQaNotesData, ListOpsQaNotesErrors, ListOpsQaNotesResponses, ListOpsQaQuestionsData, ListOpsQaQuestionsErrors, ListOpsQaQuestionsResponses, ListOpsQuestionsData, ListOpsQuestionsErrors, ListOpsQuestionsResponses, ListOpsRoutingRulesData, ListOpsRoutingRulesErrors, ListOpsRoutingRulesResponses, ListSlackChannelsData, ListSlackChannelsErrors, ListSlackChannelsResponses, ListTagsData, ListTagsErrors, ListTagsResponses, ListTrailAgentsData, ListTrailAgentsErrors, ListTrailAgentsResponses, ListTrailMarketingAssetsData, ListTrailMarketingAssetsErrors, ListTrailMarketingAssetsResponses, ListTrailPlanRevisionsData, ListTrailPlanRevisionsErrors, ListTrailPlanRevisionsResponses, ListTrailResourcesData, ListTrailResourcesErrors, ListTrailResourcesResponses, ListTrailsData, ListTrailsErrors, ListTrailsResponses, ListUniversesData, ListUniversesErrors, ListUniversesResponses, MarkTrailMarketingDeliveredData, MarkTrailMarketingDeliveredErrors, MarkTrailMarketingDeliveredResponses, MergeOpsTrailData, MergeOpsTrailErrors, MergeOpsTrailResponses, MergeTrailData, MergeTrailErrors, MergeTrailResponses, MoveTrailItemData, MoveTrailItemErrors, MoveTrailItemResponses, NotifyOpsData, NotifyOpsErrors, NotifyOpsResponses, PauseTrailAutopilotData, PauseTrailAutopilotErrors, PauseTrailAutopilotResponses, PauseTrailRolloutData, PauseTrailRolloutErrors, PauseTrailRolloutResponses, PreviewTrailMarketingAssetData, PreviewTrailMarketingAssetErrors, PreviewTrailMarketingAssetResponses, PromoteTrailFindingData, PromoteTrailFindingErrors, PromoteTrailFindingResponses, PublishConfigDraftData, PublishConfigDraftErrors, PublishConfigDraftResponses, PublishI18nProfileData, PublishI18nProfileErrors, PublishI18nProfileResponses, PushI18nKeysData, PushI18nKeysErrors, PushI18nKeysResponses, ReanalyzeExperimentData, ReanalyzeExperimentErrors, ReanalyzeExperimentResponses, RejectTrailSuspectData, RejectTrailSuspectErrors, RejectTrailSuspectResponses, RemoveFromGateWhitelistData, RemoveFromGateWhitelistErrors, RemoveFromGateWhitelistResponses, RemoveTrailItemData, RemoveTrailItemErrors, RemoveTrailItemResponses, RemoveTrailMilestoneData, RemoveTrailMilestoneErrors, RemoveTrailMilestoneResponses, RemoveTrailResourceData, RemoveTrailResourceErrors, RemoveTrailResourceResponses, ReopenTrailData, ReopenTrailErrors, ReopenTrailResponses, RequestOpsTrailReviewData, RequestOpsTrailReviewErrors, RequestOpsTrailReviewResponses, RequestTrailMarketingChangesData, RequestTrailMarketingChangesErrors, RequestTrailMarketingChangesResponses, RequestTrailReviewData, RequestTrailReviewErrors, RequestTrailReviewResponses, ResolveErrorData, ResolveErrorErrors, ResolveErrorResponses, ResumeTrailAutopilotData, ResumeTrailAutopilotErrors, ResumeTrailAutopilotResponses, ResumeTrailRolloutData, ResumeTrailRolloutErrors, ResumeTrailRolloutResponses, RevokeKeyData, RevokeKeyErrors, RevokeKeyResponses, SaveConfigDraftData, SaveConfigDraftErrors, SaveConfigDraftResponses, SearchResourcesData, SearchResourcesErrors, SearchResourcesResponses, SetEntityTagsData, SetEntityTagsErrors, SetEntityTagsResponses, SetExperimentMetricsData, SetExperimentMetricsErrors, SetExperimentMetricsResponses, SetExperimentStatusData, SetExperimentStatusErrors, SetExperimentStatusResponses, SetGateWhitelistData, SetGateWhitelistErrors, SetGateWhitelistResponses, SetI18nLabelData, SetI18nLabelErrors, SetI18nLabelResponses, SetKillswitchSwitchData, SetKillswitchSwitchErrors, SetKillswitchSwitchResponses, SetKillswitchValueData, SetKillswitchValueErrors, SetKillswitchValueResponses, StartTrailRunData, StartTrailRunErrors, StartTrailRunResponses, SubmitOpsTrailEvalData, SubmitOpsTrailEvalErrors, SubmitOpsTrailEvalResponses, SubmitTrailEvalData, SubmitTrailEvalErrors, SubmitTrailEvalResponses, SubmitTrailMarketingAssetData, SubmitTrailMarketingAssetErrors, SubmitTrailMarketingAssetResponses, SubmitTrailPlanData, SubmitTrailPlanErrors, SubmitTrailPlanResponses, TestConnectorData, TestConnectorErrors, TestConnectorResponses, ToggleKillswitchData, ToggleKillswitchErrors, ToggleKillswitchResponses, UnarchiveMetricData, UnarchiveMetricErrors, UnarchiveMetricResponses, UnlinkTrailPrData, UnlinkTrailPrErrors, UnlinkTrailPrResponses, UnsetKillswitchSwitchData, UnsetKillswitchSwitchErrors, UnsetKillswitchSwitchResponses, UpdateAlertData, UpdateAlertErrors, UpdateAlertResponses, UpdateAlertRuleData, UpdateAlertRuleErrors, UpdateAlertRuleResponses, UpdateAttributeData, UpdateAttributeErrors, UpdateAttributeResponses, UpdateConfigData, UpdateConfigErrors, UpdateConfigResponses, UpdateConfigSchemaData, UpdateConfigSchemaErrors, UpdateConfigSchemaResponses, UpdateConnectorData, UpdateConnectorErrors, UpdateConnectorResponses, UpdateEntityTagsData, UpdateEntityTagsErrors, UpdateEntityTagsResponses, UpdateErrorStatusData, UpdateErrorStatusErrors, UpdateErrorStatusResponses, UpdateEventData, UpdateEventErrors, UpdateEventResponses, UpdateExperimentData, UpdateExperimentErrors, UpdateExperimentResponses, UpdateGateData, UpdateGateErrors, UpdateGateResponses, UpdateGateTemplateData, UpdateGateTemplateErrors, UpdateGateTemplateResponses, UpdateI18nDraftData, UpdateI18nDraftErrors, UpdateI18nDraftResponses, UpdateI18nKeyData, UpdateI18nKeyErrors, UpdateI18nKeyResponses, UpdateKeyData, UpdateKeyErrors, UpdateKeyResponses, UpdateKillswitchData, UpdateKillswitchErrors, UpdateKillswitchResponses, UpdateMetricData, UpdateMetricErrors, UpdateMetricResponses, UpdateOpsGroupData, UpdateOpsGroupErrors, UpdateOpsGroupResponses, UpdateOpsInvestigationData, UpdateOpsInvestigationErrors, UpdateOpsInvestigationResponses, UpdateOpsItemData, UpdateOpsItemErrors, UpdateOpsItemResponses, UpdateOpsLinksData, UpdateOpsLinksErrors, UpdateOpsLinksResponses, UpdateOpsTrailFindingData, UpdateOpsTrailFindingErrors, UpdateOpsTrailFindingResponses, UpdateProjectData, UpdateProjectErrors, UpdateProjectResponses, UpdateTrailAgentData, UpdateTrailAgentErrors, UpdateTrailAgentResponses, UpdateTrailData, UpdateTrailErrors, UpdateTrailFindingData, UpdateTrailFindingErrors, UpdateTrailFindingResponses, UpdateTrailGatesData, UpdateTrailGatesErrors, UpdateTrailGatesResponses, UpdateTrailMarketingAssetData, UpdateTrailMarketingAssetErrors, UpdateTrailMarketingAssetResponses, UpdateTrailMilestoneData, UpdateTrailMilestoneErrors, UpdateTrailMilestoneResponses, UpdateTrailPlanData, UpdateTrailPlanErrors, UpdateTrailPlanResponses, UpdateTrailResponses, UpdateTriggerConnectorData, UpdateTriggerConnectorErrors, UpdateTriggerConnectorResponses, UpdateUniverseData, UpdateUniverseErrors, UpdateUniverseResponses, UpsertI18nDraftKeyData, UpsertI18nDraftKeyErrors, UpsertI18nDraftKeyResponses, UpsertI18nKeysData, UpsertI18nKeysErrors, UpsertI18nKeysResponses, UpsertProjectData, UpsertProjectErrors, UpsertProjectResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -2738,6 +2738,270 @@ export const updateTrailMilestone = <ThrowOnError extends boolean = false>(optio
         'Content-Type': 'application/json',
         ...options.headers
     }
+});
+
+/**
+ * List a trail's marketing assets
+ *
+ * Every email, post and ad drafted on the trail, oldest first, with its state, its approval, its delivery evidence (sent / suppressed / failed counts, or the post or campaign URL) and whether its timing would let it go out now.
+ *
+ * Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+ *
+ * Safe for the restricted ops key.
+ *
+ * **Use case:** Before the release, check which announcements are still waiting on a person's approval.
+ */
+export const listTrailMarketingAssets = <ThrowOnError extends boolean = false>(options: Options<ListTrailMarketingAssetsData, ThrowOnError>): RequestResult<ListTrailMarketingAssetsResponses, ListTrailMarketingAssetsErrors, ThrowOnError> => (options.client ?? client).get<ListTrailMarketingAssetsResponses, ListTrailMarketingAssetsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}/marketing',
+    ...options
+});
+
+/**
+ * Draft a marketing asset
+ *
+ * Draft an email, post or ad for one of the trail's marketing channels. The channel decides the kind: `email` makes an email, `ads` an ad, every other channel a post. The draft goes nowhere until it is submitted and a person approves it.
+ *
+ * Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+ *
+ * Safe for the restricted ops key.
+ *
+ * **Use case:** An agent drafts the launch email for the trail's members from the plan's marketing block.
+ */
+export const createTrailMarketingAsset = <ThrowOnError extends boolean = false>(options: Options<CreateTrailMarketingAssetData, ThrowOnError>): RequestResult<CreateTrailMarketingAssetResponses, CreateTrailMarketingAssetErrors, ThrowOnError> => (options.client ?? client).post<CreateTrailMarketingAssetResponses, CreateTrailMarketingAssetErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}/marketing',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Show a marketing asset
+ *
+ * One asset with its content, state, approval and delivery evidence.
+ *
+ * Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+ *
+ * Safe for the restricted ops key.
+ *
+ * **Use case:** Read the post a person handed off, with the URL they recorded.
+ */
+export const getTrailMarketingAsset = <ThrowOnError extends boolean = false>(options: Options<GetTrailMarketingAssetData, ThrowOnError>): RequestResult<GetTrailMarketingAssetResponses, GetTrailMarketingAssetErrors, ThrowOnError> => (options.client ?? client).get<GetTrailMarketingAssetResponses, GetTrailMarketingAssetErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}/marketing/{assetId}',
+    ...options
+});
+
+/**
+ * Edit a marketing asset
+ *
+ * Change an asset's content, timing or audience. Editing an approved or scheduled asset drops its approval and sends it back to review; editing one with changes requested makes it a draft again. A delivering, delivered, failed or cancelled asset cannot be edited (`409`).
+ *
+ * Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+ *
+ * Safe for the restricted ops key.
+ *
+ * **Use case:** Fix a typo in the subject line after review asked for changes.
+ */
+export const updateTrailMarketingAsset = <ThrowOnError extends boolean = false>(options: Options<UpdateTrailMarketingAssetData, ThrowOnError>): RequestResult<UpdateTrailMarketingAssetResponses, UpdateTrailMarketingAssetErrors, ThrowOnError> => (options.client ?? client).patch<UpdateTrailMarketingAssetResponses, UpdateTrailMarketingAssetErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}/marketing/{assetId}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Submit a marketing asset for review
+ *
+ * Move a draft to `in_review`, where a person approves it or asks for changes.
+ *
+ * Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+ *
+ * Safe for the restricted ops key.
+ *
+ * **Use case:** The agent finished the launch email; hand it to the trail's lead.
+ */
+export const submitTrailMarketingAsset = <ThrowOnError extends boolean = false>(options: Options<SubmitTrailMarketingAssetData, ThrowOnError>): RequestResult<SubmitTrailMarketingAssetResponses, SubmitTrailMarketingAssetErrors, ThrowOnError> => (options.client ?? client).post<SubmitTrailMarketingAssetResponses, SubmitTrailMarketingAssetErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}/marketing/{assetId}/submit',
+    ...options
+});
+
+/**
+ * Ask for changes to a marketing asset
+ *
+ * Send an asset in review back with what needs to change. The next edit makes it a draft again.
+ *
+ * Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+ *
+ * Not open to the restricted ops key.
+ *
+ * **Use case:** The post links the wrong page; send it back.
+ */
+export const requestTrailMarketingChanges = <ThrowOnError extends boolean = false>(options: Options<RequestTrailMarketingChangesData, ThrowOnError>): RequestResult<RequestTrailMarketingChangesResponses, RequestTrailMarketingChangesErrors, ThrowOnError> => (options.client ?? client).post<RequestTrailMarketingChangesResponses, RequestTrailMarketingChangesErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}/marketing/{assetId}/request-changes',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Approve a marketing asset
+ *
+ * Approve an asset in review. Every link in its body is tagged with `utm_source`, `utm_medium`, `utm_campaign=trail-<n>` and `utm_content=<asset id>`, so signups are credited to it. An email whose audience does not fit what is left of today's cap is refused (`409`).
+ *
+ * Approving is a person's call. Only a dashboard session or a device-auth CLI session can approve — ops keys, project admin keys, agents and autopilot are refused with `403`. This operation is not exposed as an MCP tool.
+ *
+ * Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+ *
+ * Not open to the restricted ops key.
+ *
+ * **Use case:** The trail's lead read the preview and approves the launch email.
+ */
+export const approveTrailMarketingAsset = <ThrowOnError extends boolean = false>(options: Options<ApproveTrailMarketingAssetData, ThrowOnError>): RequestResult<ApproveTrailMarketingAssetResponses, ApproveTrailMarketingAssetErrors, ThrowOnError> => (options.client ?? client).post<ApproveTrailMarketingAssetResponses, ApproveTrailMarketingAssetErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}/marketing/{assetId}/approve',
+    ...options
+});
+
+/**
+ * Cancel a marketing asset
+ *
+ * Cancel an asset that has not started going out. A send in flight is stopped by the `marketing/pause_sends` kill switch, not by cancelling.
+ *
+ * Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+ *
+ * Not open to the restricted ops key.
+ *
+ * **Use case:** The launch moved; cancel the scheduled post.
+ */
+export const cancelTrailMarketingAsset = <ThrowOnError extends boolean = false>(options: Options<CancelTrailMarketingAssetData, ThrowOnError>): RequestResult<CancelTrailMarketingAssetResponses, CancelTrailMarketingAssetErrors, ThrowOnError> => (options.client ?? client).post<CancelTrailMarketingAssetResponses, CancelTrailMarketingAssetErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}/marketing/{assetId}/cancel',
+    ...options
+});
+
+/**
+ * Deliver a marketing asset now
+ *
+ * Send an approved asset now — if its timing allows. When the timing has arrived it moves to `delivering`: an email goes to the mail queue, a post or ad waits for a person to post it and mark it delivered. When it has not, the asset moves to `scheduled` and goes out on its own once it does. Refused with `409` while the `marketing/pause_sends` kill switch is armed.
+ *
+ * Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+ *
+ * Not open to the restricted ops key.
+ *
+ * **Use case:** The flag reached 100 % an hour ago; send the announcement now rather than waiting for the next tick.
+ */
+export const deliverTrailMarketingAsset = <ThrowOnError extends boolean = false>(options: Options<DeliverTrailMarketingAssetData, ThrowOnError>): RequestResult<DeliverTrailMarketingAssetResponses, DeliverTrailMarketingAssetErrors, ThrowOnError> => (options.client ?? client).post<DeliverTrailMarketingAssetResponses, DeliverTrailMarketingAssetErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}/marketing/{assetId}/deliver',
+    ...options
+});
+
+/**
+ * Mark a marketing asset delivered
+ *
+ * Record that a handed-off post or ad went out, with its URL: `postUrl` for a post, `campaignUrl` for an ad. Emails are marked delivered by the send itself.
+ *
+ * Recording a hand-off is a person's call — only a dashboard session or a device-auth CLI session can do it.
+ *
+ * Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+ *
+ * Not open to the restricted ops key.
+ *
+ * **Use case:** The lead posted the announcement on LinkedIn; record the post's URL.
+ */
+export const markTrailMarketingDelivered = <ThrowOnError extends boolean = false>(options: Options<MarkTrailMarketingDeliveredData, ThrowOnError>): RequestResult<MarkTrailMarketingDeliveredResponses, MarkTrailMarketingDeliveredErrors, ThrowOnError> => (options.client ?? client).post<MarkTrailMarketingDeliveredResponses, MarkTrailMarketingDeliveredErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}/marketing/{assetId}/delivered',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Preview a marketing asset
+ *
+ * The asset as it will go out: the rendered email or post with every link UTM-tagged, and for an email the recipient count after the suppression list and today's cap.
+ *
+ * Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+ *
+ * Safe for the restricted ops key.
+ *
+ * **Use case:** Before approving, check the email reaches the members it should and fits today's cap.
+ */
+export const previewTrailMarketingAsset = <ThrowOnError extends boolean = false>(options: Options<PreviewTrailMarketingAssetData, ThrowOnError>): RequestResult<PreviewTrailMarketingAssetResponses, PreviewTrailMarketingAssetErrors, ThrowOnError> => (options.client ?? client).get<PreviewTrailMarketingAssetResponses, PreviewTrailMarketingAssetErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/trails/{handle}/marketing/{assetId}/preview',
+    ...options
+});
+
+/**
+ * List contact lists
+ *
+ * The project's uploaded contact lists, newest first, with their size and consent attestation. Archived lists are included with `archivedAt` set.
+ *
+ * Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+ *
+ * Safe for the restricted ops key.
+ *
+ * **Use case:** Pick the attested list to send the launch email to.
+ */
+export const listMarketingLists = <ThrowOnError extends boolean = false>(options?: Options<ListMarketingListsData, ThrowOnError>): RequestResult<ListMarketingListsResponses, ListMarketingListsErrors, ThrowOnError> => (options?.client ?? client).get<ListMarketingListsResponses, ListMarketingListsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/marketing-lists',
+    ...options
+});
+
+/**
+ * Upload a contact list
+ *
+ * Upload a CSV or paste addresses as a new contact list. The upload must carry the uploader's attestation that every address consented to marketing email from this project; it is stored on the list with who attested it and when. Invalid lines are reported back, not stored. A list holds at most 10,000 addresses (`400` beyond).
+ *
+ * Uploading is a person's call — only a dashboard session or a device-auth CLI session can attest consent.
+ *
+ * Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+ *
+ * Not open to the restricted ops key.
+ *
+ * **Use case:** Upload the beta waitlist exported from the signup form.
+ */
+export const createMarketingList = <ThrowOnError extends boolean = false>(options: Options<CreateMarketingListData, ThrowOnError>): RequestResult<CreateMarketingListResponses, CreateMarketingListErrors, ThrowOnError> => (options.client ?? client).post<CreateMarketingListResponses, CreateMarketingListErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/marketing-lists',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Archive a contact list
+ *
+ * Archive a list. It can no longer be chosen as an audience; assets already approved with it keep it. Its addresses stay until the project is deleted.
+ *
+ * Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+ *
+ * Not open to the restricted ops key.
+ *
+ * **Use case:** The waitlist is stale; stop it being picked for new emails.
+ */
+export const archiveMarketingList = <ThrowOnError extends boolean = false>(options: Options<ArchiveMarketingListData, ThrowOnError>): RequestResult<ArchiveMarketingListResponses, ArchiveMarketingListErrors, ThrowOnError> => (options.client ?? client).post<ArchiveMarketingListResponses, ArchiveMarketingListErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/admin/marketing-lists/{listId}/archive',
+    ...options
 });
 
 /**

@@ -148,6 +148,16 @@
       "description": "Ordered, named stages inside a trail, each with an optional target date.\nAn item is in at most one milestone; progress is counted per milestone\nand for the trail, and the build works the trail milestone by milestone.\nApproving a plan creates the milestones its breakdown lists. Removing a\nmilestone leaves its items on the trail, in no milestone."
     },
     {
+      "name": "Marketing",
+      "parent": "Trails",
+      "description": "The emails, posts and ads a trail's marketing channels deliver. Each is a\ndraft until it is submitted, and goes out only after a person approves it\n— never an agent, a key or autopilot. Every link is UTM-tagged on approve\nso signups are credited to the asset; an approved asset waits in\n`scheduled` until its timing (at release, at full rollout, after the goal,\nor a milestone) arrives. Emails are sent by the platform; posts and ads\nare handed off to a person who records the URL."
+    },
+    {
+      "name": "Marketing lists",
+      "parent": "Trails",
+      "description": "Uploaded contact lists a trail's marketing email can go to. Every list\ncarries its uploader's consent attestation; a list without one cannot be\nchosen. Archiving a list stops it being chosen for new emails."
+    },
+    {
       "name": "Review agents",
       "parent": "Ops",
       "description": "The evals that score every push to a trail's changes — risk, confidence,\nsecurity, code review, slop, or your own. Each is run by one of the\nproject's coding-agent triggers (spending that agent's quota) and reports a\n0–100 score or a yes/no signal with a polarity and a passing threshold. A\nblocking agent's failing eval blocks the merge."
@@ -13965,6 +13975,892 @@
         }
       }
     },
+    "/api/admin/trails/{handle}/marketing": {
+      "get": {
+        "operationId": "listTrailMarketingAssets",
+        "summary": "List a trail's marketing assets",
+        "description": "Every email, post and ad drafted on the trail, oldest first, with its state, its approval, its delivery evidence (sent / suppressed / failed counts, or the post or campaign URL) and whether its timing would let it go out now.\n\nServed only while the `trail_marketing` flag is on for the project; otherwise `404`.\n\nSafe for the restricted ops key.\n\n**Use case:** Before the release, check which announcements are still waiting on a person's approval.",
+        "tags": [
+          "Marketing"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The trail's assets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListTrailMarketingAssetsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-error-codes": [
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND"
+        ],
+        "x-cli": {
+          "name": "list",
+          "positional": [
+            "handle"
+          ]
+        }
+      },
+      "post": {
+        "operationId": "createTrailMarketingAsset",
+        "summary": "Draft a marketing asset",
+        "description": "Draft an email, post or ad for one of the trail's marketing channels. The channel decides the kind: `email` makes an email, `ads` an ad, every other channel a post. The draft goes nowhere until it is submitted and a person approves it.\n\nServed only while the `trail_marketing` flag is on for the project; otherwise `404`.\n\nSafe for the restricted ops key.\n\n**Use case:** An agent drafts the launch email for the trail's members from the plan's marketing block.",
+        "tags": [
+          "Marketing"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTrailMarketingAssetRequest"
+              },
+              "example": {
+                "channel": "email",
+                "timing": "at_full_rollout",
+                "content": {
+                  "subject": "Trails now deliver your launch",
+                  "text": "Read more at https://shipeasy.ai/changelog"
+                },
+                "audience": {
+                  "members": "all"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The new draft",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrailMarketingAsset"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "VALIDATION",
+          "REFERENCED_NOT_FOUND"
+        ],
+        "x-cli": {
+          "name": "create",
+          "positional": [
+            "handle"
+          ]
+        }
+      }
+    },
+    "/api/admin/trails/{handle}/marketing/{assetId}": {
+      "get": {
+        "operationId": "getTrailMarketingAsset",
+        "summary": "Show a marketing asset",
+        "description": "One asset with its content, state, approval and delivery evidence.\n\nServed only while the `trail_marketing` flag is on for the project; otherwise `404`.\n\nSafe for the restricted ops key.\n\n**Use case:** Read the post a person handed off, with the URL they recorded.",
+        "tags": [
+          "Marketing"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          },
+          {
+            "$ref": "#/components/parameters/MarketingAssetId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The asset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrailMarketingAsset"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-error-codes": [
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND"
+        ],
+        "x-cli": {
+          "name": "get",
+          "positional": [
+            "handle",
+            "assetId"
+          ]
+        }
+      },
+      "patch": {
+        "operationId": "updateTrailMarketingAsset",
+        "summary": "Edit a marketing asset",
+        "description": "Change an asset's content, timing or audience. Editing an approved or scheduled asset drops its approval and sends it back to review; editing one with changes requested makes it a draft again. A delivering, delivered, failed or cancelled asset cannot be edited (`409`).\n\nServed only while the `trail_marketing` flag is on for the project; otherwise `404`.\n\nSafe for the restricted ops key.\n\n**Use case:** Fix a typo in the subject line after review asked for changes.",
+        "tags": [
+          "Marketing"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          },
+          {
+            "$ref": "#/components/parameters/MarketingAssetId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTrailMarketingAssetRequest"
+              },
+              "example": {
+                "content": {
+                  "subject": "Trails now deliver your launch email"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The edited asset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrailMarketingAsset"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "INVALID_TRANSITION",
+          "VALIDATION",
+          "REFERENCED_NOT_FOUND"
+        ],
+        "x-cli": {
+          "name": "update",
+          "positional": [
+            "handle",
+            "assetId"
+          ]
+        }
+      }
+    },
+    "/api/admin/trails/{handle}/marketing/{assetId}/submit": {
+      "post": {
+        "operationId": "submitTrailMarketingAsset",
+        "summary": "Submit a marketing asset for review",
+        "description": "Move a draft to `in_review`, where a person approves it or asks for changes.\n\nServed only while the `trail_marketing` flag is on for the project; otherwise `404`.\n\nSafe for the restricted ops key.\n\n**Use case:** The agent finished the launch email; hand it to the trail's lead.",
+        "tags": [
+          "Marketing"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          },
+          {
+            "$ref": "#/components/parameters/MarketingAssetId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The asset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrailMarketingAsset"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "x-error-codes": [
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "INVALID_TRANSITION"
+        ],
+        "x-cli": {
+          "name": "submit",
+          "positional": [
+            "handle",
+            "assetId"
+          ]
+        }
+      }
+    },
+    "/api/admin/trails/{handle}/marketing/{assetId}/request-changes": {
+      "post": {
+        "operationId": "requestTrailMarketingChanges",
+        "summary": "Ask for changes to a marketing asset",
+        "description": "Send an asset in review back with what needs to change. The next edit makes it a draft again.\n\nServed only while the `trail_marketing` flag is on for the project; otherwise `404`.\n\nNot open to the restricted ops key.\n\n**Use case:** The post links the wrong page; send it back.",
+        "tags": [
+          "Marketing"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          },
+          {
+            "$ref": "#/components/parameters/MarketingAssetId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestTrailMarketingChangesRequest"
+              },
+              "example": {
+                "reason": "Link the changelog entry, not the home page"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The asset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrailMarketingAsset"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "INVALID_TRANSITION",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "request-changes",
+          "positional": [
+            "handle",
+            "assetId"
+          ]
+        }
+      }
+    },
+    "/api/admin/trails/{handle}/marketing/{assetId}/approve": {
+      "post": {
+        "operationId": "approveTrailMarketingAsset",
+        "summary": "Approve a marketing asset",
+        "description": "Approve an asset in review. Every link in its body is tagged with `utm_source`, `utm_medium`, `utm_campaign=trail-<n>` and `utm_content=<asset id>`, so signups are credited to it. An email whose audience does not fit what is left of today's cap is refused (`409`).\n\nApproving is a person's call. Only a dashboard session or a device-auth CLI session can approve — ops keys, project admin keys, agents and autopilot are refused with `403`. This operation is not exposed as an MCP tool.\n\nServed only while the `trail_marketing` flag is on for the project; otherwise `404`.\n\nNot open to the restricted ops key.\n\n**Use case:** The trail's lead read the preview and approves the launch email.",
+        "tags": [
+          "Marketing"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          },
+          {
+            "$ref": "#/components/parameters/MarketingAssetId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The asset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrailMarketingAsset"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "x-error-codes": [
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "INVALID_TRANSITION",
+          "PLAN_LIMIT"
+        ],
+        "x-cli": {
+          "name": "approve",
+          "positional": [
+            "handle",
+            "assetId"
+          ]
+        },
+        "x-mcp": {
+          "hidden": true
+        }
+      }
+    },
+    "/api/admin/trails/{handle}/marketing/{assetId}/cancel": {
+      "post": {
+        "operationId": "cancelTrailMarketingAsset",
+        "summary": "Cancel a marketing asset",
+        "description": "Cancel an asset that has not started going out. A send in flight is stopped by the `marketing/pause_sends` kill switch, not by cancelling.\n\nServed only while the `trail_marketing` flag is on for the project; otherwise `404`.\n\nNot open to the restricted ops key.\n\n**Use case:** The launch moved; cancel the scheduled post.",
+        "tags": [
+          "Marketing"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          },
+          {
+            "$ref": "#/components/parameters/MarketingAssetId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The asset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrailMarketingAsset"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "x-error-codes": [
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "INVALID_TRANSITION"
+        ],
+        "x-cli": {
+          "name": "cancel",
+          "positional": [
+            "handle",
+            "assetId"
+          ]
+        }
+      }
+    },
+    "/api/admin/trails/{handle}/marketing/{assetId}/deliver": {
+      "post": {
+        "operationId": "deliverTrailMarketingAsset",
+        "summary": "Deliver a marketing asset now",
+        "description": "Send an approved asset now — if its timing allows. When the timing has arrived it moves to `delivering`: an email goes to the mail queue, a post or ad waits for a person to post it and mark it delivered. When it has not, the asset moves to `scheduled` and goes out on its own once it does. Refused with `409` while the `marketing/pause_sends` kill switch is armed.\n\nServed only while the `trail_marketing` flag is on for the project; otherwise `404`.\n\nNot open to the restricted ops key.\n\n**Use case:** The flag reached 100 % an hour ago; send the announcement now rather than waiting for the next tick.",
+        "tags": [
+          "Marketing"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          },
+          {
+            "$ref": "#/components/parameters/MarketingAssetId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The asset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrailMarketingAsset"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "x-error-codes": [
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "INVALID_TRANSITION"
+        ],
+        "x-cli": {
+          "name": "deliver",
+          "positional": [
+            "handle",
+            "assetId"
+          ]
+        }
+      }
+    },
+    "/api/admin/trails/{handle}/marketing/{assetId}/delivered": {
+      "post": {
+        "operationId": "markTrailMarketingDelivered",
+        "summary": "Mark a marketing asset delivered",
+        "description": "Record that a handed-off post or ad went out, with its URL: `postUrl` for a post, `campaignUrl` for an ad. Emails are marked delivered by the send itself.\n\nRecording a hand-off is a person's call — only a dashboard session or a device-auth CLI session can do it.\n\nServed only while the `trail_marketing` flag is on for the project; otherwise `404`.\n\nNot open to the restricted ops key.\n\n**Use case:** The lead posted the announcement on LinkedIn; record the post's URL.",
+        "tags": [
+          "Marketing"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          },
+          {
+            "$ref": "#/components/parameters/MarketingAssetId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkTrailMarketingDeliveredRequest"
+              },
+              "example": {
+                "postUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7000000000000000000"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The asset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrailMarketingAsset"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "INVALID_TRANSITION",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "mark-delivered",
+          "positional": [
+            "handle",
+            "assetId"
+          ]
+        },
+        "x-mcp": {
+          "hidden": true
+        }
+      }
+    },
+    "/api/admin/trails/{handle}/marketing/{assetId}/preview": {
+      "get": {
+        "operationId": "previewTrailMarketingAsset",
+        "summary": "Preview a marketing asset",
+        "description": "The asset as it will go out: the rendered email or post with every link UTM-tagged, and for an email the recipient count after the suppression list and today's cap.\n\nServed only while the `trail_marketing` flag is on for the project; otherwise `404`.\n\nSafe for the restricted ops key.\n\n**Use case:** Before approving, check the email reaches the members it should and fits today's cap.",
+        "tags": [
+          "Marketing"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          },
+          {
+            "$ref": "#/components/parameters/MarketingAssetId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrailMarketingPreview"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-error-codes": [
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND"
+        ],
+        "x-cli": {
+          "name": "preview",
+          "positional": [
+            "handle",
+            "assetId"
+          ]
+        }
+      }
+    },
+    "/api/admin/marketing-lists": {
+      "get": {
+        "operationId": "listMarketingLists",
+        "summary": "List contact lists",
+        "description": "The project's uploaded contact lists, newest first, with their size and consent attestation. Archived lists are included with `archivedAt` set.\n\nServed only while the `trail_marketing` flag is on for the project; otherwise `404`.\n\nSafe for the restricted ops key.\n\n**Use case:** Pick the attested list to send the launch email to.",
+        "tags": [
+          "Marketing lists"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The project's lists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListMarketingListsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-error-codes": [
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND"
+        ],
+        "x-cli": {
+          "name": "list",
+          "positional": []
+        }
+      },
+      "post": {
+        "operationId": "createMarketingList",
+        "summary": "Upload a contact list",
+        "description": "Upload a CSV or paste addresses as a new contact list. The upload must carry the uploader's attestation that every address consented to marketing email from this project; it is stored on the list with who attested it and when. Invalid lines are reported back, not stored. A list holds at most 10,000 addresses (`400` beyond).\n\nUploading is a person's call — only a dashboard session or a device-auth CLI session can attest consent.\n\nServed only while the `trail_marketing` flag is on for the project; otherwise `404`.\n\nNot open to the restricted ops key.\n\n**Use case:** Upload the beta waitlist exported from the signup form.",
+        "tags": [
+          "Marketing lists"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMarketingListRequest"
+              },
+              "example": {
+                "name": "Beta waitlist",
+                "csv": "email,name\njane@example.com,Jane Doe",
+                "attestation": {
+                  "statement": "Everyone on this list opted in to product emails from us",
+                  "accepted": true
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The new list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateMarketingListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-error-codes": [
+          "BAD_REQUEST",
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "VALIDATION"
+        ],
+        "x-cli": {
+          "name": "upload",
+          "positional": [
+            "name"
+          ]
+        },
+        "x-mcp": {
+          "hidden": true
+        }
+      }
+    },
+    "/api/admin/marketing-lists/{listId}/archive": {
+      "post": {
+        "operationId": "archiveMarketingList",
+        "summary": "Archive a contact list",
+        "description": "Archive a list. It can no longer be chosen as an audience; assets already approved with it keep it. Its addresses stay until the project is deleted.\n\nServed only while the `trail_marketing` flag is on for the project; otherwise `404`.\n\nNot open to the restricted ops key.\n\n**Use case:** The waitlist is stale; stop it being picked for new emails.",
+        "tags": [
+          "Marketing lists"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/MarketingListId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The archived list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketingList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "x-error-codes": [
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND",
+          "INVALID_TRANSITION"
+        ],
+        "x-cli": {
+          "name": "archive",
+          "positional": [
+            "listId"
+          ]
+        }
+      }
+    },
     "/api/admin/trails/{handle}/attributions": {
       "post": {
         "operationId": "attributeTrail",
@@ -19030,6 +19926,30 @@
         "in": "path",
         "required": true,
         "description": "The milestone's id (`TrailMilestone.id`).",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[0-9a-fA-F-]{32,36}$"
+        }
+      },
+      "MarketingAssetId": {
+        "name": "assetId",
+        "in": "path",
+        "required": true,
+        "description": "The marketing asset's id (`TrailMarketingAsset.id`).",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[0-9a-fA-F-]{32,36}$"
+        }
+      },
+      "MarketingListId": {
+        "name": "listId",
+        "in": "path",
+        "required": true,
+        "description": "The contact list's id (`MarketingList.id`).",
         "schema": {
           "type": "string",
           "minLength": 1,
@@ -37275,6 +38195,793 @@
           }
         },
         "minProperties": 1,
+        "additionalProperties": false
+      },
+      "TrailMarketingAssetKind": {
+        "type": "string",
+        "enum": [
+          "email",
+          "post",
+          "ad"
+        ],
+        "description": "What the asset is. `email` is sent through the platform's mail queue; `post` and `ad` are handed off to a person who posts or launches them and records the URL. Set by the channel, never chosen."
+      },
+      "TrailMarketingAssetChannel": {
+        "type": "string",
+        "enum": [
+          "blog",
+          "email",
+          "social",
+          "ads",
+          "landing",
+          "community",
+          "press"
+        ],
+        "description": "The plan channel the asset belongs to. `email` makes an email asset, `ads` an ad, every other channel a post. `in_app` and `other` stay tracked items and have no asset."
+      },
+      "TrailMarketingAssetState": {
+        "type": "string",
+        "enum": [
+          "draft",
+          "in_review",
+          "changes_requested",
+          "approved",
+          "scheduled",
+          "delivering",
+          "delivered",
+          "failed",
+          "cancelled"
+        ],
+        "description": "Where the asset is in its lifecycle — `draft → in_review → approved → scheduled → delivering → delivered`, with the side exits `changes_requested` (back to `draft` on the next edit), `failed` and `cancelled`."
+      },
+      "TrailMarketingAssetContent": {
+        "type": "object",
+        "description": "The asset's content, typed by kind:\n- `email` — `subject`, `html` and/or `text`.\n- `post` — `body`, optional `media` URLs and a `target` (the Slack channel, the subreddit, the account).\n- `ad` — `variants` (each a `headline`, `body` and `cta`), `platform`, `budget`, and an optional `audience` description.",
+        "properties": {
+          "subject": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "Email subject line."
+          },
+          "html": {
+            "type": "string",
+            "maxLength": 200000,
+            "description": "Email HTML body."
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 100000,
+            "description": "Email plain-text body."
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 40000,
+            "description": "The post's text."
+          },
+          "media": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "type": "string",
+              "format": "uri",
+              "maxLength": 2000
+            },
+            "description": "Image or video URLs attached to the post."
+          },
+          "target": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "Where the post goes — a Slack channel, a subreddit, an account name."
+          },
+          "variants": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 10,
+            "items": {
+              "type": "object",
+              "properties": {
+                "headline": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "body": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "cta": {
+                  "type": "string",
+                  "maxLength": 100
+                }
+              },
+              "required": [
+                "headline"
+              ],
+              "additionalProperties": false
+            },
+            "description": "The ad's copy variants."
+          },
+          "platform": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "The ad platform (Google, Meta, LinkedIn, …)."
+          },
+          "budget": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "The ad's budget, as the person launching it will read it (`$500 over 2 weeks`)."
+          },
+          "audience": {
+            "type": "string",
+            "maxLength": 2000,
+            "description": "The ad's targeting, described."
+          }
+        },
+        "additionalProperties": false
+      },
+      "TrailMarketingAudience": {
+        "type": "object",
+        "description": "Who an email asset goes to. Project members (everyone, or only some roles) and/or contact lists that carry a consent attestation. Every recipient is checked against the project's suppression list, and the send is bounded by the plan's daily marketing email cap.",
+        "properties": {
+          "members": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "all"
+                ]
+              },
+              {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "owner",
+                    "admin",
+                    "editor",
+                    "viewer"
+                  ]
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`all` for every active member, a list of roles for only those, or `null` for no members."
+          },
+          "lists": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "description": "Contact list ids (`MarketingList.id`). Each must be attested and not archived."
+          }
+        },
+        "additionalProperties": false
+      },
+      "TrailMarketingAsset": {
+        "type": "object",
+        "description": "One email, post or ad on a trail — drafted, approved by a person, then delivered with evidence. Every link in the body carries the trail's UTM tags once approved.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The asset's id (a uuid). Also its `utm_content`."
+          },
+          "trailId": {
+            "type": "string",
+            "description": "The trail's id."
+          },
+          "itemId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The `workKind: marketing` queue item the asset belongs to, or `null`."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TrailMarketingAssetKind"
+          },
+          "channel": {
+            "$ref": "#/components/schemas/TrailMarketingAssetChannel"
+          },
+          "timing": {
+            "type": "string",
+            "description": "When the asset may go out — `before_release`, `at_release`, `at_full_rollout`, `after_goal`, or a milestone's name."
+          },
+          "state": {
+            "$ref": "#/components/schemas/TrailMarketingAssetState"
+          },
+          "content": {
+            "$ref": "#/components/schemas/TrailMarketingAssetContent"
+          },
+          "audience": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrailMarketingAudience"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who an email goes to; `null` for posts and ads."
+          },
+          "approvedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The person who approved it, or `null` while it has no live approval. Never an agent, key or autopilot."
+          },
+          "approvedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When it was approved."
+          },
+          "deliveredAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When delivery started (email) or was recorded (hand-off)."
+          },
+          "sentCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Email recipients the message went to."
+          },
+          "suppressedCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Email recipients skipped because they are on the suppression list."
+          },
+          "failedCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Email recipients the send failed for."
+          },
+          "postUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The live post's URL, recorded when a person marks a post delivered."
+          },
+          "campaignUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The ad campaign's URL, recorded when a person marks an ad launched."
+          },
+          "deliverable": {
+            "type": "object",
+            "description": "Whether the timing gate would let the asset go out now.",
+            "properties": {
+              "ok": {
+                "type": "boolean"
+              },
+              "reason": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Why not, when `ok` is false."
+              }
+            },
+            "required": [
+              "ok",
+              "reason"
+            ],
+            "additionalProperties": false
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "trailId",
+          "itemId",
+          "kind",
+          "channel",
+          "timing",
+          "state",
+          "content",
+          "audience",
+          "approvedBy",
+          "approvedAt",
+          "deliveredAt",
+          "sentCount",
+          "suppressedCount",
+          "failedCount",
+          "postUrl",
+          "campaignUrl",
+          "deliverable",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "ListTrailMarketingAssetsResponse": {
+        "type": "object",
+        "description": "A trail's marketing assets, oldest first.",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrailMarketingAsset"
+            }
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "CreateTrailMarketingAssetRequest": {
+        "type": "object",
+        "description": "Body for `POST /api/admin/trails/{handle}/marketing`. Creates a draft.",
+        "properties": {
+          "channel": {
+            "$ref": "#/components/schemas/TrailMarketingAssetChannel"
+          },
+          "itemId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The trail's marketing item this asset belongs to — its number or id. Omitted, the asset belongs to the trail only."
+          },
+          "timing": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "When it may go out — `before_release` (the default), `at_release`, `at_full_rollout`, `after_goal`, or a milestone's name."
+          },
+          "content": {
+            "$ref": "#/components/schemas/TrailMarketingAssetContent"
+          },
+          "audience": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrailMarketingAudience"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Email only — who it goes to."
+          }
+        },
+        "required": [
+          "channel",
+          "content"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateTrailMarketingAssetRequest": {
+        "type": "object",
+        "description": "Body for `PATCH /api/admin/trails/{handle}/marketing/{assetId}`. Any edit to an approved or scheduled asset drops its approval and sends it back to review.",
+        "properties": {
+          "timing": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "When it may go out."
+          },
+          "content": {
+            "$ref": "#/components/schemas/TrailMarketingAssetContent"
+          },
+          "audience": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrailMarketingAudience"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Email only — who it goes to."
+          }
+        },
+        "additionalProperties": false
+      },
+      "RequestTrailMarketingChangesRequest": {
+        "type": "object",
+        "description": "Body for `POST /api/admin/trails/{handle}/marketing/{assetId}/request-changes`.",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "What needs to change, posted on the trail's timeline."
+          }
+        },
+        "additionalProperties": false
+      },
+      "MarkTrailMarketingDeliveredRequest": {
+        "type": "object",
+        "description": "Body for `POST /api/admin/trails/{handle}/marketing/{assetId}/delivered`. A post needs its `postUrl`, an ad its `campaignUrl`.",
+        "properties": {
+          "postUrl": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2000,
+            "description": "The live post's URL."
+          },
+          "campaignUrl": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2000,
+            "description": "The ad campaign's URL."
+          }
+        },
+        "additionalProperties": false
+      },
+      "TrailMarketingPreview": {
+        "type": "object",
+        "description": "What an asset will look like when it goes out, with its UTM-tagged links, and for an email who it reaches after the suppression list and the daily cap.",
+        "properties": {
+          "asset": {
+            "$ref": "#/components/schemas/TrailMarketingAsset"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Email subject."
+          },
+          "html": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Email HTML with every link tagged."
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Email text, or the post's body, with every link tagged."
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Every tagged link in the asset, in order."
+          },
+          "recipients": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "audience": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Unique addresses the audience names."
+                  },
+                  "suppressed": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Of those, on the suppression list."
+                  },
+                  "remainingToday": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Marketing emails the project may still send today (UTC)."
+                  },
+                  "cap": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "The project's daily marketing email cap."
+                  },
+                  "willSend": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Recipients a send now would reach — the audience minus suppressions, bounded by what is left today."
+                  }
+                },
+                "required": [
+                  "audience",
+                  "suppressed",
+                  "remainingToday",
+                  "cap",
+                  "willSend"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Email only — the recipient count. `null` for posts and ads."
+          }
+        },
+        "required": [
+          "asset",
+          "subject",
+          "html",
+          "text",
+          "links",
+          "recipients"
+        ],
+        "additionalProperties": false
+      },
+      "MarketingList": {
+        "type": "object",
+        "description": "An uploaded or pasted contact list. Selectable as an email audience only while it carries a consent attestation and is not archived.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The list's id (a uuid)."
+          },
+          "name": {
+            "type": "string",
+            "description": "The list's name."
+          },
+          "contactCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Addresses on the list."
+          },
+          "attestedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who attested that every address on the list consented to marketing email."
+          },
+          "attestedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When they attested it."
+          },
+          "attestationText": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The statement they attested to."
+          },
+          "archivedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the list was archived, or `null`."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "contactCount",
+          "attestedBy",
+          "attestedAt",
+          "attestationText",
+          "archivedAt",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "ListMarketingListsResponse": {
+        "type": "object",
+        "description": "The project's contact lists, newest first.",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MarketingList"
+            }
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "CreateMarketingListRequest": {
+        "type": "object",
+        "description": "Body for `POST /api/admin/marketing-lists`. Pass the addresses as `csv` (a CSV with an `email` column, or one address per line) or as `contacts`. The consent attestation is required.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^\\S(.*\\S)?$",
+            "description": "The list's name."
+          },
+          "csv": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000000,
+            "description": "A CSV upload or a pasted block of addresses."
+          },
+          "contacts": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 10000,
+            "items": {
+              "type": "object",
+              "properties": {
+                "email": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 320
+                },
+                "name": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 200
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "email"
+              ],
+              "additionalProperties": false
+            },
+            "description": "The addresses, already split."
+          },
+          "attestation": {
+            "type": "object",
+            "description": "The uploader's statement that every address consented to marketing email from this project.",
+            "properties": {
+              "statement": {
+                "type": "string",
+                "minLength": 20,
+                "maxLength": 2000,
+                "description": "The statement, as the uploader read it."
+              },
+              "accepted": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ],
+                "description": "Must be `true`."
+              }
+            },
+            "required": [
+              "statement",
+              "accepted"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "name",
+          "attestation"
+        ],
+        "additionalProperties": false
+      },
+      "CreateMarketingListResponse": {
+        "type": "object",
+        "description": "The new list, and what the upload skipped.",
+        "properties": {
+          "list": {
+            "$ref": "#/components/schemas/MarketingList"
+          },
+          "invalid": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "line": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "line",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Lines that held no valid address."
+          },
+          "duplicates": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Addresses that appeared more than once and were kept once."
+          }
+        },
+        "required": [
+          "list",
+          "invalid",
+          "duplicates"
+        ],
         "additionalProperties": false
       },
       "AttributeTrailRequest": {

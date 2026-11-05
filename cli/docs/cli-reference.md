@@ -1153,7 +1153,7 @@ shipeasy ops trail-gates set [options]
 | `--guarded <value>` | optional | Release gate. Passes when every measured resource has at least one guarding alert rule. Off by default. |
 | `--copy <value>` | optional | Release gate. Passes when every copy i18n key exists in every published locale of its profile. Off by default. |
 | `--plan <value>` | optional | Gate. Passes when every release resource the trail's approved plan lists exists on the trail (a flag, kill switch or experiment the person chose while the plan was made). Reads `pending` while a drafted plan waits for approval, and is left out when the trail has no plan yet. On and blocking by default, whoever approved the plan. |
-| `--require-plan <value>` | optional | Whether a person approves a trail's plan before it builds. Every trail is planned first — starting an agent on a trail with no approved plan fires a read-only plan run, and the build follows the approved plan. On, the plan run asks the person how the trail should ship and anything else that is open, and waits for their approval. Off, it asks nothing and takes its own recommendations; a plan the checks raise no warning on approves itself and the build starts, one with a warning waits for a person. |
+| `--require-plan <value>` | optional | Whether a person approves a trail's plan before it builds. Every trail is planned first — starting an agent on a trail with no approved plan fires a read-only plan run, and the build follows the approved plan. On, the plan run asks the person only what the goal leaves open (never how it ships — it chooses that itself), and the plan waits for their approval. Off, it asks nothing and takes its own recommendations; a plan the checks raise no warning on approves itself and the build starts, one with a warning waits for a person. |
 | `--fix-rounds <value>` | optional | How many times the server re-fires the coding agent with a fix prompt after a change's evals or findings fail. After the cap the trail reads `reviewing`, needs a person. `0` turns the loop off. |
 | `--goal-window-days <value>` | optional | How many days a delivered trail is watched before its goal metric is judged. A trail is delivered when its plan is approved, every code and tracking item is done and every flag it ships behind is fully rolled out (or, with none, something merged). |
 | `--max-goal-replans <value>` | optional | How many times shipeasy re-plans a trail on its own after its goal was missed. Each re-plan proposes new options that differ from what was tried. Past the cap the trail is off track and the owner decides; `0` never re-plans automatically. |
@@ -1755,6 +1755,260 @@ shipeasy trails items remove [options] <handle> <itemHandle>
 | --- | --- | --- |
 | `--data <value>` | optional | Request body as a JSON object. |
 
+### `shipeasy trails marketing`
+
+The emails, posts and ads a trail's marketing channels deliver.
+
+```bash
+shipeasy trails marketing [options] [command]
+```
+
+#### `shipeasy trails marketing list`
+
+List a trail's marketing assets
+
+```bash
+shipeasy trails marketing list [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+#### `shipeasy trails marketing create`
+
+Draft a marketing asset
+
+```bash
+shipeasy trails marketing create [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--channel <value>` | optional | The plan channel the asset belongs to. `email` makes an email asset, `ads` an ad, every other channel a post. `in_app` and `other` stay tracked items and have no asset. |
+| `--item-id <value>` | optional | The trail's marketing item this asset belongs to — its number or id. Omitted, the asset belongs to the trail only. |
+| `--timing <value>` | optional | When it may go out — `before_release` (the default), `at_release`, `at_full_rollout`, `after_goal`, or a milestone's name. |
+| `--content <value>` | optional | The asset's content, typed by kind: |
+| `--audience <value>` | optional | Email only — who it goes to. |
+
+#### `shipeasy trails marketing get`
+
+Show a marketing asset
+
+```bash
+shipeasy trails marketing get [options] <handle> <assetId>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+| `assetId` | required | The marketing asset's id (`TrailMarketingAsset.id`). |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+#### `shipeasy trails marketing update`
+
+Edit a marketing asset
+
+```bash
+shipeasy trails marketing update [options] <handle> <assetId>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+| `assetId` | required | The marketing asset's id (`TrailMarketingAsset.id`). |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--timing <value>` | optional | When it may go out. |
+| `--content <value>` | optional | The asset's content, typed by kind: |
+| `--audience <value>` | optional | Email only — who it goes to. |
+
+#### `shipeasy trails marketing submit`
+
+Submit a marketing asset for review
+
+```bash
+shipeasy trails marketing submit [options] <handle> <assetId>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+| `assetId` | required | The marketing asset's id (`TrailMarketingAsset.id`). |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+#### `shipeasy trails marketing request-changes`
+
+Ask for changes to a marketing asset
+
+```bash
+shipeasy trails marketing request-changes [options] <handle> <assetId>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+| `assetId` | required | The marketing asset's id (`TrailMarketingAsset.id`). |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--reason <value>` | optional | What needs to change, posted on the trail's timeline. |
+
+#### `shipeasy trails marketing approve`
+
+Approve a marketing asset
+
+```bash
+shipeasy trails marketing approve [options] <handle> <assetId>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+| `assetId` | required | The marketing asset's id (`TrailMarketingAsset.id`). |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+#### `shipeasy trails marketing cancel`
+
+Cancel a marketing asset
+
+```bash
+shipeasy trails marketing cancel [options] <handle> <assetId>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+| `assetId` | required | The marketing asset's id (`TrailMarketingAsset.id`). |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+#### `shipeasy trails marketing deliver`
+
+Deliver a marketing asset now
+
+```bash
+shipeasy trails marketing deliver [options] <handle> <assetId>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+| `assetId` | required | The marketing asset's id (`TrailMarketingAsset.id`). |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+#### `shipeasy trails marketing mark-delivered`
+
+Mark a marketing asset delivered
+
+```bash
+shipeasy trails marketing mark-delivered [options] <handle> <assetId>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+| `assetId` | required | The marketing asset's id (`TrailMarketingAsset.id`). |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--post-url <value>` | optional | The live post's URL. |
+| `--campaign-url <value>` | optional | The ad campaign's URL. |
+
+#### `shipeasy trails marketing preview`
+
+Preview a marketing asset
+
+```bash
+shipeasy trails marketing preview [options] <handle> <assetId>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+| `assetId` | required | The marketing asset's id (`TrailMarketingAsset.id`). |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+### `shipeasy trails marketing-lists`
+
+Uploaded contact lists a trail's marketing email can go to.
+
+```bash
+shipeasy trails marketing-lists [options] [command]
+```
+
+#### `shipeasy trails marketing-lists list`
+
+List contact lists
+
+```bash
+shipeasy trails marketing-lists list [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+#### `shipeasy trails marketing-lists upload`
+
+Upload a contact list
+
+```bash
+shipeasy trails marketing-lists upload [options] <name>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `name` | required | The list's name. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--csv <value>` | optional | A CSV upload or a pasted block of addresses. |
+| `--contacts <value>` | optional | The addresses, already split. |
+| `--attestation <value>` | optional | The uploader's statement that every address consented to marketing email from this project. |
+
+#### `shipeasy trails marketing-lists archive`
+
+Archive a contact list
+
+```bash
+shipeasy trails marketing-lists archive [options] <listId>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `listId` | required | The contact list's id (`MarketingList.id`). |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
 ### `shipeasy trails milestones`
 
 Ordered, named stages inside a trail, each with an optional target date.
@@ -2080,6 +2334,7 @@ shipeasy trails submit-plan [options] <handle>
 | `--marketing <value>` | optional | The plan's marketing strategy — tracked, never executed. Every channel is also a breakdown item of the same title with `workKind` `marketing`, so it has an owner, a status and a place on the timeline. |
 | `--sources <value>` | optional | What the plan rests on in project memory (`ops memory search`) and earlier tickets and trails, each with what it settled. |
 | `--summary <value>` | optional | For a replan, what changed since the last approved revision. Recorded on the revision. |
+| `--goal <value>` | optional | The metric the plan says will judge the trail, with its baseline and target — sent when the intent is an outcome and the trail has no goal yet. It becomes the trail's goal only while the trail has none (a goal a person set is never replaced), and its metric must already exist; leave `metric` out when a tracking item creates it. |
 
 ### `shipeasy trails update-plan`
 

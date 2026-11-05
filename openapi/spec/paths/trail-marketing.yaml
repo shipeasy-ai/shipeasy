@@ -1,0 +1,705 @@
+/api/admin/trails/{handle}/marketing:
+  get:
+    operationId: listTrailMarketingAssets
+    summary: List a trail's marketing assets
+    description: 'Every email, post and ad drafted on the trail, oldest first, with its state, its approval, its delivery evidence (sent / suppressed / failed counts, or the post or campaign URL) and whether
+      its timing would let it go out now.
+
+
+      Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+
+
+      Safe for the restricted ops key.
+
+
+      **Use case:** Before the release, check which announcements are still waiting on a person''s approval.'
+    tags:
+    - Marketing
+    parameters:
+    - $ref: ../components/parameters.yaml#/ProjectId
+    - $ref: ../components/parameters.yaml#/TrailHandle
+    responses:
+      '200':
+        description: The trail's assets
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/trail-marketing.yaml#/ListTrailMarketingAssetsResponse
+      '401':
+        $ref: ../components/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+    x-error-codes:
+    - UNAUTHORIZED
+    - FORBIDDEN
+    - NOT_FOUND
+    x-cli:
+      name: list
+      positional:
+      - handle
+  post:
+    operationId: createTrailMarketingAsset
+    summary: Draft a marketing asset
+    description: 'Draft an email, post or ad for one of the trail''s marketing channels. The channel decides the kind: `email` makes an email, `ads` an ad, every other channel a post. The draft goes nowhere
+      until it is submitted and a person approves it.
+
+
+      Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+
+
+      Safe for the restricted ops key.
+
+
+      **Use case:** An agent drafts the launch email for the trail''s members from the plan''s marketing block.'
+    tags:
+    - Marketing
+    parameters:
+    - $ref: ../components/parameters.yaml#/ProjectId
+    - $ref: ../components/parameters.yaml#/TrailHandle
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/trail-marketing.yaml#/CreateTrailMarketingAssetRequest
+          example:
+            channel: email
+            timing: at_full_rollout
+            content:
+              subject: Trails now deliver your launch
+              text: Read more at https://shipeasy.ai/changelog
+            audience:
+              members: all
+    responses:
+      '200':
+        description: The new draft
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/trail-marketing.yaml#/TrailMarketingAsset
+      '400':
+        $ref: ../components/responses.yaml#/BadRequest
+      '401':
+        $ref: ../components/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '422':
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+    - BAD_REQUEST
+    - UNAUTHORIZED
+    - FORBIDDEN
+    - NOT_FOUND
+    - VALIDATION
+    - REFERENCED_NOT_FOUND
+    x-cli:
+      name: create
+      positional:
+      - handle
+/api/admin/trails/{handle}/marketing/{assetId}:
+  get:
+    operationId: getTrailMarketingAsset
+    summary: Show a marketing asset
+    description: 'One asset with its content, state, approval and delivery evidence.
+
+
+      Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+
+
+      Safe for the restricted ops key.
+
+
+      **Use case:** Read the post a person handed off, with the URL they recorded.'
+    tags:
+    - Marketing
+    parameters:
+    - $ref: ../components/parameters.yaml#/ProjectId
+    - $ref: ../components/parameters.yaml#/TrailHandle
+    - $ref: ../components/parameters.yaml#/MarketingAssetId
+    responses:
+      '200':
+        description: The asset
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/trail-marketing.yaml#/TrailMarketingAsset
+      '401':
+        $ref: ../components/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+    x-error-codes:
+    - UNAUTHORIZED
+    - FORBIDDEN
+    - NOT_FOUND
+    x-cli:
+      name: get
+      positional:
+      - handle
+      - assetId
+  patch:
+    operationId: updateTrailMarketingAsset
+    summary: Edit a marketing asset
+    description: 'Change an asset''s content, timing or audience. Editing an approved or scheduled asset drops its approval and sends it back to review; editing one with changes requested makes it a draft
+      again. A delivering, delivered, failed or cancelled asset cannot be edited (`409`).
+
+
+      Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+
+
+      Safe for the restricted ops key.
+
+
+      **Use case:** Fix a typo in the subject line after review asked for changes.'
+    tags:
+    - Marketing
+    parameters:
+    - $ref: ../components/parameters.yaml#/ProjectId
+    - $ref: ../components/parameters.yaml#/TrailHandle
+    - $ref: ../components/parameters.yaml#/MarketingAssetId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/trail-marketing.yaml#/UpdateTrailMarketingAssetRequest
+          example:
+            content:
+              subject: Trails now deliver your launch email
+    responses:
+      '200':
+        description: The edited asset
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/trail-marketing.yaml#/TrailMarketingAsset
+      '400':
+        $ref: ../components/responses.yaml#/BadRequest
+      '401':
+        $ref: ../components/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/Conflict
+      '422':
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+    - BAD_REQUEST
+    - UNAUTHORIZED
+    - FORBIDDEN
+    - NOT_FOUND
+    - INVALID_TRANSITION
+    - VALIDATION
+    - REFERENCED_NOT_FOUND
+    x-cli:
+      name: update
+      positional:
+      - handle
+      - assetId
+/api/admin/trails/{handle}/marketing/{assetId}/submit:
+  post:
+    operationId: submitTrailMarketingAsset
+    summary: Submit a marketing asset for review
+    description: 'Move a draft to `in_review`, where a person approves it or asks for changes.
+
+
+      Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+
+
+      Safe for the restricted ops key.
+
+
+      **Use case:** The agent finished the launch email; hand it to the trail''s lead.'
+    tags:
+    - Marketing
+    parameters:
+    - $ref: ../components/parameters.yaml#/ProjectId
+    - $ref: ../components/parameters.yaml#/TrailHandle
+    - $ref: ../components/parameters.yaml#/MarketingAssetId
+    responses:
+      '200':
+        description: The asset
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/trail-marketing.yaml#/TrailMarketingAsset
+      '401':
+        $ref: ../components/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/Conflict
+    x-error-codes:
+    - UNAUTHORIZED
+    - FORBIDDEN
+    - NOT_FOUND
+    - INVALID_TRANSITION
+    x-cli:
+      name: submit
+      positional:
+      - handle
+      - assetId
+/api/admin/trails/{handle}/marketing/{assetId}/request-changes:
+  post:
+    operationId: requestTrailMarketingChanges
+    summary: Ask for changes to a marketing asset
+    description: 'Send an asset in review back with what needs to change. The next edit makes it a draft again.
+
+
+      Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+
+
+      Not open to the restricted ops key.
+
+
+      **Use case:** The post links the wrong page; send it back.'
+    tags:
+    - Marketing
+    parameters:
+    - $ref: ../components/parameters.yaml#/ProjectId
+    - $ref: ../components/parameters.yaml#/TrailHandle
+    - $ref: ../components/parameters.yaml#/MarketingAssetId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/trail-marketing.yaml#/RequestTrailMarketingChangesRequest
+          example:
+            reason: Link the changelog entry, not the home page
+    responses:
+      '200':
+        description: The asset
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/trail-marketing.yaml#/TrailMarketingAsset
+      '400':
+        $ref: ../components/responses.yaml#/BadRequest
+      '401':
+        $ref: ../components/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/Conflict
+      '422':
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+    - BAD_REQUEST
+    - UNAUTHORIZED
+    - FORBIDDEN
+    - NOT_FOUND
+    - INVALID_TRANSITION
+    - VALIDATION
+    x-cli:
+      name: request-changes
+      positional:
+      - handle
+      - assetId
+/api/admin/trails/{handle}/marketing/{assetId}/approve:
+  post:
+    operationId: approveTrailMarketingAsset
+    summary: Approve a marketing asset
+    description: 'Approve an asset in review. Every link in its body is tagged with `utm_source`, `utm_medium`, `utm_campaign=trail-<n>` and `utm_content=<asset id>`, so signups are credited to it. An email
+      whose audience does not fit what is left of today''s cap is refused (`409`).
+
+
+      Approving is a person''s call. Only a dashboard session or a device-auth CLI session can approve — ops keys, project admin keys, agents and autopilot are refused with `403`. This operation is not
+      exposed as an MCP tool.
+
+
+      Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+
+
+      Not open to the restricted ops key.
+
+
+      **Use case:** The trail''s lead read the preview and approves the launch email.'
+    tags:
+    - Marketing
+    parameters:
+    - $ref: ../components/parameters.yaml#/ProjectId
+    - $ref: ../components/parameters.yaml#/TrailHandle
+    - $ref: ../components/parameters.yaml#/MarketingAssetId
+    responses:
+      '200':
+        description: The asset
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/trail-marketing.yaml#/TrailMarketingAsset
+      '401':
+        $ref: ../components/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/Conflict
+    x-error-codes:
+    - UNAUTHORIZED
+    - FORBIDDEN
+    - NOT_FOUND
+    - INVALID_TRANSITION
+    - PLAN_LIMIT
+    x-cli:
+      name: approve
+      positional:
+      - handle
+      - assetId
+    x-mcp:
+      hidden: true
+/api/admin/trails/{handle}/marketing/{assetId}/cancel:
+  post:
+    operationId: cancelTrailMarketingAsset
+    summary: Cancel a marketing asset
+    description: 'Cancel an asset that has not started going out. A send in flight is stopped by the `marketing/pause_sends` kill switch, not by cancelling.
+
+
+      Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+
+
+      Not open to the restricted ops key.
+
+
+      **Use case:** The launch moved; cancel the scheduled post.'
+    tags:
+    - Marketing
+    parameters:
+    - $ref: ../components/parameters.yaml#/ProjectId
+    - $ref: ../components/parameters.yaml#/TrailHandle
+    - $ref: ../components/parameters.yaml#/MarketingAssetId
+    responses:
+      '200':
+        description: The asset
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/trail-marketing.yaml#/TrailMarketingAsset
+      '401':
+        $ref: ../components/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/Conflict
+    x-error-codes:
+    - UNAUTHORIZED
+    - FORBIDDEN
+    - NOT_FOUND
+    - INVALID_TRANSITION
+    x-cli:
+      name: cancel
+      positional:
+      - handle
+      - assetId
+/api/admin/trails/{handle}/marketing/{assetId}/deliver:
+  post:
+    operationId: deliverTrailMarketingAsset
+    summary: Deliver a marketing asset now
+    description: 'Send an approved asset now — if its timing allows. When the timing has arrived it moves to `delivering`: an email goes to the mail queue, a post or ad waits for a person to post it and
+      mark it delivered. When it has not, the asset moves to `scheduled` and goes out on its own once it does. Refused with `409` while the `marketing/pause_sends` kill switch is armed.
+
+
+      Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+
+
+      Not open to the restricted ops key.
+
+
+      **Use case:** The flag reached 100 % an hour ago; send the announcement now rather than waiting for the next tick.'
+    tags:
+    - Marketing
+    parameters:
+    - $ref: ../components/parameters.yaml#/ProjectId
+    - $ref: ../components/parameters.yaml#/TrailHandle
+    - $ref: ../components/parameters.yaml#/MarketingAssetId
+    responses:
+      '200':
+        description: The asset
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/trail-marketing.yaml#/TrailMarketingAsset
+      '401':
+        $ref: ../components/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/Conflict
+    x-error-codes:
+    - UNAUTHORIZED
+    - FORBIDDEN
+    - NOT_FOUND
+    - INVALID_TRANSITION
+    x-cli:
+      name: deliver
+      positional:
+      - handle
+      - assetId
+/api/admin/trails/{handle}/marketing/{assetId}/delivered:
+  post:
+    operationId: markTrailMarketingDelivered
+    summary: Mark a marketing asset delivered
+    description: 'Record that a handed-off post or ad went out, with its URL: `postUrl` for a post, `campaignUrl` for an ad. Emails are marked delivered by the send itself.
+
+
+      Recording a hand-off is a person''s call — only a dashboard session or a device-auth CLI session can do it.
+
+
+      Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+
+
+      Not open to the restricted ops key.
+
+
+      **Use case:** The lead posted the announcement on LinkedIn; record the post''s URL.'
+    tags:
+    - Marketing
+    parameters:
+    - $ref: ../components/parameters.yaml#/ProjectId
+    - $ref: ../components/parameters.yaml#/TrailHandle
+    - $ref: ../components/parameters.yaml#/MarketingAssetId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/trail-marketing.yaml#/MarkTrailMarketingDeliveredRequest
+          example:
+            postUrl: https://www.linkedin.com/feed/update/urn:li:activity:7000000000000000000
+    responses:
+      '200':
+        description: The asset
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/trail-marketing.yaml#/TrailMarketingAsset
+      '400':
+        $ref: ../components/responses.yaml#/BadRequest
+      '401':
+        $ref: ../components/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/Conflict
+      '422':
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+    - BAD_REQUEST
+    - UNAUTHORIZED
+    - FORBIDDEN
+    - NOT_FOUND
+    - INVALID_TRANSITION
+    - VALIDATION
+    x-cli:
+      name: mark-delivered
+      positional:
+      - handle
+      - assetId
+    x-mcp:
+      hidden: true
+/api/admin/trails/{handle}/marketing/{assetId}/preview:
+  get:
+    operationId: previewTrailMarketingAsset
+    summary: Preview a marketing asset
+    description: 'The asset as it will go out: the rendered email or post with every link UTM-tagged, and for an email the recipient count after the suppression list and today''s cap.
+
+
+      Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+
+
+      Safe for the restricted ops key.
+
+
+      **Use case:** Before approving, check the email reaches the members it should and fits today''s cap.'
+    tags:
+    - Marketing
+    parameters:
+    - $ref: ../components/parameters.yaml#/ProjectId
+    - $ref: ../components/parameters.yaml#/TrailHandle
+    - $ref: ../components/parameters.yaml#/MarketingAssetId
+    responses:
+      '200':
+        description: The preview
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/trail-marketing.yaml#/TrailMarketingPreview
+      '401':
+        $ref: ../components/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+    x-error-codes:
+    - UNAUTHORIZED
+    - FORBIDDEN
+    - NOT_FOUND
+    x-cli:
+      name: preview
+      positional:
+      - handle
+      - assetId
+/api/admin/marketing-lists:
+  get:
+    operationId: listMarketingLists
+    summary: List contact lists
+    description: 'The project''s uploaded contact lists, newest first, with their size and consent attestation. Archived lists are included with `archivedAt` set.
+
+
+      Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+
+
+      Safe for the restricted ops key.
+
+
+      **Use case:** Pick the attested list to send the launch email to.'
+    tags:
+    - Marketing lists
+    parameters:
+    - $ref: ../components/parameters.yaml#/ProjectId
+    responses:
+      '200':
+        description: The project's lists
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/trail-marketing.yaml#/ListMarketingListsResponse
+      '401':
+        $ref: ../components/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+    x-error-codes:
+    - UNAUTHORIZED
+    - FORBIDDEN
+    - NOT_FOUND
+    x-cli:
+      name: list
+      positional: []
+  post:
+    operationId: createMarketingList
+    summary: Upload a contact list
+    description: 'Upload a CSV or paste addresses as a new contact list. The upload must carry the uploader''s attestation that every address consented to marketing email from this project; it is stored
+      on the list with who attested it and when. Invalid lines are reported back, not stored. A list holds at most 10,000 addresses (`400` beyond).
+
+
+      Uploading is a person''s call — only a dashboard session or a device-auth CLI session can attest consent.
+
+
+      Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+
+
+      Not open to the restricted ops key.
+
+
+      **Use case:** Upload the beta waitlist exported from the signup form.'
+    tags:
+    - Marketing lists
+    parameters:
+    - $ref: ../components/parameters.yaml#/ProjectId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/trail-marketing.yaml#/CreateMarketingListRequest
+          example:
+            name: Beta waitlist
+            csv: 'email,name
+
+              jane@example.com,Jane Doe'
+            attestation:
+              statement: Everyone on this list opted in to product emails from us
+              accepted: true
+    responses:
+      '200':
+        description: The new list
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/trail-marketing.yaml#/CreateMarketingListResponse
+      '400':
+        $ref: ../components/responses.yaml#/BadRequest
+      '401':
+        $ref: ../components/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '422':
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+    - BAD_REQUEST
+    - UNAUTHORIZED
+    - FORBIDDEN
+    - NOT_FOUND
+    - VALIDATION
+    x-cli:
+      name: upload
+      positional:
+      - name
+    x-mcp:
+      hidden: true
+/api/admin/marketing-lists/{listId}/archive:
+  post:
+    operationId: archiveMarketingList
+    summary: Archive a contact list
+    description: 'Archive a list. It can no longer be chosen as an audience; assets already approved with it keep it. Its addresses stay until the project is deleted.
+
+
+      Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+
+
+      Not open to the restricted ops key.
+
+
+      **Use case:** The waitlist is stale; stop it being picked for new emails.'
+    tags:
+    - Marketing lists
+    parameters:
+    - $ref: ../components/parameters.yaml#/ProjectId
+    - $ref: ../components/parameters.yaml#/MarketingListId
+    responses:
+      '200':
+        description: The archived list
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/trail-marketing.yaml#/MarketingList
+      '401':
+        $ref: ../components/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/Conflict
+    x-error-codes:
+    - UNAUTHORIZED
+    - FORBIDDEN
+    - NOT_FOUND
+    - INVALID_TRANSITION
+    x-cli:
+      name: archive
+      positional:
+      - listId
+
