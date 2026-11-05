@@ -33,6 +33,8 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   const g_release_flags = defineGroup(g_release, "flags", { summary: "Feature gates: boolean flags evaluated at runtime against project rules + a percentage rollout.", help: "Feature gates: boolean flags evaluated at runtime against project rules + a percentage rollout.\n\n**Identity.** Each gate is keyed by a stable `name` (a-z, 0-9, `_`/`-`, max 64 chars) which is what SDKs pass to `Shipeasy.checkGate(user, '<name>')`. The `name` is immutable — rename means delete + recreate.\n\n**Evaluation model.** A gate returns `true` when (a) `enabled` is true, and (b) the caller satisfies the gate's rules. There are two evaluation shapes:\n- **Flat** — `rules` (AND-combined predicates) gate the caller, then `rollout_pct` (basis points, 0–10000) hashes them into a bucket. Used for simple `is in X% rollout` gates.\n- **Gatekeeper stack** — an ordered array of `condition` and `rollout` sub-gates, evaluated top-to-bottom; first match wins. Used to express `internal-only ∪ 1% beta ∪ 50% public` in one gate. When `stack` is present it takes precedence over the flat fields.\n\n**Rules.** Each rule is `{ attr, op, value }`. Supported ops: `eq`, `neq`, `in`, `not_in`, `gt`, `gte`, `lt`, `lte`, `contains`, `regex`. Attribute names match the keys on the SDK evaluation context (e.g. `country`, `plan`, `email`).\n\n**Rollout basis points.** `rollout_pct` is in **basis points**, not percent. `0` = 0%, `100` = 1%, `5000` = 50%, `10000` = 100%. This allows sub-1% precision (e.g. `7` = 0.07%).\n\n**Lifecycle.** Create dark (`rollout_pct: 0`) → attach rules → ramp via PATCH → flip kill-switch via `disable`/`enable` → delete once retired. Deletion is blocked while a running experiment references the gate as a targeting gate.", aliases: [] });
   const g_release_killswitch = defineGroup(g_release, "killswitch", { summary: "Killswitches: per-env boolean overrides for kill-style operational toggles.", help: "Killswitches: per-env boolean overrides for kill-style operational toggles. Optimised for incident response — no rules, no rollout, just a flat boolean (plus optional per-key overrides) versioned per environment.\n\n**Identity.** Each killswitch is keyed by `name` in `folder.name` form (e.g. `payments.checkout`). Immutable after create.\n\n**Per-env values.** Every killswitch stores one version stream per env (`dev`, `stage`, `prod`). A `PATCH` with `value`/`switches` applies to **every** env in one shot (publishes a new version per env). To touch a single env, use `PUT /{id}/switch` and friends.\n\n**Switches map.** Optional `switches: { key: bool }` overrides the flat `value` for specific named call sites — useful for region/feature-scoped kills.\n\n**Versioning.** Each publish (create, update, set-switch, unset-switch) bumps the per-env `version` monotonically. SDKs deliver the latest published version.", aliases: ["ks"] });
   const g_trails_items = defineGroup(g_trails, "items", { summary: "Queue items on a trail.", help: "Queue items on a trail. An item surfaces on a trail in one of eight ways\n(`origin`, `finding`, `agent`, `person`, `post_merge`, `cleanup`,\n`attached`, `plan`) and belongs to at most one, and to at most one of\nits milestones. File a new one on a trail with `ops bug --trail`; attach\nan existing one or move it between milestones here.", aliases: [] });
+  const g_trails_marketing = defineGroup(g_trails, "marketing", { summary: "The emails, posts and ads a trail's marketing channels deliver.", help: "The emails, posts and ads a trail's marketing channels deliver. Each is a\ndraft until it is submitted, and goes out only after a person approves it\n— never an agent, a key or autopilot. Every link is UTM-tagged on approve\nso signups are credited to the asset; an approved asset waits in\n`scheduled` until its timing (at release, at full rollout, after the goal,\nor a milestone) arrives. Emails are sent by the platform; posts and ads\nare handed off to a person who records the URL.", aliases: [] });
+  const g_trails_marketing_lists = defineGroup(g_trails, "marketing-lists", { summary: "Uploaded contact lists a trail's marketing email can go to.", help: "Uploaded contact lists a trail's marketing email can go to. Every list\ncarries its uploader's consent attestation; a list without one cannot be\nchosen. Archiving a list stops it being chosen for new emails.", aliases: [] });
   const g_trails_milestones = defineGroup(g_trails, "milestones", { summary: "Ordered, named stages inside a trail, each with an optional target date.", help: "Ordered, named stages inside a trail, each with an optional target date.\nAn item is in at most one milestone; progress is counted per milestone\nand for the trail, and the build works the trail milestone by milestone.\nApproving a plan creates the milestones its breakdown lists. Removing a\nmilestone leaves its items on the trail, in no milestone.", aliases: [] });
   const g_trails_resources = defineGroup(g_trails, "resources", { summary: "The flags, configs, kill switches, experiments, metrics, alert rules, events and i18n keys a trail ships or depends on, each with a role (`ships_behind`, `rollback`, `measures`, `guards`, `copy`, `touched`) and its live state.", help: "The flags, configs, kill switches, experiments, metrics, alert rules,\nevents and i18n keys a trail ships or depends on, each with a role\n(`ships_behind`, `rollback`, `measures`, `guards`, `copy`, `touched`) and\nits live state. The release gates and the release phase read these links.", aliases: [] });
   const g_release_experiments_universes = defineGroup(g_release_experiments, "universes", { summary: "Universes: the shared bucketing space all experiments draw from.", help: "Universes: the shared bucketing space all experiments draw from.\n\n**Identity.** Each universe is keyed by a stable `name` (a-z, 0-9, `_`/`-`, max 64 chars). Experiments reference it via `universe: '<name>'`. The name is immutable.\n\n**Unit of randomisation.** `unit_type` selects the attribute hashed into a 0–9999 bucket — default `user_id` for per-user randomisation, `account_id` to keep a whole account in the same group.\n\n**Holdout.** `holdout_range` is an inclusive `[lo, hi]` bucket range (0–9999) reserved for measurement — callers hashed into the holdout are excluded from every experiment in the universe. Pro plan or higher.\n\n**Deletion.** Blocked while any non-archived experiment references the universe — archive those first.", aliases: [] });
@@ -473,8 +475,9 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--marketing <value>", "The plan's marketing strategy — tracked, never executed. Every channel is also a breakdown item of the same title with `workKind` `marketing`, so it has an owner, a status and a place on the timeline.")
     .option("--sources <value>", "What the plan rests on in project memory (`ops memory search`) and earlier tickets and trails, each with what it settled.")
     .option("--summary <value>", "For a replan, what changed since the last approved revision. Recorded on the revision.")
+    .option("--goal <value>", "The metric the plan says will judge the trail, with its baseline and target — sent when the intent is an outcome and the trail has no goal yet. It becomes the trail's goal only while the trail has none (a goal a person set is never replaced), and its metric must already exist; leave `metric` out when a tracking item creates it.")
     .action(async (handle, opts) => {
-      await ctx.run({ mutates: true, invoke: (client) => api.submitTrailPlan({ client, path: { handle: handle }, body: clean({ plan: str(opts.plan), release: json(opts.release), breakdown: json(opts.breakdown), marketing: json(opts.marketing), sources: json(opts.sources), summary: str(opts.summary) }) }) });
+      await ctx.run({ mutates: true, invoke: (client) => api.submitTrailPlan({ client, path: { handle: handle }, body: clean({ plan: str(opts.plan), release: json(opts.release), breakdown: json(opts.breakdown), marketing: json(opts.marketing), sources: json(opts.sources), summary: str(opts.summary), goal: json(opts.goal) }) }) });
     });
   g_trails.command("update-plan")
     .description("Edit a trail's plan")
@@ -1062,7 +1065,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--guarded <value>", "Release gate. Passes when every measured resource has at least one guarding alert rule. Off by default.")
     .option("--copy <value>", "Release gate. Passes when every copy i18n key exists in every published locale of its profile. Off by default.")
     .option("--plan <value>", "Gate. Passes when every release resource the trail's approved plan lists exists on the trail (a flag, kill switch or experiment the person chose while the plan was made). Reads `pending` while a drafted plan waits for approval, and is left out when the trail has no plan yet. On and blocking by default, whoever approved the plan.")
-    .option("--require-plan <value>", "Whether a person approves a trail's plan before it builds. Every trail is planned first — starting an agent on a trail with no approved plan fires a read-only plan run, and the build follows the approved plan. On, the plan run asks the person how the trail should ship and anything else that is open, and waits for their approval. Off, it asks nothing and takes its own recommendations; a plan the checks raise no warning on approves itself and the build starts, one with a warning waits for a person.")
+    .option("--require-plan <value>", "Whether a person approves a trail's plan before it builds. Every trail is planned first — starting an agent on a trail with no approved plan fires a read-only plan run, and the build follows the approved plan. On, the plan run asks the person only what the goal leaves open (never how it ships — it chooses that itself), and the plan waits for their approval. Off, it asks nothing and takes its own recommendations; a plan the checks raise no warning on approves itself and the build starts, one with a warning waits for a person.")
     .option("--fix-rounds <value>", "How many times the server re-fires the coding agent with a fix prompt after a change's evals or findings fail. After the cap the trail reads `reviewing`, needs a person. `0` turns the loop off.")
     .option("--goal-window-days <value>", "How many days a delivered trail is watched before its goal metric is judged. A trail is delivered when its plan is approved, every code and tracking item is done and every flag it ships behind is fully rolled out (or, with none, something merged).")
     .option("--max-goal-replans <value>", "How many times shipeasy re-plans a trail on its own after its goal was missed. Each re-plan proposes new options that differ from what was tried. Past the cap the trail is off track and the owner decides; `0` never re-plans automatically.")
@@ -1539,6 +1542,121 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--data <value>", "Request body as a JSON object.")
     .action(async (handle, itemHandle, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.removeTrailItem({ client, path: { handle: handle, itemHandle: itemHandle }, body: json(opts.data) as never }) });
+    });
+  g_trails_marketing.command("list")
+    .description("List a trail's marketing assets")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.listTrailMarketingAssets({ client, path: { handle: handle }, body: json(opts.data) as never }) });
+    });
+  g_trails_marketing.command("create")
+    .description("Draft a marketing asset")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .option("--channel <value>", "The plan channel the asset belongs to. `email` makes an email asset, `ads` an ad, every other channel a post. `in_app` and `other` stay tracked items and have no asset.")
+    .option("--item-id <value>", "The trail's marketing item this asset belongs to — its number or id. Omitted, the asset belongs to the trail only.")
+    .option("--timing <value>", "When it may go out — `before_release` (the default), `at_release`, `at_full_rollout`, `after_goal`, or a milestone's name.")
+    .option("--content <value>", "The asset's content, typed by kind:")
+    .option("--audience <value>", "Email only — who it goes to.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.createTrailMarketingAsset({ client, path: { handle: handle }, body: clean({ channel: str(opts.channel), itemId: strOrNull(opts.itemId), timing: str(opts.timing), content: json(opts.content), audience: json(opts.audience) }) }) });
+    });
+  g_trails_marketing.command("get")
+    .description("Show a marketing asset")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .argument("<assetId>", "The marketing asset's id (`TrailMarketingAsset.id`).")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (handle, assetId, opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.getTrailMarketingAsset({ client, path: { handle: handle, assetId: assetId }, body: json(opts.data) as never }) });
+    });
+  g_trails_marketing.command("update")
+    .description("Edit a marketing asset")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .argument("<assetId>", "The marketing asset's id (`TrailMarketingAsset.id`).")
+    .option("--timing <value>", "When it may go out.")
+    .option("--content <value>", "The asset's content, typed by kind:")
+    .option("--audience <value>", "Email only — who it goes to.")
+    .action(async (handle, assetId, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.updateTrailMarketingAsset({ client, path: { handle: handle, assetId: assetId }, body: clean({ timing: str(opts.timing), content: json(opts.content), audience: json(opts.audience) }) }) });
+    });
+  g_trails_marketing.command("submit")
+    .description("Submit a marketing asset for review")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .argument("<assetId>", "The marketing asset's id (`TrailMarketingAsset.id`).")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (handle, assetId, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.submitTrailMarketingAsset({ client, path: { handle: handle, assetId: assetId }, body: json(opts.data) as never }) });
+    });
+  g_trails_marketing.command("request-changes")
+    .description("Ask for changes to a marketing asset")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .argument("<assetId>", "The marketing asset's id (`TrailMarketingAsset.id`).")
+    .option("--reason <value>", "What needs to change, posted on the trail's timeline.")
+    .action(async (handle, assetId, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.requestTrailMarketingChanges({ client, path: { handle: handle, assetId: assetId }, body: clean({ reason: str(opts.reason) }) }) });
+    });
+  g_trails_marketing.command("approve")
+    .description("Approve a marketing asset")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .argument("<assetId>", "The marketing asset's id (`TrailMarketingAsset.id`).")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (handle, assetId, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.approveTrailMarketingAsset({ client, path: { handle: handle, assetId: assetId }, body: json(opts.data) as never }) });
+    });
+  g_trails_marketing.command("cancel")
+    .description("Cancel a marketing asset")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .argument("<assetId>", "The marketing asset's id (`TrailMarketingAsset.id`).")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (handle, assetId, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.cancelTrailMarketingAsset({ client, path: { handle: handle, assetId: assetId }, body: json(opts.data) as never }) });
+    });
+  g_trails_marketing.command("deliver")
+    .description("Deliver a marketing asset now")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .argument("<assetId>", "The marketing asset's id (`TrailMarketingAsset.id`).")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (handle, assetId, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.deliverTrailMarketingAsset({ client, path: { handle: handle, assetId: assetId }, body: json(opts.data) as never }) });
+    });
+  g_trails_marketing.command("mark-delivered")
+    .description("Mark a marketing asset delivered")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .argument("<assetId>", "The marketing asset's id (`TrailMarketingAsset.id`).")
+    .option("--post-url <value>", "The live post's URL.")
+    .option("--campaign-url <value>", "The ad campaign's URL.")
+    .action(async (handle, assetId, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.markTrailMarketingDelivered({ client, path: { handle: handle, assetId: assetId }, body: clean({ postUrl: str(opts.postUrl), campaignUrl: str(opts.campaignUrl) }) }) });
+    });
+  g_trails_marketing.command("preview")
+    .description("Preview a marketing asset")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .argument("<assetId>", "The marketing asset's id (`TrailMarketingAsset.id`).")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (handle, assetId, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.previewTrailMarketingAsset({ client, path: { handle: handle, assetId: assetId }, body: json(opts.data) as never }) });
+    });
+  g_trails_marketing_lists.command("list")
+    .description("List contact lists")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.listMarketingLists({ client, body: json(opts.data) as never }) });
+    });
+  g_trails_marketing_lists.command("upload")
+    .description("Upload a contact list")
+    .argument("<name>", "The list's name.")
+    .option("--csv <value>", "A CSV upload or a pasted block of addresses.")
+    .option("--contacts <value>", "The addresses, already split.")
+    .option("--attestation <value>", "The uploader's statement that every address consented to marketing email from this project.")
+    .action(async (name, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.createMarketingList({ client, body: clean({ name: name, csv: str(opts.csv), contacts: json(opts.contacts), attestation: json(opts.attestation) }) }) });
+    });
+  g_trails_marketing_lists.command("archive")
+    .description("Archive a contact list")
+    .argument("<listId>", "The contact list's id (`MarketingList.id`).")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (listId, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.archiveMarketingList({ client, path: { listId: listId }, body: json(opts.data) as never }) });
     });
   g_trails_milestones.command("add")
     .description("Add a milestone to a trail")

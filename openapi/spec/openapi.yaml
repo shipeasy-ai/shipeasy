@@ -287,6 +287,22 @@ tags:
       and for the trail, and the build works the trail milestone by milestone.
       Approving a plan creates the milestones its breakdown lists. Removing a
       milestone leaves its items on the trail, in no milestone.
+  - name: Marketing
+    parent: Trails
+    description: |-
+      The emails, posts and ads a trail's marketing channels deliver. Each is a
+      draft until it is submitted, and goes out only after a person approves it
+      — never an agent, a key or autopilot. Every link is UTM-tagged on approve
+      so signups are credited to the asset; an approved asset waits in
+      `scheduled` until its timing (at release, at full rollout, after the goal,
+      or a milestone) arrives. Emails are sent by the platform; posts and ads
+      are handed off to a person who records the URL.
+  - name: Marketing lists
+    parent: Trails
+    description: |-
+      Uploaded contact lists a trail's marketing email can go to. Every list
+      carries its uploader's consent attestation; a list without one cannot be
+      chosen. Archiving a list stops it being chosen for new emails.
   - name: Review agents
     parent: Ops
     description: |-
@@ -626,6 +642,28 @@ paths:
     $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1milestones
   /api/admin/trails/{handle}/milestones/{milestoneId}:
     $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1milestones~1{milestoneId}
+  /api/admin/trails/{handle}/marketing:
+    $ref: ./paths/trail-marketing.yaml#/~1api~1admin~1trails~1{handle}~1marketing
+  /api/admin/trails/{handle}/marketing/{assetId}:
+    $ref: ./paths/trail-marketing.yaml#/~1api~1admin~1trails~1{handle}~1marketing~1{assetId}
+  /api/admin/trails/{handle}/marketing/{assetId}/submit:
+    $ref: ./paths/trail-marketing.yaml#/~1api~1admin~1trails~1{handle}~1marketing~1{assetId}~1submit
+  /api/admin/trails/{handle}/marketing/{assetId}/request-changes:
+    $ref: ./paths/trail-marketing.yaml#/~1api~1admin~1trails~1{handle}~1marketing~1{assetId}~1request-changes
+  /api/admin/trails/{handle}/marketing/{assetId}/approve:
+    $ref: ./paths/trail-marketing.yaml#/~1api~1admin~1trails~1{handle}~1marketing~1{assetId}~1approve
+  /api/admin/trails/{handle}/marketing/{assetId}/cancel:
+    $ref: ./paths/trail-marketing.yaml#/~1api~1admin~1trails~1{handle}~1marketing~1{assetId}~1cancel
+  /api/admin/trails/{handle}/marketing/{assetId}/deliver:
+    $ref: ./paths/trail-marketing.yaml#/~1api~1admin~1trails~1{handle}~1marketing~1{assetId}~1deliver
+  /api/admin/trails/{handle}/marketing/{assetId}/delivered:
+    $ref: ./paths/trail-marketing.yaml#/~1api~1admin~1trails~1{handle}~1marketing~1{assetId}~1delivered
+  /api/admin/trails/{handle}/marketing/{assetId}/preview:
+    $ref: ./paths/trail-marketing.yaml#/~1api~1admin~1trails~1{handle}~1marketing~1{assetId}~1preview
+  /api/admin/marketing-lists:
+    $ref: ./paths/trail-marketing.yaml#/~1api~1admin~1marketing-lists
+  /api/admin/marketing-lists/{listId}/archive:
+    $ref: ./paths/trail-marketing.yaml#/~1api~1admin~1marketing-lists~1{listId}~1archive
   /api/admin/trails/{handle}/attributions:
     $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1attributions
   /api/admin/trails/{handle}/suspects/{suspectId}/confirm:

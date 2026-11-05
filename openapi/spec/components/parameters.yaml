@@ -50,3 +50,23 @@ MilestoneId:
     minLength: 1
     maxLength: 64
     pattern: ^[0-9a-fA-F-]{32,36}$
+MarketingAssetId:
+  name: assetId
+  in: path
+  required: true
+  description: The marketing asset's id (`TrailMarketingAsset.id`).
+  schema:
+    type: string
+    minLength: 1
+    maxLength: 64
+    pattern: ^[0-9a-fA-F-]{32,36}$
+MarketingListId:
+  name: listId
+  in: path
+  required: true
+  description: The contact list's id (`MarketingList.id`).
+  schema:
+    type: string
+    minLength: 1
+    maxLength: 64
+    pattern: ^[0-9a-fA-F-]{32,36}$

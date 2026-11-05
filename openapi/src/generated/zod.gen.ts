@@ -4860,6 +4860,220 @@ export const zUpdateTrailMilestoneRequest = z.object({
 });
 
 /**
+ * What the asset is. `email` is sent through the platform's mail queue; `post` and `ad` are handed off to a person who posts or launches them and records the URL. Set by the channel, never chosen.
+ */
+export const zTrailMarketingAssetKind = z.enum([
+    'email',
+    'post',
+    'ad'
+]);
+
+/**
+ * The plan channel the asset belongs to. `email` makes an email asset, `ads` an ad, every other channel a post. `in_app` and `other` stay tracked items and have no asset.
+ */
+export const zTrailMarketingAssetChannel = z.enum([
+    'blog',
+    'email',
+    'social',
+    'ads',
+    'landing',
+    'community',
+    'press'
+]);
+
+/**
+ * Where the asset is in its lifecycle — `draft → in_review → approved → scheduled → delivering → delivered`, with the side exits `changes_requested` (back to `draft` on the next edit), `failed` and `cancelled`.
+ */
+export const zTrailMarketingAssetState = z.enum([
+    'draft',
+    'in_review',
+    'changes_requested',
+    'approved',
+    'scheduled',
+    'delivering',
+    'delivered',
+    'failed',
+    'cancelled'
+]);
+
+/**
+ * The asset's content, typed by kind:
+ * - `email` — `subject`, `html` and/or `text`.
+ * - `post` — `body`, optional `media` URLs and a `target` (the Slack channel, the subreddit, the account).
+ * - `ad` — `variants` (each a `headline`, `body` and `cta`), `platform`, `budget`, and an optional `audience` description.
+ */
+export const zTrailMarketingAssetContent = z.object({
+    subject: z.string().max(200).optional(),
+    html: z.string().max(200000).optional(),
+    text: z.string().max(100000).optional(),
+    body: z.string().max(40000).optional(),
+    media: z.array(z.url().max(2000)).max(10).optional(),
+    target: z.string().max(200).optional(),
+    variants: z.array(z.object({
+        headline: z.string().max(200),
+        body: z.string().max(2000).optional(),
+        cta: z.string().max(100).optional()
+    })).min(1).max(10).optional(),
+    platform: z.string().max(100).optional(),
+    budget: z.string().max(100).optional(),
+    audience: z.string().max(2000).optional()
+});
+
+/**
+ * Who an email asset goes to. Project members (everyone, or only some roles) and/or contact lists that carry a consent attestation. Every recipient is checked against the project's suppression list, and the send is bounded by the plan's daily marketing email cap.
+ */
+export const zTrailMarketingAudience = z.object({
+    members: z.union([
+        z.enum(['all']),
+        z.array(z.enum([
+            'owner',
+            'admin',
+            'editor',
+            'viewer'
+        ])).min(1)
+    ]).nullish(),
+    lists: z.array(z.string().min(1).max(64)).max(20).optional()
+});
+
+/**
+ * One email, post or ad on a trail — drafted, approved by a person, then delivered with evidence. Every link in the body carries the trail's UTM tags once approved.
+ */
+export const zTrailMarketingAsset = z.object({
+    id: z.string(),
+    trailId: z.string(),
+    itemId: z.string().nullable(),
+    kind: zTrailMarketingAssetKind,
+    channel: zTrailMarketingAssetChannel,
+    timing: z.string(),
+    state: zTrailMarketingAssetState,
+    content: zTrailMarketingAssetContent,
+    audience: zTrailMarketingAudience.nullable(),
+    approvedBy: z.string().nullable(),
+    approvedAt: z.iso.datetime().nullable(),
+    deliveredAt: z.iso.datetime().nullable(),
+    sentCount: z.int().gte(0),
+    suppressedCount: z.int().gte(0),
+    failedCount: z.int().gte(0),
+    postUrl: z.string().nullable(),
+    campaignUrl: z.string().nullable(),
+    deliverable: z.object({
+        ok: z.boolean(),
+        reason: z.string().nullable()
+    }),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime()
+});
+
+/**
+ * A trail's marketing assets, oldest first.
+ */
+export const zListTrailMarketingAssetsResponse = z.object({
+    data: z.array(zTrailMarketingAsset)
+});
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/marketing`. Creates a draft.
+ */
+export const zCreateTrailMarketingAssetRequest = z.object({
+    channel: zTrailMarketingAssetChannel,
+    itemId: z.string().min(1).max(64).nullish(),
+    timing: z.string().min(1).max(120).optional(),
+    content: zTrailMarketingAssetContent,
+    audience: zTrailMarketingAudience.nullish()
+});
+
+/**
+ * Body for `PATCH /api/admin/trails/{handle}/marketing/{assetId}`. Any edit to an approved or scheduled asset drops its approval and sends it back to review.
+ */
+export const zUpdateTrailMarketingAssetRequest = z.object({
+    timing: z.string().min(1).max(120).optional(),
+    content: zTrailMarketingAssetContent.optional(),
+    audience: zTrailMarketingAudience.nullish()
+});
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/marketing/{assetId}/request-changes`.
+ */
+export const zRequestTrailMarketingChangesRequest = z.object({
+    reason: z.string().min(1).max(2000).optional()
+});
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/marketing/{assetId}/delivered`. A post needs its `postUrl`, an ad its `campaignUrl`.
+ */
+export const zMarkTrailMarketingDeliveredRequest = z.object({
+    postUrl: z.url().max(2000).optional(),
+    campaignUrl: z.url().max(2000).optional()
+});
+
+/**
+ * What an asset will look like when it goes out, with its UTM-tagged links, and for an email who it reaches after the suppression list and the daily cap.
+ */
+export const zTrailMarketingPreview = z.object({
+    asset: zTrailMarketingAsset,
+    subject: z.string().nullable(),
+    html: z.string().nullable(),
+    text: z.string().nullable(),
+    links: z.array(z.string()),
+    recipients: z.object({
+        audience: z.int().gte(0),
+        suppressed: z.int().gte(0),
+        remainingToday: z.int().gte(0),
+        cap: z.int().gte(0),
+        willSend: z.int().gte(0)
+    }).nullable()
+});
+
+/**
+ * An uploaded or pasted contact list. Selectable as an email audience only while it carries a consent attestation and is not archived.
+ */
+export const zMarketingList = z.object({
+    id: z.string(),
+    name: z.string(),
+    contactCount: z.int().gte(0),
+    attestedBy: z.string().nullable(),
+    attestedAt: z.iso.datetime().nullable(),
+    attestationText: z.string().nullable(),
+    archivedAt: z.iso.datetime().nullable(),
+    createdAt: z.iso.datetime()
+});
+
+/**
+ * The project's contact lists, newest first.
+ */
+export const zListMarketingListsResponse = z.object({
+    data: z.array(zMarketingList)
+});
+
+/**
+ * Body for `POST /api/admin/marketing-lists`. Pass the addresses as `csv` (a CSV with an `email` column, or one address per line) or as `contacts`. The consent attestation is required.
+ */
+export const zCreateMarketingListRequest = z.object({
+    name: z.string().min(1).max(120).regex(/^\S(.*\S)?$/),
+    csv: z.string().min(1).max(2000000).optional(),
+    contacts: z.array(z.object({
+        email: z.string().min(3).max(320),
+        name: z.string().max(200).nullish()
+    })).min(1).max(10000).optional(),
+    attestation: z.object({
+        statement: z.string().min(20).max(2000),
+        accepted: z.literal(true)
+    })
+});
+
+/**
+ * The new list, and what the upload skipped.
+ */
+export const zCreateMarketingListResponse = z.object({
+    list: zMarketingList,
+    invalid: z.array(z.object({
+        line: z.int().gte(1),
+        value: z.string()
+    })),
+    duplicates: z.int().gte(0)
+});
+
+/**
  * Body for `POST /api/admin/trails/{handle}/attributions`.
  */
 export const zAttributeTrailRequest = z.object({
@@ -6200,6 +6414,16 @@ export const zTrailHandle = z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-
  * The milestone's id (`TrailMilestone.id`).
  */
 export const zMilestoneId = z.string().min(1).max(64).regex(/^[0-9a-fA-F-]{32,36}$/);
+
+/**
+ * The marketing asset's id (`TrailMarketingAsset.id`).
+ */
+export const zMarketingAssetId = z.string().min(1).max(64).regex(/^[0-9a-fA-F-]{32,36}$/);
+
+/**
+ * The contact list's id (`MarketingList.id`).
+ */
+export const zMarketingListId = z.string().min(1).max(64).regex(/^[0-9a-fA-F-]{32,36}$/);
 
 export const zListGatesHeaders = z.object({
     'X-Project-Id': z.string().optional()
@@ -8342,6 +8566,199 @@ export const zUpdateTrailMilestonePath = z.object({
  * The updated milestone
  */
 export const zUpdateTrailMilestoneResponse = zTrailMilestone;
+
+export const zListTrailMarketingAssetsHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zListTrailMarketingAssetsPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/)
+});
+
+/**
+ * The trail's assets
+ */
+export const zListTrailMarketingAssetsResponse2 = zListTrailMarketingAssetsResponse;
+
+export const zCreateTrailMarketingAssetBody = zCreateTrailMarketingAssetRequest;
+
+export const zCreateTrailMarketingAssetHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zCreateTrailMarketingAssetPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/)
+});
+
+/**
+ * The new draft
+ */
+export const zCreateTrailMarketingAssetResponse = zTrailMarketingAsset;
+
+export const zGetTrailMarketingAssetHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zGetTrailMarketingAssetPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/),
+    assetId: z.string().min(1).max(64).regex(/^[0-9a-fA-F-]{32,36}$/)
+});
+
+/**
+ * The asset
+ */
+export const zGetTrailMarketingAssetResponse = zTrailMarketingAsset;
+
+export const zUpdateTrailMarketingAssetBody = zUpdateTrailMarketingAssetRequest;
+
+export const zUpdateTrailMarketingAssetHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zUpdateTrailMarketingAssetPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/),
+    assetId: z.string().min(1).max(64).regex(/^[0-9a-fA-F-]{32,36}$/)
+});
+
+/**
+ * The edited asset
+ */
+export const zUpdateTrailMarketingAssetResponse = zTrailMarketingAsset;
+
+export const zSubmitTrailMarketingAssetHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zSubmitTrailMarketingAssetPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/),
+    assetId: z.string().min(1).max(64).regex(/^[0-9a-fA-F-]{32,36}$/)
+});
+
+/**
+ * The asset
+ */
+export const zSubmitTrailMarketingAssetResponse = zTrailMarketingAsset;
+
+export const zRequestTrailMarketingChangesBody = zRequestTrailMarketingChangesRequest;
+
+export const zRequestTrailMarketingChangesHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zRequestTrailMarketingChangesPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/),
+    assetId: z.string().min(1).max(64).regex(/^[0-9a-fA-F-]{32,36}$/)
+});
+
+/**
+ * The asset
+ */
+export const zRequestTrailMarketingChangesResponse = zTrailMarketingAsset;
+
+export const zApproveTrailMarketingAssetHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zApproveTrailMarketingAssetPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/),
+    assetId: z.string().min(1).max(64).regex(/^[0-9a-fA-F-]{32,36}$/)
+});
+
+/**
+ * The asset
+ */
+export const zApproveTrailMarketingAssetResponse = zTrailMarketingAsset;
+
+export const zCancelTrailMarketingAssetHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zCancelTrailMarketingAssetPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/),
+    assetId: z.string().min(1).max(64).regex(/^[0-9a-fA-F-]{32,36}$/)
+});
+
+/**
+ * The asset
+ */
+export const zCancelTrailMarketingAssetResponse = zTrailMarketingAsset;
+
+export const zDeliverTrailMarketingAssetHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zDeliverTrailMarketingAssetPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/),
+    assetId: z.string().min(1).max(64).regex(/^[0-9a-fA-F-]{32,36}$/)
+});
+
+/**
+ * The asset
+ */
+export const zDeliverTrailMarketingAssetResponse = zTrailMarketingAsset;
+
+export const zMarkTrailMarketingDeliveredBody = zMarkTrailMarketingDeliveredRequest;
+
+export const zMarkTrailMarketingDeliveredHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zMarkTrailMarketingDeliveredPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/),
+    assetId: z.string().min(1).max(64).regex(/^[0-9a-fA-F-]{32,36}$/)
+});
+
+/**
+ * The asset
+ */
+export const zMarkTrailMarketingDeliveredResponse = zTrailMarketingAsset;
+
+export const zPreviewTrailMarketingAssetHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zPreviewTrailMarketingAssetPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/),
+    assetId: z.string().min(1).max(64).regex(/^[0-9a-fA-F-]{32,36}$/)
+});
+
+/**
+ * The preview
+ */
+export const zPreviewTrailMarketingAssetResponse = zTrailMarketingPreview;
+
+export const zListMarketingListsHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+/**
+ * The project's lists
+ */
+export const zListMarketingListsResponse2 = zListMarketingListsResponse;
+
+export const zCreateMarketingListBody = zCreateMarketingListRequest;
+
+export const zCreateMarketingListHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+/**
+ * The new list
+ */
+export const zCreateMarketingListResponse2 = zCreateMarketingListResponse;
+
+export const zArchiveMarketingListHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zArchiveMarketingListPath = z.object({
+    listId: z.string().min(1).max(64).regex(/^[0-9a-fA-F-]{32,36}$/)
+});
+
+/**
+ * The archived list
+ */
+export const zArchiveMarketingListResponse = zMarketingList;
 
 export const zAttributeTrailBody = zAttributeTrailRequest;
 

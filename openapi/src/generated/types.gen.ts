@@ -8611,6 +8611,370 @@ export type UpdateTrailMilestoneRequest = {
 };
 
 /**
+ * What the asset is. `email` is sent through the platform's mail queue; `post` and `ad` are handed off to a person who posts or launches them and records the URL. Set by the channel, never chosen.
+ */
+export type TrailMarketingAssetKind = 'email' | 'post' | 'ad';
+
+/**
+ * The plan channel the asset belongs to. `email` makes an email asset, `ads` an ad, every other channel a post. `in_app` and `other` stay tracked items and have no asset.
+ */
+export type TrailMarketingAssetChannel = 'blog' | 'email' | 'social' | 'ads' | 'landing' | 'community' | 'press';
+
+/**
+ * Where the asset is in its lifecycle — `draft → in_review → approved → scheduled → delivering → delivered`, with the side exits `changes_requested` (back to `draft` on the next edit), `failed` and `cancelled`.
+ */
+export type TrailMarketingAssetState = 'draft' | 'in_review' | 'changes_requested' | 'approved' | 'scheduled' | 'delivering' | 'delivered' | 'failed' | 'cancelled';
+
+/**
+ * The asset's content, typed by kind:
+ * - `email` — `subject`, `html` and/or `text`.
+ * - `post` — `body`, optional `media` URLs and a `target` (the Slack channel, the subreddit, the account).
+ * - `ad` — `variants` (each a `headline`, `body` and `cta`), `platform`, `budget`, and an optional `audience` description.
+ */
+export type TrailMarketingAssetContent = {
+    /**
+     * Email subject line.
+     */
+    subject?: string;
+    /**
+     * Email HTML body.
+     */
+    html?: string;
+    /**
+     * Email plain-text body.
+     */
+    text?: string;
+    /**
+     * The post's text.
+     */
+    body?: string;
+    /**
+     * Image or video URLs attached to the post.
+     */
+    media?: Array<string>;
+    /**
+     * Where the post goes — a Slack channel, a subreddit, an account name.
+     */
+    target?: string;
+    /**
+     * The ad's copy variants.
+     */
+    variants?: Array<{
+        headline: string;
+        body?: string;
+        cta?: string;
+    }>;
+    /**
+     * The ad platform (Google, Meta, LinkedIn, …).
+     */
+    platform?: string;
+    /**
+     * The ad's budget, as the person launching it will read it (`$500 over 2 weeks`).
+     */
+    budget?: string;
+    /**
+     * The ad's targeting, described.
+     */
+    audience?: string;
+};
+
+/**
+ * Who an email asset goes to. Project members (everyone, or only some roles) and/or contact lists that carry a consent attestation. Every recipient is checked against the project's suppression list, and the send is bounded by the plan's daily marketing email cap.
+ */
+export type TrailMarketingAudience = {
+    /**
+     * `all` for every active member, a list of roles for only those, or `null` for no members.
+     */
+    members?: 'all' | Array<'owner' | 'admin' | 'editor' | 'viewer'> | null;
+    /**
+     * Contact list ids (`MarketingList.id`). Each must be attested and not archived.
+     */
+    lists?: Array<string>;
+};
+
+/**
+ * One email, post or ad on a trail — drafted, approved by a person, then delivered with evidence. Every link in the body carries the trail's UTM tags once approved.
+ */
+export type TrailMarketingAsset = {
+    /**
+     * The asset's id (a uuid). Also its `utm_content`.
+     */
+    id: string;
+    /**
+     * The trail's id.
+     */
+    trailId: string;
+    /**
+     * The `workKind: marketing` queue item the asset belongs to, or `null`.
+     */
+    itemId: string | null;
+    kind: TrailMarketingAssetKind;
+    channel: TrailMarketingAssetChannel;
+    /**
+     * When the asset may go out — `before_release`, `at_release`, `at_full_rollout`, `after_goal`, or a milestone's name.
+     */
+    timing: string;
+    state: TrailMarketingAssetState;
+    content: TrailMarketingAssetContent;
+    /**
+     * Who an email goes to; `null` for posts and ads.
+     */
+    audience: TrailMarketingAudience | null;
+    /**
+     * The person who approved it, or `null` while it has no live approval. Never an agent, key or autopilot.
+     */
+    approvedBy: string | null;
+    /**
+     * When it was approved.
+     */
+    approvedAt: string | null;
+    /**
+     * When delivery started (email) or was recorded (hand-off).
+     */
+    deliveredAt: string | null;
+    /**
+     * Email recipients the message went to.
+     */
+    sentCount: number;
+    /**
+     * Email recipients skipped because they are on the suppression list.
+     */
+    suppressedCount: number;
+    /**
+     * Email recipients the send failed for.
+     */
+    failedCount: number;
+    /**
+     * The live post's URL, recorded when a person marks a post delivered.
+     */
+    postUrl: string | null;
+    /**
+     * The ad campaign's URL, recorded when a person marks an ad launched.
+     */
+    campaignUrl: string | null;
+    /**
+     * Whether the timing gate would let the asset go out now.
+     */
+    deliverable: {
+        ok: boolean;
+        /**
+         * Why not, when `ok` is false.
+         */
+        reason: string | null;
+    };
+    createdAt: string;
+    updatedAt: string;
+};
+
+/**
+ * A trail's marketing assets, oldest first.
+ */
+export type ListTrailMarketingAssetsResponse = {
+    data: Array<TrailMarketingAsset>;
+};
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/marketing`. Creates a draft.
+ */
+export type CreateTrailMarketingAssetRequest = {
+    channel: TrailMarketingAssetChannel;
+    /**
+     * The trail's marketing item this asset belongs to — its number or id. Omitted, the asset belongs to the trail only.
+     */
+    itemId?: string | null;
+    /**
+     * When it may go out — `before_release` (the default), `at_release`, `at_full_rollout`, `after_goal`, or a milestone's name.
+     */
+    timing?: string;
+    content: TrailMarketingAssetContent;
+    /**
+     * Email only — who it goes to.
+     */
+    audience?: TrailMarketingAudience | null;
+};
+
+/**
+ * Body for `PATCH /api/admin/trails/{handle}/marketing/{assetId}`. Any edit to an approved or scheduled asset drops its approval and sends it back to review.
+ */
+export type UpdateTrailMarketingAssetRequest = {
+    /**
+     * When it may go out.
+     */
+    timing?: string;
+    content?: TrailMarketingAssetContent;
+    /**
+     * Email only — who it goes to.
+     */
+    audience?: TrailMarketingAudience | null;
+};
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/marketing/{assetId}/request-changes`.
+ */
+export type RequestTrailMarketingChangesRequest = {
+    /**
+     * What needs to change, posted on the trail's timeline.
+     */
+    reason?: string;
+};
+
+/**
+ * Body for `POST /api/admin/trails/{handle}/marketing/{assetId}/delivered`. A post needs its `postUrl`, an ad its `campaignUrl`.
+ */
+export type MarkTrailMarketingDeliveredRequest = {
+    /**
+     * The live post's URL.
+     */
+    postUrl?: string;
+    /**
+     * The ad campaign's URL.
+     */
+    campaignUrl?: string;
+};
+
+/**
+ * What an asset will look like when it goes out, with its UTM-tagged links, and for an email who it reaches after the suppression list and the daily cap.
+ */
+export type TrailMarketingPreview = {
+    asset: TrailMarketingAsset;
+    /**
+     * Email subject.
+     */
+    subject: string | null;
+    /**
+     * Email HTML with every link tagged.
+     */
+    html: string | null;
+    /**
+     * Email text, or the post's body, with every link tagged.
+     */
+    text: string | null;
+    /**
+     * Every tagged link in the asset, in order.
+     */
+    links: Array<string>;
+    /**
+     * Email only — the recipient count. `null` for posts and ads.
+     */
+    recipients: {
+        /**
+         * Unique addresses the audience names.
+         */
+        audience: number;
+        /**
+         * Of those, on the suppression list.
+         */
+        suppressed: number;
+        /**
+         * Marketing emails the project may still send today (UTC).
+         */
+        remainingToday: number;
+        /**
+         * The project's daily marketing email cap.
+         */
+        cap: number;
+        /**
+         * Recipients a send now would reach — the audience minus suppressions, bounded by what is left today.
+         */
+        willSend: number;
+    } | null;
+};
+
+/**
+ * An uploaded or pasted contact list. Selectable as an email audience only while it carries a consent attestation and is not archived.
+ */
+export type MarketingList = {
+    /**
+     * The list's id (a uuid).
+     */
+    id: string;
+    /**
+     * The list's name.
+     */
+    name: string;
+    /**
+     * Addresses on the list.
+     */
+    contactCount: number;
+    /**
+     * Who attested that every address on the list consented to marketing email.
+     */
+    attestedBy: string | null;
+    /**
+     * When they attested it.
+     */
+    attestedAt: string | null;
+    /**
+     * The statement they attested to.
+     */
+    attestationText: string | null;
+    /**
+     * When the list was archived, or `null`.
+     */
+    archivedAt: string | null;
+    createdAt: string;
+};
+
+/**
+ * The project's contact lists, newest first.
+ */
+export type ListMarketingListsResponse = {
+    data: Array<MarketingList>;
+};
+
+/**
+ * Body for `POST /api/admin/marketing-lists`. Pass the addresses as `csv` (a CSV with an `email` column, or one address per line) or as `contacts`. The consent attestation is required.
+ */
+export type CreateMarketingListRequest = {
+    /**
+     * The list's name.
+     */
+    name: string;
+    /**
+     * A CSV upload or a pasted block of addresses.
+     */
+    csv?: string;
+    /**
+     * The addresses, already split.
+     */
+    contacts?: Array<{
+        email: string;
+        name?: string | null;
+    }>;
+    /**
+     * The uploader's statement that every address consented to marketing email from this project.
+     */
+    attestation: {
+        /**
+         * The statement, as the uploader read it.
+         */
+        statement: string;
+        /**
+         * Must be `true`.
+         */
+        accepted: true;
+    };
+};
+
+/**
+ * The new list, and what the upload skipped.
+ */
+export type CreateMarketingListResponse = {
+    list: MarketingList;
+    /**
+     * Lines that held no valid address.
+     */
+    invalid: Array<{
+        line: number;
+        value: string;
+    }>;
+    /**
+     * Addresses that appeared more than once and were kept once.
+     */
+    duplicates: number;
+};
+
+/**
  * Body for `POST /api/admin/trails/{handle}/attributions`.
  */
 export type AttributeTrailRequest = {
@@ -11188,6 +11552,16 @@ export type TrailHandle = string;
  * The milestone's id (`TrailMilestone.id`).
  */
 export type MilestoneId = string;
+
+/**
+ * The marketing asset's id (`TrailMarketingAsset.id`).
+ */
+export type MarketingAssetId = string;
+
+/**
+ * The contact list's id (`MarketingList.id`).
+ */
+export type MarketingListId = string;
 
 export type ListGatesData = {
     body?: never;
@@ -19398,6 +19772,720 @@ export type UpdateTrailMilestoneResponses = {
 };
 
 export type UpdateTrailMilestoneResponse = UpdateTrailMilestoneResponses[keyof UpdateTrailMilestoneResponses];
+
+export type ListTrailMarketingAssetsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/marketing';
+};
+
+export type ListTrailMarketingAssetsErrors = {
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+};
+
+export type ListTrailMarketingAssetsError = ListTrailMarketingAssetsErrors[keyof ListTrailMarketingAssetsErrors];
+
+export type ListTrailMarketingAssetsResponses = {
+    /**
+     * The trail's assets
+     */
+    200: ListTrailMarketingAssetsResponse;
+};
+
+export type ListTrailMarketingAssetsResponse2 = ListTrailMarketingAssetsResponses[keyof ListTrailMarketingAssetsResponses];
+
+export type CreateTrailMarketingAssetData = {
+    body: CreateTrailMarketingAssetRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/marketing';
+};
+
+export type CreateTrailMarketingAssetErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type CreateTrailMarketingAssetError = CreateTrailMarketingAssetErrors[keyof CreateTrailMarketingAssetErrors];
+
+export type CreateTrailMarketingAssetResponses = {
+    /**
+     * The new draft
+     */
+    200: TrailMarketingAsset;
+};
+
+export type CreateTrailMarketingAssetResponse = CreateTrailMarketingAssetResponses[keyof CreateTrailMarketingAssetResponses];
+
+export type GetTrailMarketingAssetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+        /**
+         * The marketing asset's id (`TrailMarketingAsset.id`).
+         */
+        assetId: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/marketing/{assetId}';
+};
+
+export type GetTrailMarketingAssetErrors = {
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+};
+
+export type GetTrailMarketingAssetError = GetTrailMarketingAssetErrors[keyof GetTrailMarketingAssetErrors];
+
+export type GetTrailMarketingAssetResponses = {
+    /**
+     * The asset
+     */
+    200: TrailMarketingAsset;
+};
+
+export type GetTrailMarketingAssetResponse = GetTrailMarketingAssetResponses[keyof GetTrailMarketingAssetResponses];
+
+export type UpdateTrailMarketingAssetData = {
+    body: UpdateTrailMarketingAssetRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+        /**
+         * The marketing asset's id (`TrailMarketingAsset.id`).
+         */
+        assetId: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/marketing/{assetId}';
+};
+
+export type UpdateTrailMarketingAssetErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type UpdateTrailMarketingAssetError = UpdateTrailMarketingAssetErrors[keyof UpdateTrailMarketingAssetErrors];
+
+export type UpdateTrailMarketingAssetResponses = {
+    /**
+     * The edited asset
+     */
+    200: TrailMarketingAsset;
+};
+
+export type UpdateTrailMarketingAssetResponse = UpdateTrailMarketingAssetResponses[keyof UpdateTrailMarketingAssetResponses];
+
+export type SubmitTrailMarketingAssetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+        /**
+         * The marketing asset's id (`TrailMarketingAsset.id`).
+         */
+        assetId: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/marketing/{assetId}/submit';
+};
+
+export type SubmitTrailMarketingAssetErrors = {
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+};
+
+export type SubmitTrailMarketingAssetError = SubmitTrailMarketingAssetErrors[keyof SubmitTrailMarketingAssetErrors];
+
+export type SubmitTrailMarketingAssetResponses = {
+    /**
+     * The asset
+     */
+    200: TrailMarketingAsset;
+};
+
+export type SubmitTrailMarketingAssetResponse = SubmitTrailMarketingAssetResponses[keyof SubmitTrailMarketingAssetResponses];
+
+export type RequestTrailMarketingChangesData = {
+    body: RequestTrailMarketingChangesRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+        /**
+         * The marketing asset's id (`TrailMarketingAsset.id`).
+         */
+        assetId: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/marketing/{assetId}/request-changes';
+};
+
+export type RequestTrailMarketingChangesErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type RequestTrailMarketingChangesError = RequestTrailMarketingChangesErrors[keyof RequestTrailMarketingChangesErrors];
+
+export type RequestTrailMarketingChangesResponses = {
+    /**
+     * The asset
+     */
+    200: TrailMarketingAsset;
+};
+
+export type RequestTrailMarketingChangesResponse = RequestTrailMarketingChangesResponses[keyof RequestTrailMarketingChangesResponses];
+
+export type ApproveTrailMarketingAssetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+        /**
+         * The marketing asset's id (`TrailMarketingAsset.id`).
+         */
+        assetId: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/marketing/{assetId}/approve';
+};
+
+export type ApproveTrailMarketingAssetErrors = {
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+};
+
+export type ApproveTrailMarketingAssetError = ApproveTrailMarketingAssetErrors[keyof ApproveTrailMarketingAssetErrors];
+
+export type ApproveTrailMarketingAssetResponses = {
+    /**
+     * The asset
+     */
+    200: TrailMarketingAsset;
+};
+
+export type ApproveTrailMarketingAssetResponse = ApproveTrailMarketingAssetResponses[keyof ApproveTrailMarketingAssetResponses];
+
+export type CancelTrailMarketingAssetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+        /**
+         * The marketing asset's id (`TrailMarketingAsset.id`).
+         */
+        assetId: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/marketing/{assetId}/cancel';
+};
+
+export type CancelTrailMarketingAssetErrors = {
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+};
+
+export type CancelTrailMarketingAssetError = CancelTrailMarketingAssetErrors[keyof CancelTrailMarketingAssetErrors];
+
+export type CancelTrailMarketingAssetResponses = {
+    /**
+     * The asset
+     */
+    200: TrailMarketingAsset;
+};
+
+export type CancelTrailMarketingAssetResponse = CancelTrailMarketingAssetResponses[keyof CancelTrailMarketingAssetResponses];
+
+export type DeliverTrailMarketingAssetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+        /**
+         * The marketing asset's id (`TrailMarketingAsset.id`).
+         */
+        assetId: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/marketing/{assetId}/deliver';
+};
+
+export type DeliverTrailMarketingAssetErrors = {
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+};
+
+export type DeliverTrailMarketingAssetError = DeliverTrailMarketingAssetErrors[keyof DeliverTrailMarketingAssetErrors];
+
+export type DeliverTrailMarketingAssetResponses = {
+    /**
+     * The asset
+     */
+    200: TrailMarketingAsset;
+};
+
+export type DeliverTrailMarketingAssetResponse = DeliverTrailMarketingAssetResponses[keyof DeliverTrailMarketingAssetResponses];
+
+export type MarkTrailMarketingDeliveredData = {
+    body: MarkTrailMarketingDeliveredRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+        /**
+         * The marketing asset's id (`TrailMarketingAsset.id`).
+         */
+        assetId: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/marketing/{assetId}/delivered';
+};
+
+export type MarkTrailMarketingDeliveredErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type MarkTrailMarketingDeliveredError = MarkTrailMarketingDeliveredErrors[keyof MarkTrailMarketingDeliveredErrors];
+
+export type MarkTrailMarketingDeliveredResponses = {
+    /**
+     * The asset
+     */
+    200: TrailMarketingAsset;
+};
+
+export type MarkTrailMarketingDeliveredResponse = MarkTrailMarketingDeliveredResponses[keyof MarkTrailMarketingDeliveredResponses];
+
+export type PreviewTrailMarketingAssetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+        /**
+         * The marketing asset's id (`TrailMarketingAsset.id`).
+         */
+        assetId: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/marketing/{assetId}/preview';
+};
+
+export type PreviewTrailMarketingAssetErrors = {
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+};
+
+export type PreviewTrailMarketingAssetError = PreviewTrailMarketingAssetErrors[keyof PreviewTrailMarketingAssetErrors];
+
+export type PreviewTrailMarketingAssetResponses = {
+    /**
+     * The preview
+     */
+    200: TrailMarketingPreview;
+};
+
+export type PreviewTrailMarketingAssetResponse = PreviewTrailMarketingAssetResponses[keyof PreviewTrailMarketingAssetResponses];
+
+export type ListMarketingListsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/admin/marketing-lists';
+};
+
+export type ListMarketingListsErrors = {
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+};
+
+export type ListMarketingListsError = ListMarketingListsErrors[keyof ListMarketingListsErrors];
+
+export type ListMarketingListsResponses = {
+    /**
+     * The project's lists
+     */
+    200: ListMarketingListsResponse;
+};
+
+export type ListMarketingListsResponse2 = ListMarketingListsResponses[keyof ListMarketingListsResponses];
+
+export type CreateMarketingListData = {
+    body: CreateMarketingListRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/admin/marketing-lists';
+};
+
+export type CreateMarketingListErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type CreateMarketingListError = CreateMarketingListErrors[keyof CreateMarketingListErrors];
+
+export type CreateMarketingListResponses = {
+    /**
+     * The new list
+     */
+    200: CreateMarketingListResponse;
+};
+
+export type CreateMarketingListResponse2 = CreateMarketingListResponses[keyof CreateMarketingListResponses];
+
+export type ArchiveMarketingListData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The contact list's id (`MarketingList.id`).
+         */
+        listId: string;
+    };
+    query?: never;
+    url: '/api/admin/marketing-lists/{listId}/archive';
+};
+
+export type ArchiveMarketingListErrors = {
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+};
+
+export type ArchiveMarketingListError = ArchiveMarketingListErrors[keyof ArchiveMarketingListErrors];
+
+export type ArchiveMarketingListResponses = {
+    /**
+     * The archived list
+     */
+    200: MarketingList;
+};
+
+export type ArchiveMarketingListResponse = ArchiveMarketingListResponses[keyof ArchiveMarketingListResponses];
 
 export type AttributeTrailData = {
     body: AttributeTrailRequest;

@@ -4523,6 +4523,313 @@ _Errors_ — beyond the [common errors](#errors):
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 - `VALIDATION` — The request body failed structural (schema) validation.
 
+### Marketing
+
+The emails, posts and ads a trail's marketing channels deliver. Each is a
+draft until it is submitted, and goes out only after a person approves it
+— never an agent, a key or autopilot. Every link is UTM-tagged on approve
+so signups are credited to the asset; an approved asset waits in
+`scheduled` until its timing (at release, at full rollout, after the goal,
+or a milestone) arrives. Emails are sent by the platform; posts and ads
+are handed off to a person who records the URL.
+
+#### `trails_marketing_cancel`
+
+**Cancel a marketing asset**
+
+Cancel an asset that has not started going out. A send in flight is stopped by the `marketing/pause_sends` kill switch, not by cancelling.
+
+Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+
+Not open to the restricted ops key.
+
+**Use case:** The launch moved; cancel the scheduled post.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `assetId` | required | `string` | The marketing asset's id (`TrailMarketingAsset.id`). _(length 1–64; pattern `^[0-9a-fA-F-]{32,36}$`)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
+
+#### `trails_marketing_create`
+
+**Draft a marketing asset**
+
+Draft an email, post or ad for one of the trail's marketing channels. The channel decides the kind: `email` makes an email, `ads` an ad, every other channel a post. The draft goes nowhere until it is submitted and a person approves it.
+
+Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+
+Safe for the restricted ops key.
+
+**Use case:** An agent drafts the launch email for the trail's members from the plan's marketing block.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `channel` | required | `"blog" \| "email" \| "social" \| "ads" \| "landing" \| "community" \| "press"` | The plan channel the asset belongs to. `email` makes an email asset, `ads` an ad, every other channel a post. `in_app` and `other` stay tracked items and have no asset. |
+| `itemId` | optional | `any` | The trail's marketing item this asset belongs to — its number or id. Omitted, the asset belongs to the trail only. |
+| `timing` | optional | `string` | When it may go out — `before_release` (the default), `at_release`, `at_full_rollout`, `after_goal`, or a milestone's name. _(length 1–120)_ |
+| `content` | required | `object` | The asset's content, typed by kind:
+- `email` — `subject`, `html` and/or `text`.
+- `post` — `body`, optional `media` URLs and a `target` (the Slack channel, the subreddit, the account).
+- `ad` — `variants` (each a `headline`, `body` and `cta`), `platform`, `budget`, and an optional `audience` description. |
+| `content.subject` | optional | `string` | Email subject line. _(length 0–200)_ |
+| `content.html` | optional | `string` | Email HTML body. _(length 0–200000)_ |
+| `content.text` | optional | `string` | Email plain-text body. _(length 0–100000)_ |
+| `content.body` | optional | `string` | The post's text. _(length 0–40000)_ |
+| `content.media` | optional | `string[]` | Image or video URLs attached to the post. |
+| `content.target` | optional | `string` | Where the post goes — a Slack channel, a subreddit, an account name. _(length 0–200)_ |
+| `content.variants` | optional | `object[]` | The ad's copy variants. |
+| `content.platform` | optional | `string` | The ad platform (Google, Meta, LinkedIn, …). _(length 0–100)_ |
+| `content.budget` | optional | `string` | The ad's budget, as the person launching it will read it (`$500 over 2 weeks`). _(length 0–100)_ |
+| `content.audience` | optional | `string` | The ad's targeting, described. _(length 0–2000)_ |
+| `audience` | optional | `any` | Email only — who it goes to. |
+| `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `trails_marketing_list` call. It proves you listed existing trails marketing and confirmed this one doesn't already exist before creating it. Call `trails_marketing_list` first if you don't have a fresh token. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
+- `REFERENCED_NOT_FOUND` — A referenced entity (universe, metric, gate, event) does not exist.
+
+#### `trails_marketing_deliver`
+
+**Deliver a marketing asset now**
+
+Send an approved asset now — if its timing allows. When the timing has arrived it moves to `delivering`: an email goes to the mail queue, a post or ad waits for a person to post it and mark it delivered. When it has not, the asset moves to `scheduled` and goes out on its own once it does. Refused with `409` while the `marketing/pause_sends` kill switch is armed.
+
+Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+
+Not open to the restricted ops key.
+
+**Use case:** The flag reached 100 % an hour ago; send the announcement now rather than waiting for the next tick.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `assetId` | required | `string` | The marketing asset's id (`TrailMarketingAsset.id`). _(length 1–64; pattern `^[0-9a-fA-F-]{32,36}$`)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
+
+#### `trails_marketing_get`
+
+**Show a marketing asset**
+
+One asset with its content, state, approval and delivery evidence.
+
+Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+
+Safe for the restricted ops key.
+
+**Use case:** Read the post a person handed off, with the URL they recorded.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `assetId` | required | `string` | The marketing asset's id (`TrailMarketingAsset.id`). _(length 1–64; pattern `^[0-9a-fA-F-]{32,36}$`)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
+#### `trails_marketing_list`
+
+**List a trail's marketing assets**
+
+Every email, post and ad drafted on the trail, oldest first, with its state, its approval, its delivery evidence (sent / suppressed / failed counts, or the post or campaign URL) and whether its timing would let it go out now.
+
+Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+
+Safe for the restricted ops key.
+
+**Use case:** Before the release, check which announcements are still waiting on a person's approval.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
+#### `trails_marketing_lists_archive`
+
+**Archive a contact list**
+
+Archive a list. It can no longer be chosen as an audience; assets already approved with it keep it. Its addresses stay until the project is deleted.
+
+Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+
+Not open to the restricted ops key.
+
+**Use case:** The waitlist is stale; stop it being picked for new emails.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `listId` | required | `string` | The contact list's id (`MarketingList.id`). _(length 1–64; pattern `^[0-9a-fA-F-]{32,36}$`)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
+
+#### `trails_marketing_lists_list`
+
+**List contact lists**
+
+The project's uploaded contact lists, newest first, with their size and consent attestation. Archived lists are included with `archivedAt` set.
+
+Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+
+Safe for the restricted ops key.
+
+**Use case:** Pick the attested list to send the launch email to.
+
+_Parameters_
+
+_No parameters._
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
+#### `trails_marketing_preview`
+
+**Preview a marketing asset**
+
+The asset as it will go out: the rendered email or post with every link UTM-tagged, and for an email the recipient count after the suppression list and today's cap.
+
+Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+
+Safe for the restricted ops key.
+
+**Use case:** Before approving, check the email reaches the members it should and fits today's cap.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `assetId` | required | `string` | The marketing asset's id (`TrailMarketingAsset.id`). _(length 1–64; pattern `^[0-9a-fA-F-]{32,36}$`)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
+#### `trails_marketing_request_changes`
+
+**Ask for changes to a marketing asset**
+
+Send an asset in review back with what needs to change. The next edit makes it a draft again.
+
+Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+
+Not open to the restricted ops key.
+
+**Use case:** The post links the wrong page; send it back.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `assetId` | required | `string` | The marketing asset's id (`TrailMarketingAsset.id`). _(length 1–64; pattern `^[0-9a-fA-F-]{32,36}$`)_ |
+| `reason` | optional | `string` | What needs to change, posted on the trail's timeline. _(length 1–2000)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+#### `trails_marketing_submit`
+
+**Submit a marketing asset for review**
+
+Move a draft to `in_review`, where a person approves it or asks for changes.
+
+Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+
+Safe for the restricted ops key.
+
+**Use case:** The agent finished the launch email; hand it to the trail's lead.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `assetId` | required | `string` | The marketing asset's id (`TrailMarketingAsset.id`). _(length 1–64; pattern `^[0-9a-fA-F-]{32,36}$`)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
+
+#### `trails_marketing_update`
+
+**Edit a marketing asset**
+
+Change an asset's content, timing or audience. Editing an approved or scheduled asset drops its approval and sends it back to review; editing one with changes requested makes it a draft again. A delivering, delivered, failed or cancelled asset cannot be edited (`409`).
+
+Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+
+Safe for the restricted ops key.
+
+**Use case:** Fix a typo in the subject line after review asked for changes.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+| `assetId` | required | `string` | The marketing asset's id (`TrailMarketingAsset.id`). _(length 1–64; pattern `^[0-9a-fA-F-]{32,36}$`)_ |
+| `timing` | optional | `string` | When it may go out. _(length 1–120)_ |
+| `content` | optional | `object` | The asset's content, typed by kind:
+- `email` — `subject`, `html` and/or `text`.
+- `post` — `body`, optional `media` URLs and a `target` (the Slack channel, the subreddit, the account).
+- `ad` — `variants` (each a `headline`, `body` and `cta`), `platform`, `budget`, and an optional `audience` description. |
+| `content.subject` | optional | `string` | Email subject line. _(length 0–200)_ |
+| `content.html` | optional | `string` | Email HTML body. _(length 0–200000)_ |
+| `content.text` | optional | `string` | Email plain-text body. _(length 0–100000)_ |
+| `content.body` | optional | `string` | The post's text. _(length 0–40000)_ |
+| `content.media` | optional | `string[]` | Image or video URLs attached to the post. |
+| `content.target` | optional | `string` | Where the post goes — a Slack channel, a subreddit, an account name. _(length 0–200)_ |
+| `content.variants` | optional | `object[]` | The ad's copy variants. |
+| `content.platform` | optional | `string` | The ad platform (Google, Meta, LinkedIn, …). _(length 0–100)_ |
+| `content.budget` | optional | `string` | The ad's budget, as the person launching it will read it (`$500 over 2 weeks`). _(length 0–100)_ |
+| `content.audience` | optional | `string` | The ad's targeting, described. _(length 0–2000)_ |
+| `audience` | optional | `any` | Email only — who it goes to. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
+- `VALIDATION` — The request body failed structural (schema) validation.
+- `REFERENCED_NOT_FOUND` — A referenced entity (universe, metric, gate, event) does not exist.
+
 ## Projects
 
 Projects: the account-level container every other resource is scoped to.
