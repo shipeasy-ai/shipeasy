@@ -233,6 +233,21 @@ Memory is built from the run record you fill in, so record your `sources`
 (the files you read or changed) on it: that is what makes this ticket
 findable by the next run.
 
+### 1a-2. Read the project brain, and teach it before you finish
+
+The project brain (`shipeasy-brain` skill) holds the knowledge that is not a
+ticket: conventions, pitfalls, decisions and how components fit, linked to
+the files, flags and metrics they concern. A fired run's prompt may carry a
+`[[slug]]` line — that is a brain note; read it with `ops_brain_get`. Search
+it for the area you are about to touch: `ops_brain_search` (CLI `shipeasy ops
+brain search "<topic>"`).
+
+Before you close out the item: if the work taught you something durable a
+future run needs — a convention, a pitfall, why a decision went the way it
+did — teach it with `ops_brain_ingest` (`extract: false`, one subject per
+note, `evidence` copied verbatim from the repo). Search first so you update
+the note that exists rather than adding a second one.
+
 ### 1b. Work the item per its type runbook
 
 Each type has its own runbook — the `runbook` column in the queue table
