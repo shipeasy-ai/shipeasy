@@ -2757,7 +2757,7 @@ _Parameters_
 | `rollout.guards.alertRuleIds` | required | `string[]` | Alert rules (ids) whose firing during a step is a breach. |
 | `rollout.guards.experimentGuardrails` | required | `boolean` | Whether a breached guardrail of the trail's measuring experiment is a breach. |
 | `rollout.guards.attributedErrors` | required | `boolean` | Whether a new error attributed to the trail at high confidence is a breach. |
-| `rollout.policies` | required | `object` | The three decisions the plan asks the owner, each with the project default pre-selected. |
+| `rollout.policies` | required | `object` | The three rollout decisions — the project defaults unless the creation dialog or a plan edit sets them. |
 | `rollout.policies.onBreach` | required | `"pull_back" \| "ask_first" \| "ask_then_pull_back"` | What to do when a guard trips during a step — `pull_back` (pull the flag back, investigate and suggest a fix, tell the owner; the default), `ask_first` (ask the owner, only notify), or `ask_then_pull_back` (ask, and pull back after `breachTimeoutMinutes` with no answer). |
 | `rollout.policies.breachTimeoutMinutes` | required | `integer` | With `ask_then_pull_back`, minutes the owner has before the controller pulls back. _(1–1440)_ |
 | `rollout.policies.advance` | required | `"auto" \| "ask"` | Whether a healthy step advances by itself (`auto`) or waits for the owner to say so (`ask`). |
@@ -3711,7 +3711,7 @@ _Parameters_
 | `intake.rollout.guards.alertRuleIds` | required | `string[]` | Alert rules (ids) whose firing during a step is a breach. |
 | `intake.rollout.guards.experimentGuardrails` | required | `boolean` | Whether a breached guardrail of the trail's measuring experiment is a breach. |
 | `intake.rollout.guards.attributedErrors` | required | `boolean` | Whether a new error attributed to the trail at high confidence is a breach. |
-| `intake.rollout.policies` | required | `object` | The three decisions the plan asks the owner, each with the project default pre-selected. |
+| `intake.rollout.policies` | required | `object` | The three rollout decisions — the project defaults unless the creation dialog or a plan edit sets them. |
 | `intake.rollout.policies.onBreach` | required | `"pull_back" \| "ask_first" \| "ask_then_pull_back"` | What to do when a guard trips during a step — `pull_back` (pull the flag back, investigate and suggest a fix, tell the owner; the default), `ask_first` (ask the owner, only notify), or `ask_then_pull_back` (ask, and pull back after `breachTimeoutMinutes` with no answer). |
 | `intake.rollout.policies.breachTimeoutMinutes` | required | `integer` | With `ask_then_pull_back`, minutes the owner has before the controller pulls back. _(1–1440)_ |
 | `intake.rollout.policies.advance` | required | `"auto" \| "ask"` | Whether a healthy step advances by itself (`auto`) or waits for the owner to say so (`ask`). |
@@ -4105,7 +4105,7 @@ _Parameters_
 | `release.rollout.guards.alertRuleIds` | required | `string[]` | Alert rules (ids) whose firing during a step is a breach. |
 | `release.rollout.guards.experimentGuardrails` | required | `boolean` | Whether a breached guardrail of the trail's measuring experiment is a breach. |
 | `release.rollout.guards.attributedErrors` | required | `boolean` | Whether a new error attributed to the trail at high confidence is a breach. |
-| `release.rollout.policies` | required | `object` | The three decisions the plan asks the owner, each with the project default pre-selected. |
+| `release.rollout.policies` | required | `object` | The three rollout decisions — the project defaults unless the creation dialog or a plan edit sets them. |
 | `release.rollout.policies.onBreach` | required | `"pull_back" \| "ask_first" \| "ask_then_pull_back"` | What to do when a guard trips during a step — `pull_back` (pull the flag back, investigate and suggest a fix, tell the owner; the default), `ask_first` (ask the owner, only notify), or `ask_then_pull_back` (ask, and pull back after `breachTimeoutMinutes` with no answer). |
 | `release.rollout.policies.breachTimeoutMinutes` | required | `integer` | With `ask_then_pull_back`, minutes the owner has before the controller pulls back. _(1–1440)_ |
 | `release.rollout.policies.advance` | required | `"auto" \| "ask"` | Whether a healthy step advances by itself (`auto`) or waits for the owner to say so (`ask`). |
@@ -4270,7 +4270,7 @@ _Parameters_
 | `release.rollout.guards.alertRuleIds` | required | `string[]` | Alert rules (ids) whose firing during a step is a breach. |
 | `release.rollout.guards.experimentGuardrails` | required | `boolean` | Whether a breached guardrail of the trail's measuring experiment is a breach. |
 | `release.rollout.guards.attributedErrors` | required | `boolean` | Whether a new error attributed to the trail at high confidence is a breach. |
-| `release.rollout.policies` | required | `object` | The three decisions the plan asks the owner, each with the project default pre-selected. |
+| `release.rollout.policies` | required | `object` | The three rollout decisions — the project defaults unless the creation dialog or a plan edit sets them. |
 | `release.rollout.policies.onBreach` | required | `"pull_back" \| "ask_first" \| "ask_then_pull_back"` | What to do when a guard trips during a step — `pull_back` (pull the flag back, investigate and suggest a fix, tell the owner; the default), `ask_first` (ask the owner, only notify), or `ask_then_pull_back` (ask, and pull back after `breachTimeoutMinutes` with no answer). |
 | `release.rollout.policies.breachTimeoutMinutes` | required | `integer` | With `ask_then_pull_back`, minutes the owner has before the controller pulls back. _(1–1440)_ |
 | `release.rollout.policies.advance` | required | `"auto" \| "ask"` | Whether a healthy step advances by itself (`auto`) or waits for the owner to say so (`ask`). |
