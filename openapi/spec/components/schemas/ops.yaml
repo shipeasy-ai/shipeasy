@@ -5523,7 +5523,7 @@ TrailRollout:
       additionalProperties: false
     policies:
       type: object
-      description: The three decisions the plan asks the owner, each with the project default pre-selected.
+      description: The three rollout decisions — the project defaults unless the creation dialog or a plan edit sets them.
       properties:
         onBreach:
           $ref: "#/TrailRolloutOnBreach"

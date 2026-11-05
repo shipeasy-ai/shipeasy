@@ -6583,7 +6583,7 @@ export type TrailRollout = {
         attributedErrors: boolean;
     };
     /**
-     * The three decisions the plan asks the owner, each with the project default pre-selected.
+     * The three rollout decisions — the project defaults unless the creation dialog or a plan edit sets them.
      */
     policies: {
         onBreach: TrailRolloutOnBreach;
