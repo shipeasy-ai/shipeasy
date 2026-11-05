@@ -3362,7 +3362,8 @@ export const zTrailApproval = z.object({
     current: z.boolean(),
     actorKind: zTrailApprovalActorKind,
     authorizedBy: z.string().nullable(),
-    createdAt: z.string()
+    createdAt: z.string(),
+    counted: z.boolean().optional()
 });
 
 export const zTrailPush = z.object({
@@ -3409,7 +3410,8 @@ export const zTrailChange = z.object({
     evals: z.array(zTrailEvalSeries),
     findings: z.array(zTrailFinding),
     approvals: z.array(zTrailApproval),
-    pushes: z.array(zTrailPush)
+    pushes: z.array(zTrailPush),
+    viewerIsAuthor: z.boolean().optional()
 });
 
 /**

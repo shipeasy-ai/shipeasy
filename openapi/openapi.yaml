@@ -22671,6 +22671,9 @@ components:
           description: For an autopilot approval, the person who authorized autopilot (`approved by autopilot, authorized by <email>`); `null` for a person's approval.
         createdAt:
           type: string
+        counted:
+          type: boolean
+          description: False when the approver is an author of the trail (its owner, or whoever started its runs) and the project's Human review gate does not count authors, so the approval is recorded but does not count toward the gate. Absent when the read could not tell.
       required:
         - id
         - actorEmail
@@ -22815,6 +22818,9 @@ components:
           items:
             $ref: '#/components/schemas/TrailPush'
           description: Pushes, newest first.
+        viewerIsAuthor:
+          type: boolean
+          description: True when the caller is an author of the trail whose approval the Human review gate does not count, so approving would be refused with a 409. Per caller, set on the trail detail read only; absent elsewhere.
       required:
         - id
         - item

@@ -6138,6 +6138,10 @@ export type TrailApproval = {
      */
     authorizedBy: string | null;
     createdAt: string;
+    /**
+     * False when the approver is an author of the trail (its owner, or whoever started its runs) and the project's Human review gate does not count authors, so the approval is recorded but does not count toward the gate. Absent when the read could not tell.
+     */
+    counted?: boolean;
 };
 
 export type TrailPush = {
@@ -6214,6 +6218,10 @@ export type TrailChange = {
      * Pushes, newest first.
      */
     pushes: Array<TrailPush>;
+    /**
+     * True when the caller is an author of the trail whose approval the Human review gate does not count, so approving would be refused with a 409. Per caller, set on the trail detail read only; absent elsewhere.
+     */
+    viewerIsAuthor?: boolean;
 };
 
 /**
