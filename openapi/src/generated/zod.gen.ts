@@ -4570,7 +4570,7 @@ export const zStartTrailRunResult = z.object({
 });
 
 /**
- * Body for `POST /api/admin/trails/{handle}/plan` — a plan run submits what it worked out, after the person answered how the trail should ship.
+ * Body for `POST /api/admin/trails/{handle}/plan` — a plan run submits what it worked out, once the person answered whatever it asked about the goal.
  */
 export const zSubmitTrailPlanRequest = z.object({
     plan: z.string().min(1).max(20000),
@@ -4578,7 +4578,8 @@ export const zSubmitTrailPlanRequest = z.object({
     breakdown: zTrailPlanBreakdown.optional(),
     marketing: zTrailPlanMarketing.optional(),
     sources: z.array(zTrailPlanSource).max(30).optional(),
-    summary: z.string().max(500).optional()
+    summary: z.string().max(500).optional(),
+    goal: zTrailGoalSpec.optional()
 });
 
 /**

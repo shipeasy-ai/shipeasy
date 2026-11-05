@@ -8157,7 +8157,7 @@ export type StartTrailRunResult = {
 };
 
 /**
- * Body for `POST /api/admin/trails/{handle}/plan` — a plan run submits what it worked out, after the person answered how the trail should ship.
+ * Body for `POST /api/admin/trails/{handle}/plan` — a plan run submits what it worked out, once the person answered whatever it asked about the goal.
  */
 export type SubmitTrailPlanRequest = {
     /**
@@ -8175,6 +8175,10 @@ export type SubmitTrailPlanRequest = {
      * For a replan, what changed since the last approved revision. Recorded on the revision.
      */
     summary?: string;
+    /**
+     * The metric the plan says will judge the trail, with its baseline and target — sent when the intent is an outcome and the trail has no goal yet. It becomes the trail's goal only while the trail has none (a goal a person set is never replaced), and its metric must already exist; leave `metric` out when a tracking item creates it.
+     */
+    goal?: TrailGoalSpec;
 };
 
 /**
