@@ -197,6 +197,11 @@ TrailMarketingAsset:
         - type: string
         - type: "null"
       description: The ad campaign's URL, recorded when a person marks an ad launched.
+    launchedBudget:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The budget a person actually set on the ad campaign, recorded with *Mark as launched*. It can differ from the planned `content.budget`.
     deliverable:
       type: object
       description: Whether the timing gate would let the asset go out now.
@@ -236,6 +241,7 @@ TrailMarketingAsset:
     - failedCount
     - postUrl
     - campaignUrl
+    - launchedBudget
     - deliverable
     - createdAt
     - updatedAt
@@ -309,7 +315,7 @@ RequestTrailMarketingChangesRequest:
   additionalProperties: false
 MarkTrailMarketingDeliveredRequest:
   type: object
-  description: Body for `POST /api/admin/trails/{handle}/marketing/{assetId}/delivered`. A post needs its `postUrl`, an ad its `campaignUrl`.
+  description: Body for `POST /api/admin/trails/{handle}/marketing/{assetId}/delivered`. A post needs its `postUrl`, an ad its `campaignUrl` and the `budget` actually set.
   properties:
     postUrl:
       type: string
@@ -321,6 +327,11 @@ MarkTrailMarketingDeliveredRequest:
       format: uri
       maxLength: 2000
       description: The ad campaign's URL.
+    budget:
+      type: string
+      minLength: 1
+      maxLength: 100
+      description: 'The budget actually set on the launched campaign, as the platform shows it (e.g. `$500 total` or `$40/day`). Required for an ad.'
   additionalProperties: false
 TrailMarketingPreview:
   type: object

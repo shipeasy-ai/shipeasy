@@ -2048,6 +2048,7 @@ shipeasy trails marketing mark-delivered [options] <handle> <assetId>
 | --- | --- | --- |
 | `--post-url <value>` | optional | The live post's URL. |
 | `--campaign-url <value>` | optional | The ad campaign's URL. |
+| `--budget <value>` | optional | The budget actually set on the launched campaign, as the platform shows it (e.g. `$500 total` or `$40/day`). Required for an ad. |
 
 #### `shipeasy trails marketing preview`
 
