@@ -30878,6 +30878,25 @@
               }
             ],
             "description": "The pull-request event, for `pr` entries; `null` otherwise."
+          },
+          "commentId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The comment's id, for `comment` entries; `null` on other fields and on comment entries that could not be tied to a comment."
+          },
+          "commentEdited": {
+            "type": "boolean",
+            "description": "The comment was edited after it was posted, so `to` is its current excerpt."
+          },
+          "commentDeleted": {
+            "type": "boolean",
+            "description": "The comment was deleted from the thread; `to` is `null` and the entry is a tombstone."
           }
         },
         "required": [
@@ -30895,7 +30914,10 @@
           "to",
           "added",
           "removed",
-          "pr"
+          "pr",
+          "commentId",
+          "commentEdited",
+          "commentDeleted"
         ],
         "additionalProperties": false,
         "description": "One change recorded against a queue item."
