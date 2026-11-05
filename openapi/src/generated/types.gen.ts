@@ -9111,6 +9111,10 @@ export type TrailMarketingAsset = {
      */
     campaignUrl: string | null;
     /**
+     * The budget a person actually set on the ad platform, recorded with the campaign URL when they mark an ad launched. Null for posts and emails.
+     */
+    budgetSet: string | null;
+    /**
      * Whether the timing gate would let the asset go out now.
      */
     deliverable: {
@@ -9177,7 +9181,7 @@ export type RequestTrailMarketingChangesRequest = {
 };
 
 /**
- * Body for `POST /api/admin/trails/{handle}/marketing/{assetId}/delivered`. A post needs its `postUrl`, an ad its `campaignUrl`.
+ * Body for `POST /api/admin/trails/{handle}/marketing/{assetId}/delivered`. A post needs its `postUrl`; an ad its `campaignUrl` and the `budgetSet` a person actually set on the ad platform.
  */
 export type MarkTrailMarketingDeliveredRequest = {
     /**
@@ -9188,6 +9192,10 @@ export type MarkTrailMarketingDeliveredRequest = {
      * The ad campaign's URL.
      */
     campaignUrl?: string;
+    /**
+     * The budget actually set on the ad platform (e.g. `$500 total`, `$40/day for 2 weeks`). Required for an ad.
+     */
+    budgetSet?: string;
 };
 
 /**
