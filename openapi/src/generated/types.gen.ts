@@ -8986,7 +8986,7 @@ export type TrailMarketingAssetState = 'draft' | 'in_review' | 'changes_requeste
 /**
  * The asset's content, typed by kind:
  * - `email` — `subject`, `html` and/or `text`.
- * - `post` — `body`, optional `media` URLs and a `target` (the Slack channel, the subreddit, the account).
+ * - `post` — `body`, optional `media` URLs and a `target` (the Slack channel, the subreddit, the account). A `target` of `slack`, `slack:#channel` or `slack:<channel id>` makes it a Slack post, published through the project's Slack connector on delivery (`slack` alone is the connector's notification channel); any other post is a hand-off a person marks posted.
  * - `ad` — `variants` (each a `headline`, `body` and `cta`), `platform`, `budget`, and an optional `audience` description.
  */
 export type TrailMarketingAssetContent = {
@@ -9011,7 +9011,7 @@ export type TrailMarketingAssetContent = {
      */
     media?: Array<string>;
     /**
-     * Where the post goes — a Slack channel, a subreddit, an account name.
+     * Where the post goes — `slack`, `slack:#channel` or `slack:<channel id>` for a Slack post published on delivery; a subreddit or an account name for a hand-off.
      */
     target?: string;
     /**
@@ -9235,6 +9235,31 @@ export type TrailMarketingPreview = {
          * Recipients a send now would reach — the audience minus suppressions, bounded by what is left today.
          */
         willSend: number;
+    } | null;
+    /**
+     * Slack posts only — the workspace and channel the post is published to. `null` for emails, ads and hand-off posts.
+     */
+    destination: {
+        /**
+         * The integration the post is published through.
+         */
+        provider: 'slack';
+        /**
+         * Whether the project has an authorised Slack connector to post through. A Slack post cannot be approved without one.
+         */
+        connected: boolean;
+        /**
+         * The Slack workspace the post lands in.
+         */
+        workspace: string | null;
+        /**
+         * The channel it lands in (`#name`, or the id when the name is unknown). `null` when no channel resolves.
+         */
+        channel: string | null;
+        /**
+         * The channel's Slack id, when known.
+         */
+        channelId: string | null;
     } | null;
 };
 

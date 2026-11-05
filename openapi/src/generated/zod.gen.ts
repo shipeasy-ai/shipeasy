@@ -5156,7 +5156,7 @@ export const zTrailMarketingAssetState = z.enum([
 /**
  * The asset's content, typed by kind:
  * - `email` — `subject`, `html` and/or `text`.
- * - `post` — `body`, optional `media` URLs and a `target` (the Slack channel, the subreddit, the account).
+ * - `post` — `body`, optional `media` URLs and a `target` (the Slack channel, the subreddit, the account). A `target` of `slack`, `slack:#channel` or `slack:<channel id>` makes it a Slack post, published through the project's Slack connector on delivery (`slack` alone is the connector's notification channel); any other post is a hand-off a person marks posted.
  * - `ad` — `variants` (each a `headline`, `body` and `cta`), `platform`, `budget`, and an optional `audience` description.
  */
 export const zTrailMarketingAssetContent = z.object({
@@ -5278,6 +5278,13 @@ export const zTrailMarketingPreview = z.object({
         remainingToday: z.int().gte(0),
         cap: z.int().gte(0),
         willSend: z.int().gte(0)
+    }).nullable(),
+    destination: z.object({
+        provider: z.enum(['slack']),
+        connected: z.boolean(),
+        workspace: z.string().nullable(),
+        channel: z.string().nullable(),
+        channelId: z.string().nullable()
     }).nullable()
 });
 
