@@ -61,6 +61,7 @@ exports[`command tree > matches the registered command surface (snapshot) 1`] = 
   "ops attachments",
   "ops attachments create",
   "ops brain",
+  "ops brain coverage",
   "ops brain get",
   "ops brain graph",
   "ops brain ingest",

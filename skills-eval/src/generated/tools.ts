@@ -48,6 +48,7 @@ export const KNOWN_TOOLS: readonly string[] = [
   "ops_alerts_list",
   "ops_alerts_update",
   "ops_attachments_create",
+  "ops_brain_coverage",
   "ops_brain_get",
   "ops_brain_graph",
   "ops_brain_ingest",

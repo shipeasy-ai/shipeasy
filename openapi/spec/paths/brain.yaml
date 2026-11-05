@@ -137,6 +137,73 @@
       name: get
       positional:
         - slug
+/api/admin/brain/coverage:
+  get:
+    operationId: getBrainCoverage
+    summary: Check how complete the brain is on a topic
+    description: |-
+      What the brain knows about a topic, and what it is missing, as a ranked
+      worklist. It takes the notes matching `topic` (or `slug` and its
+      neighbours), then checks them for gaps: subjects other notes link to that
+      nobody wrote, thin notes, notes with no summary, notes that name code but
+      are not grounded in it, anchors whose code changed, held claims, live
+      contradictions, notes untouched for six months, and the kinds of
+      knowledge still missing (no pitfall, no decision…). `score` is 0-100.
+      `next` is what to write, worst first.
+
+      **Use case:** a system keeps the brain complete on what matters. It reads
+      `ops brain coverage --topic checkout`, ingests notes that answer `next`,
+      and reads coverage again until the score stops moving.
+    tags:
+      - Brain
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: topic
+        in: query
+        required: false
+        description: The subject to check, e.g. `checkout retries`. Pass this or `slug`; with neither, the whole brain is checked (its newest 300 notes).
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 500
+      - name: slug
+        in: query
+        required: false
+        description: Check a note and its neighbourhood instead of a search.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 300
+      - name: depth
+        in: query
+        required: false
+        description: Hops around the matches to include (0-2). Defaults to 1.
+        schema:
+          type: integer
+          minimum: 0
+          maximum: 2
+    responses:
+      "200":
+        description: Coverage and gaps
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/brain.yaml#/BrainCoverage
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: coverage
 /api/admin/brain/graph:
   get:
     operationId: getBrainGraph
@@ -251,7 +318,9 @@
       backticked repo paths. Ground each note with `evidence` — a repo path and
       a snippet copied verbatim from it; verified evidence makes the note
       outrank anything said about that code, and it is re-checked when the file
-      changes. Lessons, not logs: one subject per note.
+      changes. Tag a note with the project's own tags: `tags:: checkout, ios`
+      (see `tags list`). Only tags the project already has are kept; any other
+      comes back in `dropped`. Lessons, not logs: one subject per note.
 
       **Use case:** Seeding: read README / CLAUDE.md / design docs, then send
       `{notes: [{text: "# Retries are capped\ntype:: convention\n…", extract: false, source: "seed:claude", evidence: [{path: "src/retry.ts", snippet: "export const MAX_RETRIES = 3;"}]}]}`.

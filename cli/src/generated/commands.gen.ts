@@ -818,6 +818,15 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .action(async (slug, opts) => {
       await ctx.run({ mutates: false, invoke: (client) => api.getBrainNote({ client, query: clean({ slug: str(opts.slug) }), body: json(opts.data) as never }) });
     });
+  g_ops_brain.command("coverage")
+    .description("Check how complete the brain is on a topic")
+    .option("--topic <value>", "The subject to check, e.g. `checkout retries`. Pass this or `slug`; with neither, the whole brain is checked (its newest 300 notes).")
+    .option("--slug <value>", "Check a note and its neighbourhood instead of a search.")
+    .option("--depth <value>", "Hops around the matches to include (0-2). Defaults to 1.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.getBrainCoverage({ client, query: clean({ topic: str(opts.topic), slug: str(opts.slug), depth: num(opts.depth) }), body: json(opts.data) as never }) });
+    });
   g_ops_brain.command("graph")
     .description("Read a neighbourhood of the brain")
     .option("--slug <value>", "The note to start from.")

@@ -276,6 +276,64 @@ BrainGraph:
     - edges
   additionalProperties: false
   description: Response for `GET /api/admin/brain/graph` — nodes by slug and the edges between them.
+BrainCoverageGap:
+  type: object
+  properties:
+    kind:
+      type: string
+      enum: [unwritten, candidate, thin, no_summary, ungrounded, stale_anchor, pending, contradiction, missing_type, stale]
+      description: What is missing.
+    slug:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The note the gap is about. Null for a missing kind of knowledge.
+    hint:
+      type: string
+      description: What to write or check to close it.
+    weight:
+      type: number
+      description: How much it hurts. Gaps come worst first.
+  required: [kind, slug, hint, weight]
+  additionalProperties: false
+BrainCoverage:
+  type: object
+  properties:
+    topic:
+      type: string
+      description: What was checked, the query or the start note's title.
+    score:
+      type: number
+      description: "0-100: the share of the topic's knowledge notes with no gap, scaled down while kinds of knowledge are missing."
+    byType:
+      type: object
+      additionalProperties:
+        type: number
+      description: Knowledge notes in scope, per type.
+    notes:
+      type: array
+      items:
+        allOf:
+          - $ref: "#/BrainNoteSummary"
+          - type: object
+            properties:
+              depth:
+                type: number
+                description: 0 for a match, 1+ for its neighbours.
+            required:
+              - depth
+    gaps:
+      type: array
+      items:
+        $ref: "#/BrainCoverageGap"
+    next:
+      type: array
+      items:
+        type: string
+      description: The top gaps' hints, the worklist to act on before reading coverage again.
+  required: [topic, score, byType, notes, gaps, next]
+  additionalProperties: false
+  description: Response for `GET /api/admin/brain/coverage`.
 BrainStatus:
   type: object
   properties:
@@ -443,7 +501,7 @@ IngestBrainNote:
       type: string
       minLength: 1
       maxLength: 20000
-      description: "Markdown. Optional markup: `type:: pitfall`, `summary:: one line`, `key:: value` facts, typed links (`depends_on:: [[Billing]]`), `[[Other note]]`, `@gate:key`, `#42`, backticked repo paths."
+      description: "Markdown. Optional markup: `type:: pitfall`, `summary:: one line`, `tags:: a, b` (the project's own tags), `key:: value` facts, typed links (`depends_on:: [[Billing]]`), `[[Other note]]`, `@gate:key`, `#42`, backticked repo paths."
     title:
       type: string
       maxLength: 200
@@ -514,6 +572,11 @@ IngestBrainResponse:
             type: number
           settled:
             type: number
+          tags:
+            type: array
+            items:
+              type: string
+            description: The note's project tags after the write. Only tags the project already has are kept; a proposed tag it lacks is listed in `dropped`.
         required:
           - slug
           - id
@@ -521,6 +584,7 @@ IngestBrainResponse:
           - changes
           - links
           - settled
+          - tags
         additionalProperties: false
     extracted:
       type: boolean
@@ -529,7 +593,7 @@ IngestBrainResponse:
       type: array
       items:
         type: string
-      description: What the quality gates refused — unverifiable evidence, invented links.
+      description: What the quality gates refused — unverifiable evidence, invented links, tags the project does not have.
     pending:
       type: string
       description: Why extraction did not run, when it did not (`out_of_credits`, `no_model`, `disabled`).

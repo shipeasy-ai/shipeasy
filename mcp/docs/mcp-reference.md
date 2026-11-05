@@ -3221,6 +3221,36 @@ in, which is reconciled into what is already known: later and stronger
 sources rewrite weaker or older ones, and every rewrite keeps a revision.
 Search it before you design; teach it what you learned.
 
+#### `ops_brain_coverage`
+
+**Check how complete the brain is on a topic**
+
+What the brain knows about a topic, and what it is missing, as a ranked
+worklist. It takes the notes matching `topic` (or `slug` and its
+neighbours), then checks them for gaps: subjects other notes link to that
+nobody wrote, thin notes, notes with no summary, notes that name code but
+are not grounded in it, anchors whose code changed, held claims, live
+contradictions, notes untouched for six months, and the kinds of
+knowledge still missing (no pitfall, no decision…). `score` is 0-100.
+`next` is what to write, worst first.
+
+**Use case:** a system keeps the brain complete on what matters. It reads
+`ops brain coverage --topic checkout`, ingests notes that answer `next`,
+and reads coverage again until the score stops moving.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `topic` | optional | `string` | The subject to check, e.g. `checkout retries`. Pass this or `slug`; with neither, the whole brain is checked (its newest 300 notes). _(length 1–500)_ |
+| `slug` | optional | `string` | Check a note and its neighbourhood instead of a search. _(length 1–300)_ |
+| `depth` | optional | `integer` | Hops around the matches to include (0-2). Defaults to 1. _(0–2)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
 #### `ops_brain_get`
 
 **Read one brain note**
@@ -3284,7 +3314,9 @@ links (`depends_on:: [[Billing]]`), `[[Other note]]`, `@gate:<key>`, `#42`,
 backticked repo paths. Ground each note with `evidence` — a repo path and
 a snippet copied verbatim from it; verified evidence makes the note
 outrank anything said about that code, and it is re-checked when the file
-changes. Lessons, not logs: one subject per note.
+changes. Tag a note with the project's own tags: `tags:: checkout, ios`
+(see `tags list`). Only tags the project already has are kept; any other
+comes back in `dropped`. Lessons, not logs: one subject per note.
 
 **Use case:** Seeding: read README / CLAUDE.md / design docs, then send
 `{notes: [{text: "# Retries are capped\ntype:: convention\n…", extract: false, source: "seed:claude", evidence: [{path: "src/retry.ts", snippet: "export const MAX_RETRIES = 3;"}]}]}`.
