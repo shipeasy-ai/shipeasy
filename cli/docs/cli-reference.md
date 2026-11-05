@@ -645,6 +645,21 @@ shipeasy ops brain get [options] <slug>
 | `--slug <value>` | optional | The note's slug: `flag/checkout`, `item/42`, `file/apps/web/src/a.ts`, `checkout-retry-policy`. |
 | `--data <value>` | optional | Request body as a JSON object. |
 
+#### `shipeasy ops brain coverage`
+
+Check how complete the brain is on a topic
+
+```bash
+shipeasy ops brain coverage [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--topic <value>` | optional | The subject to check, e.g. `checkout retries`. Pass this or `slug`; with neither, the whole brain is checked (its newest 300 notes). |
+| `--slug <value>` | optional | Check a note and its neighbourhood instead of a search. |
+| `--depth <value>` | optional | Hops around the matches to include (0-2). Defaults to 1. |
+| `--data <value>` | optional | Request body as a JSON object. |
+
 #### `shipeasy ops brain graph`
 
 Read a neighbourhood of the brain

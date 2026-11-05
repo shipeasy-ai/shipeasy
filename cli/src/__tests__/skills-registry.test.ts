@@ -27,6 +27,7 @@ describe("skills registry", () => {
     expect(FEATURE_SKILLS.ops).toEqual([
       "shipeasy-ops",
       "shipeasy-ops-work",
+      "shipeasy-brain",
       "shipeasy-see",
       "shipeasy-alerts",
       "shipeasy-metrics",
@@ -50,6 +51,7 @@ describe("skills registry", () => {
       "shipeasy-migrate",
       "shipeasy-ops",
       "shipeasy-ops-work",
+      "shipeasy-brain",
       "shipeasy-see",
       "shipeasy-alerts",
     ]);

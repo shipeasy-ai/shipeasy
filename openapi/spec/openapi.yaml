@@ -583,6 +583,8 @@ paths:
     $ref: ./paths/brain.yaml#/~1api~1admin~1brain~1notes
   /api/admin/brain/note:
     $ref: ./paths/brain.yaml#/~1api~1admin~1brain~1note
+  /api/admin/brain/coverage:
+    $ref: ./paths/brain.yaml#/~1api~1admin~1brain~1coverage
   /api/admin/brain/graph:
     $ref: ./paths/brain.yaml#/~1api~1admin~1brain~1graph
   /api/admin/brain/sources:

@@ -1,6 +1,6 @@
 ---
 name: shipeasy-brain
-description: "Load this skill FIRST whenever the task is to set up, seed, build, populate, extend, inspect or query the Shipeasy project brain — the project's shared knowledge graph (conventions, pitfalls, decisions, concepts and facts, linked to every item, trail, PR, file, flag and metric). Trigger on: set up the brain, seed the brain, build our second brain, bootstrap project knowledge, teach the brain, remember this for the project, what does the brain know about X, brain status, knowledge graph. Seeding runs through the MCP tools ops_brain_status and ops_brain_ingest — the status answer carries the playbook."
+description: "Load this skill FIRST whenever the task is to set up, seed, build, populate, extend, inspect, audit or query the Shipeasy project brain — the project's shared knowledge graph (conventions, pitfalls, decisions, concepts and facts, linked to every item, trail, PR, file, flag and metric). Trigger on: set up the brain, seed the brain, build our second brain, bootstrap project knowledge, teach the brain, remember this for the project, what does the brain know about X, is the brain complete on X, fill gaps in the brain, brain coverage, brain status, knowledge graph. Seeding runs through the MCP tools ops_brain_status and ops_brain_ingest — the status answer carries the playbook."
 user-invocable: true
 ---
 
@@ -57,6 +57,22 @@ a no-op.
 - `ops_brain_graph` — the neighbourhood of a note (both directions, `depth`
   hops), e.g. everything two hops from `item/42`.
 - `ops_brain_sources` — what the brain read and what extraction cost.
+
+## Check a topic for completeness and fill the gaps
+
+`ops_brain_coverage` with a `topic` (or a `slug`) returns `score` (0-100), the
+notes in scope, and `gaps`, worst first. A gap can be: a subject other notes link
+to that nobody wrote, a thin note, a missing summary, a note that names code but
+is not grounded in it, an anchor whose code changed, a held claim, a live
+contradiction, a stale note, or a missing kind of knowledge ("no pitfall about
+checkout yet"). `next` is the worklist. The loop:
+
+1. `ops_brain_coverage { topic }`.
+2. For each `next` entry, read what the repo or the work says, and write or
+   update that note with `ops_brain_ingest` (`extract: false`, evidence for
+   code claims). Reuse the existing title, so the gap closes on the same note.
+3. Read coverage again. Stop when the score stops moving or `next` holds only
+   what the repo cannot answer. Ask a person about those instead of guessing.
 
 Edits by a person, settling a held claim and reverting a rewrite are done in
 the dashboard, not by agents.

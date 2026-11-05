@@ -6109,6 +6109,56 @@ export type BrainNote = BrainNoteSummary & {
     links: Array<BrainLink>;
 };
 
+export type BrainCoverageGap = {
+    /**
+     * What is missing.
+     */
+    kind: 'unwritten' | 'candidate' | 'thin' | 'no_summary' | 'ungrounded' | 'stale_anchor' | 'pending' | 'contradiction' | 'missing_type' | 'stale';
+    /**
+     * The note the gap is about. Null for a missing kind of knowledge.
+     */
+    slug: string | null;
+    /**
+     * What to write or check to close it.
+     */
+    hint: string;
+    /**
+     * How much it hurts. Gaps come worst first.
+     */
+    weight: number;
+};
+
+/**
+ * Response for `GET /api/admin/brain/coverage`.
+ */
+export type BrainCoverage = {
+    /**
+     * What was checked, the query or the start note's title.
+     */
+    topic: string;
+    /**
+     * 0-100: the share of the topic's knowledge notes with no gap, scaled down while kinds of knowledge are missing.
+     */
+    score: number;
+    /**
+     * Knowledge notes in scope, per type.
+     */
+    byType: {
+        [key: string]: number;
+    };
+    notes: Array<BrainNoteSummary & {
+        /**
+         * 0 for a match, 1+ for its neighbours.
+         */
+        depth: number;
+    }>;
+    gaps: Array<BrainCoverageGap>;
+    /**
+     * The top gaps' hints, the worklist to act on before reading coverage again.
+     */
+    next: Array<string>;
+};
+
 /**
  * Response for `GET /api/admin/brain/graph` — nodes by slug and the edges between them.
  */
@@ -17730,6 +17780,62 @@ export type GetBrainNoteResponses = {
 };
 
 export type GetBrainNoteResponse = GetBrainNoteResponses[keyof GetBrainNoteResponses];
+
+export type GetBrainCoverageData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        /**
+         * The subject to check, e.g. `checkout retries`. Pass this or `slug`; with neither, the whole brain is checked (its newest 300 notes).
+         */
+        topic?: string;
+        /**
+         * Check a note and its neighbourhood instead of a search.
+         */
+        slug?: string;
+        /**
+         * Hops around the matches to include (0-2). Defaults to 1.
+         */
+        depth?: number;
+    };
+    url: '/api/admin/brain/coverage';
+};
+
+export type GetBrainCoverageErrors = {
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type GetBrainCoverageError = GetBrainCoverageErrors[keyof GetBrainCoverageErrors];
+
+export type GetBrainCoverageResponses = {
+    /**
+     * Coverage and gaps
+     */
+    200: BrainCoverage;
+};
+
+export type GetBrainCoverageResponse = GetBrainCoverageResponses[keyof GetBrainCoverageResponses];
 
 export type GetBrainGraphData = {
     body?: never;

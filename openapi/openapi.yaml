@@ -7912,6 +7912,73 @@ paths:
         name: get
         positional:
           - slug
+  /api/admin/brain/coverage:
+    get:
+      operationId: getBrainCoverage
+      summary: Check how complete the brain is on a topic
+      description: |-
+        What the brain knows about a topic, and what it is missing, as a ranked
+        worklist. It takes the notes matching `topic` (or `slug` and its
+        neighbours), then checks them for gaps: subjects other notes link to that
+        nobody wrote, thin notes, notes with no summary, notes that name code but
+        are not grounded in it, anchors whose code changed, held claims, live
+        contradictions, notes untouched for six months, and the kinds of
+        knowledge still missing (no pitfall, no decision…). `score` is 0-100.
+        `next` is what to write, worst first.
+
+        **Use case:** a system keeps the brain complete on what matters. It reads
+        `ops brain coverage --topic checkout`, ingests notes that answer `next`,
+        and reads coverage again until the score stops moving.
+      tags:
+        - Brain
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: topic
+          in: query
+          required: false
+          description: The subject to check, e.g. `checkout retries`. Pass this or `slug`; with neither, the whole brain is checked (its newest 300 notes).
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 500
+        - name: slug
+          in: query
+          required: false
+          description: Check a note and its neighbourhood instead of a search.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 300
+        - name: depth
+          in: query
+          required: false
+          description: Hops around the matches to include (0-2). Defaults to 1.
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 2
+      responses:
+        '200':
+          description: Coverage and gaps
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrainCoverage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+        - VALIDATION
+      x-cli:
+        name: coverage
   /api/admin/brain/graph:
     get:
       operationId: getBrainGraph
@@ -23635,6 +23702,84 @@ components:
             - ref
             - links
       description: One note with its facts, its history and every link in and out.
+    BrainCoverageGap:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum:
+            - unwritten
+            - candidate
+            - thin
+            - no_summary
+            - ungrounded
+            - stale_anchor
+            - pending
+            - contradiction
+            - missing_type
+            - stale
+          description: What is missing.
+        slug:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: The note the gap is about. Null for a missing kind of knowledge.
+        hint:
+          type: string
+          description: What to write or check to close it.
+        weight:
+          type: number
+          description: How much it hurts. Gaps come worst first.
+      required:
+        - kind
+        - slug
+        - hint
+        - weight
+      additionalProperties: false
+    BrainCoverage:
+      type: object
+      properties:
+        topic:
+          type: string
+          description: What was checked, the query or the start note's title.
+        score:
+          type: number
+          description: '0-100: the share of the topic''s knowledge notes with no gap, scaled down while kinds of knowledge are missing.'
+        byType:
+          type: object
+          additionalProperties:
+            type: number
+          description: Knowledge notes in scope, per type.
+        notes:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/BrainNoteSummary'
+              - type: object
+                properties:
+                  depth:
+                    type: number
+                    description: 0 for a match, 1+ for its neighbours.
+                required:
+                  - depth
+        gaps:
+          type: array
+          items:
+            $ref: '#/components/schemas/BrainCoverageGap'
+        next:
+          type: array
+          items:
+            type: string
+          description: The top gaps' hints, the worklist to act on before reading coverage again.
+      required:
+        - topic
+        - score
+        - byType
+        - notes
+        - gaps
+        - next
+      additionalProperties: false
+      description: Response for `GET /api/admin/brain/coverage`.
     BrainGraph:
       type: object
       properties:

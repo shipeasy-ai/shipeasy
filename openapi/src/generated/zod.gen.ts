@@ -3292,6 +3292,38 @@ export const zBrainNote = zBrainNoteSummary.and(z.object({
     links: z.array(zBrainLink)
 }));
 
+export const zBrainCoverageGap = z.object({
+    kind: z.enum([
+        'unwritten',
+        'candidate',
+        'thin',
+        'no_summary',
+        'ungrounded',
+        'stale_anchor',
+        'pending',
+        'contradiction',
+        'missing_type',
+        'stale'
+    ]),
+    slug: z.string().nullable(),
+    hint: z.string(),
+    weight: z.number()
+});
+
+/**
+ * Response for `GET /api/admin/brain/coverage`.
+ */
+export const zBrainCoverage = z.object({
+    topic: z.string(),
+    score: z.number(),
+    byType: z.record(z.string(), z.number()),
+    notes: z.array(zBrainNoteSummary.and(z.object({
+        depth: z.number()
+    }))),
+    gaps: z.array(zBrainCoverageGap),
+    next: z.array(z.string())
+});
+
 /**
  * Response for `GET /api/admin/brain/graph` — nodes by slug and the edges between them.
  */
@@ -8141,6 +8173,21 @@ export const zGetBrainNoteQuery = z.object({
  * The note
  */
 export const zGetBrainNoteResponse = zBrainNote;
+
+export const zGetBrainCoverageHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zGetBrainCoverageQuery = z.object({
+    topic: z.string().min(1).max(500).optional(),
+    slug: z.string().min(1).max(300).optional(),
+    depth: z.coerce.number().int().gte(0).lte(2).optional()
+});
+
+/**
+ * Coverage and gaps
+ */
+export const zGetBrainCoverageResponse = zBrainCoverage;
 
 export const zGetBrainGraphHeaders = z.object({
     'X-Project-Id': z.string().optional()

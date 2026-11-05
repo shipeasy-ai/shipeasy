@@ -236,6 +236,12 @@ export const GENERATED_TOOLS: Tool[] = [
     annotations: {"title":"Ops Attachments Create","readOnlyHint":false,"destructiveHint":false,"idempotentHint":false},
   },
   {
+    name: "ops_brain_coverage",
+    description: "Check how complete the brain is on a topic. What the brain knows about a topic, and what it is missing, as a ranked worklist. It takes the notes matching `topic` (or `slug` and its neighbours), then checks them for gaps: subjects other notes link to that nobody wrote, thin notes, notes with no summary, notes that name c…",
+    inputSchema: {"type":"object","properties":{"topic":{"type":"string","minLength":1,"maxLength":500,"description":"The subject to check, e.g. `checkout retries`. Pass this or `slug`; with neither, the whole brain is checked (its newest 300 notes)."},"slug":{"type":"string","minLength":1,"maxLength":300,"description":"Check a note and its neighbourhood instead of a search."},"depth":{"type":"integer","minimum":0,"maximum":2,"description":"Hops around the matches to include (0-2). Defaults to 1."}},"required":[]},
+    annotations: {"title":"Ops Brain Coverage","readOnlyHint":true},
+  },
+  {
     name: "ops_brain_get",
     description: "Read one brain note. One note in full: body, current facts and their history, held claims, every source that asserted it, and every link in and out (a backlink reads by its inverse relation — `touched_by`, `superseded_by`).",
     inputSchema: {"type":"object","properties":{"slug":{"type":"string","minLength":1,"maxLength":300,"description":"The note's slug: `flag/checkout`, `item/42`, `file/apps/web/src/a.ts`, `checkout-retry-policy`."}},"required":["slug"]},
@@ -1183,6 +1189,7 @@ export const GENERATED_MUTATES: Record<string, boolean> = {
   "ops_alerts_list": false,
   "ops_alerts_update": true,
   "ops_attachments_create": true,
+  "ops_brain_coverage": false,
   "ops_brain_get": false,
   "ops_brain_graph": false,
   "ops_brain_ingest": true,
@@ -1376,6 +1383,7 @@ export const GENERATED_DISPATCH: Record<string, (client: Client, args: Record<st
   "ops_alerts_list": (client, args) => api.listAlertRules({ client, query: clean({ "q": args["q"] }) }).then(unwrap) as Promise<unknown>,
   "ops_alerts_update": (client, args) => api.updateAlertRule({ client, path: { "id": args["id"] as never }, body: clean({ "name": args["name"], "kind": args["kind"], "comparator": args["comparator"], "threshold": args["threshold"], "rangeMin": args["rangeMin"], "rangeMax": args["rangeMax"], "sigma": args["sigma"], "direction": args["direction"], "sustained": args["sustained"], "warnThreshold": args["warnThreshold"], "recoveryThreshold": args["recoveryThreshold"], "groupAlerts": args["groupAlerts"], "maxGroups": args["maxGroups"], "noDataMinutes": args["noDataMinutes"], "delayMinutes": args["delayMinutes"], "autoResolveMinutes": args["autoResolveMinutes"], "composite": args["composite"], "windowHours": args["windowHours"], "bucketMinutes": args["bucketMinutes"], "requiredBuckets": args["requiredBuckets"], "severity": args["severity"], "enabled": args["enabled"], "notify": args["notify"] }) }).then(unwrap) as Promise<unknown>,
   "ops_attachments_create": (client, args) => api.createOpsAttachment({ client, path: { "handle": args["handle"] as never }, body: clean({ "contentBase64": args["contentBase64"], "url": args["url"], "filename": args["filename"], "mimeType": args["mimeType"], "kind": args["kind"] }) }).then(unwrap) as Promise<unknown>,
+  "ops_brain_coverage": (client, args) => api.getBrainCoverage({ client, query: clean({ "topic": args["topic"], "slug": args["slug"], "depth": args["depth"] }) }).then(unwrap) as Promise<unknown>,
   "ops_brain_get": (client, args) => requireArgs("ops_brain_get", args, [{"name":"slug","hint":"The note's slug: `flag/checkout`, `item/42`, `file/apps/web/src/a.ts`, `checkout-retry-policy`."}]).then(() => api.getBrainNote({ client, query: clean({ "slug": args["slug"] }) }).then(unwrap)) as Promise<unknown>,
   "ops_brain_graph": (client, args) => api.getBrainGraph({ client, query: clean({ "slug": args["slug"], "depth": args["depth"], "limit": args["limit"] }) }).then(unwrap) as Promise<unknown>,
   "ops_brain_ingest": (client, args) => api.ingestBrain({ client, body: clean({ "notes": args["notes"] }) }).then(unwrap) as Promise<unknown>,

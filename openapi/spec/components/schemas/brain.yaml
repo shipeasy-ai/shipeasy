@@ -276,6 +276,64 @@ BrainGraph:
     - edges
   additionalProperties: false
   description: Response for `GET /api/admin/brain/graph` — nodes by slug and the edges between them.
+BrainCoverageGap:
+  type: object
+  properties:
+    kind:
+      type: string
+      enum: [unwritten, candidate, thin, no_summary, ungrounded, stale_anchor, pending, contradiction, missing_type, stale]
+      description: What is missing.
+    slug:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The note the gap is about. Null for a missing kind of knowledge.
+    hint:
+      type: string
+      description: What to write or check to close it.
+    weight:
+      type: number
+      description: How much it hurts. Gaps come worst first.
+  required: [kind, slug, hint, weight]
+  additionalProperties: false
+BrainCoverage:
+  type: object
+  properties:
+    topic:
+      type: string
+      description: What was checked, the query or the start note's title.
+    score:
+      type: number
+      description: "0-100: the share of the topic's knowledge notes with no gap, scaled down while kinds of knowledge are missing."
+    byType:
+      type: object
+      additionalProperties:
+        type: number
+      description: Knowledge notes in scope, per type.
+    notes:
+      type: array
+      items:
+        allOf:
+          - $ref: "#/BrainNoteSummary"
+          - type: object
+            properties:
+              depth:
+                type: number
+                description: 0 for a match, 1+ for its neighbours.
+            required:
+              - depth
+    gaps:
+      type: array
+      items:
+        $ref: "#/BrainCoverageGap"
+    next:
+      type: array
+      items:
+        type: string
+      description: The top gaps' hints, the worklist to act on before reading coverage again.
+  required: [topic, score, byType, notes, gaps, next]
+  additionalProperties: false
+  description: Response for `GET /api/admin/brain/coverage`.
 BrainStatus:
   type: object
   properties:

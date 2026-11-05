@@ -26,6 +26,8 @@ export const FEATURE_SKILLS: Record<string, string[]> = {
   ops: [
     "shipeasy-ops",
     "shipeasy-ops-work",
+    // the project brain: ops-work reads and teaches it, so it ships with the queue
+    "shipeasy-brain",
     "shipeasy-see",
     "shipeasy-alerts",
     "shipeasy-metrics",
