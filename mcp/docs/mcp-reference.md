@@ -3212,6 +3212,150 @@ _Errors_ — beyond the [common errors](#errors):
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 
+### Brain
+
+The project brain — a knowledge graph of notes and typed links that grows
+on its own from the work (every item, trail, PR, file, flag and metric is
+a note, linked the moment anything mentions it) and from knowledge sent
+in, which is reconciled into what is already known: later and stronger
+sources rewrite weaker or older ones, and every rewrite keeps a revision.
+Search it before you design; teach it what you learned.
+
+#### `ops_brain_get`
+
+**Read one brain note**
+
+One note in full: body, current facts and their history, held claims,
+every source that asserted it, and every link in and out (a backlink
+reads by its inverse relation — `touched_by`, `superseded_by`).
+
+**Use case:** `ops brain get flag/checkout` shows every item, trail,
+decision and pitfall that mentions the flag.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `slug` | required | `string` | The note's slug: `flag/checkout`, `item/42`, `file/apps/web/src/a.ts`, `checkout-retry-policy`. _(length 1–300)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
+#### `ops_brain_graph`
+
+**Read a neighbourhood of the brain**
+
+The notes within `depth` hops of `slug` (links followed both ways) and the
+edges between them — or, without a slug, the most recently updated notes
+and their edges.
+
+**Use case:** Everything two hops from `item/42`: its files, the flags it
+mentions, and the pitfalls other work left on them.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `slug` | optional | `string` | The note to start from. _(length 1–300)_ |
+| `depth` | optional | `integer` | Hops to follow (1-4). Defaults to 2. _(1–4)_ |
+| `limit` | optional | `integer` | Maximum notes (1-300). Defaults to 100. _(1–300)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
+#### `ops_brain_ingest`
+
+**Teach the brain**
+
+Send knowledge in — one to twenty notes. Each is reconciled into the note
+its title lands on rather than added beside it: the later claim wins
+within the same source strength, a weaker source never overwrites a
+stronger one (a person > verified code > a merged PR > a ticket > text
+sent in), every rewrite keeps a revision, and the same text twice changes
+nothing.
+
+By default shipeasy's model extracts and verifies the text (billed to the
+project's Jarvis credits). When you already wrote each note in its final
+form — seeding from the repo — pass `extract: false` and use the markup:
+`type:: convention`, `summary:: one line`, `key:: value` facts, typed
+links (`depends_on:: [[Billing]]`), `[[Other note]]`, `@gate:<key>`, `#42`,
+backticked repo paths. Ground each note with `evidence` — a repo path and
+a snippet copied verbatim from it; verified evidence makes the note
+outrank anything said about that code, and it is re-checked when the file
+changes. Lessons, not logs: one subject per note.
+
+**Use case:** Seeding: read README / CLAUDE.md / design docs, then send
+`{notes: [{text: "# Retries are capped\ntype:: convention\n…", extract: false, source: "seed:claude", evidence: [{path: "src/retry.ts", snippet: "export const MAX_RETRIES = 3;"}]}]}`.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `notes` | required | `object[]` | One to twenty notes, each reconciled into the note its title lands on. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+#### `ops_brain_search`
+
+**Search the project brain**
+
+Search the project's knowledge graph — conventions, pitfalls, decisions,
+concepts and facts, plus a note for every item, trail, flag, metric, PR
+and file they link. Title and slug hits rank over body hits, and a
+well-linked note over a lonely one. No `q` returns the most recently
+updated notes. Read one in full with `ops brain get <slug>`.
+
+**Use case:** Before designing a change to checkout, an agent asks what
+the team knows: `ops brain search "checkout retry"`.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `q` | optional | `string` | Free-text query, e.g. `checkout retry`. _(length 1–500)_ |
+| `type` | optional | `"item" \| "trail" \| "flag" \| "experiment" \| "config" \| "killswitch" \| "metric" \| "universe" \| "alert" \| "pr" \| "file" \| "concept" \| "decision" \| "convention" \| "pitfall" \| "fact"` | A note's type. Entity notes (`item` … `file`) mirror something that exists elsewhere and are created the first time anything links to them; knowledge notes (`concept`, `decision`, `convention`, `pitfall`, `fact`) hold what the team learned. |
+| `limit` | optional | `integer` | Maximum notes to return (1-100). Defaults to 20. _(1–100)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+
+#### `ops_brain_sources`
+
+**List what the brain read**
+
+The brain's intake: every input it read (text sent in, shipped items,
+answered questions, trails), newest first, with its extraction state,
+the notes it produced and the model tokens it cost.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `limit` | optional | `integer` | Maximum sources (1-200). Defaults to 50. _(1–200)_ |
+
+#### `ops_brain_status`
+
+**Brain status and seeding guide**
+
+What the project brain holds — notes per type, links, candidates, held
+claims, orphans, the intake queue — and `guide`, the playbook for seeding
+or extending it. Call it first when asked to set up, seed or grow the
+brain, and again when done to report what changed.
+
+**Use case:** "Set up our brain" — read the status, follow `guide`
+(read the repo's own knowledge, write notes with `ops brain ingest`), then
+read the status again.
+
+_Parameters_
+
+_No parameters._
+
 ### Investigations
 
 Investigation records on a queue item — the structured, read-only write-ups

@@ -1,0 +1,306 @@
+/api/admin/brain/status:
+  get:
+    operationId: getBrainStatus
+    summary: Brain status and seeding guide
+    description: |-
+      What the project brain holds — notes per type, links, candidates, held
+      claims, orphans, the intake queue — and `guide`, the playbook for seeding
+      or extending it. Call it first when asked to set up, seed or grow the
+      brain, and again when done to report what changed.
+
+      **Use case:** "Set up our brain" — read the status, follow `guide`
+      (read the repo's own knowledge, write notes with `ops brain ingest`), then
+      read the status again.
+    tags:
+      - Brain
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+    responses:
+      "200":
+        description: Brain status
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/brain.yaml#/BrainStatus
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+    x-error-codes:
+      - UNAUTHORIZED
+      - FORBIDDEN
+    x-cli:
+      name: status
+/api/admin/brain/notes:
+  get:
+    operationId: searchBrainNotes
+    summary: Search the project brain
+    description: |-
+      Search the project's knowledge graph — conventions, pitfalls, decisions,
+      concepts and facts, plus a note for every item, trail, flag, metric, PR
+      and file they link. Title and slug hits rank over body hits, and a
+      well-linked note over a lonely one. No `q` returns the most recently
+      updated notes. Read one in full with `ops brain get <slug>`.
+
+      **Use case:** Before designing a change to checkout, an agent asks what
+      the team knows: `ops brain search "checkout retry"`.
+    tags:
+      - Brain
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: q
+        in: query
+        required: false
+        description: Free-text query, e.g. `checkout retry`.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 500
+      - name: type
+        in: query
+        required: false
+        description: Only notes of this type.
+        schema:
+          $ref: ../components/schemas/brain.yaml#/BrainNoteType
+      - name: limit
+        in: query
+        required: false
+        description: Maximum notes to return (1-100). Defaults to 20.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+    responses:
+      "200":
+        description: Matching notes
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/brain.yaml#/SearchBrainNotesResponse
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+    x-cli:
+      name: search
+      positional:
+        - q
+/api/admin/brain/note:
+  get:
+    operationId: getBrainNote
+    summary: Read one brain note
+    description: |-
+      One note in full: body, current facts and their history, held claims,
+      every source that asserted it, and every link in and out (a backlink
+      reads by its inverse relation — `touched_by`, `superseded_by`).
+
+      **Use case:** `ops brain get flag/checkout` shows every item, trail,
+      decision and pitfall that mentions the flag.
+    tags:
+      - Brain
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: slug
+        in: query
+        required: true
+        description: "The note's slug: `flag/checkout`, `item/42`, `file/apps/web/src/a.ts`, `checkout-retry-policy`."
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 300
+        x-mcp:
+          required: true
+    responses:
+      "200":
+        description: The note
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/brain.yaml#/BrainNote
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+    x-error-codes:
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: get
+      positional:
+        - slug
+/api/admin/brain/graph:
+  get:
+    operationId: getBrainGraph
+    summary: Read a neighbourhood of the brain
+    description: |-
+      The notes within `depth` hops of `slug` (links followed both ways) and the
+      edges between them — or, without a slug, the most recently updated notes
+      and their edges.
+
+      **Use case:** Everything two hops from `item/42`: its files, the flags it
+      mentions, and the pitfalls other work left on them.
+    tags:
+      - Brain
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: slug
+        in: query
+        required: false
+        description: The note to start from.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 300
+      - name: depth
+        in: query
+        required: false
+        description: Hops to follow (1-4). Defaults to 2.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 4
+      - name: limit
+        in: query
+        required: false
+        description: Maximum notes (1-300). Defaults to 100.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 300
+    responses:
+      "200":
+        description: Nodes and edges
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/brain.yaml#/BrainGraph
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+    x-error-codes:
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: graph
+/api/admin/brain/sources:
+  get:
+    operationId: listBrainSources
+    summary: List what the brain read
+    description: |-
+      The brain's intake: every input it read (text sent in, shipped items,
+      answered questions, trails), newest first, with its extraction state,
+      the notes it produced and the model tokens it cost.
+    tags:
+      - Brain
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: limit
+        in: query
+        required: false
+        description: Maximum sources (1-200). Defaults to 50.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 200
+    responses:
+      "200":
+        description: Sources
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/brain.yaml#/ListBrainSourcesResponse
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+    x-error-codes:
+      - UNAUTHORIZED
+      - FORBIDDEN
+    x-cli:
+      name: sources
+/api/admin/brain/ingest:
+  post:
+    operationId: ingestBrain
+    summary: Teach the brain
+    description: |-
+      Send knowledge in — one to twenty notes. Each is reconciled into the note
+      its title lands on rather than added beside it: the later claim wins
+      within the same source strength, a weaker source never overwrites a
+      stronger one (a person > verified code > a merged PR > a ticket > text
+      sent in), every rewrite keeps a revision, and the same text twice changes
+      nothing.
+
+      By default shipeasy's model extracts and verifies the text (billed to the
+      project's Jarvis credits). When you already wrote each note in its final
+      form — seeding from the repo — pass `extract: false` and use the markup:
+      `type:: convention`, `summary:: one line`, `key:: value` facts, typed
+      links (`depends_on:: [[Billing]]`), `[[Other note]]`, `@gate:<key>`, `#42`,
+      backticked repo paths. Ground each note with `evidence` — a repo path and
+      a snippet copied verbatim from it; verified evidence makes the note
+      outrank anything said about that code, and it is re-checked when the file
+      changes. Lessons, not logs: one subject per note.
+
+      **Use case:** Seeding: read README / CLAUDE.md / design docs, then send
+      `{notes: [{text: "# Retries are capped\ntype:: convention\n…", extract: false, source: "seed:claude", evidence: [{path: "src/retry.ts", snippet: "export const MAX_RETRIES = 3;"}]}]}`.
+    tags:
+      - Brain
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/brain.yaml#/IngestBrainRequest
+          examples:
+            seed:
+              summary: A seeded convention, grounded in the code
+              value:
+                notes:
+                  - text: "# Checkout retries are capped\ntype:: convention\nsummary:: Capture retries stop at 3 with backoff\nretry_limit:: 3\n\nRetries live in `apps/web/src/checkout/retry.ts` and always carry an idempotency key."
+                    extract: false
+                    source: seed:claude
+                    evidence:
+                      - path: apps/web/src/checkout/retry.ts
+                        snippet: "export const MAX_RETRIES = 3;"
+            postmortem:
+              summary: Prose for the model to extract
+              value:
+                notes:
+                  - text: "Postmortem: double charges on 2026-10-02 came from retries without an idempotency key."
+                    source: postmortem 2026-10-02
+    responses:
+      "200":
+        description: What happened to each note
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/brain.yaml#/IngestBrainResponse
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - VALIDATION
+    x-cli:
+      name: ingest

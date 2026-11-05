@@ -16,6 +16,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   const g_ops_agents = defineGroup(g_ops, "agents", { summary: "Connected AI agents — one per authenticated trigger connector (Claude / Cursor / Copilot / Jules).", help: "Connected AI agents — one per authenticated trigger connector (Claude /\nCursor / Copilot / Jules). The read-only roster behind agent assignment\nand the `ops ack` agent types: an AI ack (`ops ack <handle> --agent\n<type>`) requires the type to appear here, so this list is where an\n`AGENT_NOT_CONNECTED` error sends you.", aliases: [] });
   const g_ops_alerts = defineGroup(g_ops, "alerts", { summary: "Alert rules: the metric-threshold definitions the analysis cron evaluates each run.", help: "Alert rules: the metric-threshold definitions the analysis cron evaluates each run.\n\n**What fires.** Each rule binds a `metricId`, a `comparator` (`gt`/`gte`/`lt`/`lte`), and a `threshold`. On every cron pass the cron aggregates the metric over the trailing `windowHours` and raises an alert at `severity` when `value comparator threshold` holds.\n\n**Immutable metric.** The bound metric (and its aggregation) is fixed at create time — there is no update path for `metricId`. Tune `threshold`/`comparator`/`windowHours`/`severity`/`name`/`enabled` instead, or delete + recreate to repoint the rule at a different metric.\n\n**Delivery.** `notify` optionally targets a Slack channel and/or email for this rule; `null` falls back to the project's default notification settings. Slack targets require a connected Slack connector.", aliases: ["ar"] });
   const g_ops_attachments = defineGroup(g_ops, "attachments", { summary: "Screenshots, recordings, and files attached to a bug or feature request — the evidence a QA lane captures at verification time.", help: "Screenshots, recordings, and files attached to a bug or feature request —\nthe evidence a QA lane captures at verification time. Upload by base64\nbytes or a public https URL; append-only.", aliases: [] });
+  const g_ops_brain = defineGroup(g_ops, "brain", { summary: "The project brain — a knowledge graph of notes and typed links that grows on its own from the work (every item, trail, PR, file, flag and metric is a note, linked the moment anything mentions it) and from knowledge sent in, which is reconciled into what is already known: later and stronger sources rewrite weaker or older ones, and every rewrite keeps a revision.", help: "The project brain — a knowledge graph of notes and typed links that grows\non its own from the work (every item, trail, PR, file, flag and metric is\na note, linked the moment anything mentions it) and from knowledge sent\nin, which is reconciled into what is already known: later and stronger\nsources rewrite weaker or older ones, and every rewrite keeps a revision.\nSearch it before you design; teach it what you learned.", aliases: [] });
   const g_ops_comments = defineGroup(g_ops, "comments", { summary: "Comments on a queue item — the discussion thread that hangs off any bug, feature request, or auto-filed error/alert ticket.", help: "Comments on a queue item — the discussion thread that hangs off any bug,\nfeature request, or auto-filed error/alert ticket. Append a comment or read\nthe thread; one level of threaded replies via `parentId`.\n\n**Mentions.** `@teammate` in a body raises an in-app notification for that\nperson; `@shipeasy` asks Jarvis (the AI agent) to read the item and reply.\nComments authored by Jarvis carry `authorType: system`.", aliases: [] });
   const g_ops_fired_alerts = defineGroup(g_ops, "fired-alerts", { summary: "Fired alerts: the conditions the platform has actually raised — metric-rule crossings, armed kill switches, experiment SRM/peek guards, and guardrail breaches.", help: "Fired alerts: the conditions the platform has actually raised — metric-rule\ncrossings, armed kill switches, experiment SRM/peek guards, and guardrail\nbreaches. Raised only by the platform (UI killswitch handlers plus the\nworker analysis consumer and alerts cron), never filed by hand; deduped per\n`(source, dedupeKey)` with auto-resolve when the condition clears. This\nsurface lists them and triages one (status flip + person/agent owner). The\n*rules* that define metric-threshold alerts are the sibling alert-rules\nresource.", aliases: [] });
   const g_ops_investigations = defineGroup(g_ops, "investigations", { summary: "Investigation records on a queue item — the structured, read-only write-ups an AI agent produces while working it (findings / a blocking question / QA notes), plus the `working` run rows an ack or an AI hand-off opens.", help: "Investigation records on a queue item — the structured, read-only write-ups\nan AI agent produces while working it (findings / a blocking question / QA\nnotes), plus the `working` run rows an ack or an AI hand-off opens. This is\nthe AI-write seam the cockpit's detail panel renders: `list` reads what a\nprevious run found, `create` appends a new record, and `update` fills in the\n`working` run record you were handed (findings, PR, confidence) as you work.", aliases: [] });
@@ -792,6 +793,52 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--kind <value>", "Attachment kind. Defaults from the media type (image → screenshot, video → recording, else file). Ignored by the comment-media upload.")
     .action(async (handle, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.createOpsAttachment({ client, path: { handle: handle }, body: clean({ contentBase64: str(opts.contentBase64), url: str(opts.url), filename: str(opts.filename), mimeType: str(opts.mimeType), kind: str(opts.kind) }) }) });
+    });
+  g_ops_brain.command("status")
+    .description("Brain status and seeding guide")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.getBrainStatus({ client, body: json(opts.data) as never }) });
+    });
+  g_ops_brain.command("search")
+    .description("Search the project brain")
+    .argument("<q>", "")
+    .option("--q <value>", "Free-text query, e.g. `checkout retry`.")
+    .option("--type <value>", "Only notes of this type.")
+    .option("--limit <value>", "Maximum notes to return (1-100). Defaults to 20.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (q, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.searchBrainNotes({ client, query: clean({ q: str(opts.q), type: str(opts.type), limit: num(opts.limit) }), body: json(opts.data) as never }) });
+    });
+  g_ops_brain.command("get")
+    .description("Read one brain note")
+    .argument("<slug>", "")
+    .option("--slug <value>", "The note's slug: `flag/checkout`, `item/42`, `file/apps/web/src/a.ts`, `checkout-retry-policy`.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (slug, opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.getBrainNote({ client, query: clean({ slug: str(opts.slug) }), body: json(opts.data) as never }) });
+    });
+  g_ops_brain.command("graph")
+    .description("Read a neighbourhood of the brain")
+    .option("--slug <value>", "The note to start from.")
+    .option("--depth <value>", "Hops to follow (1-4). Defaults to 2.")
+    .option("--limit <value>", "Maximum notes (1-300). Defaults to 100.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.getBrainGraph({ client, query: clean({ slug: str(opts.slug), depth: num(opts.depth), limit: num(opts.limit) }), body: json(opts.data) as never }) });
+    });
+  g_ops_brain.command("sources")
+    .description("List what the brain read")
+    .option("--limit <value>", "Maximum sources (1-200). Defaults to 50.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.listBrainSources({ client, query: clean({ limit: num(opts.limit) }), body: json(opts.data) as never }) });
+    });
+  g_ops_brain.command("ingest")
+    .description("Teach the brain")
+    .option("--notes <value>", "One to twenty notes, each reconciled into the note its title lands on.")
+    .action(async (opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.ingestBrain({ client, body: clean({ notes: json(opts.notes) }) }) });
     });
   g_ops_comments.command("list")
     .description("List an item's comments")

@@ -5926,6 +5926,310 @@ export type ListOpsMemoryResponse = {
 };
 
 /**
+ * Response for `GET /api/admin/brain/status`.
+ */
+export type BrainStatus = {
+    notes: number;
+    links: number;
+    /**
+     * Notes per type.
+     */
+    byType: {
+        [key: string]: number;
+    };
+    /**
+     * Knowledge notes nothing links to and that link to nothing.
+     */
+    orphans: Array<string>;
+    stubs: number;
+    candidates: number;
+    /**
+     * Notes holding claims that have not settled yet (they settle themselves).
+     */
+    pending: Array<string>;
+    /**
+     * Pairs of live notes linked `contradicts`.
+     */
+    contradictions: Array<Array<string>>;
+    selfLinks: Array<string>;
+    /**
+     * Inputs queued for extraction.
+     */
+    sourcesPending: number;
+    sourcesFailed: number;
+    /**
+     * Whether the project has knowledge notes yet.
+     */
+    seeded: boolean;
+    /**
+     * How to seed or extend the brain — the playbook a coding agent follows.
+     */
+    guide: string;
+};
+
+/**
+ * A note's type. Entity notes (`item` … `file`) mirror something that exists elsewhere and are created the first time anything links to them; knowledge notes (`concept`, `decision`, `convention`, `pitfall`, `fact`) hold what the team learned.
+ */
+export type BrainNoteType = 'item' | 'trail' | 'flag' | 'experiment' | 'config' | 'killswitch' | 'metric' | 'universe' | 'alert' | 'pr' | 'file' | 'concept' | 'decision' | 'convention' | 'pitfall' | 'fact';
+
+/**
+ * `stub` — only linked to, no content yet; `candidate` — low confidence, kept but not handed to agents until a second source corroborates it; `active` — served; `superseded` — a later note replaced it (kept as history); `merged` — folded into another note.
+ */
+export type BrainNoteStatus = 'stub' | 'candidate' | 'active' | 'superseded' | 'merged';
+
+/**
+ * One note, without its body.
+ */
+export type BrainNoteSummary = {
+    /**
+     * Note id.
+     */
+    id: string;
+    /**
+     * The note's `[[wikilink]]` target — `<type>/<handle>` for an entity (`flag/checkout`, `item/42`, `file/apps/web/src/a.ts`), the slugged title for knowledge (`checkout-retry-policy`).
+     */
+    slug: string;
+    type: BrainNoteType;
+    title: string;
+    /**
+     * One line, for an index.
+     */
+    summary: string;
+    status: BrainNoteStatus;
+    updatedAt: string;
+};
+
+/**
+ * Response for `GET /api/admin/brain/notes`.
+ */
+export type SearchBrainNotesResponse = {
+    notes: Array<BrainNoteSummary & {
+        score: number;
+        /**
+         * How many links the note has.
+         */
+        degree: number;
+    }>;
+    /**
+     * The search terms the query was reduced to.
+     */
+    terms: Array<string>;
+};
+
+/**
+ * One value in a note's fact history. Superseded values are closed, never deleted.
+ */
+export type BrainFact = {
+    key: string;
+    value: string;
+    /**
+     * When it became true (epoch ms).
+     */
+    from: number;
+    /**
+     * When it stopped being true (epoch ms); null while current.
+     */
+    until: number | null;
+    /**
+     * When the brain learned it (epoch ms).
+     */
+    learned: number;
+    /**
+     * What said so (`pr:65`, `item:42`, `ingest:<label>`, `human:<email>`).
+     */
+    source: string;
+    /**
+     * How much the source counts — 1 ingest, 2 ticket, 3 pull request, 4 verified in the code, 5 a person.
+     */
+    authority: number;
+};
+
+/**
+ * A newer claim from a weaker source than the value it contradicts — held, and settled automatically once a source at least as strong confirms one side.
+ */
+export type BrainPendingClaim = {
+    key: string;
+    value: string;
+    /**
+     * The current value it disagrees with.
+     */
+    against: string;
+    asOf: number;
+    learned: number;
+    source: string;
+    authority: number;
+};
+
+export type BrainLink = {
+    /**
+     * The relation as read from this note — outgoing by its name (`depends_on`), a backlink by its inverse (`required_by`).
+     */
+    rel: string;
+    direction: 'out' | 'in';
+    note: BrainNoteSummary;
+};
+
+/**
+ * One note with its facts, its history and every link in and out.
+ */
+export type BrainNote = BrainNoteSummary & {
+    /**
+     * The note in full (markdown).
+     */
+    body: string;
+    aliases: Array<string>;
+    tags: Array<string>;
+    /**
+     * Each fact key's current value.
+     */
+    facts: {
+        [key: string]: string;
+    };
+    /**
+     * Every value each fact has had, superseded ones included.
+     */
+    history: Array<BrainFact>;
+    pending: Array<BrainPendingClaim>;
+    confidence: number;
+    /**
+     * Every distinct source that asserted the note.
+     */
+    sources: Array<string>;
+    origin: 'derived' | 'ingested';
+    /**
+     * The row an entity note mirrors.
+     */
+    ref: {
+        type: string;
+        id: string;
+    } | null;
+    /**
+     * Outgoing links and backlinks.
+     */
+    links: Array<BrainLink>;
+};
+
+/**
+ * Response for `GET /api/admin/brain/graph` — nodes by slug and the edges between them.
+ */
+export type BrainGraph = {
+    nodes: Array<BrainNoteSummary & {
+        /**
+         * Hops from the start note (0 without one).
+         */
+        depth: number;
+    }>;
+    edges: Array<{
+        from: string;
+        to: string;
+        rel: string;
+    }>;
+};
+
+export type BrainSource = {
+    id: string;
+    kind: 'text' | 'item' | 'trail' | 'pr' | 'question';
+    ref: string;
+    title: string;
+    state: 'pending' | 'done' | 'skipped' | 'failed';
+    error: string | null;
+    /**
+     * Notes the extraction created or rewrote.
+     */
+    notes: number;
+    model: string | null;
+    inputTokens: number;
+    outputTokens: number;
+    createdAt: string;
+    processedAt: string | null;
+};
+
+/**
+ * Response for `GET /api/admin/brain/sources`, newest first.
+ */
+export type ListBrainSourcesResponse = {
+    sources: Array<BrainSource>;
+    pending: number;
+    failed: number;
+};
+
+/**
+ * Where a note is grounded in the code. Verified against the connected repo — a verified note is written at code authority and re-checked when the file changes.
+ */
+export type BrainEvidence = {
+    /**
+     * A repo-relative file on the connected repo's default branch.
+     */
+    path: string;
+    /**
+     * Text copied verbatim from that file.
+     */
+    snippet: string;
+};
+
+export type IngestBrainNote = {
+    /**
+     * Markdown. Optional markup: `type:: pitfall`, `summary:: one line`, `key:: value` facts, typed links (`depends_on:: [[Billing]]`), `[[Other note]]`, `@gate:key`, `#42`, backticked repo paths.
+     */
+    text: string;
+    title?: string;
+    type?: BrainNoteType;
+    /**
+     * When what the text says became true. Default now.
+     */
+    as_of?: string;
+    /**
+     * `replace` rewrites the note it lands on (when this source outranks the one that wrote it); `merge` (default) only adds.
+     */
+    mode?: 'merge' | 'replace';
+    /**
+     * Where it came from, recorded on every fact (`seed:claude`, `postmortem 2026-10-02`, a URL).
+     */
+    source?: string;
+    /**
+     * Default true: shipeasy's model extracts and reconciles the text (billed to Jarvis credits). Pass false when you already wrote the note in its final form — the markup is applied as written.
+     */
+    extract?: boolean;
+    evidence?: Array<BrainEvidence>;
+};
+
+/**
+ * Body for `POST /api/admin/brain/ingest`.
+ */
+export type IngestBrainRequest = {
+    /**
+     * One to twenty notes, each reconciled into the note its title lands on.
+     */
+    notes: Array<IngestBrainNote>;
+};
+
+/**
+ * Response for `POST /api/admin/brain/ingest`.
+ */
+export type IngestBrainResponse = {
+    notes: Array<{
+        slug: string;
+        id: string;
+        action: 'create' | 'update' | 'unchanged';
+        changes: Array<string>;
+        links: number;
+        settled: number;
+    }>;
+    /**
+     * Whether shipeasy's model extracted the text (false when `extract` was false, or no model/credits).
+     */
+    extracted: boolean;
+    /**
+     * What the quality gates refused — unverifiable evidence, invented links.
+     */
+    dropped: Array<string>;
+    /**
+     * Why extraction did not run, when it did not (`out_of_credits`, `no_model`, `disabled`).
+     */
+    pending?: string;
+};
+
+/**
  * What a trail is shipping. A `feature` trail is held to the rollback and measured release gates.
  */
 export type TrailType = 'feature' | 'bug' | 'task';
@@ -17295,6 +17599,272 @@ export type ListOpsMemoryResponses = {
 };
 
 export type ListOpsMemoryResponse2 = ListOpsMemoryResponses[keyof ListOpsMemoryResponses];
+
+export type GetBrainStatusData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/admin/brain/status';
+};
+
+export type GetBrainStatusErrors = {
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+};
+
+export type GetBrainStatusError = GetBrainStatusErrors[keyof GetBrainStatusErrors];
+
+export type GetBrainStatusResponses = {
+    /**
+     * Brain status
+     */
+    200: BrainStatus;
+};
+
+export type GetBrainStatusResponse = GetBrainStatusResponses[keyof GetBrainStatusResponses];
+
+export type SearchBrainNotesData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Free-text query, e.g. `checkout retry`.
+         */
+        q?: string;
+        /**
+         * Only notes of this type.
+         */
+        type?: BrainNoteType;
+        /**
+         * Maximum notes to return (1-100). Defaults to 20.
+         */
+        limit?: number;
+    };
+    url: '/api/admin/brain/notes';
+};
+
+export type SearchBrainNotesErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+};
+
+export type SearchBrainNotesError = SearchBrainNotesErrors[keyof SearchBrainNotesErrors];
+
+export type SearchBrainNotesResponses = {
+    /**
+     * Matching notes
+     */
+    200: SearchBrainNotesResponse;
+};
+
+export type SearchBrainNotesResponse2 = SearchBrainNotesResponses[keyof SearchBrainNotesResponses];
+
+export type GetBrainNoteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query: {
+        /**
+         * The note's slug: `flag/checkout`, `item/42`, `file/apps/web/src/a.ts`, `checkout-retry-policy`.
+         */
+        slug: string;
+    };
+    url: '/api/admin/brain/note';
+};
+
+export type GetBrainNoteErrors = {
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+};
+
+export type GetBrainNoteError = GetBrainNoteErrors[keyof GetBrainNoteErrors];
+
+export type GetBrainNoteResponses = {
+    /**
+     * The note
+     */
+    200: BrainNote;
+};
+
+export type GetBrainNoteResponse = GetBrainNoteResponses[keyof GetBrainNoteResponses];
+
+export type GetBrainGraphData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        /**
+         * The note to start from.
+         */
+        slug?: string;
+        /**
+         * Hops to follow (1-4). Defaults to 2.
+         */
+        depth?: number;
+        /**
+         * Maximum notes (1-300). Defaults to 100.
+         */
+        limit?: number;
+    };
+    url: '/api/admin/brain/graph';
+};
+
+export type GetBrainGraphErrors = {
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+};
+
+export type GetBrainGraphError = GetBrainGraphErrors[keyof GetBrainGraphErrors];
+
+export type GetBrainGraphResponses = {
+    /**
+     * Nodes and edges
+     */
+    200: BrainGraph;
+};
+
+export type GetBrainGraphResponse = GetBrainGraphResponses[keyof GetBrainGraphResponses];
+
+export type ListBrainSourcesData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Maximum sources (1-200). Defaults to 50.
+         */
+        limit?: number;
+    };
+    url: '/api/admin/brain/sources';
+};
+
+export type ListBrainSourcesErrors = {
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+};
+
+export type ListBrainSourcesError = ListBrainSourcesErrors[keyof ListBrainSourcesErrors];
+
+export type ListBrainSourcesResponses = {
+    /**
+     * Sources
+     */
+    200: ListBrainSourcesResponse;
+};
+
+export type ListBrainSourcesResponse2 = ListBrainSourcesResponses[keyof ListBrainSourcesResponses];
+
+export type IngestBrainData = {
+    body: IngestBrainRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/admin/brain/ingest';
+};
+
+export type IngestBrainErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type IngestBrainError = IngestBrainErrors[keyof IngestBrainErrors];
+
+export type IngestBrainResponses = {
+    /**
+     * What happened to each note
+     */
+    200: IngestBrainResponse;
+};
+
+export type IngestBrainResponse2 = IngestBrainResponses[keyof IngestBrainResponses];
 
 export type GetOpsTrailData = {
     body?: never;

@@ -3165,6 +3165,230 @@ export const zListOpsMemoryResponse = z.object({
 });
 
 /**
+ * Response for `GET /api/admin/brain/status`.
+ */
+export const zBrainStatus = z.object({
+    notes: z.number(),
+    links: z.number(),
+    byType: z.record(z.string(), z.number()),
+    orphans: z.array(z.string()),
+    stubs: z.number(),
+    candidates: z.number(),
+    pending: z.array(z.string()),
+    contradictions: z.array(z.array(z.string())),
+    selfLinks: z.array(z.string()),
+    sourcesPending: z.number(),
+    sourcesFailed: z.number(),
+    seeded: z.boolean(),
+    guide: z.string()
+});
+
+/**
+ * A note's type. Entity notes (`item` … `file`) mirror something that exists elsewhere and are created the first time anything links to them; knowledge notes (`concept`, `decision`, `convention`, `pitfall`, `fact`) hold what the team learned.
+ */
+export const zBrainNoteType = z.enum([
+    'item',
+    'trail',
+    'flag',
+    'experiment',
+    'config',
+    'killswitch',
+    'metric',
+    'universe',
+    'alert',
+    'pr',
+    'file',
+    'concept',
+    'decision',
+    'convention',
+    'pitfall',
+    'fact'
+]);
+
+/**
+ * `stub` — only linked to, no content yet; `candidate` — low confidence, kept but not handed to agents until a second source corroborates it; `active` — served; `superseded` — a later note replaced it (kept as history); `merged` — folded into another note.
+ */
+export const zBrainNoteStatus = z.enum([
+    'stub',
+    'candidate',
+    'active',
+    'superseded',
+    'merged'
+]);
+
+/**
+ * One note, without its body.
+ */
+export const zBrainNoteSummary = z.object({
+    id: z.string(),
+    slug: z.string(),
+    type: zBrainNoteType,
+    title: z.string(),
+    summary: z.string(),
+    status: zBrainNoteStatus,
+    updatedAt: z.iso.datetime()
+});
+
+/**
+ * Response for `GET /api/admin/brain/notes`.
+ */
+export const zSearchBrainNotesResponse = z.object({
+    notes: z.array(zBrainNoteSummary.and(z.object({
+        score: z.number(),
+        degree: z.number()
+    }))),
+    terms: z.array(z.string())
+});
+
+/**
+ * One value in a note's fact history. Superseded values are closed, never deleted.
+ */
+export const zBrainFact = z.object({
+    key: z.string(),
+    value: z.string(),
+    from: z.number(),
+    until: z.number().nullable(),
+    learned: z.number(),
+    source: z.string(),
+    authority: z.number()
+});
+
+/**
+ * A newer claim from a weaker source than the value it contradicts — held, and settled automatically once a source at least as strong confirms one side.
+ */
+export const zBrainPendingClaim = z.object({
+    key: z.string(),
+    value: z.string(),
+    against: z.string(),
+    asOf: z.number(),
+    learned: z.number(),
+    source: z.string(),
+    authority: z.number()
+});
+
+export const zBrainLink = z.object({
+    rel: z.string(),
+    direction: z.enum(['out', 'in']),
+    note: zBrainNoteSummary
+});
+
+/**
+ * One note with its facts, its history and every link in and out.
+ */
+export const zBrainNote = zBrainNoteSummary.and(z.object({
+    body: z.string(),
+    aliases: z.array(z.string()),
+    tags: z.array(z.string()),
+    facts: z.record(z.string(), z.string()),
+    history: z.array(zBrainFact),
+    pending: z.array(zBrainPendingClaim),
+    confidence: z.number(),
+    sources: z.array(z.string()),
+    origin: z.enum(['derived', 'ingested']),
+    ref: z.object({
+        type: z.string(),
+        id: z.string()
+    }).nullable(),
+    links: z.array(zBrainLink)
+}));
+
+/**
+ * Response for `GET /api/admin/brain/graph` — nodes by slug and the edges between them.
+ */
+export const zBrainGraph = z.object({
+    nodes: z.array(zBrainNoteSummary.and(z.object({
+        depth: z.number()
+    }))),
+    edges: z.array(z.object({
+        from: z.string(),
+        to: z.string(),
+        rel: z.string()
+    }))
+});
+
+export const zBrainSource = z.object({
+    id: z.string(),
+    kind: z.enum([
+        'text',
+        'item',
+        'trail',
+        'pr',
+        'question'
+    ]),
+    ref: z.string(),
+    title: z.string(),
+    state: z.enum([
+        'pending',
+        'done',
+        'skipped',
+        'failed'
+    ]),
+    error: z.string().nullable(),
+    notes: z.number(),
+    model: z.string().nullable(),
+    inputTokens: z.number(),
+    outputTokens: z.number(),
+    createdAt: z.iso.datetime(),
+    processedAt: z.iso.datetime().nullable()
+});
+
+/**
+ * Response for `GET /api/admin/brain/sources`, newest first.
+ */
+export const zListBrainSourcesResponse = z.object({
+    sources: z.array(zBrainSource),
+    pending: z.number(),
+    failed: z.number()
+});
+
+/**
+ * Where a note is grounded in the code. Verified against the connected repo — a verified note is written at code authority and re-checked when the file changes.
+ */
+export const zBrainEvidence = z.object({
+    path: z.string().min(1).max(300),
+    snippet: z.string().min(12).max(300)
+});
+
+export const zIngestBrainNote = z.object({
+    text: z.string().min(1).max(20000),
+    title: z.string().max(200).optional(),
+    type: zBrainNoteType.optional(),
+    as_of: z.iso.datetime().optional(),
+    mode: z.enum(['merge', 'replace']).optional(),
+    source: z.string().max(200).optional(),
+    extract: z.boolean().optional(),
+    evidence: z.array(zBrainEvidence).max(6).optional()
+});
+
+/**
+ * Body for `POST /api/admin/brain/ingest`.
+ */
+export const zIngestBrainRequest = z.object({
+    notes: z.array(zIngestBrainNote).min(1).max(20)
+});
+
+/**
+ * Response for `POST /api/admin/brain/ingest`.
+ */
+export const zIngestBrainResponse = z.object({
+    notes: z.array(z.object({
+        slug: z.string(),
+        id: z.string(),
+        action: z.enum([
+            'create',
+            'update',
+            'unchanged'
+        ]),
+        changes: z.array(z.string()),
+        links: z.number(),
+        settled: z.number()
+    })),
+    extracted: z.boolean(),
+    dropped: z.array(z.string()),
+    pending: z.string().optional()
+});
+
+/**
  * What a trail is shipping. A `feature` trail is held to the rollback and measured release gates.
  */
 export const zTrailType = z.enum([
@@ -7880,6 +8104,82 @@ export const zListOpsMemoryQuery = z.object({
  * Search project memory
  */
 export const zListOpsMemoryResponse2 = zListOpsMemoryResponse;
+
+export const zGetBrainStatusHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+/**
+ * Brain status
+ */
+export const zGetBrainStatusResponse = zBrainStatus;
+
+export const zSearchBrainNotesHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zSearchBrainNotesQuery = z.object({
+    q: z.string().min(1).max(500).optional(),
+    type: zBrainNoteType.optional(),
+    limit: z.coerce.number().int().gte(1).lte(100).optional()
+});
+
+/**
+ * Matching notes
+ */
+export const zSearchBrainNotesResponse2 = zSearchBrainNotesResponse;
+
+export const zGetBrainNoteHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zGetBrainNoteQuery = z.object({
+    slug: z.string().min(1).max(300)
+});
+
+/**
+ * The note
+ */
+export const zGetBrainNoteResponse = zBrainNote;
+
+export const zGetBrainGraphHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zGetBrainGraphQuery = z.object({
+    slug: z.string().min(1).max(300).optional(),
+    depth: z.coerce.number().int().gte(1).lte(4).optional(),
+    limit: z.coerce.number().int().gte(1).lte(300).optional()
+});
+
+/**
+ * Nodes and edges
+ */
+export const zGetBrainGraphResponse = zBrainGraph;
+
+export const zListBrainSourcesHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zListBrainSourcesQuery = z.object({
+    limit: z.coerce.number().int().gte(1).lte(200).optional()
+});
+
+/**
+ * Sources
+ */
+export const zListBrainSourcesResponse2 = zListBrainSourcesResponse;
+
+export const zIngestBrainBody = zIngestBrainRequest;
+
+export const zIngestBrainHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+/**
+ * What happened to each note
+ */
+export const zIngestBrainResponse2 = zIngestBrainResponse;
 
 export const zGetOpsTrailHeaders = z.object({
     'X-Project-Id': z.string().optional()

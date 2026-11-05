@@ -589,6 +589,102 @@ shipeasy ops attachments create [options] <handle>
 | `--mime-type <value>` | optional | Media type, e.g. `image/png`. Defaults from the data URI, the fetched response, or the filename extension. |
 | `--kind <value>` | optional | Attachment kind. Defaults from the media type (image → screenshot, video → recording, else file). Ignored by the comment-media upload. |
 
+### `shipeasy ops brain`
+
+The project brain — a knowledge graph of notes and typed links that grows on its own from the work (every item, trail, PR, file, flag and metric is a note, linked the moment anything mentions it) and from knowledge sent in, which is reconciled into what is already known: later and stronger sources rewrite weaker or older ones, and every rewrite keeps a revision.
+
+```bash
+shipeasy ops brain [options] [command]
+```
+
+#### `shipeasy ops brain status`
+
+Brain status and seeding guide
+
+```bash
+shipeasy ops brain status [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+#### `shipeasy ops brain search`
+
+Search the project brain
+
+```bash
+shipeasy ops brain search [options] <q>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `q` | required | — |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--q <value>` | optional | Free-text query, e.g. `checkout retry`. |
+| `--type <value>` | optional | Only notes of this type. |
+| `--limit <value>` | optional | Maximum notes to return (1-100). Defaults to 20. |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+#### `shipeasy ops brain get`
+
+Read one brain note
+
+```bash
+shipeasy ops brain get [options] <slug>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `slug` | required | — |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--slug <value>` | optional | The note's slug: `flag/checkout`, `item/42`, `file/apps/web/src/a.ts`, `checkout-retry-policy`. |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+#### `shipeasy ops brain graph`
+
+Read a neighbourhood of the brain
+
+```bash
+shipeasy ops brain graph [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--slug <value>` | optional | The note to start from. |
+| `--depth <value>` | optional | Hops to follow (1-4). Defaults to 2. |
+| `--limit <value>` | optional | Maximum notes (1-300). Defaults to 100. |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+#### `shipeasy ops brain sources`
+
+List what the brain read
+
+```bash
+shipeasy ops brain sources [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--limit <value>` | optional | Maximum sources (1-200). Defaults to 50. |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+#### `shipeasy ops brain ingest`
+
+Teach the brain
+
+```bash
+shipeasy ops brain ingest [options]
+```
+
+| Option | | Description |
+| --- | --- | --- |
+| `--notes <value>` | optional | One to twenty notes, each reconciled into the note its title lands on. |
+
 ### `shipeasy ops comments`
 
 Comments on a queue item — the discussion thread that hangs off any bug, feature request, or auto-filed error/alert ticket.

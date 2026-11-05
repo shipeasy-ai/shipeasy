@@ -231,6 +231,15 @@ tags:
       feature lives in, and the PR that shipped it. Derived from the tickets'
       own records and rebuilt when they change. Search it before you start a
       ticket so you build on what was decided instead of rediscovering it.
+  - name: Brain
+    parent: Ops
+    description: |-
+      The project brain — a knowledge graph of notes and typed links that grows
+      on its own from the work (every item, trail, PR, file, flag and metric is
+      a note, linked the moment anything mentions it) and from knowledge sent
+      in, which is reconciled into what is already known: later and stronger
+      sources rewrite weaker or older ones, and every rewrite keeps a revision.
+      Search it before you design; teach it what you learned.
   - name: Trails
     description: |-
       Trails: the unit of shipping, from intent through merge to release. A trail
@@ -568,6 +577,18 @@ paths:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1activity
   /api/admin/ops/memory:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1memory
+  /api/admin/brain/status:
+    $ref: ./paths/brain.yaml#/~1api~1admin~1brain~1status
+  /api/admin/brain/notes:
+    $ref: ./paths/brain.yaml#/~1api~1admin~1brain~1notes
+  /api/admin/brain/note:
+    $ref: ./paths/brain.yaml#/~1api~1admin~1brain~1note
+  /api/admin/brain/graph:
+    $ref: ./paths/brain.yaml#/~1api~1admin~1brain~1graph
+  /api/admin/brain/sources:
+    $ref: ./paths/brain.yaml#/~1api~1admin~1brain~1sources
+  /api/admin/brain/ingest:
+    $ref: ./paths/brain.yaml#/~1api~1admin~1brain~1ingest
   /api/admin/ops/{handle}/trail:
     $ref: ./paths/ops.yaml#/~1api~1admin~1ops~1{handle}~1trail
   /api/admin/ops/{handle}/trail/evals:

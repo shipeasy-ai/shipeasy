@@ -229,6 +229,15 @@ tags:
       feature lives in, and the PR that shipped it. Derived from the tickets'
       own records and rebuilt when they change. Search it before you start a
       ticket so you build on what was decided instead of rediscovering it.
+  - name: Brain
+    parent: Ops
+    description: |-
+      The project brain — a knowledge graph of notes and typed links that grows
+      on its own from the work (every item, trail, PR, file, flag and metric is
+      a note, linked the moment anything mentions it) and from knowledge sent
+      in, which is reconciled into what is already known: later and stronger
+      sources rewrite weaker or older ones, and every rewrite keeps a revision.
+      Search it before you design; teach it what you learned.
   - name: Trails
     description: |-
       Trails: the unit of shipping, from intent through merge to release. A trail
@@ -7764,6 +7773,318 @@ paths:
         - NOT_FOUND
       x-cli:
         name: search
+  /api/admin/brain/status:
+    get:
+      operationId: getBrainStatus
+      summary: Brain status and seeding guide
+      description: |-
+        What the project brain holds — notes per type, links, candidates, held
+        claims, orphans, the intake queue — and `guide`, the playbook for seeding
+        or extending it. Call it first when asked to set up, seed or grow the
+        brain, and again when done to report what changed.
+
+        **Use case:** "Set up our brain" — read the status, follow `guide`
+        (read the repo's own knowledge, write notes with `ops brain ingest`), then
+        read the status again.
+      tags:
+        - Brain
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: Brain status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrainStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      x-error-codes:
+        - UNAUTHORIZED
+        - FORBIDDEN
+      x-cli:
+        name: status
+  /api/admin/brain/notes:
+    get:
+      operationId: searchBrainNotes
+      summary: Search the project brain
+      description: |-
+        Search the project's knowledge graph — conventions, pitfalls, decisions,
+        concepts and facts, plus a note for every item, trail, flag, metric, PR
+        and file they link. Title and slug hits rank over body hits, and a
+        well-linked note over a lonely one. No `q` returns the most recently
+        updated notes. Read one in full with `ops brain get <slug>`.
+
+        **Use case:** Before designing a change to checkout, an agent asks what
+        the team knows: `ops brain search "checkout retry"`.
+      tags:
+        - Brain
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: q
+          in: query
+          required: false
+          description: Free-text query, e.g. `checkout retry`.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 500
+        - name: type
+          in: query
+          required: false
+          description: Only notes of this type.
+          schema:
+            $ref: '#/components/schemas/BrainNoteType'
+        - name: limit
+          in: query
+          required: false
+          description: Maximum notes to return (1-100). Defaults to 20.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Matching notes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchBrainNotesResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+      x-cli:
+        name: search
+        positional:
+          - q
+  /api/admin/brain/note:
+    get:
+      operationId: getBrainNote
+      summary: Read one brain note
+      description: |-
+        One note in full: body, current facts and their history, held claims,
+        every source that asserted it, and every link in and out (a backlink
+        reads by its inverse relation — `touched_by`, `superseded_by`).
+
+        **Use case:** `ops brain get flag/checkout` shows every item, trail,
+        decision and pitfall that mentions the flag.
+      tags:
+        - Brain
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: slug
+          in: query
+          required: true
+          description: 'The note''s slug: `flag/checkout`, `item/42`, `file/apps/web/src/a.ts`, `checkout-retry-policy`.'
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 300
+          x-mcp:
+            required: true
+      responses:
+        '200':
+          description: The note
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrainNote'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-error-codes:
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+      x-cli:
+        name: get
+        positional:
+          - slug
+  /api/admin/brain/graph:
+    get:
+      operationId: getBrainGraph
+      summary: Read a neighbourhood of the brain
+      description: |-
+        The notes within `depth` hops of `slug` (links followed both ways) and the
+        edges between them — or, without a slug, the most recently updated notes
+        and their edges.
+
+        **Use case:** Everything two hops from `item/42`: its files, the flags it
+        mentions, and the pitfalls other work left on them.
+      tags:
+        - Brain
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: slug
+          in: query
+          required: false
+          description: The note to start from.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 300
+        - name: depth
+          in: query
+          required: false
+          description: Hops to follow (1-4). Defaults to 2.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 4
+        - name: limit
+          in: query
+          required: false
+          description: Maximum notes (1-300). Defaults to 100.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 300
+      responses:
+        '200':
+          description: Nodes and edges
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrainGraph'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-error-codes:
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+      x-cli:
+        name: graph
+  /api/admin/brain/sources:
+    get:
+      operationId: listBrainSources
+      summary: List what the brain read
+      description: |-
+        The brain's intake: every input it read (text sent in, shipped items,
+        answered questions, trails), newest first, with its extraction state,
+        the notes it produced and the model tokens it cost.
+      tags:
+        - Brain
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: limit
+          in: query
+          required: false
+          description: Maximum sources (1-200). Defaults to 50.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+      responses:
+        '200':
+          description: Sources
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListBrainSourcesResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      x-error-codes:
+        - UNAUTHORIZED
+        - FORBIDDEN
+      x-cli:
+        name: sources
+  /api/admin/brain/ingest:
+    post:
+      operationId: ingestBrain
+      summary: Teach the brain
+      description: |-
+        Send knowledge in — one to twenty notes. Each is reconciled into the note
+        its title lands on rather than added beside it: the later claim wins
+        within the same source strength, a weaker source never overwrites a
+        stronger one (a person > verified code > a merged PR > a ticket > text
+        sent in), every rewrite keeps a revision, and the same text twice changes
+        nothing.
+
+        By default shipeasy's model extracts and verifies the text (billed to the
+        project's Jarvis credits). When you already wrote each note in its final
+        form — seeding from the repo — pass `extract: false` and use the markup:
+        `type:: convention`, `summary:: one line`, `key:: value` facts, typed
+        links (`depends_on:: [[Billing]]`), `[[Other note]]`, `@gate:<key>`, `#42`,
+        backticked repo paths. Ground each note with `evidence` — a repo path and
+        a snippet copied verbatim from it; verified evidence makes the note
+        outrank anything said about that code, and it is re-checked when the file
+        changes. Lessons, not logs: one subject per note.
+
+        **Use case:** Seeding: read README / CLAUDE.md / design docs, then send
+        `{notes: [{text: "# Retries are capped\ntype:: convention\n…", extract: false, source: "seed:claude", evidence: [{path: "src/retry.ts", snippet: "export const MAX_RETRIES = 3;"}]}]}`.
+      tags:
+        - Brain
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestBrainRequest'
+            examples:
+              seed:
+                summary: A seeded convention, grounded in the code
+                value:
+                  notes:
+                    - text: |-
+                        # Checkout retries are capped
+                        type:: convention
+                        summary:: Capture retries stop at 3 with backoff
+                        retry_limit:: 3
+
+                        Retries live in `apps/web/src/checkout/retry.ts` and always carry an idempotency key.
+                      extract: false
+                      source: seed:claude
+                      evidence:
+                        - path: apps/web/src/checkout/retry.ts
+                          snippet: export const MAX_RETRIES = 3;
+              postmortem:
+                summary: Prose for the model to extract
+                value:
+                  notes:
+                    - text: 'Postmortem: double charges on 2026-10-02 came from retries without an idempotency key.'
+                      source: postmortem 2026-10-02
+      responses:
+        '200':
+          description: What happened to each note
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestBrainResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - VALIDATION
+      x-cli:
+        name: ingest
   /api/admin/ops/{handle}/trail:
     get:
       operationId: getOpsTrail
@@ -23008,6 +23329,547 @@ components:
         - terms
       additionalProperties: false
       description: Response for `GET /api/admin/ops/memory`.
+    BrainStatus:
+      type: object
+      properties:
+        notes:
+          type: number
+        links:
+          type: number
+        byType:
+          type: object
+          additionalProperties:
+            type: number
+          description: Notes per type.
+        orphans:
+          type: array
+          items:
+            type: string
+          description: Knowledge notes nothing links to and that link to nothing.
+        stubs:
+          type: number
+        candidates:
+          type: number
+        pending:
+          type: array
+          items:
+            type: string
+          description: Notes holding claims that have not settled yet (they settle themselves).
+        contradictions:
+          type: array
+          items:
+            type: array
+            items:
+              type: string
+          description: Pairs of live notes linked `contradicts`.
+        selfLinks:
+          type: array
+          items:
+            type: string
+        sourcesPending:
+          type: number
+          description: Inputs queued for extraction.
+        sourcesFailed:
+          type: number
+        seeded:
+          type: boolean
+          description: Whether the project has knowledge notes yet.
+        guide:
+          type: string
+          description: How to seed or extend the brain — the playbook a coding agent follows.
+      required:
+        - notes
+        - links
+        - byType
+        - orphans
+        - stubs
+        - candidates
+        - pending
+        - contradictions
+        - selfLinks
+        - sourcesPending
+        - sourcesFailed
+        - seeded
+        - guide
+      additionalProperties: false
+      description: Response for `GET /api/admin/brain/status`.
+    BrainNoteType:
+      type: string
+      enum:
+        - item
+        - trail
+        - flag
+        - experiment
+        - config
+        - killswitch
+        - metric
+        - universe
+        - alert
+        - pr
+        - file
+        - concept
+        - decision
+        - convention
+        - pitfall
+        - fact
+      description: A note's type. Entity notes (`item` … `file`) mirror something that exists elsewhere and are created the first time anything links to them; knowledge notes (`concept`, `decision`, `convention`, `pitfall`, `fact`) hold what the team learned.
+    BrainNoteStatus:
+      type: string
+      enum:
+        - stub
+        - candidate
+        - active
+        - superseded
+        - merged
+      description: '`stub` — only linked to, no content yet; `candidate` — low confidence, kept but not handed to agents until a second source corroborates it; `active` — served; `superseded` — a later note replaced it (kept as history); `merged` — folded into another note.'
+    BrainNoteSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Note id.
+        slug:
+          type: string
+          description: The note's `[[wikilink]]` target — `<type>/<handle>` for an entity (`flag/checkout`, `item/42`, `file/apps/web/src/a.ts`), the slugged title for knowledge (`checkout-retry-policy`).
+        type:
+          $ref: '#/components/schemas/BrainNoteType'
+        title:
+          type: string
+        summary:
+          type: string
+          description: One line, for an index.
+        status:
+          $ref: '#/components/schemas/BrainNoteStatus'
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - slug
+        - type
+        - title
+        - summary
+        - status
+        - updatedAt
+      additionalProperties: false
+      description: One note, without its body.
+    SearchBrainNotesResponse:
+      type: object
+      properties:
+        notes:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/BrainNoteSummary'
+              - type: object
+                properties:
+                  score:
+                    type: number
+                  degree:
+                    type: number
+                    description: How many links the note has.
+                required:
+                  - score
+                  - degree
+        terms:
+          type: array
+          items:
+            type: string
+          description: The search terms the query was reduced to.
+      required:
+        - notes
+        - terms
+      additionalProperties: false
+      description: Response for `GET /api/admin/brain/notes`.
+    BrainFact:
+      type: object
+      properties:
+        key:
+          type: string
+        value:
+          type: string
+        from:
+          type: number
+          description: When it became true (epoch ms).
+        until:
+          anyOf:
+            - type: number
+            - type: 'null'
+          description: When it stopped being true (epoch ms); null while current.
+        learned:
+          type: number
+          description: When the brain learned it (epoch ms).
+        source:
+          type: string
+          description: What said so (`pr:65`, `item:42`, `ingest:<label>`, `human:<email>`).
+        authority:
+          type: number
+          description: How much the source counts — 1 ingest, 2 ticket, 3 pull request, 4 verified in the code, 5 a person.
+      required:
+        - key
+        - value
+        - from
+        - until
+        - learned
+        - source
+        - authority
+      additionalProperties: false
+      description: One value in a note's fact history. Superseded values are closed, never deleted.
+    BrainPendingClaim:
+      type: object
+      properties:
+        key:
+          type: string
+        value:
+          type: string
+        against:
+          type: string
+          description: The current value it disagrees with.
+        asOf:
+          type: number
+        learned:
+          type: number
+        source:
+          type: string
+        authority:
+          type: number
+      required:
+        - key
+        - value
+        - against
+        - asOf
+        - learned
+        - source
+        - authority
+      additionalProperties: false
+      description: A newer claim from a weaker source than the value it contradicts — held, and settled automatically once a source at least as strong confirms one side.
+    BrainLink:
+      type: object
+      properties:
+        rel:
+          type: string
+          description: The relation as read from this note — outgoing by its name (`depends_on`), a backlink by its inverse (`required_by`).
+        direction:
+          type: string
+          enum:
+            - out
+            - in
+        note:
+          $ref: '#/components/schemas/BrainNoteSummary'
+      required:
+        - rel
+        - direction
+        - note
+      additionalProperties: false
+    BrainNote:
+      allOf:
+        - $ref: '#/components/schemas/BrainNoteSummary'
+        - type: object
+          properties:
+            body:
+              type: string
+              description: The note in full (markdown).
+            aliases:
+              type: array
+              items:
+                type: string
+            tags:
+              type: array
+              items:
+                type: string
+            facts:
+              type: object
+              additionalProperties:
+                type: string
+              description: Each fact key's current value.
+            history:
+              type: array
+              items:
+                $ref: '#/components/schemas/BrainFact'
+              description: Every value each fact has had, superseded ones included.
+            pending:
+              type: array
+              items:
+                $ref: '#/components/schemas/BrainPendingClaim'
+            confidence:
+              type: number
+            sources:
+              type: array
+              items:
+                type: string
+              description: Every distinct source that asserted the note.
+            origin:
+              type: string
+              enum:
+                - derived
+                - ingested
+            ref:
+              anyOf:
+                - type: object
+                  properties:
+                    type:
+                      type: string
+                    id:
+                      type: string
+                  required:
+                    - type
+                    - id
+                  additionalProperties: false
+                - type: 'null'
+              description: The row an entity note mirrors.
+            links:
+              type: array
+              items:
+                $ref: '#/components/schemas/BrainLink'
+              description: Outgoing links and backlinks.
+          required:
+            - body
+            - aliases
+            - tags
+            - facts
+            - history
+            - pending
+            - confidence
+            - sources
+            - origin
+            - ref
+            - links
+      description: One note with its facts, its history and every link in and out.
+    BrainGraph:
+      type: object
+      properties:
+        nodes:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/BrainNoteSummary'
+              - type: object
+                properties:
+                  depth:
+                    type: number
+                    description: Hops from the start note (0 without one).
+                required:
+                  - depth
+        edges:
+          type: array
+          items:
+            type: object
+            properties:
+              from:
+                type: string
+              to:
+                type: string
+              rel:
+                type: string
+            required:
+              - from
+              - to
+              - rel
+            additionalProperties: false
+      required:
+        - nodes
+        - edges
+      additionalProperties: false
+      description: Response for `GET /api/admin/brain/graph` — nodes by slug and the edges between them.
+    BrainSource:
+      type: object
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+          enum:
+            - text
+            - item
+            - trail
+            - pr
+            - question
+        ref:
+          type: string
+        title:
+          type: string
+        state:
+          type: string
+          enum:
+            - pending
+            - done
+            - skipped
+            - failed
+        error:
+          anyOf:
+            - type: string
+            - type: 'null'
+        notes:
+          type: number
+          description: Notes the extraction created or rewrote.
+        model:
+          anyOf:
+            - type: string
+            - type: 'null'
+        inputTokens:
+          type: number
+        outputTokens:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+        processedAt:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+      required:
+        - id
+        - kind
+        - ref
+        - title
+        - state
+        - error
+        - notes
+        - model
+        - inputTokens
+        - outputTokens
+        - createdAt
+        - processedAt
+      additionalProperties: false
+    ListBrainSourcesResponse:
+      type: object
+      properties:
+        sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/BrainSource'
+        pending:
+          type: number
+        failed:
+          type: number
+      required:
+        - sources
+        - pending
+        - failed
+      additionalProperties: false
+      description: Response for `GET /api/admin/brain/sources`, newest first.
+    BrainEvidence:
+      type: object
+      properties:
+        path:
+          type: string
+          minLength: 1
+          maxLength: 300
+          description: A repo-relative file on the connected repo's default branch.
+        snippet:
+          type: string
+          minLength: 12
+          maxLength: 300
+          description: Text copied verbatim from that file.
+      required:
+        - path
+        - snippet
+      additionalProperties: false
+      description: Where a note is grounded in the code. Verified against the connected repo — a verified note is written at code authority and re-checked when the file changes.
+    IngestBrainNote:
+      type: object
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 20000
+          description: 'Markdown. Optional markup: `type:: pitfall`, `summary:: one line`, `key:: value` facts, typed links (`depends_on:: [[Billing]]`), `[[Other note]]`, `@gate:key`, `#42`, backticked repo paths.'
+        title:
+          type: string
+          maxLength: 200
+        type:
+          $ref: '#/components/schemas/BrainNoteType'
+        as_of:
+          type: string
+          format: date-time
+          description: When what the text says became true. Default now.
+        mode:
+          type: string
+          enum:
+            - merge
+            - replace
+          description: '`replace` rewrites the note it lands on (when this source outranks the one that wrote it); `merge` (default) only adds.'
+        source:
+          type: string
+          maxLength: 200
+          description: Where it came from, recorded on every fact (`seed:claude`, `postmortem 2026-10-02`, a URL).
+        extract:
+          type: boolean
+          description: 'Default true: shipeasy''s model extracts and reconciles the text (billed to Jarvis credits). Pass false when you already wrote the note in its final form — the markup is applied as written.'
+        evidence:
+          type: array
+          maxItems: 6
+          items:
+            $ref: '#/components/schemas/BrainEvidence'
+      required:
+        - text
+      additionalProperties: false
+    IngestBrainRequest:
+      type: object
+      properties:
+        notes:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/IngestBrainNote'
+          description: One to twenty notes, each reconciled into the note its title lands on.
+      required:
+        - notes
+      additionalProperties: false
+      description: Body for `POST /api/admin/brain/ingest`.
+    IngestBrainResponse:
+      type: object
+      properties:
+        notes:
+          type: array
+          items:
+            type: object
+            properties:
+              slug:
+                type: string
+              id:
+                type: string
+              action:
+                type: string
+                enum:
+                  - create
+                  - update
+                  - unchanged
+              changes:
+                type: array
+                items:
+                  type: string
+              links:
+                type: number
+              settled:
+                type: number
+            required:
+              - slug
+              - id
+              - action
+              - changes
+              - links
+              - settled
+            additionalProperties: false
+        extracted:
+          type: boolean
+          description: Whether shipeasy's model extracted the text (false when `extract` was false, or no model/credits).
+        dropped:
+          type: array
+          items:
+            type: string
+          description: What the quality gates refused — unverifiable evidence, invented links.
+        pending:
+          type: string
+          description: Why extraction did not run, when it did not (`out_of_credits`, `no_model`, `disabled`).
+      required:
+        - notes
+        - extracted
+        - dropped
+      additionalProperties: false
+      description: Response for `POST /api/admin/brain/ingest`.
     TrailType:
       type: string
       enum:
