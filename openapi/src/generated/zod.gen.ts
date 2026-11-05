@@ -3116,7 +3116,10 @@ export const zOpsActivityEntry = z.object({
     to: z.string().nullable(),
     added: z.array(z.string()),
     removed: z.array(z.string()),
-    pr: zOpsActivityPr.nullable()
+    pr: zOpsActivityPr.nullable(),
+    commentId: z.string().nullable(),
+    commentEdited: z.boolean(),
+    commentDeleted: z.boolean()
 });
 
 /**

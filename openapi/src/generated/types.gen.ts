@@ -5842,6 +5842,18 @@ export type OpsActivityEntry = {
      * The pull-request event, for `pr` entries; `null` otherwise.
      */
     pr: OpsActivityPr | null;
+    /**
+     * The comment's id, for `comment` entries; `null` on other fields and on comment entries that could not be tied to a comment.
+     */
+    commentId: string | null;
+    /**
+     * The comment was edited after it was posted, so `to` is its current excerpt.
+     */
+    commentEdited: boolean;
+    /**
+     * The comment was deleted from the thread; `to` is `null` and the entry is a tombstone.
+     */
+    commentDeleted: boolean;
 };
 
 /**
