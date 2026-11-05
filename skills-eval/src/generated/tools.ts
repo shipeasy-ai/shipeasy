@@ -176,6 +176,7 @@ export const KNOWN_TOOLS: readonly string[] = [
   "trails_marketing_lists_list",
   "trails_marketing_preview",
   "trails_marketing_request_changes",
+  "trails_marketing_results",
   "trails_marketing_submit",
   "trails_marketing_update",
   "trails_milestones_add",
