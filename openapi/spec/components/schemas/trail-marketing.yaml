@@ -63,7 +63,7 @@ TrailMarketingAssetContent:
   description: |-
     The asset's content, typed by kind:
     - `email` — `subject`, `html` and/or `text`.
-    - `post` — `body`, optional `media` URLs and a `target` (the Slack channel, the subreddit, the account).
+    - `post` — `body`, optional `media` URLs and a `target` (the Slack channel, the subreddit, the account). A `target` of `slack`, `slack:#channel` or `slack:<channel id>` makes it a Slack post, published through the project's Slack connector on delivery (`slack` alone is the connector's notification channel); any other post is a hand-off a person marks posted.
     - `ad` — `variants` (each a `headline`, `body` and `cta`), `platform`, `budget`, and an optional `audience` description.
   properties:
     subject:
@@ -93,7 +93,7 @@ TrailMarketingAssetContent:
     target:
       type: string
       maxLength: 200
-      description: Where the post goes — a Slack channel, a subreddit, an account name.
+      description: Where the post goes — `slack`, `slack:#channel` or `slack:<channel id>` for a Slack post published on delivery; a subreddit or an account name for a hand-off.
     variants:
       type: array
       minItems: 1
@@ -392,6 +392,41 @@ TrailMarketingPreview:
           additionalProperties: false
         - type: "null"
       description: Email only — the recipient count. `null` for posts and ads.
+    destination:
+      anyOf:
+        - type: object
+          properties:
+            provider:
+              type: string
+              enum: [slack]
+              description: The integration the post is published through.
+            connected:
+              type: boolean
+              description: Whether the project has an authorised Slack connector to post through. A Slack post cannot be approved without one.
+            workspace:
+              anyOf:
+                - type: string
+                - type: "null"
+              description: The Slack workspace the post lands in.
+            channel:
+              anyOf:
+                - type: string
+                - type: "null"
+              description: The channel it lands in (`#name`, or the id when the name is unknown). `null` when no channel resolves.
+            channelId:
+              anyOf:
+                - type: string
+                - type: "null"
+              description: The channel's Slack id, when known.
+          required:
+            - provider
+            - connected
+            - workspace
+            - channel
+            - channelId
+          additionalProperties: false
+        - type: "null"
+      description: Slack posts only — the workspace and channel the post is published to. `null` (or absent) for emails, ads and hand-off posts.
   required:
     - asset
     - subject
