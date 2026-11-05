@@ -667,6 +667,8 @@ paths:
     $ref: ./paths/trails.yaml#/~1api~1admin~1trails~1{handle}~1milestones~1{milestoneId}
   /api/admin/trails/{handle}/marketing:
     $ref: ./paths/trail-marketing.yaml#/~1api~1admin~1trails~1{handle}~1marketing
+  /api/admin/trails/{handle}/marketing/results:
+    $ref: ./paths/trail-marketing.yaml#/~1api~1admin~1trails~1{handle}~1marketing~1results
   /api/admin/trails/{handle}/marketing/{assetId}:
     $ref: ./paths/trail-marketing.yaml#/~1api~1admin~1trails~1{handle}~1marketing~1{assetId}
   /api/admin/trails/{handle}/marketing/{assetId}/submit:

@@ -4755,14 +4755,14 @@ _Parameters_
 | `timing` | optional | `string` | When it may go out — `before_release` (the default), `at_release`, `at_full_rollout`, `after_goal`, or a milestone's name. _(length 1–120)_ |
 | `content` | required | `object` | The asset's content, typed by kind:
 - `email` — `subject`, `html` and/or `text`.
-- `post` — `body`, optional `media` URLs and a `target` (the Slack channel, the subreddit, the account).
+- `post` — `body`, optional `media` URLs and a `target` (the Slack channel, the subreddit, the account). A `target` of `slack`, `slack:#channel` or `slack:<channel id>` makes it a Slack post, published through the project's Slack connector on delivery (`slack` alone is the connector's notification channel); any other post is a hand-off a person marks posted.
 - `ad` — `variants` (each a `headline`, `body` and `cta`), `platform`, `budget`, and an optional `audience` description. |
 | `content.subject` | optional | `string` | Email subject line. _(length 0–200)_ |
 | `content.html` | optional | `string` | Email HTML body. _(length 0–200000)_ |
 | `content.text` | optional | `string` | Email plain-text body. _(length 0–100000)_ |
 | `content.body` | optional | `string` | The post's text. _(length 0–40000)_ |
 | `content.media` | optional | `string[]` | Image or video URLs attached to the post. |
-| `content.target` | optional | `string` | Where the post goes — a Slack channel, a subreddit, an account name. _(length 0–200)_ |
+| `content.target` | optional | `string` | Where the post goes — `slack`, `slack:#channel` or `slack:<channel id>` for a Slack post published on delivery; a subreddit or an account name for a hand-off. _(length 0–200)_ |
 | `content.variants` | optional | `object[]` | The ad's copy variants. |
 | `content.platform` | optional | `string` | The ad platform (Google, Meta, LinkedIn, …). _(length 0–100)_ |
 | `content.budget` | optional | `string` | The ad's budget, as the person launching it will read it (`$500 over 2 weeks`). _(length 0–100)_ |
@@ -4939,6 +4939,28 @@ _Errors_ — beyond the [common errors](#errors):
 - `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
 - `VALIDATION` — The request body failed structural (schema) validation.
 
+#### `trails_marketing_results`
+
+**Read a trail's marketing results**
+
+Every delivered asset on the trail, in delivery order, with its result: the delivery evidence (sent / suppressed / failed counts, or the post or campaign URL), the signups its UTM-tagged links brought (the `trail_marketing_attributed_signups` metric filtered by `utm_content` = the asset id) and the goal metric's mean over the goal window before delivery against the window after it.
+
+Assets that have not gone out are left out. Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+
+Safe for the restricted ops key.
+
+**Use case:** After the launch, see which announcement brought signups and whether the goal metric moved after it.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
 #### `trails_marketing_submit`
 
 **Submit a marketing asset for review**
@@ -4984,14 +5006,14 @@ _Parameters_
 | `timing` | optional | `string` | When it may go out. _(length 1–120)_ |
 | `content` | optional | `object` | The asset's content, typed by kind:
 - `email` — `subject`, `html` and/or `text`.
-- `post` — `body`, optional `media` URLs and a `target` (the Slack channel, the subreddit, the account).
+- `post` — `body`, optional `media` URLs and a `target` (the Slack channel, the subreddit, the account). A `target` of `slack`, `slack:#channel` or `slack:<channel id>` makes it a Slack post, published through the project's Slack connector on delivery (`slack` alone is the connector's notification channel); any other post is a hand-off a person marks posted.
 - `ad` — `variants` (each a `headline`, `body` and `cta`), `platform`, `budget`, and an optional `audience` description. |
 | `content.subject` | optional | `string` | Email subject line. _(length 0–200)_ |
 | `content.html` | optional | `string` | Email HTML body. _(length 0–200000)_ |
 | `content.text` | optional | `string` | Email plain-text body. _(length 0–100000)_ |
 | `content.body` | optional | `string` | The post's text. _(length 0–40000)_ |
 | `content.media` | optional | `string[]` | Image or video URLs attached to the post. |
-| `content.target` | optional | `string` | Where the post goes — a Slack channel, a subreddit, an account name. _(length 0–200)_ |
+| `content.target` | optional | `string` | Where the post goes — `slack`, `slack:#channel` or `slack:<channel id>` for a Slack post published on delivery; a subreddit or an account name for a hand-off. _(length 0–200)_ |
 | `content.variants` | optional | `object[]` | The ad's copy variants. |
 | `content.platform` | optional | `string` | The ad platform (Google, Meta, LinkedIn, …). _(length 0–100)_ |
 | `content.budget` | optional | `string` | The ad's budget, as the person launching it will read it (`$500 over 2 weeks`). _(length 0–100)_ |

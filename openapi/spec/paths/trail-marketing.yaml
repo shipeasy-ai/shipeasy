@@ -100,6 +100,48 @@
       name: create
       positional:
       - handle
+/api/admin/trails/{handle}/marketing/results:
+  get:
+    operationId: listTrailMarketingResults
+    summary: Read a trail's marketing results
+    description: 'Every delivered asset on the trail, in delivery order, with its result: the delivery evidence (sent / suppressed / failed counts, or the post or campaign URL), the signups its UTM-tagged links brought (the `trail_marketing_attributed_signups` metric filtered by `utm_content` = the asset id) and the goal metric''s mean over the goal window before delivery against the window after it.
+
+
+      Assets that have not gone out are left out. Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+
+
+      Safe for the restricted ops key.
+
+
+      **Use case:** After the launch, see which announcement brought signups and whether the goal metric moved after it.'
+    tags:
+    - Marketing
+    parameters:
+    - $ref: ../components/parameters.yaml#/ProjectId
+    - $ref: ../components/parameters.yaml#/TrailHandle
+    responses:
+      '200':
+        description: The delivered assets' results
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/trail-marketing.yaml#/ListTrailMarketingResultsResponse
+      '401':
+        $ref: ../components/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '503':
+        $ref: ../components/responses.yaml#/ServiceUnavailable
+    x-error-codes:
+    - UNAUTHORIZED
+    - FORBIDDEN
+    - NOT_FOUND
+    x-cli:
+      name: results
+      positional:
+      - handle
 /api/admin/trails/{handle}/marketing/{assetId}:
   get:
     operationId: getTrailMarketingAsset

@@ -1617,6 +1617,13 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .action(async (handle, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.createTrailMarketingAsset({ client, path: { handle: handle }, body: clean({ channel: str(opts.channel), itemId: strOrNull(opts.itemId), timing: str(opts.timing), content: json(opts.content), audience: json(opts.audience) }) }) });
     });
+  g_trails_marketing.command("results")
+    .description("Read a trail's marketing results")
+    .argument("<handle>", "The trail's handle (`T-12`) or its id.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.listTrailMarketingResults({ client, path: { handle: handle }, body: json(opts.data) as never }) });
+    });
   g_trails_marketing.command("get")
     .description("Show a marketing asset")
     .argument("<handle>", "The trail's handle (`T-12`) or its id.")

@@ -1910,6 +1910,22 @@ shipeasy trails marketing create [options] <handle>
 | `--content <value>` | optional | The asset's content, typed by kind: |
 | `--audience <value>` | optional | Email only — who it goes to. |
 
+#### `shipeasy trails marketing results`
+
+Read a trail's marketing results
+
+```bash
+shipeasy trails marketing results [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | The trail's handle (`T-12`) or its id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
 #### `shipeasy trails marketing get`
 
 Show a marketing asset

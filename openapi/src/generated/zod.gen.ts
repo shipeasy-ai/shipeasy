@@ -5241,6 +5241,42 @@ export const zCreateTrailMarketingAssetRequest = z.object({
 });
 
 /**
+ * The trail's goal metric in the window before an asset went out against the window after it — the mean of the daily readings on each side. Each side is `null` when the metric had no data there.
+ */
+export const zTrailMarketingGoalMovement = z.object({
+    metric: z.string(),
+    windowDays: z.int().gte(1),
+    before: z.number().nullable(),
+    after: z.number().nullable(),
+    delta: z.number().nullable(),
+    afterComplete: z.boolean()
+});
+
+/**
+ * A delivered asset's result — the delivery evidence, the signups its links brought and the goal metric's movement after it went out.
+ */
+export const zTrailMarketingAssetResult = z.object({
+    assetId: z.string(),
+    kind: zTrailMarketingAssetKind,
+    channel: zTrailMarketingAssetChannel,
+    deliveredAt: z.iso.datetime(),
+    sentCount: z.int().gte(0).nullable(),
+    suppressedCount: z.int().gte(0).nullable(),
+    failedCount: z.int().gte(0).nullable(),
+    postUrl: z.string().nullable(),
+    campaignUrl: z.string().nullable(),
+    signups: z.int().gte(0).nullable(),
+    goal: zTrailMarketingGoalMovement.nullable()
+});
+
+/**
+ * The result of every delivered asset on the trail, in delivery order.
+ */
+export const zListTrailMarketingResultsResponse = z.object({
+    data: z.array(zTrailMarketingAssetResult)
+});
+
+/**
  * Body for `PATCH /api/admin/trails/{handle}/marketing/{assetId}`. Any edit to an approved or scheduled asset drops its approval and sends it back to review.
  */
 export const zUpdateTrailMarketingAssetRequest = z.object({
@@ -8951,6 +8987,19 @@ export const zCreateTrailMarketingAssetPath = z.object({
  * The new draft
  */
 export const zCreateTrailMarketingAssetResponse = zTrailMarketingAsset;
+
+export const zListTrailMarketingResultsHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zListTrailMarketingResultsPath = z.object({
+    handle: z.string().min(1).max(64).regex(/^(?:T-[0-9]+|[0-9a-fA-F-]{32,36})$/)
+});
+
+/**
+ * The delivered assets' results
+ */
+export const zListTrailMarketingResultsResponse2 = zListTrailMarketingResultsResponse;
 
 export const zGetTrailMarketingAssetHeaders = z.object({
     'X-Project-Id': z.string().optional()

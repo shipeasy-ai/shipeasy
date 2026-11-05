@@ -9156,6 +9156,87 @@ export type CreateTrailMarketingAssetRequest = {
 };
 
 /**
+ * The trail's goal metric in the window before an asset went out against the window after it — the mean of the daily readings on each side. Each side is `null` when the metric had no data there.
+ */
+export type TrailMarketingGoalMovement = {
+    /**
+     * The goal metric's key.
+     */
+    metric: string;
+    /**
+     * The length of each window in days — the project's goal window.
+     */
+    windowDays: number;
+    /**
+     * The goal metric over the window ending at delivery.
+     */
+    before: number | null;
+    /**
+     * The goal metric over the window starting at delivery, cut off at now while the window is still running.
+     */
+    after: number | null;
+    /**
+     * `after - before`, or `null` when either side is.
+     */
+    delta: number | null;
+    /**
+     * Whether the after window has run its full length; while false the after reading is partial.
+     */
+    afterComplete: boolean;
+};
+
+/**
+ * A delivered asset's result — the delivery evidence, the signups its links brought and the goal metric's movement after it went out.
+ */
+export type TrailMarketingAssetResult = {
+    /**
+     * The asset's id — also the `utm_content` value its links carry.
+     */
+    assetId: string;
+    kind: TrailMarketingAssetKind;
+    channel: TrailMarketingAssetChannel;
+    /**
+     * When the asset went out.
+     */
+    deliveredAt: string;
+    /**
+     * Emails sent (email only).
+     */
+    sentCount: number | null;
+    /**
+     * Recipients skipped by the suppression list (email only).
+     */
+    suppressedCount: number | null;
+    /**
+     * Emails that failed to send (email only).
+     */
+    failedCount: number | null;
+    /**
+     * The published post's URL (Slack permalink, or the URL recorded with *Mark as posted*).
+     */
+    postUrl: string | null;
+    /**
+     * The ad campaign's URL, recorded with *Mark as launched*.
+     */
+    campaignUrl: string | null;
+    /**
+     * Signups attributed to the asset since it went out — the `trail_marketing_attributed_signups` metric's rows whose `utm_content` is this asset's id. `null` when the project has no such metric.
+     */
+    signups: number | null;
+    /**
+     * The goal metric's movement around the delivery, or `null` when the trail has no goal metric (or it could not be read).
+     */
+    goal: TrailMarketingGoalMovement | null;
+};
+
+/**
+ * The result of every delivered asset on the trail, in delivery order.
+ */
+export type ListTrailMarketingResultsResponse = {
+    data: Array<TrailMarketingAssetResult>;
+};
+
+/**
  * Body for `PATCH /api/admin/trails/{handle}/marketing/{assetId}`. Any edit to an approved or scheduled asset drops its approval and sends it back to review.
  */
 export type UpdateTrailMarketingAssetRequest = {
@@ -20581,6 +20662,55 @@ export type CreateTrailMarketingAssetResponses = {
 };
 
 export type CreateTrailMarketingAssetResponse = CreateTrailMarketingAssetResponses[keyof CreateTrailMarketingAssetResponses];
+
+export type ListTrailMarketingResultsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/marketing/results';
+};
+
+export type ListTrailMarketingResultsErrors = {
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * A backing store the endpoint needs is not bound in this environment. Transient
+     * and infrastructural — no stable `ErrorCode` is assigned, so `code` is omitted.
+     */
+    503: Error;
+};
+
+export type ListTrailMarketingResultsError = ListTrailMarketingResultsErrors[keyof ListTrailMarketingResultsErrors];
+
+export type ListTrailMarketingResultsResponses = {
+    /**
+     * The delivered assets' results
+     */
+    200: ListTrailMarketingResultsResponse;
+};
+
+export type ListTrailMarketingResultsResponse2 = ListTrailMarketingResultsResponses[keyof ListTrailMarketingResultsResponses];
 
 export type GetTrailMarketingAssetData = {
     body?: never;

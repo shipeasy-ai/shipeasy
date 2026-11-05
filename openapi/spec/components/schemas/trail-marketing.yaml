@@ -582,3 +582,118 @@ CreateMarketingListResponse:
     - invalid
     - duplicates
   additionalProperties: false
+TrailMarketingGoalMovement:
+  type: object
+  description: The trail's goal metric in the window before an asset went out against the window after it — the mean of the daily readings on each side. Each side is `null` when the metric had no data there.
+  properties:
+    metric:
+      type: string
+      description: The goal metric's key.
+    windowDays:
+      type: integer
+      minimum: 1
+      description: The length of each window in days — the project's goal window.
+    before:
+      anyOf:
+        - type: number
+        - type: "null"
+      description: The goal metric over the window ending at delivery.
+    after:
+      anyOf:
+        - type: number
+        - type: "null"
+      description: The goal metric over the window starting at delivery, cut off at now while the window is still running.
+    delta:
+      anyOf:
+        - type: number
+        - type: "null"
+      description: '`after - before`, or `null` when either side is.'
+    afterComplete:
+      type: boolean
+      description: Whether the after window has run its full length; while false the after reading is partial.
+  required:
+    - metric
+    - windowDays
+    - before
+    - after
+    - delta
+    - afterComplete
+  additionalProperties: false
+TrailMarketingAssetResult:
+  type: object
+  description: A delivered asset's result — the delivery evidence, the signups its links brought and the goal metric's movement after it went out.
+  properties:
+    assetId:
+      type: string
+      description: The asset's id — also the `utm_content` value its links carry.
+    kind:
+      $ref: "#/TrailMarketingAssetKind"
+    channel:
+      $ref: "#/TrailMarketingAssetChannel"
+    deliveredAt:
+      type: string
+      format: date-time
+      description: When the asset went out.
+    sentCount:
+      anyOf:
+        - type: integer
+          minimum: 0
+        - type: "null"
+      description: Emails sent (email only).
+    suppressedCount:
+      anyOf:
+        - type: integer
+          minimum: 0
+        - type: "null"
+      description: Recipients skipped by the suppression list (email only).
+    failedCount:
+      anyOf:
+        - type: integer
+          minimum: 0
+        - type: "null"
+      description: Emails that failed to send (email only).
+    postUrl:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The published post's URL (Slack permalink, or the URL recorded with *Mark as posted*).
+    campaignUrl:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: The ad campaign's URL, recorded with *Mark as launched*.
+    signups:
+      anyOf:
+        - type: integer
+          minimum: 0
+        - type: "null"
+      description: Signups attributed to the asset since it went out — the `trail_marketing_attributed_signups` metric's rows whose `utm_content` is this asset's id. `null` when the project has no such metric.
+    goal:
+      anyOf:
+        - $ref: "#/TrailMarketingGoalMovement"
+        - type: "null"
+      description: The goal metric's movement around the delivery, or `null` when the trail has no goal metric (or it could not be read).
+  required:
+    - assetId
+    - kind
+    - channel
+    - deliveredAt
+    - sentCount
+    - suppressedCount
+    - failedCount
+    - postUrl
+    - campaignUrl
+    - signups
+    - goal
+  additionalProperties: false
+ListTrailMarketingResultsResponse:
+  type: object
+  description: The result of every delivered asset on the trail, in delivery order.
+  properties:
+    data:
+      type: array
+      items:
+        $ref: "#/TrailMarketingAssetResult"
+  required:
+    - data
+  additionalProperties: false
