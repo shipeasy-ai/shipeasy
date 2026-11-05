@@ -28545,7 +28545,7 @@ components:
                 - channelId
               additionalProperties: false
             - type: 'null'
-          description: Slack posts only — the workspace and channel the post is published to. `null` for emails, ads and hand-off posts.
+          description: Slack posts only — the workspace and channel the post is published to. `null` (or absent) for emails, ads and hand-off posts.
       required:
         - asset
         - subject
@@ -28553,7 +28553,6 @@ components:
         - text
         - links
         - recipients
-        - destination
       additionalProperties: false
     MarketingList:
       type: object

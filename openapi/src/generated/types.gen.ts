@@ -9237,9 +9237,9 @@ export type TrailMarketingPreview = {
         willSend: number;
     } | null;
     /**
-     * Slack posts only — the workspace and channel the post is published to. `null` for emails, ads and hand-off posts.
+     * Slack posts only — the workspace and channel the post is published to. `null` (or absent) for emails, ads and hand-off posts.
      */
-    destination: {
+    destination?: {
         /**
          * The integration the post is published through.
          */

@@ -40184,7 +40184,7 @@
                 "type": "null"
               }
             ],
-            "description": "Slack posts only — the workspace and channel the post is published to. `null` for emails, ads and hand-off posts."
+            "description": "Slack posts only — the workspace and channel the post is published to. `null` (or absent) for emails, ads and hand-off posts."
           }
         },
         "required": [
@@ -40193,8 +40193,7 @@
           "html",
           "text",
           "links",
-          "recipients",
-          "destination"
+          "recipients"
         ],
         "additionalProperties": false
       },

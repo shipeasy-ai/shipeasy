@@ -5285,7 +5285,7 @@ export const zTrailMarketingPreview = z.object({
         workspace: z.string().nullable(),
         channel: z.string().nullable(),
         channelId: z.string().nullable()
-    }).nullable()
+    }).nullish()
 });
 
 /**
