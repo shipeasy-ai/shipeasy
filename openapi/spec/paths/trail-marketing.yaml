@@ -557,6 +557,51 @@
       positional:
       - handle
       - assetId
+/api/admin/trails/{handle}/marketing-results:
+  get:
+    operationId: listTrailMarketingResults
+    summary: Read each delivered asset's results
+    description: 'The result of every delivered marketing asset on the trail: its delivery evidence (sent / suppressed / failed counts, or the post or campaign URL), the signups attributed to it
+      (the trail''s `trail_marketing_attributed_signups` metric filtered by `utm_content=<asset id>`, since delivery), and how the trail''s goal metric moved in the window after delivery against
+      the same window before it.
+
+
+      An asset with no delivery yet is left out. `signups` is `null` when the trail does not measure attributed signups or the read failed; `goal` is `null` when the trail has no goal metric.
+
+
+      Served only while the `trail_marketing` flag is on for the project; otherwise `404`.
+
+
+      Safe for the restricted ops key.
+
+
+      **Use case:** After the launch, see which email or post brought signups and whether the goal moved after it went out.'
+    tags:
+    - Marketing
+    parameters:
+    - $ref: ../components/parameters.yaml#/ProjectId
+    - $ref: ../components/parameters.yaml#/TrailHandle
+    responses:
+      '200':
+        description: Each delivered asset's results, oldest delivery first
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/trail-marketing.yaml#/ListTrailMarketingResultsResponse
+      '401':
+        $ref: ../components/responses.yaml#/Unauthorized
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+    x-error-codes:
+    - UNAUTHORIZED
+    - FORBIDDEN
+    - NOT_FOUND
+    x-cli:
+      name: results
+      positional:
+      - handle
 /api/admin/marketing-lists:
   get:
     operationId: listMarketingLists

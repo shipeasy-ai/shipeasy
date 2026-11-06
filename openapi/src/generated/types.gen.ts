@@ -9272,6 +9272,103 @@ export type TrailMarketingPreview = {
 };
 
 /**
+ * How the trail's goal metric moved after an asset went out — its average over the window after delivery against the same-length window before it.
+ */
+export type TrailMarketingGoalMovement = {
+    /**
+     * The goal metric's id.
+     */
+    metricId: string;
+    /**
+     * The goal metric's name.
+     */
+    metricName: string;
+    /**
+     * Days on each side of the delivery.
+     */
+    windowDays: number;
+    /**
+     * The goal metric's average over the window before delivery, or `null` with no data.
+     */
+    before: number | null;
+    /**
+     * The goal metric's average since delivery (up to `windowDays`), or `null` with no data.
+     */
+    after: number | null;
+    /**
+     * `after - before`, or `null` when either side has no data.
+     */
+    change: number | null;
+    /**
+     * Whether the whole window after delivery has passed. `false` means `after` is still filling in.
+     */
+    complete: boolean;
+};
+
+/**
+ * One delivered asset's result.
+ */
+export type TrailMarketingResult = {
+    /**
+     * The asset's id — also the `utm_content` its links carry.
+     */
+    assetId: string;
+    kind: TrailMarketingAssetKind;
+    channel: TrailMarketingAssetChannel;
+    state: TrailMarketingAssetState;
+    /**
+     * A short label for the asset — the email subject, the ad headline, or the start of the post.
+     */
+    subject: string | null;
+    /**
+     * When delivery started (email) or was recorded (hand-off).
+     */
+    deliveredAt: string;
+    /**
+     * Email recipients the message went to.
+     */
+    sentCount: number;
+    /**
+     * Email recipients skipped because they are on the suppression list.
+     */
+    suppressedCount: number;
+    /**
+     * Email recipients the send failed for.
+     */
+    failedCount: number;
+    /**
+     * The live post's URL.
+     */
+    postUrl: string | null;
+    /**
+     * The ad campaign's URL.
+     */
+    campaignUrl: string | null;
+    /**
+     * Signups attributed to the asset since delivery (`utm_content=<asset id>`), or `null` when the trail does not measure them or the read failed.
+     */
+    signups: number | null;
+    /**
+     * The goal metric's movement after delivery, or `null` when the trail has no goal metric.
+     */
+    goal: TrailMarketingGoalMovement | null;
+};
+
+/**
+ * Each delivered asset's results, oldest delivery first.
+ */
+export type ListTrailMarketingResultsResponse = {
+    data: Array<TrailMarketingResult>;
+    /**
+     * The metric the signups are read from, or `null` when the project has no `trail_marketing_attributed_signups` metric.
+     */
+    signupsMetric: {
+        id: string;
+        name: string;
+    } | null;
+};
+
+/**
  * An uploaded or pasted contact list. Selectable as an email audience only while it carries a consent attestation and is not archived.
  */
 export type MarketingList = {
@@ -21065,6 +21162,50 @@ export type PreviewTrailMarketingAssetResponses = {
 };
 
 export type PreviewTrailMarketingAssetResponse = PreviewTrailMarketingAssetResponses[keyof PreviewTrailMarketingAssetResponses];
+
+export type ListTrailMarketingResultsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The trail's handle (`T-12`) or its id.
+         */
+        handle: string;
+    };
+    query?: never;
+    url: '/api/admin/trails/{handle}/marketing-results';
+};
+
+export type ListTrailMarketingResultsErrors = {
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+};
+
+export type ListTrailMarketingResultsError = ListTrailMarketingResultsErrors[keyof ListTrailMarketingResultsErrors];
+
+export type ListTrailMarketingResultsResponses = {
+    /**
+     * Each delivered asset's results, oldest delivery first
+     */
+    200: ListTrailMarketingResultsResponse;
+};
+
+export type ListTrailMarketingResultsResponse2 = ListTrailMarketingResultsResponses[keyof ListTrailMarketingResultsResponses];
 
 export type ListMarketingListsData = {
     body?: never;

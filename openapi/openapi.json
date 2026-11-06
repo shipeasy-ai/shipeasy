@@ -15170,6 +15170,56 @@
         }
       }
     },
+    "/api/admin/trails/{handle}/marketing-results": {
+      "get": {
+        "operationId": "listTrailMarketingResults",
+        "summary": "Read each delivered asset's results",
+        "description": "The result of every delivered marketing asset on the trail: its delivery evidence (sent / suppressed / failed counts, or the post or campaign URL), the signups attributed to it (the trail's `trail_marketing_attributed_signups` metric filtered by `utm_content=<asset id>`, since delivery), and how the trail's goal metric moved in the window after delivery against the same window before it.\n\nAn asset with no delivery yet is left out. `signups` is `null` when the trail does not measure attributed signups or the read failed; `goal` is `null` when the trail has no goal metric.\n\nServed only while the `trail_marketing` flag is on for the project; otherwise `404`.\n\nSafe for the restricted ops key.\n\n**Use case:** After the launch, see which email or post brought signups and whether the goal moved after it went out.",
+        "tags": [
+          "Marketing"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectId"
+          },
+          {
+            "$ref": "#/components/parameters/TrailHandle"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Each delivered asset's results, oldest delivery first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListTrailMarketingResultsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-error-codes": [
+          "UNAUTHORIZED",
+          "FORBIDDEN",
+          "NOT_FOUND"
+        ],
+        "x-cli": {
+          "name": "results",
+          "positional": [
+            "handle"
+          ]
+        }
+      }
+    },
     "/api/admin/marketing-lists": {
       "get": {
         "operationId": "listMarketingLists",
@@ -40212,6 +40262,224 @@
           "text",
           "links",
           "recipients"
+        ],
+        "additionalProperties": false
+      },
+      "TrailMarketingGoalMovement": {
+        "type": "object",
+        "description": "How the trail's goal metric moved after an asset went out — its average over the window after delivery against the same-length window before it.",
+        "properties": {
+          "metricId": {
+            "type": "string",
+            "description": "The goal metric's id."
+          },
+          "metricName": {
+            "type": "string",
+            "description": "The goal metric's name."
+          },
+          "windowDays": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Days on each side of the delivery."
+          },
+          "before": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The goal metric's average over the window before delivery, or `null` with no data."
+          },
+          "after": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The goal metric's average since delivery (up to `windowDays`), or `null` with no data."
+          },
+          "change": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`after - before`, or `null` when either side has no data."
+          },
+          "complete": {
+            "type": "boolean",
+            "description": "Whether the whole window after delivery has passed. `false` means `after` is still filling in."
+          }
+        },
+        "required": [
+          "metricId",
+          "metricName",
+          "windowDays",
+          "before",
+          "after",
+          "change",
+          "complete"
+        ],
+        "additionalProperties": false
+      },
+      "TrailMarketingResult": {
+        "type": "object",
+        "description": "One delivered asset's result.",
+        "properties": {
+          "assetId": {
+            "type": "string",
+            "description": "The asset's id — also the `utm_content` its links carry."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TrailMarketingAssetKind"
+          },
+          "channel": {
+            "$ref": "#/components/schemas/TrailMarketingAssetChannel"
+          },
+          "state": {
+            "$ref": "#/components/schemas/TrailMarketingAssetState"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A short label for the asset — the email subject, the ad headline, or the start of the post."
+          },
+          "deliveredAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When delivery started (email) or was recorded (hand-off)."
+          },
+          "sentCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Email recipients the message went to."
+          },
+          "suppressedCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Email recipients skipped because they are on the suppression list."
+          },
+          "failedCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Email recipients the send failed for."
+          },
+          "postUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The live post's URL."
+          },
+          "campaignUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The ad campaign's URL."
+          },
+          "signups": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Signups attributed to the asset since delivery (`utm_content=<asset id>`), or `null` when the trail does not measure them or the read failed."
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrailMarketingGoalMovement"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The goal metric's movement after delivery, or `null` when the trail has no goal metric."
+          }
+        },
+        "required": [
+          "assetId",
+          "kind",
+          "channel",
+          "state",
+          "subject",
+          "deliveredAt",
+          "sentCount",
+          "suppressedCount",
+          "failedCount",
+          "postUrl",
+          "campaignUrl",
+          "signups",
+          "goal"
+        ],
+        "additionalProperties": false
+      },
+      "ListTrailMarketingResultsResponse": {
+        "type": "object",
+        "description": "Each delivered asset's results, oldest delivery first.",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrailMarketingResult"
+            }
+          },
+          "signupsMetric": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The metric the signups are read from, or `null` when the project has no `trail_marketing_attributed_signups` metric."
+          }
+        },
+        "required": [
+          "data",
+          "signupsMetric"
         ],
         "additionalProperties": false
       },
