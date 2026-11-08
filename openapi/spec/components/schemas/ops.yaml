@@ -663,6 +663,40 @@ OpsAlertContext:
         - $ref: "#/OpsAlertMetricSummary"
         - type: "null"
       description: "The metric the alert watches, hydrated with its backing event(s); `null` if not resolvable."
+    noise:
+      description: "Set when someone marked this instance as noise (`POST /api/admin/alerts/{id}/noise`): who and when, and the rule relaxation applied with it (`null` when the rule was left alone). `null` until then."
+      anyOf:
+        - type: object
+          properties:
+            by:
+              type: string
+            at:
+              type: string
+            relaxed:
+              anyOf:
+                - type: object
+                  properties:
+                    field:
+                      $ref: "./alerts.yaml#/AlertRelaxField"
+                    dimension:
+                      $ref: "./alerts.yaml#/AlertRelaxDimension"
+                    from:
+                      anyOf:
+                        - type: number
+                        - type: "null"
+                    to:
+                      type: number
+                  required:
+                    - field
+                    - dimension
+                    - from
+                    - to
+                - type: "null"
+          required:
+            - by
+            - at
+            - relaxed
+        - type: "null"
   required:
     - source
     - dedupeKey

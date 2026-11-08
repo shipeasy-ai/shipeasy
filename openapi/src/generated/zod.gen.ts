@@ -1914,6 +1914,28 @@ export const zOpsAlertMetricSummary = z.object({
 });
 
 /**
+ * An alert-rule field a noise relaxation changes — `threshold` / `rangeMin` / `rangeMax` / `sigma` (the value), `requiredBuckets` (the buckets), `windowHours` / `noDataMinutes` (the time).
+ */
+export const zAlertRelaxField = z.enum([
+    'threshold',
+    'rangeMin',
+    'rangeMax',
+    'sigma',
+    'requiredBuckets',
+    'windowHours',
+    'noDataMinutes'
+]);
+
+/**
+ * Which way a relaxation makes the rule harder to trip — a looser bound (`value`), more breaching buckets (`buckets`), or a longer window (`time`).
+ */
+export const zAlertRelaxDimension = z.enum([
+    'value',
+    'buckets',
+    'time'
+]);
+
+/**
  * Detail for an `alert` ticket — the fired-alert INSTANCE this ticket is. List rows carry the stored capture subset (`source`, `dedupeKey`, `ruleId`, `detail`, `href`, `observedValue`); the single-item read hydrates the rest, resolving `severity`/`status` off the ticket itself and the rule → metric → event chain at request time.
  */
 export const zOpsAlertContext = z.object({
@@ -1942,7 +1964,17 @@ export const zOpsAlertContext = z.object({
     activeSince: z.string().nullish(),
     resolvedAt: z.string().nullish(),
     rule: zOpsAlertRuleSummary.nullish(),
-    metric: zOpsAlertMetricSummary.nullish()
+    metric: zOpsAlertMetricSummary.nullish(),
+    noise: z.object({
+        by: z.string(),
+        at: z.string(),
+        relaxed: z.object({
+            field: zAlertRelaxField,
+            dimension: zAlertRelaxDimension,
+            from: z.number().nullable(),
+            to: z.number()
+        }).nullable()
+    }).nullish()
 });
 
 /**
@@ -5712,6 +5744,84 @@ export const zUpdateAlertRequest = z.object({
 });
 
 /**
+ * The alert-rule fields the relaxation changes, in `PATCH /api/admin/alert-rules/{id}` body shape. Only changed fields are present — a warning / recovery level that moves with the bound, and `bucketMinutes` when a longer window pins the bucket width, appear beside the named field.
+ */
+export const zAlertRelaxPatch = z.object({
+    threshold: z.number().optional(),
+    rangeMin: z.number().optional(),
+    rangeMax: z.number().optional(),
+    sigma: z.number().optional(),
+    warnThreshold: z.number().optional(),
+    recoveryThreshold: z.number().optional(),
+    requiredBuckets: z.int().optional(),
+    windowHours: z.int().optional(),
+    bucketMinutes: z.int().optional(),
+    noDataMinutes: z.int().optional()
+});
+
+/**
+ * One suggested relaxation — the smallest change on one field whose backtest would have kept this alert quiet.
+ */
+export const zAlertRelaxOption = z.object({
+    field: zAlertRelaxField,
+    dimension: zAlertRelaxDimension,
+    from: z.number().nullable(),
+    to: z.number(),
+    patch: zAlertRelaxPatch,
+    firesBefore: z.int(),
+    firesAfter: z.int(),
+    recommended: z.boolean(),
+    summary: z.string()
+});
+
+/**
+ * A field the rule could in principle be relaxed on, with why the backtest has no suggestion for it.
+ */
+export const zAlertRelaxUnavailable = z.object({
+    field: zAlertRelaxField,
+    dimension: zAlertRelaxDimension,
+    reason: z.string()
+});
+
+/**
+ * Every relaxation worth offering for one noisy firing, from a backtest of its rule.
+ */
+export const zAlertRelaxPlan = z.object({
+    alertId: z.string(),
+    ruleId: z.string().nullable(),
+    reproduced: z.boolean(),
+    firesBefore: z.int(),
+    span: z.object({
+        from: z.string(),
+        to: z.string(),
+        bucketMinutes: z.number()
+    }).nullable(),
+    options: z.array(zAlertRelaxOption),
+    unavailable: z.array(zAlertRelaxUnavailable)
+});
+
+/**
+ * Body for `POST /api/admin/alerts/{id}/noise`. Empty marks the alert as noise without touching its rule.
+ */
+export const zMarkAlertNoiseRequest = z.object({
+    relax: z.union([
+        z.enum(['recommended']),
+        zAlertRelaxField
+    ]).optional(),
+    value: z.number().optional()
+});
+
+export const zMarkAlertNoiseResponse = z.object({
+    alert: zAlertApiRow,
+    relaxed: z.object({
+        field: zAlertRelaxField,
+        from: z.number().nullable(),
+        to: z.number(),
+        patch: zAlertRelaxPatch
+    }).nullable()
+});
+
+/**
  * The project the caller's auth header resolves to. The shape is open — additional project fields may be present. Stripe billing internals (`stripeCustomerId`, the `stripeItemId*` family) are intentionally undocumented.
  */
 export const zGetCurrentProjectResponse = z.object({
@@ -9340,6 +9450,34 @@ export const zUpdateAlertPath = z.object({
  * Update a fired alert
  */
 export const zUpdateAlertResponse = zAlertApiRow;
+
+export const zGetAlertRelaxOptionsHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zGetAlertRelaxOptionsPath = z.object({
+    id: zResourceId
+});
+
+/**
+ * Suggested relaxations
+ */
+export const zGetAlertRelaxOptionsResponse = zAlertRelaxPlan;
+
+export const zMarkAlertNoiseBody = zMarkAlertNoiseRequest;
+
+export const zMarkAlertNoiseHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zMarkAlertNoisePath = z.object({
+    id: zResourceId
+});
+
+/**
+ * Marked as noise
+ */
+export const zMarkAlertNoiseResponse2 = zMarkAlertNoiseResponse;
 
 export const zGetCurrentProjectHeaders = z.object({
     'X-Project-Id': z.string().optional()

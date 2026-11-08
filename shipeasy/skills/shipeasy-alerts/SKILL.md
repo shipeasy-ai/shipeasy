@@ -119,6 +119,24 @@ both steps run every time, because the list gives the update its `id`:
 A "mute the X alert" or "bump the X alert to Y" ask always ends in an
 `ops_alerts_update` call on the id the list resolved.
 
+## A fired alert was noise
+
+When a *raised* alert should not have fired ("that alert was noise", "it keeps
+firing for nothing"), mark the fired alert itself rather than guessing a new
+threshold:
+
+1. `ops_fired_alerts_relax_options { "id": <fired alert id> }` (or
+   `shipeasy ops fired-alerts relax-options <id>`) replays the rule over the
+   metric's recent data. It returns the smallest change per dimension (value,
+   buckets, time) that would have kept this firing quiet, with `firesBefore` /
+   `firesAfter` and one `recommended` option.
+2. `ops_fired_alerts_noise { "id": …, "relax": "recommended" }` dismisses the
+   alert as noise and applies the change. Other forms:
+   - `"relax": "<field>"` applies that field's computed suggestion.
+   - `"relax": "<field>", "value": N` sets that field to exactly N. It must
+     loosen the rule.
+   - No `relax` dismisses the alert and leaves the rule alone.
+
 For the alerts these rules have *raised* (triaging, working them), use the
 `shipeasy-ops` skill (`ops_list` / `shipeasy ops`, `--type alert`).
 

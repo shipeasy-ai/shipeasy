@@ -1330,6 +1330,28 @@
         "additionalProperties": {},
         "description": "The metric an alert watches, with its backing events."
       },
+      "AlertRelaxField": {
+        "type": "string",
+        "enum": [
+          "threshold",
+          "rangeMin",
+          "rangeMax",
+          "sigma",
+          "requiredBuckets",
+          "windowHours",
+          "noDataMinutes"
+        ],
+        "description": "An alert-rule field a noise relaxation changes — `threshold` / `rangeMin` / `rangeMax` / `sigma` (the value), `requiredBuckets` (the buckets), `windowHours` / `noDataMinutes` (the time)."
+      },
+      "AlertRelaxDimension": {
+        "type": "string",
+        "enum": [
+          "value",
+          "buckets",
+          "time"
+        ],
+        "description": "Which way a relaxation makes the rule harder to trip — a looser bound (`value`), more breaching buckets (`buckets`), or a longer window (`time`)."
+      },
       "OpsAlertContext": {
         "type": "object",
         "properties": {
@@ -1460,6 +1482,67 @@
               }
             ],
             "description": "The metric the alert watches, hydrated with its backing event(s); `null` if not resolvable."
+          },
+          "noise": {
+            "description": "Set when someone marked this instance as noise (`POST /api/admin/alerts/{id}/noise`): who and when, and the rule relaxation applied with it (`null` when the rule was left alone). `null` until then.",
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "by": {
+                    "type": "string"
+                  },
+                  "at": {
+                    "type": "string"
+                  },
+                  "relaxed": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "$ref": "#/components/schemas/AlertRelaxField"
+                          },
+                          "dimension": {
+                            "$ref": "#/components/schemas/AlertRelaxDimension"
+                          },
+                          "from": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "to": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "field",
+                          "dimension",
+                          "from",
+                          "to"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "by",
+                  "at",
+                  "relaxed"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [

@@ -709,6 +709,10 @@ paths:
     $ref: ./paths/alerts.yaml#/~1api~1admin~1alerts
   /api/admin/alerts/{id}:
     $ref: ./paths/alerts.yaml#/~1api~1admin~1alerts~1{id}
+  /api/admin/alerts/{id}/relax-options:
+    $ref: ./paths/alerts.yaml#/~1api~1admin~1alerts~1{id}~1relax-options
+  /api/admin/alerts/{id}/noise:
+    $ref: ./paths/alerts.yaml#/~1api~1admin~1alerts~1{id}~1noise
   /api/admin/projects/current:
     $ref: ./paths/projects.yaml#/~1api~1admin~1projects~1current
   /api/admin/projects/upsert:

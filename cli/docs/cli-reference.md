@@ -800,6 +800,39 @@ shipeasy ops fired-alerts update [options] <id>
 | `--assignee-id <value>` | optional | PERSON owner — a `users.id`, or `null` to clear the assignment. |
 | `--agent <value>` | optional | AGENT owner — a connected trigger connector's id (`connectors.id`), the built-in `"jarvis"` (Enterprise plan only — rejected with `403` otherwise), or `null` to clear. Stored in `assigneeConnectorId` or `assigneeAgent` depending on the value; the two are mutually exclusive. |
 
+#### `shipeasy ops fired-alerts relax-options`
+
+Suggest how to relax a noisy alert's rule
+
+```bash
+shipeasy ops fired-alerts relax-options [options] <id>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `id` | required | The fired alert's id (or its ops item number). |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+#### `shipeasy ops fired-alerts noise`
+
+Mark a fired alert as noise
+
+```bash
+shipeasy ops fired-alerts noise [options] <id>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `id` | required | The fired alert's id (or its ops item number). |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--relax <value>` | optional | `recommended` applies the recommended suggestion; a field name applies that field's suggestion, or exactly `value` when given. Omit to leave the rule alone. |
+| `--value <value>` | optional | Exact value for the `relax` field. Must loosen the rule. Requires `relax` to name a field. |
+
 ### `shipeasy ops investigations`
 
 Investigation records on a queue item — the structured, read-only write-ups an AI agent produces while working it (findings / a blocking question / QA notes), plus the `working` run rows an ack or an AI hand-off opens.

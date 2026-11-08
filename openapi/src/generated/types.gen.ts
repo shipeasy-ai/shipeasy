@@ -3525,6 +3525,16 @@ export type OpsAlertMetricSummary = {
 };
 
 /**
+ * An alert-rule field a noise relaxation changes — `threshold` / `rangeMin` / `rangeMax` / `sigma` (the value), `requiredBuckets` (the buckets), `windowHours` / `noDataMinutes` (the time).
+ */
+export type AlertRelaxField = 'threshold' | 'rangeMin' | 'rangeMax' | 'sigma' | 'requiredBuckets' | 'windowHours' | 'noDataMinutes';
+
+/**
+ * Which way a relaxation makes the rule harder to trip — a looser bound (`value`), more breaching buckets (`buckets`), or a longer window (`time`).
+ */
+export type AlertRelaxDimension = 'value' | 'buckets' | 'time';
+
+/**
  * Detail for an `alert` ticket — the fired-alert INSTANCE this ticket is. List rows carry the stored capture subset (`source`, `dedupeKey`, `ruleId`, `detail`, `href`, `observedValue`); the single-item read hydrates the rest, resolving `severity`/`status` off the ticket itself and the rule → metric → event chain at request time.
  */
 export type OpsAlertContext = {
@@ -3576,6 +3586,19 @@ export type OpsAlertContext = {
      * The metric the alert watches, hydrated with its backing event(s); `null` if not resolvable.
      */
     metric?: OpsAlertMetricSummary | null;
+    /**
+     * Set when someone marked this instance as noise (`POST /api/admin/alerts/{id}/noise`): who and when, and the rule relaxation applied with it (`null` when the rule was left alone). `null` until then.
+     */
+    noise?: {
+        by: string;
+        at: string;
+        relaxed: {
+            field: AlertRelaxField;
+            dimension: AlertRelaxDimension;
+            from: number | null;
+            to: number;
+        } | null;
+    } | null;
     [key: string]: unknown;
 };
 
@@ -10081,6 +10104,129 @@ export type UpdateAlertRequest = {
      * AGENT owner — a connected trigger connector's id (`connectors.id`), the built-in `"jarvis"` (Enterprise plan only — rejected with `403` otherwise), or `null` to clear. Stored in `assigneeConnectorId` or `assigneeAgent` depending on the value; the two are mutually exclusive.
      */
     agent?: string | null;
+};
+
+/**
+ * The alert-rule fields the relaxation changes, in `PATCH /api/admin/alert-rules/{id}` body shape. Only changed fields are present — a warning / recovery level that moves with the bound, and `bucketMinutes` when a longer window pins the bucket width, appear beside the named field.
+ */
+export type AlertRelaxPatch = {
+    threshold?: number;
+    rangeMin?: number;
+    rangeMax?: number;
+    sigma?: number;
+    warnThreshold?: number;
+    recoveryThreshold?: number;
+    requiredBuckets?: number;
+    windowHours?: number;
+    bucketMinutes?: number;
+    noDataMinutes?: number;
+};
+
+/**
+ * One suggested relaxation — the smallest change on one field whose backtest would have kept this alert quiet.
+ */
+export type AlertRelaxOption = {
+    field: AlertRelaxField;
+    dimension: AlertRelaxDimension;
+    /**
+     * The field's current value, or `null` when it is unset.
+     */
+    from: number | null;
+    /**
+     * The suggested value.
+     */
+    to: number;
+    patch: AlertRelaxPatch;
+    /**
+     * How many times the rule as it is fired over the replayed span.
+     */
+    firesBefore: number;
+    /**
+     * How many times it would have fired with this change.
+     */
+    firesAfter: number;
+    /**
+     * True on exactly one option — the one that gives up the fewest other firings.
+     */
+    recommended: boolean;
+    /**
+     * The change as one plain sentence.
+     */
+    summary: string;
+};
+
+/**
+ * A field the rule could in principle be relaxed on, with why the backtest has no suggestion for it.
+ */
+export type AlertRelaxUnavailable = {
+    field: AlertRelaxField;
+    dimension: AlertRelaxDimension;
+    reason: string;
+};
+
+/**
+ * Every relaxation worth offering for one noisy firing, from a backtest of its rule.
+ */
+export type AlertRelaxPlan = {
+    alertId: string;
+    /**
+     * The rule that raised the alert, or `null` for an alert no metric rule raised.
+     */
+    ruleId: string | null;
+    /**
+     * Whether the replay reproduced this firing. When it does not (the data or the rule changed since), no option is offered.
+     */
+    reproduced: boolean;
+    /**
+     * Firings of the rule as it is over the replayed span.
+     */
+    firesBefore: number;
+    /**
+     * The replayed span, or `null` when nothing was replayed.
+     */
+    span: {
+        /**
+         * ISO-8601 start of the replayed span.
+         */
+        from: string;
+        /**
+         * ISO-8601 end of the replayed span.
+         */
+        to: string;
+        /**
+         * The bucket width the rule was replayed at.
+         */
+        bucketMinutes: number;
+    } | null;
+    options: Array<AlertRelaxOption>;
+    unavailable: Array<AlertRelaxUnavailable>;
+};
+
+/**
+ * Body for `POST /api/admin/alerts/{id}/noise`. Empty marks the alert as noise without touching its rule.
+ */
+export type MarkAlertNoiseRequest = {
+    /**
+     * `recommended` applies the recommended suggestion; a field name applies that field's suggestion, or exactly `value` when given. Omit to leave the rule alone.
+     */
+    relax?: 'recommended' | AlertRelaxField;
+    /**
+     * Exact value for the `relax` field. Must loosen the rule. Requires `relax` to name a field.
+     */
+    value?: number;
+};
+
+export type MarkAlertNoiseResponse = {
+    alert: AlertApiRow;
+    /**
+     * The relaxation applied to the rule, or `null` when the rule was left alone.
+     */
+    relaxed: {
+        field: AlertRelaxField;
+        from: number | null;
+        to: number;
+        patch: AlertRelaxPatch;
+    } | null;
 };
 
 /**
@@ -22015,6 +22161,118 @@ export type UpdateAlertResponses = {
 };
 
 export type UpdateAlertResponse = UpdateAlertResponses[keyof UpdateAlertResponses];
+
+export type GetAlertRelaxOptionsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The fired alert's id (or its ops item number).
+         */
+        id: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/alerts/{id}/relax-options';
+};
+
+export type GetAlertRelaxOptionsErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type GetAlertRelaxOptionsError = GetAlertRelaxOptionsErrors[keyof GetAlertRelaxOptionsErrors];
+
+export type GetAlertRelaxOptionsResponses = {
+    /**
+     * Suggested relaxations
+     */
+    200: AlertRelaxPlan;
+};
+
+export type GetAlertRelaxOptionsResponse = GetAlertRelaxOptionsResponses[keyof GetAlertRelaxOptionsResponses];
+
+export type MarkAlertNoiseData = {
+    body?: MarkAlertNoiseRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * The fired alert's id (or its ops item number).
+         */
+        id: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/alerts/{id}/noise';
+};
+
+export type MarkAlertNoiseErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type MarkAlertNoiseError = MarkAlertNoiseErrors[keyof MarkAlertNoiseErrors];
+
+export type MarkAlertNoiseResponses = {
+    /**
+     * Marked as noise
+     */
+    200: MarkAlertNoiseResponse;
+};
+
+export type MarkAlertNoiseResponse2 = MarkAlertNoiseResponses[keyof MarkAlertNoiseResponses];
 
 export type GetCurrentProjectData = {
     body?: never;

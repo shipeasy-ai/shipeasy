@@ -2190,6 +2190,60 @@ _Errors_ — beyond the [common errors](#errors):
 
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 
+### `ops_fired_alerts_noise`
+
+**Mark a fired alert as noise**
+
+Waves a fired alert off as **noise** — it closes as `dismissed` (the queue item goes `wont_fix`) and is recorded as noise rather than a plain dismissal — and optionally relaxes the rule that raised it so the same condition fires less often.
+
+- **No `relax`** — mark as noise only; the rule is untouched.
+- **`relax: "recommended"`** — apply the recommended suggestion from `GET /api/admin/alerts/{id}/relax-options`.
+- **`relax: "<field>"`** (`threshold`, `rangeMin`, `rangeMax`, `sigma`, `requiredBuckets`, `windowHours`, `noDataMinutes`) without `value` — apply the computed suggestion for that field. `422` when the backtest has none for it, with the reason.
+- **`relax: "<field>"` with `value`** — set that field to exactly `value`. It must be a relaxation (a higher `gt` threshold, a lower `lt` one, a wider range, a higher sigma, more required buckets, a longer window); a value that would make the rule fire more is refused with `422` — tighten a rule with `PATCH /api/admin/alert-rules/{id}`. Warning / recovery levels move by the same delta; a longer window pins the bucket width and keeps an "N of M" rule's ratio.
+
+The rule change goes through the alert-rule update, so it is validated, audited, and restorable exactly like any other edit. Returns the closed alert and the relaxation applied (or `null`).
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `relax` | optional | `any` | `recommended` applies the recommended suggestion; a field name applies that field's suggestion, or exactly `value` when given. Omit to leave the rule alone. |
+| `value` | optional | `number` | Exact value for the `relax` field. Must loosen the rule. Requires `relax` to name a field. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+### `ops_fired_alerts_relax_options`
+
+**Suggest how to relax a noisy alert's rule**
+
+Computes, for one fired `metric_rule` alert, the smallest change to its rule that would have kept THIS firing quiet — one suggestion per dimension the rule can be relaxed on:
+
+- **value** — the bound itself: `threshold`, a range edge (`rangeMin` / `rangeMax`), or `sigma` for anomaly / outlier rules. A warning or recovery level moves by the same delta, so their ordering survives.
+- **buckets** — `requiredBuckets`, on a rule that already counts "N of M" breaching buckets.
+- **time** — `windowHours` (or `noDataMinutes` for a no-data rule). The bucket width is pinned at its current size, so the window grows by buckets rather than widening them.
+
+No model is involved. The suggestions come from a **backtest**: the rule is replayed over the metric's recent data (up to 7 days plus the firing) with the evaluator's own arithmetic and raise/clear state machine, and each knob is searched for the smallest value whose replay never has this alert open, plus a little headroom, rounded to a number a person would type. Each option reports how often the rule fired over the replayed span before and after the change. The `recommended` option is the one that gives up the fewest OTHER firings (ties go to the smaller change).
+
+Read-only — nothing changes. Apply a suggestion with `POST /api/admin/alerts/{id}/noise`. An alert not raised by a metric rule (kill switch, experiment guards), or whose rule is archived or composite, is a `422` — it has no rule knob to relax, though it can still be marked as noise.
+
+**Use case:** before marking an alert as noise, see what it would take for the rule to stop raising it, and what that costs in coverage.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `id` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
 ### `ops_fired_alerts_update`
 
 **Update a fired alert**

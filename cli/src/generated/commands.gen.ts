@@ -891,6 +891,21 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .action(async (id, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.updateAlert({ client, path: { id: id }, body: clean({ status: str(opts.status), assigneeId: strOrNull(opts.assigneeId), agent: strOrNull(opts.agent) }) }) });
     });
+  g_ops_fired_alerts.command("relax-options")
+    .description("Suggest how to relax a noisy alert's rule")
+    .argument("<id>", "The fired alert's id (or its ops item number).")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (id, opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.getAlertRelaxOptions({ client, path: { id: id }, body: json(opts.data) as never }) });
+    });
+  g_ops_fired_alerts.command("noise")
+    .description("Mark a fired alert as noise")
+    .argument("<id>", "The fired alert's id (or its ops item number).")
+    .option("--relax <value>", "`recommended` applies the recommended suggestion; a field name applies that field's suggestion, or exactly `value` when given. Omit to leave the rule alone.")
+    .option("--value <value>", "Exact value for the `relax` field. Must loosen the rule. Requires `relax` to name a field.")
+    .action(async (id, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.markAlertNoise({ client, path: { id: id }, body: clean({ relax: str(opts.relax), value: num(opts.value) }) }) });
+    });
   g_ops_investigations.command("list")
     .description("List an item's investigation records")
     .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id.")

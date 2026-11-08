@@ -138,3 +138,202 @@ UpdateAlertRequest:
   additionalProperties: false
 UpdateAlertResponse:
   $ref: "#/AlertApiRow"
+AlertRelaxField:
+  type: string
+  enum:
+    - threshold
+    - rangeMin
+    - rangeMax
+    - sigma
+    - requiredBuckets
+    - windowHours
+    - noDataMinutes
+  description: An alert-rule field a noise relaxation changes — `threshold` / `rangeMin` / `rangeMax` / `sigma` (the value), `requiredBuckets` (the buckets), `windowHours` / `noDataMinutes` (the time).
+AlertRelaxDimension:
+  type: string
+  enum:
+    - value
+    - buckets
+    - time
+  description: Which way a relaxation makes the rule harder to trip — a looser bound (`value`), more breaching buckets (`buckets`), or a longer window (`time`).
+AlertRelaxPatch:
+  type: object
+  description: The alert-rule fields the relaxation changes, in `PATCH /api/admin/alert-rules/{id}` body shape. Only changed fields are present — a warning / recovery level that moves with the bound, and `bucketMinutes` when a longer window pins the bucket width, appear beside the named field.
+  properties:
+    threshold:
+      type: number
+    rangeMin:
+      type: number
+    rangeMax:
+      type: number
+    sigma:
+      type: number
+    warnThreshold:
+      type: number
+    recoveryThreshold:
+      type: number
+    requiredBuckets:
+      type: integer
+    windowHours:
+      type: integer
+    bucketMinutes:
+      type: integer
+    noDataMinutes:
+      type: integer
+  additionalProperties: false
+AlertRelaxOption:
+  type: object
+  description: One suggested relaxation — the smallest change on one field whose backtest would have kept this alert quiet.
+  properties:
+    field:
+      $ref: "#/AlertRelaxField"
+    dimension:
+      $ref: "#/AlertRelaxDimension"
+    from:
+      description: The field's current value, or `null` when it is unset.
+      anyOf:
+        - type: number
+        - type: "null"
+    to:
+      type: number
+      description: The suggested value.
+    patch:
+      $ref: "#/AlertRelaxPatch"
+    firesBefore:
+      type: integer
+      description: How many times the rule as it is fired over the replayed span.
+    firesAfter:
+      type: integer
+      description: How many times it would have fired with this change.
+    recommended:
+      type: boolean
+      description: True on exactly one option — the one that gives up the fewest other firings.
+    summary:
+      type: string
+      description: The change as one plain sentence.
+  required:
+    - field
+    - dimension
+    - from
+    - to
+    - patch
+    - firesBefore
+    - firesAfter
+    - recommended
+    - summary
+  additionalProperties: false
+AlertRelaxUnavailable:
+  type: object
+  description: A field the rule could in principle be relaxed on, with why the backtest has no suggestion for it.
+  properties:
+    field:
+      $ref: "#/AlertRelaxField"
+    dimension:
+      $ref: "#/AlertRelaxDimension"
+    reason:
+      type: string
+  required:
+    - field
+    - dimension
+    - reason
+  additionalProperties: false
+AlertRelaxPlan:
+  type: object
+  description: Every relaxation worth offering for one noisy firing, from a backtest of its rule.
+  properties:
+    alertId:
+      type: string
+    ruleId:
+      description: The rule that raised the alert, or `null` for an alert no metric rule raised.
+      anyOf:
+        - type: string
+        - type: "null"
+    reproduced:
+      type: boolean
+      description: Whether the replay reproduced this firing. When it does not (the data or the rule changed since), no option is offered.
+    firesBefore:
+      type: integer
+      description: Firings of the rule as it is over the replayed span.
+    span:
+      description: The replayed span, or `null` when nothing was replayed.
+      anyOf:
+        - type: object
+          properties:
+            from:
+              type: string
+              description: ISO-8601 start of the replayed span.
+            to:
+              type: string
+              description: ISO-8601 end of the replayed span.
+            bucketMinutes:
+              type: number
+              description: The bucket width the rule was replayed at.
+          required:
+            - from
+            - to
+            - bucketMinutes
+          additionalProperties: false
+        - type: "null"
+    options:
+      type: array
+      items:
+        $ref: "#/AlertRelaxOption"
+    unavailable:
+      type: array
+      items:
+        $ref: "#/AlertRelaxUnavailable"
+  required:
+    - alertId
+    - ruleId
+    - reproduced
+    - firesBefore
+    - span
+    - options
+    - unavailable
+  additionalProperties: false
+MarkAlertNoiseRequest:
+  type: object
+  description: Body for `POST /api/admin/alerts/{id}/noise`. Empty marks the alert as noise without touching its rule.
+  properties:
+    relax:
+      description: '`recommended` applies the recommended suggestion; a field name applies that field''s suggestion, or exactly `value` when given. Omit to leave the rule alone.'
+      anyOf:
+        - type: string
+          enum:
+            - recommended
+        - $ref: "#/AlertRelaxField"
+    value:
+      type: number
+      description: Exact value for the `relax` field. Must loosen the rule. Requires `relax` to name a field.
+  additionalProperties: false
+MarkAlertNoiseResponse:
+  type: object
+  properties:
+    alert:
+      $ref: "#/AlertApiRow"
+    relaxed:
+      description: The relaxation applied to the rule, or `null` when the rule was left alone.
+      anyOf:
+        - type: object
+          properties:
+            field:
+              $ref: "#/AlertRelaxField"
+            from:
+              anyOf:
+                - type: number
+                - type: "null"
+            to:
+              type: number
+            patch:
+              $ref: "#/AlertRelaxPatch"
+          required:
+            - field
+            - from
+            - to
+            - patch
+          additionalProperties: false
+        - type: "null"
+  required:
+    - alert
+    - relaxed
+  additionalProperties: false
