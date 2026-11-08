@@ -3649,6 +3649,99 @@ export type OpsMeasurePlanContext = {
 };
 
 /**
+ * A reporter's SDK user attributes, keyed by attribute name — the same map your app passes to the SDK to evaluate flags. At most 50 attributes; each value is a string (≤500 chars), number, boolean, `null` (treated as unset) or a flat array of those scalars (≤50 entries) — anything else is rejected with a 400. `user_id` or `anonymous_id` is the bucketing unit.
+ */
+export type PublicReporterUser = {
+    [key: string]: unknown;
+};
+
+/**
+ * A feature flag that evaluated ON for the reporter.
+ */
+export type OpsReporterFlag = {
+    /**
+     * The flag's SDK key — what code passes to `getFlag` (`folder/name` when foldered).
+     */
+    key: string;
+    /**
+     * The flag's admin name (`folder.name` when foldered) — the handle the admin API, CLI and MCP address it by.
+     */
+    name: string;
+};
+
+/**
+ * A kill switch that was engaged (killed) when the report was filed.
+ */
+export type OpsReporterKillswitch = {
+    /**
+     * The kill switch's SDK key — what code passes to `getKillSwitch`.
+     */
+    key: string;
+    /**
+     * The kill switch's admin name — the handle the admin API, CLI and MCP address it by.
+     */
+    name: string;
+    /**
+     * For a kill switch with named sub-switches, the ones that were killed. Absent for a flat kill switch.
+     */
+    switches?: Array<string>;
+};
+
+/**
+ * A running experiment the reporter was enrolled in.
+ */
+export type OpsReporterExperiment = {
+    /**
+     * The experiment's SDK key — what code passes to `getExperiment`.
+     */
+    key: string;
+    /**
+     * The experiment's admin name — the handle the admin API, CLI and MCP address it by.
+     */
+    name: string;
+    /**
+     * The group (arm) the reporter was assigned to, e.g. `control` or `treatment`.
+     */
+    group: string;
+    /**
+     * The universe the experiment runs in.
+     */
+    universe?: string;
+};
+
+/**
+ * Who filed a public bug/feature request and what they had on. Present only when the report carried the reporter's SDK identity (`user`): Shipeasy evaluates every flag, kill switch and running experiment for that user at filing time — the same evaluation the SDK runs, without per-browser devtools overrides — and keeps the result here. It is a point-in-time snapshot: a flag flipped since then is not reflected.
+ */
+export type OpsReporterContext = {
+    user: PublicReporterUser;
+    /**
+     * The environment the snapshot was evaluated against — the filing client key's environment.
+     */
+    env: string;
+    /**
+     * When the snapshot was taken (the moment the report was filed, or last re-triggered).
+     */
+    evaluatedAt: string;
+    /**
+     * Feature flags that evaluated ON for the reporter.
+     */
+    flags: Array<OpsReporterFlag>;
+    /**
+     * Kill switches that were engaged when the report was filed.
+     */
+    killswitches: Array<OpsReporterKillswitch>;
+    /**
+     * Running experiments the reporter was enrolled in, with their assigned group.
+     */
+    experiments: Array<OpsReporterExperiment>;
+    /**
+     * `true` when a list hit its 200-entry cap and was cut short.
+     */
+    truncated?: boolean;
+    [key: string]: unknown;
+};
+
+/**
  * Per-type capture context on a queue item. Exactly one of `browser` (bug/feature), `error`, `alert`, or `measurePlan` is populated depending on `type`; other keys (e.g. the AI dedupe block on bugs) may also be present.
  */
 export type OpsItemContext = {
@@ -3656,6 +3749,7 @@ export type OpsItemContext = {
     error?: OpsErrorContext;
     alert?: OpsAlertContext;
     measurePlan?: OpsMeasurePlanContext;
+    reporter?: OpsReporterContext;
     /**
      * Occurrence timeline for an `error` ticket — buckets over the project's error auto-close window (Settings → Errors: `errorAutocloseDays`, 7 days when auto-close is off, capped at 30) from the sampled occurrences, hydrated at read time by the single-item read only. Plotting exactly the quiet window that auto-resolves the error is what makes an empty right-hand edge meaningful. ABSENT (not `null`) on non-error tickets, on list rows (raw context), and when no occurrence landed in the window.
      */
@@ -4273,6 +4367,10 @@ export type CreatePublicBugRequest = {
         [key: string]: unknown;
     } | null;
     /**
+     * The reporter's SDK identity — the same user attribute object your app passes to the Shipeasy SDK to evaluate flags (`user_id`, `anonymous_id`, `email`, plus any targeting attributes). When present, Shipeasy evaluates every feature flag, kill switch and running experiment for this user at filing time and stores the result on the ticket as `context.reporter`, so triage (and any agent working the ticket) sees exactly which features the reporter had on. The browser and React Native devtools attach the identified user automatically. Omit it (or send `null`) to file without a feature snapshot.
+     */
+    user?: PublicReporterUser | null;
+    /**
      * Caller-chosen dedupe identity for this report, stored on the ticket. A repeat submission carrying the same key does NOT file a second ticket: the open ticket already holding that key is refreshed from this payload (title and the report fields overwritten, a "re-triggered" comment appended) and returned with `deduped: true` and `updated: true`. Triage state a human owns — status, priority, assignee, tags — is left untouched, and a `resolved`/`wont_fix` ticket no longer holds the key, so a failure that comes back after being closed files a fresh ticket. Omit it to fall back to the derived (title + `context.step`) dedupe, whose repeats return the existing ticket unchanged.
      */
     dedupKey?: string;
@@ -4358,6 +4456,10 @@ export type CreatePublicFeatureRequestRequest = {
     context?: {
         [key: string]: unknown;
     } | null;
+    /**
+     * The reporter's SDK identity — the same user attribute object your app passes to the Shipeasy SDK to evaluate flags (`user_id`, `anonymous_id`, `email`, plus any targeting attributes). When present, Shipeasy evaluates every feature flag, kill switch and running experiment for this user at filing time and stores the result on the ticket as `context.reporter`, so triage (and any agent working the ticket) sees exactly which features the reporter had on. The browser and React Native devtools attach the identified user automatically. Omit it (or send `null`) to file without a feature snapshot.
+     */
+    user?: PublicReporterUser | null;
     /**
      * Caller-chosen dedupe identity for this request, stored on the ticket. Behaves exactly as on `POST /ops/bug`: a repeat carrying the same key refreshes the open ticket already holding it (fields overwritten, a "re-triggered" comment appended) and returns `deduped: true` with `updated: true`, instead of filing a second one.
      */

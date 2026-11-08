@@ -1981,6 +1981,51 @@ export const zOpsMeasurePlanContext = z.object({
 });
 
 /**
+ * A reporter's SDK user attributes, keyed by attribute name — the same map your app passes to the SDK to evaluate flags. At most 50 attributes; each value is a string (≤500 chars), number, boolean, `null` (treated as unset) or a flat array of those scalars (≤50 entries) — anything else is rejected with a 400. `user_id` or `anonymous_id` is the bucketing unit.
+ */
+export const zPublicReporterUser = z.record(z.string(), z.unknown());
+
+/**
+ * A feature flag that evaluated ON for the reporter.
+ */
+export const zOpsReporterFlag = z.object({
+    key: z.string(),
+    name: z.string()
+});
+
+/**
+ * A kill switch that was engaged (killed) when the report was filed.
+ */
+export const zOpsReporterKillswitch = z.object({
+    key: z.string(),
+    name: z.string(),
+    switches: z.array(z.string()).optional()
+});
+
+/**
+ * A running experiment the reporter was enrolled in.
+ */
+export const zOpsReporterExperiment = z.object({
+    key: z.string(),
+    name: z.string(),
+    group: z.string(),
+    universe: z.string().optional()
+});
+
+/**
+ * Who filed a public bug/feature request and what they had on. Present only when the report carried the reporter's SDK identity (`user`): Shipeasy evaluates every flag, kill switch and running experiment for that user at filing time — the same evaluation the SDK runs, without per-browser devtools overrides — and keeps the result here. It is a point-in-time snapshot: a flag flipped since then is not reflected.
+ */
+export const zOpsReporterContext = z.object({
+    user: zPublicReporterUser,
+    env: z.string(),
+    evaluatedAt: z.iso.datetime(),
+    flags: z.array(zOpsReporterFlag),
+    killswitches: z.array(zOpsReporterKillswitch),
+    experiments: z.array(zOpsReporterExperiment),
+    truncated: z.boolean().optional()
+});
+
+/**
  * Per-type capture context on a queue item. Exactly one of `browser` (bug/feature), `error`, `alert`, or `measurePlan` is populated depending on `type`; other keys (e.g. the AI dedupe block on bugs) may also be present.
  */
 export const zOpsItemContext = z.object({
@@ -1988,6 +2033,7 @@ export const zOpsItemContext = z.object({
     error: zOpsErrorContext.optional(),
     alert: zOpsAlertContext.optional(),
     measurePlan: zOpsMeasurePlanContext.optional(),
+    reporter: zOpsReporterContext.optional(),
     errorChart: z.object({
         series: z.array(z.object({
             t: z.number(),
@@ -2242,6 +2288,7 @@ export const zCreatePublicBugRequest = z.object({
     userAgent: z.string().max(500).nullish(),
     viewport: z.string().max(40).nullish(),
     context: z.record(z.string(), z.unknown()).nullish(),
+    user: zPublicReporterUser.nullish(),
     dedupKey: z.string().max(200).optional(),
     notify: zNotificationTarget.nullish()
 });
@@ -2272,6 +2319,7 @@ export const zCreatePublicFeatureRequestRequest = z.object({
     pageUrl: z.url().nullish(),
     userAgent: z.string().max(500).nullish(),
     context: z.record(z.string(), z.unknown()).nullish(),
+    user: zPublicReporterUser.nullish(),
     dedupKey: z.string().max(200).optional(),
     notify: zNotificationTarget.nullish()
 });

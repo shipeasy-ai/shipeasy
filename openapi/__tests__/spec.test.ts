@@ -92,10 +92,12 @@ describe("server-SDK surface", () => {
 
   it("carries only the schemas those operations reach", () => {
     // The bundler prunes by reachability; a jump here means an operation
-    // started pulling in a large shared schema and the clients just grew. 40 =
-    // the original 30 + the ops list response (item, run, owner, context …).
+    // started pulling in a large shared schema and the clients just grew. 45 =
+    // the original 30 + the ops list response (item, run, owner, context …) +
+    // the reporter identity on the public intake (`PublicReporterUser`) and the
+    // feature snapshot it produces on `context.reporter` (4 schemas).
     const count = Object.keys(sdkSpec.components.schemas).length;
-    expect(count).toBeLessThanOrEqual(40);
+    expect(count).toBeLessThanOrEqual(45);
   });
 });
 
