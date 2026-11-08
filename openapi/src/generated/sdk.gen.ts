@@ -3425,7 +3425,7 @@ export const getAlertRelaxOptions = <ThrowOnError extends boolean = false>(optio
  * - **`relax: "<field>"`** (`threshold`, `rangeMin`, `rangeMax`, `sigma`, `requiredBuckets`, `windowHours`, `noDataMinutes`) without `value` — apply the computed suggestion for that field. `422` when the backtest has none for it, with the reason.
  * - **`relax: "<field>"` with `value`** — set that field to exactly `value`. It must be a relaxation (a higher `gt` threshold, a lower `lt` one, a wider range, a higher sigma, more required buckets, a longer window); a value that would make the rule fire more is refused with `422` — tighten a rule with `PATCH /api/admin/alert-rules/{id}`. Warning / recovery levels move by the same delta; a longer window pins the bucket width and keeps an "N of M" rule's ratio.
  *
- * The rule change goes through the alert-rule update, so it is validated, audited, and restorable exactly like any other edit. Returns the closed alert and the relaxation applied (or `null`).
+ * The rule change goes through the alert-rule update, so it is validated, audited, and restorable exactly like any other edit. The ops item records it as `context.alert.noise` — `{ by, at, relaxed: { field, dimension, from, to } | null }`. Returns the closed alert and the relaxation applied (or `null`).
  */
 export const markAlertNoise = <ThrowOnError extends boolean = false>(options: Options<MarkAlertNoiseData, ThrowOnError>): RequestResult<MarkAlertNoiseResponses, MarkAlertNoiseErrors, ThrowOnError> => (options.client ?? client).post<MarkAlertNoiseResponses, MarkAlertNoiseErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

@@ -12415,7 +12415,7 @@ paths:
         - **`relax: "<field>"`** (`threshold`, `rangeMin`, `rangeMax`, `sigma`, `requiredBuckets`, `windowHours`, `noDataMinutes`) without `value` — apply the computed suggestion for that field. `422` when the backtest has none for it, with the reason.
         - **`relax: "<field>"` with `value`** — set that field to exactly `value`. It must be a relaxation (a higher `gt` threshold, a lower `lt` one, a wider range, a higher sigma, more required buckets, a longer window); a value that would make the rule fire more is refused with `422` — tighten a rule with `PATCH /api/admin/alert-rules/{id}`. Warning / recovery levels move by the same delta; a longer window pins the bucket width and keeps an "N of M" rule's ratio.
 
-        The rule change goes through the alert-rule update, so it is validated, audited, and restorable exactly like any other edit. Returns the closed alert and the relaxation applied (or `null`).
+        The rule change goes through the alert-rule update, so it is validated, audited, and restorable exactly like any other edit. The ops item records it as `context.alert.noise` — `{ by, at, relaxed: { field, dimension, from, to } | null }`. Returns the closed alert and the relaxation applied (or `null`).
       tags:
         - Fired Alerts
       parameters:
@@ -20580,24 +20580,6 @@ components:
         - events
       additionalProperties: {}
       description: The metric an alert watches, with its backing events.
-    AlertRelaxField:
-      type: string
-      enum:
-        - threshold
-        - rangeMin
-        - rangeMax
-        - sigma
-        - requiredBuckets
-        - windowHours
-        - noDataMinutes
-      description: An alert-rule field a noise relaxation changes — `threshold` / `rangeMin` / `rangeMax` / `sigma` (the value), `requiredBuckets` (the buckets), `windowHours` / `noDataMinutes` (the time).
-    AlertRelaxDimension:
-      type: string
-      enum:
-        - value
-        - buckets
-        - time
-      description: Which way a relaxation makes the rule harder to trip — a looser bound (`value`), more breaching buckets (`buckets`), or a longer window (`time`).
     OpsAlertContext:
       type: object
       properties:
@@ -20669,40 +20651,6 @@ components:
             - $ref: '#/components/schemas/OpsAlertMetricSummary'
             - type: 'null'
           description: The metric the alert watches, hydrated with its backing event(s); `null` if not resolvable.
-        noise:
-          description: 'Set when someone marked this instance as noise (`POST /api/admin/alerts/{id}/noise`): who and when, and the rule relaxation applied with it (`null` when the rule was left alone). `null` until then.'
-          anyOf:
-            - type: object
-              properties:
-                by:
-                  type: string
-                at:
-                  type: string
-                relaxed:
-                  anyOf:
-                    - type: object
-                      properties:
-                        field:
-                          $ref: '#/components/schemas/AlertRelaxField'
-                        dimension:
-                          $ref: '#/components/schemas/AlertRelaxDimension'
-                        from:
-                          anyOf:
-                            - type: number
-                            - type: 'null'
-                        to:
-                          type: number
-                      required:
-                        - field
-                        - dimension
-                        - from
-                        - to
-                    - type: 'null'
-              required:
-                - by
-                - at
-                - relaxed
-            - type: 'null'
       required:
         - source
         - dedupeKey
@@ -30043,6 +29991,24 @@ components:
             - type: 'null'
       minProperties: 1
       additionalProperties: false
+    AlertRelaxField:
+      type: string
+      enum:
+        - threshold
+        - rangeMin
+        - rangeMax
+        - sigma
+        - requiredBuckets
+        - windowHours
+        - noDataMinutes
+      description: An alert-rule field a noise relaxation changes — `threshold` / `rangeMin` / `rangeMax` / `sigma` (the value), `requiredBuckets` (the buckets), `windowHours` / `noDataMinutes` (the time).
+    AlertRelaxDimension:
+      type: string
+      enum:
+        - value
+        - buckets
+        - time
+      description: Which way a relaxation makes the rule harder to trip — a looser bound (`value`), more breaching buckets (`buckets`), or a longer window (`time`).
     AlertRelaxPatch:
       type: object
       description: The alert-rule fields the relaxation changes, in `PATCH /api/admin/alert-rules/{id}` body shape. Only changed fields are present — a warning / recovery level that moves with the bound, and `bucketMinutes` when a longer window pins the bucket width, appear beside the named field.

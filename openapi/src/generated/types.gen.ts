@@ -3525,16 +3525,6 @@ export type OpsAlertMetricSummary = {
 };
 
 /**
- * An alert-rule field a noise relaxation changes — `threshold` / `rangeMin` / `rangeMax` / `sigma` (the value), `requiredBuckets` (the buckets), `windowHours` / `noDataMinutes` (the time).
- */
-export type AlertRelaxField = 'threshold' | 'rangeMin' | 'rangeMax' | 'sigma' | 'requiredBuckets' | 'windowHours' | 'noDataMinutes';
-
-/**
- * Which way a relaxation makes the rule harder to trip — a looser bound (`value`), more breaching buckets (`buckets`), or a longer window (`time`).
- */
-export type AlertRelaxDimension = 'value' | 'buckets' | 'time';
-
-/**
  * Detail for an `alert` ticket — the fired-alert INSTANCE this ticket is. List rows carry the stored capture subset (`source`, `dedupeKey`, `ruleId`, `detail`, `href`, `observedValue`); the single-item read hydrates the rest, resolving `severity`/`status` off the ticket itself and the rule → metric → event chain at request time.
  */
 export type OpsAlertContext = {
@@ -3586,19 +3576,6 @@ export type OpsAlertContext = {
      * The metric the alert watches, hydrated with its backing event(s); `null` if not resolvable.
      */
     metric?: OpsAlertMetricSummary | null;
-    /**
-     * Set when someone marked this instance as noise (`POST /api/admin/alerts/{id}/noise`): who and when, and the rule relaxation applied with it (`null` when the rule was left alone). `null` until then.
-     */
-    noise?: {
-        by: string;
-        at: string;
-        relaxed: {
-            field: AlertRelaxField;
-            dimension: AlertRelaxDimension;
-            from: number | null;
-            to: number;
-        } | null;
-    } | null;
     [key: string]: unknown;
 };
 
@@ -10105,6 +10082,16 @@ export type UpdateAlertRequest = {
      */
     agent?: string | null;
 };
+
+/**
+ * An alert-rule field a noise relaxation changes — `threshold` / `rangeMin` / `rangeMax` / `sigma` (the value), `requiredBuckets` (the buckets), `windowHours` / `noDataMinutes` (the time).
+ */
+export type AlertRelaxField = 'threshold' | 'rangeMin' | 'rangeMax' | 'sigma' | 'requiredBuckets' | 'windowHours' | 'noDataMinutes';
+
+/**
+ * Which way a relaxation makes the rule harder to trip — a looser bound (`value`), more breaching buckets (`buckets`), or a longer window (`time`).
+ */
+export type AlertRelaxDimension = 'value' | 'buckets' | 'time';
 
 /**
  * The alert-rule fields the relaxation changes, in `PATCH /api/admin/alert-rules/{id}` body shape. Only changed fields are present — a warning / recovery level that moves with the bound, and `bucketMinutes` when a longer window pins the bucket width, appear beside the named field.

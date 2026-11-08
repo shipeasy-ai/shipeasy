@@ -1914,28 +1914,6 @@ export const zOpsAlertMetricSummary = z.object({
 });
 
 /**
- * An alert-rule field a noise relaxation changes — `threshold` / `rangeMin` / `rangeMax` / `sigma` (the value), `requiredBuckets` (the buckets), `windowHours` / `noDataMinutes` (the time).
- */
-export const zAlertRelaxField = z.enum([
-    'threshold',
-    'rangeMin',
-    'rangeMax',
-    'sigma',
-    'requiredBuckets',
-    'windowHours',
-    'noDataMinutes'
-]);
-
-/**
- * Which way a relaxation makes the rule harder to trip — a looser bound (`value`), more breaching buckets (`buckets`), or a longer window (`time`).
- */
-export const zAlertRelaxDimension = z.enum([
-    'value',
-    'buckets',
-    'time'
-]);
-
-/**
  * Detail for an `alert` ticket — the fired-alert INSTANCE this ticket is. List rows carry the stored capture subset (`source`, `dedupeKey`, `ruleId`, `detail`, `href`, `observedValue`); the single-item read hydrates the rest, resolving `severity`/`status` off the ticket itself and the rule → metric → event chain at request time.
  */
 export const zOpsAlertContext = z.object({
@@ -1964,17 +1942,7 @@ export const zOpsAlertContext = z.object({
     activeSince: z.string().nullish(),
     resolvedAt: z.string().nullish(),
     rule: zOpsAlertRuleSummary.nullish(),
-    metric: zOpsAlertMetricSummary.nullish(),
-    noise: z.object({
-        by: z.string(),
-        at: z.string(),
-        relaxed: z.object({
-            field: zAlertRelaxField,
-            dimension: zAlertRelaxDimension,
-            from: z.number().nullable(),
-            to: z.number()
-        }).nullable()
-    }).nullish()
+    metric: zOpsAlertMetricSummary.nullish()
 });
 
 /**
@@ -5742,6 +5710,28 @@ export const zUpdateAlertRequest = z.object({
     assigneeId: z.string().nullish(),
     agent: z.string().nullish()
 });
+
+/**
+ * An alert-rule field a noise relaxation changes — `threshold` / `rangeMin` / `rangeMax` / `sigma` (the value), `requiredBuckets` (the buckets), `windowHours` / `noDataMinutes` (the time).
+ */
+export const zAlertRelaxField = z.enum([
+    'threshold',
+    'rangeMin',
+    'rangeMax',
+    'sigma',
+    'requiredBuckets',
+    'windowHours',
+    'noDataMinutes'
+]);
+
+/**
+ * Which way a relaxation makes the rule harder to trip — a looser bound (`value`), more breaching buckets (`buckets`), or a longer window (`time`).
+ */
+export const zAlertRelaxDimension = z.enum([
+    'value',
+    'buckets',
+    'time'
+]);
 
 /**
  * The alert-rule fields the relaxation changes, in `PATCH /api/admin/alert-rules/{id}` body shape. Only changed fields are present — a warning / recovery level that moves with the bound, and `bucketMinutes` when a longer window pins the bucket width, appear beside the named field.
