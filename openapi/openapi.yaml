@@ -6034,10 +6034,13 @@ paths:
 
         An item linked to others (blocked by / blocking / duplicate of) carries its `group`: every connected item, and the `master` agent runs work through. Pass `include=linked` to inline the other members' content as `linkedItems`, so one call reads the whole group.
 
+        A public bug or feature request filed with the reporter's SDK identity carries `context.reporter`: who filed it (their user attributes) and the feature flags, kill switches and experiment groups they had on when they filed it. Read it before you investigate. A bug that only some users hit is often caused by one of those. Reproduce with the same state (a flag whitelist or an experiment override) before you rule them out. It is a snapshot from filing time, so check the entity's current state too.
+
         **Use cases**
 
         - **Inspect one item** before updating its status or linking a PR.
         - **Pick up linked work** — `include=linked` reads the master and everything tied to it before a run starts.
+        - **Debug a public report** against the reporter's own feature state in `context.reporter`.
       tags:
         - Ops
       parameters:
