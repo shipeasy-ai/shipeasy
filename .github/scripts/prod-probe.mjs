@@ -3999,12 +3999,27 @@ const dslPendingLive = [];
 /** Backlog entries still refused, with the reason the API gave. */
 const dslGaps = [];
 
+// A network-level failure (undici's bare "fetch failed": reset socket, dropped
+// connection) is retried, then returned as status 0 so the caller annotates the
+// endpoint it was reading. Thrown, it escaped to the top-level catch and aborted
+// the whole run — every later leg unreported, the failing path unnamed (#667).
 async function adminJson(method, path, body) {
-  const res = await fetch(`${APP_URL}${path}`, {
-    method,
-    headers: ADMIN_H,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  let res;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      res = await fetch(`${APP_URL}${path}`, {
+        method,
+        headers: ADMIN_H,
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+      break;
+    } catch (e) {
+      const why = `${e?.message ?? e}${e?.cause ? ` (${e.cause.code ?? e.cause.message ?? e.cause})` : ""}`;
+      if (attempt >= 3) return { ok: false, status: 0, body: `network: ${why} — ${method} ${path}` };
+      console.log(`  ${method} ${path}: ${why} — retry ${attempt}/2`);
+      await new Promise((r) => setTimeout(r, 2000 * attempt));
+    }
+  }
   const text = await res.text().catch(() => "");
   let json = null;
   try {
@@ -4256,7 +4271,9 @@ try {
   await probeExposureTimeline(); // reuses the flushed lake seeds + admin exposure series
   await probeDslMetrics(); // LAST — the v2 cohort needs the run's length to land
 } catch (err) {
-  annotate(`probe failed to run: ${err?.message ?? err}`);
+  const cause = err?.cause ? ` (cause: ${err.cause.code ?? err.cause.message ?? err.cause})` : "";
+  annotate(`probe failed to run: ${err?.message ?? err}${cause}`);
+  console.log(err?.stack ?? "");
   process.exit(2);
 }
 
