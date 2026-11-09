@@ -32,9 +32,10 @@ import {
   mintListToken,
   verifyToken,
 } from "./tools/list-guard.js";
+import { PACKAGE_VERSION } from "./util/version.js";
 
 const SERVER_NAME = "shipeasy";
-const SERVER_VERSION = "0.1.0";
+const SERVER_VERSION = PACKAGE_VERSION;
 
 export async function startStdioServer(): Promise<void> {
   const server = new Server(
