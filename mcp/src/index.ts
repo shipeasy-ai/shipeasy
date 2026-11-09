@@ -11,6 +11,9 @@
  *   shipeasy-mcp --version | -v     → version
  */
 
+import { wantsHelp } from "./util/cli-args.js";
+import { PACKAGE_VERSION } from "./util/version.js";
+
 const HELP = `shipeasy-mcp — Model Context Protocol server for the Shipeasy platform
 
 Usage:
@@ -23,11 +26,28 @@ Install flags:
   --force                     Replace an existing token without prompting
   --no-browser                Print the auth URL instead of opening it
 
+Run \`shipeasy-mcp <command> --help\` for a command's usage.
+
 Env:
   XDG_CONFIG_HOME             Overrides the config file location
   SHIPEASY_MCP_LIST_GUARD             on|off — require a fresh listToken from *_list
                                       before any *_create (default: on)
   SHIPEASY_MCP_LIST_GUARD_WINDOW_MINUTES  listToken freshness window (default: 10)
+`;
+
+const INSTALL_HELP = `shipeasy-mcp install — sign in via browser and store the token
+
+Usage:
+  shipeasy-mcp install [--force] [--no-browser]
+
+Opens the Shipeasy sign-in page, waits for you to approve it, then writes the
+token to ~/.config/shipeasy/config.json (shared with the \`shipeasy\` CLI).
+The sign-in link expires after about 10 minutes.
+
+Flags:
+  --force                     Replace an existing token without prompting
+  --no-browser                Print the auth URL instead of opening it
+  -h, --help                  Show this help
 `;
 
 function parseFlag<T>(args: string[], name: string, withValue = true): T | undefined {
@@ -46,15 +66,21 @@ async function main(): Promise<number> {
   }
 
   if (cmd === "--version" || cmd === "-v") {
-    const { default: pkg } = await import("../package.json", { with: { type: "json" } });
-    process.stdout.write(`${pkg.version}\n`);
+    process.stdout.write(`${PACKAGE_VERSION}\n`);
+    return 0;
+  }
+
+  // `<subcommand> --help` prints help and exits — it must never run the
+  // subcommand (an `install --help` used to start a 10-minute browser sign-in).
+  if (wantsHelp(rest)) {
+    const isInstall = cmd === "install" || cmd === "login" || cmd === "enable";
+    process.stdout.write(isInstall ? INSTALL_HELP : HELP);
     return 0;
   }
 
   {
-    const { default: pkg } = await import("../package.json", { with: { type: "json" } });
     const { checkForUpdate } = await import("./util/update-check.js");
-    await checkForUpdate(pkg.version);
+    await checkForUpdate(PACKAGE_VERSION);
   }
 
   switch (cmd) {

@@ -68,7 +68,7 @@ export async function runInstall(opts: InstallOptions = {}): Promise<number> {
     tryOpenBrowser(authUrl);
   }
 
-  process.stderr.write(`Waiting for auth (expires ${startRes.expires_at})…\n`);
+  process.stderr.write(`${waitingLine(startRes.expires_at)}\n`);
 
   const result = await pollUntilAuthorized(apiBase, startRes.state, verifier, startRes.expires_at);
   if (!result.ok) {
@@ -148,6 +148,11 @@ async function pollUntilAuthorized(
       return { ok: true, payload: body };
     }
 
+    if (res.status === 410) {
+      process.stderr.write(`\n`);
+      return { ok: false, error: EXPIRED_ERROR };
+    }
+
     const text = await res.text().catch(() => "");
     return {
       ok: false,
@@ -155,7 +160,25 @@ async function pollUntilAuthorized(
     };
   }
 
-  return { ok: false, error: "session expired before authorization completed" };
+  process.stderr.write(`\n`);
+  return { ok: false, error: EXPIRED_ERROR };
+}
+
+const EXPIRED_ERROR =
+  "the sign-in link expired before it was approved. Run `shipeasy-mcp install` again for a new link.";
+
+/**
+ * The line printed while polling — states up front how long the link stays
+ * valid, so the user isn't surprised by an expiry ten minutes later.
+ */
+export function waitingLine(expiresAtIso: string, now: number = Date.now()): string {
+  const ms = new Date(expiresAtIso).getTime() - now;
+  if (!Number.isFinite(ms)) return `Waiting for approval in the browser…`;
+  const minutes = Math.max(1, Math.round(ms / 60_000));
+  return (
+    `Waiting for approval in the browser — the link expires in ${minutes} minute${minutes === 1 ? "" : "s"} ` +
+    `(${expiresAtIso}). Press Ctrl+C to cancel.`
+  );
 }
 
 function tryOpenBrowser(url: string): void {
