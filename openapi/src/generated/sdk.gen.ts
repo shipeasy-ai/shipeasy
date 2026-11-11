@@ -1563,7 +1563,9 @@ export const updateOpsInvestigation = <ThrowOnError extends boolean = false>(opt
  * newest first (max 100). Pull this to read the answers to questions you
  * asked: an answered question reads `status: completed` and carries
  * `answer.selected` (the option labels picked) and `answer.other` (the
- * free-text "Other" reply, or `null`).
+ * free-text "Other" reply, or `null`). `answer.selected` of exactly
+ * `["No preference"]` means the person has no opinion: pick the simplest
+ * option that changes the least, and don't overcomplicate it.
  *
  * **Use case:** You asked with `delivery: poll` from a live session — poll
  * this until your questions read `completed`, then continue with the answers.
@@ -1582,7 +1584,9 @@ export const listOpsQuestions = <ThrowOnError extends boolean = false>(options: 
  * is the `AskUserQuestion` shape: a short `header` chip, the full
  * `question`, 2–4 `options` (`label` + `description`), and `multiSelect`
  * (checkboxes instead of radios). The person can always answer "Other" in
- * free text, so never add an "Other" option yourself. The questions render
+ * free text, or "No preference" (leave the call to you — take the simplest,
+ * least-change option), so never add an "Other" or a "No preference"
+ * option yourself. The questions render
  * at the very top of the item's detail panel and mark the row in the queue.
  *
  * **Delivery.** `resume` re-fires your trigger-connector run on the item
