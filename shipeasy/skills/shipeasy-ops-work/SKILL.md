@@ -304,7 +304,10 @@ leaving it in a comment. `shipeasy ops questions ask <handle>` (MCP
 
 - `header` ≤ 24 chars, a chip label. `options` 2–4, each a short `label` +
   the trade-off in `description`. `multiSelect: true` for checkboxes.
-- **Never add an "Other" option** — a free-text answer is always offered.
+- **Never add an "Other" or a "No preference" option** — both are always
+  offered. An answer of `selected: ["No preference"]` means the team has no
+  opinion: pick the simplest option that changes the least, and don't
+  overcomplicate it.
 - Questions land at the very top of the item's detail panel, mark the row in
   the queue, and push a notification to the team's phones. Several questions —
   from you or other agents — can be open on one item at once.
