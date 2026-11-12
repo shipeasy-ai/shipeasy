@@ -18,7 +18,8 @@ AlertApiRow:
         - experiment_srm
         - experiment_peek
         - guardrail
-      description: Which platform subsystem raised the alert — a metric-threshold rule crossing (`metric_rule`), an armed kill switch (`killswitch_armed`), a sample-ratio mismatch or peeking guard on an experiment (`experiment_srm` / `experiment_peek`), or a guardrail-metric breach (`guardrail`).
+        - gcp_monitoring
+      description: Which platform subsystem raised the alert — a metric-threshold rule crossing (`metric_rule`), an armed kill switch (`killswitch_armed`), a sample-ratio mismatch or peeking guard on an experiment (`experiment_srm` / `experiment_peek`), a guardrail-metric breach (`guardrail`), or an incident delivered from Google Cloud Monitoring through the project's inbound alert endpoint (`gcp_monitoring`).
     ruleId:
       description: >-
         Id of the alert rule that raised it (`ar_…`), for `source: metric_rule`.
