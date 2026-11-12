@@ -17,6 +17,7 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
   const g_ops_alerts = defineGroup(g_ops, "alerts", { summary: "Alert rules: the metric-threshold definitions the analysis cron evaluates each run.", help: "Alert rules: the metric-threshold definitions the analysis cron evaluates each run.\n\n**What fires.** Each rule binds a `metricId`, a `comparator` (`gt`/`gte`/`lt`/`lte`), and a `threshold`. On every cron pass the cron aggregates the metric over the trailing `windowHours` and raises an alert at `severity` when `value comparator threshold` holds.\n\n**Immutable metric.** The bound metric (and its aggregation) is fixed at create time — there is no update path for `metricId`. Tune `threshold`/`comparator`/`windowHours`/`severity`/`name`/`enabled` instead, or delete + recreate to repoint the rule at a different metric.\n\n**Delivery.** `notify` optionally targets a Slack channel and/or email for this rule; `null` falls back to the project's default notification settings. Slack targets require a connected Slack connector.", aliases: ["ar"] });
   const g_ops_attachments = defineGroup(g_ops, "attachments", { summary: "Screenshots, recordings, and files attached to a bug or feature request — the evidence a QA lane captures at verification time.", help: "Screenshots, recordings, and files attached to a bug or feature request —\nthe evidence a QA lane captures at verification time. Upload by base64\nbytes or a public https URL; append-only.", aliases: [] });
   const g_ops_brain = defineGroup(g_ops, "brain", { summary: "The project brain — a knowledge graph of notes and typed links that grows on its own from the work (every item, trail, PR, file, flag and metric is a note, linked the moment anything mentions it) and from knowledge sent in, which is reconciled into what is already known: later and stronger sources rewrite weaker or older ones, and every rewrite keeps a revision.", help: "The project brain — a knowledge graph of notes and typed links that grows\non its own from the work (every item, trail, PR, file, flag and metric is\na note, linked the moment anything mentions it) and from knowledge sent\nin, which is reconciled into what is already known: later and stronger\nsources rewrite weaker or older ones, and every rewrite keeps a revision.\nSearch it before you design; teach it what you learned.", aliases: [] });
+  const g_ops_checklist = defineGroup(g_ops, "checklist", { summary: "The to-do checklist inside a feature or bug item — the things being implemented, kept in the item's body instead of in comments.", help: "The to-do checklist inside a feature or bug item — the things being\nimplemented, kept in the item's body instead of in comments. The dev (or a\ncoding agent) adds lines and ticks them `done` as they land; QA marks each\ndone line `verified`, or `returned` with a note that says what is still\nwrong, which hands it back to the dev. `ops get` carries the list as\n`checklist`, so an agent reads its work order with the item.", aliases: [] });
   const g_ops_comments = defineGroup(g_ops, "comments", { summary: "Comments on a queue item — the discussion thread that hangs off any bug, feature request, or auto-filed error/alert ticket.", help: "Comments on a queue item — the discussion thread that hangs off any bug,\nfeature request, or auto-filed error/alert ticket. Append a comment or read\nthe thread; one level of threaded replies via `parentId`.\n\n**Mentions.** `@teammate` in a body raises an in-app notification for that\nperson; `@shipeasy` asks Jarvis (the AI agent) to read the item and reply.\nComments authored by Jarvis carry `authorType: system`.", aliases: [] });
   const g_ops_fired_alerts = defineGroup(g_ops, "fired-alerts", { summary: "Fired alerts: the conditions the platform has actually raised — metric-rule crossings, armed kill switches, experiment SRM/peek guards, and guardrail breaches.", help: "Fired alerts: the conditions the platform has actually raised — metric-rule\ncrossings, armed kill switches, experiment SRM/peek guards, and guardrail\nbreaches. Raised only by the platform (UI killswitch handlers plus the\nworker analysis consumer and alerts cron), never filed by hand; deduped per\n`(source, dedupeKey)` with auto-resolve when the condition clears. This\nsurface lists them and triages one (status flip + person/agent owner). The\n*rules* that define metric-threshold alerts are the sibling alert-rules\nresource.", aliases: [] });
   const g_ops_investigations = defineGroup(g_ops, "investigations", { summary: "Investigation records on a queue item — the structured, read-only write-ups an AI agent produces while working it (findings / a blocking question / QA notes), plus the `working` run rows an ack or an AI hand-off opens.", help: "Investigation records on a queue item — the structured, read-only write-ups\nan AI agent produces while working it (findings / a blocking question / QA\nnotes), plus the `working` run rows an ack or an AI hand-off opens. This is\nthe AI-write seam the cockpit's detail panel renders: `list` reads what a\nprevious run found, `create` appends a new record, and `update` fills in the\n`working` run record you were handed (findings, PR, confidence) as you work.", aliases: [] });
@@ -848,6 +849,41 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .option("--notes <value>", "One to twenty notes, each reconciled into the note its title lands on.")
     .action(async (opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.ingestBrain({ client, body: clean({ notes: json(opts.notes) }) }) });
+    });
+  g_ops_checklist.command("list")
+    .description("List an item's checklist")
+    .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id.")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: false, invoke: (client) => api.listOpsChecklist({ client, path: { handle: handle }, body: json(opts.data) as never }) });
+    });
+  g_ops_checklist.command("add")
+    .description("Add a checklist line")
+    .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id.")
+    .option("--text <value>", "What the line asks for (markdown, one line).")
+    .option("--agent <value>", "The agent type adding the line — pass your own type when you are a coding agent. Omitted, the line is attributed to the caller's identity.")
+    .action(async (handle, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.createOpsChecklistItem({ client, path: { handle: handle }, body: clean({ text: str(opts.text), agent: str(opts.agent) }) }) });
+    });
+  g_ops_checklist.command("update")
+    .description("Update a checklist line")
+    .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id.")
+    .argument("<itemId>", "The checklist line id (from `list`, `add` or `ops get` → `checklist`).")
+    .option("--text <value>", "New text for the line.")
+    .option("--status <value>", "Where a checklist line stands — `open` (still to do), `done` (the dev ticked it), `verified` (QA confirmed it) or `returned` (QA sent it back with a `note`; tick it `done` again once fixed).")
+    .option("--note <value>", "Why QA returns the line — required when moving it to `returned` (send it alone to reword the note of a returned line), refused on a line that ends up in any other status.")
+    .option("--position <value>", "New display position (lines sort ascending; ties by creation order).")
+    .option("--agent <value>", "The agent type making the change — pass your own type when you are an agent. Omitted, the change is attributed to the caller's identity.")
+    .action(async (handle, itemId, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.updateOpsChecklistItem({ client, path: { handle: handle, itemId: itemId }, body: clean({ text: str(opts.text), status: str(opts.status), note: str(opts.note), position: num(opts.position), agent: str(opts.agent) }) }) });
+    });
+  g_ops_checklist.command("archive")
+    .description("Archive a checklist line")
+    .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id.")
+    .argument("<itemId>", "The checklist line id (from `list`, `add` or `ops get` → `checklist`).")
+    .option("--data <value>", "Request body as a JSON object.")
+    .action(async (handle, itemId, opts) => {
+      await ctx.run({ mutates: true, invoke: (client) => api.archiveOpsChecklistItem({ client, path: { handle: handle, itemId: itemId }, body: json(opts.data) as never }) });
     });
   g_ops_comments.command("list")
     .description("List an item's comments")

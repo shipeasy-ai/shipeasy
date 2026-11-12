@@ -3711,6 +3711,121 @@ _Errors_ — beyond the [common errors](#errors):
 - `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
 - `NOT_FOUND` — The resource does not exist or is not visible to the caller.
 
+### Checklist
+
+The to-do checklist inside a feature or bug item — the things being
+implemented, kept in the item's body instead of in comments. The dev (or a
+coding agent) adds lines and ticks them `done` as they land; QA marks each
+done line `verified`, or `returned` with a note that says what is still
+wrong, which hands it back to the dev. `ops get` carries the list as
+`checklist`, so an agent reads its work order with the item.
+
+#### `ops_checklist_add`
+
+**Add a checklist line**
+
+Add one line to the end of a queue item's checklist, `open`. Write a
+multi-part plan as one line per part, so the dev can tick each off and QA
+can verify or return each on its own. The author is the caller's identity;
+pass `agent` to record the line as added by that agent type. An item holds
+at most 200 lines.
+
+**Use case:** An agent starting a feature lists the four changes it will
+make, then ticks them off as they land.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `text` | required | `string` | What the line asks for (markdown, one line). _(length 1–500)_ |
+| `agent` | optional | `"jarvis" \| "claude" \| "cursor" \| "copilot" \| "jules"` | The agent type adding the line — pass your own type when you are a coding agent. Omitted, the line is attributed to the caller's identity. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
+#### `ops_checklist_archive`
+
+**Archive a checklist line**
+
+Take a line off an item's checklist — it no longer applies (the plan
+changed, or it was added by mistake). The line leaves the list and every
+read; nothing is deleted.
+
+**Use case:** The plan dropped a step; archive its line so the count stays
+honest.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `itemId` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
+#### `ops_checklist_list`
+
+**List an item's checklist**
+
+The to-do checklist inside a queue item, in display order (archived lines
+left out, max 200). Each line is `open`, `done` (the dev ticked it),
+`verified` (QA confirmed it) or `returned` (QA sent it back — `note` says
+why). `ops get` returns the same list as `checklist`.
+
+**Use case:** A coding agent picks an item up and works its `returned`
+lines first, then the `open` ones.
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+
+#### `ops_checklist_update`
+
+**Update a checklist line**
+
+Change one checklist line: its `text`, its `position`, or its `status`.
+The dev ticks a line `done` (or back to `open`); QA marks a `done` line
+`verified`, or `returned` with a `note` saying what is still wrong; ticking
+a returned line `done` again clears the note and hands it back to QA. Who
+did what is recorded from the caller's identity, or `agent` when given. An
+illegal move (verifying an `open` line) answers 409 `INVALID_TRANSITION`.
+
+**Use case:** QA retests a feature, verifies three lines and returns the
+fourth: "the export still drops the header row".
+
+_Parameters_
+
+| Parameter | | Type | Description |
+| --- | --- | --- | --- |
+| `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `itemId` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
+| `text` | optional | `string` | New text for the line. _(length 1–500)_ |
+| `status` | optional | `"open" \| "done" \| "verified" \| "returned"` | Where a checklist line stands — `open` (still to do), `done` (the dev ticked it), `verified` (QA confirmed it) or `returned` (QA sent it back with a `note`; tick it `done` again once fixed). |
+| `note` | optional | `string` | Why QA returns the line — required when moving it to `returned` (send it alone to reword the note of a returned line), refused on a line that ends up in any other status. _(length 1–2000)_ |
+| `position` | optional | `integer` | New display position (lines sort ascending; ties by creation order). _(≥ 0)_ |
+| `agent` | optional | `"jarvis" \| "claude" \| "cursor" \| "copilot" \| "jules"` | The agent type making the change — pass your own type when you are an agent. Omitted, the change is attributed to the caller's identity. |
+
+_Errors_ — beyond the [common errors](#errors):
+
+- `BAD_REQUEST` — Malformed request (bad JSON, missing project scope).
+- `NOT_FOUND` — The resource does not exist or is not visible to the caller.
+- `INVALID_TRANSITION` — The requested lifecycle transition is not allowed from the current state.
+- `VALIDATION` — The request body failed structural (schema) validation.
+
 ### Trigger
 
 Recurring coding-agent triggers: the scheduled, unattended runs that burn

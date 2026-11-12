@@ -4608,6 +4608,78 @@ export type OpsQaQuestion = {
 };
 
 /**
+ * Where a checklist line stands — `open` (still to do), `done` (the dev ticked it), `verified` (QA confirmed it) or `returned` (QA sent it back with a `note`; tick it `done` again once fixed).
+ */
+export type OpsChecklistItemStatus = 'open' | 'done' | 'verified' | 'returned';
+
+/**
+ * One line of the to-do checklist inside a queue item.
+ */
+export type OpsChecklistItem = {
+    /**
+     * Checklist line id.
+     */
+    id: string;
+    /**
+     * The queue item the line belongs to.
+     */
+    feedbackId: string;
+    /**
+     * Display order within the item, ascending.
+     */
+    position: number;
+    /**
+     * What the line asks for (markdown, one line).
+     */
+    text: string;
+    status: OpsChecklistItemStatus;
+    /**
+     * QA's reason for returning the line, or `null`. Cleared when the line moves on.
+     */
+    note: string | null;
+    /**
+     * Email of the person (or the key's actor) who added the line, or `null` when an agent did or nobody has yet.
+     */
+    createdByEmail: string | null;
+    /**
+     * The agent type that added the line, or `null` when a person did or nobody has yet.
+     */
+    createdByAgent: 'jarvis' | 'claude' | 'cursor' | 'copilot' | 'jules' | null;
+    /**
+     * Email of the person (or the key's actor) who ticked the line done, or `null` when an agent did or nobody has yet.
+     */
+    doneByEmail: string | null;
+    /**
+     * The agent type that ticked the line done, or `null` when a person did or nobody has yet.
+     */
+    doneByAgent: 'jarvis' | 'claude' | 'cursor' | 'copilot' | 'jules' | null;
+    /**
+     * ISO-8601 time the line was ticked done, or `null` while it is `open`.
+     */
+    doneAt: string | null;
+    /**
+     * Email of the person (or the key's actor) who verified or returned the line, or `null` when an agent did or nobody has yet.
+     */
+    reviewedByEmail: string | null;
+    /**
+     * The agent type that verified or returned the line, or `null` when a person did or nobody has yet.
+     */
+    reviewedByAgent: 'jarvis' | 'claude' | 'cursor' | 'copilot' | 'jules' | null;
+    /**
+     * ISO-8601 time the line was verified or returned, or `null`.
+     */
+    reviewedAt: string | null;
+    /**
+     * ISO-8601 creation timestamp.
+     */
+    createdAt: string;
+    /**
+     * ISO-8601 time of the last change.
+     */
+    updatedAt: string;
+};
+
+/**
  * A link group: the items connected by blocked-by / blocking / duplicate-of links, which the dashboard shows and moves together. Its master is the one member agent runs work on — the first open member that is not a duplicate and has no open blocker, then the most urgent priority, then the oldest. Closed members only lead once every member is closed.
  */
 export type OpsItemGroup = {
@@ -4790,6 +4862,10 @@ export type GetOpsItemResponse = {
      * Questions put to QA on this item, newest first (max 100), each with QA's answer once given. List the project-wide backlog with `ops list --qa-questions open`; ask with `ops qa-questions ask`.
      */
     qaQuestions?: Array<OpsQaQuestion>;
+    /**
+     * The item's to-do checklist in display order (archived lines left out). Treat `returned` lines (QA's `note` says why) as your work order, tick lines `done` as they land with `ops checklist update`, and add lines with `ops checklist add`.
+     */
+    checklist?: Array<OpsChecklistItem>;
     /**
      * The link group this item belongs to — every item tied to it, directly or through a chain, by a blocked-by / blocking / duplicate-of link — or `null` when it has no links. Agent runs only work a group through its `master`; read the other members before starting, and close them together with `PATCH /api/admin/ops/{handle}/group`.
      */
@@ -5657,6 +5733,48 @@ export type CreateOpsQaNoteRequest = {
     verdict?: OpsQaNoteVerdict;
     /**
      * The agent type writing the note — pass your own type when you are QA automation. Omitted, the note is attributed to the caller's identity.
+     */
+    agent?: 'jarvis' | 'claude' | 'cursor' | 'copilot' | 'jules';
+};
+
+/**
+ * Response for `GET /api/admin/ops/{handle}/checklist` — the item's checklist lines in display order (archived lines left out, max 200).
+ */
+export type ListOpsChecklistResponse = Array<OpsChecklistItem>;
+
+/**
+ * Body for `POST /api/admin/ops/{handle}/checklist` — adds one line at the end of the list, `open`.
+ */
+export type CreateOpsChecklistItemRequest = {
+    /**
+     * What the line asks for (markdown, one line).
+     */
+    text: string;
+    /**
+     * The agent type adding the line — pass your own type when you are a coding agent. Omitted, the line is attributed to the caller's identity.
+     */
+    agent?: 'jarvis' | 'claude' | 'cursor' | 'copilot' | 'jules';
+};
+
+/**
+ * Body for `PATCH /api/admin/ops/{handle}/checklist/{itemId}`. Status moves: `done` from `open`/`returned` (clears QA's note); `open` un-ticks any line; `verified` from `done`; `returned` from `done`/`verified`/`returned` and needs a `note`. Repeating a line's current status is a no-op. An illegal move answers 409 `INVALID_TRANSITION`.
+ */
+export type UpdateOpsChecklistItemRequest = {
+    /**
+     * New text for the line.
+     */
+    text?: string;
+    status?: OpsChecklistItemStatus;
+    /**
+     * Why QA returns the line — required when moving it to `returned` (send it alone to reword the note of a returned line), refused on a line that ends up in any other status.
+     */
+    note?: string;
+    /**
+     * New display position (lines sort ascending; ties by creation order).
+     */
+    position?: number;
+    /**
+     * The agent type making the change — pass your own type when you are an agent. Omitted, the change is attributed to the caller's identity.
      */
     agent?: 'jarvis' | 'claude' | 'cursor' | 'copilot' | 'jules';
 };
@@ -17462,6 +17580,218 @@ export type CreateOpsQaNoteResponses = {
 };
 
 export type CreateOpsQaNoteResponse = CreateOpsQaNoteResponses[keyof CreateOpsQaNoteResponses];
+
+export type ListOpsChecklistData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Per-project item number (e.g. `7`) or the full ops item id.
+         */
+        handle: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/ops/{handle}/checklist';
+};
+
+export type ListOpsChecklistErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+};
+
+export type ListOpsChecklistError = ListOpsChecklistErrors[keyof ListOpsChecklistErrors];
+
+export type ListOpsChecklistResponses = {
+    /**
+     * List an item's checklist
+     */
+    200: ListOpsChecklistResponse;
+};
+
+export type ListOpsChecklistResponse2 = ListOpsChecklistResponses[keyof ListOpsChecklistResponses];
+
+export type CreateOpsChecklistItemData = {
+    body: CreateOpsChecklistItemRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Per-project item number (e.g. `7`) or the full ops item id.
+         */
+        handle: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/ops/{handle}/checklist';
+};
+
+export type CreateOpsChecklistItemErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type CreateOpsChecklistItemError = CreateOpsChecklistItemErrors[keyof CreateOpsChecklistItemErrors];
+
+export type CreateOpsChecklistItemResponses = {
+    /**
+     * The added line
+     */
+    200: OpsChecklistItem;
+};
+
+export type CreateOpsChecklistItemResponse = CreateOpsChecklistItemResponses[keyof CreateOpsChecklistItemResponses];
+
+export type UpdateOpsChecklistItemData = {
+    body: UpdateOpsChecklistItemRequest;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Per-project item number (e.g. `7`) or the full ops item id.
+         */
+        handle: ResourceId;
+        /**
+         * The checklist line id (from `list`, `add` or `ops get` → `checklist`).
+         */
+        itemId: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/ops/{handle}/checklist/{itemId}';
+};
+
+export type UpdateOpsChecklistItemErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+    /**
+     * The mutation conflicts with current state.
+     */
+    409: Error;
+    /**
+     * The request body failed validation.
+     */
+    422: Error;
+};
+
+export type UpdateOpsChecklistItemError = UpdateOpsChecklistItemErrors[keyof UpdateOpsChecklistItemErrors];
+
+export type UpdateOpsChecklistItemResponses = {
+    /**
+     * The updated line
+     */
+    200: OpsChecklistItem;
+};
+
+export type UpdateOpsChecklistItemResponse = UpdateOpsChecklistItemResponses[keyof UpdateOpsChecklistItemResponses];
+
+export type ArchiveOpsChecklistItemData = {
+    body?: never;
+    headers?: {
+        /**
+         * Project the request operates on. Optional — defaults to the project the SDK key belongs to; pass it only to scope a multi-project key (the generated client sets it once from its configuration, so per-call callers never thread it).
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * Per-project item number (e.g. `7`) or the full ops item id.
+         */
+        handle: ResourceId;
+        /**
+         * The checklist line id (from `list`, `add` or `ops get` → `checklist`).
+         */
+        itemId: ResourceId;
+    };
+    query?: never;
+    url: '/api/admin/ops/{handle}/checklist/{itemId}/archive';
+};
+
+export type ArchiveOpsChecklistItemErrors = {
+    /**
+     * The request was malformed (bad JSON or missing project scope).
+     */
+    400: Error;
+    /**
+     * Missing or invalid admin SDK key.
+     */
+    401: Error;
+    /**
+     * The key is valid but not allowed to perform this action.
+     */
+    403: Error;
+    /**
+     * The resource does not exist or is not visible to the caller.
+     */
+    404: Error;
+};
+
+export type ArchiveOpsChecklistItemError = ArchiveOpsChecklistItemErrors[keyof ArchiveOpsChecklistItemErrors];
+
+export type ArchiveOpsChecklistItemResponses = {
+    /**
+     * The archived line
+     */
+    200: OpsChecklistItem;
+};
+
+export type ArchiveOpsChecklistItemResponse = ArchiveOpsChecklistItemResponses[keyof ArchiveOpsChecklistItemResponses];
 
 export type ListOpsQaQuestionsData = {
     body?: never;

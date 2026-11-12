@@ -373,6 +373,15 @@ tags:
       their own section of the item's detail panel, separate from the comment
       thread. A failing verification offers a "Reopen item" action in the
       dashboard; it is always an explicit click, never a side effect of `create`.
+  - name: Checklist
+    parent: Ops
+    description: |-
+      The to-do checklist inside a feature or bug item — the things being
+      implemented, kept in the item's body instead of in comments. The dev (or a
+      coding agent) adds lines and ticks them `done` as they land; QA marks each
+      done line `verified`, or `returned` with a note that says what is still
+      wrong, which hands it back to the dev. `ops get` carries the list as
+      `checklist`, so an agent reads its work order with the item.
   - name: QA questions
     parent: Ops
     description: |-
@@ -7150,6 +7159,241 @@ paths:
         name: create
         positional:
           - handle
+  /api/admin/ops/{handle}/checklist:
+    get:
+      operationId: listOpsChecklist
+      summary: List an item's checklist
+      description: |-
+        The to-do checklist inside a queue item, in display order (archived lines
+        left out, max 200). Each line is `open`, `done` (the dev ticked it),
+        `verified` (QA confirmed it) or `returned` (QA sent it back — `note` says
+        why). `ops get` returns the same list as `checklist`.
+
+        **Use case:** A coding agent picks an item up and works its `returned`
+        lines first, then the `open` ones.
+      tags:
+        - Checklist
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: handle
+          in: path
+          required: true
+          description: Per-project item number (e.g. `7`) or the full ops item id.
+          schema:
+            $ref: '#/components/schemas/ResourceId'
+      responses:
+        '200':
+          description: List an item's checklist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListOpsChecklistResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+      x-cli:
+        name: list
+        positional:
+          - handle
+    post:
+      operationId: createOpsChecklistItem
+      summary: Add a checklist line
+      description: |-
+        Add one line to the end of a queue item's checklist, `open`. Write a
+        multi-part plan as one line per part, so the dev can tick each off and QA
+        can verify or return each on its own. The author is the caller's identity;
+        pass `agent` to record the line as added by that agent type. An item holds
+        at most 200 lines.
+
+        **Use case:** An agent starting a feature lists the four changes it will
+        make, then ticks them off as they land.
+      tags:
+        - Checklist
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: handle
+          in: path
+          required: true
+          description: Per-project item number (e.g. `7`) or the full ops item id.
+          schema:
+            $ref: '#/components/schemas/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOpsChecklistItemRequest'
+            examples:
+              line:
+                summary: Add a line
+                value:
+                  text: CSV export includes the archived rows
+      responses:
+        '200':
+          description: The added line
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpsChecklistItem'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+        - VALIDATION
+      x-cli:
+        name: add
+        positional:
+          - handle
+  /api/admin/ops/{handle}/checklist/{itemId}:
+    patch:
+      operationId: updateOpsChecklistItem
+      summary: Update a checklist line
+      description: |-
+        Change one checklist line: its `text`, its `position`, or its `status`.
+        The dev ticks a line `done` (or back to `open`); QA marks a `done` line
+        `verified`, or `returned` with a `note` saying what is still wrong; ticking
+        a returned line `done` again clears the note and hands it back to QA. Who
+        did what is recorded from the caller's identity, or `agent` when given. An
+        illegal move (verifying an `open` line) answers 409 `INVALID_TRANSITION`.
+
+        **Use case:** QA retests a feature, verifies three lines and returns the
+        fourth: "the export still drops the header row".
+      tags:
+        - Checklist
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: handle
+          in: path
+          required: true
+          description: Per-project item number (e.g. `7`) or the full ops item id.
+          schema:
+            $ref: '#/components/schemas/ResourceId'
+        - name: itemId
+          in: path
+          required: true
+          description: The checklist line id (from `list`, `add` or `ops get` → `checklist`).
+          schema:
+            $ref: '#/components/schemas/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOpsChecklistItemRequest'
+            examples:
+              done:
+                summary: Tick a line done
+                value:
+                  status: done
+              returned:
+                summary: QA returns a line
+                value:
+                  status: returned
+                  note: The export still drops the header row
+      responses:
+        '200':
+          description: The updated line
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpsChecklistItem'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+        - INVALID_TRANSITION
+        - VALIDATION
+      x-cli:
+        name: update
+        positional:
+          - handle
+          - itemId
+  /api/admin/ops/{handle}/checklist/{itemId}/archive:
+    post:
+      operationId: archiveOpsChecklistItem
+      summary: Archive a checklist line
+      description: |-
+        Take a line off an item's checklist — it no longer applies (the plan
+        changed, or it was added by mistake). The line leaves the list and every
+        read; nothing is deleted.
+
+        **Use case:** The plan dropped a step; archive its line so the count stays
+        honest.
+      tags:
+        - Checklist
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: handle
+          in: path
+          required: true
+          description: Per-project item number (e.g. `7`) or the full ops item id.
+          schema:
+            $ref: '#/components/schemas/ResourceId'
+        - name: itemId
+          in: path
+          required: true
+          description: The checklist line id (from `list`, `add` or `ops get` → `checklist`).
+          schema:
+            $ref: '#/components/schemas/ResourceId'
+      responses:
+        '200':
+          description: The archived line
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpsChecklistItem'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-error-codes:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+      x-cli:
+        name: archive
+        positional:
+          - handle
+          - itemId
   /api/admin/ops/{handle}/qa-questions:
     get:
       operationId: listOpsQaQuestions
@@ -21919,6 +22163,119 @@ components:
         - createdAt
       additionalProperties: false
       description: A question put to QA on a queue item, with QA's answer once given.
+    OpsChecklistItemStatus:
+      type: string
+      enum:
+        - open
+        - done
+        - verified
+        - returned
+      description: Where a checklist line stands — `open` (still to do), `done` (the dev ticked it), `verified` (QA confirmed it) or `returned` (QA sent it back with a `note`; tick it `done` again once fixed).
+    OpsChecklistItem:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Checklist line id.
+        feedbackId:
+          type: string
+          description: The queue item the line belongs to.
+        position:
+          type: integer
+          description: Display order within the item, ascending.
+        text:
+          type: string
+          description: What the line asks for (markdown, one line).
+        status:
+          $ref: '#/components/schemas/OpsChecklistItemStatus'
+        note:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: QA's reason for returning the line, or `null`. Cleared when the line moves on.
+        createdByEmail:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: Email of the person (or the key's actor) who added the line, or `null` when an agent did or nobody has yet.
+        createdByAgent:
+          anyOf:
+            - type: string
+              enum:
+                - jarvis
+                - claude
+                - cursor
+                - copilot
+                - jules
+            - type: 'null'
+          description: The agent type that added the line, or `null` when a person did or nobody has yet.
+        doneByEmail:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: Email of the person (or the key's actor) who ticked the line done, or `null` when an agent did or nobody has yet.
+        doneByAgent:
+          anyOf:
+            - type: string
+              enum:
+                - jarvis
+                - claude
+                - cursor
+                - copilot
+                - jules
+            - type: 'null'
+          description: The agent type that ticked the line done, or `null` when a person did or nobody has yet.
+        doneAt:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: ISO-8601 time the line was ticked done, or `null` while it is `open`.
+        reviewedByEmail:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: Email of the person (or the key's actor) who verified or returned the line, or `null` when an agent did or nobody has yet.
+        reviewedByAgent:
+          anyOf:
+            - type: string
+              enum:
+                - jarvis
+                - claude
+                - cursor
+                - copilot
+                - jules
+            - type: 'null'
+          description: The agent type that verified or returned the line, or `null` when a person did or nobody has yet.
+        reviewedAt:
+          anyOf:
+            - type: string
+            - type: 'null'
+          description: ISO-8601 time the line was verified or returned, or `null`.
+        createdAt:
+          type: string
+          description: ISO-8601 creation timestamp.
+        updatedAt:
+          type: string
+          description: ISO-8601 time of the last change.
+      required:
+        - id
+        - feedbackId
+        - position
+        - text
+        - status
+        - note
+        - createdByEmail
+        - createdByAgent
+        - doneByEmail
+        - doneByAgent
+        - doneAt
+        - reviewedByEmail
+        - reviewedByAgent
+        - reviewedAt
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+      description: One line of the to-do checklist inside a queue item.
     OpsItemGroup:
       type: object
       properties:
@@ -22141,6 +22498,11 @@ components:
           items:
             $ref: '#/components/schemas/OpsQaQuestion'
           description: Questions put to QA on this item, newest first (max 100), each with QA's answer once given. List the project-wide backlog with `ops list --qa-questions open`; ask with `ops qa-questions ask`.
+        checklist:
+          type: array
+          items:
+            $ref: '#/components/schemas/OpsChecklistItem'
+          description: The item's to-do checklist in display order (archived lines left out). Treat `returned` lines (QA's `note` says why) as your work order, tick lines `done` as they land with `ops checklist update`, and add lines with `ops checklist add`.
         group:
           anyOf:
             - $ref: '#/components/schemas/OpsItemGroup'
@@ -23268,6 +23630,63 @@ components:
         - body
       additionalProperties: false
       description: Body for `POST /api/admin/ops/{handle}/qa-notes`. A `verification` note requires `verdict`; every other kind rejects it.
+    ListOpsChecklistResponse:
+      type: array
+      items:
+        $ref: '#/components/schemas/OpsChecklistItem'
+      description: Response for `GET /api/admin/ops/{handle}/checklist` — the item's checklist lines in display order (archived lines left out, max 200).
+    CreateOpsChecklistItemRequest:
+      type: object
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: What the line asks for (markdown, one line).
+        agent:
+          type: string
+          enum:
+            - jarvis
+            - claude
+            - cursor
+            - copilot
+            - jules
+          description: The agent type adding the line — pass your own type when you are a coding agent. Omitted, the line is attributed to the caller's identity.
+      required:
+        - text
+      additionalProperties: false
+      description: Body for `POST /api/admin/ops/{handle}/checklist` — adds one line at the end of the list, `open`.
+    UpdateOpsChecklistItemRequest:
+      type: object
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: New text for the line.
+        status:
+          $ref: '#/components/schemas/OpsChecklistItemStatus'
+        note:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: Why QA returns the line — required when moving it to `returned` (send it alone to reword the note of a returned line), refused on a line that ends up in any other status.
+        position:
+          type: integer
+          minimum: 0
+          description: New display position (lines sort ascending; ties by creation order).
+        agent:
+          type: string
+          enum:
+            - jarvis
+            - claude
+            - cursor
+            - copilot
+            - jules
+          description: The agent type making the change — pass your own type when you are an agent. Omitted, the change is attributed to the caller's identity.
+      additionalProperties: false
+      minProperties: 1
+      description: 'Body for `PATCH /api/admin/ops/{handle}/checklist/{itemId}`. Status moves: `done` from `open`/`returned` (clears QA''s note); `open` un-ticks any line; `verified` from `done`; `returned` from `done`/`verified`/`returned` and needs a `note`. Repeating a line''s current status is a no-op. An illegal move answers 409 `INVALID_TRANSITION`.'
     ListOpsQaQuestionsResponse:
       type: array
       items:

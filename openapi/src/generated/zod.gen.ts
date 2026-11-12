@@ -2401,6 +2401,56 @@ export const zOpsQaQuestion = z.object({
 });
 
 /**
+ * Where a checklist line stands — `open` (still to do), `done` (the dev ticked it), `verified` (QA confirmed it) or `returned` (QA sent it back with a `note`; tick it `done` again once fixed).
+ */
+export const zOpsChecklistItemStatus = z.enum([
+    'open',
+    'done',
+    'verified',
+    'returned'
+]);
+
+/**
+ * One line of the to-do checklist inside a queue item.
+ */
+export const zOpsChecklistItem = z.object({
+    id: z.string(),
+    feedbackId: z.string(),
+    position: z.int(),
+    text: z.string(),
+    status: zOpsChecklistItemStatus,
+    note: z.string().nullable(),
+    createdByEmail: z.string().nullable(),
+    createdByAgent: z.enum([
+        'jarvis',
+        'claude',
+        'cursor',
+        'copilot',
+        'jules'
+    ]).nullable(),
+    doneByEmail: z.string().nullable(),
+    doneByAgent: z.enum([
+        'jarvis',
+        'claude',
+        'cursor',
+        'copilot',
+        'jules'
+    ]).nullable(),
+    doneAt: z.string().nullable(),
+    reviewedByEmail: z.string().nullable(),
+    reviewedByAgent: z.enum([
+        'jarvis',
+        'claude',
+        'cursor',
+        'copilot',
+        'jules'
+    ]).nullable(),
+    reviewedAt: z.string().nullable(),
+    createdAt: z.string(),
+    updatedAt: z.string()
+});
+
+/**
  * A link group: the items connected by blocked-by / blocking / duplicate-of links, which the dashboard shows and moves together. Its master is the one member agent runs work on — the first open member that is not a duplicate and has no open blocker, then the most urgent priority, then the oldest. Closed members only lead once every member is closed.
  */
 export const zOpsItemGroup = z.object({
@@ -2503,6 +2553,7 @@ export const zGetOpsItemResponse = z.object({
     duplicateOf: zOpsItemRef.nullish(),
     duplicates: z.array(zOpsItemRef).optional(),
     qaQuestions: z.array(zOpsQaQuestion).optional(),
+    checklist: z.array(zOpsChecklistItem).optional(),
     group: zOpsItemGroup.nullish(),
     linkedItems: z.array(zOpsLinkedItem).optional(),
     connectorData: zConnectorData.nullish(),
@@ -2973,6 +3024,42 @@ export const zCreateOpsQaNoteRequest = z.object({
     kind: zOpsQaNoteKind,
     body: z.string().min(1).max(10000),
     verdict: zOpsQaNoteVerdict.optional(),
+    agent: z.enum([
+        'jarvis',
+        'claude',
+        'cursor',
+        'copilot',
+        'jules'
+    ]).optional()
+});
+
+/**
+ * Response for `GET /api/admin/ops/{handle}/checklist` — the item's checklist lines in display order (archived lines left out, max 200).
+ */
+export const zListOpsChecklistResponse = z.array(zOpsChecklistItem);
+
+/**
+ * Body for `POST /api/admin/ops/{handle}/checklist` — adds one line at the end of the list, `open`.
+ */
+export const zCreateOpsChecklistItemRequest = z.object({
+    text: z.string().min(1).max(500),
+    agent: z.enum([
+        'jarvis',
+        'claude',
+        'cursor',
+        'copilot',
+        'jules'
+    ]).optional()
+});
+
+/**
+ * Body for `PATCH /api/admin/ops/{handle}/checklist/{itemId}`. Status moves: `done` from `open`/`returned` (clears QA's note); `open` un-ticks any line; `verified` from `done`; `returned` from `done`/`verified`/`returned` and needs a `note`. Repeating a line's current status is a no-op. An illegal move answers 409 `INVALID_TRANSITION`.
+ */
+export const zUpdateOpsChecklistItemRequest = z.object({
+    text: z.string().min(1).max(500).optional(),
+    status: zOpsChecklistItemStatus.optional(),
+    note: z.string().min(1).max(2000).optional(),
+    position: z.int().gte(0).optional(),
     agent: z.enum([
         'jarvis',
         'claude',
@@ -8189,6 +8276,64 @@ export const zCreateOpsQaNotePath = z.object({
  * The created note
  */
 export const zCreateOpsQaNoteResponse = zOpsQaNote;
+
+export const zListOpsChecklistHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zListOpsChecklistPath = z.object({
+    handle: zResourceId
+});
+
+/**
+ * List an item's checklist
+ */
+export const zListOpsChecklistResponse2 = zListOpsChecklistResponse;
+
+export const zCreateOpsChecklistItemBody = zCreateOpsChecklistItemRequest;
+
+export const zCreateOpsChecklistItemHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zCreateOpsChecklistItemPath = z.object({
+    handle: zResourceId
+});
+
+/**
+ * The added line
+ */
+export const zCreateOpsChecklistItemResponse = zOpsChecklistItem;
+
+export const zUpdateOpsChecklistItemBody = zUpdateOpsChecklistItemRequest;
+
+export const zUpdateOpsChecklistItemHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zUpdateOpsChecklistItemPath = z.object({
+    handle: zResourceId,
+    itemId: zResourceId
+});
+
+/**
+ * The updated line
+ */
+export const zUpdateOpsChecklistItemResponse = zOpsChecklistItem;
+
+export const zArchiveOpsChecklistItemHeaders = z.object({
+    'X-Project-Id': z.string().optional()
+});
+
+export const zArchiveOpsChecklistItemPath = z.object({
+    handle: zResourceId,
+    itemId: zResourceId
+});
+
+/**
+ * The archived line
+ */
+export const zArchiveOpsChecklistItemResponse = zOpsChecklistItem;
 
 export const zListOpsQaQuestionsHeaders = z.object({
     'X-Project-Id': z.string().optional()
