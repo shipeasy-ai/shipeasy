@@ -1922,7 +1922,8 @@ export const zOpsAlertContext = z.object({
         'killswitch_armed',
         'experiment_srm',
         'experiment_peek',
-        'guardrail'
+        'guardrail',
+        'gcp_monitoring'
     ]),
     dedupeKey: z.string(),
     detail: z.string().nullish(),
@@ -5713,7 +5714,8 @@ export const zAlertApiRow = z.object({
         'killswitch_armed',
         'experiment_srm',
         'experiment_peek',
-        'guardrail'
+        'guardrail',
+        'gcp_monitoring'
     ]),
     ruleId: z.string().nullable(),
     severity: z.enum([

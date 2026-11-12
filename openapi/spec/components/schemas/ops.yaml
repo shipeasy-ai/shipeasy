@@ -701,7 +701,8 @@ OpsAlertContext:
         - experiment_srm
         - experiment_peek
         - guardrail
-      description: What kind of condition opened this alert instance.
+        - gcp_monitoring
+      description: What kind of condition opened this alert instance. `gcp_monitoring` is an incident delivered from Google Cloud Monitoring through the project's inbound alert endpoint; its ticket's `context.alert.external` carries the incident (policy, condition, upstream severity, console `url`, resource labels, `occurrences`, open incident ids).
     dedupeKey:
       type: string
       description: Stable per-condition key; with `source` forms the ticket's `sourceRef`.
