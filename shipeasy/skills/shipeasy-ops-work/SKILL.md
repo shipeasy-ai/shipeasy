@@ -173,6 +173,21 @@ checklist is the work order — not the original ticket**:
 - When closing a group master, do not flip members whose own newest QA verdict
   is an unaddressed fail.
 
+**The item's checklist is its to-do list.** `ops get` carries it as
+`checklist` (or `shipeasy ops checklist list <handle>`, MCP
+`ops_checklist_list`). Each line is `open`, `done`, `verified` (QA confirmed
+it) or `returned` (QA sent it back — its `note` says what is still wrong):
+
+- **`returned` lines are the work order** on a reopened item, ahead of the
+  original description. `verified` lines are settled; don't redo them.
+- Plan a multi-part change as lines, one per part, before you start:
+  `shipeasy ops checklist add <handle> --text "<part>" --agent <your type>`
+  (MCP `ops_checklist_add`). Skip it for a one-line fix.
+- Tick each line `done` as it lands — `shipeasy ops checklist update <handle>
+  <lineId> --status done --agent <your type>` (MCP `ops_checklist_update`) — and
+  archive a line the plan dropped (`ops checklist archive`). Verifying or
+  returning a line is QA's call, never the dev's.
+
 ### 1a. Read the item's questions — answered ones are decisions
 
 Right after the ack, before reading code or planning the fix, read every

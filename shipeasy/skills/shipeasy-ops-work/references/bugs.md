@@ -27,4 +27,5 @@ in SKILL.md §1b; this is the bug-specific flow.
 **Reopened by QA?** If the item has QA notes or comments (`ops_qa_notes_list`,
 `ops_comments_list`), the newest `verification` FAIL and its "Required fixes"
 checklist outrank the original steps — see SKILL.md §1a-0. A merged PR is not
-evidence of a fix once QA has failed it.
+evidence of a fix once QA has failed it. Its `returned` checklist lines (`ops get` →
+`checklist`) are the same kind of work order — tick each `done` once fixed.

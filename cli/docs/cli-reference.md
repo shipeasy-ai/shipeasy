@@ -700,6 +700,85 @@ shipeasy ops brain ingest [options]
 | --- | --- | --- |
 | `--notes <value>` | optional | One to twenty notes, each reconciled into the note its title lands on. |
 
+### `shipeasy ops checklist`
+
+The to-do checklist inside a feature or bug item — the things being implemented, kept in the item's body instead of in comments.
+
+```bash
+shipeasy ops checklist [options] [command]
+```
+
+#### `shipeasy ops checklist list`
+
+List an item's checklist
+
+```bash
+shipeasy ops checklist list [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
+#### `shipeasy ops checklist add`
+
+Add a checklist line
+
+```bash
+shipeasy ops checklist add [options] <handle>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--text <value>` | optional | What the line asks for (markdown, one line). |
+| `--agent <value>` | optional | The agent type adding the line — pass your own type when you are a coding agent. Omitted, the line is attributed to the caller's identity. |
+
+#### `shipeasy ops checklist update`
+
+Update a checklist line
+
+```bash
+shipeasy ops checklist update [options] <handle> <itemId>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
+| `itemId` | required | The checklist line id (from `list`, `add` or `ops get` → `checklist`). |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--text <value>` | optional | New text for the line. |
+| `--status <value>` | optional | Where a checklist line stands — `open` (still to do), `done` (the dev ticked it), `verified` (QA confirmed it) or `returned` (QA sent it back with a `note`; tick it `done` again once fixed). |
+| `--note <value>` | optional | Why QA returns the line — required when moving it to `returned` (send it alone to reword the note of a returned line), refused on a line that ends up in any other status. |
+| `--position <value>` | optional | New display position (lines sort ascending; ties by creation order). |
+| `--agent <value>` | optional | The agent type making the change — pass your own type when you are an agent. Omitted, the change is attributed to the caller's identity. |
+
+#### `shipeasy ops checklist archive`
+
+Archive a checklist line
+
+```bash
+shipeasy ops checklist archive [options] <handle> <itemId>
+```
+
+| Argument | | Description |
+| --- | --- | --- |
+| `handle` | required | Per-project item number (e.g. `7`) or the full ops item id. |
+| `itemId` | required | The checklist line id (from `list`, `add` or `ops get` → `checklist`). |
+
+| Option | | Description |
+| --- | --- | --- |
+| `--data <value>` | optional | Request body as a JSON object. |
+
 ### `shipeasy ops comments`
 
 Comments on a queue item — the discussion thread that hangs off any bug, feature request, or auto-filed error/alert ticket.

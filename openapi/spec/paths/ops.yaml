@@ -1620,6 +1620,241 @@
       name: create
       positional:
         - handle
+/api/admin/ops/{handle}/checklist:
+  get:
+    operationId: listOpsChecklist
+    summary: List an item's checklist
+    description: |-
+      The to-do checklist inside a queue item, in display order (archived lines
+      left out, max 200). Each line is `open`, `done` (the dev ticked it),
+      `verified` (QA confirmed it) or `returned` (QA sent it back — `note` says
+      why). `ops get` returns the same list as `checklist`.
+
+      **Use case:** A coding agent picks an item up and works its `returned`
+      lines first, then the `open` ones.
+    tags:
+      - Checklist
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: handle
+        in: path
+        required: true
+        description: Per-project item number (e.g. `7`) or the full ops item id.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    responses:
+      "200":
+        description: List an item's checklist
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/ListOpsChecklistResponse
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: list
+      positional:
+        - handle
+  post:
+    operationId: createOpsChecklistItem
+    summary: Add a checklist line
+    description: |-
+      Add one line to the end of a queue item's checklist, `open`. Write a
+      multi-part plan as one line per part, so the dev can tick each off and QA
+      can verify or return each on its own. The author is the caller's identity;
+      pass `agent` to record the line as added by that agent type. An item holds
+      at most 200 lines.
+
+      **Use case:** An agent starting a feature lists the four changes it will
+      make, then ticks them off as they land.
+    tags:
+      - Checklist
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: handle
+        in: path
+        required: true
+        description: Per-project item number (e.g. `7`) or the full ops item id.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/CreateOpsChecklistItemRequest
+          examples:
+            line:
+              summary: Add a line
+              value:
+                text: CSV export includes the archived rows
+    responses:
+      "200":
+        description: The added line
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/OpsChecklistItem
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - VALIDATION
+    x-cli:
+      name: add
+      positional:
+        - handle
+/api/admin/ops/{handle}/checklist/{itemId}:
+  patch:
+    operationId: updateOpsChecklistItem
+    summary: Update a checklist line
+    description: |-
+      Change one checklist line: its `text`, its `position`, or its `status`.
+      The dev ticks a line `done` (or back to `open`); QA marks a `done` line
+      `verified`, or `returned` with a `note` saying what is still wrong; ticking
+      a returned line `done` again clears the note and hands it back to QA. Who
+      did what is recorded from the caller's identity, or `agent` when given. An
+      illegal move (verifying an `open` line) answers 409 `INVALID_TRANSITION`.
+
+      **Use case:** QA retests a feature, verifies three lines and returns the
+      fourth: "the export still drops the header row".
+    tags:
+      - Checklist
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: handle
+        in: path
+        required: true
+        description: Per-project item number (e.g. `7`) or the full ops item id.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+      - name: itemId
+        in: path
+        required: true
+        description: The checklist line id (from `list`, `add` or `ops get` → `checklist`).
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ops.yaml#/UpdateOpsChecklistItemRequest
+          examples:
+            done:
+              summary: Tick a line done
+              value:
+                status: done
+            returned:
+              summary: QA returns a line
+              value:
+                status: returned
+                note: The export still drops the header row
+    responses:
+      "200":
+        description: The updated line
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/OpsChecklistItem
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+      "409":
+        $ref: ../components/responses.yaml#/Conflict
+      "422":
+        $ref: ../components/responses.yaml#/UnprocessableEntity
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+      - INVALID_TRANSITION
+      - VALIDATION
+    x-cli:
+      name: update
+      positional:
+        - handle
+        - itemId
+/api/admin/ops/{handle}/checklist/{itemId}/archive:
+  post:
+    operationId: archiveOpsChecklistItem
+    summary: Archive a checklist line
+    description: |-
+      Take a line off an item's checklist — it no longer applies (the plan
+      changed, or it was added by mistake). The line leaves the list and every
+      read; nothing is deleted.
+
+      **Use case:** The plan dropped a step; archive its line so the count stays
+      honest.
+    tags:
+      - Checklist
+    parameters:
+      - $ref: ../components/parameters.yaml#/ProjectId
+      - name: handle
+        in: path
+        required: true
+        description: Per-project item number (e.g. `7`) or the full ops item id.
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+      - name: itemId
+        in: path
+        required: true
+        description: The checklist line id (from `list`, `add` or `ops get` → `checklist`).
+        schema:
+          $ref: ../components/schemas/common.yaml#/ResourceId
+    responses:
+      "200":
+        description: The archived line
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/ops.yaml#/OpsChecklistItem
+      "400":
+        $ref: ../components/responses.yaml#/BadRequest
+      "401":
+        $ref: ../components/responses.yaml#/Unauthorized
+      "403":
+        $ref: ../components/responses.yaml#/Forbidden
+      "404":
+        $ref: ../components/responses.yaml#/NotFound
+    x-error-codes:
+      - BAD_REQUEST
+      - UNAUTHORIZED
+      - FORBIDDEN
+      - NOT_FOUND
+    x-cli:
+      name: archive
+      positional:
+        - handle
+        - itemId
 /api/admin/ops/{handle}/qa-questions:
   get:
     operationId: listOpsQaQuestions

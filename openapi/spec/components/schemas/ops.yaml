@@ -247,6 +247,11 @@ GetOpsItemResponse:
       items:
         $ref: "#/OpsQaQuestion"
       description: Questions put to QA on this item, newest first (max 100), each with QA's answer once given. List the project-wide backlog with `ops list --qa-questions open`; ask with `ops qa-questions ask`.
+    checklist:
+      type: array
+      items:
+        $ref: "#/OpsChecklistItem"
+      description: "The item's to-do checklist in display order (archived lines left out). Treat `returned` lines (QA's `note` says why) as your work order, tick lines `done` as they land with `ops checklist update`, and add lines with `ops checklist add`."
     group:
       anyOf:
         - $ref: "#/OpsItemGroup"
@@ -3300,6 +3305,176 @@ ListOpsQaNotesResponse:
   items:
     $ref: "#/OpsQaNote"
   description: Response for `GET /api/admin/ops/{handle}/qa-notes` — the item's QA notes, newest first (max 200).
+OpsChecklistItemStatus:
+  type: string
+  enum:
+    - open
+    - done
+    - verified
+    - returned
+  description: "Where a checklist line stands — `open` (still to do), `done` (the dev ticked it), `verified` (QA confirmed it) or `returned` (QA sent it back with a `note`; tick it `done` again once fixed)."
+OpsChecklistItem:
+  type: object
+  properties:
+    id:
+      type: string
+      description: Checklist line id.
+    feedbackId:
+      type: string
+      description: The queue item the line belongs to.
+    position:
+      type: integer
+      description: Display order within the item, ascending.
+    text:
+      type: string
+      description: What the line asks for (markdown, one line).
+    status:
+      $ref: "#/OpsChecklistItemStatus"
+    note:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: QA's reason for returning the line, or `null`. Cleared when the line moves on.
+    createdByEmail:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Email of the person (or the key's actor) who added the line, or `null` when an agent did or nobody has yet.
+    createdByAgent:
+      anyOf:
+        - type: string
+          enum:
+            - jarvis
+            - claude
+            - cursor
+            - copilot
+            - jules
+        - type: "null"
+      description: The agent type that added the line, or `null` when a person did or nobody has yet.
+    doneByEmail:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Email of the person (or the key's actor) who ticked the line done, or `null` when an agent did or nobody has yet.
+    doneByAgent:
+      anyOf:
+        - type: string
+          enum:
+            - jarvis
+            - claude
+            - cursor
+            - copilot
+            - jules
+        - type: "null"
+      description: The agent type that ticked the line done, or `null` when a person did or nobody has yet.
+    doneAt:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: ISO-8601 time the line was ticked done, or `null` while it is `open`.
+    reviewedByEmail:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: Email of the person (or the key's actor) who verified or returned the line, or `null` when an agent did or nobody has yet.
+    reviewedByAgent:
+      anyOf:
+        - type: string
+          enum:
+            - jarvis
+            - claude
+            - cursor
+            - copilot
+            - jules
+        - type: "null"
+      description: The agent type that verified or returned the line, or `null` when a person did or nobody has yet.
+    reviewedAt:
+      anyOf:
+        - type: string
+        - type: "null"
+      description: ISO-8601 time the line was verified or returned, or `null`.
+    createdAt:
+      type: string
+      description: ISO-8601 creation timestamp.
+    updatedAt:
+      type: string
+      description: ISO-8601 time of the last change.
+  required:
+    - id
+    - feedbackId
+    - position
+    - text
+    - status
+    - note
+    - createdByEmail
+    - createdByAgent
+    - doneByEmail
+    - doneByAgent
+    - doneAt
+    - reviewedByEmail
+    - reviewedByAgent
+    - reviewedAt
+    - createdAt
+    - updatedAt
+  additionalProperties: false
+  description: One line of the to-do checklist inside a queue item.
+ListOpsChecklistResponse:
+  type: array
+  items:
+    $ref: "#/OpsChecklistItem"
+  description: Response for `GET /api/admin/ops/{handle}/checklist` — the item's checklist lines in display order (archived lines left out, max 200).
+CreateOpsChecklistItemRequest:
+  type: object
+  properties:
+    text:
+      type: string
+      minLength: 1
+      maxLength: 500
+      description: What the line asks for (markdown, one line).
+    agent:
+      type: string
+      enum:
+        - jarvis
+        - claude
+        - cursor
+        - copilot
+        - jules
+      description: The agent type adding the line — pass your own type when you are a coding agent. Omitted, the line is attributed to the caller's identity.
+  required:
+    - text
+  additionalProperties: false
+  description: "Body for `POST /api/admin/ops/{handle}/checklist` — adds one line at the end of the list, `open`."
+UpdateOpsChecklistItemRequest:
+  type: object
+  properties:
+    text:
+      type: string
+      minLength: 1
+      maxLength: 500
+      description: New text for the line.
+    status:
+      $ref: "#/OpsChecklistItemStatus"
+    note:
+      type: string
+      minLength: 1
+      maxLength: 2000
+      description: Why QA returns the line — required when moving it to `returned` (send it alone to reword the note of a returned line), refused on a line that ends up in any other status.
+    position:
+      type: integer
+      minimum: 0
+      description: New display position (lines sort ascending; ties by creation order).
+    agent:
+      type: string
+      enum:
+        - jarvis
+        - claude
+        - cursor
+        - copilot
+        - jules
+      description: The agent type making the change — pass your own type when you are an agent. Omitted, the change is attributed to the caller's identity.
+  additionalProperties: false
+  minProperties: 1
+  description: "Body for `PATCH /api/admin/ops/{handle}/checklist/{itemId}`. Status moves: `done` from `open`/`returned` (clears QA's note); `open` un-ticks any line; `verified` from `done`; `returned` from `done`/`verified`/`returned` and needs a `note`. Repeating a line's current status is a no-op. An illegal move answers 409 `INVALID_TRANSITION`."
 OpsQaQuestionStatus:
   type: string
   enum:
