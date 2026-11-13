@@ -3529,9 +3529,9 @@ export type OpsAlertMetricSummary = {
  */
 export type OpsAlertContext = {
     /**
-     * What kind of condition opened this alert instance. `gcp_monitoring` is an incident delivered from Google Cloud Monitoring through the project's inbound alert endpoint; its ticket's `context.alert.external` carries the incident (policy, condition, upstream severity, console `url`, resource labels, `occurrences`, open incident ids).
+     * What kind of condition opened this alert instance. `gcp_monitoring`, `prometheus_alertmanager`, `grafana_alerting`, `aws_cloudwatch`, `azure_monitor`, `datadog_monitors` and `generic_webhook` are incidents delivered from outside monitoring through the project's inbound alert endpoint for that provider; the ticket's `context.alert.external` carries the incident (policy, condition, upstream severity, console `url`, resource labels, `occurrences`, open incident ids).
      */
-    source: 'metric_rule' | 'killswitch_armed' | 'experiment_srm' | 'experiment_peek' | 'guardrail' | 'gcp_monitoring';
+    source: 'metric_rule' | 'killswitch_armed' | 'experiment_srm' | 'experiment_peek' | 'guardrail' | 'gcp_monitoring' | 'prometheus_alertmanager' | 'grafana_alerting' | 'aws_cloudwatch' | 'azure_monitor' | 'datadog_monitors' | 'generic_webhook';
     /**
      * Stable per-condition key; with `source` forms the ticket's `sourceRef`.
      */
@@ -10217,9 +10217,9 @@ export type AlertApiRow = {
      */
     id: string;
     /**
-     * Which platform subsystem raised the alert — a metric-threshold rule crossing (`metric_rule`), an armed kill switch (`killswitch_armed`), a sample-ratio mismatch or peeking guard on an experiment (`experiment_srm` / `experiment_peek`), a guardrail-metric breach (`guardrail`), or an incident delivered from Google Cloud Monitoring through the project's inbound alert endpoint (`gcp_monitoring`).
+     * Which platform subsystem raised the alert — a metric-threshold rule crossing (`metric_rule`), an armed kill switch (`killswitch_armed`), a sample-ratio mismatch or peeking guard on an experiment (`experiment_srm` / `experiment_peek`), a guardrail-metric breach (`guardrail`), or an incident delivered from outside monitoring through the project's inbound alert endpoint, one value per provider (`gcp_monitoring`, `prometheus_alertmanager`, `grafana_alerting`, `aws_cloudwatch`, `azure_monitor`, `datadog_monitors`, `generic_webhook`).
      */
-    source: 'metric_rule' | 'killswitch_armed' | 'experiment_srm' | 'experiment_peek' | 'guardrail' | 'gcp_monitoring';
+    source: 'metric_rule' | 'killswitch_armed' | 'experiment_srm' | 'experiment_peek' | 'guardrail' | 'gcp_monitoring' | 'prometheus_alertmanager' | 'grafana_alerting' | 'aws_cloudwatch' | 'azure_monitor' | 'datadog_monitors' | 'generic_webhook';
     /**
      * Id of the alert rule that raised it (`ar_…`), for `source: metric_rule`. `null` for alerts raised outside the rules engine.
      */

@@ -1923,7 +1923,13 @@ export const zOpsAlertContext = z.object({
         'experiment_srm',
         'experiment_peek',
         'guardrail',
-        'gcp_monitoring'
+        'gcp_monitoring',
+        'prometheus_alertmanager',
+        'grafana_alerting',
+        'aws_cloudwatch',
+        'azure_monitor',
+        'datadog_monitors',
+        'generic_webhook'
     ]),
     dedupeKey: z.string(),
     detail: z.string().nullish(),
@@ -5802,7 +5808,13 @@ export const zAlertApiRow = z.object({
         'experiment_srm',
         'experiment_peek',
         'guardrail',
-        'gcp_monitoring'
+        'gcp_monitoring',
+        'prometheus_alertmanager',
+        'grafana_alerting',
+        'aws_cloudwatch',
+        'azure_monitor',
+        'datadog_monitors',
+        'generic_webhook'
     ]),
     ruleId: z.string().nullable(),
     severity: z.enum([
