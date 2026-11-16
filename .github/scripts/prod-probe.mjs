@@ -98,6 +98,27 @@ const EDGE_URL = (process.env.SHIPEASY_EDGE_URL || "https://cdn.shipeasy.ai").re
 const CLIENT_KEY = process.env.SHIPEASY_CLIENT_KEY || "";
 const COHORT = Number(process.env.PROBE_COHORT || "500");
 const CONCURRENCY = 20;
+
+// fetchRetry() with retries on NETWORK-level failures only (undici's bare
+// "fetch failed": ECONNRESET, dropped socket). HTTP statuses are returned
+// untouched — a 4xx/5xx is a finding, not a flake. One reset used to escape to
+// the top-level catch and abort the whole run with exit 2, every later leg
+// unreported (#667 in adminJson, #687 in evaluate). Used for every idempotent
+// call; /collect stays on bare fetch, because a reset after the edge accepted
+// the batch would double-count events the metric legs assert on.
+async function fetchRetry(url, init) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fetch(url, init);
+    } catch (e) {
+      if (attempt >= 3) throw e;
+      const why = `${e?.message ?? e}${e?.cause ? ` (${e.cause.code ?? e.cause.message ?? e.cause})` : ""}`;
+      const where = `${init?.method ?? "GET"} ${String(url).replace(/\?.*/, "")}`;
+      console.log(`  ${where}: ${why} — retry ${attempt}/2`);
+      await new Promise((r) => setTimeout(r, 2000 * attempt));
+    }
+  }
+}
 const CLI = (process.env.PROBE_CLI || "npx --yes @shipeasy/cli@latest").split(" ");
 
 let failed = 0;
@@ -146,7 +167,7 @@ const listAlerts = () => cli(["ops", "list", "--limit", "500"]).data ?? [];
 // killswitches, experiments}). The edge does all bucketing/targeting; the probe
 // only inspects the verdicts.
 async function evaluate(user) {
-  const res = await fetch(`${EDGE_URL}/sdk/evaluate`, {
+  const res = await fetchRetry(`${EDGE_URL}/sdk/evaluate`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-sdk-key": CLIENT_KEY },
     body: JSON.stringify({ user }),
@@ -408,7 +429,7 @@ async function fetchCohort(n) {
   async function worker() {
     while (cursor < n) {
       const i = cursor++;
-      const res = await fetch(`${EDGE_URL}/sdk/evaluate`, {
+      const res = await fetchRetry(`${EDGE_URL}/sdk/evaluate`, {
         method: "POST",
         headers: { "content-type": "application/json", "x-sdk-key": CLIENT_KEY },
         body: JSON.stringify({ user: { anonymous_id: `probe:${i}` } }),
@@ -459,7 +480,7 @@ async function probeTemplateGates() {
   }
 
   async function evalFor(email) {
-    const res = await fetch(`${EDGE_URL}/sdk/evaluate`, {
+    const res = await fetchRetry(`${EDGE_URL}/sdk/evaluate`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-sdk-key": CLIENT_KEY },
       body: JSON.stringify({ user: { anonymous_id: `probe-tmpl:${email}`, email } }),
@@ -898,7 +919,7 @@ async function probeEnrichment() {
   const gates = listGates().filter((g) => g.enabled);
   const browserGate = gates.find((g) => g.rules?.some((r) => r.attr === "browser"));
   const countryGate = gates.find((g) => g.rules?.some((r) => r.attr === "country" && r.op === "neq"));
-  const res = await fetch(`${EDGE_URL}/sdk/evaluate`, {
+  const res = await fetchRetry(`${EDGE_URL}/sdk/evaluate`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -1236,7 +1257,7 @@ async function probeLatency() {
   const N = 100; // two p95s subtracted — each needs enough samples to sit still
   const MAX_MS = Number(process.env.SHIPEASY_PROBE_MAX_MS || "50");
   const rtt = async () => {
-    const res = await fetch(`${EDGE_URL}/healthz`);
+    const res = await fetchRetry(`${EDGE_URL}/healthz`);
     await res.arrayBuffer();
     if (!res.ok) throw new Error(`/healthz ${res.status}`);
   };
@@ -1353,8 +1374,8 @@ async function probeServerBlobs() {
     return;
   }
   const [fr, er] = await Promise.all([
-    fetch(`${EDGE_URL}/sdk/flags`, { headers: { "x-sdk-key": SK } }),
-    fetch(`${EDGE_URL}/sdk/experiments`, { headers: { "x-sdk-key": SK } }),
+    fetchRetry(`${EDGE_URL}/sdk/flags`, { headers: { "x-sdk-key": SK } }),
+    fetchRetry(`${EDGE_URL}/sdk/experiments`, { headers: { "x-sdk-key": SK } }),
   ]);
   if (!fr.ok || !er.ok) {
     annotate(`server blobs: /sdk/flags ${fr.status}, /sdk/experiments ${er.status}`);
@@ -1441,7 +1462,7 @@ async function probeBootstrap() {
   }
   const user = { anonymous_id: "bs-probe", country: "US", plan: "pro" };
   const ctx = Buffer.from(JSON.stringify(user)).toString("base64");
-  const br = await fetch(`${EDGE_URL}/sdk/bootstrap`, {
+  const br = await fetchRetry(`${EDGE_URL}/sdk/bootstrap`, {
     headers: { "x-sdk-key": SK, "X-User-Context": ctx },
   });
   if (!br.ok) {
@@ -1473,7 +1494,7 @@ async function probeMultiEnv() {
     return;
   }
   const evalKey = async (key) => {
-    const r = await fetch(`${EDGE_URL}/sdk/evaluate`, {
+    const r = await fetchRetry(`${EDGE_URL}/sdk/evaluate`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-sdk-key": key },
       body: JSON.stringify({ user: { anonymous_id: "env-probe" } }),
@@ -1564,7 +1585,7 @@ async function probeErrors() {
     return;
   }
   await sleep(3000);
-  const er = await fetch(`${APP_URL}/api/admin/errors?status=all&limit=200`, { headers: ADMIN_H });
+  const er = await fetchRetry(`${APP_URL}/api/admin/errors?status=all&limit=200`, { headers: ADMIN_H });
   if (!er.ok) {
     annotate(`/api/admin/errors ${er.status}`);
     failed++;
@@ -1593,7 +1614,7 @@ async function probeErrors() {
   // Timeseries: weekly (daily buckets) + 24h (hourly buckets — small intervals).
   const nowS = Math.floor(now / 1000);
   const series = async (from, bucket) => {
-    const r = await fetch(`${APP_URL}/api/admin/errors/series`, {
+    const r = await fetchRetry(`${APP_URL}/api/admin/errors/series`, {
       method: "POST",
       headers: ADMIN_H,
       body: JSON.stringify({ from, to: nowS, bucket }),
@@ -1862,7 +1883,7 @@ async function readProject() {
   const id = process.env.SHIPEASY_PROJECT_ID || "";
   if (!APP_URL || !id) return null;
   try {
-    const res = await fetch(`${APP_URL}/api/admin/projects/${id}`, { headers: ADMIN_H });
+    const res = await fetchRetry(`${APP_URL}/api/admin/projects/${id}`, { headers: ADMIN_H });
     if (!res.ok) return null;
     return await res.json();
   } catch {
@@ -3500,7 +3521,7 @@ const LAKE_BUCKET = process.env.SHIPEASY_LAKE_BUCKET || "shipeasy-lake";
 const LAKE_TOKEN = process.env.SHIPEASY_CATALOG_TOKEN || "";
 
 async function r2sql(query) {
-  const res = await fetch(
+  const res = await fetchRetry(
     `https://api.sql.cloudflarestorage.com/api/v1/accounts/${LAKE_ACCOUNT}/r2-sql/query/${LAKE_BUCKET}`,
     {
       method: "POST",
@@ -3812,7 +3833,7 @@ async function probeExposureTimeline() {
     if (!id) {
       console.log(`experiment '${expName}' not found in inventory — series half skipped`);
     } else {
-      const res = await fetch(`${APP_URL}/api/admin/experiments/${id}/view-model`, { headers: ADMIN_H });
+      const res = await fetchRetry(`${APP_URL}/api/admin/experiments/${id}/view-model`, { headers: ADMIN_H });
       if (res.ok) bundle = await res.json();
       else console.log(`view-model ${res.status} — soft-skip (deployed UI may predate the route)`);
     }
@@ -3999,26 +4020,19 @@ const dslPendingLive = [];
 /** Backlog entries still refused, with the reason the API gave. */
 const dslGaps = [];
 
-// A network-level failure (undici's bare "fetch failed": reset socket, dropped
-// connection) is retried, then returned as status 0 so the caller annotates the
-// endpoint it was reading. Thrown, it escaped to the top-level catch and aborted
-// the whole run — every later leg unreported, the failing path unnamed (#667).
+// A network-level failure is retried (fetchRetry), then returned as status 0
+// so the caller annotates the endpoint it was reading instead of aborting (#667).
 async function adminJson(method, path, body) {
   let res;
-  for (let attempt = 1; ; attempt++) {
-    try {
-      res = await fetch(`${APP_URL}${path}`, {
-        method,
-        headers: ADMIN_H,
-        body: body === undefined ? undefined : JSON.stringify(body),
-      });
-      break;
-    } catch (e) {
-      const why = `${e?.message ?? e}${e?.cause ? ` (${e.cause.code ?? e.cause.message ?? e.cause})` : ""}`;
-      if (attempt >= 3) return { ok: false, status: 0, body: `network: ${why} — ${method} ${path}` };
-      console.log(`  ${method} ${path}: ${why} — retry ${attempt}/2`);
-      await new Promise((r) => setTimeout(r, 2000 * attempt));
-    }
+  try {
+    res = await fetchRetry(`${APP_URL}${path}`, {
+      method,
+      headers: ADMIN_H,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch (e) {
+    const why = `${e?.message ?? e}${e?.cause ? ` (${e.cause.code ?? e.cause.message ?? e.cause})` : ""}`;
+    return { ok: false, status: 0, body: `network: ${why} — ${method} ${path}` };
   }
   const text = await res.text().catch(() => "");
   let json = null;
