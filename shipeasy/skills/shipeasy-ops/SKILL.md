@@ -67,3 +67,12 @@ sign-off in the dashboard and set it directly *only* when verified end-to-end.
 `pending_approval` and `triage` are human-gated holding states — excluded from
 `list --status all`, returned only when requested as that exact status, and
 promoted to `open` by a human in the dashboard.
+
+`backlog` is the "accepted, not now" shelf — parked the same way (excluded from
+`unresolved`/`all`, never auto-launched to an agent), shown on the dashboard's
+Backlog page instead of the ops board. Shelve an idea or a low-value item by
+filing or updating it with `status: "backlog"`; `list --status backlog` reads
+the shelf (e.g. "what's in the backlog?", "groom the backlog"); promote one by
+setting it back to `open`. Grooming the shelf — setting priority, merging
+duplicates, closing stale ideas `wont_fix` (ask first) — never needs a
+promotion.

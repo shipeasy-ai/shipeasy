@@ -1804,6 +1804,7 @@ OpsItemStatus:
     - ready_for_qa
     - resolved
     - wont_fix
+    - backlog
   description: >-
     Lifecycle status of a queue item. The working flow is `open` →
     `in_progress` → `ready_for_qa` → `resolved` (or `wont_fix`, terminal from
@@ -1825,6 +1826,15 @@ OpsItemStatus:
     `open`. Two earlier values were removed in favour of this single gate:
     `triage` (the onboarding-help bucket, now `pending_approval`) and `triaged`
     (a redundant "looked at but not started" step, now plain `open`).
+    `backlog` is the team's "accepted, not now" shelf: an item someone decided
+    is worth keeping but is not scheduled. Like `pending_approval` it is held
+    OUT of the work queue — excluded from `unresolved` and `all`, never
+    auto-launched to an agent, returned only when requested as the exact
+    status — and it lives on the dashboard's Backlog page instead of the ops
+    board. Promoting an item means flipping it to `open` (or delegating it to
+    an agent); anyone, person or agent, may shelve an item by setting
+    `backlog`. Not to be confused with the `backlog` value of
+    `OpsInvestigationState`, which means "no automation has touched it".
 OpsItemPriority:
   type: string
   enum:
