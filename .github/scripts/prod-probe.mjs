@@ -92,7 +92,7 @@
 //                  so the command tree always matches this repo's CLI; defaults
 //                  to "npx --yes @shipeasy/cli@latest" when unset.
 
-import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 
 const EDGE_URL = (process.env.SHIPEASY_EDGE_URL || "https://cdn.shipeasy.ai").replace(/\/$/, "");
 const CLIENT_KEY = process.env.SHIPEASY_CLIENT_KEY || "";
@@ -131,12 +131,47 @@ function cli(args) {
 
 // Non-JSON CLI invocation (for mutating commands like `experiments reanalyze`
 // and `killswitch set` that print a human line). Returns stdout text.
+//
+// The CLI prints `Error (0): HTTP 0` when its request got NO response (a
+// dropped socket / reset — the same network flake fetchRetry absorbs for the
+// probe's own fetches). That used to escape to the top-level catch and abort
+// the whole run with exit 2 (#694: one `experiments update` in the
+// verdict-gates leg). Retry it like fetchRetry does — network failures only,
+// never an HTTP status (a 4xx/5xx is a finding) — but only for verbs that are
+// safe to repeat: a create/start/stop/restore that reached the server before
+// the socket dropped would answer the retry with a 409 and turn a flake into a
+// false finding (and `flags create probe_holdout_bad` IS an assertion).
+const CLI_NOT_RETRYABLE = new Set(["create", "start", "stop", "restore"]);
+const CLI_NETWORK_FAILURE = /^Error \(0\):/m;
 function cliText(args) {
-  return execFileSync(CLI[0], [...CLI.slice(1), ...args], {
-    encoding: "utf8",
-    env: process.env,
-    stdio: ["ignore", "pipe", "inherit"],
-  });
+  const retryable = !args.some((a) => CLI_NOT_RETRYABLE.has(a));
+  for (let attempt = 1; ; attempt++) {
+    const r = spawnSync(CLI[0], [...CLI.slice(1), ...args], {
+      encoding: "utf8",
+      env: process.env,
+      stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    if (r.stderr) process.stderr.write(r.stderr);
+    if (r.error) throw r.error;
+    if (r.status === 0) return r.stdout;
+    if (!retryable || attempt >= 3 || !CLI_NETWORK_FAILURE.test(r.stderr ?? "")) {
+      // Same message shape execFileSync threw, which callers log.
+      const err = new Error(`Command failed: ${[...CLI, ...args].join(" ")}`);
+      err.status = r.status;
+      err.stdout = r.stdout;
+      err.stderr = r.stderr;
+      throw err;
+    }
+    console.log(`  shipeasy ${args.slice(0, 4).join(" ")}: no response (network) — retry ${attempt}/2`);
+    sleepSync(2000 * attempt);
+  }
+}
+
+// cliText is synchronous (every caller treats it so), so its backoff blocks
+// the thread rather than awaiting.
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
 // ── CLI resource reads ───────────────────────────────────────────────────────
