@@ -46,6 +46,9 @@ Parse `$ARGUMENTS` up-front:
 - `--type bug|feature|error|alert|measure_plan|all` — default `all` (`feature`
   maps to `feature_request`).
 - `--status <s>` — default `open`. Pass `all` for every workable status.
+  `backlog` items (the "not now" shelf) are never workable: `all` excludes them,
+  and you work one only when a person names it — then promote it to `open` by
+  acking it like any other item.
 - `--priority high|critical` — filter after pull (any type; priorities are
   shared).
 - `--limit <N>` — default `20`. Slice after pull.
