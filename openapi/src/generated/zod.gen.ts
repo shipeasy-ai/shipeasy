@@ -9937,7 +9937,7 @@ export const zListErrorsQuery = z.object({
         'resolved',
         'ignored',
         'all'
-    ]).optional().default('all'),
+    ]).optional().default('open'),
     q: z.string().max(200).optional(),
     limit: z.coerce.number().int().gte(1).lte(500).optional().default(200)
 });

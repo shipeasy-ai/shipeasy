@@ -3842,7 +3842,7 @@ export const setI18nLabel = <ThrowOnError extends boolean = false>(options: Opti
 /**
  * List tracked errors
  *
- * Returns a single page of tracked production errors as a **bare JSON array** (no pagination envelope), ordered by `lastSeenAt desc`. Filter with `status`, free-text-search with `q`, and cap the page with `limit`.
+ * Returns a single page of tracked production errors as a **bare JSON array** (no pagination envelope), ordered by `lastSeenAt desc`. Only `open` errors are returned unless `status` says otherwise. Filter with `status`, free-text-search with `q`, and cap the page with `limit`.
  *
  * Tracked errors are never filed by hand — an ingestion path (worker log drain / the `see()` SDK reporter) folds each occurrence into a row keyed by `fingerprint`, bumping `count` and `lastSeenAt`. This surface only reads them and (via PATCH) flips their `status`.
  *

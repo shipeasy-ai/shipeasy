@@ -5506,7 +5506,7 @@ _Errors_ — beyond the [common errors](#errors):
 
 **List tracked errors**
 
-Returns a single page of tracked production errors as a **bare JSON array** (no pagination envelope), ordered by `lastSeenAt desc`. Filter with `status`, free-text-search with `q`, and cap the page with `limit`.
+Returns a single page of tracked production errors as a **bare JSON array** (no pagination envelope), ordered by `lastSeenAt desc`. Only `open` errors are returned unless `status` says otherwise. Filter with `status`, free-text-search with `q`, and cap the page with `limit`.
 
 Tracked errors are never filed by hand — an ingestion path (worker log drain / the `see()` SDK reporter) folds each occurrence into a row keyed by `fingerprint`, bumping `count` and `lastSeenAt`. This surface only reads them and (via PATCH) flips their `status`.
 
@@ -5516,7 +5516,7 @@ _Parameters_
 
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
-| `status` | optional | `"open" \| "resolved" \| "ignored" \| "all"` | Filter by triage state. `all` (the default) returns every status. _(default `"all"`)_ |
+| `status` | optional | `"open" \| "resolved" \| "ignored" \| "all"` | Filter by triage state. Defaults to `open` — the live issues, the same scope the dashboard's Errors list opens on. Errors resolve on their own once a fix lands on their ticket or once they have been quiet for the project's auto-resolve window (Settings → Errors), so `open` is what still needs work. Pass `resolved` or `ignored` for those states, or `all` for every status. _(default `"open"`)_ |
 | `q` | optional | `string` | Case-insensitive substring match against `message`, `errorType`, and `subject`. _(length 0–200)_ |
 | `limit` | optional | `integer` | Maximum number of rows to return (1–500). Defaults to 200. _(default `200`; 1–500)_ |
 

@@ -23795,7 +23795,7 @@ export type ListErrorsData = {
     path?: never;
     query?: {
         /**
-         * Filter by triage state. `all` (the default) returns every status.
+         * Filter by triage state. Defaults to `open` — the live issues, the same scope the dashboard's Errors list opens on. Errors resolve on their own once a fix lands on their ticket or once they have been quiet for the project's auto-resolve window (Settings → Errors), so `open` is what still needs work. Pass `resolved` or `ignored` for those states, or `all` for every status.
          */
         status?: 'open' | 'resolved' | 'ignored' | 'all';
         /**
