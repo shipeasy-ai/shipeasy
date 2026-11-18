@@ -21,8 +21,8 @@ export const GENERATED_TOOLS: Tool[] = [
   },
   {
     name: "errors_list",
-    description: "List tracked errors. Returns a single page of tracked production errors as a **bare JSON array** (no pagination envelope), ordered by `lastSeenAt desc`. Filter with `status`, free-text-search with `q`, and cap the page with `limit`.",
-    inputSchema: {"type":"object","properties":{"status":{"type":"string","enum":["open","resolved","ignored","all"],"default":"all","description":"Filter by triage state. `all` (the default) returns every status."},"q":{"type":"string","maxLength":200,"description":"Case-insensitive substring match against `message`, `errorType`, and `subject`."},"limit":{"type":"integer","minimum":1,"maximum":500,"default":200,"description":"Maximum number of rows to return (1–500). Defaults to 200."}},"required":[]},
+    description: "List tracked errors. Returns a single page of tracked production errors as a **bare JSON array** (no pagination envelope), ordered by `lastSeenAt desc`. Only `open` errors are returned unless `status` says otherwise. Filter with `status`, free-text-search with `q`, and cap the page with `limit`.",
+    inputSchema: {"type":"object","properties":{"status":{"type":"string","enum":["open","resolved","ignored","all"],"default":"open","description":"Filter by triage state. Defaults to `open` — the live issues, the same scope the dashboard's Errors list opens on. Errors resolve on their own once a fix lands on their ticket or once they have been quiet for the project's auto-resolve window (Settings → Errors), so `open` is what still needs work. Pass `resolved` or `ignored` for those states, or `all` for every status."},"q":{"type":"string","maxLength":200,"description":"Case-insensitive substring match against `message`, `errorType`, and `subject`."},"limit":{"type":"integer","minimum":1,"maximum":500,"default":200,"description":"Maximum number of rows to return (1–500). Defaults to 200."}},"required":[]},
     annotations: {"title":"Errors List","readOnlyHint":true},
   },
   {

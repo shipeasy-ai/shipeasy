@@ -3,7 +3,7 @@
     operationId: listErrors
     summary: List tracked errors
     description: |-
-      Returns a single page of tracked production errors as a **bare JSON array** (no pagination envelope), ordered by `lastSeenAt desc`. Filter with `status`, free-text-search with `q`, and cap the page with `limit`.
+      Returns a single page of tracked production errors as a **bare JSON array** (no pagination envelope), ordered by `lastSeenAt desc`. Only `open` errors are returned unless `status` says otherwise. Filter with `status`, free-text-search with `q`, and cap the page with `limit`.
 
       Tracked errors are never filed by hand — an ingestion path (worker log drain / the `see()` SDK reporter) folds each occurrence into a row keyed by `fingerprint`, bumping `count` and `lastSeenAt`. This surface only reads them and (via PATCH) flips their `status`.
 
@@ -15,7 +15,7 @@
       - name: status
         in: query
         required: false
-        description: Filter by triage state. `all` (the default) returns every status.
+        description: Filter by triage state. Defaults to `open` — the live issues, the same scope the dashboard's Errors list opens on. Errors resolve on their own once a fix lands on their ticket or once they have been quiet for the project's auto-resolve window (Settings → Errors), so `open` is what still needs work. Pass `resolved` or `ignored` for those states, or `all` for every status.
         schema:
           type: string
           enum:
@@ -23,7 +23,7 @@
             - resolved
             - ignored
             - all
-          default: all
+          default: open
       - name: q
         in: query
         required: false
