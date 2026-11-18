@@ -56,13 +56,20 @@ Parse `$ARGUMENTS` up-front:
 - `--dry-run` — print the queue and exit 0. No status flips, no edits, no
   attachment downloads, no commits.
 
-**Named items are the whole queue.** When `$ARGUMENTS` names items — an
-`Issue [title](issue:#N:uuid), …` line (every fired run starts with one) or
-bare `#N` handles — the queue is EXACTLY those items: `ops get` each one, skip
-the `ops list` pull below, and never move on to anything else when they are
-done. Other runs own the rest of the queue; a fired run that sweeps it races
-every other run on the project to a second and third PR for the same item.
-Only a run with no named items pulls the queue.
+**Named items are the whole queue.** When `$ARGUMENTS` **or anything else in
+the message that started this run** names items — an
+`Issue [title](issue:#N:uuid), …` line (every delegated / fired run carries one)
+or bare `#N` handles — the queue is EXACTLY those items: `ops get` each one,
+skip the `ops list` pull below, and never move on to anything else when they are
+done. A scheduled host often runs a saved standing prompt ("run ops-work, one
+item at a time") with the delegated `Issue …` block appended after it — the
+named items still win: the standing prompt only tells you which skill to use,
+it does not widen the run to the whole queue. Other runs own the rest of the
+queue; a fired run that sweeps it races every other run on the project to a
+second and third PR for the same item. When the named items are done (PR open,
+or a question asked and the run stopped), go straight to the
+[final report](#3-final-report) and **end the run**. Only a run with no named
+items anywhere in its prompt pulls the queue.
 
 Check the working tree: it must be clean (`git status --porcelain`) **or** the
 user explicitly asked to work on top of WIP — otherwise stop and ask; mixing
@@ -348,7 +355,9 @@ leaving it in a comment. `shipeasy ops questions ask <handle>` (MCP
 
 ### 1c. Report and continue
 
-One short paragraph per item, then the next:
+One short paragraph per item, then the next — the next item **in the queue
+built in §0**. A run that was named its items has no "next" once those are
+done: report and end the run, never pull more.
 
 ```
 ✔ #<number> [<type>] "<title>" → <resolved|ready_for_qa|fixed-in-code|acknowledged|waiting-on-answer>
