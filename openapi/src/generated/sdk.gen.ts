@@ -3846,6 +3846,8 @@ export const setI18nLabel = <ThrowOnError extends boolean = false>(options: Opti
  *
  * Tracked errors are never filed by hand — an ingestion path (worker log drain / the `see()` SDK reporter) folds each occurrence into a row keyed by `fingerprint`, bumping `count` and `lastSeenAt`. This surface only reads them and (via PATCH) flips their `status`.
  *
+ * This list reads the stored rows, which are folded in on a schedule (twice an hour), so an error reported for the first time can take up to ~30 minutes to show up here. To confirm a just-reported error sooner, read it by fingerprint with `GET /api/admin/errors/{id}` and id `ae:<fingerprint>`, or open the dashboard's Errors list, which shows it within seconds.
+ *
  * **Use case:** Snapshot the project's open issues for a triage dashboard, or drive a CI gate that fails the build when any `open` error of `kind: uncaught` exists in `prod`.
  */
 export const listErrors = <ThrowOnError extends boolean = false>(options?: Options<ListErrorsData, ThrowOnError>): RequestResult<ListErrorsResponses, ListErrorsErrors, ThrowOnError> => (options?.client ?? client).get<ListErrorsResponses, ListErrorsErrors, ThrowOnError>({
