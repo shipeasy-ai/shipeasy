@@ -5129,13 +5129,13 @@ export type OpsItemGroupResponse = {
 };
 
 /**
- * Body for `POST /api/admin/ops/{handle}/ack`. With `agent` set this is an AI ack — the named agent type must have a connected trigger connector in the project, or the call fails with `AGENT_NOT_CONNECTED` and instructions to query the available agents (`ops agents list`). `gemini` is accepted as an input value and is normalized to `jules`. Without `agent` it is a HUMAN ack by the authenticated caller.
+ * Body for `POST /api/admin/ops/{handle}/ack`. With `agent` set this is an AI ack — the named agent type must have a connected trigger connector in the project, or the call fails with `AGENT_NOT_CONNECTED` and instructions to query the available agents (`ops agents list`). Without `agent` it is a HUMAN ack by the authenticated caller.
  */
 export type AckOpsItemRequest = {
     /**
-     * The AI agent type acking on the item's behalf — pass your own type when you are a coding agent (Claude Code passes `claude`, Cursor `cursor`, Copilot `copilot`, Jules `jules`, Gemini `gemini` → normalized to `jules`). Omit entirely for a human ack by the authenticated caller.
+     * The AI agent type acking on the item's behalf — pass your own type when you are a coding agent (Claude Code passes `claude`, Cursor `cursor`, Copilot `copilot`). Omit entirely for a human ack by the authenticated caller.
      */
-    agent?: 'claude' | 'cursor' | 'copilot' | 'jules' | 'gemini' | 'jarvis';
+    agent?: 'claude' | 'cursor' | 'copilot' | 'jarvis';
     /**
      * The agent-run session id (e.g. Claude's `session_01…`), so the dashboard can deep-link to the exact run page. Omit when the harness has no session id.
      */
@@ -5225,7 +5225,7 @@ export type OpsInvestigation = {
      */
     qaNotes: string | null;
     /**
-     * Which agent produced the record (`jarvis` is the in-house assistant; the rest are trigger-connector coding agents), or `null`.
+     * Which agent produced the record (`jarvis` is the in-house assistant; the rest are trigger-connector coding agents — `jules` only on records from before the Jules trigger was retired), or `null`.
      */
     agent: 'jarvis' | 'claude' | 'cursor' | 'copilot' | 'jules' | null;
     /**
@@ -5290,7 +5290,7 @@ export type OpsInvestigation = {
      */
     sessionId: string | null;
     /**
-     * The run's session-page deep link, or `null`. DERIVED (never stored): rebuilt from `sessionId` + the run's trigger connector — Claude's routine id (`?trigger=`), Copilot's repo (`/tasks/`), Cursor/Jules from the id alone. Only `working` run records carry one.
+     * The run's session-page deep link, or `null`. DERIVED (never stored): rebuilt from `sessionId` + the run's trigger connector — Claude's routine id (`?trigger=`), Copilot's repo (`/tasks/`), Cursor from the id alone. Only `working` run records carry one.
      */
     sessionUrl: string | null;
     /**
@@ -5340,7 +5340,7 @@ export type CreateOpsInvestigationRequest = {
     /**
      * The agent type producing the record — pass your own type when you are a coding agent.
      */
-    agent?: 'jarvis' | 'claude' | 'cursor' | 'copilot' | 'jules';
+    agent?: 'jarvis' | 'claude' | 'cursor' | 'copilot';
     /**
      * The model the agent ran on.
      */
@@ -5648,7 +5648,7 @@ export type AskOpsQuestionsRequest = {
     /**
      * The agent type asking — pass your own type when you are a coding agent. Defaults to the run's agent.
      */
-    agent?: 'jarvis' | 'claude' | 'cursor' | 'copilot' | 'jules';
+    agent?: 'jarvis' | 'claude' | 'cursor' | 'copilot';
     delivery?: OpsQuestionDelivery;
 };
 
@@ -5734,7 +5734,7 @@ export type CreateOpsQaNoteRequest = {
     /**
      * The agent type writing the note — pass your own type when you are QA automation. Omitted, the note is attributed to the caller's identity.
      */
-    agent?: 'jarvis' | 'claude' | 'cursor' | 'copilot' | 'jules';
+    agent?: 'jarvis' | 'claude' | 'cursor' | 'copilot';
 };
 
 /**
@@ -5753,7 +5753,7 @@ export type CreateOpsChecklistItemRequest = {
     /**
      * The agent type adding the line — pass your own type when you are a coding agent. Omitted, the line is attributed to the caller's identity.
      */
-    agent?: 'jarvis' | 'claude' | 'cursor' | 'copilot' | 'jules';
+    agent?: 'jarvis' | 'claude' | 'cursor' | 'copilot';
 };
 
 /**
@@ -5776,7 +5776,7 @@ export type UpdateOpsChecklistItemRequest = {
     /**
      * The agent type making the change — pass your own type when you are an agent. Omitted, the change is attributed to the caller's identity.
      */
-    agent?: 'jarvis' | 'claude' | 'cursor' | 'copilot' | 'jules';
+    agent?: 'jarvis' | 'claude' | 'cursor' | 'copilot';
 };
 
 /**
@@ -5795,7 +5795,7 @@ export type AskOpsQaQuestionRequest = {
     /**
      * The agent type asking — pass your own type when you are a coding agent. Omitted, the question is attributed to the caller's identity.
      */
-    agent?: 'jarvis' | 'claude' | 'cursor' | 'copilot' | 'jules';
+    agent?: 'jarvis' | 'claude' | 'cursor' | 'copilot';
 };
 
 /**
@@ -5809,7 +5809,7 @@ export type AnswerOpsQaQuestionRequest = {
     /**
      * The agent type answering — pass your own type when you are QA automation. Omitted, the answer is attributed to the caller's identity.
      */
-    agent?: 'jarvis' | 'claude' | 'cursor' | 'copilot' | 'jules';
+    agent?: 'jarvis' | 'claude' | 'cursor' | 'copilot';
 };
 
 /**
@@ -5823,7 +5823,7 @@ export type OpsAgentProfile = {
     /**
      * The trigger-connector provider backing this agent.
      */
-    provider: 'claude_trigger' | 'cursor_trigger' | 'copilot_trigger' | 'jules_trigger';
+    provider: 'claude_trigger' | 'cursor_trigger' | 'copilot_trigger';
     /**
      * Display name — the connector's `name`, or the provider default (e.g. "Claude").
      */
@@ -6998,7 +6998,7 @@ export type TrailRun = {
     kind: TrailRunKind;
     state: TrailRunState;
     /**
-     * The coding agent that ran it (`claude`, `cursor`, `copilot`, `jules`, `jarvis`), or `null`.
+     * The coding agent that ran it (`claude`, `cursor`, `copilot`, `jarvis`; `jules` only on runs from before the Jules trigger was retired), or `null`.
      */
     agent: string | null;
     /**
@@ -7042,7 +7042,7 @@ export type TrailItemRun = {
     item: OpsItemRef;
     state: TrailRunState;
     /**
-     * The coding agent that runs it (`claude`, `cursor`, `copilot`, `jules`, `jarvis`), or `null`.
+     * The coding agent that runs it (`claude`, `cursor`, `copilot`, `jarvis`; `jules` only on runs from before the Jules trigger was retired), or `null`.
      */
     agent: string | null;
     /**
@@ -7542,7 +7542,7 @@ export type TrailPlanItem = {
      */
     milestone?: string | null;
     /**
-     * Who works the item — an agent handle (`claude`, `cursor`, `copilot`, `jules`, `muse`, `grok`) or a person's email. `null`, the project's coding agent.
+     * Who works the item — an agent handle (`claude`, `cursor`, `copilot`, `muse`, `grok`) or a person's email. `null`, the project's coding agent.
      */
     assignee?: string | null;
     workKind?: TrailWorkKind;
@@ -8152,7 +8152,7 @@ export type SubmitOpsTrailEvalRequest = {
     /**
      * Your agent type, when you are the review agent.
      */
-    agent?: 'jarvis' | 'claude' | 'cursor' | 'copilot' | 'jules';
+    agent?: 'jarvis' | 'claude' | 'cursor' | 'copilot';
     /**
      * Your session id, so the eval can deep-link to the review run.
      */
@@ -8177,7 +8177,7 @@ export type UpdateOpsTrailFindingRequest = {
     /**
      * Your agent type, when an agent is resolving the finding.
      */
-    agent?: 'jarvis' | 'claude' | 'cursor' | 'copilot' | 'jules';
+    agent?: 'jarvis' | 'claude' | 'cursor' | 'copilot';
 };
 
 export type ApproveOpsTrailRequest = {
@@ -8700,9 +8700,9 @@ export type TrailOkResponse = {
  */
 export type StartTrailRunRequest = {
     /**
-     * Which coding agent to fire — `claude`, `cursor`, `copilot` or `jules`. Omitted, the project's coding-agent trigger.
+     * Which coding agent to fire — `claude`, `cursor` or `copilot`. Omitted, the project's coding-agent trigger.
      */
-    agent?: 'claude' | 'cursor' | 'copilot' | 'jules';
+    agent?: 'claude' | 'cursor' | 'copilot';
     /**
      * A specific trigger connector to fire. Overrides `agent`.
      */
@@ -8802,7 +8802,7 @@ export type ApproveTrailPlanRequest = {
     /**
      * Which coding agent builds, with `startBuild`. Omitted, the project's coding-agent trigger.
      */
-    agent?: 'claude' | 'cursor' | 'copilot' | 'jules';
+    agent?: 'claude' | 'cursor' | 'copilot';
     /**
      * A specific trigger connector to build with, with `startBuild`. Overrides `agent`.
      */
@@ -11588,9 +11588,9 @@ export type ErrorSeriesResponse = {
 };
 
 /**
- * Connector destination. OAuth/app providers (`google_sheets`, `github`, `slack`) dispatch the event payload to an external destination. Trigger providers (`claude_trigger`, `cursor_trigger`, `copilot_trigger`, `jules_trigger`) instead kick a coding-agent run that burns down the operational queue.
+ * Connector destination. OAuth/app providers (`google_sheets`, `github`, `slack`) dispatch the event payload to an external destination. Trigger providers (`claude_trigger`, `cursor_trigger`, `copilot_trigger`) instead kick a coding-agent run that burns down the operational queue.
  */
-export type ConnectorProvider = 'google_sheets' | 'github' | 'slack' | 'claude_trigger' | 'cursor_trigger' | 'copilot_trigger' | 'jules_trigger';
+export type ConnectorProvider = 'google_sheets' | 'github' | 'slack' | 'claude_trigger' | 'cursor_trigger' | 'copilot_trigger';
 
 /**
  * Lifecycle event a connector subscribes to. `bug.created` fires when a new bug report lands in the feedback inbox; `feature_request.created` fires for a new feature request. A connector dispatches (posts to Slack / appends a Sheets row / files a GitHub Issue) — or, for trigger connectors, auto-fires a coding-agent run — once per subscribed event.
@@ -11873,60 +11873,7 @@ export type CreateCopilotTriggerRequest = {
 };
 
 /**
- * Non-secret config for a Jules trigger.
- */
-export type JulesTriggerConfig = {
-    /**
-     * Jules source for the connected repo, e.g. `sources/github/owner/repo`. Idempotency key for the connector.
-     */
-    source: string;
-    /**
-     * Optional branch the session starts from.
-     */
-    startingBranch?: string;
-    /**
-     * Shipeasy project id the run targets.
-     */
-    projectId: string;
-    /**
-     * Optional standing instruction prepended to every run's prompt — the trigger's base prompt. Lets two triggers on different repos steer their runs differently without changing the `/shipeasy-ops-work` task block.
-     */
-    fireText?: string;
-};
-
-/**
- * Create a Google Jules trigger. Both keys are required up front. Idempotent by `config.source`.
- */
-export type CreateJulesTriggerRequest = {
-    /**
-     * Discriminator. Google Jules trigger.
-     */
-    provider: 'jules_trigger';
-    /**
-     * Human-readable connector label.
-     */
-    name?: string;
-    /**
-     * Events that auto-fire a Jules session. Defaults to empty.
-     */
-    events?: Array<ConnectorEvent>;
-    config: JulesTriggerConfig;
-    /**
-     * Jules API key that launches the session (secret). Encrypted into the credentials cipher; never returned.
-     */
-    apiKey: string;
-    /**
-     * Restricted Shipeasy ops key, embedded in the prompt (Jules exposes no env channel) (secret). Encrypted; never returned.
-     */
-    opsKey: string;
-    /**
-     * Whether the trigger is active on create.
-     */
-    enabled?: boolean;
-};
-
-/**
- * Body for `POST /api/admin/connectors`, discriminated on `provider`. The OAuth providers (`google_sheets`/`github`/`slack`) create a disabled stub that is finished via the provider's OAuth flow. The trigger providers (`claude_trigger`/`cursor_trigger`/`copilot_trigger`/`jules_trigger`) arrive config + credentials together and are fireable immediately.
+ * Body for `POST /api/admin/connectors`, discriminated on `provider`. The OAuth providers (`google_sheets`/`github`/`slack`) create a disabled stub that is finished via the provider's OAuth flow. The trigger providers (`claude_trigger`/`cursor_trigger`/`copilot_trigger`) arrive config + credentials together and are fireable immediately.
  */
 export type CreateConnectorRequest = ({
     provider: 'google_sheets' | 'github' | 'slack';
@@ -11936,9 +11883,7 @@ export type CreateConnectorRequest = ({
     provider: 'cursor_trigger';
 } & CreateCursorTriggerRequest) | ({
     provider: 'copilot_trigger';
-} & CreateCopilotTriggerRequest) | ({
-    provider: 'jules_trigger';
-} & CreateJulesTriggerRequest);
+} & CreateCopilotTriggerRequest);
 
 export type CreateConnectorResponse = {
     /**
@@ -12081,29 +12026,6 @@ export type UpdateCopilotTriggerRequest = {
 };
 
 /**
- * Per-provider PATCH body for editing an existing `jules_trigger` connector. `config` replaces the stored config wholesale; `name` and either credential are optional.
- */
-export type UpdateJulesTriggerRequest = {
-    /**
-     * Discriminator. Google Jules trigger.
-     */
-    provider: 'jules_trigger';
-    /**
-     * New connector label. Optional — omit to leave it unchanged.
-     */
-    name?: string;
-    config: JulesTriggerConfig;
-    /**
-     * New Jules launch key (secret). Optional — omit to leave the stored key untouched. Rotatable independently of `opsKey`. Encrypted; never returned.
-     */
-    apiKey?: string;
-    /**
-     * New restricted Shipeasy ops key (secret). Optional — omit to leave the stored key untouched. Rotatable independently of `apiKey`. Encrypted; never returned.
-     */
-    opsKey?: string;
-};
-
-/**
  * Body for `PATCH /api/admin/connectors/{id}/trigger`, discriminated on `provider`. Edits an existing trigger connector: the non-secret `config` is always supplied and replaces the stored config wholesale; `name` and the credential secret(s) are optional (a supplied secret rotates just that key, a blank/omitted one leaves the stored cipher untouched).
  */
 export type UpdateTriggerConnectorRequest = ({
@@ -12112,12 +12034,10 @@ export type UpdateTriggerConnectorRequest = ({
     provider: 'cursor_trigger';
 } & UpdateCursorTriggerRequest) | ({
     provider: 'copilot_trigger';
-} & UpdateCopilotTriggerRequest) | ({
-    provider: 'jules_trigger';
-} & UpdateJulesTriggerRequest);
+} & UpdateCopilotTriggerRequest);
 
 /**
- * Body for `POST /api/admin/connectors/trigger`, discriminated on `provider` — the trigger-provider subset of `CreateConnectorRequest` (no OAuth stubs). Config + credentials arrive together and the connector is usable immediately; creates are idempotent by each provider's natural key (`config.routineId` / `config.repoUrl` / `config.owner`+`config.repo` / `config.source`).
+ * Body for `POST /api/admin/connectors/trigger`, discriminated on `provider` — the trigger-provider subset of `CreateConnectorRequest` (no OAuth stubs). Config + credentials arrive together and the connector is usable immediately; creates are idempotent by each provider's natural key (`config.routineId` / `config.repoUrl` / `config.owner`+`config.repo`).
  */
 export type CreateTriggerConnectorRequest = ({
     provider: 'claude_trigger';
@@ -12125,9 +12045,7 @@ export type CreateTriggerConnectorRequest = ({
     provider: 'cursor_trigger';
 } & CreateCursorTriggerRequest) | ({
     provider: 'copilot_trigger';
-} & CreateCopilotTriggerRequest) | ({
-    provider: 'jules_trigger';
-} & CreateJulesTriggerRequest);
+} & CreateCopilotTriggerRequest);
 
 /**
  * A single API key as returned by the list endpoint. Response fields are snake_case. The raw token is never returned here — only its `last4` tail. `last4` and the typed `scopes` may be `null` for keys minted before those columns existed.

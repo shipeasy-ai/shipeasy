@@ -2572,7 +2572,7 @@ export function setupCommand(parent: Command, version = "unknown"): void {
     .option("--no-triggers", "Skip the automation trigger step")
     .option(
       "--trigger-platform <id>",
-      "Preselect the trigger platform (claude|codex|cursor|copilot|gemini|jules)",
+      "Preselect the trigger platform (claude|codex|cursor|copilot)",
     )
     .option("--plan", "Open the plan step without asking (skips the yes/no gate)")
     .option("--no-plan", "Skip the plan step (onboarding stays unfinished until it's done)")
@@ -2595,7 +2595,7 @@ export function setupCommand(parent: Command, version = "unknown"): void {
       "Set up an automation trigger — a scheduled agent that fixes queue items as " +
         "PRs, unattended. Opens the hosted, guided setup for your platform.",
     )
-    .option("--platform <id>", "Preselect the platform (claude|codex|cursor|copilot|gemini|jules)")
+    .option("--platform <id>", "Preselect the platform (claude|codex|cursor|copilot)")
     .option("--dry-run", "Print the URL without opening a browser")
     .action(async (opts: { platform?: string; dryRun?: boolean }) => {
       await runSetupTriggers(opts).catch((err: unknown) => {
@@ -2612,7 +2612,7 @@ export function setupCommand(parent: Command, version = "unknown"): void {
       "(bugs, feature requests, auto-filed error/alert tickets) and opens one pull " +
       "request per fixed item — nothing merges without you. This command explains " +
       "it, has you pick the platform you code with (Claude Code, Codex, Cursor, " +
-      "Copilot, or Gemini/Jules), then opens the hosted, guided setup wizard " +
+      "or Copilot), then opens the hosted, guided setup wizard " +
       "preselected to that platform, which walks you through the platform-specific " +
       "fields and secrets. `shipeasy setup` offers this same step inline.",
   );

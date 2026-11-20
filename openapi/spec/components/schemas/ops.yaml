@@ -366,6 +366,9 @@ OpsItemOwner:
                 - claude_trigger
                 - cursor_trigger
                 - copilot_trigger
+                # Retired (shipeasy #713): no connector can carry it any more. Kept only
+                # because this schema is in the server-SDK admin slice; see TECH-DEBT.md
+                # in vshaveyko/shipeasy2 ("The server-SDK admin slice still lists jules_trigger").
                 - jules_trigger
                 - jarvis
               description: The trigger-connector provider backing this agent, or `jarvis` for the built-in hosted agent.
@@ -2051,13 +2054,11 @@ AckOpsItemRequest:
         - claude
         - cursor
         - copilot
-        - jules
-        - gemini
         - jarvis
       description: >-
         The AI agent type acking on the item's behalf — pass your own type when
         you are a coding agent (Claude Code passes `claude`, Cursor `cursor`,
-        Copilot `copilot`, Jules `jules`, Gemini `gemini` → normalized to `jules`). Omit entirely for a human ack
+        Copilot `copilot`). Omit entirely for a human ack
         by the authenticated caller.
     sessionId:
       type: string
@@ -2095,8 +2096,7 @@ AckOpsItemRequest:
     Body for `POST /api/admin/ops/{handle}/ack`. With `agent` set this is an AI
     ack — the named agent type must have a connected trigger connector in the
     project, or the call fails with `AGENT_NOT_CONNECTED` and instructions to
-    query the available agents (`ops agents list`). `gemini` is accepted as an input value and is
-    normalized to `jules`. Without `agent` it is a HUMAN ack by the authenticated
+    query the available agents (`ops agents list`). Without `agent` it is a HUMAN ack by the authenticated
     caller.
 AckOpsItemResponse:
   type: object
@@ -2156,7 +2156,6 @@ OpsAgentProfile:
         - claude_trigger
         - cursor_trigger
         - copilot_trigger
-        - jules_trigger
       description: The trigger-connector provider backing this agent.
     name:
       type: string
@@ -2649,7 +2648,7 @@ OpsInvestigation:
             - copilot
             - jules
         - type: "null"
-      description: Which agent produced the record (`jarvis` is the in-house assistant; the rest are trigger-connector coding agents), or `null`.
+      description: Which agent produced the record (`jarvis` is the in-house assistant; the rest are trigger-connector coding agents — `jules` only on records from before the Jules trigger was retired), or `null`.
     model:
       anyOf:
         - type: string
@@ -2733,7 +2732,7 @@ OpsInvestigation:
       anyOf:
         - type: string
         - type: "null"
-      description: "The run's session-page deep link, or `null`. DERIVED (never stored): rebuilt from `sessionId` + the run's trigger connector — Claude's routine id (`?trigger=`), Copilot's repo (`/tasks/`), Cursor/Jules from the id alone. Only `working` run records carry one."
+      description: "The run's session-page deep link, or `null`. DERIVED (never stored): rebuilt from `sessionId` + the run's trigger connector — Claude's routine id (`?trigger=`), Copilot's repo (`/tasks/`), Cursor from the id alone. Only `working` run records carry one."
     ackedBy:
       anyOf:
         - type: string
@@ -2816,7 +2815,6 @@ CreateOpsInvestigationRequest:
         - claude
         - cursor
         - copilot
-        - jules
       description: The agent type producing the record — pass your own type when you are a coding agent.
     model:
       type: string
@@ -3071,7 +3069,6 @@ AskOpsQuestionsRequest:
         - claude
         - cursor
         - copilot
-        - jules
       description: The agent type asking — pass your own type when you are a coding agent. Defaults to the run's agent.
     delivery:
       $ref: "#/OpsQuestionDelivery"
@@ -3310,7 +3307,6 @@ CreateOpsQaNoteRequest:
         - claude
         - cursor
         - copilot
-        - jules
       description: The agent type writing the note — pass your own type when you are QA automation. Omitted, the note is attributed to the caller's identity.
   required:
     - kind
@@ -3455,7 +3451,6 @@ CreateOpsChecklistItemRequest:
         - claude
         - cursor
         - copilot
-        - jules
       description: The agent type adding the line — pass your own type when you are a coding agent. Omitted, the line is attributed to the caller's identity.
   required:
     - text
@@ -3487,7 +3482,6 @@ UpdateOpsChecklistItemRequest:
         - claude
         - cursor
         - copilot
-        - jules
       description: The agent type making the change — pass your own type when you are an agent. Omitted, the change is attributed to the caller's identity.
   additionalProperties: false
   minProperties: 1
@@ -3586,7 +3580,6 @@ AskOpsQaQuestionRequest:
         - claude
         - cursor
         - copilot
-        - jules
       description: The agent type asking — pass your own type when you are a coding agent. Omitted, the question is attributed to the caller's identity.
   required:
     - question
@@ -3607,7 +3600,6 @@ AnswerOpsQaQuestionRequest:
         - claude
         - cursor
         - copilot
-        - jules
       description: The agent type answering — pass your own type when you are QA automation. Omitted, the answer is attributed to the caller's identity.
   required:
     - answer
@@ -4935,7 +4927,6 @@ SubmitOpsTrailEvalRequest:
         - claude
         - cursor
         - copilot
-        - jules
       description: Your agent type, when you are the review agent.
     sessionId:
       type: string
@@ -4980,7 +4971,6 @@ UpdateOpsTrailFindingRequest:
         - claude
         - cursor
         - copilot
-        - jules
       description: Your agent type, when an agent is resolving the finding.
   required:
     - status
@@ -5690,7 +5680,7 @@ TrailRun:
       anyOf:
         - type: string
         - type: "null"
-      description: The coding agent that ran it (`claude`, `cursor`, `copilot`, `jules`, `jarvis`), or `null`.
+      description: The coding agent that ran it (`claude`, `cursor`, `copilot`, `jarvis`; `jules` only on runs from before the Jules trigger was retired), or `null`.
     sessionUrl:
       anyOf:
         - type: string
@@ -6518,7 +6508,7 @@ TrailPlanItem:
           minLength: 1
           maxLength: 200
         - type: "null"
-      description: Who works the item — an agent handle (`claude`, `cursor`, `copilot`, `jules`, `muse`, `grok`) or a person's email. `null`, the project's coding agent.
+      description: Who works the item — an agent handle (`claude`, `cursor`, `copilot`, `muse`, `grok`) or a person's email. `null`, the project's coding agent.
     workKind:
       $ref: "#/TrailWorkKind"
     creates:
@@ -6970,7 +6960,6 @@ ApproveTrailPlanRequest:
         - claude
         - cursor
         - copilot
-        - jules
       description: Which coding agent builds, with `startBuild`. Omitted, the project's coding-agent trigger.
     connectorId:
       type: string
@@ -7026,7 +7015,7 @@ TrailItemRun:
       anyOf:
         - type: string
         - type: "null"
-      description: The coding agent that runs it (`claude`, `cursor`, `copilot`, `jules`, `jarvis`), or `null`.
+      description: The coding agent that runs it (`claude`, `cursor`, `copilot`, `jarvis`; `jules` only on runs from before the Jules trigger was retired), or `null`.
     sessionUrl:
       anyOf:
         - type: string
@@ -7848,12 +7837,11 @@ StartTrailRunRequest:
   properties:
     agent:
       type: string
-      description: Which coding agent to fire — `claude`, `cursor`, `copilot` or `jules`. Omitted, the project's coding-agent trigger.
+      description: Which coding agent to fire — `claude`, `cursor` or `copilot`. Omitted, the project's coding-agent trigger.
       enum:
         - claude
         - cursor
         - copilot
-        - jules
     connectorId:
       type: string
       description: A specific trigger connector to fire. Overrides `agent`.

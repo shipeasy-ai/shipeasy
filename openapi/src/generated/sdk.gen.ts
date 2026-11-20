@@ -1447,7 +1447,7 @@ export const updateOpsGroup = <ThrowOnError extends boolean = false>(options: Op
  * time since the run started).
  *
  * **AI ack.** Pass `agent` with your own agent type (`claude`, `cursor`,
- * `copilot`, `jules`; `gemini` is also accepted and is normalized to `jules` on receipt) and, when you have one, the
+ * `copilot`) and, when you have one, the
  * run's `sessionId` so the dashboard can deep-link to the session. If the
  * project has no connected trigger connector of that type the call fails
  * with `AGENT_NOT_CONNECTED` — list the available agents with `ops agents
@@ -1837,7 +1837,7 @@ export const answerOpsQaQuestion = <ThrowOnError extends boolean = false>(option
  * List connected AI agents
  *
  * The project's connected AI agents — one per authenticated trigger
- * connector (Claude / Cursor / Copilot / Jules). These are the agent types
+ * connector (Claude / Cursor / Copilot). These are the agent types
  * `ops ack` accepts and the agents a queue item can be assigned to.
  *
  * **Use case:** Discover which `agent` values an AI ack can use, e.g. after
@@ -3957,13 +3957,13 @@ export const listConnectors = <ThrowOnError extends boolean = false>(options?: O
  * Creates a connector. The request body is discriminated on `provider`.
  *
  * - **OAuth/app providers** (`google_sheets`, `github`, `slack`) — supply `{ provider, name, events }`. The connector is created `enabled: false` with empty `config` and no credentials; the provider's OAuth flow then attaches credentials and enables it.
- * - **Trigger providers** (`claude_trigger`, `cursor_trigger`, `copilot_trigger`, `jules_trigger`) — supply `config` plus the provider's credential field(s) and the connector is fireable immediately. Trigger creates are **idempotent** by their natural key (`config.routineId` / `config.repoUrl` / `config.owner`+`config.repo` / `config.source`): re-creating updates the existing row rather than duplicating it.
+ * - **Trigger providers** (`claude_trigger`, `cursor_trigger`, `copilot_trigger`) — supply `config` plus the provider's credential field(s) and the connector is fireable immediately. Trigger creates are **idempotent** by their natural key (`config.routineId` / `config.repoUrl` / `config.owner`+`config.repo`): re-creating updates the existing row rather than duplicating it.
  *
  * **Use cases**
  *
  * - **File bugs as GitHub Issues** — `{ "provider": "github", "name": "Bugs → acme/app", "events": ["bug.created"] }`, then finish the GitHub App install.
  * - **Nightly ops sweep** — register a `claude_trigger` with its `routineId` and (optionally) a fire `token`; subscribe `events` later to auto-fire on new bugs.
- * - **Cold cloud-agent run** — register a `cursor_trigger`/`jules_trigger` with the repo coordinates plus both keys, or a `copilot_trigger` with the repo + user PAT.
+ * - **Cold cloud-agent run** — register a `cursor_trigger` with the repo coordinates plus both keys, or a `copilot_trigger` with the repo + user PAT.
  */
 export const createConnector = <ThrowOnError extends boolean = false>(options: Options<CreateConnectorData, ThrowOnError>): RequestResult<CreateConnectorResponses, CreateConnectorErrors, ThrowOnError> => (options.client ?? client).post<CreateConnectorResponses, CreateConnectorErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -4028,7 +4028,7 @@ export const updateConnector = <ThrowOnError extends boolean = false>(options: O
 /**
  * Fire a trigger connector
  *
- * Manually kicks a trigger connector's run — Claude (kicks its preconfigured routine) or Cursor / Copilot / Jules (launches a cold cloud-agent run). Firing is event-less: it kicks the run with an optional caller-supplied prompt override rather than dispatching a single lifecycle payload.
+ * Manually kicks a trigger connector's run — Claude (kicks its preconfigured routine) or Cursor / Copilot (launches a cold cloud-agent run). Firing is event-less: it kicks the run with an optional caller-supplied prompt override rather than dispatching a single lifecycle payload.
  *
  * Only trigger providers can be fired, and only once authenticated (a tokenless trigger cannot fire). The attempt's outcome is recorded on the connector's `lastAttemptAt` / `lastError` / `lastSuccessAt`.
  *
@@ -4062,7 +4062,7 @@ export const testConnector = <ThrowOnError extends boolean = false>(options: Opt
 /**
  * Update a trigger connector
  *
- * Edit an existing coding-agent **trigger** connector (`claude_trigger` / `cursor_trigger` / `copilot_trigger` / `jules_trigger`) — replace its non-secret `config` and, optionally, rotate its credential secret(s). Discriminated on `provider`; the id in the path selects the connector and its `provider` must match the body.
+ * Edit an existing coding-agent **trigger** connector (`claude_trigger` / `cursor_trigger` / `copilot_trigger`) — replace its non-secret `config` and, optionally, rotate its credential secret(s). Discriminated on `provider`; the id in the path selects the connector and its `provider` must match the body.
  *
  * Unlike the generic `PATCH /api/admin/connectors/{id}` (which cannot touch secrets), this endpoint always replaces the non-secret `config` wholesale and merges any supplied secret over the stored credential cipher — so a single half of a two-key pair (e.g. just the ops key) can be rotated on its own. A blank/omitted secret leaves the stored cipher untouched.
  *
@@ -4083,14 +4083,14 @@ export const updateTriggerConnector = <ThrowOnError extends boolean = false>(opt
 /**
  * Create a recurring coding-agent trigger
  *
- * Creates (or idempotently updates) a coding-agent **trigger** connector — the recurring, unattended run that burns down the ops queue in `--pr` mode. Discriminated on `provider`; only the four Shipeasy-fireable providers are accepted (`claude_trigger`, `cursor_trigger`, `copilot_trigger`, `jules_trigger`). Config + credential(s) arrive together; creates are idempotent by the provider's natural key, so re-creating updates the existing row.
+ * Creates (or idempotently updates) a coding-agent **trigger** connector — the recurring, unattended run that burns down the ops queue in `--pr` mode. Discriminated on `provider`; only the three Shipeasy-fireable providers are accepted (`claude_trigger`, `cursor_trigger`, `copilot_trigger`). Config + credential(s) arrive together; creates are idempotent by the provider's natural key, so re-creating updates the existing row.
  *
- * Platforms without a fire endpoint (Codex, Windsurf, Cline, OpenClaw, OpenCode, Continue) cannot be created here — they are scheduled on their own platform (typically a GitHub Actions `schedule:` cron running the platform's headless CLI with the trigger prompt).
+ * Platforms without a fire endpoint (Codex, Gemini, Windsurf, Cline, OpenClaw, OpenCode, Continue) cannot be created here — they are scheduled on their own platform (typically a GitHub Actions `schedule:` cron running the platform's headless CLI with the trigger prompt).
  *
  * **Use cases**
  *
  * - **Register a Claude routine** — after `RemoteTrigger {action:"create"}` returns `trig_…`, `{ "provider": "claude_trigger", "config": { "routineId": "trig_…" } }` (tokenless is fine; add the fire token later).
- * - **Cold Cursor/Jules run** — repo coordinates + both keys; Shipeasy launches the run and the PR opens via the provider's GitHub App.
+ * - **Cold Cursor run** — repo coordinates + both keys; Shipeasy launches the run and the PR opens via the provider's GitHub App.
  * - **Copilot cloud agent** — repo + a Copilot-licensed user PAT with the "Agent tasks" permission.
  */
 export const createTriggerConnector = <ThrowOnError extends boolean = false>(options: Options<CreateTriggerConnectorData, ThrowOnError>): RequestResult<CreateTriggerConnectorResponses, CreateTriggerConnectorErrors, ThrowOnError> => (options.client ?? client).post<CreateTriggerConnectorResponses, CreateTriggerConnectorErrors, ThrowOnError>({

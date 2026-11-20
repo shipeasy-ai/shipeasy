@@ -125,7 +125,6 @@ exports[`command tree > matches the registered command surface (snapshot) 1`] = 
   "ops trigger create claude",
   "ops trigger create copilot",
   "ops trigger create cursor",
-  "ops trigger create jules",
   "ops trigger prep",
   "ops update",
   "projects",

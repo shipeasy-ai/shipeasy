@@ -13,8 +13,7 @@ ConnectorProvider:
     - claude_trigger
     - cursor_trigger
     - copilot_trigger
-    - jules_trigger
-  description: "Connector destination. OAuth/app providers (`google_sheets`, `github`, `slack`) dispatch the event payload to an external destination. Trigger providers (`claude_trigger`, `cursor_trigger`, `copilot_trigger`, `jules_trigger`) instead kick a coding-agent run that burns down the operational queue."
+  description: "Connector destination. OAuth/app providers (`google_sheets`, `github`, `slack`) dispatch the event payload to an external destination. Trigger providers (`claude_trigger`, `cursor_trigger`, `copilot_trigger`) instead kick a coding-agent run that burns down the operational queue."
 ConnectorRecord:
   type: object
   properties:
@@ -101,7 +100,6 @@ CreateConnectorRequest:
     - $ref: "#/CreateClaudeTriggerRequest"
     - $ref: "#/CreateCursorTriggerRequest"
     - $ref: "#/CreateCopilotTriggerRequest"
-    - $ref: "#/CreateJulesTriggerRequest"
   discriminator:
     propertyName: provider
     mapping:
@@ -111,8 +109,7 @@ CreateConnectorRequest:
       claude_trigger: "#/CreateClaudeTriggerRequest"
       cursor_trigger: "#/CreateCursorTriggerRequest"
       copilot_trigger: "#/CreateCopilotTriggerRequest"
-      jules_trigger: "#/CreateJulesTriggerRequest"
-  description: "Body for `POST /api/admin/connectors`, discriminated on `provider`. The OAuth providers (`google_sheets`/`github`/`slack`) create a disabled stub that is finished via the provider's OAuth flow. The trigger providers (`claude_trigger`/`cursor_trigger`/`copilot_trigger`/`jules_trigger`) arrive config + credentials together and are fireable immediately."
+  description: "Body for `POST /api/admin/connectors`, discriminated on `provider`. The OAuth providers (`google_sheets`/`github`/`slack`) create a disabled stub that is finished via the provider's OAuth flow. The trigger providers (`claude_trigger`/`cursor_trigger`/`copilot_trigger`) arrive config + credentials together and are fireable immediately."
 CreateOAuthConnectorRequest:
   type: object
   properties:
@@ -252,47 +249,6 @@ CreateCopilotTriggerRequest:
     - token
   additionalProperties: false
   description: "Create a GitHub Copilot coding-agent trigger. Idempotent by `config.owner/config.repo`."
-CreateJulesTriggerRequest:
-  type: object
-  properties:
-    provider:
-      type: string
-      enum:
-        - jules_trigger
-      description: Discriminator. Google Jules trigger.
-    name:
-      type: string
-      minLength: 1
-      maxLength: 80
-      default: Jules trigger
-      description: Human-readable connector label.
-    events:
-      type: array
-      default: []
-      items:
-        $ref: "#/ConnectorEvent"
-      description: Events that auto-fire a Jules session. Defaults to empty.
-    config:
-      $ref: "#/JulesTriggerConfig"
-    apiKey:
-      type: string
-      minLength: 1
-      description: Jules API key that launches the session (secret). Encrypted into the credentials cipher; never returned.
-    opsKey:
-      type: string
-      minLength: 1
-      description: Restricted Shipeasy ops key, embedded in the prompt (Jules exposes no env channel) (secret). Encrypted; never returned.
-    enabled:
-      type: boolean
-      default: true
-      description: Whether the trigger is active on create.
-  required:
-    - provider
-    - config
-    - apiKey
-    - opsKey
-  additionalProperties: false
-  description: "Create a Google Jules trigger. Both keys are required up front. Idempotent by `config.source`."
 ClaudeTriggerConfig:
   type: object
   properties:
@@ -412,57 +368,29 @@ CopilotTriggerConfig:
     - projectId
   additionalProperties: false
   description: Non-secret config for a Copilot trigger.
-JulesTriggerConfig:
-  type: object
-  properties:
-    source:
-      type: string
-      minLength: 1
-      description: Jules source for the connected repo, e.g. `sources/github/owner/repo`. Idempotency key for the connector.
-    startingBranch:
-      type: string
-      minLength: 1
-      description: Optional branch the session starts from.
-    projectId:
-      type: string
-      minLength: 1
-      description: Shipeasy project id the run targets.
-    fireText:
-      type: string
-      minLength: 1
-      description: "Optional standing instruction prepended to every run's prompt — the trigger's base prompt. Lets two triggers on different repos steer their runs differently without changing the `/shipeasy-ops-work` task block."
-  required:
-    - source
-    - projectId
-  additionalProperties: false
-  description: Non-secret config for a Jules trigger.
 CreateTriggerConnectorRequest:
   oneOf:
     - $ref: "#/CreateClaudeTriggerRequest"
     - $ref: "#/CreateCursorTriggerRequest"
     - $ref: "#/CreateCopilotTriggerRequest"
-    - $ref: "#/CreateJulesTriggerRequest"
   discriminator:
     propertyName: provider
     mapping:
       claude_trigger: "#/CreateClaudeTriggerRequest"
       cursor_trigger: "#/CreateCursorTriggerRequest"
       copilot_trigger: "#/CreateCopilotTriggerRequest"
-      jules_trigger: "#/CreateJulesTriggerRequest"
-  description: "Body for `POST /api/admin/connectors/trigger`, discriminated on `provider` — the trigger-provider subset of `CreateConnectorRequest` (no OAuth stubs). Config + credentials arrive together and the connector is usable immediately; creates are idempotent by each provider's natural key (`config.routineId` / `config.repoUrl` / `config.owner`+`config.repo` / `config.source`)."
+  description: "Body for `POST /api/admin/connectors/trigger`, discriminated on `provider` — the trigger-provider subset of `CreateConnectorRequest` (no OAuth stubs). Config + credentials arrive together and the connector is usable immediately; creates are idempotent by each provider's natural key (`config.routineId` / `config.repoUrl` / `config.owner`+`config.repo`)."
 UpdateTriggerConnectorRequest:
   oneOf:
     - $ref: "#/UpdateClaudeTriggerRequest"
     - $ref: "#/UpdateCursorTriggerRequest"
     - $ref: "#/UpdateCopilotTriggerRequest"
-    - $ref: "#/UpdateJulesTriggerRequest"
   discriminator:
     propertyName: provider
     mapping:
       claude_trigger: "#/UpdateClaudeTriggerRequest"
       cursor_trigger: "#/UpdateCursorTriggerRequest"
       copilot_trigger: "#/UpdateCopilotTriggerRequest"
-      jules_trigger: "#/UpdateJulesTriggerRequest"
   description: "Body for `PATCH /api/admin/connectors/{id}/trigger`, discriminated on `provider`. Edits an existing trigger connector: the non-secret `config` is always supplied and replaces the stored config wholesale; `name` and the credential secret(s) are optional (a supplied secret rotates just that key, a blank/omitted one leaves the stored cipher untouched)."
 UpdateClaudeTriggerRequest:
   type: object
@@ -540,34 +468,6 @@ UpdateCopilotTriggerRequest:
     - config
   additionalProperties: false
   description: "Per-provider PATCH body for editing an existing `copilot_trigger` connector. `config` replaces the stored config wholesale; `name` and `token` are optional."
-UpdateJulesTriggerRequest:
-  type: object
-  properties:
-    provider:
-      type: string
-      enum:
-        - jules_trigger
-      description: Discriminator. Google Jules trigger.
-    name:
-      type: string
-      minLength: 1
-      maxLength: 80
-      description: New connector label. Optional — omit to leave it unchanged.
-    config:
-      $ref: "#/JulesTriggerConfig"
-    apiKey:
-      type: string
-      minLength: 1
-      description: "New Jules launch key (secret). Optional — omit to leave the stored key untouched. Rotatable independently of `opsKey`. Encrypted; never returned."
-    opsKey:
-      type: string
-      minLength: 1
-      description: "New restricted Shipeasy ops key (secret). Optional — omit to leave the stored key untouched. Rotatable independently of `apiKey`. Encrypted; never returned."
-  required:
-    - provider
-    - config
-  additionalProperties: false
-  description: "Per-provider PATCH body for editing an existing `jules_trigger` connector. `config` replaces the stored config wholesale; `name` and either credential are optional."
 CreateConnectorResponse:
   type: object
   properties:

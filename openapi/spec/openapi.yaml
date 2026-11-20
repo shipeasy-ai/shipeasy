@@ -195,7 +195,7 @@ tags:
     parent: Ops
     description: |-
       Connected AI agents — one per authenticated trigger connector (Claude /
-      Cursor / Copilot / Jules). The read-only roster behind agent assignment
+      Cursor / Copilot). The read-only roster behind agent assignment
       and the `ops ack` agent types: an AI ack (`ops ack <handle> --agent
       <type>`) requires the type to appear here, so this list is where an
       `AGENT_NOT_CONNECTED` error sends you.
@@ -428,10 +428,9 @@ tags:
     description: |-
       Recurring coding-agent triggers: the scheduled, unattended runs that burn
       down the ops queue in `--pr` mode (one PR per fixed item; nothing
-      auto-merges). Shipeasy can fire four providers directly — Claude routines,
-      Cursor cloud agents, Copilot cloud agents, and Google Jules (the Gemini
-      path) — registered here as trigger connectors (idempotent per provider
-      key). Other platforms (Codex, Windsurf, Cline, OpenClaw, OpenCode,
+      auto-merges). Shipeasy can fire three providers directly — Claude routines,
+      Cursor cloud agents and Copilot cloud agents — registered here as trigger connectors (idempotent per provider
+      key). Other platforms (Codex, Gemini, Windsurf, Cline, OpenClaw, OpenCode,
       Continue) schedule on their own surface — typically a GitHub Actions
       `schedule:` cron running the platform's headless CLI with the shared
       trigger prompt.
@@ -452,7 +451,7 @@ tags:
     description: |-
       Outbound integrations: the per-project destinations feedback + trigger
       events are dispatched to (GitHub, Google Sheets, Slack, and the
-      Claude/Cursor/Copilot/Jules autopilot triggers). CRUD plus a manual
+      Claude/Cursor/Copilot autopilot triggers). CRUD plus a manual
       `fire` (trigger-only) and a `test` payload.
   - name: API Keys
     description: |-

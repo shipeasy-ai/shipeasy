@@ -1996,7 +1996,7 @@ dashboard renders the open run as a live working indicator (which agent +
 time since the run started).
 
 **AI ack.** Pass `agent` with your own agent type (`claude`, `cursor`,
-`copilot`, `jules`; `gemini` is also accepted and is normalized to `jules` on receipt) and, when you have one, the
+`copilot`) and, when you have one, the
 run's `sessionId` so the dashboard can deep-link to the session. If the
 project has no connected trigger connector of that type the call fails
 with `AGENT_NOT_CONNECTED` — list the available agents with `ops agents list` and use one of those (or connect the agent under Settings →
@@ -2032,7 +2032,7 @@ _Parameters_
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
 | `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
-| `agent` | optional | `"claude" \| "cursor" \| "copilot" \| "jules" \| "gemini" \| "jarvis"` | The AI agent type acking on the item's behalf — pass your own type when you are a coding agent (Claude Code passes `claude`, Cursor `cursor`, Copilot `copilot`, Jules `jules`, Gemini `gemini` → normalized to `jules`). Omit entirely for a human ack by the authenticated caller. |
+| `agent` | optional | `"claude" \| "cursor" \| "copilot" \| "jarvis"` | The AI agent type acking on the item's behalf — pass your own type when you are a coding agent (Claude Code passes `claude`, Cursor `cursor`, Copilot `copilot`). Omit entirely for a human ack by the authenticated caller. |
 | `sessionId` | optional | `string` | The agent-run session id (e.g. Claude's `session_01…`), so the dashboard can deep-link to the exact run page. Omit when the harness has no session id. _(length 0–300)_ |
 | `launch` | optional | `boolean` | Whether an AI ack may FIRE the agent's connected trigger. Default `true`: an ack naming a connected agent, with no `sessionId`, starts a new provider run of that agent. Pass `false` to only record the ack — claim the item and open the run record — without starting anything, e.g. when you ARE that agent working the item yourself and have no session id to pass. Ignored on a human ack. _(default `true`)_ |
 | `runId` | optional | `string` | The run you were handed — the investigation id a fired run's prompt names, or the `runId` an earlier ack returned. Proves the open run is yours, so the ack adopts it instead of answering `409` `ALREADY_EXISTS`. _(length 0–100)_ |
@@ -2467,7 +2467,7 @@ _Parameters_
 | `kind` | required | `"narrowing" \| "clarification" \| "verification" \| "correction"` | What a QA note is — `narrowing` (only part of the bug still fails), `clarification` (changes what "fixed" means), `verification` (a pass/fail verdict on a fix) or `correction` (withdraws an earlier framing). |
 | `body` | required | `string` | The note (markdown). _(length 1–10000)_ |
 | `verdict` | optional | `"pass" \| "fail"` | The outcome a `verification` note records. |
-| `agent` | optional | `"jarvis" \| "claude" \| "cursor" \| "copilot" \| "jules"` | The agent type writing the note — pass your own type when you are QA automation. Omitted, the note is attributed to the caller's identity. |
+| `agent` | optional | `"jarvis" \| "claude" \| "cursor" \| "copilot"` | The agent type writing the note — pass your own type when you are QA automation. Omitted, the note is attributed to the caller's identity. |
 | `listToken` | optional | `string` | REQUIRED. The `listToken` returned by the most recent `ops_qa_notes_list` call. It proves you listed existing ops qa notes and confirmed this one doesn't already exist before creating it. Call `ops_qa_notes_list` first if you don't have a fresh token. |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -2520,7 +2520,7 @@ _Parameters_
 | `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `questionId` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `answer` | required | `string` | QA's answer (markdown). _(length 1–10000)_ |
-| `agent` | optional | `"jarvis" \| "claude" \| "cursor" \| "copilot" \| "jules"` | The agent type answering — pass your own type when you are QA automation. Omitted, the answer is attributed to the caller's identity. |
+| `agent` | optional | `"jarvis" \| "claude" \| "cursor" \| "copilot"` | The agent type answering — pass your own type when you are QA automation. Omitted, the answer is attributed to the caller's identity. |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -2549,7 +2549,7 @@ _Parameters_
 | --- | --- | --- | --- |
 | `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `question` | required | `string` | What you need QA to answer (markdown). Include what you already tried. _(length 1–10000)_ |
-| `agent` | optional | `"jarvis" \| "claude" \| "cursor" \| "copilot" \| "jules"` | The agent type asking — pass your own type when you are a coding agent. Omitted, the question is attributed to the caller's identity. |
+| `agent` | optional | `"jarvis" \| "claude" \| "cursor" \| "copilot"` | The agent type asking — pass your own type when you are a coding agent. Omitted, the question is attributed to the caller's identity. |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -3040,7 +3040,7 @@ _Errors_ — beyond the [common errors](#errors):
 ### Agents
 
 Connected AI agents — one per authenticated trigger connector (Claude /
-Cursor / Copilot / Jules). The read-only roster behind agent assignment
+Cursor / Copilot). The read-only roster behind agent assignment
 and the `ops ack` agent types: an AI ack (`ops ack <handle> --agent <type>`) requires the type to appear here, so this list is where an
 `AGENT_NOT_CONNECTED` error sends you.
 
@@ -3049,7 +3049,7 @@ and the `ops ack` agent types: an AI ack (`ops ack <handle> --agent <type>`) req
 **List connected AI agents**
 
 The project's connected AI agents — one per authenticated trigger
-connector (Claude / Cursor / Copilot / Jules). These are the agent types
+connector (Claude / Cursor / Copilot). These are the agent types
 `ops ack` accepts and the agents a queue item can be assigned to.
 
 **Use case:** Discover which `agent` values an AI ack can use, e.g. after
@@ -3480,7 +3480,7 @@ _Parameters_
 | `findings` | optional | `string` | The full findings write-up (markdown). _(length 0–50000)_ |
 | `question` | optional | `string` | A blocking question for the team (markdown). _(length 0–10000)_ |
 | `qaNotes` | optional | `string` | How to verify the fix — QA notes (markdown). _(length 0–50000)_ |
-| `agent` | optional | `"jarvis" \| "claude" \| "cursor" \| "copilot" \| "jules"` | The agent type producing the record — pass your own type when you are a coding agent. |
+| `agent` | optional | `"jarvis" \| "claude" \| "cursor" \| "copilot"` | The agent type producing the record — pass your own type when you are a coding agent. |
 | `model` | optional | `string` | The model the agent ran on. _(length 0–200)_ |
 | `connectorId` | optional | `string` | The trigger-connector row id the agent ran through. _(length 0–200)_ |
 | `prNumber` | optional | `integer` | A PR the record references. |
@@ -3650,7 +3650,7 @@ _Parameters_
 | `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `questions` | required | `object[]` | 1–4 questions to ask at once. |
 | `runId` | optional | `string` | The run (investigation record id) you are working the item under — the `runId` an ack or a launch handed you. Ties the questions to that run so a `resume` delivery continues it. _(length 0–200)_ |
-| `agent` | optional | `"jarvis" \| "claude" \| "cursor" \| "copilot" \| "jules"` | The agent type asking — pass your own type when you are a coding agent. Defaults to the run's agent. |
+| `agent` | optional | `"jarvis" \| "claude" \| "cursor" \| "copilot"` | The agent type asking — pass your own type when you are a coding agent. Defaults to the run's agent. |
 | `delivery` | optional | `"resume" \| "poll"` | How the answer gets back to the asker — `resume` re-fires the asking run's trigger connector on the item once every question that run asked is answered; `poll` fires nothing and the asker reads `GET .../questions`. |
 
 _Errors_ — beyond the [common errors](#errors):
@@ -3739,7 +3739,7 @@ _Parameters_
 | --- | --- | --- | --- |
 | `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `text` | required | `string` | What the line asks for (markdown, one line). _(length 1–500)_ |
-| `agent` | optional | `"jarvis" \| "claude" \| "cursor" \| "copilot" \| "jules"` | The agent type adding the line — pass your own type when you are a coding agent. Omitted, the line is attributed to the caller's identity. |
+| `agent` | optional | `"jarvis" \| "claude" \| "cursor" \| "copilot"` | The agent type adding the line — pass your own type when you are a coding agent. Omitted, the line is attributed to the caller's identity. |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -3817,7 +3817,7 @@ _Parameters_
 | `status` | optional | `"open" \| "done" \| "verified" \| "returned"` | Where a checklist line stands — `open` (still to do), `done` (the dev ticked it), `verified` (QA confirmed it) or `returned` (QA sent it back with a `note`; tick it `done` again once fixed). |
 | `note` | optional | `string` | Why QA returns the line — required when moving it to `returned` (send it alone to reword the note of a returned line), refused on a line that ends up in any other status. _(length 1–2000)_ |
 | `position` | optional | `integer` | New display position (lines sort ascending; ties by creation order). _(≥ 0)_ |
-| `agent` | optional | `"jarvis" \| "claude" \| "cursor" \| "copilot" \| "jules"` | The agent type making the change — pass your own type when you are an agent. Omitted, the change is attributed to the caller's identity. |
+| `agent` | optional | `"jarvis" \| "claude" \| "cursor" \| "copilot"` | The agent type making the change — pass your own type when you are an agent. Omitted, the change is attributed to the caller's identity. |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -3830,17 +3830,16 @@ _Errors_ — beyond the [common errors](#errors):
 
 Recurring coding-agent triggers: the scheduled, unattended runs that burn
 down the ops queue in `--pr` mode (one PR per fixed item; nothing
-auto-merges). Shipeasy can fire four providers directly — Claude routines,
-Cursor cloud agents, Copilot cloud agents, and Google Jules (the Gemini
-path) — registered here as trigger connectors (idempotent per provider
-key). Other platforms (Codex, Windsurf, Cline, OpenClaw, OpenCode,
+auto-merges). Shipeasy can fire three providers directly — Claude routines,
+Cursor cloud agents and Copilot cloud agents — registered here as trigger connectors (idempotent per provider
+key). Other platforms (Codex, Gemini, Windsurf, Cline, OpenClaw, OpenCode,
 Continue) schedule on their own surface — typically a GitHub Actions
 `schedule:` cron running the platform's headless CLI with the shared
 trigger prompt.
 
 #### `ops_trigger_create_claude`
 
-Register a Claude Code scheduled routine as the trigger connector. Creates (or idempotently updates) a coding-agent **trigger** connector — the recurring, unattended run that burns down the ops queue in `--pr` mode. Discriminated on `provider`; only the four Shipeasy-fireable providers are accepted (`claude_trigger`, `cursor_trigger`, `copilo…
+Register a Claude Code scheduled routine as the trigger connector. Creates (or idempotently updates) a coding-agent **trigger** connector — the recurring, unattended run that burns down the ops queue in `--pr` mode. Discriminated on `provider`; only the three Shipeasy-fireable providers are accepted (`claude_trigger`, `cursor_trigger`, `copil…
 
 _Parameters_
 
@@ -3856,7 +3855,7 @@ _Parameters_
 
 #### `ops_trigger_create_copilot`
 
-Register a GitHub Copilot cloud-agent trigger. Creates (or idempotently updates) a coding-agent **trigger** connector — the recurring, unattended run that burns down the ops queue in `--pr` mode. Discriminated on `provider`; only the four Shipeasy-fireable providers are accepted (`claude_trigger`, `cursor_trigger`, `copilo…
+Register a GitHub Copilot cloud-agent trigger. Creates (or idempotently updates) a coding-agent **trigger** connector — the recurring, unattended run that burns down the ops queue in `--pr` mode. Discriminated on `provider`; only the three Shipeasy-fireable providers are accepted (`claude_trigger`, `cursor_trigger`, `copil…
 
 _Parameters_
 
@@ -3876,7 +3875,7 @@ _Parameters_
 
 #### `ops_trigger_create_cursor`
 
-Register a Cursor cloud-agent trigger (cold-fire; Shipeasy launches the run). Creates (or idempotently updates) a coding-agent **trigger** connector — the recurring, unattended run that burns down the ops queue in `--pr` mode. Discriminated on `provider`; only the four Shipeasy-fireable providers are accepted (`claude_trigger`, `cursor_trigger`, `copilo…
+Register a Cursor cloud-agent trigger (cold-fire; Shipeasy launches the run). Creates (or idempotently updates) a coding-agent **trigger** connector — the recurring, unattended run that burns down the ops queue in `--pr` mode. Discriminated on `provider`; only the three Shipeasy-fireable providers are accepted (`claude_trigger`, `cursor_trigger`, `copil…
 
 _Parameters_
 
@@ -3893,25 +3892,6 @@ _Parameters_
 | `config.fireText` | optional | `string` | Optional standing instruction prepended to every run's prompt — the trigger's base prompt. Lets two triggers on different repos steer their runs differently without changing the `/shipeasy-ops-work` task block. _(length 1–∞)_ |
 | `apiKey` | required | `string` | Cursor API key that launches the run (secret). Encrypted into the credentials cipher; never returned. _(length 1–∞)_ |
 | `opsKey` | required | `string` | Restricted Shipeasy ops key (secret). Sent as the Bearer for the Shipeasy MCP server handed to each run inline — never in the prompt text or the run env. Encrypted; never returned. _(length 1–∞)_ |
-| `enabled` | optional | `boolean` | Whether the trigger is active on create. _(default `true`)_ |
-
-#### `ops_trigger_create_jules`
-
-Register a Google Jules (Gemini) trigger. Creates (or idempotently updates) a coding-agent **trigger** connector — the recurring, unattended run that burns down the ops queue in `--pr` mode. Discriminated on `provider`; only the four Shipeasy-fireable providers are accepted (`claude_trigger`, `cursor_trigger`, `copilo…
-
-_Parameters_
-
-| Parameter | | Type | Description |
-| --- | --- | --- | --- |
-| `name` | optional | `string` | Human-readable connector label. _(default `"Jules trigger"`; length 1–80)_ |
-| `events` | optional | `"bug.created" \| "feature_request.created"[]` | Events that auto-fire a Jules session. Defaults to empty. _(default `[]`)_ |
-| `config` | required | `object` | Non-secret config for a Jules trigger. |
-| `config.source` | required | `string` | Jules source for the connected repo, e.g. `sources/github/owner/repo`. Idempotency key for the connector. _(length 1–∞)_ |
-| `config.startingBranch` | optional | `string` | Optional branch the session starts from. _(length 1–∞)_ |
-| `config.projectId` | required | `string` | Shipeasy project id the run targets. _(length 1–∞)_ |
-| `config.fireText` | optional | `string` | Optional standing instruction prepended to every run's prompt — the trigger's base prompt. Lets two triggers on different repos steer their runs differently without changing the `/shipeasy-ops-work` task block. _(length 1–∞)_ |
-| `apiKey` | required | `string` | Jules API key that launches the session (secret). Encrypted into the credentials cipher; never returned. _(length 1–∞)_ |
-| `opsKey` | required | `string` | Restricted Shipeasy ops key, embedded in the prompt (Jules exposes no env channel) (secret). Encrypted; never returned. _(length 1–∞)_ |
 | `enabled` | optional | `boolean` | Whether the trigger is active on create. _(default `true`)_ |
 
 ## Trails
@@ -4378,7 +4358,7 @@ _Parameters_
 | Parameter | | Type | Description |
 | --- | --- | --- | --- |
 | `handle` | required | `string` | The trail's handle (`T-12`) or its id. _(length 1–64; pattern `^(?:T-[0-9]+\|[0-9a-fA-F-]{32,36})$`)_ |
-| `agent` | optional | `"claude" \| "cursor" \| "copilot" \| "jules"` | Which coding agent to fire — `claude`, `cursor`, `copilot` or `jules`. Omitted, the project's coding-agent trigger. |
+| `agent` | optional | `"claude" \| "cursor" \| "copilot"` | Which coding agent to fire — `claude`, `cursor` or `copilot`. Omitted, the project's coding-agent trigger. |
 | `connectorId` | optional | `string` | A specific trigger connector to fire. Overrides `agent`. |
 | `kind` | optional | `"plan" \| "build" \| "replan"` | Which run to fire. Omitted, the server picks — `plan` while the trail has no approved plan, else `build`. Asking for `build` before the plan is approved is refused with `409`, and so is asking for `plan` once one is approved: edit the plan, or fire `replan`. `replan` is allowed only once a plan is approved: a read-only run that re-reads the goal metric, the items' outcomes and project memory and submits the next revision, which waits as `drafted` for approval. |
 | `prompt` | optional | `string` | Extra instructions appended to the trail prompt. _(length 0–8000)_ |
@@ -4416,7 +4396,7 @@ _Parameters_
 | `findings` | optional | `object[]` | Issues to fix, each with a severity, and a file and line when there is one. |
 | `prUrl` | optional | `string` | The change reviewed. Omitted, the trail's primary change. _(length 0–500)_ |
 | `headSha` | optional | `string` | The commit reviewed. Omitted, the change's latest push. A sha that is not the latest push is recorded against that push, as history. _(length 7–64)_ |
-| `agent` | optional | `"jarvis" \| "claude" \| "cursor" \| "copilot" \| "jules"` | Your agent type, when you are the review agent. |
+| `agent` | optional | `"jarvis" \| "claude" \| "cursor" \| "copilot"` | Your agent type, when you are the review agent. |
 | `sessionId` | optional | `string` | Your session id, so the eval can deep-link to the review run. _(length 0–300)_ |
 | `resources` | optional | `object[]` | Product resources the reviewed diff uses (`getFlag("x")`, `getExperiment("y")`, `t("key")`). They are linked to the trail as detected. A key that does not exist yet becomes a finding. |
 
@@ -4588,7 +4568,7 @@ _Parameters_
 | `findingId` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `status` | required | `"open" \| "resolved" \| "dismissed"` | A finding stays `open` until it is `resolved` (fixed) or `dismissed` (not a problem). A finding raised on an earlier push is reported `stale` but stays open until somebody decides. |
 | `reason` | optional | `string` | Why — the fixing commit, or why it is not a problem. _(length 0–2000)_ |
-| `agent` | optional | `"jarvis" \| "claude" \| "cursor" \| "copilot" \| "jules"` | Your agent type, when an agent is resolving the finding. |
+| `agent` | optional | `"jarvis" \| "claude" \| "cursor" \| "copilot"` | Your agent type, when an agent is resolving the finding. |
 
 _Errors_ — beyond the [common errors](#errors):
 

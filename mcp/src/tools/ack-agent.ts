@@ -9,7 +9,6 @@ const MCP_CLIENT_AGENTS: Array<[RegExp, string]> = [
   [/claude/i, "claude"],
   [/cursor/i, "cursor"],
   [/copilot/i, "copilot"],
-  [/jules|gemini/i, "jules"],
 ];
 
 const HUMAN_OVERRIDES = new Set(["0", "false", "none", "human"]);

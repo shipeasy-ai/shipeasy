@@ -4,7 +4,7 @@ Trigger setup now lives in the CLI. Run:
 
 ```bash
 shipeasy setup triggers                     # pick a platform, opens its guided setup
-shipeasy setup triggers --platform claude   # preselect (claude|codex|cursor|copilot|gemini|jules)
+shipeasy setup triggers --platform claude   # preselect (claude|codex|cursor|copilot)
 ```
 
 `shipeasy setup` also offers it as an inline step. The command opens the

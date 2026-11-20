@@ -11,7 +11,7 @@ import type { Command } from "commander";
  *
  * Detection mirrors `setup/agents.ts#HARNESS_ENV`, narrowed to the platforms
  * the ack API accepts as agent types. Overrides:
- *   - `SHIPEASY_ACK_AGENT=<type>` forces a type we can't sniff (e.g. `jules`);
+ *   - `SHIPEASY_ACK_AGENT=<type>` forces a type we can't sniff;
  *   - `SHIPEASY_ACK_AGENT=0|none|human` forces a human ack even inside a
  *     harness (e.g. a person working in Cursor's integrated terminal);
  *   - an explicit `--agent`/`--session-id` always wins over detection.

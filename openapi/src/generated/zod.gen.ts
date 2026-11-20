@@ -2707,15 +2707,13 @@ export const zOpsItemGroupResponse = z.object({
 });
 
 /**
- * Body for `POST /api/admin/ops/{handle}/ack`. With `agent` set this is an AI ack — the named agent type must have a connected trigger connector in the project, or the call fails with `AGENT_NOT_CONNECTED` and instructions to query the available agents (`ops agents list`). `gemini` is accepted as an input value and is normalized to `jules`. Without `agent` it is a HUMAN ack by the authenticated caller.
+ * Body for `POST /api/admin/ops/{handle}/ack`. With `agent` set this is an AI ack — the named agent type must have a connected trigger connector in the project, or the call fails with `AGENT_NOT_CONNECTED` and instructions to query the available agents (`ops agents list`). Without `agent` it is a HUMAN ack by the authenticated caller.
  */
 export const zAckOpsItemRequest = z.object({
     agent: z.enum([
         'claude',
         'cursor',
         'copilot',
-        'jules',
-        'gemini',
         'jarvis'
     ]).optional(),
     sessionId: z.string().max(300).optional(),
@@ -2815,8 +2813,7 @@ export const zCreateOpsInvestigationRequest = z.object({
         'jarvis',
         'claude',
         'cursor',
-        'copilot',
-        'jules'
+        'copilot'
     ]).optional(),
     model: z.string().max(200).optional(),
     connectorId: z.string().max(200).optional(),
@@ -2965,8 +2962,7 @@ export const zAskOpsQuestionsRequest = z.object({
         'jarvis',
         'claude',
         'cursor',
-        'copilot',
-        'jules'
+        'copilot'
     ]).optional(),
     delivery: zOpsQuestionDelivery.optional()
 });
@@ -3035,8 +3031,7 @@ export const zCreateOpsQaNoteRequest = z.object({
         'jarvis',
         'claude',
         'cursor',
-        'copilot',
-        'jules'
+        'copilot'
     ]).optional()
 });
 
@@ -3054,8 +3049,7 @@ export const zCreateOpsChecklistItemRequest = z.object({
         'jarvis',
         'claude',
         'cursor',
-        'copilot',
-        'jules'
+        'copilot'
     ]).optional()
 });
 
@@ -3071,8 +3065,7 @@ export const zUpdateOpsChecklistItemRequest = z.object({
         'jarvis',
         'claude',
         'cursor',
-        'copilot',
-        'jules'
+        'copilot'
     ]).optional()
 });
 
@@ -3090,8 +3083,7 @@ export const zAskOpsQaQuestionRequest = z.object({
         'jarvis',
         'claude',
         'cursor',
-        'copilot',
-        'jules'
+        'copilot'
     ]).optional()
 });
 
@@ -3104,8 +3096,7 @@ export const zAnswerOpsQaQuestionRequest = z.object({
         'jarvis',
         'claude',
         'cursor',
-        'copilot',
-        'jules'
+        'copilot'
     ]).optional()
 });
 
@@ -3117,8 +3108,7 @@ export const zOpsAgentProfile = z.object({
     provider: z.enum([
         'claude_trigger',
         'cursor_trigger',
-        'copilot_trigger',
-        'jules_trigger'
+        'copilot_trigger'
     ]),
     name: z.string(),
     handle: z.string()
@@ -4650,8 +4640,7 @@ export const zSubmitOpsTrailEvalRequest = z.object({
         'jarvis',
         'claude',
         'cursor',
-        'copilot',
-        'jules'
+        'copilot'
     ]).optional(),
     sessionId: z.string().max(300).optional(),
     resources: z.array(zNewTrailResource).max(50).optional()
@@ -4669,8 +4658,7 @@ export const zUpdateOpsTrailFindingRequest = z.object({
         'jarvis',
         'claude',
         'cursor',
-        'copilot',
-        'jules'
+        'copilot'
     ]).optional()
 });
 
@@ -4943,8 +4931,7 @@ export const zStartTrailRunRequest = z.object({
     agent: z.enum([
         'claude',
         'cursor',
-        'copilot',
-        'jules'
+        'copilot'
     ]).optional(),
     connectorId: z.string().optional(),
     kind: z.enum([
@@ -5010,8 +4997,7 @@ export const zApproveTrailPlanRequest = z.object({
     agent: z.enum([
         'claude',
         'cursor',
-        'copilot',
-        'jules'
+        'copilot'
     ]).optional(),
     connectorId: z.string().optional()
 });
@@ -6479,7 +6465,7 @@ export const zErrorSeriesResponse = z.object({
 });
 
 /**
- * Connector destination. OAuth/app providers (`google_sheets`, `github`, `slack`) dispatch the event payload to an external destination. Trigger providers (`claude_trigger`, `cursor_trigger`, `copilot_trigger`, `jules_trigger`) instead kick a coding-agent run that burns down the operational queue.
+ * Connector destination. OAuth/app providers (`google_sheets`, `github`, `slack`) dispatch the event payload to an external destination. Trigger providers (`claude_trigger`, `cursor_trigger`, `copilot_trigger`) instead kick a coding-agent run that burns down the operational queue.
  */
 export const zConnectorProvider = z.enum([
     'google_sheets',
@@ -6487,8 +6473,7 @@ export const zConnectorProvider = z.enum([
     'slack',
     'claude_trigger',
     'cursor_trigger',
-    'copilot_trigger',
-    'jules_trigger'
+    'copilot_trigger'
 ]);
 
 /**
@@ -6621,30 +6606,7 @@ export const zCreateCopilotTriggerRequest = z.object({
 });
 
 /**
- * Non-secret config for a Jules trigger.
- */
-export const zJulesTriggerConfig = z.object({
-    source: z.string().min(1),
-    startingBranch: z.string().min(1).optional(),
-    projectId: z.string().min(1),
-    fireText: z.string().min(1).optional()
-});
-
-/**
- * Create a Google Jules trigger. Both keys are required up front. Idempotent by `config.source`.
- */
-export const zCreateJulesTriggerRequest = z.object({
-    provider: z.enum(['jules_trigger']),
-    name: z.string().min(1).max(80).optional().default('Jules trigger'),
-    events: z.array(zConnectorEvent).optional().default([]),
-    config: zJulesTriggerConfig,
-    apiKey: z.string().min(1),
-    opsKey: z.string().min(1),
-    enabled: z.boolean().optional().default(true)
-});
-
-/**
- * Body for `POST /api/admin/connectors`, discriminated on `provider`. The OAuth providers (`google_sheets`/`github`/`slack`) create a disabled stub that is finished via the provider's OAuth flow. The trigger providers (`claude_trigger`/`cursor_trigger`/`copilot_trigger`/`jules_trigger`) arrive config + credentials together and are fireable immediately.
+ * Body for `POST /api/admin/connectors`, discriminated on `provider`. The OAuth providers (`google_sheets`/`github`/`slack`) create a disabled stub that is finished via the provider's OAuth flow. The trigger providers (`claude_trigger`/`cursor_trigger`/`copilot_trigger`) arrive config + credentials together and are fireable immediately.
  */
 export const zCreateConnectorRequest = z.discriminatedUnion('provider', [
     zCreateOAuthConnectorRequest.extend({ provider: z.literal('google_sheets') }),
@@ -6652,8 +6614,7 @@ export const zCreateConnectorRequest = z.discriminatedUnion('provider', [
     zCreateOAuthConnectorRequest.extend({ provider: z.literal('slack') }),
     zCreateClaudeTriggerRequest.extend({ provider: z.literal('claude_trigger') }),
     zCreateCursorTriggerRequest.extend({ provider: z.literal('cursor_trigger') }),
-    zCreateCopilotTriggerRequest.extend({ provider: z.literal('copilot_trigger') }),
-    zCreateJulesTriggerRequest.extend({ provider: z.literal('jules_trigger') })
+    zCreateCopilotTriggerRequest.extend({ provider: z.literal('copilot_trigger') })
 ]);
 
 export const zCreateConnectorResponse = z.object({
@@ -6735,34 +6696,21 @@ export const zUpdateCopilotTriggerRequest = z.object({
 });
 
 /**
- * Per-provider PATCH body for editing an existing `jules_trigger` connector. `config` replaces the stored config wholesale; `name` and either credential are optional.
- */
-export const zUpdateJulesTriggerRequest = z.object({
-    provider: z.enum(['jules_trigger']),
-    name: z.string().min(1).max(80).optional(),
-    config: zJulesTriggerConfig,
-    apiKey: z.string().min(1).optional(),
-    opsKey: z.string().min(1).optional()
-});
-
-/**
  * Body for `PATCH /api/admin/connectors/{id}/trigger`, discriminated on `provider`. Edits an existing trigger connector: the non-secret `config` is always supplied and replaces the stored config wholesale; `name` and the credential secret(s) are optional (a supplied secret rotates just that key, a blank/omitted one leaves the stored cipher untouched).
  */
 export const zUpdateTriggerConnectorRequest = z.discriminatedUnion('provider', [
     zUpdateClaudeTriggerRequest.extend({ provider: z.literal('claude_trigger') }),
     zUpdateCursorTriggerRequest.extend({ provider: z.literal('cursor_trigger') }),
-    zUpdateCopilotTriggerRequest.extend({ provider: z.literal('copilot_trigger') }),
-    zUpdateJulesTriggerRequest.extend({ provider: z.literal('jules_trigger') })
+    zUpdateCopilotTriggerRequest.extend({ provider: z.literal('copilot_trigger') })
 ]);
 
 /**
- * Body for `POST /api/admin/connectors/trigger`, discriminated on `provider` — the trigger-provider subset of `CreateConnectorRequest` (no OAuth stubs). Config + credentials arrive together and the connector is usable immediately; creates are idempotent by each provider's natural key (`config.routineId` / `config.repoUrl` / `config.owner`+`config.repo` / `config.source`).
+ * Body for `POST /api/admin/connectors/trigger`, discriminated on `provider` — the trigger-provider subset of `CreateConnectorRequest` (no OAuth stubs). Config + credentials arrive together and the connector is usable immediately; creates are idempotent by each provider's natural key (`config.routineId` / `config.repoUrl` / `config.owner`+`config.repo`).
  */
 export const zCreateTriggerConnectorRequest = z.discriminatedUnion('provider', [
     zCreateClaudeTriggerRequest.extend({ provider: z.literal('claude_trigger') }),
     zCreateCursorTriggerRequest.extend({ provider: z.literal('cursor_trigger') }),
-    zCreateCopilotTriggerRequest.extend({ provider: z.literal('copilot_trigger') }),
-    zCreateJulesTriggerRequest.extend({ provider: z.literal('jules_trigger') })
+    zCreateCopilotTriggerRequest.extend({ provider: z.literal('copilot_trigger') })
 ]);
 
 /**

@@ -106,8 +106,8 @@ Prereqs: flags platform enabled (`shipeasy install flags`).
 
 Provisioning the unattended trigger that runs `shipeasy-ops-work --pr` on a
 cadence is a CLI command, not a skill: `shipeasy setup triggers` explains the
-trigger, has the user pick a platform (Claude Code / Codex / Cursor / Copilot /
-Gemini-Jules), and opens the hosted, guided setup wizard preselected to it.
+trigger, has the user pick a platform (Claude Code / Codex / Cursor / Copilot),
+and opens the hosted, guided setup wizard preselected to it.
 `shipeasy setup` also offers it inline. The low-level connector plumbing stays at
 `shipeasy ops trigger create <provider> --help` and `shipeasy ops trigger prep`.
 
