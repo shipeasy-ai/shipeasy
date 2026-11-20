@@ -75,13 +75,13 @@
       Creates a connector. The request body is discriminated on `provider`.
 
       - **OAuth/app providers** (`google_sheets`, `github`, `slack`) — supply `{ provider, name, events }`. The connector is created `enabled: false` with empty `config` and no credentials; the provider's OAuth flow then attaches credentials and enables it.
-      - **Trigger providers** (`claude_trigger`, `cursor_trigger`, `copilot_trigger`, `jules_trigger`) — supply `config` plus the provider's credential field(s) and the connector is fireable immediately. Trigger creates are **idempotent** by their natural key (`config.routineId` / `config.repoUrl` / `config.owner`+`config.repo` / `config.source`): re-creating updates the existing row rather than duplicating it.
+      - **Trigger providers** (`claude_trigger`, `cursor_trigger`, `copilot_trigger`) — supply `config` plus the provider's credential field(s) and the connector is fireable immediately. Trigger creates are **idempotent** by their natural key (`config.routineId` / `config.repoUrl` / `config.owner`+`config.repo`): re-creating updates the existing row rather than duplicating it.
 
       **Use cases**
 
       - **File bugs as GitHub Issues** — `{ "provider": "github", "name": "Bugs → acme/app", "events": ["bug.created"] }`, then finish the GitHub App install.
       - **Nightly ops sweep** — register a `claude_trigger` with its `routineId` and (optionally) a fire `token`; subscribe `events` later to auto-fire on new bugs.
-      - **Cold cloud-agent run** — register a `cursor_trigger`/`jules_trigger` with the repo coordinates plus both keys, or a `copilot_trigger` with the repo + user PAT.
+      - **Cold cloud-agent run** — register a `cursor_trigger` with the repo coordinates plus both keys, or a `copilot_trigger` with the repo + user PAT.
     tags:
       - Connectors
     parameters:
@@ -355,7 +355,7 @@
     operationId: fireConnector
     summary: Fire a trigger connector
     description: |-
-      Manually kicks a trigger connector's run — Claude (kicks its preconfigured routine) or Cursor / Copilot / Jules (launches a cold cloud-agent run). Firing is event-less: it kicks the run with an optional caller-supplied prompt override rather than dispatching a single lifecycle payload.
+      Manually kicks a trigger connector's run — Claude (kicks its preconfigured routine) or Cursor / Copilot (launches a cold cloud-agent run). Firing is event-less: it kicks the run with an optional caller-supplied prompt override rather than dispatching a single lifecycle payload.
 
       Only trigger providers can be fired, and only once authenticated (a tokenless trigger cannot fire). The attempt's outcome is recorded on the connector's `lastAttemptAt` / `lastError` / `lastSuccessAt`.
 
@@ -473,7 +473,7 @@
     operationId: updateTriggerConnector
     summary: Update a trigger connector
     description: |-
-      Edit an existing coding-agent **trigger** connector (`claude_trigger` / `cursor_trigger` / `copilot_trigger` / `jules_trigger`) — replace its non-secret `config` and, optionally, rotate its credential secret(s). Discriminated on `provider`; the id in the path selects the connector and its `provider` must match the body.
+      Edit an existing coding-agent **trigger** connector (`claude_trigger` / `cursor_trigger` / `copilot_trigger`) — replace its non-secret `config` and, optionally, rotate its credential secret(s). Discriminated on `provider`; the id in the path selects the connector and its `provider` must match the body.
 
       Unlike the generic `PATCH /api/admin/connectors/{id}` (which cannot touch secrets), this endpoint always replaces the non-secret `config` wholesale and merges any supplied secret over the stored credential cipher — so a single half of a two-key pair (e.g. just the ops key) can be rotated on its own. A blank/omitted secret leaves the stored cipher untouched.
 
@@ -549,14 +549,14 @@
     operationId: createTriggerConnector
     summary: Create a recurring coding-agent trigger
     description: |-
-      Creates (or idempotently updates) a coding-agent **trigger** connector — the recurring, unattended run that burns down the ops queue in `--pr` mode. Discriminated on `provider`; only the four Shipeasy-fireable providers are accepted (`claude_trigger`, `cursor_trigger`, `copilot_trigger`, `jules_trigger`). Config + credential(s) arrive together; creates are idempotent by the provider's natural key, so re-creating updates the existing row.
+      Creates (or idempotently updates) a coding-agent **trigger** connector — the recurring, unattended run that burns down the ops queue in `--pr` mode. Discriminated on `provider`; only the three Shipeasy-fireable providers are accepted (`claude_trigger`, `cursor_trigger`, `copilot_trigger`). Config + credential(s) arrive together; creates are idempotent by the provider's natural key, so re-creating updates the existing row.
 
-      Platforms without a fire endpoint (Codex, Windsurf, Cline, OpenClaw, OpenCode, Continue) cannot be created here — they are scheduled on their own platform (typically a GitHub Actions `schedule:` cron running the platform's headless CLI with the trigger prompt).
+      Platforms without a fire endpoint (Codex, Gemini, Windsurf, Cline, OpenClaw, OpenCode, Continue) cannot be created here — they are scheduled on their own platform (typically a GitHub Actions `schedule:` cron running the platform's headless CLI with the trigger prompt).
 
       **Use cases**
 
       - **Register a Claude routine** — after `RemoteTrigger {action:"create"}` returns `trig_…`, `{ "provider": "claude_trigger", "config": { "routineId": "trig_…" } }` (tokenless is fine; add the fire token later).
-      - **Cold Cursor/Jules run** — repo coordinates + both keys; Shipeasy launches the run and the PR opens via the provider's GitHub App.
+      - **Cold Cursor run** — repo coordinates + both keys; Shipeasy launches the run and the PR opens via the provider's GitHub App.
       - **Copilot cloud agent** — repo + a Copilot-licensed user PAT with the "Agent tasks" permission.
     tags:
       - Trigger
@@ -727,33 +727,13 @@
             the repo's Agents secrets first. For a fixed cadence use Copilot
             automations (repo Agents tab; hourly/daily/weekly, private/internal repos
             only) or a scheduled Actions job running `gh agent-task create`.
-        - name: create jules
-          aliases: [gemini]
-          summary: Register a Google Jules (Gemini) trigger
-          preset: { provider: jules_trigger }
-          help: |-
-            Jules — Google's async coding agent (the fireable Gemini path) — starts a
-            session from one POST to https://jules.googleapis.com/v1alpha/sessions
-            (header X-Goog-Api-Key) with sourceContext.source =
-            sources/github/<owner>/<repo> and automationMode: "AUTO_CREATE_PR". Jules
-            exposes no env channel, so the restricted ops key is embedded in the
-            session prompt (safe — it is the limited ops key):
-
-              shipeasy ops trigger create jules \
-                --config '{"source":"sources/github/<owner>/<repo>"}' \
-                --api-key <JULES_API_KEY> --ops-key <ops_…>
-
-            Connect the repo to Jules once (jules.google.com → connect GitHub). For a
-            fixed cadence use Jules scheduled tasks (UI-only), or fall back to the
-            Gemini CLI in a GitHub Actions schedule: job
-            (`gemini -p "<TRIGGER PROMPT>" --approval-mode=yolo`; auth GEMINI_API_KEY).
       fallback:
         argument: provider
-        platforms: [codex, windsurf, cline, openclaw, opencode, continue]
+        platforms: [codex, gemini, windsurf, cline, openclaw, opencode, continue]
         help: |-
           Direct (Shipeasy-fired) triggers are not supported for this platform — it
           exposes no HTTP "start a run" endpoint our Worker can call. Supported here:
-          claude, cursor, copilot, jules (alias: gemini) — see
+          claude, cursor, copilot — see
           `shipeasy ops trigger create <provider> --help`.
 
           Platform-scheduled setup instead (the platform's own scheduler fires the

@@ -106,7 +106,7 @@
     {
       "name": "Agents",
       "parent": "Ops",
-      "description": "Connected AI agents — one per authenticated trigger connector (Claude /\nCursor / Copilot / Jules). The read-only roster behind agent assignment\nand the `ops ack` agent types: an AI ack (`ops ack <handle> --agent\n<type>`) requires the type to appear here, so this list is where an\n`AGENT_NOT_CONNECTED` error sends you."
+      "description": "Connected AI agents — one per authenticated trigger connector (Claude /\nCursor / Copilot). The read-only roster behind agent assignment\nand the `ops ack` agent types: an AI ack (`ops ack <handle> --agent\n<type>`) requires the type to appear here, so this list is where an\n`AGENT_NOT_CONNECTED` error sends you."
     },
     {
       "name": "Attachments",
@@ -232,7 +232,7 @@
     {
       "name": "Trigger",
       "parent": "Ops",
-      "description": "Recurring coding-agent triggers: the scheduled, unattended runs that burn\ndown the ops queue in `--pr` mode (one PR per fixed item; nothing\nauto-merges). Shipeasy can fire four providers directly — Claude routines,\nCursor cloud agents, Copilot cloud agents, and Google Jules (the Gemini\npath) — registered here as trigger connectors (idempotent per provider\nkey). Other platforms (Codex, Windsurf, Cline, OpenClaw, OpenCode,\nContinue) schedule on their own surface — typically a GitHub Actions\n`schedule:` cron running the platform's headless CLI with the shared\ntrigger prompt."
+      "description": "Recurring coding-agent triggers: the scheduled, unattended runs that burn\ndown the ops queue in `--pr` mode (one PR per fixed item; nothing\nauto-merges). Shipeasy can fire three providers directly — Claude routines,\nCursor cloud agents and Copilot cloud agents — registered here as trigger connectors (idempotent per provider\nkey). Other platforms (Codex, Gemini, Windsurf, Cline, OpenClaw, OpenCode,\nContinue) schedule on their own surface — typically a GitHub Actions\n`schedule:` cron running the platform's headless CLI with the shared\ntrigger prompt."
     },
     {
       "name": "Tags",
@@ -240,7 +240,7 @@
     },
     {
       "name": "Connectors",
-      "description": "Outbound integrations: the per-project destinations feedback + trigger\nevents are dispatched to (GitHub, Google Sheets, Slack, and the\nClaude/Cursor/Copilot/Jules autopilot triggers). CRUD plus a manual\n`fire` (trigger-only) and a `test` payload."
+      "description": "Outbound integrations: the per-project destinations feedback + trigger\nevents are dispatched to (GitHub, Google Sheets, Slack, and the\nClaude/Cursor/Copilot autopilot triggers). CRUD plus a manual\n`fire` (trigger-only) and a `test` payload."
     },
     {
       "name": "API Keys",
@@ -8640,7 +8640,7 @@
       "post": {
         "operationId": "ackOpsItem",
         "summary": "Ack an item (start a run)",
-        "description": "Acknowledge a queue item — a person or an AI agent declaring \"I'm on this\nnow\". Opens a run: stamps who picked the item up and when, assigns them as\nowner, and moves the item into the matching working status\n(`investigating_by_ai` for an AI ack, `in_progress` for a human one). The\ndashboard renders the open run as a live working indicator (which agent +\ntime since the run started).\n\n**AI ack.** Pass `agent` with your own agent type (`claude`, `cursor`,\n`copilot`, `jules`; `gemini` is also accepted and is normalized to `jules` on receipt) and, when you have one, the\nrun's `sessionId` so the dashboard can deep-link to the session. If the\nproject has no connected trigger connector of that type the call fails\nwith `AGENT_NOT_CONNECTED` — list the available agents with `ops agents\nlist` and use one of those (or connect the agent under Settings →\nTriggers).\n\n**Launching.** When the named agent has a connected trigger and you pass\nno `sessionId`, the ack also fires that trigger — a new provider run\nstarts working the item. Pass `launch: false` to only claim the item and\nrecord the run (you are doing the work yourself), without starting one.\nA launch on an item linked to others (see `group` on `ops get`) is only\nallowed on the group's master — any other member answers `409`\n`INVALID_TRANSITION`, naming the master to ack instead.\n\n**Completion.** The run closes automatically on the loop's final actions —\nlinking the fixing PR (`link-pr`), an ops-notify escalation, or a\ncompletion status change (`ready_for_qa`/`resolved`) — and the dashboard\nthen shows the run result (final action, PR, duration, session link).\n\n**One session per item.** An AI ack on an item whose open run belongs to\nanother live agent session answers `409` `ALREADY_EXISTS`, naming that\nrun — skip the item, the other session is working it. Your own run is\nadopted, not refused: re-ack with its `runId` (a fired run's prompt names\nit; a previous ack returned it) or the same `sessionId`. A run a trigger\nfire claimed is adopted by the FIRST session to ack it. A run silent past\nthe stuck-run threshold (6h), or `takeover: true`, is superseded instead.\nA human ack never replaces an open agent run.\n\n**Use case:** Call this first when picking an item up, so the team sees\nwho/what is working on it in real time.",
+        "description": "Acknowledge a queue item — a person or an AI agent declaring \"I'm on this\nnow\". Opens a run: stamps who picked the item up and when, assigns them as\nowner, and moves the item into the matching working status\n(`investigating_by_ai` for an AI ack, `in_progress` for a human one). The\ndashboard renders the open run as a live working indicator (which agent +\ntime since the run started).\n\n**AI ack.** Pass `agent` with your own agent type (`claude`, `cursor`,\n`copilot`) and, when you have one, the\nrun's `sessionId` so the dashboard can deep-link to the session. If the\nproject has no connected trigger connector of that type the call fails\nwith `AGENT_NOT_CONNECTED` — list the available agents with `ops agents\nlist` and use one of those (or connect the agent under Settings →\nTriggers).\n\n**Launching.** When the named agent has a connected trigger and you pass\nno `sessionId`, the ack also fires that trigger — a new provider run\nstarts working the item. Pass `launch: false` to only claim the item and\nrecord the run (you are doing the work yourself), without starting one.\nA launch on an item linked to others (see `group` on `ops get`) is only\nallowed on the group's master — any other member answers `409`\n`INVALID_TRANSITION`, naming the master to ack instead.\n\n**Completion.** The run closes automatically on the loop's final actions —\nlinking the fixing PR (`link-pr`), an ops-notify escalation, or a\ncompletion status change (`ready_for_qa`/`resolved`) — and the dashboard\nthen shows the run result (final action, PR, duration, session link).\n\n**One session per item.** An AI ack on an item whose open run belongs to\nanother live agent session answers `409` `ALREADY_EXISTS`, naming that\nrun — skip the item, the other session is working it. Your own run is\nadopted, not refused: re-ack with its `runId` (a fired run's prompt names\nit; a previous ack returned it) or the same `sessionId`. A run a trigger\nfire claimed is adopted by the FIRST session to ack it. A run silent past\nthe stuck-run threshold (6h), or `takeover: true`, is superseded instead.\nA human ack never replaces an open agent run.\n\n**Use case:** Call this first when picking an item up, so the team sees\nwho/what is working on it in real time.",
         "tags": [
           "Ops"
         ],
@@ -10073,7 +10073,7 @@
       "get": {
         "operationId": "listOpsAgents",
         "summary": "List connected AI agents",
-        "description": "The project's connected AI agents — one per authenticated trigger\nconnector (Claude / Cursor / Copilot / Jules). These are the agent types\n`ops ack` accepts and the agents a queue item can be assigned to.\n\n**Use case:** Discover which `agent` values an AI ack can use, e.g. after\nan `AGENT_NOT_CONNECTED` error.",
+        "description": "The project's connected AI agents — one per authenticated trigger\nconnector (Claude / Cursor / Copilot). These are the agent types\n`ops ack` accepts and the agents a queue item can be assigned to.\n\n**Use case:** Discover which `agent` values an AI ack can use, e.g. after\nan `AGENT_NOT_CONNECTED` error.",
         "tags": [
           "Agents"
         ],
@@ -19296,7 +19296,7 @@
       "post": {
         "operationId": "createConnector",
         "summary": "Create a connector",
-        "description": "Creates a connector. The request body is discriminated on `provider`.\n\n- **OAuth/app providers** (`google_sheets`, `github`, `slack`) — supply `{ provider, name, events }`. The connector is created `enabled: false` with empty `config` and no credentials; the provider's OAuth flow then attaches credentials and enables it.\n- **Trigger providers** (`claude_trigger`, `cursor_trigger`, `copilot_trigger`, `jules_trigger`) — supply `config` plus the provider's credential field(s) and the connector is fireable immediately. Trigger creates are **idempotent** by their natural key (`config.routineId` / `config.repoUrl` / `config.owner`+`config.repo` / `config.source`): re-creating updates the existing row rather than duplicating it.\n\n**Use cases**\n\n- **File bugs as GitHub Issues** — `{ \"provider\": \"github\", \"name\": \"Bugs → acme/app\", \"events\": [\"bug.created\"] }`, then finish the GitHub App install.\n- **Nightly ops sweep** — register a `claude_trigger` with its `routineId` and (optionally) a fire `token`; subscribe `events` later to auto-fire on new bugs.\n- **Cold cloud-agent run** — register a `cursor_trigger`/`jules_trigger` with the repo coordinates plus both keys, or a `copilot_trigger` with the repo + user PAT.",
+        "description": "Creates a connector. The request body is discriminated on `provider`.\n\n- **OAuth/app providers** (`google_sheets`, `github`, `slack`) — supply `{ provider, name, events }`. The connector is created `enabled: false` with empty `config` and no credentials; the provider's OAuth flow then attaches credentials and enables it.\n- **Trigger providers** (`claude_trigger`, `cursor_trigger`, `copilot_trigger`) — supply `config` plus the provider's credential field(s) and the connector is fireable immediately. Trigger creates are **idempotent** by their natural key (`config.routineId` / `config.repoUrl` / `config.owner`+`config.repo`): re-creating updates the existing row rather than duplicating it.\n\n**Use cases**\n\n- **File bugs as GitHub Issues** — `{ \"provider\": \"github\", \"name\": \"Bugs → acme/app\", \"events\": [\"bug.created\"] }`, then finish the GitHub App install.\n- **Nightly ops sweep** — register a `claude_trigger` with its `routineId` and (optionally) a fire `token`; subscribe `events` later to auto-fire on new bugs.\n- **Cold cloud-agent run** — register a `cursor_trigger` with the repo coordinates plus both keys, or a `copilot_trigger` with the repo + user PAT.",
         "tags": [
           "Connectors"
         ],
@@ -19685,7 +19685,7 @@
       "post": {
         "operationId": "fireConnector",
         "summary": "Fire a trigger connector",
-        "description": "Manually kicks a trigger connector's run — Claude (kicks its preconfigured routine) or Cursor / Copilot / Jules (launches a cold cloud-agent run). Firing is event-less: it kicks the run with an optional caller-supplied prompt override rather than dispatching a single lifecycle payload.\n\nOnly trigger providers can be fired, and only once authenticated (a tokenless trigger cannot fire). The attempt's outcome is recorded on the connector's `lastAttemptAt` / `lastError` / `lastSuccessAt`.\n\n**Use case:** Kick a one-off ops sweep on demand from the dashboard's \"Fire now\" button, optionally overriding the routine's default prompt.",
+        "description": "Manually kicks a trigger connector's run — Claude (kicks its preconfigured routine) or Cursor / Copilot (launches a cold cloud-agent run). Firing is event-less: it kicks the run with an optional caller-supplied prompt override rather than dispatching a single lifecycle payload.\n\nOnly trigger providers can be fired, and only once authenticated (a tokenless trigger cannot fire). The attempt's outcome is recorded on the connector's `lastAttemptAt` / `lastError` / `lastSuccessAt`.\n\n**Use case:** Kick a one-off ops sweep on demand from the dashboard's \"Fire now\" button, optionally overriding the routine's default prompt.",
         "tags": [
           "Connectors"
         ],
@@ -19851,7 +19851,7 @@
       "patch": {
         "operationId": "updateTriggerConnector",
         "summary": "Update a trigger connector",
-        "description": "Edit an existing coding-agent **trigger** connector (`claude_trigger` / `cursor_trigger` / `copilot_trigger` / `jules_trigger`) — replace its non-secret `config` and, optionally, rotate its credential secret(s). Discriminated on `provider`; the id in the path selects the connector and its `provider` must match the body.\n\nUnlike the generic `PATCH /api/admin/connectors/{id}` (which cannot touch secrets), this endpoint always replaces the non-secret `config` wholesale and merges any supplied secret over the stored credential cipher — so a single half of a two-key pair (e.g. just the ops key) can be rotated on its own. A blank/omitted secret leaves the stored cipher untouched.\n\nThe response carries only `{ id }` — re-fetch via `GET /api/admin/connectors/{id}` for the new row.\n\n**Use case:** Re-point a Cursor trigger at a new repo ref, or rotate a Claude trigger's fire token, without deleting and re-creating the connector.",
+        "description": "Edit an existing coding-agent **trigger** connector (`claude_trigger` / `cursor_trigger` / `copilot_trigger`) — replace its non-secret `config` and, optionally, rotate its credential secret(s). Discriminated on `provider`; the id in the path selects the connector and its `provider` must match the body.\n\nUnlike the generic `PATCH /api/admin/connectors/{id}` (which cannot touch secrets), this endpoint always replaces the non-secret `config` wholesale and merges any supplied secret over the stored credential cipher — so a single half of a two-key pair (e.g. just the ops key) can be rotated on its own. A blank/omitted secret leaves the stored cipher untouched.\n\nThe response carries only `{ id }` — re-fetch via `GET /api/admin/connectors/{id}` for the new row.\n\n**Use case:** Re-point a Cursor trigger at a new repo ref, or rotate a Claude trigger's fire token, without deleting and re-creating the connector.",
         "tags": [
           "Connectors"
         ],
@@ -19955,7 +19955,7 @@
       "post": {
         "operationId": "createTriggerConnector",
         "summary": "Create a recurring coding-agent trigger",
-        "description": "Creates (or idempotently updates) a coding-agent **trigger** connector — the recurring, unattended run that burns down the ops queue in `--pr` mode. Discriminated on `provider`; only the four Shipeasy-fireable providers are accepted (`claude_trigger`, `cursor_trigger`, `copilot_trigger`, `jules_trigger`). Config + credential(s) arrive together; creates are idempotent by the provider's natural key, so re-creating updates the existing row.\n\nPlatforms without a fire endpoint (Codex, Windsurf, Cline, OpenClaw, OpenCode, Continue) cannot be created here — they are scheduled on their own platform (typically a GitHub Actions `schedule:` cron running the platform's headless CLI with the trigger prompt).\n\n**Use cases**\n\n- **Register a Claude routine** — after `RemoteTrigger {action:\"create\"}` returns `trig_…`, `{ \"provider\": \"claude_trigger\", \"config\": { \"routineId\": \"trig_…\" } }` (tokenless is fine; add the fire token later).\n- **Cold Cursor/Jules run** — repo coordinates + both keys; Shipeasy launches the run and the PR opens via the provider's GitHub App.\n- **Copilot cloud agent** — repo + a Copilot-licensed user PAT with the \"Agent tasks\" permission.",
+        "description": "Creates (or idempotently updates) a coding-agent **trigger** connector — the recurring, unattended run that burns down the ops queue in `--pr` mode. Discriminated on `provider`; only the three Shipeasy-fireable providers are accepted (`claude_trigger`, `cursor_trigger`, `copilot_trigger`). Config + credential(s) arrive together; creates are idempotent by the provider's natural key, so re-creating updates the existing row.\n\nPlatforms without a fire endpoint (Codex, Gemini, Windsurf, Cline, OpenClaw, OpenCode, Continue) cannot be created here — they are scheduled on their own platform (typically a GitHub Actions `schedule:` cron running the platform's headless CLI with the trigger prompt).\n\n**Use cases**\n\n- **Register a Claude routine** — after `RemoteTrigger {action:\"create\"}` returns `trig_…`, `{ \"provider\": \"claude_trigger\", \"config\": { \"routineId\": \"trig_…\" } }` (tokenless is fine; add the fire token later).\n- **Cold Cursor run** — repo coordinates + both keys; Shipeasy launches the run and the PR opens via the provider's GitHub App.\n- **Copilot cloud agent** — repo + a Copilot-licensed user PAT with the \"Agent tasks\" permission.",
         "tags": [
           "Trigger"
         ],
@@ -20089,30 +20089,20 @@
                 "provider": "copilot_trigger"
               },
               "help": "Copilot's cloud agent starts from one authenticated POST to\nhttps://api.github.com/agents/repos/<owner>/<repo>/tasks with\n{ prompt, create_pull_request: true }. Auth is a user-to-server token\nONLY: a fine-grained user PAT with the \"Agent tasks\" repo permission\n(read+write) for a Copilot-licensed account — the Actions GITHUB_TOKEN and\nGitHub App installation tokens are rejected. The agent reads\nSHIPEASY_CLI_TOKEN from the repo's own Agents secret store, so Shipeasy\nstores only the PAT:\n\n  shipeasy ops trigger create copilot \\\n    --config '{\"owner\":\"<owner>\",\"repo\":\"<repo>\"}' --token <fine-grained PAT>\n\nSet SHIPEASY_CLI_TOKEN (the restricted ops key) + SHIPEASY_PROJECT_ID in\nthe repo's Agents secrets first. For a fixed cadence use Copilot\nautomations (repo Agents tab; hourly/daily/weekly, private/internal repos\nonly) or a scheduled Actions job running `gh agent-task create`."
-            },
-            {
-              "name": "create jules",
-              "aliases": [
-                "gemini"
-              ],
-              "summary": "Register a Google Jules (Gemini) trigger",
-              "preset": {
-                "provider": "jules_trigger"
-              },
-              "help": "Jules — Google's async coding agent (the fireable Gemini path) — starts a\nsession from one POST to https://jules.googleapis.com/v1alpha/sessions\n(header X-Goog-Api-Key) with sourceContext.source =\nsources/github/<owner>/<repo> and automationMode: \"AUTO_CREATE_PR\". Jules\nexposes no env channel, so the restricted ops key is embedded in the\nsession prompt (safe — it is the limited ops key):\n\n  shipeasy ops trigger create jules \\\n    --config '{\"source\":\"sources/github/<owner>/<repo>\"}' \\\n    --api-key <JULES_API_KEY> --ops-key <ops_…>\n\nConnect the repo to Jules once (jules.google.com → connect GitHub). For a\nfixed cadence use Jules scheduled tasks (UI-only), or fall back to the\nGemini CLI in a GitHub Actions schedule: job\n(`gemini -p \"<TRIGGER PROMPT>\" --approval-mode=yolo`; auth GEMINI_API_KEY)."
             }
           ],
           "fallback": {
             "argument": "provider",
             "platforms": [
               "codex",
+              "gemini",
               "windsurf",
               "cline",
               "openclaw",
               "opencode",
               "continue"
             ],
-            "help": "Direct (Shipeasy-fired) triggers are not supported for this platform — it\nexposes no HTTP \"start a run\" endpoint our Worker can call. Supported here:\nclaude, cursor, copilot, jules (alias: gemini) — see\n`shipeasy ops trigger create <provider> --help`.\n\nPlatform-scheduled setup instead (the platform's own scheduler fires the\nrun; nothing to register in Shipeasy):\n\n1. Mint the restricted ops key (`shipeasy sdk keys create --type ops --json`)\n   and read the project id from .shipeasy. Never print either.\n2. Build the trigger prompt (run `shipeasy ops trigger create claude --help`\n   for the shared template) with the key, project id, and your platform's\n   install line substituted.\n3. Schedule a headless run with it — a GitHub Actions `schedule:` cron\n   (always-on; credentials as repo secrets incl. a GH_TOKEN/PAT with\n   contents:write + pull-requests:write) or a local cron/daemon (machine\n   must stay awake):\n\n     codex     GitHub Actions cron → `codex cloud exec --env <ENV_ID> \"<PROMPT>\"`\n               (submits a Codex Cloud task — machine-off; configure network +\n               SHIPEASY_* secrets once at chatgpt.com/codex/cloud/settings/environments)\n     windsurf  Devin Scheduled Sessions (cloud cron; WINDSURF/DEVIN API key)\n     cline     `cline schedule create --cron \"…\" --prompt \"<PROMPT>\"` (local daemon)\n     openclaw  `openclaw cron create \"…\" \"<PROMPT>\"` (local gateway; static API key)\n     opencode  `opencode run \"<PROMPT>\"` + external cron (permission: \"allow\")\n     continue  `cn -p --auto \"<PROMPT>\"` + external cron (CONTINUE_API_KEY)\n\n4. Verify one manual fire (expect a PR or a clean empty-queue exit) and\n   manage/pause it on that platform's scheduler."
+            "help": "Direct (Shipeasy-fired) triggers are not supported for this platform — it\nexposes no HTTP \"start a run\" endpoint our Worker can call. Supported here:\nclaude, cursor, copilot — see\n`shipeasy ops trigger create <provider> --help`.\n\nPlatform-scheduled setup instead (the platform's own scheduler fires the\nrun; nothing to register in Shipeasy):\n\n1. Mint the restricted ops key (`shipeasy sdk keys create --type ops --json`)\n   and read the project id from .shipeasy. Never print either.\n2. Build the trigger prompt (run `shipeasy ops trigger create claude --help`\n   for the shared template) with the key, project id, and your platform's\n   install line substituted.\n3. Schedule a headless run with it — a GitHub Actions `schedule:` cron\n   (always-on; credentials as repo secrets incl. a GH_TOKEN/PAT with\n   contents:write + pull-requests:write) or a local cron/daemon (machine\n   must stay awake):\n\n     codex     GitHub Actions cron → `codex cloud exec --env <ENV_ID> \"<PROMPT>\"`\n               (submits a Codex Cloud task — machine-off; configure network +\n               SHIPEASY_* secrets once at chatgpt.com/codex/cloud/settings/environments)\n     windsurf  Devin Scheduled Sessions (cloud cron; WINDSURF/DEVIN API key)\n     cline     `cline schedule create --cron \"…\" --prompt \"<PROMPT>\"` (local daemon)\n     openclaw  `openclaw cron create \"…\" \"<PROMPT>\"` (local gateway; static API key)\n     opencode  `opencode run \"<PROMPT>\"` + external cron (permission: \"allow\")\n     continue  `cn -p --auto \"<PROMPT>\"` + external cron (CONTINUE_API_KEY)\n\n4. Verify one manual fire (expect a PR or a clean empty-queue exit) and\n   manage/pause it on that platform's scheduler."
           }
         }
       }
@@ -31540,11 +31530,9 @@
               "claude",
               "cursor",
               "copilot",
-              "jules",
-              "gemini",
               "jarvis"
             ],
-            "description": "The AI agent type acking on the item's behalf — pass your own type when you are a coding agent (Claude Code passes `claude`, Cursor `cursor`, Copilot `copilot`, Jules `jules`, Gemini `gemini` → normalized to `jules`). Omit entirely for a human ack by the authenticated caller."
+            "description": "The AI agent type acking on the item's behalf — pass your own type when you are a coding agent (Claude Code passes `claude`, Cursor `cursor`, Copilot `copilot`). Omit entirely for a human ack by the authenticated caller."
           },
           "sessionId": {
             "type": "string",
@@ -31568,7 +31556,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Body for `POST /api/admin/ops/{handle}/ack`. With `agent` set this is an AI ack — the named agent type must have a connected trigger connector in the project, or the call fails with `AGENT_NOT_CONNECTED` and instructions to query the available agents (`ops agents list`). `gemini` is accepted as an input value and is normalized to `jules`. Without `agent` it is a HUMAN ack by the authenticated caller."
+        "description": "Body for `POST /api/admin/ops/{handle}/ack`. With `agent` set this is an AI ack — the named agent type must have a connected trigger connector in the project, or the call fails with `AGENT_NOT_CONNECTED` and instructions to query the available agents (`ops agents list`). Without `agent` it is a HUMAN ack by the authenticated caller."
       },
       "AckOpsItemResponse": {
         "type": "object",
@@ -31730,7 +31718,7 @@
                 "type": "null"
               }
             ],
-            "description": "Which agent produced the record (`jarvis` is the in-house assistant; the rest are trigger-connector coding agents), or `null`."
+            "description": "Which agent produced the record (`jarvis` is the in-house assistant; the rest are trigger-connector coding agents — `jules` only on records from before the Jules trigger was retired), or `null`."
           },
           "model": {
             "anyOf": [
@@ -31894,7 +31882,7 @@
                 "type": "null"
               }
             ],
-            "description": "The run's session-page deep link, or `null`. DERIVED (never stored): rebuilt from `sessionId` + the run's trigger connector — Claude's routine id (`?trigger=`), Copilot's repo (`/tasks/`), Cursor/Jules from the id alone. Only `working` run records carry one."
+            "description": "The run's session-page deep link, or `null`. DERIVED (never stored): rebuilt from `sessionId` + the run's trigger connector — Claude's routine id (`?trigger=`), Copilot's repo (`/tasks/`), Cursor from the id alone. Only `working` run records carry one."
           },
           "ackedBy": {
             "anyOf": [
@@ -31997,8 +31985,7 @@
               "jarvis",
               "claude",
               "cursor",
-              "copilot",
-              "jules"
+              "copilot"
             ],
             "description": "The agent type producing the record — pass your own type when you are a coding agent."
           },
@@ -32544,8 +32531,7 @@
               "jarvis",
               "claude",
               "cursor",
-              "copilot",
-              "jules"
+              "copilot"
             ],
             "description": "The agent type asking — pass your own type when you are a coding agent. Defaults to the run's agent."
           },
@@ -32710,8 +32696,7 @@
               "jarvis",
               "claude",
               "cursor",
-              "copilot",
-              "jules"
+              "copilot"
             ],
             "description": "The agent type writing the note — pass your own type when you are QA automation. Omitted, the note is attributed to the caller's identity."
           }
@@ -32745,8 +32730,7 @@
               "jarvis",
               "claude",
               "cursor",
-              "copilot",
-              "jules"
+              "copilot"
             ],
             "description": "The agent type adding the line — pass your own type when you are a coding agent. Omitted, the line is attributed to the caller's identity."
           }
@@ -32786,8 +32770,7 @@
               "jarvis",
               "claude",
               "cursor",
-              "copilot",
-              "jules"
+              "copilot"
             ],
             "description": "The agent type making the change — pass your own type when you are an agent. Omitted, the change is attributed to the caller's identity."
           }
@@ -32818,8 +32801,7 @@
               "jarvis",
               "claude",
               "cursor",
-              "copilot",
-              "jules"
+              "copilot"
             ],
             "description": "The agent type asking — pass your own type when you are a coding agent. Omitted, the question is attributed to the caller's identity."
           }
@@ -32845,8 +32827,7 @@
               "jarvis",
               "claude",
               "cursor",
-              "copilot",
-              "jules"
+              "copilot"
             ],
             "description": "The agent type answering — pass your own type when you are QA automation. Omitted, the answer is attributed to the caller's identity."
           }
@@ -32869,8 +32850,7 @@
             "enum": [
               "claude_trigger",
               "cursor_trigger",
-              "copilot_trigger",
-              "jules_trigger"
+              "copilot_trigger"
             ],
             "description": "The trigger-connector provider backing this agent."
           },
@@ -35640,7 +35620,7 @@
                 "type": "null"
               }
             ],
-            "description": "The coding agent that ran it (`claude`, `cursor`, `copilot`, `jules`, `jarvis`), or `null`."
+            "description": "The coding agent that ran it (`claude`, `cursor`, `copilot`, `jarvis`; `jules` only on runs from before the Jules trigger was retired), or `null`."
           },
           "sessionUrl": {
             "anyOf": [
@@ -35751,7 +35731,7 @@
                 "type": "null"
               }
             ],
-            "description": "The coding agent that runs it (`claude`, `cursor`, `copilot`, `jules`, `jarvis`), or `null`."
+            "description": "The coding agent that runs it (`claude`, `cursor`, `copilot`, `jarvis`; `jules` only on runs from before the Jules trigger was retired), or `null`."
           },
           "sessionUrl": {
             "anyOf": [
@@ -36791,7 +36771,7 @@
                 "type": "null"
               }
             ],
-            "description": "Who works the item — an agent handle (`claude`, `cursor`, `copilot`, `jules`, `muse`, `grok`) or a person's email. `null`, the project's coding agent."
+            "description": "Who works the item — an agent handle (`claude`, `cursor`, `copilot`, `muse`, `grok`) or a person's email. `null`, the project's coding agent."
           },
           "workKind": {
             "$ref": "#/components/schemas/TrailWorkKind"
@@ -38187,8 +38167,7 @@
               "jarvis",
               "claude",
               "cursor",
-              "copilot",
-              "jules"
+              "copilot"
             ],
             "description": "Your agent type, when you are the review agent."
           },
@@ -38248,8 +38227,7 @@
               "jarvis",
               "claude",
               "cursor",
-              "copilot",
-              "jules"
+              "copilot"
             ],
             "description": "Your agent type, when an agent is resolving the finding."
           }
@@ -39437,12 +39415,11 @@
         "properties": {
           "agent": {
             "type": "string",
-            "description": "Which coding agent to fire — `claude`, `cursor`, `copilot` or `jules`. Omitted, the project's coding-agent trigger.",
+            "description": "Which coding agent to fire — `claude`, `cursor` or `copilot`. Omitted, the project's coding-agent trigger.",
             "enum": [
               "claude",
               "cursor",
-              "copilot",
-              "jules"
+              "copilot"
             ]
           },
           "connectorId": {
@@ -39622,8 +39599,7 @@
             "enum": [
               "claude",
               "cursor",
-              "copilot",
-              "jules"
+              "copilot"
             ],
             "description": "Which coding agent builds, with `startBuild`. Omitted, the project's coding-agent trigger."
           },
@@ -45498,10 +45474,9 @@
           "slack",
           "claude_trigger",
           "cursor_trigger",
-          "copilot_trigger",
-          "jules_trigger"
+          "copilot_trigger"
         ],
-        "description": "Connector destination. OAuth/app providers (`google_sheets`, `github`, `slack`) dispatch the event payload to an external destination. Trigger providers (`claude_trigger`, `cursor_trigger`, `copilot_trigger`, `jules_trigger`) instead kick a coding-agent run that burns down the operational queue."
+        "description": "Connector destination. OAuth/app providers (`google_sheets`, `github`, `slack`) dispatch the event payload to an external destination. Trigger providers (`claude_trigger`, `cursor_trigger`, `copilot_trigger`) instead kick a coding-agent run that burns down the operational queue."
       },
       "ConnectorEvent": {
         "type": "string",
@@ -45965,90 +45940,6 @@
         "additionalProperties": false,
         "description": "Create a GitHub Copilot coding-agent trigger. Idempotent by `config.owner/config.repo`."
       },
-      "JulesTriggerConfig": {
-        "type": "object",
-        "properties": {
-          "source": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Jules source for the connected repo, e.g. `sources/github/owner/repo`. Idempotency key for the connector."
-          },
-          "startingBranch": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Optional branch the session starts from."
-          },
-          "projectId": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Shipeasy project id the run targets."
-          },
-          "fireText": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Optional standing instruction prepended to every run's prompt — the trigger's base prompt. Lets two triggers on different repos steer their runs differently without changing the `/shipeasy-ops-work` task block."
-          }
-        },
-        "required": [
-          "source",
-          "projectId"
-        ],
-        "additionalProperties": false,
-        "description": "Non-secret config for a Jules trigger."
-      },
-      "CreateJulesTriggerRequest": {
-        "type": "object",
-        "properties": {
-          "provider": {
-            "type": "string",
-            "enum": [
-              "jules_trigger"
-            ],
-            "description": "Discriminator. Google Jules trigger."
-          },
-          "name": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 80,
-            "default": "Jules trigger",
-            "description": "Human-readable connector label."
-          },
-          "events": {
-            "type": "array",
-            "default": [],
-            "items": {
-              "$ref": "#/components/schemas/ConnectorEvent"
-            },
-            "description": "Events that auto-fire a Jules session. Defaults to empty."
-          },
-          "config": {
-            "$ref": "#/components/schemas/JulesTriggerConfig"
-          },
-          "apiKey": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Jules API key that launches the session (secret). Encrypted into the credentials cipher; never returned."
-          },
-          "opsKey": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Restricted Shipeasy ops key, embedded in the prompt (Jules exposes no env channel) (secret). Encrypted; never returned."
-          },
-          "enabled": {
-            "type": "boolean",
-            "default": true,
-            "description": "Whether the trigger is active on create."
-          }
-        },
-        "required": [
-          "provider",
-          "config",
-          "apiKey",
-          "opsKey"
-        ],
-        "additionalProperties": false,
-        "description": "Create a Google Jules trigger. Both keys are required up front. Idempotent by `config.source`."
-      },
       "CreateConnectorRequest": {
         "oneOf": [
           {
@@ -46062,9 +45953,6 @@
           },
           {
             "$ref": "#/components/schemas/CreateCopilotTriggerRequest"
-          },
-          {
-            "$ref": "#/components/schemas/CreateJulesTriggerRequest"
           }
         ],
         "discriminator": {
@@ -46075,11 +45963,10 @@
             "slack": "#/components/schemas/CreateOAuthConnectorRequest",
             "claude_trigger": "#/components/schemas/CreateClaudeTriggerRequest",
             "cursor_trigger": "#/components/schemas/CreateCursorTriggerRequest",
-            "copilot_trigger": "#/components/schemas/CreateCopilotTriggerRequest",
-            "jules_trigger": "#/components/schemas/CreateJulesTriggerRequest"
+            "copilot_trigger": "#/components/schemas/CreateCopilotTriggerRequest"
           }
         },
-        "description": "Body for `POST /api/admin/connectors`, discriminated on `provider`. The OAuth providers (`google_sheets`/`github`/`slack`) create a disabled stub that is finished via the provider's OAuth flow. The trigger providers (`claude_trigger`/`cursor_trigger`/`copilot_trigger`/`jules_trigger`) arrive config + credentials together and are fireable immediately."
+        "description": "Body for `POST /api/admin/connectors`, discriminated on `provider`. The OAuth providers (`google_sheets`/`github`/`slack`) create a disabled stub that is finished via the provider's OAuth flow. The trigger providers (`claude_trigger`/`cursor_trigger`/`copilot_trigger`) arrive config + credentials together and are fireable immediately."
       },
       "CreateConnectorResponse": {
         "type": "object",
@@ -46302,43 +46189,6 @@
         "additionalProperties": false,
         "description": "Per-provider PATCH body for editing an existing `copilot_trigger` connector. `config` replaces the stored config wholesale; `name` and `token` are optional."
       },
-      "UpdateJulesTriggerRequest": {
-        "type": "object",
-        "properties": {
-          "provider": {
-            "type": "string",
-            "enum": [
-              "jules_trigger"
-            ],
-            "description": "Discriminator. Google Jules trigger."
-          },
-          "name": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 80,
-            "description": "New connector label. Optional — omit to leave it unchanged."
-          },
-          "config": {
-            "$ref": "#/components/schemas/JulesTriggerConfig"
-          },
-          "apiKey": {
-            "type": "string",
-            "minLength": 1,
-            "description": "New Jules launch key (secret). Optional — omit to leave the stored key untouched. Rotatable independently of `opsKey`. Encrypted; never returned."
-          },
-          "opsKey": {
-            "type": "string",
-            "minLength": 1,
-            "description": "New restricted Shipeasy ops key (secret). Optional — omit to leave the stored key untouched. Rotatable independently of `apiKey`. Encrypted; never returned."
-          }
-        },
-        "required": [
-          "provider",
-          "config"
-        ],
-        "additionalProperties": false,
-        "description": "Per-provider PATCH body for editing an existing `jules_trigger` connector. `config` replaces the stored config wholesale; `name` and either credential are optional."
-      },
       "UpdateTriggerConnectorRequest": {
         "oneOf": [
           {
@@ -46349,9 +46199,6 @@
           },
           {
             "$ref": "#/components/schemas/UpdateCopilotTriggerRequest"
-          },
-          {
-            "$ref": "#/components/schemas/UpdateJulesTriggerRequest"
           }
         ],
         "discriminator": {
@@ -46359,8 +46206,7 @@
           "mapping": {
             "claude_trigger": "#/components/schemas/UpdateClaudeTriggerRequest",
             "cursor_trigger": "#/components/schemas/UpdateCursorTriggerRequest",
-            "copilot_trigger": "#/components/schemas/UpdateCopilotTriggerRequest",
-            "jules_trigger": "#/components/schemas/UpdateJulesTriggerRequest"
+            "copilot_trigger": "#/components/schemas/UpdateCopilotTriggerRequest"
           }
         },
         "description": "Body for `PATCH /api/admin/connectors/{id}/trigger`, discriminated on `provider`. Edits an existing trigger connector: the non-secret `config` is always supplied and replaces the stored config wholesale; `name` and the credential secret(s) are optional (a supplied secret rotates just that key, a blank/omitted one leaves the stored cipher untouched)."
@@ -46375,9 +46221,6 @@
           },
           {
             "$ref": "#/components/schemas/CreateCopilotTriggerRequest"
-          },
-          {
-            "$ref": "#/components/schemas/CreateJulesTriggerRequest"
           }
         ],
         "discriminator": {
@@ -46385,11 +46228,10 @@
           "mapping": {
             "claude_trigger": "#/components/schemas/CreateClaudeTriggerRequest",
             "cursor_trigger": "#/components/schemas/CreateCursorTriggerRequest",
-            "copilot_trigger": "#/components/schemas/CreateCopilotTriggerRequest",
-            "jules_trigger": "#/components/schemas/CreateJulesTriggerRequest"
+            "copilot_trigger": "#/components/schemas/CreateCopilotTriggerRequest"
           }
         },
-        "description": "Body for `POST /api/admin/connectors/trigger`, discriminated on `provider` — the trigger-provider subset of `CreateConnectorRequest` (no OAuth stubs). Config + credentials arrive together and the connector is usable immediately; creates are idempotent by each provider's natural key (`config.routineId` / `config.repoUrl` / `config.owner`+`config.repo` / `config.source`)."
+        "description": "Body for `POST /api/admin/connectors/trigger`, discriminated on `provider` — the trigger-provider subset of `CreateConnectorRequest` (no OAuth stubs). Config + credentials arrive together and the connector is usable immediately; creates are idempotent by each provider's natural key (`config.routineId` / `config.repoUrl` / `config.owner`+`config.repo`)."
       },
       "KeyRecord": {
         "type": "object",

@@ -12,9 +12,13 @@ describe("normalizePlatform", () => {
     for (const p of TRIGGER_PLATFORMS) expect(normalizePlatform(p.id)).toBe(p.id);
   });
 
-  it("aliases jules → gemini and is case/space tolerant", () => {
-    expect(normalizePlatform("jules")).toBe("gemini");
+  it("is case/space tolerant", () => {
     expect(normalizePlatform("  CLAUDE ")).toBe("claude");
+  });
+
+  it("rejects the retired gemini/jules platform", () => {
+    expect(normalizePlatform("gemini")).toBeNull();
+    expect(normalizePlatform("jules")).toBeNull();
   });
 
   it("returns null for unknown or empty values", () => {
@@ -38,13 +42,13 @@ describe("orderTriggerPlatforms", () => {
     expect(ordered.slice(0, 2).map((p) => p.id)).toEqual(["cursor", "copilot"]);
     expect(ordered.slice(0, 2).every((p) => p.recommended)).toBe(true);
     // the rest stay below and are not recommended
-    expect(ordered.slice(2).map((p) => p.id)).toEqual(["claude", "codex", "gemini"]);
+    expect(ordered.slice(2).map((p) => p.id)).toEqual(["claude", "codex"]);
     expect(ordered.slice(2).every((p) => !p.recommended)).toBe(true);
   });
 
-  it("maps the jules agent id to the gemini platform", () => {
-    const ordered = orderTriggerPlatforms(["jules"]);
-    expect(ordered[0]).toMatchObject({ id: "gemini", recommended: true });
+  it("recommends nothing for the Google agents (no fireable trigger since Jules)", () => {
+    const ordered = orderTriggerPlatforms(["jules", "antigravity", "gemini"]);
+    expect(ordered.every((p) => !p.recommended)).toBe(true);
   });
 
   it("ignores unknown agent ids", () => {

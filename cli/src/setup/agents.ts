@@ -60,9 +60,8 @@ export function timeoutMessage(label: string, ms = cmdTimeoutMs()): string {
  *    `~/.gemini/antigravity*`, MCP servers in `~/.gemini/config/mcp_config.json`.
  *  - **Gemini CLI** (`gemini`) — the local CLI, MCP servers in its own
  *    `settings.json` and manageable through `gemini mcp add`.
- *  - **Jules** (`jules`) — the ASYNC CLOUD agent. It has no local MCP surface to
- *    wire, so it is not an agent here at all; it is a *trigger* platform (see
- *    `triggers.ts`, where it is the `gemini` platform).
+ *  - **Jules** (`jules`) — the async cloud agent, now retired by Google. It never
+ *    had a local MCP surface to wire, and its trigger platform is gone too.
  *
  * This list used to carry a single `jules` entry that detected `agy` and then
  * wired nothing — all three conflated into one id that wrote no config. `jules`

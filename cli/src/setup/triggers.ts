@@ -40,28 +40,26 @@ function say(text = ""): void {
  * provider-specific provisioning; the CLI only routes the user to it.
  */
 
-export type TriggerPlatform = "claude" | "codex" | "cursor" | "copilot" | "gemini";
+export type TriggerPlatform = "claude" | "codex" | "cursor" | "copilot";
 
-/** The five guided platforms — mirrors PLATFORMS in apps/ui trigger-setup.tsx. */
+/** The four guided platforms — mirrors PLATFORMS in apps/ui trigger-setup.tsx. */
 export const TRIGGER_PLATFORMS: { id: TriggerPlatform; label: string; sub: string }[] = [
   { id: "claude", label: "Claude Code", sub: "scheduled routine in Anthropic’s cloud" },
   { id: "codex", label: "Codex", sub: "GitHub Actions cron → Codex Cloud task" },
   { id: "cursor", label: "Cursor", sub: "Shipeasy launches a Cursor cloud agent" },
   { id: "copilot", label: "GitHub Copilot", sub: "GitHub coding-agent task → PR" },
-  { id: "gemini", label: "Gemini (Jules)", sub: "Google’s async Jules session → PR" },
 ];
 
 const PLATFORM_IDS = TRIGGER_PLATFORMS.map((p) => p.id) as string[];
 
 /**
- * Normalise a raw platform string to a {@link TriggerPlatform}. `jules` is
- * accepted as an alias for `gemini` (same as the dashboard deep link); anything
- * unknown returns null so the caller falls back to the picker page.
+ * Normalise a raw platform string to a {@link TriggerPlatform}. Anything unknown
+ * (including the retired `gemini`/`jules` platform — Google shut Jules down)
+ * returns null so the caller falls back to the picker page.
  */
 export function normalizePlatform(raw: string | null | undefined): TriggerPlatform | null {
   if (!raw) return null;
   const v = raw.trim().toLowerCase();
-  if (v === "jules") return "gemini";
   return PLATFORM_IDS.includes(v) ? (v as TriggerPlatform) : null;
 }
 
@@ -122,7 +120,6 @@ export interface TriggerStepOpts {
   /**
    * Agent ids the user wired in step 3 (`AgentId[]`). In the picker these are
    * floated to the top and tagged "recommended"; the rest still show below.
-   * `jules` maps to the `gemini` trigger platform (same as the deep link).
    */
   preferredAgents?: string[];
   /** Don't open a browser (dry run / tests) — just print the URL. */
@@ -137,14 +134,12 @@ export interface TriggerStepOpts {
 }
 
 /**
- * Map a step-3 `AgentId` to its trigger platform id. Both Google agents point at
- * the `gemini` platform — which IS Jules, the async cloud agent (the trigger has
- * no local counterpart, so Antigravity and Gemini CLI users get the same one).
- * `jules` itself is still accepted, as the dashboard deep link spells it that way.
+ * Map a step-3 `AgentId` to its trigger platform id. The Google agents
+ * (Antigravity, Gemini CLI) have no fireable trigger since Jules was retired,
+ * so they map to nothing and the picker shows every platform unranked.
  */
 function agentToPlatform(id: string): TriggerPlatform | null {
-  const raw = id.toLowerCase();
-  const v = raw === "jules" || raw === "antigravity" ? "gemini" : raw;
+  const v = id.toLowerCase();
   return PLATFORM_IDS.includes(v) ? (v as TriggerPlatform) : null;
 }
 
@@ -160,7 +155,7 @@ export interface OrderedPlatform {
  * Order the trigger platforms for the picker: the ones whose agent the user
  * wired in step 3 float to the top flagged `recommended`, in their original
  * canonical order; every other platform stays below. `preferredAgents` are
- * step-3 `AgentId`s (`jules` maps to `gemini`); unknown ids are ignored.
+ * step-3 `AgentId`s; unknown ids are ignored.
  */
 export function orderTriggerPlatforms(preferredAgents: string[] = []): OrderedPlatform[] {
   const preferred = new Set(

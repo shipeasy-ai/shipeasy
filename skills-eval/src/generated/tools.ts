@@ -99,7 +99,6 @@ export const KNOWN_TOOLS: readonly string[] = [
   "ops_trigger_create_claude",
   "ops_trigger_create_copilot",
   "ops_trigger_create_cursor",
-  "ops_trigger_create_jules",
   "ops_update",
   "projects_current",
   "projects_update",

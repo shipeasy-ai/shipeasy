@@ -421,7 +421,7 @@ shipeasy ops activity list [options]
 
 ### `shipeasy ops agents`
 
-Connected AI agents — one per authenticated trigger connector (Claude / Cursor / Copilot / Jules).
+Connected AI agents — one per authenticated trigger connector (Claude / Cursor / Copilot).
 
 ```bash
 shipeasy ops agents [options] [command]
@@ -1456,23 +1456,6 @@ shipeasy ops trigger create copilot [options]
 | `--token <value>` | optional | Copilot-licensed user PAT (secret). The ops key lives in the repo's GitHub "Agents" secret store and is never sent through Shipeasy. Encrypted; never returned. |
 | `--enabled <value>` | optional | Whether the trigger is active on create. |
 
-##### `shipeasy ops trigger create jules`
-
-Register a Google Jules (Gemini) trigger
-
-```bash
-shipeasy ops trigger create jules [options]
-```
-
-| Option | | Description |
-| --- | --- | --- |
-| `--name <value>` | optional | Human-readable connector label. |
-| `--events <value>` | optional | Events that auto-fire a Jules session. Defaults to empty. |
-| `--config <value>` | optional | Non-secret config for a Jules trigger. |
-| `--api-key <value>` | optional | Jules API key that launches the session (secret). Encrypted into the credentials cipher; never returned. |
-| `--ops-key <value>` | optional | Restricted Shipeasy ops key, embedded in the prompt (Jules exposes no env channel) (secret). Encrypted; never returned. |
-| `--enabled <value>` | optional | Whether the trigger is active on create. |
-
 #### `shipeasy ops trigger prep`
 
 Mint the ops key + emit the RemoteTrigger create body for the agent to run
@@ -1736,7 +1719,7 @@ shipeasy ops ack [options] <handle>
 
 | Option | | Description |
 | --- | --- | --- |
-| `--agent <value>` | optional | The AI agent type acking on the item's behalf — pass your own type when you are a coding agent (Claude Code passes `claude`, Cursor `cursor`, Copilot `copilot`, Jules `jules`, Gemini `gemini` → normalized to `jules`). Omit entirely for a human ack by the authenticated caller. |
+| `--agent <value>` | optional | The AI agent type acking on the item's behalf — pass your own type when you are a coding agent (Claude Code passes `claude`, Cursor `cursor`, Copilot `copilot`). Omit entirely for a human ack by the authenticated caller. |
 | `--session-id <value>` | optional | The agent-run session id (e.g. Claude's `session_01…`), so the dashboard can deep-link to the exact run page. Omit when the harness has no session id. |
 | `--launch <value>` | optional | Whether an AI ack may FIRE the agent's connected trigger. Default `true`: an ack naming a connected agent, with no `sessionId`, starts a new provider run of that agent. Pass `false` to only record the ack — claim the item and open the run record — without starting anything, e.g. when you ARE that agent working the item yourself and have no session id to pass. Ignored on a human ack. |
 | `--run-id <value>` | optional | The run you were handed — the investigation id a fired run's prompt names, or the `runId` an earlier ack returned. Proves the open run is yours, so the ack adopts it instead of answering `409` `ALREADY_EXISTS`. |
@@ -2549,7 +2532,7 @@ shipeasy trails start [options] <handle>
 
 | Option | | Description |
 | --- | --- | --- |
-| `--agent <value>` | optional | Which coding agent to fire — `claude`, `cursor`, `copilot` or `jules`. Omitted, the project's coding-agent trigger. |
+| `--agent <value>` | optional | Which coding agent to fire — `claude`, `cursor` or `copilot`. Omitted, the project's coding-agent trigger. |
 | `--connector-id <value>` | optional | A specific trigger connector to fire. Overrides `agent`. |
 | `--kind <value>` | optional | Which run to fire. Omitted, the server picks — `plan` while the trail has no approved plan, else `build`. Asking for `build` before the plan is approved is refused with `409`, and so is asking for `plan` once one is approved: edit the plan, or fire `replan`. `replan` is allowed only once a plan is approved: a read-only run that re-reads the goal metric, the items' outcomes and project memory and submits the next revision, which waits as `drafted` for approval. |
 | `--prompt <value>` | optional | Extra instructions appended to the trail prompt. |
@@ -3996,7 +3979,7 @@ shipeasy setup [options] [command]
 | `--no-claude-run` | optional | (deprecated) alias of --no-agent-run |
 | `--triggers` | optional | Set up the automation trigger without asking (skips the yes/no gate) |
 | `--no-triggers` | optional | Skip the automation trigger step |
-| `--trigger-platform <id>` | optional | Preselect the trigger platform (claude\|codex\|cursor\|copilot\|gemini\|jules) |
+| `--trigger-platform <id>` | optional | Preselect the trigger platform (claude\|codex\|cursor\|copilot) |
 | `--plan` | optional | Open the plan step without asking (skips the yes/no gate) |
 | `--no-plan` | optional | Skip the plan step (onboarding stays unfinished until it's done) |
 | `--dry-run` | optional | Show what would change without writing files or calling the API |
@@ -4021,7 +4004,7 @@ shipeasy setup --agents claude,cursor --no-devtools
 
 Set up an automation trigger — a scheduled agent that fixes queue items as PRs, unattended. Opens the hosted, guided setup for your platform.
 
-A trigger is a scheduled agent run that burns down your feedback queue (bugs, feature requests, auto-filed error/alert tickets) and opens one pull request per fixed item — nothing merges without you. This command explains it, has you pick the platform you code with (Claude Code, Codex, Cursor, Copilot, or Gemini/Jules), then opens the hosted, guided setup wizard preselected to that platform, which walks you through the platform-specific fields and secrets. `shipeasy setup` offers this same step inline.
+A trigger is a scheduled agent run that burns down your feedback queue (bugs, feature requests, auto-filed error/alert tickets) and opens one pull request per fixed item — nothing merges without you. This command explains it, has you pick the platform you code with (Claude Code, Codex, Cursor, or Copilot), then opens the hosted, guided setup wizard preselected to that platform, which walks you through the platform-specific fields and secrets. `shipeasy setup` offers this same step inline.
 
 ```bash
 shipeasy setup triggers [options]
@@ -4029,7 +4012,7 @@ shipeasy setup triggers [options]
 
 | Option | | Description |
 | --- | --- | --- |
-| `--platform <id>` | optional | Preselect the platform (claude\|codex\|cursor\|copilot\|gemini\|jules) |
+| `--platform <id>` | optional | Preselect the platform (claude\|codex\|cursor\|copilot) |
 | `--dry-run` | optional | Print the URL without opening a browser |
 
 Examples:
