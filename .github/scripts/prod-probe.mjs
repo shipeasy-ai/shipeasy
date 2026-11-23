@@ -3178,21 +3178,27 @@ async function probeUniverseExclusivity() {
     failed++;
   }
 
-  // Wait for the edge to carry both experiments.
+  // Wait for the edge to carry BOTH experiments. Both are stopped at the end of
+  // every run and restarted by freshStart above, so each start has to propagate
+  // KV → CDN again. Waiting on EITHER one let the cohort run while only A was
+  // live: B read as absent for all 400 units, and that 0/400 tripped the
+  // uniformity assert as a fake hash skew (run 45240368587, shipeasy #721).
   const visUsers = Array.from({ length: 10 }, (_, i) => ({ anonymous_id: `mx-vis:${i}` }));
-  let visible = false;
-  for (let t = 0; t < 15 && !visible; t++) {
+  const seen = new Set();
+  for (let t = 0; t < 15 && seen.size < 2; t++) {
     for (const u of visUsers) {
       const r = await evaluate(u);
-      if (r.experiments?.[A] || r.experiments?.[B]) {
-        visible = true;
-        break;
-      }
+      if (r.experiments?.[A]) seen.add(A);
+      if (r.experiments?.[B]) seen.add(B);
+      if (seen.size === 2) break;
     }
-    if (!visible) await sleep(4000);
+    if (seen.size < 2) await sleep(4000);
   }
-  if (!visible) {
-    console.log("⚠ pooled pair not visible at edge within timeout (KV/CDN lag) — soft");
+  if (seen.size < 2) {
+    const missing = [A, B].filter((n) => !seen.has(n)).join(", ");
+    console.log(`⚠ pooled pair not fully visible at edge within timeout (missing: ${missing}; KV/CDN lag) — soft`);
+    stopExp(A);
+    stopExp(B);
     console.log("::endgroup::");
     return;
   }
