@@ -2141,7 +2141,7 @@ export const zOpsItemOwner = z.object({
 });
 
 /**
- * The final action that closed a run record — `link_pr`/`notify` are the agent's terminal ops actions, `status` a completion status flip (ready_for_qa/resolved, or the status move of a platform action answer a person picked — `OpsQuestionAction`), `superseded` a newer ack replacing an open run.
+ * The final action that closed a run record — `link_pr`/`notify` are the agent's terminal ops actions, `status` a completion status flip (ready_for_qa/resolved), `superseded` a newer ack replacing an open run.
  */
 export const zOpsRunAction = z.enum([
     'link_pr',
