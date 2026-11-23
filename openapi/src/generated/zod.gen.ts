@@ -2141,7 +2141,7 @@ export const zOpsItemOwner = z.object({
 });
 
 /**
- * The final action that closed a run record — `link_pr`/`notify` are the agent's terminal ops actions, `status` a completion status flip (ready_for_qa/resolved), `superseded` a newer ack replacing an open run.
+ * The final action that closed a run record — `link_pr`/`notify` are the agent's terminal ops actions, `status` a completion status flip (ready_for_qa/resolved, or the status move of a platform action answer a person picked — `OpsQuestionAction`), `superseded` a newer ack replacing an open run.
  */
 export const zOpsRunAction = z.enum([
     'link_pr',
@@ -2883,6 +2883,19 @@ export const zOpsQuestionStatus = z.enum([
 ]);
 
 /**
+ * A platform action answer — a ready-made answer the platform supplies and carries out itself when a person picks it, with no further agent run. `resolve` ("Close as resolved") and `wont_fix` ("Close as won't fix") close the item; `send_to_qa` ("Send to QA") moves it to `ready_for_qa`; `block` ("Mark blocked") moves it to `blocked`; `backlog` ("Move to backlog") shelves it; `return_to_queue` ("Back to the queue") reopens it with no agent owner; `take_over` ("I'll take it") hands it to the person who answered, `in_progress`. Picking one closes the asking run and withdraws that run's other open questions — the decision is made. A free-text `other` sent with it is posted on the item as a comment (notes for QA, why it is blocked, …).
+ */
+export const zOpsQuestionAction = z.enum([
+    'resolve',
+    'wont_fix',
+    'send_to_qa',
+    'block',
+    'backlog',
+    'return_to_queue',
+    'take_over'
+]);
+
+/**
  * A person's answer to a question.
  */
 export const zOpsQuestionAnswer = z.object({
@@ -2906,7 +2919,8 @@ export const zOpsQuestion = z.object({
     question: z.string(),
     options: z.array(z.object({
         label: z.string(),
-        description: z.string().nullable()
+        description: z.string().nullable(),
+        action: zOpsQuestionAction.nullable()
     })),
     multiSelect: z.boolean(),
     status: zOpsQuestionStatus,
@@ -2948,7 +2962,8 @@ export const zOpsQuestionOption = z.object({
 export const zAskOpsQuestionInput = z.object({
     header: z.string().min(1).max(24),
     question: z.string().min(1).max(2000),
-    options: z.array(zOpsQuestionOption).min(2).max(4),
+    options: z.array(zOpsQuestionOption).min(0).max(4),
+    actions: z.array(zOpsQuestionAction).max(4).optional(),
     multiSelect: z.boolean().optional().default(false)
 });
 

@@ -8995,7 +8995,7 @@
       "get": {
         "operationId": "listOpsQuestions",
         "summary": "List an item's questions",
-        "description": "The structured questions asked on a queue item, with their answers —\nnewest first (max 100). Pull this to read the answers to questions you\nasked: an answered question reads `status: completed` and carries\n`answer.selected` (the option labels picked) and `answer.other` (the\nfree-text \"Other\" reply, or `null`). `answer.selected` of exactly\n`[\"No preference\"]` means the person has no opinion: pick the simplest\noption that changes the least, and don't overcomplicate it.\n\n**Use case:** You asked with `delivery: poll` from a live session — poll\nthis until your questions read `completed`, then continue with the answers.",
+        "description": "The structured questions asked on a queue item, with their answers —\nnewest first (max 100). Pull this to read the answers to questions you\nasked: an answered question reads `status: completed` and carries\n`answer.selected` (the option labels picked) and `answer.other` (the\nfree-text \"Other\" reply, or `null`). `answer.selected` of exactly\n`[\"No preference\"]` means the person has no opinion: pick the simplest\noption that changes the least, and don't overcomplicate it. An option\nwith `action` set is a platform action answer: when it was picked, the\nplatform already carried it out (`deliveredAt`, or `deliveryError` when it\nfailed) — the item was closed, sent to QA, handed to a person, … — so\nthere is nothing left for you to do on it.\n\n**Use case:** You asked with `delivery: poll` from a live session — poll\nthis until your questions read `completed`, then continue with the answers.",
         "tags": [
           "Questions"
         ],
@@ -9074,7 +9074,7 @@
       "post": {
         "operationId": "askOpsQuestions",
         "summary": "Ask the team questions about an item",
-        "description": "Ask 1–4 structured questions about a queue item — the way to get a\ndecision from a person when the implementation needs one. Each question\nis the `AskUserQuestion` shape: a short `header` chip, the full\n`question`, 2–4 `options` (`label` + `description`), and `multiSelect`\n(checkboxes instead of radios). The person can always answer \"Other\" in\nfree text, or \"No preference\" (leave the call to you — take the simplest,\nleast-change option), so never add an \"Other\" or a \"No preference\"\noption yourself. The questions render\nat the very top of the item's detail panel and mark the row in the queue.\n\n**Delivery.** `resume` re-fires your trigger-connector run on the item\nonce every question it asked is answered, continuing the same run record\nwith the answers in the prompt — stop after asking. `poll` fires nothing;\npoll `GET .../questions` instead. Omitted, it is `resume` when `runId`\nnames a run launched through a trigger connector, else `poll`.\n\n**On a trail.** Pass the trail handle (`T-12`) as `handle` and the plan\nrun's id as `runId`: a plan run asks how the trail should ship this way,\nand a `resume` answer re-fires the same plan run with the answers in its\nprompt. The questions render in the trail page's Plan section.\n\n**Use case:** Blocked on a product decision (which behaviour to keep,\nwhich of two fixes to ship) — ask instead of guessing, then wait for the\nanswer.",
+        "description": "Ask 1–4 structured questions about a queue item — the way to get a\ndecision from a person when the implementation needs one. Each question\nis the `AskUserQuestion` shape: a short `header` chip, the full\n`question`, 2–4 `options` (`label` + `description`), and `multiSelect`\n(checkboxes instead of radios). The person can always answer \"Other\" in\nfree text, or \"No preference\" (leave the call to you — take the simplest,\nleast-change option), so never add an \"Other\" or a \"No preference\"\noption yourself. The questions render\nat the very top of the item's detail panel and mark the row in the queue.\n\n**Platform action answers.** `actions` offers ready-made answers the\nplatform carries out itself when picked — `resolve`, `wont_fix`,\n`send_to_qa`, `block`, `backlog`, `return_to_queue`, `take_over` (see\n`OpsQuestionAction`). They render after your own options with the\nplatform's labels, and picking one settles the item without re-firing\nyou: no run is spent on \"close it\" or \"send it to QA\". Offer them when an\nanswer would end your work on the item; a question may be all actions\n(2+ of them, no options of your own). Items only, not trails.\n\n**Delivery.** `resume` re-fires your trigger-connector run on the item\nonce every question it asked is answered, continuing the same run record\nwith the answers in the prompt — stop after asking. `poll` fires nothing;\npoll `GET .../questions` instead. Omitted, it is `resume` when `runId`\nnames a run launched through a trigger connector, else `poll`.\n\n**On a trail.** Pass the trail handle (`T-12`) as `handle` and the plan\nrun's id as `runId`: a plan run asks how the trail should ship this way,\nand a `resume` answer re-fires the same plan run with the answers in its\nprompt. The questions render in the trail page's Plan section.\n\n**Use case:** Blocked on a product decision (which behaviour to keep,\nwhich of two fixes to ship) — ask instead of guessing, then wait for the\nanswer.",
         "tags": [
           "Questions"
         ],
@@ -9118,6 +9118,28 @@
                             "label": "Drop it",
                             "description": "Simpler code; old links land on the default view"
                           }
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "actions": {
+                  "summary": "Offer platform action answers next to your own option",
+                  "value": {
+                    "runId": "0d3f4c8e-7a51-4c2e-9b1f-1e2d3c4b5a69",
+                    "questions": [
+                      {
+                        "header": "Already fixed",
+                        "question": "The reported crash no longer reproduces on `main` — what should happen to this item?",
+                        "options": [
+                          {
+                            "label": "Keep digging",
+                            "description": "I look for a remaining repro path"
+                          }
+                        ],
+                        "actions": [
+                          "resolve",
+                          "send_to_qa"
                         ]
                       }
                     ]
@@ -9173,7 +9195,7 @@
       "post": {
         "operationId": "answerOpsQuestion",
         "summary": "Answer a question",
-        "description": "Answer one open question on a queue item — pick option labels in\n`selected` (exactly one unless the question is `multiSelect`) and/or\nwrite a free-text `other`. The question moves to `completed`. When it was\nthe last open question of a `resume` run, that agent is re-fired on the\nitem with every answer. A person's action: never allow-listed for\nrestricted ops keys.\n\n**Use case:** Unblock an agent from the CLI instead of the dashboard.",
+        "description": "Answer one open question on a queue item — pick option labels in\n`selected` (exactly one unless the question is `multiSelect`) and/or\nwrite a free-text `other`. The question moves to `completed`. When it was\nthe last open question of a `resume` run, that agent is re-fired on the\nitem with every answer. Picking a platform action option (`action` set)\ninstead carries the action out right away — the asking run closes, its\nother open questions are withdrawn, and no agent is re-fired; an `other`\nsent with it is posted on the item as a comment. A person's action: never\nallow-listed for restricted ops keys.\n\n**Use case:** Unblock an agent from the CLI instead of the dashboard.",
         "tags": [
           "Questions"
         ],
@@ -9220,6 +9242,15 @@
                   "summary": "Answer in free text",
                   "value": {
                     "other": "Keep it for a release, then drop it"
+                  }
+                },
+                "action": {
+                  "summary": "Pick a platform action with a note",
+                  "value": {
+                    "selected": [
+                      "Send to QA"
+                    ],
+                    "other": "Check the iOS Safari path too"
                   }
                 }
               }
@@ -29147,7 +29178,7 @@
           "status",
           "superseded"
         ],
-        "description": "The final action that closed a run record — `link_pr`/`notify` are the agent's terminal ops actions, `status` a completion status flip (ready_for_qa/resolved), `superseded` a newer ack replacing an open run."
+        "description": "The final action that closed a run record — `link_pr`/`notify` are the agent's terminal ops actions, `status` a completion status flip (ready_for_qa/resolved, or the status move of a platform action answer a person picked — `OpsQuestionAction`), `superseded` a newer ack replacing an open run."
       },
       "OpsRunActionOrNull": {
         "anyOf": [
@@ -32200,6 +32231,19 @@
         ],
         "description": "Where a question stands — `open` (waiting on a person), `completed` (answered), or `cancelled` (withdrawn by the asker)."
       },
+      "OpsQuestionAction": {
+        "type": "string",
+        "enum": [
+          "resolve",
+          "wont_fix",
+          "send_to_qa",
+          "block",
+          "backlog",
+          "return_to_queue",
+          "take_over"
+        ],
+        "description": "A platform action answer — a ready-made answer the platform supplies and carries out itself when a person picks it, with no further agent run. `resolve` (\"Close as resolved\") and `wont_fix` (\"Close as won't fix\") close the item; `send_to_qa` (\"Send to QA\") moves it to `ready_for_qa`; `block` (\"Mark blocked\") moves it to `blocked`; `backlog` (\"Move to backlog\") shelves it; `return_to_queue` (\"Back to the queue\") reopens it with no agent owner; `take_over` (\"I'll take it\") hands it to the person who answered, `in_progress`. Picking one closes the asking run and withdraws that run's other open questions — the decision is made. A free-text `other` sent with it is posted on the item as a comment (notes for QA, why it is blocked, …)."
+      },
       "OpsQuestionAnswer": {
         "type": "object",
         "properties": {
@@ -32293,11 +32337,23 @@
                     }
                   ],
                   "description": "What picking the option means, or `null`."
+                },
+                "action": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/OpsQuestionAction"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The platform action this option carries out when picked, or `null` for an option the asker wrote."
                 }
               },
               "required": [
                 "label",
-                "description"
+                "description",
+                "action"
               ],
               "additionalProperties": false,
               "description": "One offered choice."
@@ -32396,7 +32452,7 @@
                 "type": "null"
               }
             ],
-            "description": "ISO-8601 timestamp the answer was re-delivered to the asking run (`resume` only), or `null`."
+            "description": "ISO-8601 timestamp the answer was re-delivered to the asking run (`resume` only) — or, for an answer that picked a platform action, the time the platform carried it out — or `null`."
           },
           "deliveryError": {
             "anyOf": [
@@ -32407,7 +32463,7 @@
                 "type": "null"
               }
             ],
-            "description": "Why a `resume` re-delivery failed, or `null`."
+            "description": "Why a `resume` re-delivery (or a picked platform action) failed, or `null`."
           },
           "createdAt": {
             "type": "string",
@@ -32487,12 +32543,21 @@
           },
           "options": {
             "type": "array",
-            "minItems": 2,
+            "minItems": 0,
             "maxItems": 4,
             "items": {
               "$ref": "#/components/schemas/OpsQuestionOption"
             },
-            "description": "2–4 distinct choices. Do not add an \"Other\" option — a free-text answer is always offered."
+            "description": "Up to 4 distinct choices of your own. Together with `actions` a question offers 2–8 choices. Do not add an \"Other\" or a \"No preference\" option — both are always offered."
+          },
+          "actions": {
+            "type": "array",
+            "maxItems": 4,
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/components/schemas/OpsQuestionAction"
+            },
+            "description": "Platform action answers to offer after your own options, e.g. `[resolve, send_to_qa]`. The platform labels them and carries them out itself when picked — no agent run follows. Offer one when a likely answer ends your work on the item (close it, send it to QA, hand it to a person). Items only, not trails."
           },
           "multiSelect": {
             "type": "boolean",
@@ -32562,12 +32627,12 @@
               "type": "string",
               "maxLength": 120
             },
-            "description": "The option labels picked — exactly one for a single-select question (unless answering only with `other`), one or more for `multiSelect`."
+            "description": "The option labels picked — exactly one for a single-select question (unless answering only with `other`), one or more for `multiSelect`. A platform action option (`action` set) is picked alone."
           },
           "other": {
             "type": "string",
             "maxLength": 10000,
-            "description": "A free-text \"Other\" answer."
+            "description": "A free-text \"Other\" answer — or, sent with a platform action option, the note that action posts on the item."
           }
         },
         "additionalProperties": false,

@@ -3959,7 +3959,7 @@ export type OpsItemOwner = {
 };
 
 /**
- * The final action that closed a run record — `link_pr`/`notify` are the agent's terminal ops actions, `status` a completion status flip (ready_for_qa/resolved), `superseded` a newer ack replacing an open run.
+ * The final action that closed a run record — `link_pr`/`notify` are the agent's terminal ops actions, `status` a completion status flip (ready_for_qa/resolved, or the status move of a platform action answer a person picked — `OpsQuestionAction`), `superseded` a newer ack replacing an open run.
  */
 export type OpsRunAction = 'link_pr' | 'notify' | 'status' | 'superseded';
 
@@ -5489,6 +5489,11 @@ export type UpdateOpsInvestigationRequest = {
 export type OpsQuestionStatus = 'open' | 'completed' | 'cancelled';
 
 /**
+ * A platform action answer — a ready-made answer the platform supplies and carries out itself when a person picks it, with no further agent run. `resolve` ("Close as resolved") and `wont_fix` ("Close as won't fix") close the item; `send_to_qa` ("Send to QA") moves it to `ready_for_qa`; `block` ("Mark blocked") moves it to `blocked`; `backlog` ("Move to backlog") shelves it; `return_to_queue` ("Back to the queue") reopens it with no agent owner; `take_over` ("I'll take it") hands it to the person who answered, `in_progress`. Picking one closes the asking run and withdraws that run's other open questions — the decision is made. A free-text `other` sent with it is posted on the item as a comment (notes for QA, why it is blocked, …).
+ */
+export type OpsQuestionAction = 'resolve' | 'wont_fix' | 'send_to_qa' | 'block' | 'backlog' | 'return_to_queue' | 'take_over';
+
+/**
  * A person's answer to a question.
  */
 export type OpsQuestionAnswer = {
@@ -5543,6 +5548,10 @@ export type OpsQuestion = {
          * What picking the option means, or `null`.
          */
         description: string | null;
+        /**
+         * The platform action this option carries out when picked, or `null` for an option the asker wrote.
+         */
+        action: OpsQuestionAction | null;
     }>;
     /**
      * Whether several options may be picked.
@@ -5575,11 +5584,11 @@ export type OpsQuestion = {
     runId: string | null;
     delivery: OpsQuestionDelivery;
     /**
-     * ISO-8601 timestamp the answer was re-delivered to the asking run (`resume` only), or `null`.
+     * ISO-8601 timestamp the answer was re-delivered to the asking run (`resume` only) — or, for an answer that picked a platform action, the time the platform carried it out — or `null`.
      */
     deliveredAt: string | null;
     /**
-     * Why a `resume` re-delivery failed, or `null`.
+     * Why a `resume` re-delivery (or a picked platform action) failed, or `null`.
      */
     deliveryError: string | null;
     /**
@@ -5624,9 +5633,13 @@ export type AskOpsQuestionInput = {
      */
     question: string;
     /**
-     * 2–4 distinct choices. Do not add an "Other" option — a free-text answer is always offered.
+     * Up to 4 distinct choices of your own. Together with `actions` a question offers 2–8 choices. Do not add an "Other" or a "No preference" option — both are always offered.
      */
     options: Array<OpsQuestionOption>;
+    /**
+     * Platform action answers to offer after your own options, e.g. `[resolve, send_to_qa]`. The platform labels them and carries them out itself when picked — no agent run follows. Offer one when a likely answer ends your work on the item (close it, send it to QA, hand it to a person). Items only, not trails.
+     */
+    actions?: Array<OpsQuestionAction>;
     /**
      * `true` lets the person pick several options (checkboxes); `false` (the default) exactly one (radios).
      */
@@ -5662,11 +5675,11 @@ export type AskOpsQuestionsResponse = Array<OpsQuestion>;
  */
 export type AnswerOpsQuestionRequest = {
     /**
-     * The option labels picked — exactly one for a single-select question (unless answering only with `other`), one or more for `multiSelect`.
+     * The option labels picked — exactly one for a single-select question (unless answering only with `other`), one or more for `multiSelect`. A platform action option (`action` set) is picked alone.
      */
     selected?: Array<string>;
     /**
-     * A free-text "Other" answer.
+     * A free-text "Other" answer — or, sent with a platform action option, the note that action posts on the item.
      */
     other?: string;
 };

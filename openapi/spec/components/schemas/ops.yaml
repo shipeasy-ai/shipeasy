@@ -1900,7 +1900,9 @@ OpsRunAction:
   description: >-
     The final action that closed a run record — `link_pr`/`notify` are the
     agent's terminal ops actions, `status` a completion status flip
-    (ready_for_qa/resolved), `superseded` a newer ack replacing an open run.
+    (ready_for_qa/resolved, or the status move of a platform action answer a
+    person picked — `OpsQuestionAction`), `superseded` a newer ack replacing an
+    open run.
 OpsRunActionOrNull:
   anyOf:
     - $ref: "#/OpsRunAction"
@@ -2984,6 +2986,28 @@ OpsQuestionDelivery:
     - resume
     - poll
   description: "How the answer gets back to the asker — `resume` re-fires the asking run's trigger connector on the item once every question that run asked is answered; `poll` fires nothing and the asker reads `GET .../questions`."
+OpsQuestionAction:
+  type: string
+  enum:
+    - resolve
+    - wont_fix
+    - send_to_qa
+    - block
+    - backlog
+    - return_to_queue
+    - take_over
+  description: >-
+    A platform action answer — a ready-made answer the platform supplies and
+    carries out itself when a person picks it, with no further agent run.
+    `resolve` ("Close as resolved") and `wont_fix` ("Close as won't fix") close
+    the item; `send_to_qa` ("Send to QA") moves it to `ready_for_qa`; `block`
+    ("Mark blocked") moves it to `blocked`; `backlog` ("Move to backlog")
+    shelves it; `return_to_queue` ("Back to the queue") reopens it with no
+    agent owner; `take_over` ("I'll take it") hands it to the person who
+    answered, `in_progress`. Picking one closes the asking run and withdraws
+    that run's other open questions — the decision is made. A free-text
+    `other` sent with it is posted on the item as a comment (notes for QA,
+    why it is blocked, …).
 OpsQuestionOption:
   type: object
   properties:
@@ -3033,11 +3057,18 @@ AskOpsQuestionInput:
       description: The complete question, ending with a question mark (markdown).
     options:
       type: array
-      minItems: 2
+      minItems: 0
       maxItems: 4
       items:
         $ref: "#/OpsQuestionOption"
-      description: 2–4 distinct choices. Do not add an "Other" option — a free-text answer is always offered.
+      description: Up to 4 distinct choices of your own. Together with `actions` a question offers 2–8 choices. Do not add an "Other" or a "No preference" option — both are always offered.
+    actions:
+      type: array
+      maxItems: 4
+      uniqueItems: true
+      items:
+        $ref: "#/OpsQuestionAction"
+      description: Platform action answers to offer after your own options, e.g. `[resolve, send_to_qa]`. The platform labels them and carries them out itself when picked — no agent run follows. Offer one when a likely answer ends your work on the item (close it, send it to QA, hand it to a person). Items only, not trails.
     multiSelect:
       type: boolean
       default: false
@@ -3090,11 +3121,11 @@ AnswerOpsQuestionRequest:
       items:
         type: string
         maxLength: 120
-      description: The option labels picked — exactly one for a single-select question (unless answering only with `other`), one or more for `multiSelect`.
+      description: The option labels picked — exactly one for a single-select question (unless answering only with `other`), one or more for `multiSelect`. A platform action option (`action` set) is picked alone.
     other:
       type: string
       maxLength: 10000
-      description: A free-text "Other" answer.
+      description: A free-text "Other" answer — or, sent with a platform action option, the note that action posts on the item.
   additionalProperties: false
   minProperties: 1
   description: "Body for `POST /api/admin/ops/{handle}/questions/{questionId}/answer` — pick option labels, write a free-text answer, or both (multi-select only)."
@@ -3133,9 +3164,15 @@ OpsQuestion:
               - type: string
               - type: "null"
             description: What picking the option means, or `null`.
+          action:
+            anyOf:
+              - $ref: "#/OpsQuestionAction"
+              - type: "null"
+            description: The platform action this option carries out when picked, or `null` for an option the asker wrote.
         required:
           - label
           - description
+          - action
         additionalProperties: false
         description: One offered choice.
       description: The offered choices, in order.
@@ -3186,12 +3223,12 @@ OpsQuestion:
       anyOf:
         - type: string
         - type: "null"
-      description: ISO-8601 timestamp the answer was re-delivered to the asking run (`resume` only), or `null`.
+      description: ISO-8601 timestamp the answer was re-delivered to the asking run (`resume` only) — or, for an answer that picked a platform action, the time the platform carried it out — or `null`.
     deliveryError:
       anyOf:
         - type: string
         - type: "null"
-      description: Why a `resume` re-delivery failed, or `null`.
+      description: Why a `resume` re-delivery (or a picked platform action) failed, or `null`.
     createdAt:
       type: string
       description: ISO-8601 creation timestamp.

@@ -1189,8 +1189,8 @@ shipeasy ops questions answer [options] <handle> <questionId>
 
 | Option | | Description |
 | --- | --- | --- |
-| `--selected <value>` | optional | The option labels picked — exactly one for a single-select question (unless answering only with `other`), one or more for `multiSelect`. |
-| `--other <value>` | optional | A free-text "Other" answer. |
+| `--selected <value>` | optional | The option labels picked — exactly one for a single-select question (unless answering only with `other`), one or more for `multiSelect`. A platform action option (`action` set) is picked alone. |
+| `--other <value>` | optional | A free-text "Other" answer — or, sent with a platform action option, the note that action posts on the item. |
 
 #### `shipeasy ops questions cancel`
 
