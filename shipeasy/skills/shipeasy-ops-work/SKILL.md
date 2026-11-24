@@ -327,12 +327,25 @@ leaving it in a comment. `shipeasy ops questions ask <handle>` (MCP
 }
 ```
 
-- `header` ≤ 24 chars, a chip label. `options` 2–4, each a short `label` +
+- `header` ≤ 24 chars, a chip label. `options` 2–4 (fewer when `actions`
+  fill the rest), each a short `label` +
   the trade-off in `description`. `multiSelect: true` for checkboxes.
 - **Never add an "Other" or a "No preference" option** — both are always
   offered. An answer of `selected: ["No preference"]` means the team has no
   opinion: pick the simplest option that changes the least, and don't
   overcomplicate it.
+- **Platform action answers.** When a likely answer ENDS your work on the
+  item, offer it as an action instead of writing it as an option:
+  `"actions": ["resolve", "send_to_qa"]`. The platform labels them and carries
+  them out itself when picked — no agent run is spent on "close it":
+  `resolve` (Close as resolved), `wont_fix` (Close as won't fix), `send_to_qa`
+  (Send to QA), `block` (Mark blocked), `backlog` (Move to backlog),
+  `return_to_queue` (Back to the queue, no agent owner), `take_over` (I'll take
+  it — the answerer owns it, `in_progress`). The person's free text rides along
+  as a comment on the item. Picking one closes your run and withdraws your other
+  open questions, so you are not re-fired. A question may be all actions (2+,
+  no options of your own); actions are for items only, never trails. Never
+  write your own "Close it" / "Send to QA" option — use the action.
 - Questions land at the very top of the item's detail panel, mark the row in
   the queue, and push a notification to the team's phones. Several questions —
   from you or other agents — can be open on one item at once.

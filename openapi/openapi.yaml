@@ -6765,7 +6765,11 @@ paths:
         `answer.selected` (the option labels picked) and `answer.other` (the
         free-text "Other" reply, or `null`). `answer.selected` of exactly
         `["No preference"]` means the person has no opinion: pick the simplest
-        option that changes the least, and don't overcomplicate it.
+        option that changes the least, and don't overcomplicate it. An option
+        with `action` set is a platform action answer: when it was picked, the
+        platform already carried it out (`deliveredAt`, or `deliveryError` when it
+        failed) — the item was closed, sent to QA, handed to a person, … — so
+        there is nothing left for you to do on it.
 
         **Use case:** You asked with `delivery: poll` from a live session — poll
         this until your questions read `completed`, then continue with the answers.
@@ -6829,6 +6833,15 @@ paths:
         option yourself. The questions render
         at the very top of the item's detail panel and mark the row in the queue.
 
+        **Platform action answers.** `actions` offers ready-made answers the
+        platform carries out itself when picked — `resolve`, `wont_fix`,
+        `send_to_qa`, `block`, `backlog`, `return_to_queue`, `take_over` (see
+        `OpsQuestionAction`). They render after your own options with the
+        platform's labels, and picking one settles the item without re-firing
+        you: no run is spent on "close it" or "send it to QA". Offer them when an
+        answer would end your work on the item; a question may be all actions
+        (2+ of them, no options of your own). Items only, not trails.
+
         **Delivery.** `resume` re-fires your trigger-connector run on the item
         once every question it asked is answered, continuing the same run record
         with the answers in the prompt — stop after asking. `poll` fires nothing;
@@ -6873,6 +6886,19 @@ paths:
                           description: Old links keep working; the redirect stays
                         - label: Drop it
                           description: Simpler code; old links land on the default view
+              actions:
+                summary: Offer platform action answers next to your own option
+                value:
+                  runId: 0d3f4c8e-7a51-4c2e-9b1f-1e2d3c4b5a69
+                  questions:
+                    - header: Already fixed
+                      question: The reported crash no longer reproduces on `main` — what should happen to this item?
+                      options:
+                        - label: Keep digging
+                          description: I look for a remaining repro path
+                      actions:
+                        - resolve
+                        - send_to_qa
       responses:
         '200':
           description: The created questions, in the order asked
@@ -6909,8 +6935,11 @@ paths:
         `selected` (exactly one unless the question is `multiSelect`) and/or
         write a free-text `other`. The question moves to `completed`. When it was
         the last open question of a `resume` run, that agent is re-fired on the
-        item with every answer. A person's action: never allow-listed for
-        restricted ops keys.
+        item with every answer. Picking a platform action option (`action` set)
+        instead carries the action out right away — the asking run closes, its
+        other open questions are withdrawn, and no agent is re-fired; an `other`
+        sent with it is posted on the item as a comment. A person's action: never
+        allow-listed for restricted ops keys.
 
         **Use case:** Unblock an agent from the CLI instead of the dashboard.
       tags:
@@ -6945,6 +6974,12 @@ paths:
                 summary: Answer in free text
                 value:
                   other: Keep it for a release, then drop it
+              action:
+                summary: Pick a platform action with a note
+                value:
+                  selected:
+                    - Send to QA
+                  other: Check the iOS Safari path too
       responses:
         '200':
           description: The answered question
@@ -23272,6 +23307,17 @@ components:
         - completed
         - cancelled
       description: Where a question stands — `open` (waiting on a person), `completed` (answered), or `cancelled` (withdrawn by the asker).
+    OpsQuestionAction:
+      type: string
+      enum:
+        - resolve
+        - wont_fix
+        - send_to_qa
+        - block
+        - backlog
+        - return_to_queue
+        - take_over
+      description: A platform action answer — a ready-made answer the platform supplies and carries out itself when a person picks it, with no further agent run. `resolve` ("Close as resolved") and `wont_fix` ("Close as won't fix") close the item; `send_to_qa` ("Send to QA") moves it to `ready_for_qa`; `block` ("Mark blocked") moves it to `blocked`; `backlog` ("Move to backlog") shelves it; `return_to_queue` ("Back to the queue") reopens it with no agent owner; `take_over` ("I'll take it") hands it to the person who answered, `in_progress`. Picking one closes the asking run and withdraws that run's other open questions — the decision is made. A free-text `other` sent with it is posted on the item as a comment (notes for QA, why it is blocked, …).
     OpsQuestionAnswer:
       type: object
       properties:
@@ -23331,9 +23377,15 @@ components:
                   - type: string
                   - type: 'null'
                 description: What picking the option means, or `null`.
+              action:
+                anyOf:
+                  - $ref: '#/components/schemas/OpsQuestionAction'
+                  - type: 'null'
+                description: The platform action this option carries out when picked, or `null` for an option the asker wrote.
             required:
               - label
               - description
+              - action
             additionalProperties: false
             description: One offered choice.
           description: The offered choices, in order.
@@ -23384,12 +23436,12 @@ components:
           anyOf:
             - type: string
             - type: 'null'
-          description: ISO-8601 timestamp the answer was re-delivered to the asking run (`resume` only), or `null`.
+          description: ISO-8601 timestamp the answer was re-delivered to the asking run (`resume` only) — or, for an answer that picked a platform action, the time the platform carried it out — or `null`.
         deliveryError:
           anyOf:
             - type: string
             - type: 'null'
-          description: Why a `resume` re-delivery failed, or `null`.
+          description: Why a `resume` re-delivery (or a picked platform action) failed, or `null`.
         createdAt:
           type: string
           description: ISO-8601 creation timestamp.
@@ -23454,11 +23506,18 @@ components:
           description: The complete question, ending with a question mark (markdown).
         options:
           type: array
-          minItems: 2
+          minItems: 0
           maxItems: 4
           items:
             $ref: '#/components/schemas/OpsQuestionOption'
-          description: 2–4 distinct choices. Do not add an "Other" option — a free-text answer is always offered.
+          description: Up to 4 distinct choices of your own. Together with `actions` a question offers 2–8 choices. Do not add an "Other" or a "No preference" option — both are always offered.
+        actions:
+          type: array
+          maxItems: 4
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/OpsQuestionAction'
+          description: Platform action answers to offer after your own options, e.g. `[resolve, send_to_qa]`. The platform labels them and carries them out itself when picked — no agent run follows. Offer one when a likely answer ends your work on the item (close it, send it to QA, hand it to a person). Items only, not trails.
         multiSelect:
           type: boolean
           default: false
@@ -23511,11 +23570,11 @@ components:
           items:
             type: string
             maxLength: 120
-          description: The option labels picked — exactly one for a single-select question (unless answering only with `other`), one or more for `multiSelect`.
+          description: The option labels picked — exactly one for a single-select question (unless answering only with `other`), one or more for `multiSelect`. A platform action option (`action` set) is picked alone.
         other:
           type: string
           maxLength: 10000
-          description: A free-text "Other" answer.
+          description: A free-text "Other" answer — or, sent with a platform action option, the note that action posts on the item.
       additionalProperties: false
       minProperties: 1
       description: Body for `POST /api/admin/ops/{handle}/questions/{questionId}/answer` — pick option labels, write a free-text answer, or both (multi-select only).

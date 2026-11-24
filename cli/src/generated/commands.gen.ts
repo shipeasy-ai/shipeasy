@@ -1072,8 +1072,8 @@ export function registerGeneratedCommands(program: Command, ctx: GenCtx): void {
     .description("Answer a question")
     .argument("<handle>", "Per-project item number (e.g. `7`) or the full ops item id, or a trail handle (e.g. `T-12`) for a question on a trail.")
     .argument("<questionId>", "The question id (from `ask` or `list`).")
-    .option("--selected <value>", "The option labels picked — exactly one for a single-select question (unless answering only with `other`), one or more for `multiSelect`.")
-    .option("--other <value>", "A free-text \"Other\" answer.")
+    .option("--selected <value>", "The option labels picked — exactly one for a single-select question (unless answering only with `other`), one or more for `multiSelect`. A platform action option (`action` set) is picked alone.")
+    .option("--other <value>", "A free-text \"Other\" answer — or, sent with a platform action option, the note that action posts on the item.")
     .action(async (handle, questionId, opts) => {
       await ctx.run({ mutates: true, invoke: (client) => api.answerOpsQuestion({ client, path: { handle: handle, questionId: questionId }, body: clean({ selected: json(opts.selected), other: str(opts.other) }) }) });
     });

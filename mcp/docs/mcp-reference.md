@@ -3593,8 +3593,11 @@ Answer one open question on a queue item — pick option labels in
 `selected` (exactly one unless the question is `multiSelect`) and/or
 write a free-text `other`. The question moves to `completed`. When it was
 the last open question of a `resume` run, that agent is re-fired on the
-item with every answer. A person's action: never allow-listed for
-restricted ops keys.
+item with every answer. Picking a platform action option (`action` set)
+instead carries the action out right away — the asking run closes, its
+other open questions are withdrawn, and no agent is re-fired; an `other`
+sent with it is posted on the item as a comment. A person's action: never
+allow-listed for restricted ops keys.
 
 **Use case:** Unblock an agent from the CLI instead of the dashboard.
 
@@ -3604,8 +3607,8 @@ _Parameters_
 | --- | --- | --- | --- |
 | `handle` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
 | `questionId` | required | `string` | A resource path identifier — an opaque `xxx_<ULID>` id (~30 chars) or the resource's `name`/`key`. 1–128 characters; the upper bound matches the longest name/key any resource accepts, so an over-long value can never name a real row. _(length 1–128)_ |
-| `selected` | optional | `string[]` | The option labels picked — exactly one for a single-select question (unless answering only with `other`), one or more for `multiSelect`. |
-| `other` | optional | `string` | A free-text "Other" answer. _(length 0–10000)_ |
+| `selected` | optional | `string[]` | The option labels picked — exactly one for a single-select question (unless answering only with `other`), one or more for `multiSelect`. A platform action option (`action` set) is picked alone. |
+| `other` | optional | `string` | A free-text "Other" answer — or, sent with a platform action option, the note that action posts on the item. _(length 0–10000)_ |
 
 _Errors_ — beyond the [common errors](#errors):
 
@@ -3627,6 +3630,15 @@ free text, or "No preference" (leave the call to you — take the simplest,
 least-change option), so never add an "Other" or a "No preference"
 option yourself. The questions render
 at the very top of the item's detail panel and mark the row in the queue.
+
+**Platform action answers.** `actions` offers ready-made answers the
+platform carries out itself when picked — `resolve`, `wont_fix`,
+`send_to_qa`, `block`, `backlog`, `return_to_queue`, `take_over` (see
+`OpsQuestionAction`). They render after your own options with the
+platform's labels, and picking one settles the item without re-firing
+you: no run is spent on "close it" or "send it to QA". Offer them when an
+answer would end your work on the item; a question may be all actions
+(2+ of them, no options of your own). Items only, not trails.
 
 **Delivery.** `resume` re-fires your trigger-connector run on the item
 once every question it asked is answered, continuing the same run record
@@ -3694,7 +3706,11 @@ asked: an answered question reads `status: completed` and carries
 `answer.selected` (the option labels picked) and `answer.other` (the
 free-text "Other" reply, or `null`). `answer.selected` of exactly
 `["No preference"]` means the person has no opinion: pick the simplest
-option that changes the least, and don't overcomplicate it.
+option that changes the least, and don't overcomplicate it. An option
+with `action` set is a platform action answer: when it was picked, the
+platform already carried it out (`deliveredAt`, or `deliveryError` when it
+failed) — the item was closed, sent to QA, handed to a person, … — so
+there is nothing left for you to do on it.
 
 **Use case:** You asked with `delivery: poll` from a live session — poll
 this until your questions read `completed`, then continue with the answers.
